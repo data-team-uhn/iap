@@ -33,9 +33,9 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Performs service tasks, the same way for both kinds of workflow: a system workflow's run, and a running instance's
- * through {@link #performer}. A handler therefore behaves identically whichever kind reached it, and nothing here may
- * assume which.
+ * Performs service tasks and holds the notifications message events announce, the same way for both kinds of
+ * workflow: a system workflow's run, and a running instance's through {@link #performer}. A handler therefore behaves
+ * identically whichever kind reached it, and nothing here may assume which.
  *
  * <p>One dispatcher serves one delivery, including the workflows its events send to, working from the handlers
  * registered when it began. {@link ServiceTaskDispatchers} hands it out.</p>
@@ -56,6 +56,9 @@ final class ServiceTaskDispatcher
     /** Hands out the runner for any instance a task starts. */
     private final InstanceRunners runners;
 
+    /** What the delivery's message events announced, sent once it commits. */
+    private final PendingNotifications notifications;
+
     /**
      * Constructor.
      *
@@ -63,14 +66,26 @@ final class ServiceTaskDispatcher
      * @param chain how the engine admits an event a service task sends
      * @param routing moves a system workflow's run from node to node
      * @param runners hands out the runner for any instance a task starts
+     * @param notifications where the delivery's notifications wait for its commit
      */
     ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain, final FlowRouting routing,
-        final InstanceRunners runners)
+        final InstanceRunners runners, final PendingNotifications notifications)
     {
         this.handlers = handlers;
         this.chain = chain;
         this.routing = routing;
         this.runners = runners;
+        this.notifications = notifications;
+    }
+
+    /**
+     * What the delivery's message events announced, to be sent once it commits.
+     *
+     * @return the delivery's notifications
+     */
+    PendingNotifications getNotifications()
+    {
+        return this.notifications;
     }
 
     /**
@@ -125,7 +140,7 @@ final class ServiceTaskDispatcher
      * @param actor the user the instance is being moved for
      * @return a performer bound to this delivery
      */
-    InstanceRunner.ServiceTaskPerformer performer(final WorkflowEvent event, final String actor)
+    InstanceRunner.StepPerformer performer(final WorkflowEvent event, final String actor)
     {
         return new InstanceSteps(this, event, actor);
     }
@@ -145,7 +160,7 @@ final class ServiceTaskDispatcher
 
     /**
      * Runs the workflow waiting for an event a service task sent, as part of the sending execution: admitted by the
-     * engine, then run in this delivery.
+     * engine, then run in this delivery, so that what it announces is sent with the rest.
      *
      * @param target the resource the event is sent to, backed by the engine's own session
      * @param event the sent event

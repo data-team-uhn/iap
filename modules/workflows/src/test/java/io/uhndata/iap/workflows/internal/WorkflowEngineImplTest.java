@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.jcr.AccessDeniedException;
@@ -46,6 +47,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Condition;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.models.SingleCondition;
+import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
@@ -62,6 +64,7 @@ import io.uhndata.iap.workflows.internal.handlers.StartWorkflowHandler;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
+import io.uhndata.iap.workflows.models.IntermediateThrowingEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
@@ -98,6 +101,10 @@ class WorkflowEngineImplTest
 
     private static final String SUPER_TYPE = "sling:resourceSuperType";
 
+    private static final String MESSAGE_NAME = "messageName";
+
+    private static final String RECIPIENTS = "recipients";
+
     /** A second system workflow, for the tests where two of them catch the same event. */
     private static final String OTHER_VERSION = "/SystemWorkflows/otherWorkflow/v1";
 
@@ -108,6 +115,9 @@ class WorkflowEngineImplTest
         new WorkflowEvent("create", Map.of("title", "My cool workflow"));
 
     private final SlingContext context = new SlingContext();
+
+    /** What the engine told whom. */
+    private final RecordedNotifications told = new RecordedNotifications();
 
     @BeforeEach
     void setUp()
@@ -153,7 +163,7 @@ class WorkflowEngineImplTest
         allHandlers.add(new CreateEntityHandler());
         allHandlers.add(new CallActivityHandler());
         allHandlers.add(new StartWorkflowHandler());
-        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, failure), allHandlers);
+        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, failure), allHandlers, this.told);
     }
 
     /**
@@ -885,6 +895,53 @@ class WorkflowEngineImplTest
     }
 
     @Test
+    void tellsPeopleWhatASystemWorkflowsMessageEventsAnnounce() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        announceAfterCreating("creating");
+        announce(VERSION + "/done", "created");
+
+        engine().receiveEvent(target, CREATE);
+
+        assertEquals(List.of("creating", "created"), this.told.events());
+        final NotificationContext notification = this.told.sent().get(0).notification();
+        assertEquals(target.getPath(), notification.getSubject().getPath());
+        assertEquals(EngineFixture.ADMIN, notification.getActor());
+    }
+
+    @Test
+    void tellsPeopleWhatTheWorkflowAnEventIsSentToAnnounces() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        sendAfterCreating("initialize");
+        createChainedWorkflow("initialize", EngineFixture.ADMIN, Map.of(
+            "handler", CreateEntityHandler.HANDLER_NAME, "entityType", "wf:WorkflowVersion"));
+        announce("/SystemWorkflows/chained/v1/done", "initialized");
+
+        engine().receiveEvent(target, CREATE);
+
+        assertEquals(List.of("initialized"), this.told.events());
+    }
+
+    @Test
+    void tellsNobodyAnythingWhenTheRunIsNotCommitted() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        announce(VERSION + "/done", "created");
+        final WorkflowEngine engine = engine(new PersistenceException("the disk is on fire"));
+
+        assertThrows(WorkflowFailedException.class, () -> engine.receiveEvent(target, CREATE));
+
+        assertTrue(this.told.sent().isEmpty());
+    }
+
+    @Test
     void refusesTheWholeEventWhenNothingWaitsForTheOneItSends() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
@@ -934,6 +991,37 @@ class WorkflowEngineImplTest
 
         assertThrows(WorkflowDefinitionException.class,
             () -> engine.receiveEvent(target, new WorkflowEvent("archive", Map.of())));
+    }
+
+    /**
+     * Makes an event of a definition announce a message to the administrators.
+     *
+     * @param path the event
+     * @param name the message it announces
+     */
+    private void announce(final String path, final String name)
+    {
+        Objects.requireNonNull(this.context.resourceResolver().getResource(path).adaptTo(ModifiableValueMap.class),
+            "The mock repository lets any node be modified")
+            .putAll(Map.of(MESSAGE_NAME, name, RECIPIENTS, new String[] {EngineFixture.ADMIN}));
+    }
+
+    /**
+     * Makes the bootstrap graph announce a message between creating the workflow and ending.
+     *
+     * @param message the message to announce
+     * @throws PersistenceException never, the mock repository removes the old arc in memory
+     */
+    private void announceAfterCreating(final String message) throws PersistenceException
+    {
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(VERSION + "/create/toDone"));
+        this.context.create().resource(VERSION + "/create/toAnnounce", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toAnnounce", "targetRef", "announce"));
+        this.context.create().resource(VERSION + "/announce", Map.of(TYPE, IntermediateThrowingEvent.RESOURCE_TYPE,
+            ELEMENT_ID, "announce", MESSAGE_NAME, message, RECIPIENTS, new String[] {EngineFixture.ADMIN}));
+        this.context.create().resource(VERSION + "/announce/toDone", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", "targetRef", "done"));
     }
 
     /**

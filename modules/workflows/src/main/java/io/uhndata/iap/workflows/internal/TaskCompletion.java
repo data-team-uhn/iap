@@ -115,13 +115,13 @@ public class TaskCompletion
      * @param taskResource the task the event is aimed at
      * @param event the incoming event
      * @param actor the user who sent the event
-     * @param performer how the resumed instance performs any service task it meets
+     * @param performer how the resumed instance handles any service task or message it meets
      * @throws WorkflowException when the event does not apply, the actor may not complete it, the outcome is missing
      *             or not one the task offers, or the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
     void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
-        final String actor, final InstanceRunner.ServiceTaskPerformer performer)
+        final String actor, final InstanceRunner.StepPerformer performer)
         throws WorkflowException, PersistenceException
     {
         final TaskEvent kind = TaskEvent.of(event);

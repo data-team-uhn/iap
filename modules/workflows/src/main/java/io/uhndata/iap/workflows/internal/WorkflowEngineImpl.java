@@ -56,7 +56,7 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * allow.</p>
  *
  * <p>Everything a run changes lands in a single commit at quiescence. An event either fully happened, or did not
- * happen at all.</p>
+ * happen at all. The notifications its message events announced are sent only after that commit.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -99,7 +99,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference
     private WorkflowQueries queries;
 
-    /** Hands out what performs a delivery's service tasks. */
+    /** Hands out what performs a delivery's service tasks and holds its notifications. */
     @Reference
     private ServiceTaskDispatchers dispatchers;
 
@@ -160,7 +160,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * do.
      *
      * <p>Two walks of one instance at once conflict when the second commits. The loser is reverted, which also
-     * brings its session up to date, and run again on top of what the winner did.</p>
+     * brings its session up to date, and run again on top of what the winner did. Each attempt has its own
+     * dispatcher, so the notifications a lost attempt announced are dropped with its writes.</p>
      *
      * @param task the task the event is aimed at, resolved through the engine's session
      * @param event the incoming event
@@ -172,13 +173,13 @@ public class WorkflowEngineImpl implements WorkflowEngine
         throws WorkflowException
     {
         final ResourceResolver resolver = task.getResourceResolver();
-        return RepositoryFailures.retryingConflicts(CONFLICT_RETRIES, () -> {
+        final ServiceTaskDispatcher committed = RepositoryFailures.retryingConflicts(CONFLICT_RETRIES, () -> {
+            final ServiceTaskDispatcher attempt = dispatcher();
             try {
                 this.taskCompletion.apply(resolver, Objects.requireNonNull(resolver.getResource(task.getPath()),
-                    "A task is never deleted while its instance runs"), event, actor,
-                    dispatcher().performer(event, actor));
+                    "A task is never deleted while its instance runs"), event, actor, attempt.performer(event, actor));
                 resolver.commit();
-                return new WorkflowResult(Map.of());
+                return attempt;
             } catch (final PersistenceException e) {
                 revert(resolver);
                 throw RepositoryFailures.translate(e);
@@ -187,6 +188,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 throw e;
             }
         });
+        committed.getNotifications().send();
+        return new WorkflowResult(Map.of());
     }
 
     /**
@@ -203,10 +206,11 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final String actor) throws WorkflowException
     {
         final ResourceResolver resolver = target.getResourceResolver();
+        final ServiceTaskDispatcher dispatcher = dispatcher();
+        final Map<String, Object> variables;
         try {
-            final Map<String, Object> variables = dispatcher().runSystemWorkflow(target, event, start, actor, 0);
+            variables = dispatcher.runSystemWorkflow(target, event, start, actor, 0);
             resolver.commit();
-            return new WorkflowResult(variables);
         } catch (final PersistenceException e) {
             revert(resolver);
             throw RepositoryFailures.translate(e);
@@ -214,6 +218,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
             revert(resolver);
             throw e;
         }
+        dispatcher.getNotifications().send();
+        return new WorkflowResult(variables);
     }
 
     /**
@@ -242,8 +248,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
     }
 
     /**
-     * How a delivery performs its service tasks: through the handlers registered as it begins, with this engine to
-     * admit an event one of them sends.
+     * How a delivery performs its service tasks and holds its notifications, with this engine to admit an event one
+     * of them sends.
      *
      * @return a dispatcher for one delivery
      */

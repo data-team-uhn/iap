@@ -26,16 +26,17 @@ import org.apache.sling.api.resource.Resource;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.Event;
 
 /**
- * How a running instance performs the service tasks it meets during one delivery, through the dispatch a system
- * workflow uses, acting on the instance's host. The variables belong to the delivery; an instance's persisted
- * variables are not yet exposed to handlers.
+ * How a running instance performs the steps it meets during one delivery, through the dispatch a system workflow
+ * uses. Both act on the instance's host. The variables belong to the delivery; an instance's persisted variables are
+ * not yet exposed to handlers.
  *
  * @version $Id$
  * @since 0.1.0
  */
-final class InstanceSteps implements InstanceRunner.ServiceTaskPerformer
+final class InstanceSteps implements InstanceRunner.StepPerformer
 {
     private final ServiceTaskDispatcher dispatcher;
 
@@ -65,5 +66,11 @@ final class InstanceSteps implements InstanceRunner.ServiceTaskPerformer
     {
         this.dispatcher.perform(activity, new WorkflowTaskContextImpl(InstanceRecords.hostOf(instance), this.event,
             activity, this.variables, this.actor, this.dispatcher, 0));
+    }
+
+    @Override
+    public void throwMessage(final Event source, final Resource instance)
+    {
+        this.dispatcher.getNotifications().announce(source, InstanceRecords.hostOf(instance), this.event, this.actor);
     }
 }

@@ -33,6 +33,7 @@ import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.FlowNode;
+import io.uhndata.iap.workflows.models.IntermediateThrowingEvent;
 import io.uhndata.iap.workflows.models.StartEvent;
 
 /**
@@ -54,7 +55,7 @@ final class SystemWorkflowRunner
     /**
      * Constructor.
      *
-     * @param dispatcher performs the service tasks of the delivery the run belongs to
+     * @param dispatcher performs the service tasks of the delivery the run belongs to, and holds its notifications
      * @param routing moves the run from node to node
      */
     SystemWorkflowRunner(final ServiceTaskDispatcher dispatcher, final FlowRouting routing)
@@ -65,8 +66,9 @@ final class SystemWorkflowRunner
 
     /**
      * Runs a system workflow to quiescence, without committing: node by node from the start event, performing each
-     * service task, until an end event is reached. A system workflow has no instance, and nowhere to wait. Any node
-     * that cannot be passed straight through means the definition is not a valid system workflow.
+     * service task and announcing each message, until an end event is reached. A system workflow has no instance, and
+     * nowhere to wait. Any node that cannot be passed straight through means the definition is not a valid system
+     * workflow.
      *
      * @param target the resource the event is aimed at, backed by the engine's own session
      * @param event the incoming event
@@ -85,6 +87,7 @@ final class SystemWorkflowRunner
         FlowNode node = start;
         for (int step = 0; step < WorkflowEngineImpl.MAX_STEPS; step++) {
             if (node instanceof EndEvent) {
+                this.dispatcher.getNotifications().announce((EndEvent) node, target, event, actor);
                 return variables;
             }
             if (node instanceof Activity) {
@@ -93,6 +96,8 @@ final class SystemWorkflowRunner
                 // After each activity rather than at the end: a later activity may start a workflow on what this one
                 // created, and @creator there reads createdBy
                 recordActor(resolver, variables, actor);
+            } else if (node instanceof IntermediateThrowingEvent) {
+                this.dispatcher.getNotifications().announce((IntermediateThrowingEvent) node, target, event, actor);
             } else if (!(node instanceof StartEvent) || step > 0) {
                 // A system workflow cannot contain this node: there is no persisted instance whose token
                 // could rest here

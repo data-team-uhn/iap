@@ -26,6 +26,7 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
+import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 
 /**
@@ -45,17 +46,22 @@ public class ServiceTaskDispatchers
 
     private final InstanceRunners runners;
 
+    private final NotificationService notifications;
+
     /**
      * Constructor.
      *
      * @param routing moves a system workflow's run from node to node
      * @param runners hands out the runner for any instance a delivery starts
+     * @param notifications tells people what message events announced
      */
     @Activate
-    public ServiceTaskDispatchers(@Reference final FlowRouting routing, @Reference final InstanceRunners runners)
+    public ServiceTaskDispatchers(@Reference final FlowRouting routing, @Reference final InstanceRunners runners,
+        @Reference final NotificationService notifications)
     {
         this.routing = routing;
         this.runners = runners;
+        this.notifications = notifications;
     }
 
     /**
@@ -78,6 +84,6 @@ public class ServiceTaskDispatchers
     {
         // Read once: the registry replaces the list, and a REPLACE field is null until the first handler arrives
         return new ServiceTaskDispatcher(Objects.requireNonNullElse(this.handlers, List.of()), chain, this.routing,
-            this.runners);
+            this.runners, new PendingNotifications(this.notifications));
     }
 }

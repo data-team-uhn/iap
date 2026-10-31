@@ -30,8 +30,10 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
+import io.uhndata.iap.workflows.models.Event;
 import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
+import io.uhndata.iap.workflows.models.IntermediateThrowingEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
@@ -62,7 +64,7 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  */
 final class InstanceRunner
 {
-    private final ServiceTaskPerformer performer;
+    private final StepPerformer performer;
 
     private final String actor;
 
@@ -76,12 +78,12 @@ final class InstanceRunner
      * Constructor, for {@link InstanceRunners}, which holds the services every run shares.
      *
      * @param records the nodes of the run, in the engine's own session
-     * @param performer how a service task met along the way gets performed
+     * @param performer how a service task or a message met along the way gets handled
      * @param actor the user whose action is moving this instance
      * @param routing what decides where tokens go
      * @param hostAccess grants read access on the resource an instance drives
      */
-    InstanceRunner(final InstanceRecords records, final ServiceTaskPerformer performer, final String actor,
+    InstanceRunner(final InstanceRecords records, final StepPerformer performer, final String actor,
         final FlowRouting routing, final HostAccess hostAccess)
     {
         this.records = records;
@@ -280,6 +282,7 @@ final class InstanceRunner
         final FlowNode node = step.node();
         this.records.moveToken(token, node, step.arrivedBy());
         if (node instanceof EndEvent) {
+            this.performer.throwMessage((EndEvent) node, instance);
             this.records.tagHost(instance, (EndEvent) node);
             if (((EndEvent) node).isTerminate()) {
                 this.records.terminateInstance(instance);
@@ -298,6 +301,8 @@ final class InstanceRunner
         } else if (!this.routing.canPassThrough(node)) {
             throw new WorkflowDefinitionException("The engine cannot yet carry an instance through "
                 + node.getPath());
+        } else if (node instanceof IntermediateThrowingEvent) {
+            this.performer.throwMessage((IntermediateThrowingEvent) node, instance);
         }
         if (!mergeAtJoin(instance, node, token, step.arrivedBy(), pending)) {
             // A join still waiting for another branch; this token stays on it
@@ -427,14 +432,14 @@ final class InstanceRunner
     }
 
     /**
-     * How the runner performs a service task it meets along the way. The engine supplies this rather than letting
-     * the runner reach for handlers. Performing a service task then means the same thing in a system workflow and
-     * in a running instance.
+     * How the runner handles the steps that do something on their own: a service task, and a thrown message. The
+     * engine supplies this rather than letting the runner reach for handlers. Each step then means the same thing
+     * in a system workflow and in a running instance.
      *
      * @version $Id$
      * @since 0.1.0
      */
-    interface ServiceTaskPerformer
+    interface StepPerformer
     {
         /**
          * Performs one service task.
@@ -445,5 +450,13 @@ final class InstanceRunner
          * @throws PersistenceException when its writes fail
          */
         void perform(Activity activity, Resource instance) throws WorkflowException, PersistenceException;
+
+        /**
+         * Throws the message a throwing event names, if it names one.
+         *
+         * @param source the throwing event a token reached
+         * @param instance the running instance it belongs to
+         */
+        void throwMessage(Event source, Resource instance);
     }
 }

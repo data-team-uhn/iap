@@ -36,6 +36,7 @@ import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.Gateway;
 import io.uhndata.iap.workflows.models.InclusiveGateway;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
+import io.uhndata.iap.workflows.models.IntermediateThrowingEvent;
 import io.uhndata.iap.workflows.models.ParallelGateway;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
@@ -70,12 +71,13 @@ public class FlowRouting
 
     /**
      * Whether a token may pass through a node without stopping there. A start event and a gateway may be passed, and
-     * so may a service task, which is performed on the way. So may a boundary event a token stands on, since it stands
-     * there only once the event has fired.
+     * so may a service task, which is performed on the way, and an intermediate throwing event, whose message is
+     * thrown on the way. So may a boundary event a token stands on, since it stands there only once the event has
+     * fired.
      *
      * <p>A token stops at a user task, to wait for a person, and at an end event, where it ends. A free-standing
      * catching event may not be passed either: a token reaching it would have to wait, and nothing can wake it yet.
-     * Any other node, such as a throwing event, means nothing to the engine and may not be passed.</p>
+     * Any other node means nothing to the engine and may not be passed.</p>
      *
      * @param node the node to ask about
      * @return {@code true} if a token may pass through it
@@ -86,7 +88,8 @@ public class FlowRouting
             // No handler means a user task, which waits for a person
             return ((Activity) node).getHandler() != null;
         }
-        return node instanceof StartEvent || node instanceof Gateway || isFiredBoundaryEvent(node);
+        return node instanceof StartEvent || node instanceof Gateway || node instanceof IntermediateThrowingEvent
+            || isFiredBoundaryEvent(node);
     }
 
     /**

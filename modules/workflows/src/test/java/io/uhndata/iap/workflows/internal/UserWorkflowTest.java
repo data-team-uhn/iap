@@ -42,6 +42,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
@@ -56,6 +57,7 @@ import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.ExclusiveGateway;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
+import io.uhndata.iap.workflows.models.IntermediateThrowingEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
@@ -72,6 +74,7 @@ import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -106,6 +109,10 @@ class UserWorkflowTest
 
     private static final String APPROVE = "approveRequest";
 
+    private static final String ANNOUNCE = "announce";
+
+    private static final String MESSAGE_NAME = "messageName";
+
     private static final WorkflowEvent START = new WorkflowEvent("start", Map.of());
 
     private static final WorkflowEvent TIMEOUT = new WorkflowEvent("timeout", Map.of());
@@ -120,6 +127,9 @@ class UserWorkflowTest
 
     // JCR-backed: the runtime writes a real REFERENCE to the workflow version, which needs a JCR node
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
+
+    /** What the engine told whom. */
+    private final RecordedNotifications told = new RecordedNotifications();
 
     @BeforeEach
     void setUp()
@@ -582,7 +592,25 @@ class UserWorkflowTest
         this.context.resourceResolver().commit();
         final List<ServiceTaskHandler> registered = new ArrayList<>(List.of(handlers));
         registered.add(new StartWorkflowHandler());
-        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, null), registered);
+        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, null), registered, this.told);
+    }
+
+    /**
+     * Puts a throwing event between the start of the process and its user task.
+     *
+     * @param properties the event's own properties, its message name if it throws one
+     */
+    private void announceBeforeApproval(final Map<String, Object> properties)
+    {
+        Objects.requireNonNull(this.context.resourceResolver().getResource(PROCESS + "/requestSubmitted/toApproval")
+            .adaptTo(ModifiableValueMap.class), "The mock repository lets any node be modified")
+            .put(TARGET_REF, ANNOUNCE);
+        final Map<String, Object> event = new HashMap<>(properties);
+        event.put(TYPE, IntermediateThrowingEvent.RESOURCE_TYPE);
+        event.put(ELEMENT_ID, ANNOUNCE);
+        this.context.create().resource(PROCESS + "/" + ANNOUNCE, event);
+        this.context.create().resource(PROCESS + "/" + ANNOUNCE + "/toApproval", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "announcedToApproval", TARGET_REF, APPROVE));
     }
 
     /**
@@ -772,6 +800,58 @@ class UserWorkflowTest
         // rather than declared twice
         assertTrue(EngineFixture.GRANTED.contains(EngineFixture.REQUESTER));
         assertTrue(EngineFixture.GRANTED.contains(EngineFixture.REQUESTERS));
+    }
+
+    @Test
+    void tellsPeopleWhatAMessageEventOnTheWayAnnounces() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        announceBeforeApproval(Map.of(MESSAGE_NAME, "submitted", "recipients", new String[] {EngineFixture.REQUESTERS},
+            "template", "/libs/iap/notificationTemplates/submitted", "urgency", "batched"));
+
+        started();
+
+        assertEquals(1, this.told.sent().size());
+        final RecordedNotifications.Sent sent = this.told.sent().get(0);
+        assertEquals(List.of(EngineFixture.REQUESTERS), sent.roles());
+        final NotificationContext notification = sent.notification();
+        assertEquals("submitted", notification.getEvent());
+        assertEquals(HOST, notification.getSubject().getPath());
+        assertEquals(EngineFixture.REQUESTER, notification.getActor());
+        assertEquals("/libs/iap/notificationTemplates/submitted", notification.getTemplate());
+        assertEquals("batched", notification.getUrgency());
+        // Announced on the way: the token went on to the task
+        assertFalse(read(TASK).isEmpty());
+    }
+
+    @Test
+    void passesAThrowingEventThatNamesNoMessageWithoutTellingAnybody() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        // Somebody to tell, but nothing to tell them
+        announceBeforeApproval(Map.of("recipients", new String[] {EngineFixture.REQUESTERS}));
+
+        started();
+
+        assertTrue(this.told.sent().isEmpty());
+        assertFalse(read(TASK).isEmpty());
+    }
+
+    @Test
+    void tellsPeopleWhatTheEndEventTheInstanceReachesAnnouncesWithTheDecision() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        Objects.requireNonNull(this.context.resourceResolver().getResource(PROCESS + "/requestApproved")
+            .adaptTo(ModifiableValueMap.class), "The mock repository lets any node be modified")
+            .putAll(Map.of(MESSAGE_NAME, "approved", "recipients", new String[] {"@creator"}));
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+
+        assertEquals(List.of("approved"), this.told.events());
+        // The decision travels to the template, which may quote it
+        assertEquals("approved", this.told.sent().get(0).notification().getVariables().get("outcome"));
+        assertEquals(List.of("approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test

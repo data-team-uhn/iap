@@ -767,6 +767,48 @@ asks for. The base checks the whole request before writing anything, removes a p
 sent empty unless it is mandatory, and stores a reference as a `REFERENCE`.
 `saveProperties` works this way.
 
+### Message events tell people what happened
+
+```json
+"requestApproved": {
+  "jcr:primaryType": "wf:EndEvent",
+  "jcr:reference:flowNodeType": "/WorkflowTypes/MessageEndEvent",
+  "elementId": "requestApproved",
+  "messageName": "approved",
+  "template": "/libs/iap/notificationTemplates/submissionApproved",
+  "recipients": [ "@creator" ],
+  "urgency": "immediate"
+}
+```
+
+A workflow announces what happened with a message event: a message intermediate throw
+event a token passes, or a message end event it stops at. The engine turns it into a
+[notification](notifications.md) about the resource the workflow is moving, named after
+the message, from whoever the run acts for. A throwing event with no message name is a
+milestone and announces nothing. Both kinds of workflow announce the same way.
+
+| Property | Meaning |
+| --- | --- |
+| `messageName` | What happened, which a person's notification settings key on |
+| `recipients` | Who to tell, in the vocabulary `performers` uses; naming nobody tells nobody, and records a problem |
+| `template` | The template folder |
+| `urgency` | How soon, `immediate` by default |
+
+The notification carries the delivered event's `outcome` and `outcomeNote` when it has
+them, so a template can quote the reason a request was refused. Nothing is sent until the
+delivery commits:
+
+| The delivery | Notifications sent |
+| --- | --- |
+| commits | every one announced, in order |
+| fails, or is refused | none |
+| is retried after a conflict | those of the attempt that committed, once |
+| sends an event to another system workflow | that workflow's as well |
+
+A notification that cannot be sent is recorded, and never fails the delivery: what it
+reports has already happened. How each person hears is the business of the deliveries the
+notifications module offers it to, which is where a new channel plugs in.
+
 ### The bootstrap: creating workflows is itself a workflow
 
 `/SystemWorkflows/createWorkflow` ships with the platform: a `create`-catching message
@@ -946,9 +988,10 @@ each completed on its own.
 - **Instance variables are not exposed to handlers.** `outcome` persists as a
   `wf:Variable`, but a service task inside an instance sees variables that last only for
   that delivery.
-- **Nothing delivers a message**, and event-based gateways are not executed. An instance
-  reaching a free-standing catching event is refused rather than parked, since nothing
-  could wake it: the engine's door opens onto a homepage or a task.
+- **Nothing delivers a message to a catching event**, and event-based gateways are not
+  executed: a thrown message becomes a notification, never an event for another workflow.
+  An instance reaching a free-standing catching event is refused rather than parked,
+  since nothing could wake it: the engine's door opens onto a homepage or a task.
 - **Read access is never revoked.** It lasts for the life of the instance rather than
   while a task is open.
 - **A gateway's guards cannot name a question by its path.** They are evaluated against
