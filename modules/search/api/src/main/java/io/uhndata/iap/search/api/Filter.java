@@ -17,6 +17,11 @@
  */
 package io.uhndata.iap.search.api;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -68,6 +73,32 @@ public final class Filter
         this.comparator = Operator.parse(comparator);
         this.value = value;
         this.group = group;
+    }
+
+    /**
+     * Collects conditions into the groups they are evaluated in: those sharing a group are ORed together, and each
+     * condition in no group stands alone. The groups are then ANDed.
+     *
+     * @param filters the conditions to group
+     * @return the groups, none of them empty, in the order each first appears
+     */
+    @NotNull
+    public static List<List<Filter>> groups(@NotNull final List<Filter> filters)
+    {
+        final List<List<Filter>> groups = new ArrayList<>();
+        final Map<String, List<Filter>> named = new HashMap<>();
+        for (final Filter filter : filters) {
+            if (filter.getGroup() == null) {
+                groups.add(List.of(filter));
+            } else {
+                named.computeIfAbsent(filter.getGroup(), key -> {
+                    final List<Filter> group = new ArrayList<>();
+                    groups.add(group);
+                    return group;
+                }).add(filter);
+            }
+        }
+        return groups;
     }
 
     /**

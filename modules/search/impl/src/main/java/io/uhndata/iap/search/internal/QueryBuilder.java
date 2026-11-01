@@ -17,8 +17,6 @@
  */
 package io.uhndata.iap.search.internal;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -225,7 +223,7 @@ final class QueryBuilder
     private static void appendConditions(final StringBuilder query, final String source, final List<Filter> filters,
         final Map<String, String> bindings)
     {
-        for (final List<Filter> group : groupFilters(filters)) {
+        for (final List<Filter> group : Filter.groups(filters)) {
             query.append(" and (")
                 .append(group.stream().map(filter -> condition(source, filter, bindings))
                     .collect(Collectors.joining(" or ")))
@@ -246,31 +244,6 @@ final class QueryBuilder
         final String name = "p" + bindings.size();
         bindings.put(name, value);
         return "$" + name;
-    }
-
-    /**
-     * Collects the filters into their groups: filters sharing a group id end up ORed together, while each ungrouped
-     * filter stands on its own. The order of the resulting groups follows the order in which they first appear.
-     *
-     * @param filters the filters to group
-     * @return a list of non-empty filter groups
-     */
-    private static List<List<Filter>> groupFilters(final List<Filter> filters)
-    {
-        final List<List<Filter>> groups = new ArrayList<>();
-        final Map<String, List<Filter>> namedGroups = new HashMap<>();
-        for (final Filter filter : filters) {
-            if (filter.getGroup() == null) {
-                groups.add(List.of(filter));
-            } else {
-                namedGroups.computeIfAbsent(filter.getGroup(), key -> {
-                    final List<Filter> group = new ArrayList<>();
-                    groups.add(group);
-                    return group;
-                }).add(filter);
-            }
-        }
-        return groups;
     }
 
     private static String condition(final String source, final Filter filter, final Map<String, String> bindings)

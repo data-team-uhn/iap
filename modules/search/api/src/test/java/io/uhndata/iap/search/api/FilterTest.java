@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.search.api;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -65,5 +67,17 @@ public class FilterTest
     {
         Assertions.assertNull(new Filter("status", "=", "draft").getGroup());
         Assertions.assertEquals("g1", new Filter("status", "=", "draft", "g1").getGroup());
+    }
+
+    @Test
+    public void groupsConditionsSharingAGroupAndLeavesTheRestAlone()
+    {
+        final Filter draft = new Filter("status", "=", "draft", "status");
+        final Filter mine = new Filter("createdBy", "=", "@me");
+        final Filter submitted = new Filter("status", "=", "submitted", "status");
+        final Filter recent = new Filter("jcr:created", ">", "2026-10-01");
+
+        Assertions.assertEquals(List.of(List.of(draft, submitted), List.of(mine), List.of(recent)),
+            Filter.groups(List.of(draft, mine, submitted, recent)));
     }
 }
