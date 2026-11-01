@@ -82,6 +82,7 @@ class AdminSummaryServletTest
         });
 
         assertEquals(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, response.getStatus());
+        assertEquals("error", read(response).getString("status"));
         assertEquals("The archive cannot be queried", read(response).getString("error"));
     }
 

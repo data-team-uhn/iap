@@ -18,8 +18,10 @@
 package io.uhndata.iap.status;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
@@ -35,6 +37,7 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.status.api.StatusReportManager;
 import io.uhndata.iap.status.spi.StatusReport;
+import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.UserIds;
 
 /**
@@ -57,10 +60,11 @@ public class StatusReportEndpoint extends SlingJakartaSafeMethodsServlet
     private transient StatusReportManager manager;
 
     @Override
+    // The reports are content, served as text or JSON rather than as a command's answer
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
-        response.setCharacterEncoding("UTF-8");
         final boolean unprivileged = !"admin".equals(UserIds.canonical(request.getResourceResolver()));
         final String requestedStatus = request.getParameter("targetStatus");
         final StatusReport.Status targetStatus;
@@ -68,14 +72,11 @@ public class StatusReportEndpoint extends SlingJakartaSafeMethodsServlet
             targetStatus = requestedStatus == null || requestedStatus.isBlank()
                 ? StatusReport.Status.INFO : StatusReport.Status.valueOf(requestedStatus);
         } catch (final IllegalArgumentException e) {
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.setContentType("application/json");
-            response.getWriter().print(Json.createObjectBuilder()
-                .add("status", "error")
-                .add("error", "Invalid targetStatus: " + requestedStatus)
-                .build().toString());
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST, "targetStatus must be one of "
+                + Arrays.stream(StatusReport.Status.values()).map(Enum::name).collect(Collectors.joining(", ")));
             return;
         }
+        response.setCharacterEncoding("UTF-8");
         final Set<String> tags = request.getParameterValues("tags") == null ? Collections.emptySet()
             : Set.of(request.getParameterValues("tags"));
         if ("txt".equals(request.getRequestPathInfo().getExtension())) {

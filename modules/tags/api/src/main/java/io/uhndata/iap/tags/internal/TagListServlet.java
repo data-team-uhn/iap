@@ -37,6 +37,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.tags.models.TagsHomepage;
+import io.uhndata.iap.utils.JsonResponses;
 
 /**
  * Lists the defined tags, as a JSON array of tag definitions wrapped in a result object. Served at
@@ -61,12 +62,11 @@ public class TagListServlet extends SlingJakartaSafeMethodsServlet
     private transient TagManager tagManager;
 
     @Override
+    // The tags are content, a listing rather than a command's answer
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
         List<TagDefinition> definitions =
             this.tagManager.findDefinitions(request.getParameter("category"), request.getParameter("query"));
         final String target = request.getParameter("target");
@@ -74,11 +74,7 @@ public class TagListServlet extends SlingJakartaSafeMethodsServlet
             final Resource targetResource = request.getResourceResolver().getResource(target);
             final Content targetContent = targetResource == null ? null : targetResource.adaptTo(Content.class);
             if (targetContent == null) {
-                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                response.getWriter().write(Json.createObjectBuilder()
-                    .add("status", "error")
-                    .add("error", "Inaccessible target: " + target)
-                    .build().toString());
+                JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST, "The target is not readable");
                 return;
             }
             definitions = definitions.stream().filter(definition -> definition.appliesTo(targetContent)).toList();
@@ -86,6 +82,8 @@ public class TagListServlet extends SlingJakartaSafeMethodsServlet
 
         final JsonArrayBuilder tags = Json.createArrayBuilder();
         definitions.forEach(definition -> tags.add(definition.toDocumentationJson()));
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
         response.getWriter().write(Json.createObjectBuilder()
             .add("tags", tags)
             .add("total", definitions.size())

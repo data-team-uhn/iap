@@ -390,3 +390,35 @@ a missing service user.
 Fail closed where a failure has a safe side. An unknown comparator in a condition
 means *not satisfied*, so content behind a broken rule stays hidden; a veto that
 throws counts as a veto, so the data stays.
+
+## Answering a request
+
+An endpoint that carries out a command answers in one shape, through `JsonResponses`
+(`io.uhndata.iap.utils`):
+
+```java
+JsonResponses.write(response, HttpServletResponse.SC_OK, "ok");
+JsonResponses.write(response, HttpServletResponse.SC_OK, "incomplete",
+    Json.createObjectBuilder().add("marked", report.marked()));
+JsonResponses.writeError(response, HttpServletResponse.SC_CONFLICT, "Version 2.0 is retired");
+```
+
+| Key | Holds |
+|---|---|
+| `status` | A short word a client can switch on: `ok`, `archived`, `error` |
+| `error` | Why a request failed, in words for the person who sent it, when `status` is `error` |
+| anything else | The details of the outcome, which may not reuse `status` or `error` |
+
+An error's reason never carries an exception's message, which can name the instance's
+infrastructure: log and record the exception, and answer with a generic reason. An
+engine's refusal, written for the person who sent the event, is the exception to that.
+
+Content keeps its own shape: a resource, a listing, a page of results, documentation.
+The build refuses a JSON response written any other way, so a servlet serving content
+says so where it writes, with the reason beside it:
+
+```java
+// The tags are content, a listing rather than a command's answer
+@SuppressWarnings("checkstyle:directResponseWriter")
+protected void doGet(final SlingJakartaHttpServletRequest request, ...)
+```

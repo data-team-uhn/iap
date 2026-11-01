@@ -243,7 +243,7 @@ class DeleteServletTest
     @Test
     void responsesUtilityIsNotInstantiatable() throws Exception
     {
-        final Constructor<JsonResponses> constructor = JsonResponses.class.getDeclaredConstructor();
+        final Constructor<DeletionResponses> constructor = DeletionResponses.class.getDeclaredConstructor();
         constructor.setAccessible(true);
         assertNotNull(constructor.newInstance());
     }

@@ -53,6 +53,7 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.search.api.SearchContext;
 import io.uhndata.iap.search.api.SearchContextFactory;
 import io.uhndata.iap.search.spi.QuickSearchEngine;
+import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.PaginatedJsonResponse;
 
 /**
@@ -186,27 +187,25 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      * Runs the search a request asks for, whichever method it arrived by, and reports whatever it could not do.
      *
      * @param request the current request
-     * @param response the HTTP response
+     * @param response the HTTP response to write into
      * @throws IOException if writing the response fails
      */
     private void search(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
         try {
             writeResponse(request, response);
         } catch (final InvalidQueryException e) {
-            PaginatedJsonResponse.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
+            JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
                 "Invalid query: " + e.getMessage());
         } catch (final IllegalArgumentException e) {
             // What Oak raises for a query it parsed but cannot make sense of, notably a malformed full-text
             // expression. The client sent it, so the client hears about it.
-            PaginatedJsonResponse.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
+            JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
                 "Invalid query: " + e.getMessage());
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to execute search query: {}", e.getMessage(), e);
-            PaginatedJsonResponse.writeError(response, SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+            JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "Failed to execute query");
         }
     }
@@ -222,33 +221,19 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      * </p>
      *
      * @param request the current request
-     * @param response the HTTP response
+     * @param response the HTTP response to write into
      * @throws IOException if writing the response fails
      * @throws RepositoryException if the query is invalid or cannot be executed
      */
+    // A page of results is content, streamed as it is read
+    @SuppressWarnings("checkstyle:directResponseWriter")
     private void writeResponse(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException, RepositoryException
     {
-        final String jcrQuery = request.getParameter("query");
-        final String fullText = request.getParameter("fulltext");
+        final Found found = this.runRequestedQuery(request);
         final String quick = request.getParameter("quick");
-        final QueryResult results;
-        final boolean reporting;
-        if (StringUtils.isNotBlank(jcrQuery)) {
-            final Session session = session(request);
-            final String statement = QueryPathResolver.resolveReferencePaths(session, jcrQuery);
-            reporting = REPORTING_QUERY.matcher(statement).find();
-            // Asking for the plan of a statement that is itself about a plan is either the same question again or,
-            // for an explain, not something Oak will parse
-            results = runQuery(session, new BoundStatement(statement, Map.of()), !reporting);
-        } else if (StringUtils.isNotBlank(fullText)) {
-            reporting = false;
-            results = runQuery(session(request), fullTextStatement(request, fullText), true);
-        } else {
-            reporting = false;
-            results = null;
-        }
-
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
         // Closing the generator closes the writer too
         try (JsonGenerator json = Json.createGenerator(response.getWriter())) {
             json.writeStartObject();
@@ -256,13 +241,13 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
             final PaginatedJsonResponse page = PaginatedJsonResponse.forRequest(json, request);
             String error = null;
             try {
-                if (results != null) {
+                if (found.results() != null) {
                     // The rows of a reporting query describe the query. There is no node to serialize, and raw
                     // output is the only rendering left
-                    if (reporting || "true".equals(request.getParameter("rawResults"))) {
-                        writeRawResults(page, results);
+                    if (found.reporting() || "true".equals(request.getParameter("rawResults"))) {
+                        writeRawResults(page, found.results());
                     } else {
-                        writeNodeResults(page, request, results);
+                        writeNodeResults(page, request, found.results());
                     }
                 } else if (StringUtils.isNotBlank(quick)) {
                     writeQuickResults(page, request, quick);
@@ -280,6 +265,32 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
             page.writeSummary(request.getParameter("req"), error);
             json.writeEnd().flush();
         }
+    }
+
+    /**
+     * Runs the query a request names: a JCR-SQL2 statement in {@code query}, or a full-text search in
+     * {@code fulltext}.
+     *
+     * @param request the current request
+     * @return what the query found, with {@code null} results if the request names neither
+     * @throws RepositoryException if the query is invalid or cannot be executed
+     */
+    private Found runRequestedQuery(final SlingJakartaHttpServletRequest request) throws RepositoryException
+    {
+        final String jcrQuery = request.getParameter("query");
+        if (StringUtils.isNotBlank(jcrQuery)) {
+            final Session session = session(request);
+            final String statement = QueryPathResolver.resolveReferencePaths(session, jcrQuery);
+            final boolean reporting = REPORTING_QUERY.matcher(statement).find();
+            // Asking for the plan of a statement that is itself about a plan is either the same question again or,
+            // for an explain, not something Oak will parse
+            return new Found(this.runQuery(session, new BoundStatement(statement, Map.of()), !reporting), reporting);
+        }
+        final String fullText = request.getParameter("fulltext");
+        if (StringUtils.isNotBlank(fullText)) {
+            return new Found(this.runQuery(session(request), this.fullTextStatement(request, fullText), true), false);
+        }
+        return new Found(null, false);
     }
 
     /**
@@ -569,4 +580,15 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
         }
     }
 
+    /**
+     * What the query a request names found.
+     *
+     * @param results the rows, or {@code null} if the request names no query
+     * @param reporting whether the query is a reporting query, whose rows describe the query itself rather than nodes
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private record Found(QueryResult results, boolean reporting)
+    {
+    }
 }

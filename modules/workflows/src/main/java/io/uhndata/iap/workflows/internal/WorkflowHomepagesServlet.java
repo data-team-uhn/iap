@@ -80,6 +80,8 @@ public class WorkflowHomepagesServlet extends SlingJakartaSafeMethodsServlet
     private static final String WORKFLOW_DEFINITION_TYPE = "wf:WorkflowDefinition";
 
     @Override
+    // The homepages are content, a listing rather than a command's answer
+    @SuppressWarnings("checkstyle:directResponseWriter")
     public void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {

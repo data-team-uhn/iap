@@ -36,6 +36,7 @@ import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.api.TagRepairService;
 import io.uhndata.iap.tags.api.TagRepairService.RepairReport;
 import io.uhndata.iap.tags.models.TagsHomepage;
+import io.uhndata.iap.utils.JsonResponses;
 
 /**
  * Repairs the content affected by an edited tag definition, on request. Served at {@code POST /Tags.repair.json},
@@ -71,27 +72,21 @@ public class TagRepairServlet extends SlingJakartaAllMethodsServlet
     protected void doPost(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
         if (!mayEditDefinitions(request)) {
-            error(response, HttpServletResponse.SC_FORBIDDEN, "Repairing tags requires write access to "
-                + TagManager.DEFINITIONS_PATH);
+            JsonResponses.writeError(response, HttpServletResponse.SC_FORBIDDEN,
+                "Repairing tags requires write access to " + TagManager.DEFINITIONS_PATH);
             return;
         }
         final String tag = request.getParameter("tag");
         if (tag == null || tag.isBlank()) {
-            error(response, HttpServletResponse.SC_BAD_REQUEST, "Missing the name of the tag to repair");
+            JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST,
+                "Missing the name of the tag to repair");
             return;
         }
 
         final RepairReport report = this.repairService.repair(tag);
-        response.getWriter().write(Json.createObjectBuilder()
-            .add("status", report.isComplete() ? "ok" : "incomplete")
-            .add("tag", tag)
-            .add("marked", report.marked())
-            .add("failed", report.failed())
-            .build().toString());
+        JsonResponses.write(response, HttpServletResponse.SC_OK, report.isComplete() ? "ok" : "incomplete",
+            Json.createObjectBuilder().add("tag", tag).add("marked", report.marked()).add("failed", report.failed()));
     }
 
     /**
@@ -106,15 +101,5 @@ public class TagRepairServlet extends SlingJakartaAllMethodsServlet
     {
         final Resource definitions = request.getResourceResolver().getResource(TagManager.DEFINITIONS_PATH);
         return definitions != null && definitions.adaptTo(ModifiableValueMap.class) != null;
-    }
-
-    private void error(final SlingJakartaHttpServletResponse response, final int status, final String message)
-        throws IOException
-    {
-        response.setStatus(status);
-        response.getWriter().write(Json.createObjectBuilder()
-            .add("status", "error")
-            .add("error", message)
-            .build().toString());
     }
 }

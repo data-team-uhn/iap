@@ -73,6 +73,8 @@ public class CatcherStatusServlet extends SlingJakartaSafeMethodsServlet
     private transient volatile MailService catcher;
 
     @Override
+    // The catcher's state is content, read by the banner, not a command's answer
+    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
