@@ -80,8 +80,6 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
     protected void doPost(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
-        response.setCharacterEncoding("UTF-8");
-
         final Resource target = request.getResource();
         // The resource type is checked before adapting, never by adapting: a Sling Model registered for one
         // resource type will happily adapt a resource of an unrelated one

@@ -67,8 +67,6 @@ public class MetricsEndpoint extends SlingJakartaSafeMethodsServlet
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
-        response.setCharacterEncoding("UTF-8");
-        response.setContentType("application/json");
         final boolean unprivileged = !"admin".equals(UserIds.canonical(request.getResourceResolver()));
         try {
             final JsonArrayBuilder metrics = Json.createArrayBuilder();
@@ -76,6 +74,8 @@ public class MetricsEndpoint extends SlingJakartaSafeMethodsServlet
                 .filter(metric -> !unprivileged || metric.getAccessLevel() == Metric.AccessLevel.PUBLIC)
                 .map(Metric::toJson)
                 .forEach(metrics::add);
+            response.setCharacterEncoding("UTF-8");
+            response.setContentType("application/json");
             response.getWriter().print(Json.createObjectBuilder().add("metrics", metrics).build().toString());
         } catch (final MetricsException e) {
             LOGGER.error("The metrics could not be read: {}", e.getMessage(), e);

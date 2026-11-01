@@ -104,8 +104,6 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
     protected void doPost(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
-        response.setContentType("application/json;charset=UTF-8");
-
         final Resource selection = request.getResource();
         // The catalog root carries the same node type, so it binds this servlet too. A POST there would
         // validate, write, commit and answer 200 with a catalog echoing the new values -- while the service
@@ -144,6 +142,7 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
             return;
         }
 
+        response.setContentType("application/json;charset=UTF-8");
         try (Writer out = response.getWriter()) {
             out.write(buildCatalog(selection, catalog).toString());
         }

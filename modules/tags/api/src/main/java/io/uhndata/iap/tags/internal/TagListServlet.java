@@ -67,9 +67,6 @@ public class TagListServlet extends SlingJakartaSafeMethodsServlet
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
         List<TagDefinition> definitions =
             this.tagManager.findDefinitions(request.getParameter("category"), request.getParameter("query"));
         final String target = request.getParameter("target");
@@ -85,6 +82,8 @@ public class TagListServlet extends SlingJakartaSafeMethodsServlet
 
         final JsonArrayBuilder tags = Json.createArrayBuilder();
         definitions.forEach(definition -> tags.add(definition.toDocumentationJson()));
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
         response.getWriter().write(Json.createObjectBuilder()
             .add("tags", tags)
             .add("total", definitions.size())

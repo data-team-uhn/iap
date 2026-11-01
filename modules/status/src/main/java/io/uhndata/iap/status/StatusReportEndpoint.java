@@ -65,7 +65,6 @@ public class StatusReportEndpoint extends SlingJakartaSafeMethodsServlet
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
-        response.setCharacterEncoding("UTF-8");
         final boolean unprivileged = !"admin".equals(UserIds.canonical(request.getResourceResolver()));
         final String requestedStatus = request.getParameter("targetStatus");
         final StatusReport.Status targetStatus;
@@ -77,6 +76,7 @@ public class StatusReportEndpoint extends SlingJakartaSafeMethodsServlet
                 + Arrays.stream(StatusReport.Status.values()).map(Enum::name).collect(Collectors.joining(", ")));
             return;
         }
+        response.setCharacterEncoding("UTF-8");
         final Set<String> tags = request.getParameterValues("tags") == null ? Collections.emptySet()
             : Set.of(request.getParameterValues("tags"));
         if ("txt".equals(request.getRequestPathInfo().getExtension())) {
