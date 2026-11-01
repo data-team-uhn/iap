@@ -28,6 +28,11 @@ import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.search.api.DescendantFilters;
+import io.uhndata.iap.search.api.EntityListing;
+import io.uhndata.iap.search.api.Filter;
+import io.uhndata.iap.search.api.Operator;
+
 /**
  * Assembles the JCR-SQL2 statement for a pagination request: nodes of one type under a scope path, optionally
  * filtered by their own properties and by those of descendant nodes, ordered by one of their properties.
@@ -55,7 +60,7 @@ final class QueryBuilder
 
     private List<Filter> filters = List.of();
 
-    private final List<ChildFamily> childFamilies = new ArrayList<>();
+    private List<DescendantFilters> descendants = List.of();
 
     private String fullText;
 
@@ -79,15 +84,19 @@ final class QueryBuilder
     }
 
     /**
-     * Starts a query for the entities one homepage holds: nodes of its child type, under it.
+     * Starts a query for the entities a listing asks for.
      *
-     * @param homepage the homepage whose entities are queried
-     * @return a builder scoped to that homepage
-     * @throws IllegalArgumentException if the homepage's child type is not a valid name
+     * @param listing the entities asked for
+     * @return a builder holding every condition, the full text search and the order of the listing
+     * @throws IllegalArgumentException if a node type or property name in the listing is not a valid name
      */
-    static QueryBuilder forEntitiesOf(final Resource homepage)
+    static QueryBuilder forListing(final EntityListing listing)
     {
-        return new QueryBuilder(childNodeType(homepage), homepage.getPath());
+        return new QueryBuilder(listing.entityType(), listing.scopePath())
+            .withFilters(listing.filters())
+            .withFullText(listing.fullText())
+            .withSort(listing.sortBy(), listing.descending())
+            .withDescendants(listing.descendants());
     }
 
     /**
@@ -119,29 +128,19 @@ final class QueryBuilder
     }
 
     /**
-     * Adds conditions on the properties of a descendant node. A queried node matches only if it has at least one
-     * descendant of the given type satisfying all the given conditions. Each call adds a separate required
-     * descendant, also for a type already used: submissions with an answer to one question and an answer to another
-     * are two calls on {@code sub:Answer}, which one answer node could never satisfy together. A {@code null} or blank
-     * type with no conditions is a no-op, and leaves previously added descendant conditions alone.
+     * Sets the conditions on descendants of the queried nodes. A queried node matches only if, for each family, it
+     * has a descendant of the family's type satisfying all of the family's conditions. Each family requires a
+     * descendant of its own, also for a type already used: submissions with an answer to one question and an answer
+     * to another are two families on {@code sub:Answer}, which one answer node could never satisfy together.
      *
-     * @param newChildType the node type of the descendant, e.g. {@code sub:Review}; may be {@code null} or blank if
-     *            no descendant conditions are needed
-     * @param newChildFilters the conditions to impose on the descendant, may be {@code null} or empty
+     * @param newDescendants the descendant condition families, may be empty
      * @return this builder, for chaining
-     * @throws IllegalArgumentException if conditions are given without a descendant node type, or the type is not a
-     *             valid name
+     * @throws IllegalArgumentException if a family's type is not a valid name
      */
-    QueryBuilder withChildFilters(final String newChildType, final List<Filter> newChildFilters)
+    QueryBuilder withDescendants(final List<DescendantFilters> newDescendants)
     {
-        final List<Filter> toAdd = newChildFilters == null ? List.of() : newChildFilters;
-        if (newChildType == null || newChildType.isBlank()) {
-            if (!toAdd.isEmpty()) {
-                throw new IllegalArgumentException("Child filters require a childType parameter");
-            }
-            return this;
-        }
-        this.childFamilies.add(new ChildFamily(checkName(newChildType), toAdd));
+        newDescendants.forEach(family -> checkName(family.type()));
+        this.descendants = List.copyOf(newDescendants);
         return this;
     }
 
@@ -200,7 +199,7 @@ final class QueryBuilder
         final Map<String, String> bindings = new LinkedHashMap<>();
         final StringBuilder query = new StringBuilder("select n.* from [").append(this.nodeType).append("] as n");
         int childIndex = 0;
-        for (final ChildFamily family : this.childFamilies) {
+        for (final DescendantFilters family : this.descendants) {
             final String alias = "c" + childIndex++;
             query.append(" inner join [").append(family.type()).append("] as ").append(alias)
                 .append(" on isdescendantnode(").append(alias).append(", n)");
@@ -211,7 +210,7 @@ final class QueryBuilder
         query.append(" where isdescendantnode(n, '").append(escape(this.scopePath)).append("')");
         appendConditions(query, "n", this.filters, bindings);
         childIndex = 0;
-        for (final ChildFamily family : this.childFamilies) {
+        for (final DescendantFilters family : this.descendants) {
             appendConditions(query, "c" + childIndex++, family.filters(), bindings);
         }
         if (this.fullText != null && !this.fullText.isBlank()) {
@@ -279,9 +278,10 @@ final class QueryBuilder
         final Operator comparator = filter.getComparator();
         final String property = source + ".[" + checkName(filter.getName()) + "]";
         if (comparator.isValueless()) {
-            return comparator.apply(property, null);
+            return JcrOperators.condition(comparator, property, null);
         }
-        return comparator.apply(property, bind(bindings, comparator.prepareValue(value(filter))));
+        return JcrOperators.condition(comparator, property,
+            bind(bindings, JcrOperators.boundValue(comparator, value(filter))));
     }
 
     /**
@@ -355,15 +355,4 @@ final class QueryBuilder
         return value.strip().replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
     }
 
-    /**
-     * The conditions one required descendant must satisfy.
-     *
-     * @param type the descendant's node type, already checked to be a safe name
-     * @param filters the conditions on its properties; empty if any descendant of the type will do
-     * @version $Id$
-     * @since 0.1.0
-     */
-    private record ChildFamily(String type, List<Filter> filters)
-    {
-    }
 }

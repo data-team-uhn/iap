@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -30,7 +31,6 @@ import java.util.regex.Pattern;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
-import javax.jcr.query.Query;
 import javax.jcr.query.RowIterator;
 
 import jakarta.json.Json;
@@ -46,11 +46,18 @@ import org.apache.sling.api.servlets.SlingJakartaSafeMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicy;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.principals.api.PrincipalContext;
 import io.uhndata.iap.principals.api.PrincipalService;
+import io.uhndata.iap.search.api.DescendantFilters;
+import io.uhndata.iap.search.api.EntityListing;
+import io.uhndata.iap.search.api.Filter;
+import io.uhndata.iap.search.spi.EntityListingBackend;
 import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.PaginatedJsonResponse;
 import io.uhndata.iap.utils.UserIds;
@@ -111,6 +118,11 @@ import io.uhndata.iap.utils.UserIds;
  * name whose answer would differ from one listed entity to the next has no meaning here.
  * </p>
  *
+ * <p>
+ * An {@link EntityListingBackend}, such as an index, may serve a listing in place of the JCR query: the first one,
+ * highest {@code service.ranking} first, that can serve it completely does.
+ * </p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -127,60 +139,113 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     private static final Pattern CHILD_PARAMETER =
         Pattern.compile("childType(\\d*+)|childField(\\d*+)(?:Name|Comparator|Value|Group)");
 
+    /** The default order of a listing that names none: oldest first. */
+    private static final String DEFAULT_SORT_PROPERTY = "jcr:created";
+
     /** Who the special filter values stand for; the one place in the platform that knows. */
     @Reference
     private transient PrincipalService principals;
+
+    /** Faster routes to a listing's entities, kept lowest ranking first; with none, every listing is a JCR query. */
+    @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
+        policyOption = ReferencePolicyOption.GREEDY)
+    private transient volatile List<EntityListingBackend> backends;
 
     @Override
     public void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
+        final Iterator<String> paths;
         try {
-            final RowIterator rows = prepareQuery(request).execute().getRows();
-            writeResponse(request, response, rows);
+            paths = this.find(parseListing(request), request.getResourceResolver());
         } catch (final IllegalArgumentException e) {
             JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
                 Objects.requireNonNullElse(e.getMessage(), "Invalid request"));
-        } catch (final RepositoryException e) {
+            return;
+        } catch (final RepositoryException | IOException e) {
             LOGGER.warn("Failed to execute pagination query: {}", e.getMessage(), e);
             JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "Failed to execute query");
+            return;
         }
+        writeResponse(request, response, paths);
     }
 
     /**
-     * Builds the JCR query for the request: entities of the homepage's child type, under the homepage, restricted
-     * by the filters sent in the request.
+     * Reads which entities the request asks for: those of the homepage's child type, under the homepage, restricted
+     * by the conditions and the full text search sent in the request, in the order it names.
      *
      * @param request the current request, targeting an entity homepage
-     * @return a query ready to be executed
-     * @throws RepositoryException if the resource resolver is not backed by a JCR session
+     * @return the entities asked for
      * @throws IllegalArgumentException if the request parameters are invalid
      */
-    private Query prepareQuery(final SlingJakartaHttpServletRequest request) throws RepositoryException
+    private EntityListing parseListing(final SlingJakartaHttpServletRequest request)
     {
-        final Session session = request.getResourceResolver().adaptTo(Session.class);
-        if (session == null) {
-            throw new RepositoryException("The resource resolver is not backed by a JCR session");
-        }
         final Resource homepage = request.getResource();
         // Under the id the repository records, so `@me` matches values written under a differently
         // capitalised login
         final PrincipalContext asking =
             new PrincipalContext(homepage, UserIds.canonical(request.getResourceResolver()));
-        final QueryBuilder builder = QueryBuilder.forEntitiesOf(homepage)
-            .withFilters(parseFilters(request, "field", asking));
+        final String sortBy = request.getParameter("sortBy");
+        return new EntityListing(homepage.getPath(), QueryBuilder.childNodeType(homepage),
+            parseFilters(request, "field", asking), parseDescendants(request, asking), request.getParameter("filter"),
+            sortBy == null || sortBy.isBlank() ? DEFAULT_SORT_PROPERTY : sortBy,
+            Boolean.parseBoolean(request.getParameter("descending")));
+    }
+
+    /**
+     * Reads the descendant condition families of the request, each requiring a descendant of its own. A family with
+     * no type and no conditions is left out.
+     *
+     * @param request the current request
+     * @param asking the situation the special values are resolved against
+     * @return one entry per family, in the order of {@link #getChildFilterSuffixes}; empty if the request sent none
+     * @throws IllegalArgumentException if a family has conditions but no type
+     */
+    private List<DescendantFilters> parseDescendants(final SlingJakartaHttpServletRequest request,
+        final PrincipalContext asking)
+    {
+        final List<DescendantFilters> descendants = new ArrayList<>();
         for (final String suffix : getChildFilterSuffixes(request)) {
-            builder.withChildFilters(request.getParameter("childType" + suffix),
-                parseFilters(request, "childField" + suffix, asking));
+            final String type = request.getParameter("childType" + suffix);
+            final List<Filter> filters = parseFilters(request, "childField" + suffix, asking);
+            if (type != null && !type.isBlank()) {
+                descendants.add(new DescendantFilters(type, filters));
+            } else if (!filters.isEmpty()) {
+                throw new IllegalArgumentException("Child filters require a childType parameter");
+            }
         }
-        final BoundStatement bound = builder
-            .withFullText(request.getParameter("filter"))
-            .withSort(request.getParameter("sortBy"), Boolean.parseBoolean(request.getParameter("descending")))
-            .build();
+        return descendants;
+    }
+
+    /**
+     * Finds the entities a listing asks for, through the first backend that can serve it, or else a JCR query.
+     *
+     * @param listing the entities asked for
+     * @param resolver the resolver of the person asking
+     * @return the paths of the matching entities, in order
+     * @throws IllegalArgumentException if a node type or property name in the listing is not a valid name
+     * @throws RepositoryException if the JCR query cannot run
+     * @throws IOException if the backend serving the listing cannot run its search
+     */
+    private Iterator<String> find(final EntityListing listing, final ResourceResolver resolver)
+        throws RepositoryException, IOException
+    {
+        // Built whoever serves the listing: building it is what refuses an unsafe name, so a request a backend
+        // serves fails as one the repository serves would
+        final BoundStatement statement = QueryBuilder.forListing(listing).build();
+        for (final EntityListingBackend backend : this.backends.reversed()) {
+            if (backend.canServe(listing)) {
+                return backend.find(listing, resolver);
+            }
+        }
+        final Session session = resolver.adaptTo(Session.class);
+        if (session == null) {
+            throw new RepositoryException("The resource resolver is not backed by a JCR session");
+        }
         // Only the statement is logged, never the bindings. The bindings are the caller's search terms.
-        LOGGER.debug("Pagination query: {}", bound.statement());
-        return bound.createQuery(session);
+        LOGGER.debug("Pagination query: {}", statement.statement());
+        return new MatchingPaths(statement.createQuery(session).execute().getRows());
     }
 
     /**
@@ -318,20 +383,20 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      * pagination status.
      *
      * <p>
-     * The query has already run, but its result set is lazy. Reading the rows can still fail once part of the
-     * response has gone out. Such a failure is reported in the summary, not as an error response, which by then
-     * could only be appended to a body that already holds one.
+     * The search has already run, but its result is lazy. Reading it can still fail once part of the response has
+     * gone out. Such a failure is reported in the summary, not as an error response, which by then could only be
+     * appended to a body that already holds one.
      * </p>
      *
      * @param request the current request
      * @param response the HTTP response to write into
-     * @param rows the query results to paginate over
+     * @param paths the paths of the matching entities, in order
      * @throws IOException if writing the response fails
      */
     // A page of results is content, streamed as it is read
     @SuppressWarnings("checkstyle:directResponseWriter")
     private void writeResponse(final SlingJakartaHttpServletRequest request,
-        final SlingJakartaHttpServletResponse response, final RowIterator rows)
+        final SlingJakartaHttpServletResponse response, final Iterator<String> paths)
         throws IOException
     {
         response.setContentType("application/json");
@@ -343,12 +408,12 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             final PaginatedJsonResponse page = PaginatedJsonResponse.forRequest(json, request);
             String error = null;
             try {
-                writeRows(page, rows, request);
-            } catch (final RepositoryException | RuntimeException e) {
-                // Unchecked as much as checked. Oak signals much of what can go wrong while a lazy result set is
-                // read, such as a read or memory limit reached, with an unchecked exception. Letting one out here
-                // would abandon the response half-written: the generator closed on an incomplete document, with too
-                // much of the body already on the wire for an error status to replace it.
+                writeRows(page, paths, request);
+            } catch (final RuntimeException e) {
+                // A lazy result signals what goes wrong while it is read, such as a read or memory limit reached,
+                // with an unchecked exception. Letting one out here would abandon the response half-written: the
+                // generator closed on an incomplete document, with too much of the body already on the wire for an
+                // error status to replace it.
                 LOGGER.warn("Failed to read the results of a pagination query: {}", e.getMessage(), e);
                 error = "Failed to read all the results";
             }
@@ -359,23 +424,22 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * Feeds the query results to the paginator, which writes the requested page and counts the matches. An Oak query
-     * cannot ask for distinct results. A descendant join returns the same entity once per matching descendant, and
-     * the paginator drops those duplicates by path.
+     * Feeds the matching entities to the paginator, which writes the requested page and counts the matches. An Oak
+     * query cannot ask for distinct results. A descendant join returns the same entity once per matching descendant,
+     * and the paginator drops those duplicates by path.
      *
      * @param page the paginator for the requested page, positioned inside the {@code rows} array
-     * @param rows the query results to paginate over
+     * @param paths the paths of the matching entities, in order
      * @param request the current request
-     * @throws RepositoryException if reading the query results fails
      */
-    private void writeRows(final PaginatedJsonResponse page, final RowIterator rows,
-        final SlingJakartaHttpServletRequest request) throws RepositoryException
+    private void writeRows(final PaginatedJsonResponse page, final Iterator<String> paths,
+        final SlingJakartaHttpServletRequest request)
     {
         final String selectors = PaginatedJsonResponse.getResourceSelectors(request);
         final ResourceResolver resolver = request.getResourceResolver();
         boolean more = true;
-        while (rows.hasNext() && more) {
-            final String path = rows.nextRow().getPath("n");
+        while (paths.hasNext() && more) {
+            final String path = paths.next();
             more = page.offer(path, () -> serializeRow(resolver, path, selectors));
         }
     }
@@ -399,4 +463,35 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         }
     }
 
+    /**
+     * The paths of a JCR query's matches, read from the query's rows as the page asks for them.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class MatchingPaths implements Iterator<String>
+    {
+        private final RowIterator rows;
+
+        MatchingPaths(final RowIterator rows)
+        {
+            this.rows = rows;
+        }
+
+        @Override
+        public boolean hasNext()
+        {
+            return this.rows.hasNext();
+        }
+
+        @Override
+        public String next()
+        {
+            try {
+                return this.rows.nextRow().getPath("n");
+            } catch (final RepositoryException e) {
+                throw new IllegalStateException("The path of a matching entity could not be read", e);
+            }
+        }
+    }
 }

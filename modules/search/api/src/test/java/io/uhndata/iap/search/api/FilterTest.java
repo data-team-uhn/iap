@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.search.internal;
+package io.uhndata.iap.search.api;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;

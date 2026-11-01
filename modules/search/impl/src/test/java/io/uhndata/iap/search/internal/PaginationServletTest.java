@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.search.internal;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -63,6 +64,8 @@ import org.mockito.Mockito;
 import io.uhndata.iap.principals.internal.MeResolver;
 import io.uhndata.iap.principals.internal.PrincipalServiceImpl;
 import io.uhndata.iap.principals.spi.SpecialNameResolver;
+import io.uhndata.iap.search.api.EntityListing;
+import io.uhndata.iap.search.spi.EntityListingBackend;
 
 /**
  * Unit tests for {@link PaginationServlet}.
@@ -133,6 +136,7 @@ public class PaginationServletTest
 
         mockHomepage("sub/SubmissionsHomepage", null);
         vocabulary();
+        withBackends();
     }
 
     @Test
@@ -759,5 +763,163 @@ public class PaginationServletTest
             .map(name -> (Principal) () -> name)
             .collect(Collectors.toCollection(LinkedHashSet::new)));
         Mockito.when(this.resolver.adaptTo(Session.class)).thenReturn(bound);
+    }
+
+    @Test
+    public void aBlankOrderAndAnEmptyFamilyChangeNothing() throws Exception
+    {
+        withParameter("sortBy", " ");
+        withParameter("childType", "");
+        final ArgumentCaptor<String> statement = mockResults(SCOPE + "/s1");
+
+        this.servlet.doGet(this.request, this.response);
+
+        Assertions.assertEquals(
+            "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
+                + " order by n.[jcr:created] ASC", statement.getValue());
+    }
+
+    @Test
+    public void aBackendThatCanServeTheListingAnswersInsteadOfTheRepository() throws Exception
+    {
+        final ListingBackend index = new ListingBackend(true, SCOPE + "/ab/cd/ef/s1", SCOPE + "/ab/cd/ef/s2");
+        withBackends(index);
+        withParameter("childType", "sub:Answer");
+        withParameter("childFieldName", "question");
+        withParameter("childFieldValue", "q1");
+
+        this.servlet.doGet(this.request, this.response);
+
+        final JsonObject result = getResponseJson();
+        Assertions.assertEquals(2, result.getJsonArray("rows").size());
+        Assertions.assertEquals(SCOPE + "/ab/cd/ef/s1",
+            result.getJsonArray("rows").getJsonObject(0).getString("path"));
+        Mockito.verifyNoInteractions(this.queryManager);
+        Assertions.assertEquals("sub:Answer", index.served.descendants().get(0).type());
+    }
+
+    @Test
+    public void aBackendThatCannotServeTheListingLeavesItToTheRepository() throws Exception
+    {
+        final ListingBackend index = new ListingBackend(false, SCOPE + "/s9");
+        withBackends(index);
+        mockResults(SCOPE + "/s1");
+
+        this.servlet.doGet(this.request, this.response);
+
+        Assertions.assertEquals(SCOPE + "/s1",
+            getResponseJson().getJsonArray("rows").getJsonObject(0).getString("path"));
+        Assertions.assertNull(index.served);
+    }
+
+    @Test
+    public void theHighestRankingBackendThatCanServeIsAsked() throws Exception
+    {
+        // SCR keeps a multiple reference lowest ranking first
+        final ListingBackend lower = new ListingBackend(true, SCOPE + "/lower");
+        final ListingBackend higher = new ListingBackend(true, SCOPE + "/higher");
+        withBackends(lower, higher);
+
+        this.servlet.doGet(this.request, this.response);
+
+        Assertions.assertEquals(SCOPE + "/higher",
+            getResponseJson().getJsonArray("rows").getJsonObject(0).getString("path"));
+        Assertions.assertNull(lower.served);
+    }
+
+    @Test
+    public void aBackendFailingToSearchIsReportedAsAnError() throws Exception
+    {
+        withBackends(new FailingBackend());
+
+        this.servlet.doGet(this.request, this.response);
+
+        assertError(SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
+    public void anUnsafeNameIsRefusedWhicheverRouteWouldServeTheListing() throws Exception
+    {
+        final ListingBackend index = new ListingBackend(true, SCOPE + "/s1");
+        withBackends(index);
+        withParameter("sortBy", "title] desc, n.[secret");
+
+        this.servlet.doGet(this.request, this.response);
+
+        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        Assertions.assertNull(index.served);
+    }
+
+    @Test
+    public void aBackendIsGivenEverythingTheRequestAskedFor() throws Exception
+    {
+        final ListingBackend index = new ListingBackend(true);
+        withBackends(index);
+        withParameter("fieldName", "tags");
+        withParameter("fieldValue", "draft");
+        withParameter("filter", "budget");
+        withParameter("descending", "true");
+
+        this.servlet.doGet(this.request, this.response);
+
+        Assertions.assertEquals(SCOPE, index.served.scopePath());
+        Assertions.assertEquals("sub:Submission", index.served.entityType());
+        Assertions.assertEquals("tags", index.served.filters().get(0).getName());
+        Assertions.assertEquals("budget", index.served.fullText());
+        Assertions.assertEquals("jcr:created", index.served.sortBy());
+        Assertions.assertTrue(index.served.descending());
+    }
+
+    private void withBackends(final EntityListingBackend... backends) throws ReflectiveOperationException
+    {
+        // A DS reference field: osgi-mock needs the SCR metadata only the packaged bundle has
+        setField(PaginationServlet.class, this.servlet, "backends", List.of(backends));
+    }
+
+    /** A backend answering every listing it accepts with fixed paths, and remembering the listing it served. */
+    private static final class ListingBackend implements EntityListingBackend
+    {
+        private final boolean servable;
+
+        private final List<String> paths;
+
+        private EntityListing served;
+
+        ListingBackend(final boolean servable, final String... paths)
+        {
+            this.servable = servable;
+            this.paths = List.of(paths);
+        }
+
+        @Override
+        public boolean canServe(final EntityListing listing)
+        {
+            return this.servable;
+        }
+
+        @Override
+        public Iterator<String> find(final EntityListing listing, final ResourceResolver resolver)
+            throws IOException
+        {
+            this.served = listing;
+            return this.paths.iterator();
+        }
+    }
+
+    /** A backend that accepts every listing and cannot run any search. */
+    private static final class FailingBackend implements EntityListingBackend
+    {
+        @Override
+        public boolean canServe(final EntityListing listing)
+        {
+            return true;
+        }
+
+        @Override
+        public Iterator<String> find(final EntityListing listing, final ResourceResolver resolver)
+            throws IOException
+        {
+            throw new IOException("The index is gone");
+        }
     }
 }

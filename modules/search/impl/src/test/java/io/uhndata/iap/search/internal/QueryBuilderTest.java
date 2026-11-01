@@ -23,6 +23,9 @@ import java.util.Map;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import io.uhndata.iap.search.api.DescendantFilters;
+import io.uhndata.iap.search.api.Filter;
+
 /**
  * Unit tests for {@link QueryBuilder}.
  *
@@ -136,9 +139,9 @@ public class QueryBuilderTest
     public void childFiltersJoinOnDescendants()
     {
         final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
-            .withChildFilters("sub:Review", List.of(
+            .withDescendants(List.of(new DescendantFilters("sub:Review", List.of(
                 new Filter("reviewer", "=", "alice"),
-                new Filter("status", "<>", "approved")))
+                new Filter("status", "<>", "approved")))))
             .build();
         Assertions.assertEquals(
             "select n.* from [sub:Submission] as n"
@@ -154,8 +157,9 @@ public class QueryBuilderTest
     public void multipleChildTypesEachJoinOnTheirOwnDescendant()
     {
         final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
-            .withChildFilters("sub:Review", List.of(new Filter("reviewer", "=", "alice")))
-            .withChildFilters("sub:Signature", List.of(new Filter("signer", "=", "bob")))
+            .withDescendants(List.of(
+                new DescendantFilters("sub:Review", List.of(new Filter("reviewer", "=", "alice"))),
+                new DescendantFilters("sub:Signature", List.of(new Filter("signer", "=", "bob")))))
             .build();
         Assertions.assertEquals(
             "select n.* from [sub:Submission] as n"
@@ -172,8 +176,7 @@ public class QueryBuilderTest
     public void repeatedChildTypeRequiresAnotherDescendant()
     {
         final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
-            .withChildFilters("sub:Answer", List.of(new Filter("question", "=", "q1"), new Filter("value", "=", "yes")))
-            .withChildFilters("sub:Answer", List.of(new Filter("question", "=", "q2"), new Filter("value", "=", "3")))
+            .withDescendants(List.of(answerTo("q1", "yes"), answerTo("q2", "3")))
             .build();
         Assertions.assertEquals(
             "select n.* from [sub:Submission] as n"
@@ -184,36 +187,6 @@ public class QueryBuilderTest
                 + " and (c1.[question] = $p2) and (c1.[value] = $p3)"
                 + ORDER, query.statement());
         Assertions.assertEquals(Map.of("p0", "q1", "p1", "yes", "p2", "q2", "p3", "3"), query.bindings());
-    }
-
-    @Test
-    public void missingChildTypeWithoutFiltersIsIgnored()
-    {
-        Assertions.assertEquals(BASE_QUERY + ORDER,
-            new QueryBuilder(SUBMISSION, SCOPE).withChildFilters(null, List.of()).build().statement());
-        Assertions.assertEquals(BASE_QUERY + ORDER,
-            new QueryBuilder(SUBMISSION, SCOPE).withChildFilters(" ", List.of()).build().statement());
-        Assertions.assertEquals(BASE_QUERY + ORDER,
-            new QueryBuilder(SUBMISSION, SCOPE).withChildFilters(null, null).build().statement());
-        // A later no-op call doesn't clear previously added child filters
-        Assertions.assertEquals(
-            "select n.* from [sub:Submission] as n"
-                + " inner join [sub:Review] as c0 on isdescendantnode(c0, n)"
-                + " where isdescendantnode(n, '/Submissions')"
-                + " and (c0.[reviewer] = $p0)"
-                + ORDER,
-            new QueryBuilder(SUBMISSION, SCOPE)
-                .withChildFilters("sub:Review", List.of(new Filter("reviewer", "=", "alice")))
-                .withChildFilters(null, null)
-                .build().statement());
-    }
-
-    @Test
-    public void childFiltersWithoutChildTypeAreRejected()
-    {
-        final QueryBuilder builder = new QueryBuilder(SUBMISSION, SCOPE);
-        final List<Filter> filters = List.of(new Filter("reviewer", "=", "alice"));
-        Assertions.assertThrows(IllegalArgumentException.class, () -> builder.withChildFilters(null, filters));
     }
 
     @Test
@@ -361,9 +334,15 @@ public class QueryBuilderTest
         final QueryBuilder builder = new QueryBuilder(SUBMISSION, SCOPE);
         Assertions.assertThrows(IllegalArgumentException.class, () -> builder.withSort("jcr:created] desc", false));
         Assertions.assertThrows(IllegalArgumentException.class,
-            () -> builder.withChildFilters("sub:Review] as x", List.of()));
+            () -> builder.withDescendants(List.of(new DescendantFilters("sub:Review] as x", List.of()))));
         final QueryBuilder withBadFilter = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("a] is null or n.[b", "=", "x")));
         Assertions.assertThrows(IllegalArgumentException.class, withBadFilter::build);
+    }
+
+    private static DescendantFilters answerTo(final String question, final String value)
+    {
+        return new DescendantFilters("sub:Answer",
+            List.of(new Filter("question", "=", question), new Filter("value", "=", value)));
     }
 }
