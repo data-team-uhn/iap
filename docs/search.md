@@ -1,9 +1,10 @@
 # Search
 
-**Module:** `modules/search` (`api` + `impl`) · **Bundles:** `iap-search-api`,
-`iap-search-impl` · **API:** `io.uhndata.iap.search.api` (`SearchContext`,
-`SearchContextFactory`, `SearchUtils`) · **SPI:**
-`io.uhndata.iap.search.spi.QuickSearchEngine`
+**Module:** `modules/search` (`api` + `impl` + `entity-index`) · **Bundles:**
+`iap-search-api`, `iap-search-impl`, `iap-search-entity-index` · **API:**
+`io.uhndata.iap.search.api` (`SearchContext`, `SearchContextFactory`, `SearchUtils`,
+`EntityListing`, `Filter`) · **SPI:** `io.uhndata.iap.search.spi.QuickSearchEngine`,
+`io.uhndata.iap.search.spi.EntityListingBackend`
 
 `GET /search.json` runs a query against the repository and returns the results as JSON.
 It is the general-purpose counterpart to the per-homepage listing endpoint: where
@@ -326,6 +327,66 @@ needed, since the `like` pattern grammar applies to whatever the variable holds;
 `before` and `after` carry up to eight characters of context each, elided with `...` when
 there was more. `text` is the matched text as stored, which may differ in case from what
 the user typed.
+
+## Listings served from an index
+
+A homepage's `.paginate.json` lists its entities through a JCR query, with one join per
+family of conditions on descendants: "submissions with an answer to this question and a
+review by me" is two joins, and Oak evaluates a join by looking up the right side once per
+row of the left. An `EntityListingBackend` may answer the same listing faster. The servlet
+asks each backend, highest `service.ranking` first, whether it `canServe` the listing, and
+runs the JCR query when none can. **A backend answers only a listing it answers exactly
+as the JCR query would**, so which one answered is never visible in the result.
+
+`iap-search-entity-index` is such a backend: a Lucene index kept beside the repository,
+one per configuration of `io.uhndata.iap.search.index.internal.EntityIndexer`. The shipped
+one indexes submissions.
+
+| Property | Shipped value | Meaning |
+| --- | --- | --- |
+| `resource.paths` | `/Submissions` | The homepage whose entities are indexed, and whose changes are followed |
+| `entity.type` | `sub:Submission` | The node type of an entity |
+| `descendant.types` | `sub:Answer`, `sub:Review` | The descendants a listing can filter on; others are not indexed |
+| `index.directory` | (empty) | Where the index is kept; empty means `sling.home/entity-index/Submissions` |
+| `commit.seconds` | `30` | How long indexed changes may wait before they are written to disk |
+
+Each entity is one block of documents: one per indexed descendant, at any depth, then the
+entity's own. A family of conditions is one block join, so an entity matches only if one
+of its descendants meets all of the family's conditions, as with the JCR query's join.
+
+**Values are compared the way the repository compares them.** A condition's value is
+converted to the type of each stored value, by the repository's own rules; when it does
+not convert, the two are compared as text. So `= '3.0'` finds a stored number 3.0 but
+not a stored whole number 3, `> '2026-10-31'` finds the whole numbers 3 and 9 by their
+text, and `LIKE '1%'` finds 10 and 12. The index keeps every value's text beside its
+typed form for this.
+
+The index declines, and the JCR query answers, a listing:
+
+| Declined when | Why |
+| --- | --- |
+| It lists another homepage or type | The index holds only its own entities |
+| It has a full-text search | Nothing in the index is analyzed |
+| A family's type is not one of `descendant.types` | Those descendants are not indexed |
+| A filtered property has text over 4096 characters somewhere | Only its start is indexed |
+| A filtered property is stored as a decimal somewhere | Decimals are indexed as text only |
+| The sort property has several values, or several types, on some entity | The repository orders by the first value, and by type before value |
+| The index is not complete, or cannot be read | See below |
+
+**The index holds everything; a listing returns what the asker reads.** An entity is
+returned only if the asker can read it and, for each family, one of the descendants it
+matched through. A descendant the asker cannot read would not have been joined by their
+own query either.
+
+**The index is complete once rebuilt.** It is rebuilt on activation unless it was closed
+cleanly, by the same version, under the same configuration; a crash therefore means a
+rebuild. While rebuilding it serves nothing. Afterwards every change below the homepage
+reindexes the whole entity it is part of, as Sling reports it. **That report comes after
+the save, so a listing read at once may not show it yet**, where the JCR query would.
+
+`EntityIndexEquivalenceTest` holds the backend to its contract: it runs every comparator
+against values of every stored type, groups, several families and every order through
+both the JCR query and the index, and requires the same answer.
 
 ## Unindexed queries
 

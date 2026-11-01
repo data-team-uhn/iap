@@ -36,7 +36,7 @@ How a request becomes a response, and how a module extends what the platform ser
 | --- | --- |
 | [page-rendering.md](page-rendering.md) | How a URL becomes a page: resource resolution, display scripts, the responses that are not pages, and custom servlets |
 | [json-serialization.md](json-serialization.md) | Serving content as JSON, the selectors a caller shapes it with, and the processor SPI a module extends it through |
-| [search.md](search.md) | `GET /search.json`: querying the repository by statement, by full text, or through the quick search engines |
+| [search.md](search.md) | `GET /search.json`: querying the repository by statement, by full text, or through the quick search engines; and the index that serves entity listings |
 | [http-requests.md](http-requests.md) | The shared client for calling an external service, and what it does and does not throw |
 
 ## The domain model
