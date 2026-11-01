@@ -221,7 +221,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      * </p>
      *
      * @param request the current request
-     * @param response the HTTP response
+     * @param response the HTTP response to write into
      * @throws IOException if writing the response fails
      * @throws RepositoryException if the query is invalid or cannot be executed
      */

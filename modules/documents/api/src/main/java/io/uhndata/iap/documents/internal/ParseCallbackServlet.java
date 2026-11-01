@@ -151,7 +151,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
      * @param jobId the identifier of the finished job
      * @param outcome the daemon's callback body
      * @param markdown the produced Markdown path, already checked to be present on a success
-     * @param response where the result of the recording is written
+     * @param response the HTTP response to write the result of the recording into
      * @throws IOException if the response cannot be written
      */
     private void record(final String jobId, final JsonObject outcome, final String markdown,

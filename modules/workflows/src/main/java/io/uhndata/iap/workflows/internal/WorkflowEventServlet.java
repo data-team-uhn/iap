@@ -278,7 +278,7 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     /**
      * Answers with a redirect to a created entity.
      *
-     * @param response the response to write
+     * @param response the HTTP response to write into
      * @param path the created entity's path
      * @throws IOException when the response cannot be written
      */
@@ -292,8 +292,9 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     /**
      * What a refusal tells the caller: the engine's own explanation, written for the person who sent the event.
      *
-     * @param refusal what the engine refused the event with
-     * @return its message, or a generic one if it has none
+     * @param refusal the exception the engine refused the event with
+     * @return the exception's message, which the engine writes for the person who sent the event, or a generic
+     *         reason if it has none
      */
     private static String reasonOf(final WorkflowException refusal)
     {

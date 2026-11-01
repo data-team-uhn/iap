@@ -170,7 +170,7 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
      * logged here: {@link #logTheOutcome} has already done it, or will when the send finishes.
      *
      * @param sending the send to wait for
-     * @param response the response to set the status on
+     * @param response the HTTP response to set the status on
      * @param out where to write the explanation
      * @throws IOException if the explanation cannot be written
      */

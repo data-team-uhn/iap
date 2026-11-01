@@ -81,10 +81,10 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
      * Logs a failure and answers with it.
      *
      * @param request the request that failed
-     * @param response the response to answer on
+     * @param response the HTTP response to write the error into
      * @param message what could not be read, as the client is told
      * @param cause the underlying failure, or {@code null} if there is none
-     * @throws IOException if the answer cannot be written
+     * @throws IOException if the response's body cannot be written
      */
     private static void fail(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response, final String message, final Throwable cause)

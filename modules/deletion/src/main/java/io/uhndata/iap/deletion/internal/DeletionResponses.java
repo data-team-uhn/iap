@@ -49,11 +49,11 @@ final class DeletionResponses
     }
 
     /**
-     * Start a response body.
+     * Starts the body of a deletion command's answer, for the caller to add details to and {@link #send}.
      *
-     * @param code the HTTP status code, repeated in the body
-     * @param status a short machine-readable outcome word, e.g. {@code archived}
-     * @return a builder to complete
+     * @param code the HTTP status code the answer will carry, repeated in the body as {@code status.code}
+     * @param status a short outcome word a client can switch on, such as {@code archived} or {@code denied}
+     * @return a builder holding {@code status.code} and {@code status}
      */
     static JsonObjectBuilder body(final int code, final String status)
     {
@@ -61,12 +61,12 @@ final class DeletionResponses
     }
 
     /**
-     * Send a response.
+     * Answers a deletion command, through {@link JsonResponses}.
      *
-     * @param response the response to write to
-     * @param code the HTTP status code
-     * @param body the complete body
-     * @throws IOException if the response cannot be written
+     * @param response the HTTP response to write into
+     * @param code the HTTP status code to answer with, the same as in {@link #body}
+     * @param body a body started with {@link #body}, holding its {@code status}
+     * @throws IOException if the response's body cannot be written
      */
     static void send(final SlingJakartaHttpServletResponse response, final int code, final JsonObjectBuilder body)
         throws IOException
@@ -77,12 +77,12 @@ final class DeletionResponses
     }
 
     /**
-     * Send content, such as a listing of the archive, which is not a command's answer and so has no status word.
+     * Sends content, such as a listing of the archive, which is not a command's answer and so has no status word.
      *
-     * @param response the response to write to
-     * @param code the HTTP status code
-     * @param body the complete body
-     * @throws IOException if the response cannot be written
+     * @param response the HTTP response to write into
+     * @param code the HTTP status code to answer with, such as {@code 200}
+     * @param body the whole JSON body, written as it is, with no {@code status} added
+     * @throws IOException if the response's body cannot be written
      */
     @SuppressWarnings("checkstyle:directResponseWriter")
     static void sendContent(final SlingJakartaHttpServletResponse response, final int code,
@@ -95,13 +95,14 @@ final class DeletionResponses
     }
 
     /**
-     * Send a minimal response with just a status word and a message.
+     * Answers a deletion command with an outcome and an explanation, and no other details.
      *
-     * @param response the response to write to
-     * @param code the HTTP status code
-     * @param status a short machine-readable outcome word, e.g. {@code denied}
-     * @param message the human-readable explanation, skipped when empty
-     * @throws IOException if the response cannot be written
+     * @param response the HTTP response to write into
+     * @param code the HTTP status code to answer with, such as {@code 403}
+     * @param status a short outcome word a client can switch on, such as {@code denied}
+     * @param message the explanation, in words for the person who will read it, written as {@code status.message};
+     *            left out when empty
+     * @throws IOException if the response's body cannot be written
      */
     static void send(final SlingJakartaHttpServletResponse response, final int code, final String status,
         final String message) throws IOException
@@ -116,8 +117,9 @@ final class DeletionResponses
     /**
      * The details of a blocked or examined deletion: what would go, and what stands in the way.
      *
-     * @param body the builder to add to
-     * @param impact the impact to describe
+     * @param body a body started with {@link #body}, which gains {@code items}, {@code removedLinks}, and the
+     *            vetoes, referrers and summary when there are any
+     * @param impact what the deletion would remove, and what stands in its way
      */
     static void describeImpact(final JsonObjectBuilder body, final DeletionImpact impact)
     {
@@ -138,8 +140,8 @@ final class DeletionResponses
     /**
      * A list of paths as a JSON array.
      *
-     * @param items the paths to list
-     * @return an array builder
+     * @param items absolute repository paths
+     * @return a JSON array of those paths, in the collection's order
      */
     static JsonArrayBuilder paths(final Collection<String> items)
     {
@@ -151,8 +153,9 @@ final class DeletionResponses
     /**
      * The objections raised by deletion guards as a JSON array.
      *
-     * @param vetoes the objections
-     * @return an array builder
+     * @param vetoes the objections raised against the deletion
+     * @return a JSON array with one object per objection, holding its {@code vetoer}, {@code path} and
+     *         {@code reason}
      */
     static JsonArrayBuilder vetoes(final Collection<Veto> vetoes)
     {
@@ -182,8 +185,9 @@ final class DeletionResponses
     /**
      * The conflicts blocking a restore, as a JSON array.
      *
-     * @param conflicts the conflicts to describe
-     * @return an array of objects carrying each conflict's original path and reason
+     * @param conflicts what stops the archived items going back where they came from
+     * @return a JSON array with one object per conflict, holding its {@code originalPath} and the name of its
+     *         {@code reason}
      */
     static JsonArrayBuilder conflicts(final Collection<RestoreConflict> conflicts)
     {

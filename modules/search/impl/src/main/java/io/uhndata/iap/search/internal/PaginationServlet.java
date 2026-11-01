@@ -324,7 +324,7 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      * </p>
      *
      * @param request the current request
-     * @param response the HTTP response
+     * @param response the HTTP response to write into
      * @param rows the query results to paginate over
      * @throws IOException if writing the response fails
      */

@@ -54,10 +54,11 @@ public final class JsonResponses
     /**
      * Answers with an outcome and nothing more, such as {@code {"status": "ok"}}.
      *
-     * @param response the response to write
-     * @param httpStatus the HTTP status code
-     * @param outcome a short word saying how the request went
-     * @throws IOException if the response cannot be written
+     * @param response the HTTP response to write into
+     * @param httpStatus the HTTP status code to answer with, such as {@code 200} or {@code 201}
+     * @param outcome a short word a client can switch on, saying how the request went, such as {@code ok},
+     *            {@code created} or {@code archived}; a failure is answered with {@link #writeError} instead
+     * @throws IOException if the response's body cannot be written
      */
     public static void write(@NotNull final SlingJakartaHttpServletResponse response, final int httpStatus,
         @NotNull final String outcome) throws IOException
@@ -66,13 +67,15 @@ public final class JsonResponses
     }
 
     /**
-     * Answers with an outcome and the details that go with it.
+     * Answers with an outcome and the details that go with it, such as
+     * {@code {"status": "ok", "acknowledgement": "/LoggedErrors/..."}}.
      *
-     * @param response the response to write
-     * @param httpStatus the HTTP status code
-     * @param outcome a short word saying how the request went
-     * @param details the rest of the body, which must not set {@code status} or {@code error} itself
-     * @throws IOException if the response cannot be written
+     * @param response the HTTP response to write into
+     * @param httpStatus the HTTP status code to answer with, such as {@code 200} or {@code 201}
+     * @param outcome a short word a client can switch on, saying how the request went, such as {@code ok},
+     *            {@code created} or {@code archived}; a failure is answered with {@link #writeError} instead
+     * @param details the keys written beside {@code status}, which must not include {@code status} or {@code error}
+     * @throws IOException if the response's body cannot be written
      * @throws IllegalArgumentException if the details set {@code status} or {@code error}
      */
     public static void write(@NotNull final SlingJakartaHttpServletResponse response, final int httpStatus,
@@ -91,10 +94,11 @@ public final class JsonResponses
      * infrastructure. A response already committed is left as it is: its status is on the wire, and a second body
      * after the first is not something a client can parse.
      *
-     * @param response the response to write
-     * @param httpStatus the HTTP status code
-     * @param reason what went wrong
-     * @throws IOException if the response cannot be written
+     * @param response the HTTP response to write into; left as it is if already committed
+     * @param httpStatus the HTTP status code to answer with, such as {@code 400} or {@code 500}
+     * @param reason what went wrong, in words for the person who will read it, such as {@code "The target is not
+     *            readable"}; never an exception's message
+     * @throws IOException if the response's body cannot be written
      */
     public static void writeError(@NotNull final SlingJakartaHttpServletResponse response, final int httpStatus,
         @NotNull final String reason) throws IOException

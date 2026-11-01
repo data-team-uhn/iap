@@ -169,7 +169,7 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
     /**
      * Create the node and answer with what became of it.
      *
-     * @param response the response to write
+     * @param response the HTTP response to write into
      * @param name the validated node name
      * @param token the verified token of the peer asking, used to attribute a failure
      * @throws IOException when the response cannot be written

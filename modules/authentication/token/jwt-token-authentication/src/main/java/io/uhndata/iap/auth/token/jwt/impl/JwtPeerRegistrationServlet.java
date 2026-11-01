@@ -127,7 +127,7 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
     /**
      * Store the peer and answer with what it is now known as.
      *
-     * @param response the response to write
+     * @param response the HTTP response to write into
      * @param key the validated key, which names its own node
      * @param issuer the validated {@code iss} claim the peer's tokens must carry
      * @throws IOException when the response cannot be written

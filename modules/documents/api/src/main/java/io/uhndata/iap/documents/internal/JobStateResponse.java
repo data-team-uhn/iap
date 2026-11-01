@@ -38,12 +38,12 @@ final class JobStateResponse
     }
 
     /**
-     * Send a JSON body with the given status.
+     * Answers with a parse job's state, as content.
      *
-     * @param response the response to write to
-     * @param status the HTTP status to send
-     * @param body the body to send
-     * @throws IOException if the response cannot be written
+     * @param response the HTTP response to write into
+     * @param status the HTTP status code to answer with, such as {@code 200} or {@code 202}
+     * @param body the job's state as JSON, written as it is
+     * @throws IOException if the response's body cannot be written
      */
     // A job's state is content: its own error, if it failed, is the job's, not this request's
     @SuppressWarnings("checkstyle:directResponseWriter")
