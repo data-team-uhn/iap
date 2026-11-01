@@ -187,11 +187,10 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
     await test.step('both are in the archive, the category above its subcategory', async () => {
       await archive.openFromConsole();
-      await expect(archive.rows()).toHaveCount(2);
 
       // Newest first, so the one she deleted last is on top — and the one below it turns out to be
       // its child, which is what the next step turns on
-      [ parent, child ] = await archive.listedPaths();
+      [ parent, child ] = await archive.listedPaths(2);
       expect(child, 'the subcategory should have been archived from inside its parent')
         .toContain(`${parent}/`);
     });
@@ -334,8 +333,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
     await test.step('and the archive lists them, the last one deleted first', async () => {
       await archive.openFromConsole();
 
-      const listed = await archive.listedPaths();
-      expect(listed).toHaveLength(3);
+      const listed = await archive.listedPaths(SPECIALTIES.length);
       // Checked against the labels she typed rather than against paths nobody ever showed her: the
       // names themselves are the server's to derive
       const newestFirst = [ ...SPECIALTIES ].reverse();
@@ -348,9 +346,8 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
     await test.step('she finds the one she was asked for by typing part of its name', async () => {
       await archive.filterBy('neuro');
-      await expect(archive.rows()).toHaveCount(1);
 
-      [ neurology ] = await archive.listedPaths();
+      [ neurology ] = await archive.listedPaths(1);
       expect(neurology.toLowerCase()).toContain('neurology');
     });
 
@@ -366,7 +363,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
       await archive.sortBy('Deleted at');
       await expect
-        .poll(async () => (await archive.listedPaths())[0].toLowerCase())
+        .poll(async () => (await archive.listedPaths(SPECIALTIES.length))[0].toLowerCase())
         .toContain(SPECIALTIES[0].toLowerCase());
     });
 
@@ -377,7 +374,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
     });
 
     await test.step('and destroys the other two', async () => {
-      for (const path of await archive.listedPaths()) {
+      for (const path of await archive.listedPaths(SPECIALTIES.length - 1)) {
         await archive.purge(path);
         await expect(archive.notice())
           .toContainText('The entry and everything archived in it were permanently removed.');
