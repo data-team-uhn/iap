@@ -169,20 +169,21 @@ public class QueryBuilderTest
     }
 
     @Test
-    public void repeatedChildTypeMergesItsFilters()
+    public void repeatedChildTypeRequiresAnotherDescendant()
     {
         final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
-            .withChildFilters("sub:Review", List.of(new Filter("reviewer", "=", "alice")))
-            .withChildFilters("sub:Review", List.of(new Filter("status", "=", "approved")))
+            .withChildFilters("sub:Answer", List.of(new Filter("question", "=", "q1"), new Filter("value", "=", "yes")))
+            .withChildFilters("sub:Answer", List.of(new Filter("question", "=", "q2"), new Filter("value", "=", "3")))
             .build();
         Assertions.assertEquals(
             "select n.* from [sub:Submission] as n"
-                + " inner join [sub:Review] as c0 on isdescendantnode(c0, n)"
+                + " inner join [sub:Answer] as c0 on isdescendantnode(c0, n)"
+                + " inner join [sub:Answer] as c1 on isdescendantnode(c1, n)"
                 + " where isdescendantnode(n, '/Submissions')"
-                + " and (c0.[reviewer] = $p0)"
-                + " and (c0.[status] = $p1)"
+                + " and (c0.[question] = $p0) and (c0.[value] = $p1)"
+                + " and (c1.[question] = $p2) and (c1.[value] = $p3)"
                 + ORDER, query.statement());
-        Assertions.assertEquals(Map.of("p0", "alice", "p1", "approved"), query.bindings());
+        Assertions.assertEquals(Map.of("p0", "q1", "p1", "yes", "p2", "q2", "p3", "3"), query.bindings());
     }
 
     @Test

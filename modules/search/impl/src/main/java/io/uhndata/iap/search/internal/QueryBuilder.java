@@ -55,7 +55,7 @@ final class QueryBuilder
 
     private List<Filter> filters = List.of();
 
-    private final Map<String, List<Filter>> childFilters = new LinkedHashMap<>();
+    private final List<ChildFamily> childFamilies = new ArrayList<>();
 
     private String fullText;
 
@@ -120,9 +120,10 @@ final class QueryBuilder
 
     /**
      * Adds conditions on the properties of a descendant node. A queried node matches only if it has at least one
-     * descendant of the given type satisfying all the given conditions. Each distinct type adds a separate required
-     * descendant; repeating a type adds to that type's conditions. A {@code null} or blank type with no conditions
-     * is a no-op, and leaves previously added descendant conditions alone.
+     * descendant of the given type satisfying all the given conditions. Each call adds a separate required
+     * descendant, also for a type already used: submissions with an answer to one question and an answer to another
+     * are two calls on {@code sub:Answer}, which one answer node could never satisfy together. A {@code null} or blank
+     * type with no conditions is a no-op, and leaves previously added descendant conditions alone.
      *
      * @param newChildType the node type of the descendant, e.g. {@code sub:Review}; may be {@code null} or blank if
      *            no descendant conditions are needed
@@ -140,7 +141,7 @@ final class QueryBuilder
             }
             return this;
         }
-        this.childFilters.computeIfAbsent(checkName(newChildType), key -> new ArrayList<>()).addAll(toAdd);
+        this.childFamilies.add(new ChildFamily(checkName(newChildType), toAdd));
         return this;
     }
 
@@ -199,9 +200,9 @@ final class QueryBuilder
         final Map<String, String> bindings = new LinkedHashMap<>();
         final StringBuilder query = new StringBuilder("select n.* from [").append(this.nodeType).append("] as n");
         int childIndex = 0;
-        for (final String childType : this.childFilters.keySet()) {
+        for (final ChildFamily family : this.childFamilies) {
             final String alias = "c" + childIndex++;
-            query.append(" inner join [").append(childType).append("] as ").append(alias)
+            query.append(" inner join [").append(family.type()).append("] as ").append(alias)
                 .append(" on isdescendantnode(").append(alias).append(", n)");
         }
         // The scope path is the one value that has to stay in the statement: isdescendantnode takes a path, not a
@@ -210,8 +211,8 @@ final class QueryBuilder
         query.append(" where isdescendantnode(n, '").append(escape(this.scopePath)).append("')");
         appendConditions(query, "n", this.filters, bindings);
         childIndex = 0;
-        for (final List<Filter> filtersForChild : this.childFilters.values()) {
-            appendConditions(query, "c" + childIndex++, filtersForChild, bindings);
+        for (final ChildFamily family : this.childFamilies) {
+            appendConditions(query, "c" + childIndex++, family.filters(), bindings);
         }
         if (this.fullText != null && !this.fullText.isBlank()) {
             query.append(" and contains(n.*, ").append(bind(bindings, escapeFullText(this.fullText))).append(')');
@@ -354,4 +355,15 @@ final class QueryBuilder
         return value.strip().replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
     }
 
+    /**
+     * The conditions one required descendant must satisfy.
+     *
+     * @param type the descendant's node type, already checked to be a safe name
+     * @param filters the conditions on its properties; empty if any descendant of the type will do
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private record ChildFamily(String type, List<Filter> filters)
+    {
+    }
 }
