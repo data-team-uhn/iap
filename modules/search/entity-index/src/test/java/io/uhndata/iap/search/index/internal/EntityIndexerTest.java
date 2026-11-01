@@ -22,6 +22,7 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +53,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.search.api.EntityListing;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 
@@ -261,6 +265,34 @@ class EntityIndexerTest
         stop(start());
 
         assertEquals(1, indexed(ENTITIES));
+    }
+
+    @Test
+    void servesListingsOnceComplete() throws Exception
+    {
+        final EntityIndexer indexer = ready();
+        final EntityListing all = new EntityListing(HOMEPAGE, "test:Request", List.of(), List.of(), null, "title",
+            false);
+        final List<String> found = new ArrayList<>();
+
+        assertTrue(indexer.canServe(all));
+        indexer.find(all, this.context.resourceResolver()).forEachRemaining(found::add);
+        stop(indexer);
+
+        assertEquals(List.of(FIRST), found);
+    }
+
+    @Test
+    void servesNoListingWhileIncomplete() throws Exception
+    {
+        final ResourceResolverFactory refusing = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(refusing.getServiceResourceResolver(any())).thenThrow(new LoginException("Not mapped yet"));
+        final EntityIndexer indexer = start(refusing);
+        final EntityListing all = new EntityListing(HOMEPAGE, "test:Request", List.of(), List.of(), null, "title",
+            false);
+
+        assertFalse(indexer.canServe(all));
+        stop(indexer);
     }
 
     @Test

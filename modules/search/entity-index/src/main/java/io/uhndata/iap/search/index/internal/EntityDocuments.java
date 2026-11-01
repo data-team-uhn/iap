@@ -95,7 +95,7 @@ final class EntityDocuments
         throws RepositoryException
     {
         final Document document = new Document();
-        document.add(new StringField(IndexFields.ENTITY_FIELD, entity.getPath(), Store.NO));
+        document.add(new StringField(IndexFields.ENTITY_FIELD, entity.getPath(), Store.YES));
         document.add(new StringField(IndexFields.PATH_FIELD, node.getPath(), Store.YES));
         document.add(new StringField(IndexFields.KIND_FIELD, kind, Store.NO));
         for (final String type : typesOf(node)) {

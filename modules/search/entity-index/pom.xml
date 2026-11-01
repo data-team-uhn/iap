@@ -56,7 +56,7 @@
           <instructions>
             <!-- Lucene 9 is private to this bundle, so it never meets the much older Lucene the repository
                  exports. Nothing of it is imported; the optional com.sun.management is boot-delegated -->
-            <Embed-Dependency>lucene-core</Embed-Dependency>
+            <Embed-Dependency>lucene-core,lucene-join</Embed-Dependency>
             <Import-Package>!org.apache.lucene.*,com.sun.management;resolution:=optional,*</Import-Package>
           </instructions>
         </configuration>
@@ -73,6 +73,16 @@
       <groupId>org.apache.lucene</groupId>
       <artifactId>lucene-core</artifactId>
       <version>${lucene.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.lucene</groupId>
+      <artifactId>lucene-join</artifactId>
+      <version>${lucene.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-search-api</artifactId>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>

@@ -20,6 +20,7 @@ package io.uhndata.iap.search.index.internal;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -56,11 +57,14 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.search.api.EntityListing;
+import io.uhndata.iap.search.spi.EntityListingBackend;
 
 /**
- * Keeps one index of the entities under a homepage in step with the repository. Every change below the homepage
- * reindexes the entity it is part of, whole; a removed entity is unindexed. An index that was not closed cleanly, or
- * was written in another layout, is rebuilt on activation.
+ * Keeps one index of the entities under a homepage in step with the repository, and answers the listings of them it
+ * can answer exactly. Every change below the homepage reindexes the entity it is part of, whole; a removed entity is
+ * unindexed. An index that was not closed cleanly, or was written in another layout, is rebuilt on activation, and
+ * serves no listing until it is complete.
  *
  * <p>
  * Each configuration is one index, so that another kind of entity is indexed by configuring it rather than by code.
@@ -70,12 +74,13 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
  * @version $Id$
  * @since 0.1.0
  */
-@Component(service = { ResourceChangeListener.class, ExternalResourceChangeListener.class },
+@Component(service = { EntityListingBackend.class, ResourceChangeListener.class,
+    ExternalResourceChangeListener.class },
     configurationPolicy = ConfigurationPolicy.REQUIRE,
     property = { ResourceChangeListener.CHANGES + "=ADDED", ResourceChangeListener.CHANGES + "=CHANGED",
         ResourceChangeListener.CHANGES + "=REMOVED" })
 @Designate(ocd = EntityIndexer.Config.class, factory = true)
-public class EntityIndexer implements ResourceChangeListener, ExternalResourceChangeListener
+public class EntityIndexer implements EntityListingBackend, ResourceChangeListener, ExternalResourceChangeListener
 {
     /**
      * What an administrator configures, one configuration per index.
@@ -139,6 +144,9 @@ public class EntityIndexer implements ResourceChangeListener, ExternalResourceCh
     /** Changed whenever documents are laid out differently, so that an index written the old way is rebuilt. */
     private static final String LAYOUT_VERSION = "1";
 
+    /** What the indexer was doing when a rebuild failed, as error tracking records it. */
+    private static final String REBUILDING_ACTIVITY = "rebuildIndex";
+
     /** How long to wait before trying a rebuild again, when the indexing service user could not log in. */
     private static final long RETRY_SECONDS = 10;
 
@@ -156,6 +164,8 @@ public class EntityIndexer implements ResourceChangeListener, ExternalResourceCh
     private EntityDocuments documents;
 
     private EntityIndex index;
+
+    private ListingSearch listings;
 
     private ScheduledExecutorService maintenance;
 
@@ -183,6 +193,7 @@ public class EntityIndexer implements ResourceChangeListener, ExternalResourceCh
         this.layout = String.join(";", LAYOUT_VERSION, this.entityType, String.join(",",
             descendantTypes.stream().sorted().toList()));
         this.index = new EntityIndex(FSDirectory.open(directory(config, context)));
+        this.listings = new ListingSearch(this.index, this.homepage, this.entityType, descendantTypes);
         final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
         // A rebuild waiting to be retried is not worth delaying a shutdown for
         executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
@@ -213,6 +224,18 @@ public class EntityIndexer implements ResourceChangeListener, ExternalResourceCh
             this.index.seal(this.layout);
         }
         this.index.close();
+    }
+
+    @Override
+    public boolean canServe(final EntityListing listing)
+    {
+        return isComplete() && this.listings.canServe(listing);
+    }
+
+    @Override
+    public Iterator<String> find(final EntityListing listing, final ResourceResolver resolver) throws IOException
+    {
+        return this.listings.find(listing, resolver);
     }
 
     @Override
@@ -256,11 +279,11 @@ public class EntityIndexer implements ResourceChangeListener, ExternalResourceCh
             LOGGER.info("Indexed the {} entities below {}", entities.size(), this.homepage);
         } catch (final LoginException e) {
             LOGGER.warn("Cannot index the entities below {} yet, retrying: {}", this.homepage, e.getMessage());
-            ErrorLogger.logError(e, ErrorContext.of(EntityIndexer.class, "rebuildIndex").about(this.homepage));
+            ErrorLogger.logError(e, ErrorContext.of(EntityIndexer.class, REBUILDING_ACTIVITY).about(this.homepage));
             rebuildLater(RETRY_SECONDS);
         } catch (final RepositoryException | IOException e) {
             LOGGER.error("Failed to index the entities below {}: {}", this.homepage, e.getMessage(), e);
-            ErrorLogger.logError(e, ErrorContext.of(EntityIndexer.class, "rebuildIndex").about(this.homepage));
+            ErrorLogger.logError(e, ErrorContext.of(EntityIndexer.class, REBUILDING_ACTIVITY).about(this.homepage));
         }
     }
 

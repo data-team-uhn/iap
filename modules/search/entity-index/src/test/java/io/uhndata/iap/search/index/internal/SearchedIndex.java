@@ -25,6 +25,7 @@ import java.util.List;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
@@ -95,6 +96,18 @@ final class SearchedIndex implements Closeable
     }
 
     /**
+     * The nodes the documents a query finds describe.
+     *
+     * @param query the query
+     * @return the paths stored with the documents found, in index order
+     * @throws IOException if the index cannot be read
+     */
+    List<String> paths(final Query query) throws IOException
+    {
+        return paths(query, Sort.INDEXORDER);
+    }
+
+    /**
      * The nodes every document describes, in an order.
      *
      * @param sort the order
@@ -103,13 +116,35 @@ final class SearchedIndex implements Closeable
      */
     List<String> paths(final Sort sort) throws IOException
     {
+        return paths(new MatchAllDocsQuery(), sort);
+    }
+
+    /**
+     * The nodes the documents a query finds describe, in an order.
+     *
+     * @param query the query
+     * @param sort the order
+     * @return the paths stored with the documents found
+     * @throws IOException if the index cannot be read
+     */
+    List<String> paths(final Query query, final Sort sort) throws IOException
+    {
         final IndexSearcher searcher = new IndexSearcher(this.reader);
         final List<String> paths = new ArrayList<>();
-        final int all = Math.max(1, this.reader.maxDoc());
-        for (final ScoreDoc hit : searcher.search(new MatchAllDocsQuery(), all, sort).scoreDocs) {
+        for (final ScoreDoc hit : searcher.search(query, Math.max(1, this.reader.maxDoc()), sort).scoreDocs) {
             paths.add(searcher.storedFields().document(hit.doc).get(IndexFields.PATH_FIELD));
         }
         return paths;
+    }
+
+    /**
+     * Reads the index directly.
+     *
+     * @return the index's reader, closed with this
+     */
+    IndexReader reader()
+    {
+        return this.reader;
     }
 
     @Override

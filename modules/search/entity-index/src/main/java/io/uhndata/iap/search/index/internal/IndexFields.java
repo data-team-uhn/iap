@@ -30,7 +30,10 @@ import javax.jcr.PropertyType;
  */
 final class IndexFields
 {
-    /** The path of the entity a document belongs to, on the entity's own document and on each descendant's. */
+    /**
+     * The path of the entity a document belongs to, on the entity's own document and on each descendant's. It is
+     * stored, so that a matching descendant says which entity it belongs to.
+     */
     static final String ENTITY_FIELD = ":entity";
 
     /** The path of the node a document describes, stored so that a search can return it. */
@@ -82,6 +85,39 @@ final class IndexFields
     static String typed(final String property, final int type)
     {
         return property + TYPE_SEPARATOR + PropertyType.nameFromValue(type);
+    }
+
+    /**
+     * The property a {@link #typed typed field} holds values of.
+     *
+     * @param typedField a field named by {@link #typed}
+     * @return the property's name
+     */
+    static String propertyOf(final String typedField)
+    {
+        return typedField.substring(0, typedField.lastIndexOf(TYPE_SEPARATOR));
+    }
+
+    /**
+     * The JCR type of the values a {@link #typed typed field} holds.
+     *
+     * @param typedField a field named by {@link #typed}
+     * @return one of the {@link PropertyType} constants
+     */
+    static int typeOf(final String typedField)
+    {
+        return PropertyType.valueFromName(typedField.substring(typedField.lastIndexOf(TYPE_SEPARATOR) + 1));
+    }
+
+    /**
+     * Whether values of a type are also indexed as numbers, under {@link #number}.
+     *
+     * @param type one of the {@link PropertyType} constants
+     * @return {@code true} for whole numbers, numbers and dates
+     */
+    static boolean isNumber(final int type)
+    {
+        return type == PropertyType.LONG || type == PropertyType.DOUBLE || type == PropertyType.DATE;
     }
 
     /**

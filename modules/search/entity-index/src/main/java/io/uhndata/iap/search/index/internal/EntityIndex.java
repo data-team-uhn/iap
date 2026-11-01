@@ -28,9 +28,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.IOUtils;
 
 /**
  * The index's documents on disk, written one entity's block at a time. A block is only ever replaced or removed
@@ -47,11 +50,33 @@ import org.apache.lucene.store.Directory;
  */
 final class EntityIndex implements Closeable
 {
+    /**
+     * A search over the index.
+     *
+     * @param <T> what the search finds
+     * @version $Id$
+     * @since 0.1.0
+     */
+    @FunctionalInterface
+    interface Search<T>
+    {
+        /**
+         * Runs the search.
+         *
+         * @param searcher reads the index as it stood when the search began
+         * @return what the search found
+         * @throws IOException if the index cannot be read
+         */
+        T run(IndexSearcher searcher) throws IOException;
+    }
+
     private static final String LAYOUT_KEY = "layout";
 
     private final Directory directory;
 
     private final IndexWriter writer;
+
+    private final SearcherManager searchers;
 
     /**
      * Opens the index, creating it if the directory holds none. The index closes the directory when it is closed.
@@ -63,6 +88,26 @@ final class EntityIndex implements Closeable
     {
         this.directory = directory;
         this.writer = new IndexWriter(directory, new IndexWriterConfig());
+        this.searchers = new SearcherManager(this.writer, null);
+    }
+
+    /**
+     * Searches the index, including what was written but not yet made durable.
+     *
+     * @param <T> what the search finds
+     * @param search the search to run
+     * @return what the search found
+     * @throws IOException if the index cannot be read
+     */
+    <T> T search(final Search<T> search) throws IOException
+    {
+        this.searchers.maybeRefreshBlocking();
+        final IndexSearcher searcher = this.searchers.acquire();
+        try {
+            return search.run(searcher);
+        } finally {
+            this.searchers.release(searcher);
+        }
     }
 
     /**
@@ -159,10 +204,7 @@ final class EntityIndex implements Closeable
     @Override
     public void close() throws IOException
     {
-        try {
-            this.writer.close();
-        } finally {
-            this.directory.close();
-        }
+        // Each closed even if the one before fails, the first failure thrown
+        IOUtils.close(this.searchers, this.writer, this.directory);
     }
 }

@@ -30,6 +30,21 @@
   <name>IAP - Search - Implementation</name>
   <description>The servlet serving the /search endpoint.</description>
 
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <!-- The in-memory Oak repository can take longer than the default 500ms to activate under load -->
+            <sling.mock.resourceresolverfactoryactivator.timeout.ms>10000</sling.mock.resourceresolverfactoryactivator.timeout.ms>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
   <dependencies>
     <!-- Not used here, but SearchContextFactory is annotated with it, and javac warns that it cannot read an
          annotation whose class is absent — which -Werror turns into a failure -->
@@ -120,6 +135,27 @@
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
+    </dependency>
+    <!-- The index whose answers the tests compare with the JCR query's, as a listing backend should answer -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-search-entity-index</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.sling-mock-oak</artifactId>
+    </dependency>
+    <!-- The index is started with the mock framework's bundle context -->
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.framework</artifactId>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 </project>
