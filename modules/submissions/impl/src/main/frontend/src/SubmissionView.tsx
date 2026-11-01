@@ -79,12 +79,18 @@ function createdBy(submission: SerializedNode): unknown {
   return submission.createdBy ?? submission["jcr:createdBy"];
 }
 
+// Whether an option picks a stored value. A number question stores numbers, which arrive as JSON
+// numbers while every option is text, and "2.50" picks 2.5.
+function picks(option: unknown, value: unknown): boolean {
+  return typeof value === "number" ? Number(option) === value : option === value;
+}
+
 // What a stored value reads as: the label of the option it picks, where the question offers one.
 function labelled(question: SerializedNode, value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(entry => labelled(question, entry));
   }
-  const option = childrenOfType(question, "sch/AnswerOption").find(child => child.value === value);
+  const option = childrenOfType(question, "sch/AnswerOption").find(child => picks(child.value, value));
   return option === undefined ? value : option.label ?? option.value;
 }
 

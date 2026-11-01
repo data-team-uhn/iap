@@ -36,6 +36,7 @@ import org.osgi.service.component.annotations.Reference;
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.submissions.internal.AnswerType;
 import io.uhndata.iap.submissions.internal.ApplicableItems;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
@@ -53,6 +54,10 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  *
  * <p>Each payload entry names a question by its path <em>relative to the schema version</em>, and carries the answer's
  * value or values. An entry pointing to a non-existing question is refused rather than quietly stored.</p>
+ *
+ * <p>Each value is stored in the type its question's data type names, as {@link AnswerType} describes, so that
+ * comparing answers compares numbers as numbers. A value that does not fit is refused before anything is
+ * written.</p>
  *
  * <p>Saving is idempotent: an answer already recorded for a question is updated in place, found by the reference it
  * holds rather than by any name, so saving twice leaves one answer and not two.</p>
@@ -95,13 +100,14 @@ public class SaveAnswersHandler implements ServiceTaskHandler
         final Submission submission = SubmissionHost.read(target, HANDLER_NAME);
         checkMayEdit(submission, context.getActor());
         final Resource schemaVersion = schemaVersionOf(submission, target);
-        final Map<Resource, String[]> answers = new LinkedHashMap<>();
+        final Map<Resource, Object[]> answers = new LinkedHashMap<>();
         for (final Map.Entry<String, Object> entry : context.getEvent().getPayload().entrySet()) {
-            answers.put(question(schemaVersion, entry.getKey()), values(entry.getKey(), entry.getValue()));
+            final Resource question = question(schemaVersion, entry.getKey());
+            answers.put(question, stored(question, values(entry.getKey(), entry.getValue())));
         }
         final Map<String, String> existing = answersByQuestion(submission);
         VersioningUtils.checkOut(target);
-        for (final Map.Entry<Resource, String[]> answer : answers.entrySet()) {
+        for (final Map.Entry<Resource, Object[]> answer : answers.entrySet()) {
             record(existing, target, answer.getKey(), answer.getValue());
         }
         checkShown(target, schemaVersion, answers);
@@ -116,7 +122,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      * @param answers the questions this save answered, with the values it gave them
      * @throws InvalidStateException when a value was given to a question that does not apply
      */
-    private void checkShown(final Resource target, final Resource schemaVersion, final Map<Resource, String[]> answers)
+    private void checkShown(final Resource target, final Resource schemaVersion, final Map<Resource, Object[]> answers)
         throws InvalidStateException
     {
         final Submission submission = Objects.requireNonNull(target.adaptTo(Submission.class),
@@ -224,6 +230,21 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     }
 
     /**
+     * One answer's values in the type its question stores.
+     *
+     * @param question the question answered
+     * @param values the values as submitted, blanks dropped
+     * @return the values to store, in the stored type, empty when the answer is being cleared
+     * @throws InvalidPayloadException when a value does not fit the question's data type
+     */
+    private Object[] stored(final Resource question, final String[] values) throws InvalidPayloadException
+    {
+        final Question model = Objects.requireNonNull(question.adaptTo(Question.class),
+            "A resource of the question type always reads as a question");
+        return AnswerType.of(model).store(model, values);
+    }
+
+    /**
      * Drops the blank values. A cleared field posts one empty value, because naming the question is the only way to
      * say "clear this", so an answer left with no values is cleared.
      *
@@ -242,11 +263,11 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      *     they answer to the path of the existing answer node
      * @param target the submission's own resource, which the answers are children of
      * @param question the question being answered
-     * @param values the submitted values
+     * @param values the values to store, in the type the question stores
      * @throws PersistenceException when the answer cannot be written
      */
     private void record(final Map<String, String> answers, final Resource target, final Resource question,
-        final String[] values) throws PersistenceException
+        final Object[] values) throws PersistenceException
     {
         final String existing = answers.get(question.getPath());
         if (existing == null && values.length == 0) {

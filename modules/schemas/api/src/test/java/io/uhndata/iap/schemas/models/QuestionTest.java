@@ -157,7 +157,7 @@ class QuestionTest
         assertNotNull(question);
         assertNull(question.getText());
         assertNull(question.getDescription());
-        assertNull(question.getDataType());
+        assertEquals("text", question.getDataType(), "the default Oak autocreates");
         assertEquals(0, question.getMinAnswers());
         assertEquals(1, question.getMaxAnswers());
         assertFalse(question.isRequired());

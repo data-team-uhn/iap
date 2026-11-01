@@ -25,6 +25,8 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import javax.jcr.Node;
+import javax.jcr.Property;
+import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.Workspace;
@@ -92,6 +94,8 @@ class SaveAnswersHandlerTest
 
     private static final String REASON = "details/reason";
 
+    private static final String DAYS = "details/days";
+
     private static final String SUPER_TYPE = "sling:resourceSuperType";
 
     private static final String VALUE = "value";
@@ -145,6 +149,8 @@ class SaveAnswersHandlerTest
             "dataType", "date"));
         this.context.create().resource(VERSION_PATH + "/" + REASON, Map.of(
             TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, "sch/FormItem", "text", "Is it for a wedding?"));
+        this.context.create().resource(VERSION_PATH + "/" + DAYS, Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, "sch/FormItem", "text", "How many days?", "dataType", "long"));
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
             "tags", new String[] {"draft"}));
@@ -227,6 +233,28 @@ class SaveAnswersHandlerTest
         this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
 
         Mockito.verify(versions).checkout(SUBMISSION_PATH);
+    }
+
+    @Test
+    void storesAWholeNumberAsANumber() throws Exception
+    {
+        this.handler.execute(context(Map.of(DAYS, "3.0")));
+
+        stampAnswers();
+        // Read off the node: the value map would turn a stored "3" into 3 as readily as a stored 3
+        final Property stored = Objects.requireNonNull(onlyAnswer().adaptTo(Node.class)).getProperty(VALUE);
+        assertEquals(PropertyType.LONG, stored.getType());
+        assertEquals(3L, stored.getValues()[0].getLong());
+    }
+
+    @Test
+    void refusesAValueItsQuestionCannotHoldAndWritesNothing()
+    {
+        final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,
+            () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06", DAYS, "2.5"))));
+
+        assertEquals("The answer to \"How many days?\" must be a whole number.", refusal.getMessage());
+        assertTrue(submission().getAnswers().isEmpty(), "Nothing is written when one value does not fit");
     }
 
     @Test

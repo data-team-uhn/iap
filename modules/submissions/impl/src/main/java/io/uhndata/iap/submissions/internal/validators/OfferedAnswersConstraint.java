@@ -19,13 +19,12 @@ package io.uhndata.iap.submissions.internal.validators;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.submissions.internal.AnswerType;
 import io.uhndata.iap.submissions.spi.AnswerConstraint;
 
 /**
@@ -34,6 +33,9 @@ import io.uhndata.iap.submissions.spi.AnswerConstraint;
  *
  * <p>The form offers only those answers, so a value from outside them did not come from it. And an option's value
  * is what conditions compare against: a stray one would make the request go on to ask questions nobody chose.</p>
+ *
+ * <p>Values are compared as the question's answers are stored: an option written {@code 2.50} is the stored number
+ * {@code 2.5}.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,13 +46,13 @@ public final class OfferedAnswersConstraint implements AnswerConstraint
     @Override
     public Optional<String> refusal(final Question question, final List<String> values)
     {
-        final Set<String> offered =
-            question.getOptions().stream().map(AnswerOption::getValue).collect(Collectors.toSet());
+        final List<String> offered = question.getOptions().stream().map(AnswerOption::getValue).toList();
         if (offered.isEmpty()) {
             return Optional.empty();
         }
+        final AnswerType type = AnswerType.of(question);
         return values.stream()
-            .filter(value -> !offered.contains(value))
+            .filter(value -> offered.stream().noneMatch(option -> type.matches(option, value)))
             .findFirst()
             .map(value -> "\"" + value + "\" is not one of the answers \"" + question.getText() + "\" offers.");
     }

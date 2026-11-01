@@ -29,7 +29,7 @@ import io.uhndata.iap.submissions.spi.AnswerConstraint;
 
 /**
  * Refuses a numeric value outside a question's {@code minValue}/{@code maxValue} bounds. Both bounds are hard. A
- * value that is not a finite number is left to {@link NumericTypeConstraint}.
+ * value that is not a number, which only a question that is not numeric stores, is not compared.
  *
  * @version $Id$
  * @since 0.1.0

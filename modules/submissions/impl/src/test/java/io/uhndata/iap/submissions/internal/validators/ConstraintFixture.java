@@ -142,7 +142,7 @@ final class ConstraintFixture
     private static AnswerConstraint[] shippedConstraints()
     {
         return new AnswerConstraint[] { new MaxAnswersConstraint(), new OfferedAnswersConstraint(),
-            new NumericTypeConstraint(), new ValueRangeConstraint(), new PatternConstraint() };
+            new ValueRangeConstraint(), new PatternConstraint() };
     }
 
     /**

@@ -49,7 +49,7 @@ topics are referenceable too.
 | Property | Notes |
 |---|---|
 | `text`, `description` | What the submitter reads. |
-| `dataType` | `text`, `long`, `double`, `boolean`, `date`. A file is asked for by a document requirement. |
+| `dataType` | `text`, `long`, `double`, `boolean`, `date`, which also sets how an answer is stored. A file is asked for by a document requirement. |
 | `minAnswers`, `maxAnswers` | How many values an answer takes. A positive minimum is what "required" means, a maximum other than 1 is what "multiple" means; zero or negative leaves that end open. |
 | `minValue`, `maxValue` | Bounds for numeric answers. |
 | `pattern`, `patternMessage` | A regular expression every text value must match, and what to say when one does not. |
@@ -59,6 +59,14 @@ topics are referenceable too.
 A question with `sch:AnswerOption` children is answered only with their values. The **value** is
 what an answer stores and what a condition compares against, so changing it changes the meaning
 of every answer already recorded; the **label** is only what the submitter reads.
+
+An answer is stored in the type its question's `dataType` names: `long` as a whole
+number, `double` as a number, `boolean` as true or false, and everything else, dates
+included, as the text submitted. A date needs no other type, since `yyyy-mm-dd` already
+sorts chronologically. A value that does not fit is refused when the answer is saved,
+before anything is written, so `3.0` is accepted as a whole number and `3.5` is not. An
+option of a number question picks the same number however it is written: `2.50` picks
+a stored `2.5`.
 
 ### Document sections
 

@@ -307,6 +307,18 @@ describe("SubmissionView", () => {
     expect(screen.queryByText("A wonder drug against everything")).toBeNull();
   });
 
+  it("shows the label of the option a stored number picked", async () => {
+    const submission = structuredClone(DEEP_SUBMISSION);
+    Object.assign(submission.schemaVersion.BasicInformation.Duration, {
+      three: { "sling:resourceType": "sch/AnswerOption", value: "36.0", label: "Three years" },
+    });
+    vi.stubGlobal("fetch", bothModes(submission));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByText("Three years")).toBeInTheDocument();
+  });
+
   it("displays the submission's answers, per the schema's structure, and its reviews", async () => {
     const fetchMock = bothModes(DEEP_SUBMISSION);
     vi.stubGlobal("fetch", fetchMock);

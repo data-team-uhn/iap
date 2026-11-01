@@ -49,6 +49,7 @@ public class Question extends FormItem implements Referenceable
     private String description;
 
     @ValueMapValue
+    @Default(values = "text")
     private String dataType;
 
     @ValueMapValue

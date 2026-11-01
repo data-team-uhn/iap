@@ -359,7 +359,9 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         final Map<String, List<String>> answers)
     {
         final JsonArrayBuilder value = Json.createArrayBuilder();
-        answers.getOrDefault(question.getPath(), List.of()).forEach(value::add);
+        answers.getOrDefault(question.getPath(), List.of()).stream()
+            .map(stored -> AnswerType.asOffered(question, stored))
+            .forEach(value::add);
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME_KEY, question.getName())
             .add(TYPE_KEY, question.getType())

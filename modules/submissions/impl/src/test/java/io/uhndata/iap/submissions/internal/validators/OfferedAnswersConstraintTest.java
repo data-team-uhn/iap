@@ -61,6 +61,12 @@ class OfferedAnswersConstraintTest
     }
 
     @Test
+    void acceptsANumberHoweverTheOfferedOneIsWritten() throws Exception
+    {
+        assertNull(this.fixture.offering("2.50", "5").verdictOn(Map.of("dataType", "double"), "2.5"));
+    }
+
+    @Test
     void leavesAQuestionOfferingNothingAnsweredFreely() throws Exception
     {
         assertNull(this.fixture.verdictOn(Map.of(), "anything at all"));

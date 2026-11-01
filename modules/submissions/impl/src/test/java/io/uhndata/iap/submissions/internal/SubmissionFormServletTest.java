@@ -260,6 +260,18 @@ class SubmissionFormServletTest
     }
 
     @Test
+    void writesAStoredNumberAsTheOptionItPicks() throws IOException
+    {
+        assertEquals("2", daysOfferingTwoAnswered("2.0"));
+    }
+
+    @Test
+    void keepsAStoredValueThatPicksNoOption() throws IOException
+    {
+        assertEquals("2.5", daysOfferingTwoAnswered("2.5"));
+    }
+
+    @Test
     void omitsABoundThatIsNotFinite() throws IOException
     {
         this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/daysAway", Map.of(
@@ -697,6 +709,23 @@ class SubmissionFormServletTest
         return entries.getValuesAs(JsonObject.class).stream()
             .map(entry -> entry.getString("name"))
             .collect(Collectors.toSet());
+    }
+
+    /**
+     * The value the form reports for a number question offering {@code 2}, answered with a stored value.
+     *
+     * @param stored the stored value, as text
+     * @return the one value the form reports
+     * @throws IOException when the form cannot be served
+     */
+    private String daysOfferingTwoAnswered(final String stored) throws IOException
+    {
+        final String days = VERSION_PATH + "/" + DETAILS + "/days";
+        this.context.create().resource(days, Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "How many days?", "dataType", "double"));
+        this.context.create().resource(days + "/two", Map.of(TYPE, AnswerOption.RESOURCE_TYPE, "value", "2"));
+        answer(DETAILS + "/days", stored);
+        return item(requirement(form(REQUESTER), DETAILS), "days").getJsonArray("value").getString(0);
     }
 
     private void answer(final String questionPath, final String value)
