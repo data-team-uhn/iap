@@ -105,8 +105,14 @@ export class ArchivePage {
     await this.page.getByRole('button', { name: column, exact: true }).click();
   }
 
-  /** The paths currently listed, in the order they are shown in. */
-  async listedPaths(): Promise<string[]> {
+  /**
+   * The paths listed, in the order they are shown in, once the listing holds as many entries as expected.
+   *
+   * The listing loads after the page does, and again after every restore, purge, filter or sort, so a read
+   * that does not wait for a count can find it empty and pass over everything it was meant to check.
+   */
+  async listedPaths(expected: number): Promise<string[]> {
+    await expect(this.rows()).toHaveCount(expected);
     return (await this.rows().getByRole('link').allInnerTexts()).map(path => path.trim());
   }
 
