@@ -66,7 +66,6 @@ class StopProcessingHandlerTest
 
     private final ReadingRuns runs = new ReadingRuns();
 
-    private final ParsedDocuments documents = new ParsedDocuments();
 
     private final StopProcessingHandler handler = new StopProcessingHandler();
 
@@ -84,7 +83,6 @@ class StopProcessingHandlerTest
         inject("parseService", this.parseService);
         inject("runs", this.runs);
         inject("jobManager", this.jobManager);
-        inject("documents", this.documents);
         // A stop only does anything while a reading is going
         this.submission.adaptTo(ModifiableValueMap.class).put(ExtractionStatus.STATUS_PROPERTY,
             ExtractionStatus.STATUS_RUNNING);

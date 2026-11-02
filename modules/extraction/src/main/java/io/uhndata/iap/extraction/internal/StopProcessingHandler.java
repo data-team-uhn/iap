@@ -68,9 +68,6 @@ public class StopProcessingHandler implements ServiceTaskHandler
     @Reference
     private JobManager jobManager;
 
-    @Reference
-    private ParsedDocuments documents;
-
     @Override
     public String getName()
     {
@@ -101,7 +98,6 @@ public class StopProcessingHandler implements ServiceTaskHandler
         }
         ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, ExtractionStatus.STOPPED_MESSAGE);
         ExtractionStatus.releaseClaim(target);
-        this.documents.forget();
         LOGGER.info("Reading stopped: submission={} modelCall={}", path, reading);
     }
 

@@ -322,15 +322,14 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     private static List<String> getGateValues(final String name, final Map<String, FieldResult> fields,
         final Submission submission, final ResourceResolver resolver)
     {
-        final String path = submission.getSchemaVersion().getPath() + "/" + name;
         final FieldResult field = fields.get(name);
         if (field == null) {
-            return submission.getAnswersByQuestion().getOrDefault(path, List.of());
+            return submission.getAnswersTo(name);
         }
         if (!field.found()) {
             return List.of();
         }
-        final Resource question = resolver.getResource(path);
+        final Resource question = resolver.getResource(submission.getSchemaVersion().getPath() + "/" + name);
         return Answer.readAnswer(field.value(), question == null ? null : question.adaptTo(Question.class));
     }
 
