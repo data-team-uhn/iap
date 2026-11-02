@@ -105,23 +105,21 @@ final class ModelCall
     private static String chat(final LLMClient client, final String system, final String userMessage,
         final LLMRequestOptions options) throws IOException
     {
-        if (Thread.currentThread().isInterrupted()) {
-            throw new ReadingRuns.Stopped();
-        }
+        ReadingRuns.enterModelCall();
         final String reply;
         try {
             reply = client.chat(system, List.of(new LLMMessage("user", userMessage)), options);
         } catch (final IOException e) {
-            if (ReadingRuns.isStopped(e)) {
+            final boolean stopped = ReadingRuns.isStopped(e);
+            ReadingRuns.leaveModelCall();
+            if (stopped) {
                 throw new ReadingRuns.Stopped();
             }
             throw e;
         }
         // A stop can land while the call is in flight without failing it -- not every client reacts to an
         // interrupt by aborting the request -- so a reply that came back anyway must still not be accepted.
-        if (Thread.currentThread().isInterrupted()) {
-            throw new ReadingRuns.Stopped();
-        }
+        ReadingRuns.leaveModelCall();
         return reply;
     }
 }

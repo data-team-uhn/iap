@@ -31,8 +31,11 @@ import org.osgi.service.component.annotations.Component;
  * reading step — so the registration is counted. The thread stays registered until the outermost one leaves,
  * which is what a stop in the middle of a step still finds.</p>
  *
- * <p>Registering, leaving and stopping are synchronized, so a stop cannot interrupt a thread that has already
- * left the reading and gone back to the pool.</p>
+ * <p>A stop is noted on the thread, and interrupts it only inside a model call. Anywhere else the thread may be
+ * in the repository, which an interrupt can break, so the next model call or step sees the stop instead.</p>
+ *
+ * <p>Registering, leaving, calling and stopping share one lock, so a stop cannot interrupt a thread that has
+ * already left the model call or the reading.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -56,6 +59,15 @@ public class ReadingRuns
         }
     }
 
+    /** Shared by every instance, since a model call reaches it from where no instance is at hand. */
+    private static final Object STATE_LOCK = new Object();
+
+    /** The threads inside a model call, the only place a stop interrupts. */
+    private static final Set<Thread> CALLING_THREADS = ConcurrentHashMap.newKeySet();
+
+    /** The threads told to stop, until they leave the reading. */
+    private static final Set<Thread> STOPPING_THREADS = ConcurrentHashMap.newKeySet();
+
     private final ConcurrentMap<String, Thread> running = new ConcurrentHashMap<>();
 
     private final ConcurrentMap<String, AtomicInteger> depth = new ConcurrentHashMap<>();
@@ -68,49 +80,99 @@ public class ReadingRuns
      * @param submission the submission's path
      * @throws Stopped when this thread was already told to stop
      */
-    synchronized void begin(final String submission) throws Stopped
+    void begin(final String submission) throws Stopped
     {
-        if (Thread.currentThread().isInterrupted()) {
-            throw new Stopped();
+        synchronized (STATE_LOCK) {
+            if (isStopRequested()) {
+                throw new Stopped();
+            }
+            this.running.put(submission, Thread.currentThread());
+            this.depth.computeIfAbsent(submission, key -> new AtomicInteger()).incrementAndGet();
         }
-        this.running.put(submission, Thread.currentThread());
-        this.depth.computeIfAbsent(submission, key -> new AtomicInteger()).incrementAndGet();
     }
 
     /**
      * Note that this thread has left one entry into the reading. The registration drops when the last one does.
      *
-     * <p>Also takes down a stop that landed since the last model call. Checked under the same lock as
-     * {@link #stop}, so no stop can land after it and stay set on a thread that has moved on.</p>
+     * <p>The outermost leaving also takes down a stop that landed since the last model call. Checked under the
+     * same lock as {@link #stop}, so no stop can land after it and stay set on a thread that has moved on.</p>
      *
      * @param submission the submission's path
      * @return {@code true} when this thread had been told to stop
      */
-    synchronized boolean end(final String submission)
+    boolean end(final String submission)
     {
-        final AtomicInteger count = this.depth.get(submission);
-        if (count != null && count.decrementAndGet() <= 0) {
-            this.depth.remove(submission, count);
-            this.running.remove(submission, Thread.currentThread());
-            this.files.remove(submission);
+        synchronized (STATE_LOCK) {
+            final Thread current = Thread.currentThread();
+            final boolean stopped = Thread.interrupted() | STOPPING_THREADS.contains(current);
+            final AtomicInteger count = this.depth.get(submission);
+            if (count != null && count.decrementAndGet() <= 0) {
+                this.depth.remove(submission, count);
+                this.running.remove(submission, current);
+                this.files.remove(submission);
+                STOPPING_THREADS.remove(current);
+            }
+            return stopped;
         }
-        return Thread.interrupted();
     }
 
     /**
-     * Interrupt the thread reading a submission, if one is.
+     * Tell the thread reading a submission to stop, if one is, interrupting it when it is inside a model call.
      *
      * @param submission the submission's path
-     * @return {@code true} when a thread was interrupted
+     * @return {@code true} when a thread was reading it
      */
-    synchronized boolean stop(final String submission)
+    boolean stop(final String submission)
     {
-        final Thread thread = this.running.get(submission);
-        if (thread == null) {
-            return false;
+        synchronized (STATE_LOCK) {
+            final Thread thread = this.running.get(submission);
+            if (thread == null) {
+                return false;
+            }
+            STOPPING_THREADS.add(thread);
+            if (CALLING_THREADS.contains(thread)) {
+                thread.interrupt();
+            }
+            return true;
         }
-        thread.interrupt();
-        return true;
+    }
+
+    /**
+     * Note that this thread is about to ask a model, where a stop may interrupt it.
+     *
+     * @throws Stopped when this thread was already told to stop
+     */
+    static void enterModelCall() throws Stopped
+    {
+        synchronized (STATE_LOCK) {
+            if (isStopRequested()) {
+                throw new Stopped();
+            }
+            CALLING_THREADS.add(Thread.currentThread());
+        }
+    }
+
+    /**
+     * Note that the model call of this thread is over. A stop that came during the call is reported, and its
+     * interrupt taken down, so the thread goes back to the repository uninterrupted.
+     *
+     * @throws Stopped when this thread was told to stop during the call
+     */
+    static void leaveModelCall() throws Stopped
+    {
+        synchronized (STATE_LOCK) {
+            CALLING_THREADS.remove(Thread.currentThread());
+            if (isStopRequested()) {
+                Thread.interrupted();
+                throw new Stopped();
+            }
+        }
+    }
+
+    /** Whether this thread was told to stop, or interrupted. */
+    private static boolean isStopRequested()
+    {
+        return Thread.currentThread().isInterrupted() || STOPPING_THREADS.contains(Thread.currentThread());
     }
 
     /**
@@ -127,7 +189,7 @@ public class ReadingRuns
                 return true;
             }
         }
-        return Thread.currentThread().isInterrupted();
+        return isStopRequested();
     }
 
     /**

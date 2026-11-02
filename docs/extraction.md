@@ -675,9 +675,11 @@ not the submitter is refused too.
 
 1. If `extractionStatus` is not `running`, nothing happens. A late Stop must not undo a
    finished reading.
-2. If a thread is reading this submission (`ReadingRuns`), it is interrupted. The model
-   call checks for that before and after each request (`ModelCall.chat`), so a reply
-   that arrives after a Stop is thrown away. A stop that lands after the model answered,
+2. If a thread is reading this submission (`ReadingRuns`), it is told to stop. It is
+   interrupted only while it waits on a model call. Anywhere else it may be in the
+   repository, which an interrupt can break, so it is only marked. The model call
+   checks for a stop before and after each request (`ModelCall.chat`), so a reply that
+   arrives after a Stop is thrown away. A stop that lands after the model answered,
    while the step still checks quotes or writes, is caught when the step ends
    (`ReadingRuns.end`): `classifyDocument` and `intakeAnswers` then throw, and the
    engine reverts the walk, so nothing that reading wrote is kept.
@@ -692,9 +694,9 @@ not the submitter is refused too.
      reading text the submitter just threw away. A claim with no reading thread is left
      over from a reading that ended or a restart, and the text is kept.
 5. The submission gets `extractionStatus=failed`, "Reading was stopped.", and the claim
-   is removed. The cached document text (`ParsedDocuments`) is dropped.
+   is removed.
 
-The interrupted job sees the stop, writes the same "Reading was stopped." status in its
+The stopped job sees the stop, writes the same "Reading was stopped." status in its
 own commit, and ends.
 
 `ParseControl.abandon` (`ParseAbandonment`, documents module) reads the job record
@@ -1051,7 +1053,7 @@ repository root. Classes are in
 | `FinishReadingHandler` | Service task `finishReading`: moves a still-`running` submission to `done` with the step's `message`, and marks it blocked when the step sets `blocks` |
 | `ReviewExtractionHandler` | Service task `reviewExtraction`: the submitter's verdict on a pre-filled answer |
 | `StopProcessingHandler` | Service task `stopProcessing`: stops a parse or a reading that is still going |
-| `ReadingRuns` | Which thread is reading each submission, so a Stop can interrupt it |
+| `ReadingRuns` | Which thread is reading each submission, so a Stop can reach it |
 | `SubmitterAccess` | Lets only the submitter, and only while the request is a draft, change how it is read |
 | `ExtractionStatus` | The submission's reading state: `extractionStatus`, `extractionMessage`, the claim and the blocked flag, and the values they take |
 | `SubmissionFiles` | A submission's latest uploads, the first one parsed, and whether every parse has settled |
