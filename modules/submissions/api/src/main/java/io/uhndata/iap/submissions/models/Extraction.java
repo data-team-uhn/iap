@@ -32,8 +32,8 @@ import io.uhndata.iap.entities.models.EntityPart;
 /**
  * A Sling Model wrapping a {@code sub:Extraction} node: one run of answer extraction against one
  * {@link Answer} — what a model read out of the submitted documents, and which document revisions it read to get
- * there. {@link #getCreated()} is when it ran. Only a run that found an answer is stored today; one with no
- * {@link #getExtractedAnswer() extracted answer} would record a run that found nothing.
+ * there. The run's existence is the record that extraction happened, so a run that found nothing is one with no
+ * {@link #getExtractedAnswer() extracted answer}, and {@link #getCreated()} is when it ran.
  *
  * @version $Id$
  * @since 0.1.0
@@ -58,13 +58,7 @@ public class Extraction extends EntityPart
     private String reasoning;
 
     @ValueMapValue
-    private boolean reviewed;
-
-    @ValueMapValue
     private boolean evidenceRejected;
-
-    @ValueMapValue
-    private String[] replacedValue;
 
     @ValueMapValue
     private Long editDistance;
@@ -73,8 +67,8 @@ public class Extraction extends EntityPart
     private Double percentageDistance;
 
     /**
-     * The document revisions this run read. A revision is what a submitter replaces, so this is what tells a later
-     * reader that the run is stale.
+     * The document revisions this run read, whether or not it found an answer in them. A revision is what a
+     * submitter replaces, so this is what tells a later reader that the run is stale.
      *
      * @return a list of revisions, empty if none were recorded or none of them resolve
      */
@@ -92,19 +86,6 @@ public class Extraction extends EntityPart
             }
         }
         return result;
-    }
-
-    /**
-     * What the answer held before this run replaced it with what it read in a newer revision. Kept so the
-     * submitter can go back to it.
-     *
-     * @return a copy of the replaced value(s), or {@code null} when this run replaced nothing
-     */
-    @Nullable
-    public String[] getReplacedValue()
-    {
-        // A copy, since arrays are mutable and callers must not be able to alter the model's own state
-        return this.replacedValue == null ? null : this.replacedValue.clone();
     }
 
     /**
@@ -141,18 +122,8 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * Whether the submitter confirmed this answer. Editing the answer does not set it.
-     *
-     * @return {@code true} once the submitter has confirmed it
-     */
-    public boolean isReviewed()
-    {
-        return this.reviewed;
-    }
-
-    /**
-     * Whether the submitter said the quoted passage does not support the answer. Separate from
-     * {@link #isReviewed()}: it is a verdict on the evidence, not on the answer, and settles nothing.
+     * Whether the submitter said the quoted passage does not support the answer. A verdict on the evidence, not on
+     * the answer, so it settles nothing.
      *
      * @return {@code true} if the passage was reported as wrong
      */
@@ -162,10 +133,10 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * How far the submitter's own value ended up from the extracted answer, as a raw edit distance. Declared but
-     * not written yet: nothing measures it.
+     * How far the submitter's own value ended up from the extracted answer, as a raw edit distance. Written when
+     * the submitter accepts or edits the extracted answer.
      *
-     * @return an edit distance, or {@code null} when none was recorded, which is always for now
+     * @return an edit distance, or {@code null} while nobody has acted on this run
      */
     @Nullable
     public Long getEditDistance()
@@ -177,7 +148,7 @@ public class Extraction extends EntityPart
      * How far the submitter's own value ended up from the extracted answer, as a percentage of the extracted
      * answer's own length.
      *
-     * @return a percentage, or {@code null} when none was recorded, which is always for now
+     * @return a percentage, or {@code null} while nobody has acted on this run
      */
     @Nullable
     public Double getPercentageDistance()
@@ -197,10 +168,10 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * Whether the submitter has acted on this run, read from the edit distance. A distance of zero would mean the
-     * extracted answer was accepted as it stood. Nothing writes that distance yet, so this is {@code false} for now.
+     * Whether the submitter has acted on this run, which is what an edit distance records. A distance of zero
+     * means the extracted answer was accepted as it stood; anything higher means it was edited or replaced.
      *
-     * @return {@code true} when an edit distance was recorded
+     * @return {@code true} once the submitter has accepted or edited the extracted answer
      */
     public boolean isActedOn()
     {

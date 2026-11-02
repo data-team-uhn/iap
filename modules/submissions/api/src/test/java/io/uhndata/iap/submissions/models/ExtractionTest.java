@@ -37,7 +37,6 @@ import org.mockito.Mockito;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -78,19 +77,18 @@ class ExtractionTest
         assertNotNull(resource.adaptTo(Extraction.class));
     }
 
-    // Two verdicts, kept apart: one is about the answer, the other about the quote behind it
+    // A verdict on the quote behind the answer, which says nothing about the answer itself
     @Test
-    void keepsTheSubmittersTwoVerdictsApart()
+    void keepsTheSubmittersVerdictOnTheEvidence()
     {
         final Resource resource = this.context.create().resource(EXTRACTION_PATH, Map.of(
             "sling:resourceType", Extraction.RESOURCE_TYPE,
             "extractedAnswer", "42",
-            "reviewed", true,
             "evidenceRejected", true));
         final Extraction extraction = resource.adaptTo(Extraction.class);
 
-        assertTrue(extraction.isReviewed());
         assertTrue(extraction.isEvidenceRejected());
+        assertFalse(extraction.isActedOn(), "judging the quote is not acting on the answer");
     }
 
     @Test
@@ -106,7 +104,6 @@ class ExtractionTest
         assertEquals("42", extraction.getExtractedAnswer());
         assertEquals(0.87, extraction.getConfidence());
         assertEquals("The recruitment table gives 42 in the final column", extraction.getReasoning());
-        assertFalse(extraction.isReviewed(), "nobody has looked at it yet");
         assertFalse(extraction.isEvidenceRejected());
         // Nobody has accepted or edited it yet, so there is nothing to compare against
         assertFalse(extraction.isActedOn());
@@ -190,25 +187,11 @@ class ExtractionTest
         assertNull(extraction.getExtractedAnswer());
         assertNull(extraction.getConfidence());
         assertNull(extraction.getReasoning());
-        assertFalse(extraction.isReviewed());
         assertFalse(extraction.isEvidenceRejected());
         assertNull(extraction.getEditDistance());
         assertNull(extraction.getPercentageDistance());
         assertFalse(extraction.isActedOn());
         assertTrue(extraction.getContext().isEmpty());
-        assertNull(extraction.getReplacedValue());
-    }
-
-    @Test
-    void keepsWhatTheAnswerHeldBeforeThisRunReplacedIt()
-    {
-        final Extraction extraction = this.context.create().resource(EXTRACTION_PATH, Map.of(
-            "sling:resourceType", Extraction.RESOURCE_TYPE,
-            "replacedValue", new String[]{ "40" })).adaptTo(Extraction.class);
-
-        assertArrayEquals(new String[]{ "40" }, extraction.getReplacedValue());
-        extraction.getReplacedValue()[0] = "changed";
-        assertArrayEquals(new String[]{ "40" }, extraction.getReplacedValue(), "callers get a copy");
     }
 
     private void registerVersion()
