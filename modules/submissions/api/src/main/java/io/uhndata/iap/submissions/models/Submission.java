@@ -368,6 +368,38 @@ public class Submission extends Entity
     }
 
     /**
+     * What answers a particular question for a step acting on a reading before anybody has looked at it: the
+     * submitter's values, or failing those, what a reading suggested. See {@link Answer#getValueOrSuggestion()}.
+     *
+     * @param questionPath the path of the question to read, relative to the schema version, e.g.
+     *     {@code is_proposal/decision}
+     * @return the values; empty if there are none, the schema version has no question at that path, or this session
+     *     cannot read the schema version
+     */
+    @NotNull
+    public List<String> getAnswerOrSuggestionTo(@NotNull final String questionPath)
+    {
+        final SchemaVersion version = this.findSchemaVersion();
+        if (version == null) {
+            return List.of();
+        }
+        final String wanted = version.getPath() + "/" + questionPath;
+        return this.getAnswers().stream()
+            .filter(answer -> isAnswering(answer, wanted))
+            .map(Answer::getValueOrSuggestion)
+            .filter(values -> !values.isEmpty())
+            .findFirst()
+            .orElse(List.of());
+    }
+
+    /** Whether an answer is for the question at a path, read once since every read resolves the reference. */
+    private static boolean isAnswering(final Answer answer, final String questionPath)
+    {
+        final Question question = answer.getQuestion();
+        return question != null && questionPath.equals(question.getPath());
+    }
+
+    /**
      * The single value answering one question, for the questions that take one.
      *
      * @param questionPath the path of the question to read, relative to the schema version, such as

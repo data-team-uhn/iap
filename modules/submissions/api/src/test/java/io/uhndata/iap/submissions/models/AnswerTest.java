@@ -24,6 +24,7 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -283,6 +284,22 @@ class AnswerTest
         assertEquals(List.of(" , , "), Answer.splitAnswer(" , , ", true));
     }
 
+    // A step routing on a reading before anybody looked at it sees the suggestion; a value typed since wins
+    @Test
+    void standsForTheSuggestionUntilTheSubmitterGivesAValue() throws RepositoryException
+    {
+        final Answer unanswered = createAnswer("decision", 1, "yes");
+        assertEquals(List.of("yes"), unanswered.getValueOrSuggestion());
+
+        this.context.resourceResolver().getResource(unanswered.getPath()).adaptTo(ModifiableValueMap.class)
+            .put("value", new String[] { "   " });
+        assertEquals(List.of("yes"), readAnswer(unanswered).getValueOrSuggestion(), "a blank value gives nothing");
+
+        this.context.resourceResolver().getResource(unanswered.getPath()).adaptTo(ModifiableValueMap.class)
+            .put("value", new String[] { "no" });
+        assertEquals(List.of("no"), readAnswer(unanswered).getValueOrSuggestion());
+    }
+
     // What the form will compare against the stored values, so it has to be split the same way they were stored
     @Test
     void suggestsTheSameValuesAMultiValuedAnswerIsStoredAs() throws RepositoryException
@@ -383,6 +400,12 @@ class AnswerTest
                 "confidence", 0.9);
         this.context.create().resource("/Submissions/submission/" + name + "/extraction0", run);
         return resource.adaptTo(Answer.class);
+    }
+
+    /** The answer read afresh, since a model keeps the values it was adapted with. */
+    private Answer readAnswer(final Answer answer)
+    {
+        return this.context.resourceResolver().getResource(answer.getPath()).adaptTo(Answer.class);
     }
 
     /** An extraction run's properties: what it read, how sure it was, and which revisions it read. */

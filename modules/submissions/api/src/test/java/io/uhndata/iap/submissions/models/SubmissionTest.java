@@ -99,7 +99,7 @@ class SubmissionTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class,
+        this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class, Extraction.class,
             Document.class, Review.class, Discussion.class, Comment.class, SchemaVersion.class, FormRequirement.class,
             DocumentRequirement.class, ApprovalRequirement.class, Section.class, Question.class,
             SingleCondition.class, WorkflowInstance.class, WorkflowInstances.class, Schema.class);
@@ -596,6 +596,42 @@ class SubmissionTest
         assertEquals("yes", submission.getAnswerTo("form/section/q1"));
         // The whole path names the question, never just its end
         assertEquals(List.of(), submission.getAnswersTo("section/q1"));
+    }
+
+    // A step acting on a reading before anybody has looked at it reads the suggestion, until a value is given
+    @Test
+    void readsTheSuggestionToAQuestionNobodyHasAnswered()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
+        // Empty, as the form leaves one behind, so it is passed over for the answer that has something
+        this.context.create().resource("/Submissions/submission/a0", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID));
+        this.context.create().resource("/Submissions/submission/a1", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID));
+        this.context.create().resource("/Submissions/submission/a1/run", Map.of(
+            SLING_RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "yes", "confidence", 0.9));
+        this.context.create().resource("/Submissions/submission/a2", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", new String[]{ "no" }));
+
+        final Submission submission = Objects.requireNonNull(resource.adaptTo(Submission.class));
+
+        assertEquals(List.of("yes"), submission.getAnswerOrSuggestionTo("form/section/q1"));
+        assertEquals(List.of("no"), submission.getAnswerOrSuggestionTo("form/q2"));
+        assertEquals(List.of(), submission.getAnswerOrSuggestionTo("nothing/like/this"));
+        assertEquals(List.of(), submission.getAnswersTo("form/section/q1"), "a suggestion is not an answer");
+    }
+
+    @Test
+    void readsNoSuggestionWhereTheSchemaVersionCannotBeReached()
+    {
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
+
+        assertEquals(List.of(),
+            Objects.requireNonNull(resource.adaptTo(Submission.class)).getAnswerOrSuggestionTo("form/q2"));
     }
 
     @Test

@@ -69,8 +69,8 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * The answer's value(s): what the submitter typed or approved, or what a reading suggested. The value alone does
-     * not say which; {@link Extraction#isReviewed()} marks only an explicit confirmation, not an edit.
+     * The value or values the submitter typed or accepted. An extracted answer is not one of them until the
+     * submitter accepts or edits it.
      *
      * @return a copy of the stored values; {@code null} if the answer holds no value
      */
@@ -187,6 +187,21 @@ public class Answer extends EntityPart implements Referenceable
             return List.of();
         }
         return readAnswer(suggested, getQuestion());
+    }
+
+    /**
+     * What this answer stands for while the submitter has not answered it: the values they gave, or failing those,
+     * what a reading suggested. A step that acts on a reading before anybody has looked at it, such as one routing
+     * on whether a document is a proposal, reads this; the form and every other rule read {@link #getValue()}.
+     *
+     * @return the non-blank values given, or else the suggested values; empty when there is neither
+     */
+    @NotNull
+    public List<String> getValueOrSuggestion()
+    {
+        final List<String> given = this.value == null ? List.of()
+            : Arrays.stream(this.value).filter(each -> !each.isBlank()).toList();
+        return given.isEmpty() ? getSuggestedValues() : given;
     }
 
     /**
