@@ -42,7 +42,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link StopProcessingHandler}.
@@ -274,12 +273,12 @@ class StopProcessingHandlerTest
     }
 
     @Test
-    void interruptsTheThreadThatIsAskingTheModel() throws Exception
+    void tellsTheThreadThatIsReadingToStop() throws Exception
     {
         this.runs.begin(this.submission.getPath());
         try {
             this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of()));
-            assertTrue(Thread.interrupted());
+            assertThrows(ReadingRuns.Stopped.class, ReadingRuns::enterModelCall);
         } finally {
             this.runs.end(this.submission.getPath());
             this.runs.end(this.submission.getPath());

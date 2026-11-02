@@ -53,13 +53,40 @@ class ReadingRunsTest
         assertFalse(this.runs.stop(SUBMISSION));
     }
 
+    // Outside a model call the thread may be in the repository, which an interrupt can break
     @Test
-    void interruptsTheThreadThatIsReading()
+    void notesAStopOnAThreadBetweenModelCallsWithoutInterruptingIt()
     {
         this.runs.begin(SUBMISSION);
 
         assertTrue(this.runs.stop(SUBMISSION));
+        assertFalse(Thread.currentThread().isInterrupted());
+        assertThrows(ReadingRuns.Stopped.class, ReadingRuns::enterModelCall, "the next model call is not made");
+        assertTrue(this.runs.end(SUBMISSION));
+    }
+
+    @Test
+    void interruptsAThreadInsideAModelCall()
+    {
+        this.runs.begin(SUBMISSION);
+        ReadingRuns.enterModelCall();
+
+        assertTrue(this.runs.stop(SUBMISSION));
         assertTrue(Thread.currentThread().isInterrupted());
+        assertThrows(ReadingRuns.Stopped.class, ReadingRuns::leaveModelCall);
+        assertFalse(Thread.currentThread().isInterrupted(), "taken down before the thread goes back to work");
+        assertTrue(this.runs.end(SUBMISSION));
+    }
+
+    @Test
+    void letsAnUnstoppedModelCallEnd()
+    {
+        this.runs.begin(SUBMISSION);
+        ReadingRuns.enterModelCall();
+
+        ReadingRuns.leaveModelCall();
+        assertFalse(this.runs.stop("/Submissions/another"));
+        assertFalse(this.runs.end(SUBMISSION));
     }
 
     // The job and each step enter the same reading on one thread; only the outermost leaving ends it
