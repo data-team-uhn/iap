@@ -169,6 +169,30 @@ class ClassifyDocumentHandlerTest
         assertTrue(getAnswers().isEmpty());
     }
 
+    // Not every provider holds the reply to the schema's list, and a pick outside it is still a guess
+    @Test
+    void leavesTheQuestionUnansweredWhenThePickNamesNoCategory() throws Exception
+    {
+        this.tree.createParsedFileFor(this.proposal, "# Objectives");
+        stubModelPick("Probably a protocol", false);
+
+        this.handler.execute(createTask());
+
+        assertTrue(getAnswers().isEmpty());
+    }
+
+    // A model names a category the way a person reads it, and that still matches the option
+    @Test
+    void storesAPickNamingACategoryByItsLabel() throws Exception
+    {
+        this.tree.createParsedFileFor(this.proposal, "# Objectives");
+        stubModelPick("YES", false);
+
+        this.handler.execute(createTask());
+
+        assertArrayEquals(new String[] { "yes" }, getAnswers().get(0).getValueMap().get("value", String[].class));
+    }
+
     @Test
     void storesAPickAsSureAsTheThresholdTheSchemaSets() throws Exception
     {

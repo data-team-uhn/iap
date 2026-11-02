@@ -336,8 +336,9 @@ What the step does:
 4. A pick the model found, with a confidence at or above that requirement's
    `confidenceThreshold`, is written like any extracted answer (see "Writing an
    answer"): pre-filled, with confidence, reasoning and quotes. A less sure pick is not
-   written at all, so the question stays empty for the submitter. The gate must not
-   guess.
+   written at all, so the question stays empty for the submitter. Nor is a pick that
+   names no category the question offers: not every provider holds a reply to the
+   schema's list. The gate must not guess.
 5. If the model could not be asked, or answered unreadably twice:
    `extractionStatus=failed` and the step stops.
 
