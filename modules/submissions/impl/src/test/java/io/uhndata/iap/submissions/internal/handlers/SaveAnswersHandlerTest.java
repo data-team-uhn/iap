@@ -54,6 +54,7 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.internal.Tagging;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.Extraction;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
@@ -67,6 +68,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -96,6 +98,11 @@ class SaveAnswersHandlerTest
 
     private static final String VALUE = "value";
 
+    private static final String EDIT_DISTANCE = "editDistance";
+
+    /** What a reading suggested for the start date, in the tests measuring an answer against it. */
+    private static final String SUGGESTED_DATE = "2026-10-06";
+
     // JCR-backed rather than the plain mock: the handler writes a real REFERENCE through the JCR API
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
@@ -120,7 +127,7 @@ class SaveAnswersHandlerTest
         Mockito.when(this.node.isCheckedOut()).thenReturn(true);
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, Question.class, Answer.class, Submission.class,
-            Activity.class);
+            Activity.class, Extraction.class);
         final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
         Mockito.when(conditions.applies(Mockito.any(), Mockito.any())).thenAnswer(call -> {
             final String name = ((Content) call.getArgument(0)).getName();
@@ -249,6 +256,61 @@ class SaveAnswersHandlerTest
         this.handler.execute(context(Map.of(START_DATE, "2026-10-13")));
 
         assertEquals(List.of("2026-10-13"), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
+    }
+
+    // What the submitter did with a suggestion is read from how far their answer moved from it
+    @Test
+    void measuresAnAnswerAgainstTheSuggestionItWasShown() throws Exception
+    {
+        final Resource run = suggest(SUGGESTED_DATE);
+
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-13")));
+
+        assertEquals(2L, run.getValueMap().get(EDIT_DISTANCE, Long.class));
+        assertEquals(20.0, run.getValueMap().get("percentageDistance", Double.class));
+    }
+
+    @Test
+    void measuresASuggestionTakenAsItStoodAsNoDistance() throws Exception
+    {
+        final Resource run = suggest(SUGGESTED_DATE);
+
+        this.handler.execute(context(Map.of(START_DATE, SUGGESTED_DATE)));
+
+        assertEquals(0L, run.getValueMap().get(EDIT_DISTANCE, Long.class));
+    }
+
+    // The first answer is what the submitter made of the suggestion; later changes are their own
+    @Test
+    void keepsTheFirstMeasureOfASuggestion() throws Exception
+    {
+        final Resource run = suggest(SUGGESTED_DATE);
+        this.handler.execute(context(Map.of(START_DATE, SUGGESTED_DATE)));
+
+        this.handler.execute(context(Map.of(START_DATE, "2027-01-01")));
+
+        assertEquals(0L, run.getValueMap().get(EDIT_DISTANCE, Long.class));
+    }
+
+    @Test
+    void measuresNothingWhenAFieldIsCleared() throws Exception
+    {
+        final Resource run = suggest(SUGGESTED_DATE);
+
+        this.handler.execute(context(Map.of(START_DATE, "")));
+
+        assertNull(run.getValueMap().get(EDIT_DISTANCE, Long.class));
+    }
+
+    // A run that found nothing suggested nothing, so there is nothing to measure against
+    @Test
+    void measuresNothingAgainstARunThatFoundNothing() throws Exception
+    {
+        final Resource run = suggest(null);
+
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-13")));
+
+        assertNull(run.getValueMap().get(EDIT_DISTANCE, Long.class));
     }
 
     @Test
@@ -383,6 +445,25 @@ class SaveAnswersHandlerTest
                 modify(child, TYPE, Answer.RESOURCE_TYPE);
             }
         });
+    }
+
+    /**
+     * An empty answer to the start date, as the form leaves one, with a reading's run under it.
+     *
+     * @param suggested what the run read, or {@code null} for a run that found nothing
+     * @return the run
+     */
+    private Resource suggest(final String suggested) throws Exception
+    {
+        this.handler.execute(context(Map.of(START_DATE, "placeholder")));
+        stampAnswers();
+        this.handler.execute(context(Map.of(START_DATE, "")));
+        final Resource answer = onlyAnswer();
+        final Map<String, Object> run = suggested == null
+            ? Map.of(TYPE, Extraction.RESOURCE_TYPE, "confidence", 0.2)
+            : Map.of(TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested, "confidence", 0.9);
+        this.context.create().resource(answer.getPath() + "/run", run);
+        return present(this.context.resourceResolver().getResource(answer.getPath() + "/run"));
     }
 
     private Submission submission()
