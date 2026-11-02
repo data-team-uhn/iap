@@ -57,6 +57,37 @@ SENT_BACK = {
     ],
 }
 
+# What reviewers already wrote on studies they started on: notes to self, and the conversations they used to have
+# by email. (author, text, replies)
+ACTIVITY = {
+    "NCT04088747": {
+        "notes": {"reb-reviewer": ["Waiting on Digital about the classifier before I write anything up."]},
+        "discussion": [("reb-reviewer", "Priya, the form says no AI, but the whole study is an elastic-net classifier "
+                        "trained on the ultrasound images. Does Digital need to see it?",
+                        [("digital-reviewer", "Yes, that is model development on imaging. I have flagged it and will "
+                          "ask them for the AI Hub intake.")])],
+    },
+    "NCT07570901": {
+        "discussion": [("reb-reviewer-2", "The overlap answer mentions a combined paper with the Jena group. If any "
+                        "record-level data goes to Germany this needs a DSA and Privacy. Has anyone asked the team?",
+                        [])],
+    },
+    "NCT06821139": {
+        "notes": {"reb-reviewer": ["Sent back for the linkage and waiver. Check how the PHN is handled when it "
+                                   "comes back."]},
+    },
+    "NCT05018104": {
+        "notes": {"reb-reviewer": ["The waiver rests on coordinator time only. Ask for a real impracticability "
+                                   "argument."]},
+    },
+    "NCT07430618": {
+        "discussion": [("digital-reviewer", "Key to Health's backend runs in their own cloud. I need the hosting "
+                        "region before Digital can sign off.",
+                        [("reb-reviewer-2", "They are also evaluating their own product, and no conflict is declared. "
+                          "I will raise it on our side.")])],
+    },
+}
+
 # How long ago each study was sent, in days, and anything else about where it stands. The order of the queue
 # (by deadline) follows from these.
 STAGES = {
@@ -299,6 +330,32 @@ def send_back(admin, path, answers, documents, issues, url):
     reviewer.post(open_task(admin, path, "rebTask") + ".json", {"outcome": "changes-requested"})
 
 
+def add_activity(url, path, activity):
+    people = {}
+
+    def person(user):
+        people.setdefault(user, Instance(url, user))
+        return people[user]
+    for user, notes in activity.get("notes", {}).items():
+        for text in notes:
+            person(user).post(f"{path}.reviewComment.json", {"kind": "note", "text": text})
+    for user, text, replies in activity.get("discussion", []):
+        person(user).post(f"{path}.reviewComment.json", {"kind": "discussion", "text": text})
+        discussion = admin_view(url).get(f"{path}/discussion.1.json")
+        latest = sorted((node for node in discussion.values() if isinstance(node, dict)
+                         and node.get("jcr:primaryType") == "sub:Comment"), key=lambda node: node["jcr:created"])[-1]
+        for reply_user, reply in replies:
+            person(reply_user).post(f"{path}.reviewComment.json", {"replyTo": latest["@path"], "text": reply})
+
+
+_ADMIN = {}
+
+
+def admin_view(url):
+    _ADMIN.setdefault(url, Instance(url, "admin"))
+    return _ADMIN[url]
+
+
 def stage(admin, path, study, setting, now):
     sent = now - datetime.timedelta(days=setting["age"], hours=3)
     window = 5 if setting.get("fastTrack") else 15
@@ -338,6 +395,7 @@ def main():
         open_review(admin, path, schema, "reb-reviewer", "reb")
         if nct in SENT_BACK:
             send_back(admin, path, answers, documents, SENT_BACK[nct], args.url)
+        add_activity(args.url, path, ACTIVITY.get(nct, {}))
         # Last: sending a study back pauses the clock now, and this dates everything as the stage says
         stage(admin, path, study, setting, now)
         open_review(admin, path, schema, "digital-reviewer", "digitalReview")
