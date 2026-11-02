@@ -20,22 +20,29 @@ import { type ReactElement } from "react";
 
 import AssignmentReturnOutlined from "@mui/icons-material/AssignmentReturnOutlined";
 import BlockOutlined from "@mui/icons-material/BlockOutlined";
+import BoltOutlined from "@mui/icons-material/BoltOutlined";
 import CancelOutlined from "@mui/icons-material/CancelOutlined";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import CheckOutlined from "@mui/icons-material/CheckOutlined";
 import DescriptionOutlined from "@mui/icons-material/DescriptionOutlined";
 import EditNoteOutlined from "@mui/icons-material/EditNoteOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
+import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import FactCheckOutlined from "@mui/icons-material/FactCheckOutlined";
+import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
 import HighlightOffOutlined from "@mui/icons-material/HighlightOffOutlined";
 import HourglassEmptyOutlined from "@mui/icons-material/HourglassEmptyOutlined";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import LightbulbOutlined from "@mui/icons-material/LightbulbOutlined";
 import PendingOutlined from "@mui/icons-material/PendingOutlined";
 import RateReviewOutlined from "@mui/icons-material/RateReviewOutlined";
 import ReplyOutlined from "@mui/icons-material/ReplyOutlined";
+import ReportOutlined from "@mui/icons-material/ReportOutlined";
 import RuleOutlined from "@mui/icons-material/RuleOutlined";
 import SendOutlined from "@mui/icons-material/SendOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
+import WarningAmberOutlined from "@mui/icons-material/WarningAmberOutlined";
 
 // The icons a tag definition may name in its `icon` property, as elements shared by every chip.
 // Each MUI icon is a component of its own, and only the ones listed here are bundled. A
@@ -43,22 +50,29 @@ import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
 const TAG_ICONS: Record<string, ReactElement | undefined> = {
   AssignmentReturnOutlined: <AssignmentReturnOutlined />,
   BlockOutlined: <BlockOutlined />,
+  BoltOutlined: <BoltOutlined />,
   CancelOutlined: <CancelOutlined />,
   CheckCircleOutlined: <CheckCircleOutlined />,
   CheckOutlined: <CheckOutlined />,
   DescriptionOutlined: <DescriptionOutlined />,
   EditNoteOutlined: <EditNoteOutlined />,
   EditOutlined: <EditOutlined />,
+  ErrorOutlineOutlined: <ErrorOutlineOutlined />,
   FactCheckOutlined: <FactCheckOutlined />,
+  GroupsOutlined: <GroupsOutlined />,
   HighlightOffOutlined: <HighlightOffOutlined />,
   HourglassEmptyOutlined: <HourglassEmptyOutlined />,
+  InfoOutlined: <InfoOutlined />,
+  LightbulbOutlined: <LightbulbOutlined />,
   PendingOutlined: <PendingOutlined />,
   RateReviewOutlined: <RateReviewOutlined />,
   ReplyOutlined: <ReplyOutlined />,
+  ReportOutlined: <ReportOutlined />,
   RuleOutlined: <RuleOutlined />,
   SendOutlined: <SendOutlined />,
   TaskAltOutlined: <TaskAltOutlined />,
   VisibilityOutlined: <VisibilityOutlined />,
+  WarningAmberOutlined: <WarningAmberOutlined />,
 };
 
 // The icon element a definition names, or undefined if the name is absent or not listed. hasOwn
