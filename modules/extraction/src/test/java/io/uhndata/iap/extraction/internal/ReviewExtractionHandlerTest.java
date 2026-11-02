@@ -40,6 +40,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -131,26 +132,6 @@ class ReviewExtractionHandlerTest
         assertEquals("reviewExtraction", this.handler.getName());
     }
 
-    // A person has vouched for it, so there is nothing left to be unsure about
-    @Test
-    void settlesAnAnswerTheSubmitterConfirmed() throws Exception
-    {
-        this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-            ReviewExtractionHandler.CONFIRMED_PARAMETER, true)));
-
-        assertTrue(getRecorded().get("reviewed", Boolean.FALSE));
-        assertEquals(1.0, getRecorded().get("confidence", Double.class));
-    }
-
-    @Test
-    void readsAConfirmationPostedAsAString() throws Exception
-    {
-        this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-            ReviewExtractionHandler.CONFIRMED_PARAMETER, "true")));
-
-        assertTrue(getRecorded().get("reviewed", Boolean.FALSE));
-    }
-
     // The passage being wrong is a report about the extraction, not a verdict on the answer
     @Test
     void recordsARejectedPassageWithoutSettlingTheAnswer() throws Exception
@@ -159,8 +140,17 @@ class ReviewExtractionHandlerTest
             ReviewExtractionHandler.EVIDENCE_REJECTED, true)));
 
         assertTrue(getRecorded().get("evidenceRejected", Boolean.FALSE));
-        assertFalse(getRecorded().get("reviewed", Boolean.FALSE), "the answer is still theirs to settle");
+        assertNull(getRecorded().get("editDistance", Long.class), "the answer is still theirs to settle");
         assertEquals(0.6, getRecorded().get("confidence", Double.class), "and the model's own number stands");
+    }
+
+    @Test
+    void readsAVerdictPostedAsAString() throws Exception
+    {
+        this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
+            ReviewExtractionHandler.EVIDENCE_REJECTED, "true")));
+
+        assertTrue(getRecorded().get("evidenceRejected", Boolean.FALSE));
     }
 
     @Test
@@ -175,25 +165,15 @@ class ReviewExtractionHandlerTest
     }
 
     @Test
-    void recordsBothVerdictsAtOnce() throws Exception
-    {
-        this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-            ReviewExtractionHandler.CONFIRMED_PARAMETER, true, ReviewExtractionHandler.EVIDENCE_REJECTED, true)));
-
-        assertTrue(getRecorded().get("reviewed", Boolean.FALSE));
-        assertTrue(getRecorded().get("evidenceRejected", Boolean.FALSE));
-    }
-
-    @Test
-    void leavesTheExtractionAloneWhenNeitherVerdictWasGiven() throws Exception
+    void leavesTheExtractionAloneWhenNoVerdictWasGiven() throws Exception
     {
         this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS)));
 
-        assertFalse(getRecorded().get("reviewed", Boolean.FALSE));
+        assertNull(getRecorded().get("evidenceRejected", Boolean.class));
         assertEquals(0.6, getRecorded().get("confidence", Double.class));
     }
 
-    // A confirmation settles the answer, so a reader's must not count
+    // Only the submitter's word on their own request counts
     @Test
     void refusesAReviewFromAnybodyButTheSubmitter()
     {
@@ -201,8 +181,8 @@ class ReviewExtractionHandlerTest
 
         assertThrows(NotAuthorizedException.class, () -> this.handler.execute(
             createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-                ReviewExtractionHandler.CONFIRMED_PARAMETER, true))));
-        assertFalse(getRecorded().get("reviewed", Boolean.FALSE));
+                ReviewExtractionHandler.EVIDENCE_REJECTED, true))));
+        assertFalse(getRecorded().get("evidenceRejected", Boolean.FALSE));
     }
 
     @Test
@@ -212,8 +192,8 @@ class ReviewExtractionHandlerTest
 
         assertThrows(InvalidStateException.class, () -> this.handler.execute(
             createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-                ReviewExtractionHandler.CONFIRMED_PARAMETER, true))));
-        assertFalse(getRecorded().get("reviewed", Boolean.FALSE));
+                ReviewExtractionHandler.EVIDENCE_REJECTED, true))));
+        assertFalse(getRecorded().get("evidenceRejected", Boolean.FALSE));
     }
 
     @Test
@@ -229,7 +209,7 @@ class ReviewExtractionHandlerTest
     {
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
             createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, "study/title",
-                ReviewExtractionHandler.CONFIRMED_PARAMETER, true))));
+                ReviewExtractionHandler.EVIDENCE_REJECTED, true))));
     }
 
     @Test
@@ -237,7 +217,7 @@ class ReviewExtractionHandlerTest
     {
         final WorkflowTaskContext readOnly = TaskContexts.of(
             new ReadOnly(this.submission),
-            Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS, ReviewExtractionHandler.CONFIRMED_PARAMETER, true),
+            Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS, ReviewExtractionHandler.EVIDENCE_REJECTED, true),
             Map.of());
 
         assertThrows(PersistenceException.class, () -> this.handler.execute(readOnly));
@@ -252,10 +232,10 @@ class ReviewExtractionHandlerTest
                 "extractedAnswer", "reduce readmissions", "confidence", 0.9));
 
         this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-            ReviewExtractionHandler.CONFIRMED_PARAMETER, true)));
+            ReviewExtractionHandler.EVIDENCE_REJECTED, true)));
 
         assertTrue(this.context.resourceResolver().getResource(better.getPath()).getValueMap()
-            .get("reviewed", Boolean.FALSE));
-        assertFalse(getRecorded().get("reviewed", Boolean.FALSE), "the weaker attempt is left as it was");
+            .get("evidenceRejected", Boolean.FALSE));
+        assertFalse(getRecorded().get("evidenceRejected", Boolean.FALSE), "the weaker attempt is left as it was");
     }
 }

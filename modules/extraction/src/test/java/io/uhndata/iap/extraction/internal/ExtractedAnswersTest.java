@@ -24,7 +24,6 @@ import java.util.Map;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -42,6 +41,7 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.submissions.models.File;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -182,53 +182,60 @@ class ExtractedAnswersTest
         assertFalse(hasAnswers());
     }
 
+    // A suggestion is not an answer until the submitter acts on it, so the value is never touched
     @Test
-    void fillsAnEmptyAnswer() throws Exception
+    void writesTheRunUnderAnEmptyAnswerAndLeavesItsValueAlone() throws Exception
     {
         final Resource existing = createEmptyAnswer(Map.of("value", new String[] { "" }));
 
         fill(this.context.resourceResolver(), existing);
 
-        assertArrayEquals(new String[] { "Care" }, existing.getValueMap().get("value", String[].class));
-        assertTrue(existing.getChildren().iterator().hasNext(), "the extraction goes under it");
-    }
-
-    @Test
-    void putsAnEmptyAnswerBackWhenItsExtractionCannotBeWritten()
-    {
-        final Resource existing = createEmptyAnswer(Map.of("value", new String[] { "" }));
-
-        assertThrows(PersistenceException.class,
-            () -> fill(createSwappingResolver(this.file.getPath(), null, true), existing));
-
         assertArrayEquals(new String[] { "" }, existing.getValueMap().get("value", String[].class));
-        assertFalse(existing.getChildren().iterator().hasNext(), "and nothing is left under it");
+        final Resource run = existing.getChildren().iterator().next();
+        assertEquals("Care", run.getValueMap().get("extractedAnswer", String.class));
     }
 
     @Test
-    void putsAValuelessAnswerBackWhenItsExtractionCannotBeWritten()
+    void leavesNothingUnderTheAnswerWhenItsRunCannotBeWritten()
     {
         final Resource existing = createEmptyAnswer(Map.of());
 
         assertThrows(PersistenceException.class,
             () -> fill(createSwappingResolver(this.file.getPath(), null, true), existing));
 
+        assertFalse(existing.getChildren().iterator().hasNext());
         assertNull(existing.getValueMap().get("value", String[].class));
     }
 
     @Test
-    void refusesToFillAnAnswerItCannotWrite()
+    void createsAnAnswerHoldingNoValueForAQuestionWithoutOne() throws Exception
     {
-        final Resource existing = new ResourceWrapper(createEmptyAnswer(Map.of()))
-        {
-            @Override
-            public <T> T adaptTo(final Class<T> type)
-            {
-                return type == ModifiableValueMap.class ? null : super.adaptTo(type);
-            }
-        };
+        write(this.context.resourceResolver());
 
-        assertThrows(PersistenceException.class, () -> fill(this.context.resourceResolver(), existing));
+        assertTrue(hasAnswers());
+        for (final Resource child : this.context.resourceResolver().getResource(this.submission.getPath())
+            .getChildren()) {
+            if ("sub:Answer".equals(child.getValueMap().get("jcr:primaryType", String.class))) {
+                assertNull(child.getValueMap().get("value", String[].class));
+                assertTrue(child.getChildren().iterator().hasNext(), "the run goes under it");
+            }
+        }
+    }
+
+    // A run that found nothing is still the record that these versions were read for the question
+    @Test
+    void recordsARunThatFoundNothing() throws Exception
+    {
+        final Resource existing = createEmptyAnswer(Map.of());
+
+        ExtractedAnswers.write(this.context.resourceResolver(), this.submission, existing,
+            this.question.adaptTo(Question.class), new FieldResult("aims", false, 0.1, null, "Nothing about aims",
+                List.of()), List.of(this.file.adaptTo(File.class)));
+
+        final Resource run = existing.getChildren().iterator().next();
+        assertNull(run.getValueMap().get("extractedAnswer", String.class));
+        assertEquals("Nothing about aims", run.getValueMap().get("reasoning", String.class));
+        assertEquals(1, run.getValueMap().get("sources", String[].class).length);
     }
 
     @Test

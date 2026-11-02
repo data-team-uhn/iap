@@ -40,7 +40,6 @@ import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -112,6 +111,12 @@ class ClassifyDocumentHandlerTest
                 "It has objectives and methods.", List.of())), degraded));
     }
 
+    /** What the run under an answer read, which is the suggestion the submitter is shown. */
+    private static String getPick(final Resource answer)
+    {
+        return answer.getChildren().iterator().next().getValueMap().get("extractedAnswer", String.class);
+    }
+
     private String getStatus()
     {
         return this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class);
@@ -152,8 +157,9 @@ class ClassifyDocumentHandlerTest
         assertTrue(field.prompt().startsWith(PROMPT), "the prompt comes from the requirement");
         assertEquals(List.of("yes", "no"), field.getAllowedValues());
         assertTrue(reference.getValue().contains("B.1 General information"));
-        assertArrayEquals(new String[] { "yes" }, getAnswers().get(0).getValueMap().get("value", String[].class),
-            "the pick is stored as the answer, pre-filled for the submitter");
+        assertEquals("yes", getPick(getAnswers().get(0)), "the pick is kept as a suggestion");
+        assertNull(getAnswers().get(0).getValueMap().get("value", String[].class),
+            "and is not the answer until the submitter acts on it");
         assertNull(getStatus(), "the reading goes on, so it is not marked done here");
     }
 
@@ -190,7 +196,7 @@ class ClassifyDocumentHandlerTest
 
         this.handler.execute(createTask());
 
-        assertArrayEquals(new String[] { "yes" }, getAnswers().get(0).getValueMap().get("value", String[].class));
+        assertEquals("YES", getPick(getAnswers().get(0)), "kept as the model said it");
     }
 
     @Test
@@ -215,6 +221,21 @@ class ClassifyDocumentHandlerTest
         this.handler.execute(createTask());
 
         Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.isNull());
+    }
+
+    // A pick a reading already found is not paid for again, though nobody has accepted it yet
+    @Test
+    void leavesAClassificationAlreadySuggestedAlone() throws Exception
+    {
+        this.tree.createParsedFileFor(this.proposal, "# Objectives");
+        stubModelPick("yes", false);
+        this.handler.execute(createTask());
+        this.tree.stampTypes();
+
+        this.handler.execute(createTask());
+
+        Mockito.verify(this.intake, Mockito.times(1))
+            .run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any());
     }
 
     // When the reading runs again, a decision made or confirmed already is not paid for again
@@ -245,8 +266,8 @@ class ClassifyDocumentHandlerTest
 
         this.handler.execute(createTask());
 
-        assertArrayEquals(new String[] { "yes" }, this.context.resourceResolver().getResource(answer.getPath())
-            .getValueMap().get("value", String[].class));
+        assertEquals("yes", getPick(this.context.resourceResolver().getResource(answer.getPath())),
+            "the run goes under the empty answer");
     }
 
     @Test

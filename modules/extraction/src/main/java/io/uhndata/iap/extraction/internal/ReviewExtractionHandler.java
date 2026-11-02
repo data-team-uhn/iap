@@ -37,12 +37,11 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Service task {@code reviewExtraction}: record what the submitter said about a pre-filled answer.
+ * Service task {@code reviewExtraction}: record what the submitter said about the quotes behind a suggested answer.
  *
- * <p>Two verdicts, and they are independent. {@code confirmed} settles the answer: the submitter has vouched
- * for it, so it is marked reviewed and its confidence becomes 1. {@code evidenceRejected} says the quoted
- * passage does not support the answer. That is a report about the extraction, not about the answer, so it
- * settles nothing and blocks nothing.
+ * <p>{@code evidenceRejected} says the quoted passage does not support the suggestion. That is a report about the
+ * extraction, not about the answer, so it settles nothing and blocks nothing. Accepting or changing a suggestion
+ * is not a review: it is saving the answer, which is also what measures how far the answer moved from it.
  *
  * <p>The payload names the question by its path relative to the schema version, the same way the save
  * endpoint does, so a form posts back what it was given.
@@ -57,8 +56,6 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
     public static final String HANDLER_NAME = "reviewExtraction";
 
     static final String QUESTION_PARAMETER = "question";
-
-    static final String CONFIRMED_PARAMETER = "confirmed";
 
     static final String EVIDENCE_REJECTED = "evidenceRejected";
 
@@ -80,7 +77,7 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
         }
         final Resource target = context.getTarget();
         final Submission submission = SubmissionFiles.getSubmission(target);
-        // A confirmation settles the answer, so only the submitter's counts
+        // Only the submitter's word on their own request counts
         SubmitterAccess.checkMayChange(submission, context.getActor());
         final Extraction extraction = findExtraction(submission, path);
         if (extraction == null) {
@@ -98,11 +95,6 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
 
     private static void apply(final Map<String, Object> payload, final ModifiableValueMap properties)
     {
-        if (isTrue(payload.get(CONFIRMED_PARAMETER))) {
-            // A person has vouched for it, so there is nothing left to be unsure about
-            properties.put("reviewed", Boolean.TRUE);
-            properties.put("confidence", 1.0);
-        }
         if (payload.containsKey(EVIDENCE_REJECTED)) {
             properties.put(EVIDENCE_REJECTED, isTrue(payload.get(EVIDENCE_REJECTED)));
         }
