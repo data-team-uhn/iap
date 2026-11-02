@@ -81,6 +81,9 @@ class ParseCompletionHandlerTest
         inject("resolverFactory", new TestResolverFactory(this.context.resourceResolver()));
         inject("engine", this.engine);
         inject("ingester", this.ingester);
+        Mockito.when(this.ingester.discardStaging(Mockito.any())).thenReturn(true);
+        // No real waiting between looks at a file not yet waiting on the job
+        this.handler.setPause(() -> true);
     }
 
     private void inject(final String name, final Object value) throws Exception
@@ -204,6 +207,40 @@ class ParseCompletionHandlerTest
         Mockito.verifyNoInteractions(this.engine);
     }
 
+    // A daemon that cannot be reached settles the job before the walk that queued it commits
+    @Test
+    void takesAnOutcomeThatArrivedBeforeTheFileNamedItsJob() throws Exception
+    {
+        this.file.adaptTo(ModifiableValueMap.class).remove(ParseDocumentsHandler.PARSE_JOB_ID);
+        this.handler.setPause(() -> {
+            this.file.adaptTo(ModifiableValueMap.class).put(ParseDocumentsHandler.PARSE_JOB_ID, JOB_ID);
+            return true;
+        });
+
+        assertTrue(this.handler.handle(createCompletedOutcome(this.file.getPath())));
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    void waitsHalfASecondBetweenLooks()
+    {
+        final long start = System.nanoTime();
+
+        assertTrue(new ParseCompletionHandler().getPause().getAsBoolean());
+
+        assertTrue(System.nanoTime() - start >= 400_000_000L);
+    }
+
+    @Test
+    void stopsWaitingWhenInterrupted()
+    {
+        Thread.currentThread().interrupt();
+
+        assertFalse(new ParseCompletionHandler().getPause().getAsBoolean());
+        assertTrue(Thread.interrupted(), "the interrupt is kept for whoever runs the thread");
+    }
+
     // The file may be waiting on a newer job, or its own job may not be committed yet
     @Test
     void leavesAnOutcomeTheFileIsNotWaitingFor() throws Exception
@@ -223,7 +260,23 @@ class ParseCompletionHandlerTest
 
         assertTrue(this.handler.handle(createCompletedOutcome(this.file.getPath())));
 
-        Mockito.verifyNoInteractions(this.engine, this.ingester);
+        Mockito.verifyNoInteractions(this.engine);
+        Mockito.verify(this.ingester).discardStaging(Path.of("/shared-docs/x/proposal.md"));
+    }
+
+    // The job record is all that names the folder, so it stays for the sweep to try again
+    @Test
+    void keepsTheRecordWhileTheStagingFolderCannotBeRemoved() throws Exception
+    {
+        Mockito.when(this.ingester.discardStaging(Mockito.any())).thenReturn(false);
+
+        assertFalse(this.handler.handle(createCompletedOutcome(this.file.getPath())));
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), Mockito.any());
+
+        this.file.adaptTo(ModifiableValueMap.class).put(ParsePropertyNames.PARSE_STATUS, "completed");
+        assertFalse(this.handler.handle(createCompletedOutcome(this.file.getPath())),
+            "handed over again, it is not read in a second time and the folder is tried again");
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), Mockito.any());
     }
 
     @Test

@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
@@ -82,12 +83,20 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
     /** The payload entry holding how large the daemon measured the document to be, in tokens. */
     static final String TOKENS_KEY = "tokens";
 
+    /** How many times a file is looked at for the job its walk is about to name, half a second apart. */
+    static final int COMMIT_WAIT_LOOKS = 10;
+
     private static final Logger LOGGER = LoggerFactory.getLogger(ParseCompletionHandler.class);
 
     private static final String PDF_SUFFIX = ".pdf";
 
+    private static final long COMMIT_WAIT_MILLISECONDS = 500L;
+
     /** The extension of a path's last segment, which is what the PDF beside it replaces. */
     private static final String LAST_EXTENSION = "\\.[^.\\\\/]*$";
+
+    /** Waits between two looks at the file, saying whether to look again; replaced in tests. */
+    private BooleanSupplier pause = () -> pause(COMMIT_WAIT_MILLISECONDS);
 
     @Reference
     private ResourceResolverFactory resolverFactory;
@@ -103,11 +112,10 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
     {
         try (ResourceResolver resolver = this.resolverFactory.getServiceResourceResolver(
             Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME))) {
-            final Resource file = resolver.getResource(outcome.target());
+            final Resource file = findFile(resolver, outcome);
             final Resource submission = file == null ? null : SubmissionFiles.findSubmission(file);
             final ValueMap recorded = file == null ? ValueMap.EMPTY : file.getValueMap();
-            if (submission == null
-                || !outcome.jobId().equals(recorded.get(ParseDocumentsHandler.PARSE_JOB_ID, String.class))) {
+            if (submission == null || !isWaitingFor(file, outcome)) {
                 // Not taken: the file may only not be committed yet, and the sweep hands the outcome over again.
                 // A record nobody takes is dropped with its staging folder later.
                 LOGGER.warn("Parse job {} is not what {} is waiting for, or the file is gone", outcome.jobId(),
@@ -116,8 +124,8 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
             }
             final String parseStatus = recorded.get(ParsePropertyNames.PARSE_STATUS, String.class);
             if (!ParsePropertyNames.STATUS_QUEUED.equals(parseStatus)) {
-                // Already recorded: this is the same outcome handed over a second time
-                return true;
+                // Already recorded: the same outcome handed over again, kept because its staging folder stayed
+                return discardStaging(getStagedFolder(outcome, file));
             }
             LOGGER.info("Parse came back: job={} file={} submission={} succeeded={} tokens={}", outcome.jobId(),
                 outcome.target(), submission.getPath(), outcome.succeeded(), outcome.tokens());
@@ -132,8 +140,8 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
             this.engine.receiveEvent(submission, new WorkflowEvent(EVENT_NAME, buildPayload(outcome)));
             // Only now the repository has committed what the parse produced. Until this point the volume holds
             // the only copy, and a delete before the commit would lose the parse for good if the commit failed.
-            this.ingester.discardStaging(staged == null ? null : Path.of(staged));
-            return true;
+            // A folder that stays keeps the job record, the only thing naming it, for the sweep to try again.
+            return discardStaging(staged);
         } catch (final LoginException e) {
             LOGGER.error("Cannot read submissions to record parse job {}: {}", outcome.jobId(), e.getMessage(), e);
             // The service user is missing: no parse can be read in until a deployment fault is fixed
@@ -147,6 +155,65 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
                 .about(outcome.target()).with("job", outcome.jobId()));
             return false;
         }
+    }
+
+    /**
+     * The file an outcome is for. The walk that queues a parse commits after the job is queued, so an outcome that
+     * comes back at once, such as from a daemon that cannot be reached, can arrive before the file names its job.
+     * The file is looked at again for a few seconds, rather than left to the sweep minutes later.
+     */
+    private Resource findFile(final ResourceResolver resolver, final ParseOutcome outcome)
+    {
+        Resource file = resolver.getResource(outcome.target());
+        for (int look = 1; look < COMMIT_WAIT_LOOKS && file != null && !isWaitingFor(file, outcome)
+            && this.pause.getAsBoolean(); look++) {
+            resolver.refresh();
+            file = resolver.getResource(outcome.target());
+        }
+        return file;
+    }
+
+    private static boolean isWaitingFor(final Resource file, final ParseOutcome outcome)
+    {
+        return outcome.jobId().equals(file.getValueMap().get(ParseDocumentsHandler.PARSE_JOB_ID, String.class));
+    }
+
+    /**
+     * Replace the wait between two looks at a file, so a test needs no real time.
+     *
+     * @param pause waits, saying whether to look again
+     */
+    void setPause(final BooleanSupplier pause)
+    {
+        this.pause = pause;
+    }
+
+    /**
+     * The wait between two looks at a file.
+     *
+     * @return waits, saying whether to look again
+     */
+    BooleanSupplier getPause()
+    {
+        return this.pause;
+    }
+
+    /** Sleep, saying {@code false} when interrupted, which ends the wait. */
+    private static boolean pause(final long milliseconds)
+    {
+        try {
+            Thread.sleep(milliseconds);
+            return true;
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /** Remove the staging folder, saying whether it is gone. */
+    private boolean discardStaging(final String staged)
+    {
+        return this.ingester.discardStaging(staged == null ? null : Path.of(staged));
     }
 
     /**

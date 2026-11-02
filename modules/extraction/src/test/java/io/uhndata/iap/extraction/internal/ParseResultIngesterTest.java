@@ -342,7 +342,7 @@ class ParseResultIngesterTest
     @Test
     void passesTheStagingPathToTheParseService()
     {
-        this.ingester.discardStaging(this.markdown);
+        assertTrue(this.ingester.discardStaging(this.markdown), "says whether the folder is gone");
 
         assertEquals(List.of(this.markdown.toString()), this.discarded);
     }

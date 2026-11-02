@@ -100,8 +100,8 @@ What it does, in order:
 
 Staging and queueing happen inside the walk, before it commits, and `queue` commits the
 job node in a session of its own so the Sling job can see it. So an outcome can arrive
-before the file's `parseJobId` is committed; step 4 then refuses it and the sweep offers
-it again.
+before the file's `parseJobId` is committed, most often from a daemon that cannot be
+reached. Step 4 then looks at the file again for a few seconds before it refuses.
 
 ## Step 2: the daemon parses it
 
@@ -167,16 +167,19 @@ It opens a session as the `iap-extraction` service user and checks:
 
 | Check | If it fails |
 | --- | --- |
-| The `target` file still exists and sits under a submission | Returns "not taken". The file may simply not be committed yet; the sweep offers it again. |
-| The file's `parseJobId` equals this outcome's job id | Returns "not taken". This is an old parse the file no longer waits for. |
-| The file's `parseStatus` is still `queued` | Returns "taken" without doing anything. This is the same outcome delivered twice. |
+| The `target` file still exists and sits under a submission | Returns "not taken", and the sweep offers it again. |
+| The file's `parseJobId` equals this outcome's job id | It looks again every half second, up to 10 times (`COMMIT_WAIT_LOOKS`), since the walk that queued the parse may not have committed yet. Then it returns "not taken": this is an old parse the file no longer waits for. |
+| The file's `parseStatus` is still `queued` | Only the staging folder is cleared. This is the same outcome delivered again. |
 
 On a failed parse it logs a `WARN` with the daemon's reason and records the problem "A
 document could not be parsed: <reason>" for an administrator; the submitter is only
 told to try again. That comes before the engine call, so an outcome the sweep offers
 again is logged again.
 
-Then it fires `documentParsed` on the submission, as the `iap-extraction` user. The
+Then it fires `documentParsed` on the submission, as the `iap-extraction` user. Once the
+engine has committed, it clears the staging folder. If the folder cannot be removed, it
+returns "not taken", so the job record, the only thing that names the folder, stays for
+the sweep to try again. The
 payload carries the file path, `succeeded`, `error`, `markdown`, `tokens`, and `pdf`
 when a `<stem>.pdf` exists beside the Markdown.
 

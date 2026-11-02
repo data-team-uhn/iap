@@ -154,10 +154,11 @@ public class ParseResultIngester
      *
      * @param staged a path inside the staging folder, from the parse outcome or the file's {@code sharedPath};
      *        nothing happens when there is none
+     * @return {@code false} when the folder is still there
      */
-    public void discardStaging(final Path staged)
+    public boolean discardStaging(final Path staged)
     {
-        this.parseService.discardStaging(staged == null ? null : staged.toString());
+        return this.parseService.discardStaging(staged == null ? null : staged.toString());
     }
 
     /**
