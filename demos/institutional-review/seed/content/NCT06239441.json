@@ -1,0 +1,223 @@
+{
+  "nct": "NCT06239441",
+  "title": "Real-world effectiveness and response predictors of anti-IL-5/IL-5R biologics in severe asthma",
+  "answers": {
+    "study/pi": "Dr. Catherine Lemiere",
+    "study/department": "Respirology, tertiary asthma clinic. Co-investigator Dr. Lucie Blais (pharmacoepidemiology, Université de Montréal) for the administrative data.",
+    "study/summary": "Two retrospective pre-post cohorts of adults who started mepolizumab, reslizumab or benralizumab between January 2016 and June 2020: about 100 patients of our tertiary asthma clinic (chart review), and a population-based cohort from provincial drug and medical claims (RAMQ, MED-ECHO, reMed). Response is a 50% drop in exacerbations or OCS dose in the year after starting, compared with the year before. Lasso logistic regression looks for predictors of response.",
+    "study/sponsor": "none",
+    "classification/purpose": "research",
+    "classification/contact": "recordsOnly",
+    "classification/design": "cohort",
+    "classification/question": "How many severe asthma patients respond to anti-IL-5/IL-5R biologics in real practice, and what predicts response: eosinophils in the clinic cohort, the previous year's exacerbation rate in the population?",
+    "classification/cohort/population": "Clinic cohort: adults followed at the asthma clinic and treated with an anti-IL-5/IL-5R biologic between January 2016 and June 2020. Population cohort: all adults in the public drug plan given these drugs in the same period, plus privately insured patients from reMed.",
+    "classification/cohort/startDate": "2016-01-01",
+    "classification/cohort/endDate": "2020-06-30",
+    "classification/cohort/dateRationale": "Mepolizumab was marketed in 2016 and benralizumab in 2018. Ending entry in June 2020 leaves a full year of follow-up after starting.",
+    "classification/cohort/records": 1360,
+    "classification/cohort/exclusions": ["none"],
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": ["care", "administration"],
+    "classification/sources/dataSources": ["emr", "administrative"],
+    "classification/sources/sourceDetails": "1. UHN Epic charts of asthma clinic patients who started a biologic: eosinophils (blood, sputum), FEV1, BMI, atopy, smoking, ICS and OCS doses, exacerbations.\n2. RAMQ patient, prescription medications and medical services files, and MED-ECHO hospitalizations, with authorization from the Commission d'accès à l'information.\n3. reMed private drug claims.\nNo CAPCR numbers.",
+    "classification/sources/external": true,
+    "identifiability/arrival": "direct",
+    "identifiability/keyHolder": "team",
+    "identifiability/fields": "Clinic cohort: MRN and health insurance number (only in the key file, for linkage), date of birth, sex, biologic start date, exacerbations (OCS bursts, ED visits, admissions), OCS dose, FEV1, blood and sputum eosinophils, BMI, atopy, smoking, ICS dose. Administrative data: age, sex, rural or urban residence, drug plan type, dispensings, physician visits, admissions with diagnoses, welfare recipient status, prescriber specialty.",
+    "identifiability/recognizable": "unlikely",
+    "identifiability/lessIdentifiable": "no",
+    "identifiability/lessIdentifiableWhy": "The health insurance number is needed to link clinic patients to their administrative records. It's removed once the linked file comes back.",
+    "identifiability/reidentification": "Study IDs replace MRN and health insurance number in the analysis file. The key file is in a separate folder that only the coordinator can open. Residence is kept only as rural or urban.",
+    "identifiability/linkage": ["external"],
+    "identifiability/linkageRisk": "Linkage adds health care use and dispensings to the clinical file. The linked file comes back coded and residence is only rural/urban, so it isn't much more identifying than the chart data alone.",
+    "consent/sought": "waiver",
+    "consent/priorConsent": false,
+    "consent/waiver/whyIdentifiable": "We need the health insurance number to link clinic patients to their claims, and exact dates to place exacerbations and OCS dispensings in the year before and after the biologic started.",
+    "consent/waiver/welfare": "no",
+    "consent/waiver/impracticable": ["cohortSize"],
+    "access/custodian": "UHN Health Records (charts); RAMQ and reMed (claims)",
+    "access/custodianApproval": "pending",
+    "access/authority": ["phipa44", "agreement"],
+    "sensitivity/categories": ["none"],
+    "sensitivity/indigenous": "no",
+    "sensitivity/equity": true,
+    "handling/leaving/leaves": ["no"],
+    "handling/leaving/otherUses": ["none"],
+    "handling/storage/location": ["server"],
+    "handling/storage/access": "PI, the coordinator and the analyst, through a restricted UHN research folder. Key file in a separate folder, coordinator only.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "destroyed",
+    "handling/storage/retentionPeriod": "7 years after publication",
+    "handling/storage/breachHarm": ["reidentification"],
+    "handling/storage/pia": "notAssessed",
+    "handling/storage/disclosure": ["none"],
+    "handling/results/reporting": "suppressed",
+    "handling/results/threshold": 5,
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "Not expected: this is an aggregate analysis of past treatment. Nothing goes back to individual patients.",
+    "digital/uhnHosted": false,
+    "digital/external": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/previouslyApproved": false,
+    "digital/ai/used": false,
+    "team/gcpDate": "2023-09-18",
+    "team/healthProfessionals": true,
+    "team/hpRoles": ["pi"],
+    "team/hpIdentifiable": false,
+    "team/conflict": false,
+    "team/glossary": true,
+    "resources/funding": false,
+    "resources/staff": false,
+    "resources/extraction": false,
+    "resources/analyst": true,
+    "resources/similar": false,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": true,
+    "agreements/organizations/names": "Université de Montréal (Dr. Blais's team): co-investigator, builds the population cohort and the adherence measures. RAMQ and reMed: provide the claims data under the Commission d'accès à l'information authorization.",
+    "agreements/organizations/accessUhnData": false,
+    "agreements/organizations/flow": "in",
+    "agreements/organizations/patientLevel": true,
+    "agreements/organizations/stores": false,
+    "agreements/organizations/funds": false,
+    "agreements/organizations/existing": false,
+    "agreements/organizations/related": "Authorization request to the Commission d'accès à l'information for the RAMQ and MED-ECHO data."
+  },
+  "weaknesses": [
+    "handling/leaving/leaves is 'no' and agreements flow is 'in' only, but the clinic cohort can only be linked to RAMQ and MED-ECHO by sending its health insurance numbers to the data holder (p. 10): identifiers leave UHN with no destination, safeguard or agreement declared, and no DSA.",
+    "consent/waiver/impracticable rests on cohort size alone, for a clinic cohort of about 100 patients who are still being followed at the clinic and could be asked at a routine visit."
+  ],
+  "extractions": [
+    {
+      "question": "classification/design",
+      "extractedAnswer": "cohort",
+      "quote": "A retrospective pre-post anti-IL-5/IL5R inhibitors treatment cohort study using the RESP database and the hospital charts",
+      "page": 6,
+      "confidence": 0.94,
+      "reasoning": "Both arms are described as retrospective pre-post treatment cohorts."
+    },
+    {
+      "question": "classification/cohort/startDate",
+      "extractedAnswer": "2014-01-01",
+      "quote": "We will request the data from January 2014 to June 2021.",
+      "page": 10,
+      "confidence": 0.78,
+      "reasoning": "Cohort entry starts in 2016, but the data requested goes back to January 2014 to cover the look-back year and the asthma definition."
+    },
+    {
+      "question": "classification/cohort/endDate",
+      "extractedAnswer": "2020-06-30",
+      "quote": "who have been receiving anti-IL-5/IL5R inhibitors from January 2016 to June 2020 in the Province of Quebec",
+      "page": 10,
+      "confidence": 0.83,
+      "reasoning": "Patients enter until June 2020; follow-up data runs to June 2021."
+    },
+    {
+      "question": "classification/cohort/records",
+      "extractedAnswer": 1360,
+      "quote": "we estimate that we should be able to obtain data on approximately 1160 patients",
+      "page": 6,
+      "confidence": 0.74,
+      "reasoning": "About 1160 publicly insured patients, plus 100 clinic patients and 100 privately insured patients from reMed."
+    },
+    {
+      "question": "identifiability/linkage",
+      "extractedAnswer": ["external"],
+      "quote": "The HCIN allows the linkage of the reMed to the RAMQ and MED-ECHO databases.",
+      "page": 8,
+      "confidence": 0.9,
+      "reasoning": "The clinic data is linked to external administrative databases on the health insurance number."
+    },
+    {
+      "question": "handling/leaving/leaves",
+      "extractedAnswer": ["institution"],
+      "quote": "for example, subjects included in the tertiary asthma clinic cohort and the population-based cohort.",
+      "page": 10,
+      "confidence": 0.71,
+      "reasoning": "Administrative data is requested for the clinic cohort too, which means sending those patients' identifiers to the data holder for linkage."
+    }
+  ],
+  "screening": {
+    "summary": "A well-specified pharmacoepidemiology study with a clear response definition and analysis plan. The weak points are the linkage, which sends clinic patients' identifiers out of UHN without being declared, and a waiver argued on cohort size for a small clinic cohort.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "transfer",
+        "summary": "Identifiers of the clinic cohort have to leave UHN for the linkage, and the form says nothing leaves.",
+        "comments": [
+          {
+            "text": "The protocol requests RAMQ and MED-ECHO data for the clinic patients as well as the population cohort. That can only be done by sending their health insurance numbers, and probably names and dates of birth, to the data holder. The form says no data leaves UHN, and agreements show data flowing in only, so the destination, the transfer method and the agreement are all undeclared.",
+            "kind": "conflict",
+            "severity": "major",
+            "suggestion": "Declare the outgoing transfer (what, to whom, how), cover it in the data sharing agreement with the data holder, and set agreements flow to both ways.",
+            "subjects": ["handling/leaving/leaves", "agreements/organizations/flow", "agreements/organizations/accessUhnData", "dsa"],
+            "quote": "for example, subjects included in the tertiary asthma clinic cohort and the population-based cohort.",
+            "page": 10
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "waiver",
+        "summary": "The waiver may well be justified for the population cohort, but cohort size doesn't argue it for the clinic cohort.",
+        "comments": [
+          {
+            "text": "Cohort size is the only reason given for not seeking consent. That holds for over a thousand claims records, but the clinic cohort is about 100 patients, many still followed at the clinic for their biologic, who could be asked at a routine visit.",
+            "kind": "concern",
+            "severity": "medium",
+            "suggestion": "Seek consent from current clinic patients at their visits and request the waiver for the population cohort and for clinic patients who are discharged or deceased. Otherwise argue why asking would be impracticable for them.",
+            "subjects": ["consent/waiver/impracticable", "consent/sought"],
+            "quote": "Target enrolment: Hundred (100) patients followed at the outpatient asthma clinic",
+            "page": 5
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "dateRange",
+        "summary": "No recent-past concern: entry ends in June 2020 and follow-up in June 2021. The range on the form is just narrower than the data requested.",
+        "comments": [
+          {
+            "text": "The records requested run from January 2014, two years before the cohort start date on the form. That's the look-back year, but the date range on the form should match what is requested.",
+            "kind": "conflict",
+            "severity": "minor",
+            "suggestion": "Set the start date to 2014-01-01 and explain the look-back in the date rationale.",
+            "subjects": ["classification/cohort/startDate", "classification/cohort/dateRationale"],
+            "quote": "We will request the data from January 2014 to June 2021.",
+            "page": 10
+          }
+        ]
+      }
+    ]
+  },
+  "variableList": [
+    {"field": "MRN", "source": "Epic", "identifying": true, "why": "Find the chart; key file only."},
+    {"field": "Health insurance number", "source": "Epic", "identifying": true, "why": "Linkage to the claims data; key file only."},
+    {"field": "Date of birth", "source": "Epic", "identifying": true, "why": "Linkage check and age at cohort entry."},
+    {"field": "Sex", "source": "Epic / RAMQ", "identifying": false, "why": "Predictor."},
+    {"field": "Biologic and start date", "source": "Epic / RAMQ / reMed", "identifying": true, "why": "Cohort entry, defines the year before and after."},
+    {"field": "Exacerbations (OCS bursts under 14 days, ED visits, admissions for asthma)", "source": "Epic / RAMQ / MED-ECHO", "identifying": false, "why": "Primary outcome."},
+    {"field": "OCS dose", "source": "Epic / RAMQ", "identifying": false, "why": "Primary outcome for steroid-dependent patients."},
+    {"field": "FEV1 (percent predicted)", "source": "Epic", "identifying": false, "why": "Predictor and functional response."},
+    {"field": "Blood eosinophil count", "source": "Epic", "identifying": false, "why": "Main expected predictor."},
+    {"field": "Sputum eosinophil count", "source": "Epic", "identifying": false, "why": "Predictor."},
+    {"field": "Body mass index", "source": "Epic", "identifying": false, "why": "Predictor."},
+    {"field": "Atopy", "source": "Epic", "identifying": false, "why": "Predictor."},
+    {"field": "Smoking (never, ex, current)", "source": "Epic", "identifying": false, "why": "Predictor."},
+    {"field": "ICS dose and other controllers (LABA, LAMA, LTRA, omalizumab)", "source": "Epic / RAMQ / reMed", "identifying": false, "why": "Predictor."},
+    {"field": "ICS adherence (proportion of days covered)", "source": "RAMQ / reMed", "identifying": false, "why": "Secondary outcome and predictor."},
+    {"field": "Persistence on the biologic", "source": "RAMQ / reMed", "identifying": false, "why": "Secondary outcome."},
+    {"field": "Charlson comorbidity score", "source": "RAMQ / MED-ECHO", "identifying": false, "why": "Predictor."},
+    {"field": "Physician visits for asthma and all causes", "source": "RAMQ", "identifying": false, "why": "Health care use."},
+    {"field": "Admissions and diagnoses", "source": "MED-ECHO", "identifying": false, "why": "Exacerbations and comorbidities."},
+    {"field": "Area of residence (rural or urban)", "source": "RAMQ", "identifying": false, "why": "Predictor."},
+    {"field": "Drug plan type (public or private)", "source": "RAMQ / reMed", "identifying": false, "why": "Sub-cohort."},
+    {"field": "Welfare recipient status", "source": "RAMQ", "identifying": false, "why": "Socio-economic predictor."},
+    {"field": "Prescriber specialty", "source": "RAMQ / reMed", "identifying": false, "why": "Describe care."},
+    {"field": "Date of death", "source": "RAMQ", "identifying": true, "why": "Censoring follow-up."}
+  ],
+  "dataSharingAgreement": null
+}

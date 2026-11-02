@@ -1,0 +1,14 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Suggestion",
+  "description": "An idea the study team may take or leave.",
+  "category": [
+    "severity"
+  ],
+  "color": "#1d6a3a",
+  "icon": "LightbulbOutlined",
+  "order": 50,
+  "targetResourceTypes": [
+    "sub/Comment"
+  ]
+}

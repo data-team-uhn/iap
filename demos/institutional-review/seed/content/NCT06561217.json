@@ -1,0 +1,255 @@
+{
+  "nct": "NCT06561217",
+  "title": "AI-augmented chart abstraction for oncology trial screening",
+  "answers": {
+    "study/pi": "Dr. Ezekiel J. Emanuel",
+    "study/department": "Health policy and medical ethics, with the clinical trials unit. Sub-investigator Dr. Ravi B. Parikh; statistics by Professor Jinbo Chen. Two CRCs hired for the review phase.",
+    "study/summary": "We compare three ways of abstracting the chart elements used to screen oncology patients for trials: Mendel AI alone, a CRC alone, and a CRC using Mendel's AI output. 400 de-identified charts of NSCLC and colorectal cancer patients from Mendel's database of community oncology practices. Outcomes are accuracy against a gold standard and minutes per chart. No UHN patient data is used.",
+    "study/sponsor": "none",
+    "classification/purpose": "research",
+    "classification/contact": "recordsOnly",
+    "classification/design": "other",
+    "classification/designOther": "Paired method-comparison study. Each chart is abstracted by the AI, and by a CRC either manually or with AI assistance in randomized order. Non-inferiority of CRC+AI vs CRC alone on accuracy against a human gold standard; superiority on time per chart.",
+    "classification/question": "Is CRC abstraction with Mendel AI assistance as accurate as manual abstraction, and faster?",
+    "classification/cohort/population": "De-identified charts from Mendel's database of community oncology practices: patients with NSCLC or colorectal cancer, at least 5 documents, most recent document within 5 years of extraction.",
+    "classification/cohort/startDate": "2020-01-01",
+    "classification/cohort/endDate": "2024-12-31",
+    "classification/cohort/dateRationale": "The protocol requires the most recent document within 5 years of extraction, so the charts reflect current documentation and treatments.",
+    "classification/cohort/records": 400,
+    "classification/cohort/exclusions": ["completeness"],
+    "classification/cohort/exclusionsWhy": "Charts with fewer than 5 documents don't hold enough to assess the 12 screening criteria.",
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": ["care"],
+    "classification/sources/dataSources": ["vendor"],
+    "classification/sources/sourceDetails": "Mendel's de-identified database of charts from participating community oncology practices: progress notes, radiology, pathology and lab reports, genetic and molecular testing, discharge summaries, infusion reports. No UHN data, no CAPCR number.",
+    "classification/sources/external": true,
+    "identifiability/arrival": "anonymized",
+    "identifiability/keyHolder": "none",
+    "identifiability/fields": "No direct identifiers. Cancer type, TNM stage, ECOG, prior platinum, other chemotherapy and immunotherapy, CRC and NSCLC biomarkers, outcomes and responses. Plus arm, CRC and minutes per chart.",
+    "identifiability/recognizable": "unlikely",
+    "identifiability/lessIdentifiable": "yesWill",
+    "identifiability/reidentification": "Charts are de-identified by Mendel before we see them. CRCs view them only inside Mendel's secure environment; only summary-level datasheets are exported.",
+    "identifiability/linkage": ["no"],
+    "consent/sought": "notApplicable",
+    "consent/priorConsent": false,
+    "access/custodian": "Mendel",
+    "access/custodianApproval": "obtained",
+    "access/authority": ["agreement"],
+    "sensitivity/categories": ["none"],
+    "sensitivity/indigenous": "no",
+    "sensitivity/equity": true,
+    "handling/leaving/leaves": ["no"],
+    "handling/leaving/otherUses": ["none"],
+    "handling/storage/location": ["server"],
+    "handling/storage/access": "The two CRCs log in to Mendel's portal with individual password-protected accounts from UHN computers. Exported summary datasheets go to a restricted UHN research folder for the PI, the statistician and the project managers.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "destroyed",
+    "handling/storage/retentionPeriod": "5 years after publication",
+    "handling/storage/breachHarm": ["minimal"],
+    "handling/storage/pia": "notRequired",
+    "handling/storage/disclosure": ["none"],
+    "handling/results/reporting": "aggregate",
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "The charts are de-identified and come from practices outside UHN, so there's no way and no relationship to act on a finding.",
+    "digital/uhnHosted": false,
+    "digital/external": true,
+    "digital/externalTool/patientData": true,
+    "digital/externalTool/software": "Mendel AI and the Mendel abstraction tool",
+    "digital/externalTool/url": "https://www.mendel.ai",
+    "digital/externalTool/license": "Mendel (vendor-held; study accounts provided by Mendel)",
+    "digital/externalTool/sponsorDevice": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/input/kind": ["patient"],
+    "digital/input/who": ["team"],
+    "digital/previouslyApproved": false,
+    "digital/ai/used": true,
+    "digital/ai/details": "Mendel AI extracts clinical facts from structured and unstructured chart data and ranks patients most likely to meet trial criteria. Arm 1 is the AI alone; arm 3 is a CRC working from the AI's output. The study measures its accuracy and the time it saves.",
+    "digital/ai/where": "external",
+    "digital/ai/training": false,
+    "digital/ai/phase": "development",
+    "digital/ai/governance": true,
+    "team/gcpDate": "2024-11-04",
+    "team/healthProfessionals": true,
+    "team/hpRoles": ["pi", "coi"],
+    "team/hpIdentifiable": false,
+    "team/conflict": false,
+    "team/glossary": true,
+    "resources/funding": true,
+    "resources/staff": false,
+    "resources/extraction": false,
+    "resources/analyst": false,
+    "resources/other": "Funding for two CRCs for the 6-month review phase.",
+    "resources/similar": false,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": true,
+    "agreements/organizations/names": "Mendel, an AI company: provides the de-identified charts, the abstraction tool and its secure environment, runs the AI-alone arm and leads the gold-standard annotation. Its CEO and Chief Product Officer are external collaborators.",
+    "agreements/organizations/accessUhnData": false,
+    "agreements/organizations/flow": "in",
+    "agreements/organizations/patientLevel": true,
+    "agreements/organizations/stores": false,
+    "agreements/organizations/funds": false,
+    "agreements/organizations/existing": true,
+    "agreements/organizations/related": "Mendel's data use agreement for its de-identified database."
+  },
+  "weaknesses": [
+    "sensitivity/categories is 'none', but the charts the CRCs read include genetic and molecular sequencing results, and the abstracted fields are mostly genomic biomarkers (EGFR, ALK, KRAS, BRAF, NTRK...).",
+    "handling/leaving/leaves is 'no', storage is a UHN server only, and agreements say no external party stores study data, but the CRCs record every abstraction in Mendel's tool, in an external HIPAA enclave (so most likely in the US): the study's chart-level data lives outside UHN and outside Canada."
+  ],
+  "extractions": [
+    {
+      "question": "digital/ai/used",
+      "extractedAnswer": true,
+      "quote": "an autonomous AI algorithm (Mendel AI; developed by artificial intelligence startup company Mendel) which analyzes patient medical records to extract relevant clinical facts",
+      "page": 3,
+      "confidence": 0.98,
+      "reasoning": "The study evaluates an AI abstraction algorithm as one arm and as an aid in another."
+    },
+    {
+      "question": "classification/cohort/records",
+      "extractedAnswer": 400,
+      "quote": "400 individual patients will achieve an estimated statistical power greater than 90%",
+      "page": 11,
+      "confidence": 0.92,
+      "reasoning": "The sample size calculation sets 400 patient charts."
+    },
+    {
+      "question": "classification/cohort/exclusions",
+      "extractedAnswer": ["completeness"],
+      "quote": "A minimum of 5 patient documents in the Mendel database",
+      "page": 7,
+      "confidence": 0.85,
+      "reasoning": "Charts with fewer than 5 documents are left out, a completeness criterion."
+    },
+    {
+      "question": "identifiability/arrival",
+      "extractedAnswer": "anonymized",
+      "quote": "all patient data used in the study has been de-identified and anonymized to ensure the protection of patient privacy and confidentiality",
+      "page": 8,
+      "confidence": 0.8,
+      "reasoning": "The protocol states the charts are de-identified and anonymized by Mendel before use."
+    },
+    {
+      "question": "sensitivity/categories",
+      "extractedAnswer": ["genetic"],
+      "quote": "Genetic/molecular sequencing and other genetic testing results",
+      "page": 6,
+      "confidence": 0.88,
+      "reasoning": "Genetic and molecular testing results are among the chart components the CRCs review, and several abstracted fields are genomic biomarkers."
+    },
+    {
+      "question": "handling/leaving/leaves",
+      "extractedAnswer": ["provider", "abroad"],
+      "quote": "record clinical elements of interest in the Mendel abstraction tool, which will be secured in a HIPAA-compliant external enclave",
+      "page": 8,
+      "confidence": 0.73,
+      "reasoning": "Abstractions are recorded in an external vendor's enclave; HIPAA compliance suggests it is hosted in the United States."
+    }
+  ],
+  "screening": {
+    "summary": "No UHN patient data is involved, which keeps the privacy risk low, but the study's own data lives in a US vendor's system and the vendor whose product is being evaluated also builds the gold standard. The AI use is well described.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "sensitive",
+        "summary": "The charts include genetic testing, which the form doesn't tick.",
+        "comments": [
+          {
+            "text": "Sensitive categories are 'none', but the CRCs read genetic and molecular sequencing reports, and most abstracted fields are genomic biomarkers. Genetic data should be ticked even when de-identified, since it is harder to de-identify than other fields.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Tick genetic data, and ask Mendel how sequencing reports are de-identified.",
+            "subjects": ["sensitivity/categories"],
+            "quote": "Genetic/molecular sequencing and other genetic testing results",
+            "page": 6
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "transfer",
+        "summary": "No UHN data leaves, but the study's chart-level data is created and kept in the vendor's external system.",
+        "comments": [
+          {
+            "text": "The CRCs, UHN staff, record each chart's abstraction in Mendel's tool, which sits in an external enclave described as HIPAA-compliant, most likely in the US. The form says nothing leaves UHN, storage is a UHN server only, and no external party stores study data. Where the study data lives, who owns it and when it is deleted aren't covered.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Declare Mendel's environment as a storage location outside Canada, and confirm in the agreement where it is hosted, who owns the abstractions and timing data, and when they are deleted.",
+            "subjects": ["handling/leaving/leaves", "handling/storage/location", "agreements/organizations/stores"],
+            "quote": "record clinical elements of interest in the Mendel abstraction tool, which will be secured in a HIPAA-compliant external enclave",
+            "page": 8
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "conflict",
+        "summary": "The vendor is a collaborator, and it builds the reference standard its own product is judged against.",
+        "comments": [
+          {
+            "text": "Mendel's CEO and Chief Product Officer are collaborators, and the gold standard every arm is scored against is produced under Mendel's lead. That's at least a perceived conflict for the accuracy results, and the form declares none.",
+            "kind": "concern",
+            "severity": "medium",
+            "suggestion": "Declare the relationship, and have the gold standard annotated by abstractors independent of Mendel and blind to the AI output, or say what the study team's independent oversight involves in practice.",
+            "subjects": ["team/conflict", "agreements/organizations/names", "protocol"],
+            "quote": "This process will be led by the Mendel team, with independent oversight by the Penn research team to ensure consistency.",
+            "page": 6
+          }
+        ]
+      },
+      {
+        "approval": "digitalReview",
+        "topic": "externalSoftware",
+        "summary": "External vendor software, not reviewed before, with study staff entering patient-level data into it.",
+        "comments": [
+          {
+            "text": "Mendel's portal is new to UHN and the CRCs enter patient-level, if de-identified, data into it. It needs a Digital Demand and a security review of the vendor's environment before the CRCs get accounts.",
+            "kind": "gap",
+            "severity": "minor",
+            "subjects": ["digital/externalTool/software", "digital/externalTool/license", "digital/input/kind"]
+          }
+        ]
+      },
+      {
+        "approval": "digitalReview",
+        "topic": "ai",
+        "summary": "The AI runs externally on the vendor's data, and the study's own data isn't said to train it.",
+        "comments": [
+          {
+            "text": "Training is answered no, but the protocol doesn't say whether Mendel may use the CRCs' abstractions or the gold-standard annotations to refine its model. Those annotations are exactly the kind of labelled data that improves it.",
+            "kind": "concern",
+            "severity": "minor",
+            "suggestion": "Get a clause in the agreement that study annotations are not used for model training, or answer training yes and go through the AI Hub intake.",
+            "subjects": ["digital/ai/training"]
+          }
+        ]
+      }
+    ]
+  },
+  "variableList": [
+    {"field": "Mendel chart ID", "source": "Mendel database", "identifying": false, "why": "Track each chart across arms."},
+    {"field": "Arm (AI alone, CRC alone, CRC with AI)", "source": "Study", "identifying": false, "why": "Comparison."},
+    {"field": "CRC reviewer", "source": "Study", "identifying": true, "why": "Paired analysis and inter-rater checks."},
+    {"field": "Review order", "source": "Study", "identifying": false, "why": "Randomized order, stratified analysis."},
+    {"field": "Minutes per chart", "source": "Study", "identifying": false, "why": "Efficiency outcome."},
+    {"field": "Chart length and complexity", "source": "Mendel database", "identifying": false, "why": "Stratified analysis."},
+    {"field": "Cancer type", "source": "Mendel database", "identifying": false, "why": "Screening criterion."},
+    {"field": "Stage: tumour, node, metastasis", "source": "Mendel database", "identifying": false, "why": "Screening criteria."},
+    {"field": "ECOG performance status", "source": "Mendel database", "identifying": false, "why": "Screening criterion."},
+    {"field": "Prior platinum therapy", "source": "Mendel database", "identifying": false, "why": "Screening criterion."},
+    {"field": "Other prior chemotherapy", "source": "Mendel database", "identifying": false, "why": "Screening criterion."},
+    {"field": "Prior immunotherapy", "source": "Mendel database", "identifying": false, "why": "Screening criterion."},
+    {"field": "CRC biomarkers: KRAS, MSI-H, MSS, BRAF, HER2, NTRK, DPYD", "source": "Mendel database", "identifying": false, "why": "Screening criteria."},
+    {"field": "NSCLC biomarkers: EGFR, ALK, ROS1, KRAS, BRAF, NTRK, cMET, RET, PD-L1", "source": "Mendel database", "identifying": false, "why": "Screening criteria."},
+    {"field": "Outcomes (remission, residual disease, recurrence)", "source": "Mendel database", "identifying": false, "why": "Screening criterion."},
+    {"field": "Responses (complete, partial, stable, mixed, progression)", "source": "Mendel database", "identifying": false, "why": "Screening criterion."},
+    {"field": "Gold-standard value for each element", "source": "Gold-standard annotation", "identifying": false, "why": "Reference for accuracy."},
+    {"field": "Element correct (yes/no)", "source": "Derived", "identifying": false, "why": "Primary outcome."},
+    {"field": "Chart-level accuracy (proportion correct)", "source": "Derived", "identifying": false, "why": "Primary outcome."},
+    {"field": "AI rank of the chart", "source": "Mendel AI", "identifying": false, "why": "Describe the AI aid in arm 3."}
+  ],
+  "dataSharingAgreement": null
+}

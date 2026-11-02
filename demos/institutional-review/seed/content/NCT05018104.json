@@ -1,0 +1,210 @@
+{
+  "nct": "NCT05018104",
+  "title": "Rebound pain risk model after popliteal sciatic nerve block",
+  "answers": {
+    "study/pi": "Dr. Cynthia Yarnold",
+    "study/department": "Department of Anesthesia and Pain Management, regional anesthesia program. An orthopaedic foot and ankle surgeon on the team ranked the surgery categories.",
+    "study/summary": "Retrospective cohort from the department's Peripheral Nerve Block (PNB) database. We develop and internally validate a logistic regression model, and a points score, for severe rebound pain (well controlled in PACU, then NRS 7 or more within 48 h) after lower limb orthopaedic surgery with a single-shot popliteal sciatic block. The aim is to identify who would benefit most from a perineural catheter.",
+    "study/sponsor": "none",
+    "classification/purpose": "research",
+    "classification/contact": "recordsOnly",
+    "classification/design": "model",
+    "classification/question": "Which patients having lower limb surgery with a single-shot popliteal sciatic block are at high risk of severe rebound pain, using surgery type, admission, age, sex, local anesthetic, dexamethasone and anesthesia type?",
+    "classification/cohort/population": "Patients who had lower limb surgery with a single-shot popliteal sciatic nerve block (with or without other blocks), first surgery only, with well-controlled pain in recovery. Patients with a popliteal catheter or uncontrolled pain in PACU are excluded.",
+    "classification/cohort/startDate": "2016-01-04",
+    "classification/cohort/endDate": "2019-11-01",
+    "classification/cohort/dateRationale": "Gives about 1,270 blocks, above the 1,013 our sample size calculation needs.",
+    "classification/cohort/records": 1270,
+    "classification/cohort/exclusions": ["completeness"],
+    "classification/cohort/exclusionsWhy": "Records missing the main surgery type or the rebound pain score are dropped. Surgery type has too many levels to impute reliably, and the pain score is the outcome.",
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": ["qi", "care"],
+    "classification/sources/dataSources": ["registry"],
+    "classification/sources/sourceDetails": "UHN Peripheral Nerve Block (PNB) database in REDCap, kept by the regional anesthesia program: block details, PACU pain, 48-hour follow-up call, and the operation as free text from the dictated operative report. No CAPCR number.",
+    "classification/sources/external": false,
+    "identifiability/arrival": "codedOutsideKey",
+    "identifiability/keyHolder": "custodian",
+    "identifiability/fields": "REDCap record ID only, no MRN or name. Age, sex, operation free text (to assign surgery type), admission status, block details, tourniquet, block performer level, block resolution times and pain scores. All are predictors, cohort characteristics or the outcome.",
+    "identifiability/recognizable": "unlikely",
+    "identifiability/lessIdentifiable": "yesWill",
+    "identifiability/reidentification": "Export by the PNB database lead with record IDs only; the MRN link stays in REDCap. Dates reduced to time of day the block wore off.",
+    "identifiability/linkage": ["no"],
+    "consent/sought": "waiver",
+    "consent/priorConsent": false,
+    "consent/waiver/whyIdentifiable": "Getting consent from about 1,270 patients would take a research coordinator several months of phone calls, and we have no funding for one.",
+    "consent/waiver/welfare": "no",
+    "consent/waiver/impracticable": ["cohortSize"],
+    "access/custodian": "Regional anesthesia program, Department of Anesthesia and Pain Management",
+    "access/custodianApproval": "obtained",
+    "access/authority": ["phipa44"],
+    "sensitivity/categories": ["none"],
+    "sensitivity/indigenous": "no",
+    "sensitivity/equity": true,
+    "handling/leaving/leaves": ["no"],
+    "handling/leaving/otherUses": ["none"],
+    "handling/storage/location": ["server"],
+    "handling/storage/access": "Export on the department research drive, folder limited to the PI, the two authors doing the surgery classification and the analyst. UHN login.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "destroyed",
+    "handling/storage/retentionPeriod": "7 years after publication",
+    "handling/storage/breachHarm": ["minimal"],
+    "handling/storage/pia": "notRequired",
+    "handling/storage/disclosure": ["none"],
+    "handling/results/reporting": "aggregate",
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "None expected, the data is about pain after a block that has long resolved.",
+    "digital/uhnHosted": true,
+    "digital/integration": false,
+    "digital/external": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/previouslyApproved": true,
+    "digital/different": false,
+    "digital/usage": "One read-only export from the existing PNB REDCap project. Analysis in R on a UHN computer.",
+    "digital/ai/used": false,
+    "team/gcpDate": "2021-02-08",
+    "team/healthProfessionals": true,
+    "team/hpRoles": ["pi", "coi", "team"],
+    "team/hpIdentifiable": false,
+    "team/conflict": false,
+    "team/glossary": true,
+    "resources/funding": false,
+    "resources/staff": false,
+    "resources/extraction": false,
+    "resources/analyst": false,
+    "resources/similar": false,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": false
+  },
+  "weaknesses": [
+    "Waiver justified by inconvenience: consent/waiver/whyIdentifiable argues coordinator time and lack of funding instead of why identifiable data is needed, and impracticability rests on cohort size alone.",
+    "No small-cell rule: handling/results/reporting 'aggregate' with no suppression, in a single-centre cohort split into nine surgery types (amputations, total ankle replacement) and reported as frequencies (p. 5)."
+  ],
+  "extractions": [
+    {
+      "question": "classification/design",
+      "extractedAnswer": "model",
+      "quote": "The aim of the study is to derive and validate a multivariable prediction model for severe rebound pain after lower limb surgery",
+      "page": 2,
+      "confidence": 0.94,
+      "reasoning": "The study description states the aim as deriving and validating a prediction model."
+    },
+    {
+      "question": "classification/cohort/startDate",
+      "extractedAnswer": "2016-01-04",
+      "quote": "from January 4, 2016 to November 1, 2019 will be included",
+      "page": 2,
+      "confidence": 0.96,
+      "reasoning": "The inclusion criteria give an exact start date."
+    },
+    {
+      "question": "classification/cohort/endDate",
+      "extractedAnswer": "2019-11-01",
+      "quote": "from January 4, 2016 to November 1, 2019 will be included",
+      "page": 2,
+      "confidence": 0.96,
+      "reasoning": "The same sentence gives the end date."
+    },
+    {
+      "question": "classification/cohort/records",
+      "extractedAnswer": 1270,
+      "quote": "Calculations based on estimated sample size of 1270, and event rate of 50% are shown below.",
+      "page": 6,
+      "confidence": 0.85,
+      "reasoning": "The sample size section estimates 1,270 eligible patients."
+    },
+    {
+      "question": "classification/sources/dataSources",
+      "extractedAnswer": ["registry"],
+      "quote": "The St. Paul’s Hospital Peripheral Nerve Block (PNB) Database (in REDCap) will be used.",
+      "page": 2,
+      "confidence": 0.8,
+      "reasoning": "The only source is a departmental nerve block database, which works as a registry."
+    },
+    {
+      "question": "classification/cohort/exclusions",
+      "extractedAnswer": ["completeness", "other"],
+      "quote": "For patients who had multiple surgeries during the study period, only the first surgery within the study period will be selected.",
+      "page": 2,
+      "confidence": 0.62,
+      "reasoning": "Besides missing data, the protocol keeps only each patient's first surgery, an exclusion not driven by the clinical question."
+    }
+  ],
+  "screening": {
+    "summary": "A modest single-centre prediction model from an internal REDCap database, coded at export. The waiver is not properly argued, and results split into small surgery groups have no suppression rule. The free-text operation field is worth checking before export.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "waiver",
+        "summary": "A waiver is reasonable for 1,270 past ambulatory patients, but the answers given don't make the case: the argument offered is cost.",
+        "comments": [
+          {
+            "text": "The answer to why identifiable information is essential talks about coordinator time and funding instead. Cost alone doesn't meet the impracticability condition, and the question asked isn't answered: the data arrives coded, so it should say why even coded data is needed.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Say why coded records are needed (surgery type comes from free text, the key stays with the custodian) and argue impracticability from the cohort: 1,270 patients from 2016 to 2019, many unreachable, and consent from a subset would bias the event rate.",
+            "subjects": ["consent/waiver/whyIdentifiable", "consent/waiver/impracticable"]
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "reporting",
+        "summary": "Results are aggregate, but with nine surgery categories in one centre some cells will be small.",
+        "comments": [
+          {
+            "text": "Cohort characteristics will be reported as frequencies across nine surgery types, some of them rare (amputations, total ankle replacement), crossed with sex, admission and outcome. In a single-centre cohort, a cell of one or two can point to a person. The form has no suppression rule.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Set a threshold (for example suppress cells under 5) or merge rare surgery groups in published tables.",
+            "subjects": ["handling/results/reporting", "handling/results/threshold"],
+            "quote": "and categorical variables will be presented as frequency (%)",
+            "page": 5
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "identifiability",
+        "summary": "Coded export with the key kept by the custodian is appropriate here. One field needs care.",
+        "comments": [
+          {
+            "text": "The operation is exported as free text transposed from dictated operative reports. Dictated text can include names, dates or other identifiers.",
+            "kind": "concern",
+            "severity": "minor",
+            "suggestion": "Run the keyword categorization before export so only the surgery group leaves REDCap, or have the database lead screen the text field.",
+            "subjects": ["identifiability/fields", "variables"],
+            "quote": "In the database, the operations performed are entered as free texts, transposed from dictated operative reports.",
+            "page": 4
+          }
+        ]
+      }
+    ]
+  },
+  "variableList": [
+    {"field": "REDCap record ID", "source": "PNB database", "identifying": false, "why": "Identifies records in the export; the MRN link stays with the custodian."},
+    {"field": "Age", "source": "PNB database", "identifying": false, "why": "Predictor, modelled with a spline."},
+    {"field": "Sex", "source": "PNB database", "identifying": false, "why": "Predictor."},
+    {"field": "Operation performed (free text)", "source": "PNB database, from dictated operative report", "identifying": true, "why": "Assigns the main surgery type by keyword, then checked by two authors."},
+    {"field": "Main surgery type (9 groups)", "source": "Derived", "identifying": false, "why": "Main predictor."},
+    {"field": "Planned admission or ambulatory", "source": "PNB database", "identifying": false, "why": "Predictor."},
+    {"field": "Single-shot popliteal sciatic block, other blocks", "source": "PNB database", "identifying": false, "why": "Inclusion; catheters are excluded."},
+    {"field": "Local anesthetic type (long-acting only or mixed)", "source": "PNB database", "identifying": false, "why": "Predictor."},
+    {"field": "Dexamethasone use", "source": "PNB database", "identifying": false, "why": "Predictor."},
+    {"field": "Intraoperative anesthesia (general, sedation, spinal)", "source": "PNB database", "identifying": false, "why": "Predictor."},
+    {"field": "Pre-block neuropathy (including diabetic)", "source": "PNB database", "identifying": false, "why": "Cohort characteristic."},
+    {"field": "Tourniquet location and duration", "source": "PNB database", "identifying": false, "why": "Cohort characteristic; duration in the exploratory model."},
+    {"field": "Block performer level (attending, fellow, resident)", "source": "PNB database", "identifying": false, "why": "Cohort characteristic."},
+    {"field": "PACU pain score (NRS) and nursing pain notes", "source": "PNB database", "identifying": false, "why": "Exclusion for uncontrolled pain in recovery; start of the outcome definition."},
+    {"field": "Duration of sensory block", "source": "PNB database", "identifying": false, "why": "Cohort characteristic."},
+    {"field": "Duration of motor block", "source": "PNB database", "identifying": false, "why": "Cohort characteristic."},
+    {"field": "Time of day the block wore off", "source": "PNB database", "identifying": false, "why": "Cohort characteristic (night or day)."},
+    {"field": "Highest pain score within 48 h", "source": "PNB database, follow-up call", "identifying": false, "why": "Outcome: severe rebound pain is NRS 7 or more."},
+    {"field": "Health care contact for pain after block resolution", "source": "PNB database, follow-up call", "identifying": false, "why": "Cohort characteristic."},
+    {"field": "First surgery in the period", "source": "Derived", "identifying": false, "why": "Keeps one surgery per patient."}
+  ],
+  "dataSharingAgreement": null
+}

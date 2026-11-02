@@ -1,0 +1,431 @@
+{
+  "nct": "NCT07351084",
+  "title": "Patient factors in copper IUD fragmentation requiring hysteroscopic removal",
+  "answers": {
+    "study/pi": "Dr. Annabel Mancillas",
+    "study/department": "Obstetrics and Gynaecology, UHN gynaecology clinics. Team is the PI, one OB/GYN resident (Dr. Neha Singh) and three medical students who do the chart review.",
+    "study/summary": "Retrospective chart review of patients who had a copper IUD (ParaGard) removed and needed hysteroscopy to retrieve retained fragments. We will abstract demographics, IUD characteristics, comorbidities, imaging findings and pre-, intra- and post-procedure details from Epic into UHN REDCap and look for patient factors associated with fragmentation. Results go to a national reproductive and gynecologic conference, then a manuscript.",
+    "study/sponsor": "none",
+    "classification/purpose": "research",
+    "classification/contact": "recordsOnly",
+    "classification/design": "chartReview",
+    "classification/question": "Which patient factors are associated with copper IUD fragmentation on removal that needs hysteroscopy to retrieve the pieces? We hypothesize that uterine anatomic abnormalities and longer duration of ParaGard use are associated with fragmentation. Goal is better counselling of patients choosing a copper IUD.",
+    "classification/cohort/population": "Adults (18+) who had an IUD removal at UHN that needed a subsequent hysteroscopy to retrieve retained IUD fragments, in the last 20 years. Cases found by a Data Services query on the procedure and diagnosis codes listed in the protocol (hysteroscopic removal of impacted foreign body, IUD removal, displacement and mechanical complication codes), then confirmed by chart review.",
+    "classification/cohort/startDate": "2006-10-01",
+    "classification/cohort/endDate": "2026-09-30",
+    "classification/cohort/dateRationale": "The protocol covers the last 20 years. Fragmentation needing hysteroscopy is rare, so we need the whole window to get enough cases. Counted back from the end of September 2026.",
+    "classification/cohort/records": 700,
+    "classification/cohort/exclusions": ["age"],
+    "classification/cohort/exclusionsWhy": "Under 18 excluded, same as the original protocol. Most UHN gynaecology patients are adults anyway.",
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": ["care", "administration"],
+    "classification/sources/dataSources": ["emr", "administrative"],
+    "classification/sources/sourceDetails": "UHN Epic EMR: clinic notes, procedure and operative notes, ultrasound and X-ray reports, problem list and medical history. Case-finding list from UHN Data Services using CPT 58562 and the ICD-10 codes in the protocol (Z30.432, T83.32, T83.39, T83.9XXA etc.). No CAPCR numbers, these are clinical systems.",
+    "classification/sources/external": false,
+    "identifiability/arrival": "anonymized",
+    "identifiability/keyHolder": "none",
+    "identifiability/fields": "Age at removal, BMI, gravidity and parity, comorbidities, IUD type and duration of use, reason for removal, imaging findings, details of the removal and hysteroscopy, complications. MRN is only used during chart review to confirm eligibility and is removed from the REDCap record once extraction is done. No names, addresses or health card numbers.",
+    "identifiability/recognizable": "unlikely",
+    "identifiability/lessIdentifiable": "yesWill",
+    "identifiability/reidentification": "MRNs deleted from REDCap after extraction, each patient is only a REDCap record number after that. Access limited to the study team. All results reported in aggregate.",
+    "identifiability/linkage": ["no"],
+    "consent/sought": "notApplicable",
+    "consent/priorConsent": false,
+    "access/custodian": "UHN, through Data Services",
+    "access/custodianApproval": "pending",
+    "access/authority": ["phipa44"],
+    "sensitivity/categories": ["none"],
+    "sensitivity/indigenous": "no",
+    "sensitivity/equity": false,
+    "handling/leaving/leaves": ["no"],
+    "handling/leaving/otherUses": ["none"],
+    "handling/storage/location": ["server"],
+    "handling/storage/access": "PI, the resident and the three medical students only. UHN REDCap project, user rights set by the PI, UHN accounts. Remote chart review only over the UHN VPN. The biostatistician gets an export without MRNs.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "deidentified",
+    "handling/storage/retentionPeriod": "10 years after publication",
+    "handling/storage/breachHarm": ["minimal"],
+    "handling/storage/pia": "notRequired",
+    "handling/storage/disclosure": ["none"],
+    "handling/results/reporting": "aggregate",
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "Not expected. Records only, aggregate results, nobody is contacted. If a chart shows something concerning the PI will raise it with the treating team.",
+    "digital/uhnHosted": true,
+    "digital/integration": false,
+    "digital/external": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/previouslyApproved": true,
+    "digital/different": false,
+    "digital/usage": "Standard UHN REDCap project for chart abstraction. Only the study team enters data, no surveys or patient-facing forms.",
+    "digital/ai/used": false,
+    "team/gcpDate": "2023-02-08",
+    "team/healthProfessionals": true,
+    "team/hpRoles": ["pi", "coi", "team"],
+    "team/hpIdentifiable": false,
+    "team/conflict": false,
+    "team/glossary": false,
+    "resources/funding": false,
+    "resources/staff": false,
+    "resources/extraction": true,
+    "resources/analyst": true,
+    "resources/other": "One case-finding query from Data Services. Biostatistics support for the descriptive stats and logistic regression, about 2 months.",
+    "resources/similar": false,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": false
+  },
+  "weaknesses": [
+    "Identifiability and consent: identifiability/arrival is 'anonymized' with keyHolder 'none' and consent/sought is 'notApplicable', but the protocol (p. 6) has the team identify patients by MRN in the chart during eligibility and extraction. The data is directly identifying in the team's hands, a waiver is needed, and the form skips the waiver section entirely.",
+    "Sensitive category not ticked: sensitivity/categories is 'none' although the whole dataset is contraception and gynaecological procedures (reproductive care). breachHarm 'minimal' follows from the same blind spot.",
+    "End date in the recent past: classification/cohort/endDate is 2026-09-30, a month before submission. The protocol's 20-year window was anchored to its May 2024 version; moving it forward brings in recent patients still in follow-up who could be asked.",
+    "No small-cell rule: handling/results/reporting is 'aggregate' with no suppression threshold, for a rare complication at one site.",
+    "Supporting detail: the variable list keeps exact insertion, removal and hysteroscopy dates, which identifiability/fields does not mention.",
+    "From the protocol itself, not built in: the exclusion criteria remove every removal without fragmentation, so there is no comparison group for the planned logistic regression; case-finding uses US CPT and ICD-10-CM codes; the protocol contradicts itself on sharing de-identified data (p. 6)."
+  ],
+  "extractions": [
+    {
+      "question": "study/pi",
+      "extractedAnswer": "Dr. Annabel Mancillas",
+      "quote": "Dr. Annabel Mancillas, MD MPH FACOG, Assistant Professor of Obstetrics & Gynecology (Principal investigator)",
+      "page": 4,
+      "confidence": 0.9,
+      "reasoning": "The cover page lists the principal investigator as 'irb', which looks like a template placeholder; the personnel section names Dr. Mancillas as principal investigator."
+    },
+    {
+      "question": "classification/question",
+      "extractedAnswer": "Whether uterine anatomic abnormalities and longer duration of copper IUD (ParaGard) use are associated with fragmentation on removal requiring hysteroscopic removal.",
+      "quote": "We hypothesize that patients with uterine anatomic abnormalities and increased duration of ParaGard use will have higher associations with fragmentation requiring hysteroscopic removal.",
+      "page": 2,
+      "confidence": 0.88,
+      "reasoning": "The aims section states the hypothesis directly; the question follows from it."
+    },
+    {
+      "question": "classification/design",
+      "extractedAnswer": "chartReview",
+      "quote": "The proposed study will be a retrospective chart review at KUMC to identify factors associated with IUD fragmentation/retention.",
+      "page": 3,
+      "confidence": 0.96,
+      "reasoning": "The study type and design section names the design explicitly."
+    },
+    {
+      "question": "classification/cohort/population",
+      "extractedAnswer": "Patients aged 18 or older who underwent IUD removal that required subsequent hysteroscopy to retrieve retained fragments, in the last 20 years.",
+      "quote": "Any patient who underwent IUD removal that required subsequent hysteroscopy to retrieve retained fragments of IUD in the last 20 years.",
+      "page": 3,
+      "confidence": 0.93,
+      "reasoning": "Taken from the inclusion criteria, combined with the under-18 exclusion that follows it."
+    },
+    {
+      "question": "classification/cohort/endDate",
+      "extractedAnswer": "2024-05-14",
+      "quote": "Any patient who underwent IUD removal that required subsequent hysteroscopy to retrieve retained fragments of IUD in the last 20 years.",
+      "page": 3,
+      "confidence": 0.55,
+      "reasoning": "The window is relative ('the last 20 years'); read against the protocol's version date of 5/14/2024, it ends on that date. The exact end date is not stated."
+    },
+    {
+      "question": "classification/cohort/records",
+      "extractedAnswer": 700,
+      "quote": "The maximum sample size will be a maximum of 700 patients.",
+      "page": 3,
+      "confidence": 0.9,
+      "reasoning": "Stated as a maximum in the sample size section."
+    },
+    {
+      "question": "classification/cohort/exclusions",
+      "extractedAnswer": ["age"],
+      "quote": "Exclusion criteria: <18 years old, patients who undergo IUD removal without requiring hysteroscopy",
+      "page": 3,
+      "confidence": 0.82,
+      "reasoning": "Age under 18 is the only exclusion not tied to the clinical outcome; the others define the outcome."
+    },
+    {
+      "question": "classification/contact",
+      "extractedAnswer": "recordsOnly",
+      "quote": "There will be no recruitment letter or introductory statement.",
+      "page": 5,
+      "confidence": 0.85,
+      "reasoning": "Subjects are identified by chart query, with no advertisements, letters or screening; the protocol describes no contact."
+    },
+    {
+      "question": "classification/sources/dataSources",
+      "extractedAnswer": ["emr", "administrative"],
+      "quote": "Subjects will be recruited from KUMC via chart query using ICD-10 codes and CPT codes.",
+      "page": 5,
+      "confidence": 0.8,
+      "reasoning": "Cases come from a coded query (administrative codes) and data from chart review of the medical record."
+    },
+    {
+      "question": "identifiability/arrival",
+      "extractedAnswer": "direct",
+      "quote": "Individual subjects will be identified by their UKHS medical record numbers during the initial chart review and data collection phase.",
+      "page": 6,
+      "confidence": 0.86,
+      "reasoning": "The team works from the medical record by MRN during collection, so the data is directly identifying when it reaches them; the MRN is removed only afterwards."
+    },
+    {
+      "question": "identifiability/lessIdentifiable",
+      "extractedAnswer": "yesWill",
+      "quote": "Once eligibility for the study is confirmed and unidentifiable data points have been extracted from the subject's medical record, the MRN will be removed from the subject's research record.",
+      "page": 6,
+      "confidence": 0.74,
+      "reasoning": "The protocol plans to drop the MRN after extraction, which reduces identifiability for analysis."
+    },
+    {
+      "question": "sensitivity/categories",
+      "extractedAnswer": ["reproductive"],
+      "quote": "Intrauterine devices (IUD) have been increasing in popularity as a contraception method over the past twenty years",
+      "page": 2,
+      "confidence": 0.9,
+      "reasoning": "The study is about contraceptive devices and their gynaecological removal, which is reproductive care."
+    },
+    {
+      "question": "handling/leaving/leaves",
+      "extractedAnswer": ["no"],
+      "quote": "No identifiable or de-identified data will be sent outside of KUMC.",
+      "page": 6,
+      "confidence": 0.84,
+      "reasoning": "Stated in the data management section, though page 6 also mentions sharing de-identified data via publication."
+    },
+    {
+      "question": "handling/storage/location",
+      "extractedAnswer": ["server"],
+      "quote": "Study data will be compiled and stored in a secure RedCap database.",
+      "page": 6,
+      "confidence": 0.87,
+      "reasoning": "REDCap on the institution's server is the only storage named."
+    },
+    {
+      "question": "handling/storage/access",
+      "extractedAnswer": "Only the study team listed in the protocol has access to the REDCap database.",
+      "quote": "Only members of the team as listed above will have access to this database.",
+      "page": 6,
+      "confidence": 0.83,
+      "reasoning": "The confidentiality section limits access to the listed team."
+    },
+    {
+      "question": "handling/results/reporting",
+      "extractedAnswer": "aggregate",
+      "quote": "All data will be presented in aggregate without identifying information.",
+      "page": 7,
+      "confidence": 0.8,
+      "reasoning": "Aggregate presentation is stated; no small-cell suppression rule is mentioned."
+    },
+    {
+      "question": "resources/analyst",
+      "extractedAnswer": true,
+      "quote": "All power calculation and statistical analysis will be performed by KU employed biostatisticians.",
+      "page": 3,
+      "confidence": 0.78,
+      "reasoning": "The analysis is done by institutional biostatisticians, not the study team."
+    },
+    {
+      "question": "agreements/involved",
+      "extractedAnswer": false,
+      "quote": "Collaboration (with another institution, if applicable): N/A",
+      "page": 4,
+      "confidence": 0.88,
+      "reasoning": "No collaborating institution, and recruitment says no other institutions are involved."
+    }
+  ],
+  "screening": {
+    "summary": "A single-site chart review of a rare gynaecological complication, kept in UHN REDCap with no data leaving UHN. The main problem is that the form calls the data anonymized and asks for neither consent nor a waiver, while the team reads charts by MRN; the reproductive care category is also not ticked. As written, the analysis has no comparison group, so the stated question can't be answered from this cohort.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "classification",
+        "summary": "Research, records only, retrospective chart review. The purpose, the absence of contact and the clinical data sources agree with the protocol.",
+        "comments": []
+      },
+      {
+        "approval": "reb",
+        "topic": "identifiability",
+        "summary": "The data is directly identifying while the team extracts it, not anonymized, and the retained fields include exact procedure dates.",
+        "comments": [
+          {
+            "text": "The form says the data arrives anonymized with no key, but the team itself finds each patient by MRN in Epic to confirm eligibility and extract the data, and only removes the MRN afterwards. That is directly identifying data in the team's hands, so 'not applicable' for consent does not hold.",
+            "kind": "conflict",
+            "severity": "major",
+            "suggestion": "Change the arrival to directly identifying and the consent answer to a waiver request, then argue each waiver condition.",
+            "subjects": ["identifiability/arrival", "identifiability/keyHolder", "consent/sought"],
+            "quote": "Individual subjects will be identified by their UKHS medical record numbers during the initial chart review and data collection phase.",
+            "page": 6
+          },
+          {
+            "text": "The variable list keeps exact dates of insertion, removal and hysteroscopy, which the identifiers answer doesn't mention. For a rare complication at one hospital, exact procedure dates plus age could single someone out, so 'unlikely' to be recognized is optimistic.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Compute duration of use and the removal-to-hysteroscopy interval at extraction, keep the year only, and drop the exact dates.",
+            "subjects": ["identifiability/fields", "identifiability/recognizable", "variables"]
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "waiver",
+        "summary": "No waiver is requested because the data is treated as non-identifiable; once that is corrected the waiver conditions need to be argued.",
+        "comments": [
+          {
+            "text": "Once the identifiability answer is corrected, a waiver is needed. Many patients in a 20-year gynaecology cohort, especially recent ones, are likely still seen at UHN, so impracticability can't rest on cohort size alone, and the cohort may be far smaller than the 700 maximum.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Request a waiver and say why consent is impracticable for this cohort specifically, and why chart access by MRN is essential.",
+            "subjects": ["consent/sought"]
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "sensitive",
+        "summary": "The whole dataset is reproductive care, which the form doesn't declare.",
+        "comments": [
+          {
+            "text": "The study is about contraception and gynaecological procedures, which is reproductive care, but the sensitive categories answer is 'none of these'. Ticking it also opens the question of whether anyone placed to see the risks has been consulted.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Tick reproductive care and answer the follow-up question on input.",
+            "subjects": ["sensitivity/categories"],
+            "quote": "Intrauterine devices (IUD) have been increasing in popularity as a contraception method over the past twenty years",
+            "page": 2
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "dateRange",
+        "summary": "The window runs to a month before submission.",
+        "comments": [
+          {
+            "text": "The end date is 30 September 2026. The protocol's 20-year window was written in May 2024; counting it from today pulls in patients who had a hysteroscopy in the last few weeks and are probably still in follow-up, who could reasonably be asked for consent.",
+            "kind": "concern",
+            "severity": "medium",
+            "suggestion": "End the window at least a year back, for example at the protocol's May 2024 date, or explain why the recent cases are needed.",
+            "subjects": ["classification/cohort/endDate", "classification/cohort/dateRationale"]
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "rigour",
+        "summary": "The cohort only contains patients with the outcome, so the planned association analysis can't be done; case-finding codes also need translating for UHN.",
+        "comments": [
+          {
+            "text": "The exclusion criteria remove every patient whose IUD came out without fragmentation or without hysteroscopy, so everyone in the cohort has the outcome. Logistic regression of fragmentation on patient factors, and the chi-square and t-test comparisons, need a group without fragmentation to compare against.",
+            "kind": "concern",
+            "severity": "medium",
+            "suggestion": "Add a comparison group, such as copper IUD removals without fragmentation over the same period, or restate the aim as a descriptive case series.",
+            "subjects": ["classification/cohort/population", "classification/question", "protocol"],
+            "quote": "patients who undergo IUD removal without requiring hysteroscopy, patient who undergo IUD removal without fragmentation of device",
+            "page": 3
+          },
+          {
+            "text": "Case-finding uses CPT 58562 and US ICD-10-CM codes such as T83.9XXA. UHN codes procedures in CCI and diagnoses in ICD-10-CA, so the query as written may find few or no cases.",
+            "kind": "gap",
+            "severity": "minor",
+            "suggestion": "Ask Data Services to map the code list to CCI and ICD-10-CA before the query is run.",
+            "subjects": ["classification/sources/sourceDetails", "protocol"],
+            "quote": "Subjects will be recruited from KUMC via chart query using ICD-10 codes and CPT codes.",
+            "page": 5
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "reporting",
+        "summary": "Aggregate reporting with no suppression rule, for a rare outcome at a single site.",
+        "comments": [
+          {
+            "text": "Results will be aggregate with no small-cell rule. Tables by uterine anomaly, IUD type or complication will likely have counts of one or two, and the abstract goes to a national conference.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Set a threshold, for example suppress counts under 6 as ICES does, and apply it to abstracts and posters as well as the manuscript.",
+            "subjects": ["handling/results/reporting"],
+            "quote": "All data will be presented in aggregate without identifying information.",
+            "page": 7
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "transfer",
+        "summary": "Nothing leaves UHN by design, but the protocol is ambiguous about releasing de-identified data with the publication.",
+        "comments": [
+          {
+            "text": "The protocol says de-identified data and results will be shared via publication, but also that no de-identified data leaves the site, and the form lists no other uses. If the journal's data-sharing policy leads to posting a dataset, that is a disclosure outside UHN the form doesn't cover.",
+            "kind": "conflict",
+            "severity": "minor",
+            "suggestion": "Confirm that only aggregate results are published, or declare the dataset release and how it would be anonymized.",
+            "subjects": ["handling/leaving/otherUses", "protocol"],
+            "quote": "After completion of the study, de-identified data and results will be shared with participants via publication of research results.",
+            "page": 6
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "safeguards",
+        "summary": "UHN REDCap with team-only access and a set retention period is appropriate; the breach harm is understated.",
+        "comments": [
+          {
+            "text": "Breach harm is given as minimal. During extraction the REDCap project holds MRNs next to contraceptive and gynaecological history, and three medical students work on it remotely; a breach at that stage would expose reproductive care details.",
+            "kind": "concern",
+            "severity": "minor",
+            "suggestion": "List re-identification and stigma as possible harms, and set a date by which the MRNs are deleted.",
+            "subjects": ["handling/storage/breachHarm", "handling/storage/access"]
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "equity",
+        "summary": "One age exclusion with little effect at an adult hospital; the team hasn't taken the IDEA courses.",
+        "comments": [
+          {
+            "text": "Under-18s are excluded and the protocol gives no reason. At UHN this probably removes very few patients, but adolescents do use copper IUDs, so the findings may not apply to them.",
+            "kind": "concern",
+            "severity": "suggestion",
+            "suggestion": "Note the age limit as a limitation in the manuscript.",
+            "subjects": ["classification/cohort/exclusionsWhy", "sensitivity/equity"]
+          }
+        ]
+      },
+      {
+        "approval": "digitalReview",
+        "topic": "hosted",
+        "summary": "The study uses UHN REDCap, a UHN-hosted service, with no integrations or external tools, and data stays within UHN. Nothing to flag.",
+        "comments": []
+      }
+    ]
+  },
+  "variableList": [
+    {"field": "MRN", "source": "Epic", "identifying": true, "why": "Confirm eligibility and find the chart. Removed from REDCap once extraction is done."},
+    {"field": "REDCap record number", "source": "REDCap", "identifying": false, "why": "Study ID for each patient after the MRN is removed."},
+    {"field": "Age at IUD removal", "source": "Epic", "identifying": false, "why": "Describe the cohort and adjust for age."},
+    {"field": "BMI", "source": "Epic", "identifying": false, "why": "Possible risk factor."},
+    {"field": "Gravidity and parity", "source": "Epic", "identifying": false, "why": "Possible risk factor for fragmentation."},
+    {"field": "Previous caesarean delivery", "source": "Epic", "identifying": false, "why": "Uterine scarring as a possible risk factor."},
+    {"field": "Menopausal status at removal", "source": "Epic", "identifying": false, "why": "Possible risk factor, removal is often harder after menopause."},
+    {"field": "Comorbidities (e.g. diabetes, bleeding disorders)", "source": "Epic", "identifying": false, "why": "Co-morbidities are among the protocol's data points."},
+    {"field": "Uterine anatomic abnormality (fibroids, septum, bicornuate uterus)", "source": "Epic", "identifying": false, "why": "Main hypothesis."},
+    {"field": "Uterine position", "source": "Epic", "identifying": false, "why": "Possible risk factor."},
+    {"field": "IUD type and brand", "source": "Epic", "identifying": false, "why": "Confirm copper IUD."},
+    {"field": "Date of IUD insertion", "source": "Epic", "identifying": true, "why": "Compute duration of use."},
+    {"field": "Postpartum insertion", "source": "Epic", "identifying": false, "why": "Possible risk factor."},
+    {"field": "Insertion site (UHN or outside)", "source": "Epic", "identifying": false, "why": "Describe the cohort."},
+    {"field": "Duration of IUD use (months)", "source": "Derived", "identifying": false, "why": "Main hypothesis."},
+    {"field": "Reason for removal", "source": "Epic", "identifying": false, "why": "Describe the cohort."},
+    {"field": "Date of IUD removal attempt", "source": "Epic", "identifying": true, "why": "Compute duration of use and time to hysteroscopy."},
+    {"field": "Removal setting (clinic or operating room)", "source": "Epic", "identifying": false, "why": "Pre-procedural information."},
+    {"field": "Imaging modality and findings (ultrasound, X-ray)", "source": "Epic", "identifying": false, "why": "IUD imaging findings, location of fragments."},
+    {"field": "Number and location of retained fragments, embedded or not", "source": "Epic", "identifying": false, "why": "Characterize the fragmentation."},
+    {"field": "Date of hysteroscopy", "source": "Epic", "identifying": true, "why": "Compute time from removal to hysteroscopy."},
+    {"field": "Hysteroscopy setting and anaesthesia", "source": "Epic", "identifying": false, "why": "Intra-operative information."},
+    {"field": "Intra-operative complications (e.g. perforation)", "source": "Epic", "identifying": false, "why": "Intra-operative information."},
+    {"field": "Post-procedure complications and follow-up", "source": "Epic", "identifying": false, "why": "Post-procedural information."},
+    {"field": "Procedure and diagnosis codes", "source": "Data Services query", "identifying": false, "why": "Case-finding."}
+  ],
+  "dataSharingAgreement": null
+}
