@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -354,6 +355,18 @@ class AnswerIntakeServiceTest
         this.intake.run(getFile(), scan(), List.of(createAimsField(), createAimsField()));
 
         assertEquals(500 + 400 * 2, this.client.options.get(0).getMaxOutputTokens());
+    }
+
+    // A provider refuses a request asking for more than its model can write
+    @Test
+    void asksForNoMoreRoomThanAModelCanWrite() throws IOException
+    {
+        addMarkdown(DOCUMENT);
+        this.client.replies.add("{}");
+
+        this.intake.run(getFile(), scan(), Collections.nCopies(50, createAimsField()));
+
+        assertEquals(AnswerIntakeService.MAX_OUTPUT_TOKENS, this.client.options.get(0).getMaxOutputTokens());
     }
 
     @Test
