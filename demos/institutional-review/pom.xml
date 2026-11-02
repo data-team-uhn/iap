@@ -51,8 +51,10 @@
             <Include-Resource>{maven-resources}</Include-Resource>
             <!-- Workflows first: the schema version names its workflow version with a `jcr:reference:`
                  property, which resolves only once the target exists. -->
+            <Sling-Nodetypes>SLING-INF/nodetypes/review.cnd</Sling-Nodetypes>
             <Sling-Initial-Content>
               SLING-INF/content/Tags/;path:=/Tags/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
               SLING-INF/content/Workflows;path:=/Workflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
               SLING-INF/content/Schemas;path:=/Schemas;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
             </Sling-Initial-Content>

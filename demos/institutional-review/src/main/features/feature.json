@@ -30,7 +30,12 @@
         // the test sessions log in as. Passwords match the usernames.
         "create group researchers \n create group reb-reviewers \n create group digital-reviewers \n create group department-heads \n create group cta-reviewers \n create group lmp-reviewers \n create group jdmi-reviewers \n create group crdac-reviewers \n create group rqi-reviewers \n create group health-professions",
         "create user researcher with password researcher \n create user reb-reviewer with password reb-reviewer \n create user reb-reviewer-2 with password reb-reviewer-2 \n create user digital-reviewer with password digital-reviewer",
-        "add researcher to group researchers \n add reb-reviewer,reb-reviewer-2 to group reb-reviewers \n add digital-reviewer to group digital-reviewers"
+        "add researcher to group researchers \n add reb-reviewer,reb-reviewer-2 to group reb-reviewers \n add digital-reviewer to group digital-reviewers",
+        // Invented names, so that people read as people on the pages
+        "set properties on authorizable(researcher) \n set displayName{String} to \"Alex Morgan\" \n end",
+        "set properties on authorizable(reb-reviewer) \n set displayName{String} to \"Sam Okafor\" \n end",
+        "set properties on authorizable(reb-reviewer-2) \n set displayName{String} to \"Jordan Lee\" \n end",
+        "set properties on authorizable(digital-reviewer) \n set displayName{String} to \"Priya Nair\" \n end"
       ]
     }
   }

@@ -34,6 +34,7 @@ import {
 
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import { readJson } from "@iap/frontend-commons/requestFailure";
+import { adoptSuggestedPersona } from "@iap/ui-extension/personas";
 
 import PersonaSwitcher from "./PersonaSwitcher";
 
@@ -80,7 +81,10 @@ function UserMenu() {
     }
     fetch(userInfoUrl(userName))
       .then(response => response.ok ? readJson<Record<string, unknown>>(response) : Promise.reject(new Error(`Failed to load user info: ${response.status}`)))
-      .then(json => setFullName(fullNameOf(json)))
+      .then(json => {
+        setFullName(fullNameOf(json));
+        adoptSuggestedPersona(Array.isArray(json.memberOf) ? json.memberOf.map(String) : []);
+      })
       // Without the user's properties, the menu shows only the username
       .catch(() => setFullName(""));
   }, [ userName ]);

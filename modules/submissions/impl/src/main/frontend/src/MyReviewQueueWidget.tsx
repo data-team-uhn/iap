@@ -16,10 +16,16 @@
  * limitations under the License.
  */
 
+import { useMemo } from "react";
+
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { DescendantFilter } from "@iap/frontend-commons/entityGrid/pagination";
+import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry";
 
-import { SUBMISSION_TYPE } from "./submissionGrid";
+import DiscussionCell from "./review/DiscussionCell";
+import NotesCell from "./review/NotesCell";
+import { REVIEW_QUEUE_TYPE } from "./review/reviewQueueGrid";
+import { useCurrentUser } from "./review/useCurrentUser";
 
 // The submissions with a review assigned to the current user and not yet decided: a `sub:Review`
 // descendant whose reviewer is `@me`, and whose tags hold neither decision. On the multi-valued `tags`
@@ -36,12 +42,40 @@ const MY_OPEN_REVIEWS: DescendantFilter = {
 // The dashboard widget listing the submissions waiting for the current user's review. The dashboard
 // draws its title.
 function MyReviewQueueWidget() {
+  const me = useCurrentUser();
+  // PRETOTYPE: the reviewer's own notes and the reviewers' discussion, at a glance, as in their spreadsheets
+  const extraColumns: EntityGridColumn[] = useMemo(() => me ? [
+    {
+      field: "__notes__",
+      headerName: "My notes",
+      flex: 1.5,
+      minWidth: 200,
+      cardSlot: "omit",
+      renderCell: params => <NotesCell path={params.row["@path"] as string} me={me} />,
+    },
+    {
+      field: "__discussion__",
+      headerName: "Discussion",
+      flex: 1.5,
+      minWidth: 200,
+      cardSlot: "omit",
+      renderCell: params => (
+        <DiscussionCell path={params.row["@path"] as string} me={me} title={typeof params.row.title === "string" ? params.row.title : ""} />
+      ),
+    },
+  ] : [], [ me ]);
+
   return (
     <EntityDataGrid
-      entityType={SUBMISSION_TYPE}
+      entityType={REVIEW_QUEUE_TYPE}
       childFilter={MY_OPEN_REVIEWS}
+      extraColumns={extraColumns}
+      pageSize={25}
+      pageSizeOptions={[10, 25, 50]}
+      height={720}
       emptyMessage="No submissions to review"
       noResultsMessage="No matching submissions"
+      searchLabel="Search your queue"
     />
   );
 }
