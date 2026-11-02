@@ -417,7 +417,7 @@ def main(argv):
         for feature in ('iap-demo-time-off-request', 'iap-data-requirement-impl',
                         'iap-demo-data-study'):
             launcher_args += ['-f', 'mvn:io.uhndata.iap/%s/%s/slingosgifeature' % (feature, platform_version)]
-    # The default docling.url/generation.url assume you're running via Docker
+    # The default docling.url/generation.url assume Docker compose's service names
     # and should instead point to localhost on a local instance
     launcher_args += ['-V', 'docling.url=http://localhost:18765',
                       '-V', 'generation.url=http://localhost:18766']
