@@ -38,8 +38,10 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
 import io.uhndata.iap.schemas.models.ClassificationRequirement;
+import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -163,9 +165,11 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
                 result.getMessage());
             return false;
         }
-        // The gate must never guess: a pick less sure than the schema asks is left for the submitter to make
+        // The gate must never guess: a pick less sure than the schema asks, or one naming no category the question
+        // offers, is left for the submitter to make
         final Map<String, FieldResult> sure = result.fields().entrySet().stream()
             .filter(entry -> isSure(entry.getValue(), thresholds.get(entry.getKey())))
+            .filter(entry -> isOffered(entry.getValue(), questions.get(entry.getKey())))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         // Never replaced by a newer revision: a decision already made or confirmed stays
         ExtractionFields.write(context.getResourceResolver(), target, submission, questions, sure, List.of(file),
@@ -179,6 +183,18 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
     private static boolean isSure(final FieldResult result, final Double threshold)
     {
         return result.found() && threshold != null && result.confidence() >= threshold;
+    }
+
+    /**
+     * Whether every value of a pick is one of the categories its question offers. Not every provider holds the
+     * reply to the schema's list, and a pick outside it would count as an answer that matches no condition.
+     */
+    private static boolean isOffered(final FieldResult result, final Question question)
+    {
+        final Set<String> offered = question.getOfferedOptions().stream()
+            .map(OfferedOption::value)
+            .collect(Collectors.toSet());
+        return offered.containsAll(Answer.readAnswer(result.value(), question));
     }
 
     /**
