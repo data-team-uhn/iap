@@ -454,8 +454,9 @@ cache for. Anything that changes per document belongs after it.
 
 ### How much of the document fits
 
-`maxOutputTokens` = 500 + 400 per field. The document gets what is left of the model's
-context window (`CallBudget.calculateDocumentTokenBudget`):
+`maxOutputTokens` = 500 + 400 per field, at most 16,384 (`MAX_OUTPUT_TOKENS`): a
+provider refuses a request for more than its model can write. The document gets what is
+left of the model's context window (`CallBudget.calculateDocumentTokenBudget`):
 
 ```
 document budget = window − 15% safety margin − maxOutputTokens − (system prompt + question block)

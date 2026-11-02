@@ -63,6 +63,12 @@ public class AnswerIntakeService
      */
     static final double UNVERIFIED_PENALTY = 0.5;
 
+    /**
+     * The most room an answer is given, however many fields are asked. A provider refuses a request asking for more
+     * than its model can write, and 16k is a common ceiling among hosted models.
+     */
+    static final long MAX_OUTPUT_TOKENS = 16_384L;
+
     private static final Logger LOGGER = LoggerFactory.getLogger(AnswerIntakeService.class);
 
     private static final String SCHEMA_NAME = "iap_intake";
@@ -201,7 +207,7 @@ public class AnswerIntakeService
         }
         final String system = buildSystemPrompt(extraSystem);
         final String questions = IntakePayload.buildQuestionBlock(fields);
-        final long maxOutputTokens = BASE_TOKENS + PER_FIELD_TOKENS * fields.size();
+        final long maxOutputTokens = Math.min(BASE_TOKENS + PER_FIELD_TOKENS * fields.size(), MAX_OUTPUT_TOKENS);
         final long promptTokens = CallBudget.estimateTokens(system) + CallBudget.estimateTokens(questions);
         final String text = DocumentBudget.fitDocument(this.configurationService, STAGE_NAME, file, document.getText(),
             promptTokens, maxOutputTokens);
