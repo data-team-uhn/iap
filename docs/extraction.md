@@ -248,8 +248,13 @@ a commit of its own it writes `extractionStatus=failed`, "The document could not
 read", and removes the claim. Without that, the submission would stay at `running`
 forever.
 
+Before anything is written, the job checks the submission out if it was checked in
+(`ExtractionStatus.checkOut`). A submission is versionable, and checked in it is
+read-only with everything under it. One checkout covers every later write, and a
+submission that cannot be checked out drops the job with an error for an administrator.
+
 `ReadingRuns.begin` registers the job's thread under the submission path, so Stop can
-interrupt it (see "Stop" below). A stopped reading gives up the same way, and records
+reach it (see "Stop" below). A stopped reading gives up the same way, and records
 "Reading was stopped." instead.
 
 ## Step 6: starting the schema's reading workflow
@@ -924,7 +929,7 @@ their own; those steps say why.
 
 | Where | Setting | Default | Meaning |
 | --- | --- | --- | --- |
-| `modules/extraction/.../feature.json` | service user `iap-extraction` | | `jcr:read` and `jcr:modifyProperties` on `/Submissions`: it only sets the claim and the status; the engine writes everything else as its own user. `jcr:read` on `/Schemas` and `/Workflows`, to check the reading workflow exists. Granted by name: a service user mapped as `[iap-extraction]` holds only that principal, so what `/Schemas` grants to `everyone` does not reach it |
+| `modules/extraction/.../feature.json` | service user `iap-extraction` | | `jcr:read`, `jcr:modifyProperties` and `jcr:versionManagement` on `/Submissions`: it only sets the claim and the status, checking the submission out first when it was checked in; the engine writes everything else as its own user. `jcr:read` on `/Schemas` and `/Workflows`, to check the reading workflow exists. Granted by name: a service user mapped as `[iap-extraction]` holds only that principal, so what `/Schemas` grants to `everyone` does not reach it |
 | same | queue `iap-extraction` | `maxparallel` 1 | One submission read at a time |
 | same | bundle start order | 29 | After the LLM client, the engine and the models |
 | documents `feature.json` | `daemonUrl` on PID `io.uhndata.iap.documents.internal.DaemonConnection` | `${docling.url}` (`http://docling:18765`; `http://localhost:18765` with no configuration) | Where the daemon is. The one PID is read by both `ParseJobConsumer` (dispatch) and `ParseAbandonment` (Stop). |

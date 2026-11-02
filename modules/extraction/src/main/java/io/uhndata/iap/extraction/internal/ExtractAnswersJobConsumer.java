@@ -153,7 +153,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         if (isTooEarly(job, submission)) {
             return JobResult.FAILED;
         }
-        if (!canStart(resolver, submission)) {
+        if (!checkOut(submission) || !canStart(resolver, submission)) {
             return JobResult.CANCEL;
         }
         if (!claimReading(resolver, submission, job.getId())) {
@@ -182,6 +182,25 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class),
             (System.nanoTime() - startedAt) / 1_000_000L);
         return JobResult.OK;
+    }
+
+    /**
+     * Make the submission writable for everything this job writes, from giving up to the answers the reading reads.
+     *
+     * @param submission the submission to read
+     * @return {@code false} when it cannot be checked out, which nothing here can fix
+     */
+    private static boolean checkOut(final Resource submission)
+    {
+        try {
+            ExtractionStatus.checkOut(submission);
+            return true;
+        } catch (final PersistenceException e) {
+            LOGGER.error("Cannot check out {} to read it: {}", submission.getPath(), e.getMessage(), e);
+            // The service user lacks the right to check it out: a deployment fault
+            ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "checkOut").about(submission));
+            return false;
+        }
     }
 
     /**
