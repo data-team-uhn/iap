@@ -761,6 +761,14 @@ A missing `question` gives a 400, and so does a question nothing was extracted f
 | `done` | Every answer that could be read was saved; `extractionMessage` may say more | `intakeAnswers` (unless an earlier step already wrote `failed`), `finishReading` |
 | `failed` | Parsing or reading failed; `extractionMessage` says why | `classifyDocument`, `intakeAnswers`, the job's give-up, `stopProcessing` |
 
+While it is `running`, the submission page (`SubmissionView`, `isBeingRead` in
+`submissionForm.ts`) holds the send step back, saying "Wait until the document has been
+read.", and the editor hides the questions and holds uploads back. An answer typed while
+the reading fills the form in would collide with it, and a request sent mid-reading
+would get answers after it was sent. The page reads the submission again every 3
+seconds until the reading ends, then shows what it filled in. This is the page only: the
+server does not refuse a save or a send while a reading runs.
+
 `parseStatus` on each `sub:File`:
 
 | Value | Meaning |
@@ -968,7 +976,7 @@ Keep in mind:
 | The `attachDocument` workflow does not run a `parseDocuments` step, and no schema sets `readingWorkflow` | No upload is parsed on its own. Only `retryParse` sends one, and only when the schema version names a reading workflow. |
 | The `decision` condition source is not merged | Reading workflows cannot route on a settled pick yet |
 | A `recordWhen` gate on a question the same `intakeAnswers` step asks has no confidence threshold | An unsure intake answer can still open the gate |
-| The submission view that shows `extractionStatus` and the provenance of answers is not merged | Nobody sees the status yet |
+| The submission page only knows that a reading runs; the view that shows `extractionMessage` and the provenance of answers is not merged | Nobody sees why a reading failed, or which answers a model suggested |
 | Only the start and end of a long document are read | The middle of a document past the context window is never read, and the confidence does not say so |
 | Only the first parsed upload is read unless `documents` is set | Satellite files, such as a consent form or a covering letter, are ignored by default |
 | The category does not choose the schema | It is recorded next to the schema the submitter already chose |
