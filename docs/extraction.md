@@ -903,10 +903,10 @@ with their descriptions (`OptionCatalog`).
 | `IntakeAnswersHandler` | handler `intakeAnswers` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments` or `DocumentScan.join`, `ExtractionFields`, `Prompts` |
 | `FinishReadingHandler` | handler `finishReading` | a reading workflow | `ExtractionStatus` |
 | `ReadAgainHandler` | handler `readAgain` | `readAgain` | `JobManager.addJob` |
-| `StopProcessingHandler` | handler `stopProcessing` | `stopProcessing` | `ReadingRuns.getFiles`, `.stop`, `JobManager.findJobs`, `.removeJobById`, `ParseControl.abandon`, `ParseService.discardStaging`, `ParsedDocuments.forget` |
+| `StopProcessingHandler` | handler `stopProcessing` | `stopProcessing` | `ReadingRuns.getFiles`, `.stop`, `JobManager.findJobs`, `.removeJobById`, `ParseControl.abandon`, `ParseService.discardStaging` |
 | `ReviewExtractionHandler` | handler `reviewExtraction` | `reviewExtraction` | `Answer.getSurestExtraction` |
 | `AnswerIntakeService` | component | classify, intake | `LLMClientFactory`, `Prompts`, `DocumentBudget`, `IntakePayload`, `ModelCall`, `ModelReplies`, `QuoteVerifier` |
-| `ParsedDocuments` | component | classify, intake, stop | `DocumentText.readText`, `DocumentScan.of` |
+| `ParsedDocuments` | component | classify, intake | `DocumentText.readText`, `DocumentScan.of` |
 | `ReadingRuns` | component | job, classify, intake, stop | (thread registry) |
 
 Helpers with no state of their own (`Prompts` keeps a static cache of the prompt files):
