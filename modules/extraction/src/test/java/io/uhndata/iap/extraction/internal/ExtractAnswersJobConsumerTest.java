@@ -20,6 +20,9 @@ package io.uhndata.iap.extraction.internal;
 import java.lang.reflect.Field;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -452,6 +455,38 @@ class ExtractAnswersJobConsumerTest
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
         Mockito.verifyNoInteractions(this.engine);
+    }
+
+    // Checked in, a submission is read-only, and only a service user allowed to check it out can read it
+    @Test
+    void dropsTheJobWhenTheSubmissionCannotBeCheckedOut() throws Exception
+    {
+        this.tree.createFile("completed");
+        setJobSubmission(this.submission.getPath());
+        final Node checkedIn = Mockito.mock(Node.class);
+        Mockito.when(checkedIn.isNodeType("mix:versionable")).thenThrow(new RepositoryException("no right"));
+        inject("resolverFactory", new TestResolverFactory(new ResourceResolverWrapper(
+            this.context.resourceResolver())
+        {
+            @Override
+            public Resource getResource(final String path)
+            {
+                final Resource found = super.getResource(path);
+                return found == null ? null : new ResourceWrapper(found)
+                {
+                    @Override
+                    public <T> T adaptTo(final Class<T> type)
+                    {
+                        return type == Node.class ? type.cast(checkedIn) : super.adaptTo(type);
+                    }
+                };
+            }
+        }));
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        Mockito.verifyNoInteractions(this.engine);
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED, Boolean.class));
     }
 
     // Two jobs both found everything settled and both wrote the claim; the repository refuses the second

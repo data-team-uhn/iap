@@ -19,6 +19,9 @@ package io.uhndata.iap.extraction.internal;
 
 import java.util.Map;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -27,6 +30,7 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -167,5 +171,43 @@ class ExtractionStatusTest
         assertThrows(PersistenceException.class,
             () -> ExtractionStatus.record(readOnly, ExtractionStatus.STATUS_DONE, null));
         assertThrows(PersistenceException.class, () -> ExtractionStatus.markBlocked(readOnly));
+    }
+
+    // Checked in, a submission is read-only with everything under it, until it is checked out
+    @Test
+    void checksOutASubmissionThatIsCheckedIn() throws Exception
+    {
+        final Node node = Mockito.mock(Node.class, Mockito.RETURNS_DEEP_STUBS);
+        Mockito.when(node.isNodeType("mix:versionable")).thenReturn(true);
+        Mockito.when(node.isCheckedOut()).thenReturn(false);
+        Mockito.when(node.getPath()).thenReturn("/Submissions/s");
+
+        ExtractionStatus.checkOut(new ResourceWrapper(this.context.create().resource("/Submissions/s"))
+        {
+            @Override
+            public <T> T adaptTo(final Class<T> type)
+            {
+                return type == Node.class ? type.cast(node) : super.adaptTo(type);
+            }
+        });
+
+        Mockito.verify(node.getSession().getWorkspace().getVersionManager()).checkout("/Submissions/s");
+    }
+
+    @Test
+    void reportsASubmissionItCannotCheckOut() throws Exception
+    {
+        final Node node = Mockito.mock(Node.class);
+        Mockito.when(node.isNodeType("mix:versionable")).thenThrow(new RepositoryException("no right"));
+        final Resource submission = new ResourceWrapper(this.context.create().resource("/Submissions/s"))
+        {
+            @Override
+            public <T> T adaptTo(final Class<T> type)
+            {
+                return type == Node.class ? type.cast(node) : super.adaptTo(type);
+            }
+        };
+
+        assertThrows(PersistenceException.class, () -> ExtractionStatus.checkOut(submission));
     }
 }

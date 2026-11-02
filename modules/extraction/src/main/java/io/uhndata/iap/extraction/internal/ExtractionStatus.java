@@ -17,9 +17,14 @@
  */
 package io.uhndata.iap.extraction.internal;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+
+import io.uhndata.iap.utils.VersioningUtils;
 
 /**
  * Where reading answers out of a submission's documents got to, as recorded on the submission for whoever is
@@ -158,6 +163,26 @@ final class ExtractionStatus
             properties.remove(MESSAGE_PROPERTY);
         } else {
             properties.put(MESSAGE_PROPERTY, message);
+        }
+    }
+
+    /**
+     * Make a submission writable when it was checked in. A submission is versionable, and once checked in it is
+     * read-only with everything under it. A checkout takes effect at once and stays, so one before the first write
+     * covers every write after it.
+     *
+     * @param submission the submission's resource, through a session that may check it out
+     * @throws PersistenceException if it cannot be checked out
+     */
+    static void checkOut(final Resource submission) throws PersistenceException
+    {
+        final Node node = submission.adaptTo(Node.class);
+        try {
+            if (node != null && node.isNodeType("mix:versionable")) {
+                VersioningUtils.checkOut(node);
+            }
+        } catch (final RepositoryException e) {
+            throw new PersistenceException("Cannot check out " + submission.getPath(), e);
         }
     }
 }

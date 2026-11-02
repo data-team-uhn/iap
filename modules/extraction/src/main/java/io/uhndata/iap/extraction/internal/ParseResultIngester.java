@@ -211,6 +211,11 @@ public class ParseResultIngester
     private static void applyProperties(final Resource file, final Map<String, Object> properties)
         throws PersistenceException
     {
+        // Always the first write of an ingest, so a submission checked in is writable for the rest of it too
+        final Resource submission = SubmissionFiles.findSubmission(file);
+        if (submission != null) {
+            ExtractionStatus.checkOut(submission);
+        }
         final ModifiableValueMap target = file.adaptTo(ModifiableValueMap.class);
         if (target == null) {
             throw new PersistenceException("Not allowed to record the parse on " + file.getPath());
