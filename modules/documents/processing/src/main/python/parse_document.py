@@ -38,7 +38,7 @@ import docling_config  # noqa: F401 — apply shared Docling settings on import
 from docling.document_converter import DocumentConverter
 
 from docling_docx_parser import convert_docx_to_markdown
-from docling_pdf_parser import convert_pdf_to_markdown
+from docling_pdf_parser import ParseAbandonedError, convert_pdf_to_markdown
 from heading_levels import correct_heading_levels
 from libreoffice_convert import prepare_office_document
 from markdown_cleanup import get_source_file_basename
@@ -68,9 +68,9 @@ def parse_document(
     @param docx_lock: optional lock serialising DOCX Docling conversion (daemon)
     @param docx_converter: optional warm DOCX converter (daemon)
     @param log: optional line logger
-    @param should_abandon: polled while a PDF is converting; see
-        :func:`docling_pdf_parser._run_pdf_chunks`. Not consulted for DOCX, which converts in
-        one call with no batch boundary to abandon at.
+    @param should_abandon: polled once LibreOffice is done, then while a PDF is converting;
+        see :func:`docling_pdf_parser._run_pdf_chunks`. A DOCX converts in one call with no
+        batch boundary to abandon at, so it is only checked before that call.
     @return: summary ``{ok, markdown_path, tokens, logs, filename}``
     """
     source = Path(input_path)
@@ -98,6 +98,9 @@ def parse_document(
     docling_suffix = docling_input.suffix.lower()
     if docling_suffix not in SUPPORTED_SUFFIXES:
         raise ValueError(f"Docling cannot convert {docling_suffix!r} (from '{source.name}')")
+    # LibreOffice can take a while, and a stop that came meanwhile should not pay for the conversion
+    if should_abandon is not None and should_abandon():
+        raise ParseAbandonedError(f"Stopped before converting '{source.name}'")
 
     if docling_suffix == ".pdf":
         markdown = convert_pdf_to_markdown(
