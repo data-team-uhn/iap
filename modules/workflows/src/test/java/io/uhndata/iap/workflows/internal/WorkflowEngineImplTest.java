@@ -22,10 +22,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.jcr.AccessDeniedException;
-import javax.jcr.InvalidItemStateException;
 import javax.jcr.nodetype.ConstraintViolationException;
 
 import org.apache.sling.api.resource.LoginException;
@@ -46,6 +46,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Condition;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.models.SingleCondition;
+import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.history.api.RecordedAction;
 import io.uhndata.iap.history.api.RecordedEffect;
 import io.uhndata.iap.notifications.api.NotificationContext;
@@ -59,6 +60,7 @@ import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.internal.EngineFixture.OneLostRace;
 import io.uhndata.iap.workflows.internal.handlers.CallActivityHandler;
 import io.uhndata.iap.workflows.internal.handlers.CreateEntityHandler;
 import io.uhndata.iap.workflows.internal.handlers.StartWorkflowHandler;
@@ -70,7 +72,9 @@ import io.uhndata.iap.workflows.models.IntermediateThrowingEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
+import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
+import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.models.WorkflowsHomepage;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -83,6 +87,7 @@ import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.tags;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -114,6 +119,16 @@ class WorkflowEngineImplTest
 
     private static final WorkflowEvent CREATE =
         new WorkflowEvent("create", Map.of("title", "My cool workflow"));
+
+    private static final WorkflowEvent COMPLETED = new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of());
+
+    /** An entity events are aimed at, directly or through its task. */
+    private static final String ENTITY = "/Things/request";
+
+    private static final String TASK = ENTITY + "/wf:instances/process/approve";
+
+    /** The revision token the entity carries before any event. */
+    private static final String FIRST_REVISION = "first";
 
     private final SlingContext context = new SlingContext();
 
@@ -159,6 +174,48 @@ class WorkflowEngineImplTest
     private WorkflowEngineImpl engine(final PersistenceException failure, final ServiceTaskHandler... extraHandlers)
         throws Exception
     {
+        return engineServedBy(EngineFixture.serviceUsers(this.context, failure), extraHandlers);
+    }
+
+    /**
+     * Builds an engine whose first commit loses a race to another writer, and whose later commits go through.
+     *
+     * @param race the race, with the other writer's change
+     * @return a ready engine
+     * @throws Exception when reflection fails, which would be a bug in this test
+     */
+    private WorkflowEngineImpl engineLosing(final OneLostRace race) throws Exception
+    {
+        return engineServedBy(EngineFixture.serviceUsersRunning(this.context, race));
+    }
+
+    /**
+     * Builds an engine whose task completion does nothing, so that what an event aimed at a task leads to beyond
+     * the walk can be seen on its own.
+     *
+     * @param beforeCommit what runs before each of the engine's commits, and may refuse it
+     * @return a ready engine
+     * @throws Exception when reflection fails, which would be a bug in this test
+     */
+    private WorkflowEngineImpl engineCompletingNothing(final EngineFixture.RepositoryAction beforeCommit)
+        throws Exception
+    {
+        final WorkflowEngineImpl engine = engineServedBy(EngineFixture.serviceUsersRunning(this.context, beforeCommit));
+        EngineFixture.inject(engine, "taskCompletion", Mockito.mock(TaskCompletion.class));
+        return engine;
+    }
+
+    /**
+     * Builds an engine on the given service sessions.
+     *
+     * @param serviceUsers hands out the engine's own sessions
+     * @param extraHandlers additional handlers to register beside the module's own
+     * @return a ready engine
+     * @throws Exception when reflection fails, which would be a bug in this test
+     */
+    private WorkflowEngineImpl engineServedBy(final ResourceResolverFactory serviceUsers,
+        final ServiceTaskHandler... extraHandlers) throws Exception
+    {
         // The fixture content was written through the test's own session; the engine matches through its service
         // session, which only sees what has been committed
         this.context.resourceResolver().commit();
@@ -166,8 +223,7 @@ class WorkflowEngineImplTest
         allHandlers.add(new CreateEntityHandler());
         allHandlers.add(new CallActivityHandler());
         allHandlers.add(new StartWorkflowHandler());
-        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, failure), allHandlers, this.told,
-            this.history);
+        return EngineFixture.engine(serviceUsers, allHandlers, this.told, this.history);
     }
 
     /**
@@ -553,12 +609,96 @@ class WorkflowEngineImplTest
     {
         // Two people acting on the same thing at once is not a fault in either request: the state simply moved
         // under the slower one
-        final PersistenceException conflict = new PersistenceException("save failed",
-            new InvalidItemStateException("this node has been modified"));
+        final PersistenceException conflict = EngineFixture.conflict();
         final InvalidStateException refusal =
             assertThrows(InvalidStateException.class, () -> runWithFailingCommit(conflict));
         assertTrue(refusal.getMessage().contains("at the same time"));
         assertSame(conflict, refusal.getCause());
+    }
+
+    @Test
+    void runsAnEventAgainWhenItLostARace() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+
+        final OneLostRace race = new OneLostRace(OneLostRace.UNRELATED_CHANGE);
+
+        final WorkflowResult result = engineLosing(race).receiveEvent(target, CREATE);
+
+        assertTrue(race.wasLost());
+        assertEquals("/Workflows/myCoolWorkflow", result.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+        assertNotNull(this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow"));
+    }
+
+    @Test
+    void matchesAnEventAgainAgainstWhatTheWinnerChanged() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        tagTarget("open");
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        guard(VERSION + "/requested", "open");
+        final OneLostRace race = new OneLostRace(() -> {
+            tagTarget("closed");
+            this.context.resourceResolver().commit();
+        });
+        final WorkflowEngine engine = engineLosing(race);
+
+        assertThrows(NoApplicableWorkflowException.class, () -> engine.receiveEvent(target, CREATE));
+        assertTrue(race.wasLost());
+        assertNull(this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow"));
+    }
+
+    @Test
+    void refusesAnEventWhoseTargetTheWinnerDeleted() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        final OneLostRace race = new OneLostRace(() -> delete("/Workflows"));
+        final WorkflowEngine engine = engineLosing(race);
+
+        final InvalidStateException refusal =
+            assertThrows(InvalidStateException.class, () -> engine.receiveEvent(target, CREATE));
+        assertTrue(race.wasLost());
+        assertTrue(refusal.getMessage().startsWith("/Workflows "));
+    }
+
+    @Test
+    void refusesATaskEventWhoseEntityTheWinnerDeleted() throws Exception
+    {
+        final Resource task = createTask();
+        final OneLostRace race = new OneLostRace(() -> delete(ENTITY));
+        final WorkflowEngine engine = engineCompletingNothing(race);
+
+        final InvalidStateException refusal =
+            assertThrows(InvalidStateException.class, () -> engine.receiveEvent(task, COMPLETED));
+        assertTrue(race.wasLost());
+        assertTrue(refusal.getMessage().startsWith(TASK + " "));
+    }
+
+    @Test
+    void marksTheEntityASystemWorkflowRanOn() throws Exception
+    {
+        final Resource entity = createEntity();
+        EngineFixture.createSystemWorkflow(this.context, Entity.RESOURCE_TYPE);
+        createNoopGraph();
+
+        engine(new NoopHandler()).receiveEvent(entity, CREATE);
+
+        assertNotEquals(FIRST_REVISION, revisionOf(ENTITY));
+    }
+
+    @Test
+    void marksTheEntityEnclosingTheTaskAnEventCompletes() throws Exception
+    {
+        final Resource task = createTask();
+
+        engineCompletingNothing(OneLostRace.UNRELATED_CHANGE).receiveEvent(task, COMPLETED);
+
+        assertNotEquals(FIRST_REVISION, revisionOf(ENTITY));
     }
 
     @Test
@@ -942,6 +1082,21 @@ class WorkflowEngineImplTest
     }
 
     @Test
+    void tellsPeopleOnceWhatASystemWorkflowThatLostARaceAnnounced() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        announce(VERSION + "/done", "created");
+        final OneLostRace race = new OneLostRace(OneLostRace.UNRELATED_CHANGE);
+
+        engineLosing(race).receiveEvent(target, CREATE);
+
+        assertTrue(race.wasLost());
+        assertEquals(List.of("created"), this.told.events());
+    }
+
+    @Test
     void tellsPeopleAboutTheTargetWhenTheMessageEventSaysSo() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context);
@@ -1154,6 +1309,57 @@ class WorkflowEngineImplTest
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", "targetRef", "done"));
         this.context.create().resource(version + "/done", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "done"));
+    }
+
+    /**
+     * Creates the entity events are aimed at, carrying its first revision token, posted to by an administrator.
+     *
+     * @return the entity, as the poster's session sees it
+     */
+    private Resource createEntity()
+    {
+        final Resource entity = this.context.create().resource(ENTITY,
+            Map.of(TYPE, Entity.RESOURCE_TYPE, Entity.REVISION_PROPERTY, FIRST_REVISION));
+        return EngineFixture.seenThrough(entity, EngineFixture.actingAs(entity.getResourceResolver(),
+            EngineFixture.ADMIN));
+    }
+
+    /**
+     * Creates the entity and a task of a workflow instance running on it.
+     *
+     * @return the task, as the session of the administrator completing it sees it
+     */
+    private Resource createTask()
+    {
+        final Resource entity = createEntity();
+        this.context.create().resource(ENTITY + "/wf:instances/process", TYPE, WorkflowInstance.RESOURCE_TYPE);
+        return EngineFixture.seenThrough(this.context.create().resource(TASK, TYPE, TaskInstance.RESOURCE_TYPE),
+            entity.getResourceResolver());
+    }
+
+    /**
+     * The revision token an entity carries, as committed.
+     *
+     * @param path the entity
+     * @return the token
+     */
+    private String revisionOf(final String path)
+    {
+        return this.context.resourceResolver().getResource(path).getValueMap()
+            .get(Entity.REVISION_PROPERTY, String.class);
+    }
+
+    /**
+     * Deletes a resource and commits, as another writer would.
+     *
+     * @param path the resource
+     * @throws PersistenceException never, the mock repository deletes in memory
+     */
+    private void delete(final String path) throws PersistenceException
+    {
+        final ResourceResolver other = this.context.resourceResolver();
+        other.delete(Objects.requireNonNull(other.getResource(path)));
+        other.commit();
     }
 
     /**

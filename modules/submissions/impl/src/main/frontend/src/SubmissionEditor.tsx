@@ -66,9 +66,9 @@ function RequirementBody(props: RequirementComponentProps) {
 // again. Which questions apply depends on the answers, and only the server decides it. A question
 // that stops applying is absent from the next read.
 //
-// `onSaving` hears of each save as it starts, for whatever must wait until the answers are stored.
-// `onChanged` hears that a save or an attachment went through, so that the page can read the
-// submission again.
+// `onSaving` hears of each save as it is asked for, for whatever must wait until the answers are
+// stored. `onChanged` hears that a save or an attachment went through, so that the page can read
+// the submission again.
 function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
   path: string;
   onSaving?: (save: Promise<unknown>) => void;
@@ -82,6 +82,10 @@ function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
   // again, and the reads can land out of order. Only the newest is applied, or an older form would put
   // back what a newer one replaced.
   const latestFormRead = useRef(0);
+  // The newest save. Each save waits for the one before it to settle, whichever way it went, so that
+  // answers reach the server one at a time and in order. Two saves of one submission in flight
+  // together would be rival commits, and the engine refuses the one that loses.
+  const previousSave = useRef<Promise<unknown>>(Promise.resolve());
   const doFetch = useAuthenticatedFetch();
   // A requirement drawn by another module's component waits for that component to load. Until then
   // it would show as something that cannot be completed here.
@@ -103,7 +107,9 @@ function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
     const token = latestFormRead.current + 1;
     latestFormRead.current = token;
     setStates(current => ({ ...current, [question.path]: { state: "saving" } }));
-    const save = saveAnswer(doFetch, path, question.path, values);
+    const store = () => saveAnswer(doFetch, path, question.path, values);
+    const save = previousSave.current.then(store, store);
+    previousSave.current = save;
     onSaving(save);
     save
       // The field's own outcome, applied even when a later answer has overtaken this one. Handled

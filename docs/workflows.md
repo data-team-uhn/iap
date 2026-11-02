@@ -666,7 +666,7 @@ which the servlet maps to a status:
 |---|---|---|
 | Is anything waiting for this event here? | `NoApplicableWorkflowException` | **409** |
 | May this user fire it? | `NotAuthorizedException` | **403** |
-| Does the target's state allow it now? | `InvalidStateException` | **409** |
+| Does the target's state allow it now? Also: it lost more races than the engine retries, or the target was deleted meanwhile | `InvalidStateException` | **409** |
 | Is what it carries usable? | `InvalidPayloadException` | **400** |
 | — | `WorkflowDefinitionException`, `WorkflowFailedException` | **500** |
 
@@ -1000,6 +1000,15 @@ through.
 its instance with a new `walkId`, so two requests moving branches of one instance at
 once conflict, and the loser is reverted and run again on top of the winner. Without
 this, two branches reaching a join in two requests would each see only itself arrive.
+
+**Two events on one entity cannot both commit either.** Every event the engine commits
+writes a fresh `revision` on the entity it is aimed at, or on the entity enclosing the
+part it is aimed at. Two events changing one submission at once therefore conflict, and
+the loser is reverted, matched and admitted again on the winner's state, and run again.
+It may then no longer apply, as a save does not once the request was submitted. Two
+saves of the same answer keep the later one: the editor sends its saves one at a time,
+so that takes two windows or two people. `revision` is `IGNORE`, so it is neither
+content, nor history, nor a reason to move `jcr:lastModified`.
 
 **An end event ends a branch, not the process.** The instance closes when its last token
 is spent. A `terminate` end event discards every remaining token and cancels every task

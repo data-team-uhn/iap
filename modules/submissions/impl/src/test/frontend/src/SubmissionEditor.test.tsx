@@ -595,6 +595,37 @@ describe("SubmissionEditor", () => {
     expect(await screen.findByText(/could not be loaded \(404\)/)).toBeInTheDocument();
   });
 
+  it("sends answers finished in quick succession one at a time, in order, each reporting its own result", async () => {
+    const reason = {
+      ...duration(), name: "reason", path: "details/reason", text: "Why do you need it?",
+    };
+    const saves: { question: string | undefined; respond: (response: Response) => void }[] = [];
+    vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string; body?: URLSearchParams }) => {
+      if (options?.method !== "POST") {
+        return json(form({ requirements: [ details([ duration(), reason ]) ] }));
+      }
+      return new Promise<Response>(respond => {
+        saves.push({ question: options.body?.keys().next().value, respond });
+      });
+    }));
+
+    render(<SubmissionEditor path={PATH} />);
+    await userEvent.type(await screen.findByLabelText(/several days/), "half day");
+    await userEvent.type(screen.getByLabelText(/Why do you need it/), "a wedding");
+    await userEvent.tab();
+
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0]?.question).toBe("details/duration");
+    saves[0]?.respond(await json({ error: "Somebody else changed this request" }, { ok: false, status: 409 }));
+
+    await waitFor(() => expect(saves).toHaveLength(2));
+    expect(saves[1]?.question).toBe("details/reason");
+    saves[1]?.respond(await json({}));
+
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(screen.getAllByText("Not saved")).toHaveLength(1);
+  });
+
   it("keeps the newest answer when two are finished in quick succession", async () => {
     let resolveFirst: (value: Response) => void = () => {};
     const first = new Promise<Response>(resolve => {

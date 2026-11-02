@@ -24,8 +24,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
+import javax.jcr.InvalidItemStateException;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.security.AccessControlList;
@@ -298,19 +298,99 @@ public final class EngineFixture
      */
     static ResourceResolverFactory serviceUsers(final SlingContext context, final PersistenceException failure)
     {
-        return serviceUsersFailing(context, () -> failure);
+        return serviceUsersRunning(context, () -> {
+            if (failure != null) {
+                throw failure;
+            }
+        });
     }
 
     /**
-     * A resolver factory as {@link #serviceUsers(SlingContext, PersistenceException)} hands out, whose commits fail
-     * as told commit by commit.
+     * A refused commit, as Oak refuses one that conflicts with a change another session committed first.
+     *
+     * @return the refusal, ready to be thrown
+     */
+    static PersistenceException conflict()
+    {
+        return new PersistenceException("save failed", new InvalidItemStateException("this node has been modified"));
+    }
+
+    /**
+     * Something done to the repository that may fail as a commit does.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    @FunctionalInterface
+    interface RepositoryAction
+    {
+        /**
+         * Acts on the repository. Run as another writer, it makes and commits that writer's change. Run before
+         * one of the engine's commits, it may refuse that commit by throwing.
+         *
+         * @throws PersistenceException when the repository refuses the change, or to refuse the commit it precedes
+         */
+        void run() throws PersistenceException;
+    }
+
+    /**
+     * Run before each of the engine's commits, loses the first to another writer: the winner's change lands, and
+     * the commit is refused as Oak refuses a conflicting one. Every later commit goes through.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    static final class OneLostRace implements RepositoryAction
+    {
+        /** A winner whose change the losing event does not read. The stand-in writes nothing. */
+        static final RepositoryAction UNRELATED_CHANGE = () -> { };
+
+        private final RepositoryAction winner;
+
+        private boolean lost;
+
+        /**
+         * Constructor.
+         *
+         * @param winner the other writer's change, committed through its own session
+         */
+        OneLostRace(final RepositoryAction winner)
+        {
+            this.winner = winner;
+        }
+
+        @Override
+        public void run() throws PersistenceException
+        {
+            if (!this.lost) {
+                this.lost = true;
+                this.winner.run();
+                throw conflict();
+            }
+        }
+
+        /**
+         * Whether the race was lost: whether the engine committed at all.
+         *
+         * @return {@code true} once the first commit has been refused
+         */
+        boolean wasLost()
+        {
+            return this.lost;
+        }
+    }
+
+    /**
+     * A resolver factory handing out the engine's service session, wrapped as
+     * {@link #serviceUsers(SlingContext, PersistenceException)} describes, with something run before each of its
+     * commits.
      *
      * @param context the Sling context whose real factory does the work
-     * @param failures asked at each commit what it should throw, answering {@code null} for a commit that succeeds
+     * @param beforeCommit what runs before each commit, and may refuse it
      * @return a factory to inject into the engine
      */
-    static ResourceResolverFactory serviceUsersFailing(final SlingContext context,
-        final Supplier<PersistenceException> failures)
+    static ResourceResolverFactory serviceUsersRunning(final SlingContext context,
+        final RepositoryAction beforeCommit)
     {
         GRANTED.clear();
         final ResourceResolverFactory real = context.getService(ResourceResolverFactory.class);
@@ -333,10 +413,7 @@ public final class EngineFixture
                     @Override
                     public void commit() throws PersistenceException
                     {
-                        final PersistenceException failure = failures.get();
-                        if (failure != null) {
-                            throw failure;
-                        }
+                        beforeCommit.run();
                         super.commit();
                     }
 
