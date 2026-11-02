@@ -398,6 +398,10 @@ def _parse_and_call_back(
         return
     try:
         with _STATE.parse_slots:
+            # A stop can come while this waits for the slot, and then nothing is owed to anybody
+            if _STATE.is_cancelled(job_id):
+                _log_stderr(f"parse job={job_id} was stopped while it waited; not parsing")
+                return
             # Split from the conversion: with one parse slot, a slow answer is often a parse that
             # waited, and one total would not say which of the two it was.
             waited_ms = int((time.monotonic() - queued_at) * 1000)
@@ -413,8 +417,8 @@ def _parse_and_call_back(
         )
         payload = parse_callbacks.success_payload(job_id, summary)
     except ParseAbandonedError:
-        # The parse slot is already released (the ``with`` block above exited), so the next
-        # caller can take it right away instead of waiting out this conversion.
+        # Raised once the PDF batches already sent have stopped, which can take up to the
+        # document timeout plus two minutes, so the slot is free from then on, not at the stop
         _log_stderr(f"parse job={job_id} was stopped; not calling back")
         return
     except (Exception, CancelledError) as exc:

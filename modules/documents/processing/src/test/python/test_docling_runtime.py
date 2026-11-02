@@ -602,6 +602,55 @@ class TestParseDocumentWritesTheMarkdown:
         assert [p.name for p in tmp_path.glob(".*.tmp")] == []
 
 
+class TestParseDocumentStopsBeforeConverting:
+    """A stop that comes while LibreOffice works is seen before the conversion is paid for."""
+
+    def test_a_stop_during_the_preparation_skips_the_conversion(self, monkeypatch, tmp_path):
+        import docling_pdf_parser
+        import parse_document as module
+
+        converted = []
+        monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
+        monkeypatch.setattr(
+            module, "convert_pdf_to_markdown", lambda *a, **k: converted.append(1) or "# Doc\n"
+        )
+        monkeypatch.setattr(module, "prepare_office_document", lambda source, **k: source)
+
+        with pytest.raises(docling_pdf_parser.ParseAbandonedError):
+            module.parse_document(write_pdf(tmp_path / "doc.pdf"), should_abandon=lambda: True)
+        assert converted == []
+        assert not (tmp_path / "doc.md").exists()
+
+
+class TestBackgroundParseStoppedWhileWaiting:
+    """A stop that comes while a parse waits for the slot leaves nothing to convert or report."""
+
+    def test_a_queued_parse_stopped_neither_converts_nor_calls_back(self, monkeypatch, tmp_path):
+        import threading
+
+        class _State:
+            parse_slots = threading.Semaphore(1)
+
+            def __init__(self):
+                self.checks = 0
+
+            def is_cancelled(self, job_id):
+                # Not yet when it is queued, but by the time it has the slot
+                self.checks += 1
+                return self.checks > 1
+
+        ran = []
+        delivered = []
+        monkeypatch.setattr(daemon, "_STATE", _State())
+        monkeypatch.setattr(daemon, "_run_parse", lambda *a, **k: ran.append(1) or {})
+        monkeypatch.setattr(daemon.parse_callbacks, "deliver", lambda *a, **k: delivered.append(1))
+
+        daemon._parse_and_call_back("job-1", "http://callback", "token", tmp_path / "doc.pdf")
+
+        assert ran == []
+        assert delivered == []
+
+
 class TestParseDocumentCorrectsHeadingLevels:
     """The bookmark pass is wired in before the write, so the ``.md`` on disk carries the
     document-wide levels rather than the per-batch ones. The pass itself is unit-tested in
