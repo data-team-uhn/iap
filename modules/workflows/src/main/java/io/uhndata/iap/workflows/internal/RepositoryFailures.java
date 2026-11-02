@@ -107,6 +107,18 @@ final class RepositoryFailures
     }
 
     /**
+     * The refusal of an event whose target another writer deleted while the event was being handled, which a run
+     * repeated after losing the race finds gone.
+     *
+     * @param path the path of the target
+     * @return the refusal, ready to be thrown
+     */
+    static InvalidStateException deletedMeanwhile(final String path)
+    {
+        return new InvalidStateException(path + " was deleted while this event was being handled");
+    }
+
+    /**
      * Puts the right name on a failed repository operation.
      *
      * @param failure the repository failure

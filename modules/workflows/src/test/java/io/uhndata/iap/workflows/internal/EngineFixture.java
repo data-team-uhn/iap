@@ -23,7 +23,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.jcr.InvalidItemStateException;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.security.AccessControlList;
@@ -280,6 +282,60 @@ public final class EngineFixture
      */
     static ResourceResolverFactory serviceUsers(final SlingContext context, final PersistenceException failure)
     {
+        return serviceUsersRunning(context, () -> {
+            if (failure != null) {
+                throw failure;
+            }
+        });
+    }
+
+    /**
+     * A commit that loses one race: the first time the engine commits, another writer's change lands first and
+     * the commit is refused as Oak refuses a conflicting one; every later commit goes through.
+     *
+     * @param winner the other writer's change, committed through its own session
+     * @return what to run before each of the engine's commits
+     */
+    static RepositoryAction losingOneRace(final RepositoryAction winner)
+    {
+        final AtomicBoolean lost = new AtomicBoolean();
+        return () -> {
+            if (!lost.getAndSet(true)) {
+                winner.run();
+                throw new PersistenceException("save failed", new InvalidItemStateException("modified elsewhere"));
+            }
+        };
+    }
+
+    /**
+     * Something done to the repository that may fail as a commit does: another writer's change, or what runs
+     * before each of the engine's commits and may refuse it.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    @FunctionalInterface
+    interface RepositoryAction
+    {
+        /**
+         * Does it.
+         *
+         * @throws PersistenceException when the repository refuses it, or to refuse the commit it precedes
+         */
+        void run() throws PersistenceException;
+    }
+
+    /**
+     * A resolver factory handing out the engine's service session, wrapped like the one above, with something
+     * run before each of its commits.
+     *
+     * @param context the Sling context whose real factory does the work
+     * @param beforeCommit what runs before each commit, and may refuse it
+     * @return a factory to inject into the engine
+     */
+    static ResourceResolverFactory serviceUsersRunning(final SlingContext context,
+        final RepositoryAction beforeCommit)
+    {
         GRANTED.clear();
         final ResourceResolverFactory real = context.getService(ResourceResolverFactory.class);
         final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
@@ -301,9 +357,7 @@ public final class EngineFixture
                     @Override
                     public void commit() throws PersistenceException
                     {
-                        if (failure != null) {
-                            throw failure;
-                        }
+                        beforeCommit.run();
                         super.commit();
                     }
 

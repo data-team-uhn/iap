@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.jcr.AccessDeniedException;
@@ -146,6 +147,32 @@ class WorkflowEngineImplTest
     private WorkflowEngineImpl engine(final PersistenceException failure, final ServiceTaskHandler... extraHandlers)
         throws Exception
     {
+        return engineServedBy(EngineFixture.serviceUsers(this.context, failure), extraHandlers);
+    }
+
+    /**
+     * Builds an engine whose first commit loses a race to another writer, and whose later commits go through.
+     *
+     * @param winner the other writer's change, made and committed through the test's own session
+     * @return a ready engine
+     * @throws Exception when reflection fails, which would be a bug in this test
+     */
+    private WorkflowEngineImpl losingOneRace(final EngineFixture.RepositoryAction winner) throws Exception
+    {
+        return engineServedBy(EngineFixture.serviceUsersRunning(this.context, EngineFixture.losingOneRace(winner)));
+    }
+
+    /**
+     * Builds an engine on the given service sessions.
+     *
+     * @param serviceUsers hands out the engine's own sessions
+     * @param extraHandlers additional handlers to register beside the module's own
+     * @return a ready engine
+     * @throws Exception when reflection fails, which would be a bug in this test
+     */
+    private WorkflowEngineImpl engineServedBy(final ResourceResolverFactory serviceUsers,
+        final ServiceTaskHandler... extraHandlers) throws Exception
+    {
         // The fixture content was written through the test's own session; the engine matches through its service
         // session, which only sees what has been committed
         this.context.resourceResolver().commit();
@@ -153,7 +180,7 @@ class WorkflowEngineImplTest
         allHandlers.add(new CreateEntityHandler());
         allHandlers.add(new CallActivityHandler());
         allHandlers.add(new StartWorkflowHandler());
-        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, failure), allHandlers);
+        return EngineFixture.engine(serviceUsers, allHandlers);
     }
 
     /**
@@ -520,6 +547,54 @@ class WorkflowEngineImplTest
             assertThrows(InvalidStateException.class, () -> runWithFailingCommit(conflict));
         assertTrue(refusal.getMessage().contains("at the same time"));
         assertSame(conflict, refusal.getCause());
+    }
+
+    @Test
+    void runsAnEventAgainWhenItLostARace() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+
+        final WorkflowResult result = losingOneRace(() -> { }).receiveEvent(target, CREATE);
+
+        assertEquals("/Workflows/myCoolWorkflow", result.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+        assertNotNull(this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow"));
+    }
+
+    @Test
+    void matchesAnEventAgainAgainstWhatTheWinnerChanged() throws Exception
+    {
+        // As a save does not apply once the request it edits has been submitted
+        final Resource target = EngineFixture.createTarget(this.context);
+        tagTarget("open");
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        guard(VERSION + "/requested", "open");
+        final WorkflowEngine engine = losingOneRace(() -> {
+            tagTarget("closed");
+            this.context.resourceResolver().commit();
+        });
+
+        assertThrows(NoApplicableWorkflowException.class, () -> engine.receiveEvent(target, CREATE));
+        assertNull(this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow"));
+    }
+
+    @Test
+    void refusesAnEventWhoseTargetTheWinnerDeleted() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        final WorkflowEngine engine = losingOneRace(() -> {
+            final ResourceResolver other = this.context.resourceResolver();
+            other.delete(Objects.requireNonNull(other.getResource("/Workflows")));
+            other.commit();
+        });
+
+        final InvalidStateException refusal =
+            assertThrows(InvalidStateException.class, () -> engine.receiveEvent(target, CREATE));
+        assertTrue(refusal.getMessage().contains("deleted while this event was being handled"));
     }
 
     @Test

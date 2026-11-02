@@ -133,10 +133,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
             if (privilegedTarget.isResourceType(TaskInstance.RESOURCE_TYPE)) {
                 return resume(privilegedTarget, event, actor);
             }
-            final StartEvent start =
-                SystemWorkflowLocator.find(serviceResolver, privilegedTarget, event, this.conditionEvaluator);
-            this.performers.createCheck(serviceResolver, actor).verify(start, privilegedTarget);
-            return execute(privilegedTarget, event, start, actor);
+            return RepositoryFailures.retryingConflicts(CONFLICT_RETRIES,
+                () -> execute(serviceResolver, target.getPath(), event, actor));
         }
     }
 
@@ -205,20 +203,30 @@ public class WorkflowEngineImpl implements WorkflowEngine
     }
 
     /**
-     * Runs the matched workflow and commits everything it changed at once. A failing event leaves no trace.
+     * Matches an event to the system workflow that catches it, runs that, and commits everything it changed at
+     * once. A failing event leaves no trace.
      *
-     * @param target the resource the event is aimed at, backed by the engine's own session
+     * <p>The match and the performer check read the target as it is now, not as it was when the event arrived:
+     * run again after losing a race, the event may no longer apply once the winner's change is in, as a save
+     * does not once the request was submitted.</p>
+     *
+     * @param resolver the engine's own session
+     * @param path the path of the resource the event is aimed at
      * @param event the incoming event
-     * @param start the entry point to run from
      * @param actor the user who fired the event
      * @return the variables the execution left behind
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
      */
-    private WorkflowResult execute(final Resource target, final WorkflowEvent event, final StartEvent start,
+    private WorkflowResult execute(final ResourceResolver resolver, final String path, final WorkflowEvent event,
         final String actor) throws WorkflowException
     {
-        final ResourceResolver resolver = target.getResourceResolver();
         try {
+            final Resource target = resolver.getResource(path);
+            if (target == null) {
+                throw RepositoryFailures.deletedMeanwhile(path);
+            }
+            final StartEvent start = SystemWorkflowLocator.find(resolver, target, event, this.conditionEvaluator);
+            this.performers.createCheck(resolver, actor).verify(start, target);
             final Map<String, Object> variables = dispatcher().runSystemWorkflow(target, event, start, actor, 0);
             EntityRevision.stamp(target);
             resolver.commit();
