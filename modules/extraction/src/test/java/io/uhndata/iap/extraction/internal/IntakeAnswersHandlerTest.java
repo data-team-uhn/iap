@@ -44,6 +44,7 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -335,6 +336,22 @@ class IntakeAnswersHandlerTest
         assertEquals(2, getAnswers().size(), "the gate answer it had, and the title it read");
     }
 
+    // The gate's own pick is only a suggestion, and the step routing on it reads it all the same
+    @Test
+    void readsTheGateFromASuggestionNobodyHasAnswered() throws Exception
+    {
+        final Resource gate = this.context.create().resource(this.submission.getPath() + "/a1",
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer"));
+        SubmissionTree.reference(gate, "question", this.aims);
+        this.context.create().resource(gate.getPath() + "/run", Map.of("jcr:primaryType", "sub:Extraction",
+            "sling:resourceType", "sub/Extraction", "extractedAnswer", "proposal", "confidence", 0.9));
+        stubModelFinds(new FieldResult(TITLE, true, 0.9, "A title", "", List.of()));
+
+        this.handler.execute(createTaskRecordingWhen(AIMS + "=proposal"));
+
+        assertEquals(2, getAnswers().size(), "the gate's answer, and the title it read");
+    }
+
     // A step whose requirement is not being asked has nothing to do, and must not say the schema asks
     // nothing of the document: another step is asking plenty
     @Test
@@ -358,7 +375,7 @@ class IntakeAnswersHandlerTest
         final Resource answer = getAnswers().get(0);
         assertEquals(1, getAnswers().size());
         assertEquals(SubmissionTree.getIdentifier(this.aims), answer.getValueMap().get("question", String.class));
-        assertArrayEquals(new String[] { "To reduce readmissions" }, answer.getValueMap().get(VALUE, String[].class));
+        assertNull(answer.getValueMap().get(VALUE, String[].class), "a suggestion is not an answer");
         final Resource extraction = getOnlyChild(answer);
         assertEquals("sub:Extraction", extraction.getValueMap().get("jcr:primaryType", String.class));
         assertEquals("To reduce readmissions", extraction.getValueMap().get("extractedAnswer", String.class));
@@ -402,8 +419,9 @@ class IntakeAnswersHandlerTest
 
         this.handler.execute(createTask());
 
-        assertArrayEquals(new String[] { "Sunnybrook", "St. Michael's", "SickKids" },
-            getAnswers().get(0).getValueMap().get(VALUE, String[].class));
+        this.tree.stampTypes();
+        assertEquals(List.of("Sunnybrook", "St. Michael's", "SickKids"),
+            getAnswers().get(0).adaptTo(Answer.class).getSuggestedValues());
         assertEquals("Sunnybrook, St. Michael's , SickKids",
             getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class),
             "the model's answer is kept as it came");
@@ -418,17 +436,21 @@ class IntakeAnswersHandlerTest
 
         this.handler.execute(createTask());
 
-        assertArrayEquals(new String[] { " , " }, getAnswers().get(0).getValueMap().get(VALUE, String[].class));
+        this.tree.stampTypes();
+        assertEquals(List.of(" , "), getAnswers().get(0).adaptTo(Answer.class).getSuggestedValues());
     }
 
+    // A run that found nothing is still the record that the question was asked of this file
     @Test
-    void leavesOutWhatTheModelDidNotFind() throws Exception
+    void recordsWhatTheModelDidNotFindAsARunWithNoAnswer() throws Exception
     {
         stubModelFinds(new FieldResult(AIMS, false, 0.0, null, "Not stated.", List.of()));
 
         this.handler.execute(createTask());
 
-        assertTrue(getAnswers().isEmpty());
+        final Resource run = getOnlyChild(getAnswers().get(0));
+        assertNull(run.getValueMap().get("extractedAnswer", String.class));
+        assertEquals("Not stated.", run.getValueMap().get("reasoning", String.class));
         assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
     }
 
@@ -459,9 +481,9 @@ class IntakeAnswersHandlerTest
 
         this.handler.execute(createTask());
 
-        assertEquals(1, getAnswers().size(), "the empty answer is filled, not joined by a second one");
-        assertArrayEquals(new String[] { "What the model read" },
-            getAnswers().get(0).getValueMap().get(VALUE, String[].class));
+        assertEquals(1, getAnswers().size(), "the run goes under the empty answer, not under a second one");
+        assertArrayEquals(new String[] { "" }, getAnswers().get(0).getValueMap().get(VALUE, String[].class),
+            "a suggestion is not an answer until the submitter acts on it");
         assertEquals("What the model read",
             getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class));
     }
@@ -541,9 +563,9 @@ class IntakeAnswersHandlerTest
         return extractions;
     }
 
-    // A newer file that says something else is worth showing, with what the answer held kept to go back to
+    // A newer file is read for every question, and what it says is a new suggestion, never a new answer
     @Test
-    void replacesAnAnswerWhenANewerRevisionSaysSomethingElse() throws Exception
+    void addsARunForANewerRevisionAndLeavesTheAnswerAlone() throws Exception
     {
         final Resource answer = answerAims("What the person said", "What the model read", this.file.getParent());
         final Resource newer = this.tree.addVersion(this.file);
@@ -551,64 +573,39 @@ class IntakeAnswersHandlerTest
 
         this.handler.execute(createTask());
 
-        assertArrayEquals(new String[] { "What the new file says" },
+        assertArrayEquals(new String[] { "What the person said" },
             answer.getValueMap().get(VALUE, String[].class));
         final List<Resource> extractions = getExtractions(answer);
         assertEquals(2, extractions.size(), "the old reading stays");
-        final Resource latest = extractions.get(1);
-        assertArrayEquals(new String[] { "What the person said" },
-            latest.getValueMap().get("replacedValue", String[].class));
+        assertEquals("What the new file says", extractions.get(1).getValueMap().get("extractedAnswer", String.class));
         assertArrayEquals(new String[] { SubmissionTree.getIdentifier(newer.getParent()) },
-            latest.getValueMap().get("sources", String[].class));
+            extractions.get(1).getValueMap().get("sources", String[].class));
     }
 
-    // The submitter typed it with no reading behind it, and the newer file still says otherwise
+    // Saying the same as before still records that the newer file was read, so it is not asked again
     @Test
-    void replacesATypedAnswerWhenANewerRevisionSaysSomethingElse() throws Exception
-    {
-        final Resource answer = answerAims("What the person said", null, null);
-        this.tree.addVersion(this.file);
-        stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the new file says", "", List.of()));
-
-        this.handler.execute(createTask());
-
-        assertArrayEquals(new String[] { "What the new file says" },
-            answer.getValueMap().get(VALUE, String[].class));
-        assertArrayEquals(new String[] { "What the person said" },
-            getExtractions(answer).get(0).getValueMap().get("replacedValue", String[].class));
-    }
-
-    @Test
-    void keepsAnAnswerANewerRevisionAgreesWith() throws Exception
+    void readsANewerRevisionOnceEvenWhenItAgreesWithTheAnswer() throws Exception
     {
         final Resource answer = answerAims("What the person said", "What the model read", this.file.getParent());
         this.tree.addVersion(this.file);
         stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the person said", "", List.of()));
 
         this.handler.execute(createTask());
-
-        assertArrayEquals(new String[] { "What the person said" },
-            answer.getValueMap().get(VALUE, String[].class));
-        assertEquals(1, getExtractions(answer).size());
-    }
-
-    // The newer file says what the old one did, so the submitter's change still stands
-    @Test
-    void keepsAnAnswerWhenANewerRevisionRepeatsTheLastSuggestion() throws Exception
-    {
-        final Resource answer = answerAims("What the person said", "What the model read", this.file.getParent());
-        this.tree.addVersion(this.file);
-        stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the model read", "", List.of()));
-
+        this.tree.stampTypes();
         this.handler.execute(createTask());
 
-        assertArrayEquals(new String[] { "What the person said" },
-            answer.getValueMap().get(VALUE, String[].class));
-        assertEquals(1, getExtractions(answer).size());
+        assertEquals(2, getExtractions(answer).size(), "one run for the newer file, not one per reading");
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<List<ExtractionField>> asked = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(this.intake, Mockito.atLeastOnce()).run(Mockito.any(), Mockito.any(), asked.capture(),
+            Mockito.any());
+        assertEquals(1, asked.getAllValues().stream().filter(fields -> fields.stream()
+            .anyMatch(field -> AIMS.equals(field.name()))).count(), "the aims are asked of the newer file once");
     }
 
+    // Finding nothing in the newer file is a run too: that file was read for this question
     @Test
-    void keepsAnAnswerWhenANewerRevisionHasNone() throws Exception
+    void recordsANewerRevisionThatSaysNothing() throws Exception
     {
         final Resource answer = answerAims("What the person said", "What the model read", this.file.getParent());
         this.tree.addVersion(this.file);
@@ -618,22 +615,8 @@ class IntakeAnswersHandlerTest
 
         assertArrayEquals(new String[] { "What the person said" },
             answer.getValueMap().get(VALUE, String[].class));
-        assertEquals(1, getExtractions(answer).size());
-    }
-
-    // There was nothing to go back to, so the new reading is an ordinary suggestion
-    @Test
-    void fillsASuggestionTheSubmitterClearedWhenANewerRevisionSaysSomethingElse() throws Exception
-    {
-        final Resource answer = answerAims("", "What the model read", this.file.getParent());
-        this.tree.addVersion(this.file);
-        stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the new file says", "", List.of()));
-
-        this.handler.execute(createTask());
-
-        assertArrayEquals(new String[] { "What the new file says" },
-            answer.getValueMap().get(VALUE, String[].class));
-        assertNull(getExtractions(answer).get(1).getValueMap().get("replacedValue", String[].class));
+        assertEquals(2, getExtractions(answer).size());
+        assertNull(getExtractions(answer).get(1).getValueMap().get("extractedAnswer", String.class));
     }
 
     // Each newer version counts on its own: one already read does not hide another nobody has read yet
@@ -680,8 +663,8 @@ class IntakeAnswersHandlerTest
         assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
         assertEquals(SubmissionTree.getIdentifier(this.aims),
             getAnswers().get(0).getValueMap().get("question", String.class));
-        assertArrayEquals(new String[] { "To reduce readmissions" },
-            getAnswers().get(0).getValueMap().get(VALUE, String[].class));
+        assertEquals("To reduce readmissions",
+            getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class));
     }
 
     /** A step that reads the named documents, in the order given. */

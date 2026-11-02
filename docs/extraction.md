@@ -8,9 +8,10 @@
 A submitter uploads a document, such as a research protocol. The platform turns it into
 text, asks a language model the questions the schema marks as answerable from a
 document, checks every quote the model gives against the text, and saves what it found
-as pre-filled answers. The submitter then confirms, changes or ignores each one. Nothing
-the model says is trusted on its own: an answer needs a quote that is really in the
-document, and a question the model is unsure about stays for a person to answer.
+as suggestions beside the answers. A suggestion is never an answer: the answer's `value`
+stays empty until the submitter accepts the suggestion, edits it or picks something else.
+Nothing the model says is trusted on its own: a suggestion needs a quote that is really in
+the document, and a question the model is unsure about stays for a person to answer.
 
 This page walks the whole path, from the upload to the saved answer, and says at each
 step which class does the work, who calls it, and what it checks.
@@ -319,10 +320,10 @@ from. It also carries:
 What the step does:
 
 1. Collects the "open" classifications. It skips one whose condition does not hold, one
-   with no question or no `document`, and one whose question already has an answer (same
-   rule as the intake below: an empty field the form saved does not count). A second
-   upload does not pay again for a decision already made or confirmed, and a newer
-   version of the document does not change it either.
+   with no question or no `document`, and one whose question the submitter answered or a
+   reading already found a pick for (same rule as the intake below: an empty field the
+   form saved does not count). A second upload does not pay again for a pick already
+   made, and a newer version of the document does not change it either.
 2. Groups them by `document`. For each document:
    - No upload: skipped.
    - Parse `failed`: `extractionStatus=failed`, "The document could not be read. Please
@@ -335,17 +336,20 @@ What the step does:
    of allowed values.
 4. A pick the model found, with a confidence at or above that requirement's
    `confidenceThreshold`, is written like any extracted answer (see "Writing an
-   answer"): pre-filled, with confidence, reasoning and quotes. A less sure pick is not
-   written at all, so the question stays empty for the submitter. Nor is a pick that
+   answer"): a run with confidence, reasoning and quotes, under the question's answer,
+   whose value stays empty. A less sure pick is not written at all, so the question
+   stays open for the submitter and the next reading. Nor is a pick that
    names no category the question offers: not every provider holds a reply to the
    schema's list. The gate must not guess.
 5. If the model could not be asked, or answered unreadably twice:
    `extractionStatus=failed` and the step stops.
 
 Whether the workflow acts on the pick is not this step's call: that is left to the
-reading workflow's gateways. The `decision` condition source, which would count a pick
-only once it is settled (confirmed or typed by the submitter, or saved by the model), is
-not on this branch yet.
+reading workflow's gateways. The pick is not in `value`, so a gateway reads it through
+the `decision` condition source (`DecisionOperandResolver`, submissions module): the
+submitter's value, or failing it, the suggestion (`Answer.getValueOrSuggestion`). A
+form's own conditions keep the `answer` source, so nothing the submitter sees changes on
+a pick they have not accepted. `recordWhen` (step 8) reads the gate the same way.
 
 ## Step 8: reading the answers (the intake)
 
@@ -358,7 +362,7 @@ Activity properties a reading workflow can set on this step:
 | `requirement` | One requirement name, or several (a list, or comma-separated). All are asked in one call, in that order. | Every question the schema asks |
 | `documents` | Document requirement names to read, in order. Each one's text goes under its own heading (`# Preamble` for `preamble`), and together they are one document to the model. | The first upload with a completed parse |
 | `promptFrom` | Extra system-prompt files from the bundle's `/prompts` folder, added in front of the intake prompt | No extra prompt |
-| `recordWhen` | `path=value`, the path being the question's path inside the schema version. The model is still asked everything, but answers are only saved when that field holds that value: the model's reply matched to the question's options, ignoring case, or, when this step did not ask that field, the answer it already holds. | Always save |
+| `recordWhen` | `path=value`, the path being the question's path inside the schema version. The model is still asked everything, but answers are only saved when that field holds that value: the model's reply matched to the question's options, ignoring case, or, when this step did not ask that field, the submitter's answer to it, or failing that its suggestion (`Submission.getAnswerOrSuggestionTo`), such as the gate's pick. | Always save |
 
 In a diagram these are the service task's `iap:requirement`, `iap:documents`,
 `iap:promptFrom` and `iap:recordWhen` attributes. `documents` and `promptFrom` are
@@ -378,14 +382,15 @@ What the step does:
    (`describeNothingToRead`). Without `documents`: the first completed upload, or fail
    with the reason.
 2. **Which questions.** Questions of the named requirements that apply (conditions
-   resolved), have an `extractionPrompt`, and have **no answer yet**. A question that
-   holds a value, or that the model already suggested an answer for, is not asked again:
-   reading again fills gaps. An empty answer the form saved (a field somebody clicked
-   through) is a gap; a suggestion the submitter cleared is not. The first reading of a
+   resolved), have an `extractionPrompt`, and have **no answer and no suggestion yet**. A
+   question the submitter answered, or that a reading already found a suggestion for, is
+   not asked again: reading again fills gaps. An empty answer the form saved (a field
+   somebody clicked through) is a gap, and so is a question only ever asked and not
+   found. The first reading of a
    newer version asks every question, answered or not (see "A newer version").
    Questions are keyed by their path inside the schema version, so two sections may both
    have a `title`.
-3. **Nothing to ask.** If every question already has an answer: `done`. If the whole
+3. **Nothing to ask.** If every question already has an answer or a suggestion: `done`. If the whole
    schema asks nothing: `done`, "The schema asks nothing of the document". If a named
    requirement asks nothing (its condition did not hold): no status change.
 4. **Ask** the model (see the next section).
@@ -393,8 +398,9 @@ What the step does:
    is written.
 6. **`recordWhen` does not hold:** nothing is written, and `extractionStatus=done`
    unless an earlier step of the reading already wrote `failed`.
-7. **Otherwise** every field the model found is written (see "Writing an answer"), and
-   `extractionStatus=done` unless an earlier step of the reading already wrote `failed`.
+7. **Otherwise** every field asked gets a run, found or not (see "Writing an answer"),
+   and `extractionStatus=done` unless an earlier step of the reading already wrote
+   `failed`.
 
 A model that cannot be reached is recorded as `failed`, not thrown as a workflow error.
 Throwing would revert the answers earlier steps of the reading wrote, and the job's
@@ -558,7 +564,8 @@ not seen took 47.4 s, against 3.8 s for a repeat.
 | A quote may not join two documents sent together | `isAcrossParts` | Those words were never next to each other |
 | Confidence drops when quotes fail | `getEvidenceFactor` | See below |
 | Confidence is held to 0–1 | `ModelReplies.readConfidence` | A number outside 0–1 is clamped. A missing value or a non-number reads as 0. |
-| A question that already has an answer is not overwritten | `ExtractionFields.getAnswered` | Reading again fills gaps only. An answer counts when it holds a value or has an extraction under it, so a suggestion the submitter cleared stays cleared. An empty answer with no extraction is the form saving a field somebody clicked through, and is filled. The one exception is the first reading of a newer version (see "A newer version"). |
+| No answer's value is ever written | `ExtractedAnswers.write` | What the model read is a run under the answer; only the submitter's save writes `value` (see "When the submitter acts on it") |
+| A question already answered or suggested is not asked again | `ExtractionFields.getAnswered` | Reading again fills gaps only. A question counts when its answer holds a value or a run found something, so a suggestion the submitter left alone is not paid for twice. An empty answer, or one whose runs all found nothing, is asked again. The one exception is the first reading of a newer version (see "A newer version"). |
 
 How a quote is matched (`QuoteVerifier`): both texts are lower-cased, page markers
 removed, whitespace collapsed. An exact match wins. Otherwise, for quotes longer than 24
@@ -598,27 +605,36 @@ lines matching `#` to `######`), so the reviewer can see which section it came f
 
 ## Writing an answer
 
-**Classes:** `ExtractionFields.write`, `ExtractedAnswers.write`, and
-`ExtractedAnswers.replace` for a newer version. Every found field gets:
+**Classes:** `ExtractionFields.write`, `ExtractedAnswers.write`. Every question the step
+asked gets a run, found or not:
 
 ```
 sub:Submission
 └── <uuid> (sub:Answer)
     ├── question  → REFERENCE to the sch:Question
-    ├── value     = the values (see below)
-    └── <uuid> (sub:Extraction)
-        ├── extractedAnswer = the model's value, as it came
+    ├── value     = only what the submitter gave; a reading never writes it
+    └── <uuid> (sub:Extraction), one per reading of the question
+        ├── extractedAnswer = the model's value, as it came; absent when it found nothing
         ├── confidence      = after the evidence adjustment
         ├── reasoning
         ├── sources         → REFERENCE to every sub:DocumentVersion read
-        ├── replacedValue   = what the answer held before (only from a newer version)
+        ├── editDistance, percentageDistance = written when the submitter first answers
         └── <uuid> (sub:Context), one per kept quote
             ├── quote, header, page
             └── source → WEAKREFERENCE to the version it came from
                           (only when the step names its `documents`)
 ```
 
-How the value is stored (`Answer.readAnswer`):
+The run goes under the answer the question already has, such as the empty one the form
+or `createParts` left, and an answer holding no value is created when there is none. If
+the run cannot be written, nothing is left under the answer. Each field is written on its
+own: one that fails to write (for example its source file vanished) is logged and
+skipped, and the others are still saved. A run that found nothing still names the
+versions it read, which is what tells a later reading those versions were read for the
+question.
+
+How the suggestion is read (`Answer.getSuggestedValues`, from the run
+`Answer.getSurestExtraction` picks):
 
 - A single-value question keeps the reply as one value, trimmed.
 - A multi-value question splits the reply on commas.
@@ -627,17 +643,22 @@ How the value is stored (`Answer.readAnswer`):
   path, such as `/Categories/...`. If no option matches, or two options match equally,
   the model's own words are kept, so a person can see what it said and fix it.
 
-The suggestion is read back by the same rule (`Answer.getSuggestedValues`), so comparing
-it with the stored value never shows a change nobody made. A newer version uses it as P
-(below).
+### When the submitter acts on it
 
-The answer is written straight into `value`, so the form shows it pre-filled.
-`sub:Extraction.reviewed` marks a suggestion the submitter confirmed; editing the answer
-does not set it. When the form already saved an empty answer for the question, that node
-is filled rather than a second one created; if its extraction cannot be written, its
-value is put back as it was. Each field is written on its own: one that fails to write
-(for example its source file vanished) is logged and skipped, and the others are still
-saved.
+The answer's `value` is written only by a save (`saveAnswers`, submissions module): the
+submitter accepted the suggestion, edited it or picked something else. The first save
+that gives the answer a value measures it against the suggestion it was shown
+(`SuggestionDistance`, called by `SaveAnswersHandler`): `editDistance` is the
+Levenshtein distance between the two, each joined with ", ", and `percentageDistance` is
+that distance as a percentage of the suggestion's own length. Clearing a field measures
+nothing, and a run measured once keeps that measure. So what the submitter did needs no
+flag of its own:
+
+| On the run | Meaning |
+| --- | --- |
+| No `editDistance` | Nobody has acted on it yet (`Extraction.isActedOn` is false) |
+| `editDistance` 0 | Taken as it stood |
+| `editDistance` above 0 | Edited or replaced |
 
 ### A newer version
 
@@ -646,29 +667,16 @@ A submitter never deletes a document. A new upload for the same requirement adds
 
 The first reading of a newer version asks every question of the step, answered or not.
 `ExtractionFields.isNewRevision` says when that is: a file the step reads is not its
-document's first version, and no answer to the step's questions cites it yet. Each file
+document's first version, and no run of the step's questions cites it yet. Each file
 counts on its own, so a newer version already read does not hide another nobody has
-read. For each
-answer, N is what the model read now, C the answer's value, and P the last suggestion
-(`Answer.getSuggestedValues`):
+read. Every question asked gets a run citing the new version, found or not, so the
+version is read once, and Read again on it only fills gaps.
 
-| Case | What happens |
-| --- | --- |
-| The question has no answer yet | Written as usual |
-| N equals C, or N equals P | Nothing changes, and no extraction is added |
-| N differs from both | `value` becomes N. The new extraction keeps C in `replacedValue`, unless C was empty. |
-| The model found nothing | Nothing changes |
-
-This holds whether the submitter typed the answer, confirmed it, or left the suggestion
-as it was. The gate (step 7) is left out: a classification already answered is never
-asked again. Once an answer cites the new version, Read again on it only fills gaps. If
-the first reading of it changed nothing, nothing cites the version yet, so the next
-reading asks everything again.
-
-`Answer.getSurestExtraction` passes over a run when another run of the same answer read
-a newer version of one of its documents. So the last suggestion (P) and a review verdict
-come from the run that read the newest file, and a version nobody has read yet changes
-nothing.
+Nothing the newer version says changes an answer. Its run is a new suggestion beside the
+answer, and it is the one `Answer.getSurestExtraction` picks: a run is passed over when
+another run of the same answer read a newer version of one of its documents. Whether to
+show a suggestion that differs from the answer is the form's call. The gate (step 7) is
+left out: a classification already answered or picked is never asked again.
 
 ## What the submitter can do
 
@@ -683,7 +691,7 @@ not the submitter is refused too.
 | `stopProcessing` | `StopProcessingHandler` | Stops a parse or a reading that is going |
 | `readAgain` | `ReadAgainHandler` | Runs the reading again over the documents already parsed |
 | `retryParse` | `ParseDocumentsHandler` | Sends every upload that was never parsed or whose parse failed, when the schema names a reading workflow |
-| `reviewExtraction` | `ReviewExtractionHandler` | Records what the submitter thinks of a pre-filled answer |
+| `reviewExtraction` | `ReviewExtractionHandler` | Records that the quotes behind a suggestion do not support it |
 
 ### Stop
 
@@ -743,8 +751,9 @@ Refused with a 409 while `extractionStatus` is `running` ("This request is alrea
 read"). Otherwise it sets `running`, removes the claim, and queues the same job a parse
 queues (step 5), with the job property `readAgain=true`. The job is queued before this
 walk commits, so that property tells it to wait until it sees `running`. Questions
-already answered are not asked again. An intake step asks them again only on its first
-reading of a newer version; a classification that is answered is never asked again.
+already answered or suggested are not asked again. An intake step asks them again only
+on its first reading of a newer version; a classification already answered or picked is
+never asked again.
 
 ### Retry a failed parse
 
@@ -752,20 +761,18 @@ The `parseDocuments` step. Only uploads with no `parseStatus` or with
 `failed` are sent, and nothing is sent when the schema names no reading workflow.
 Usually the daemon was down, not the document broken.
 
-### Review a pre-filled answer
+### Review the quotes behind a suggestion
 
 Payload: `question` (the path inside the schema version, as the save endpoint uses), and
-either or both of `confirmed` and `evidenceRejected` (`true`/`false`, as booleans or
-strings). It finds the run the form showed, `Answer.getSurestExtraction()` (the highest
-confidence among runs not passed over for a newer version; on a tie, the earliest), and:
+`evidenceRejected` (`true`/`false`, as a boolean or a string). It finds the run the form
+showed, `Answer.getSurestExtraction()` (the highest confidence among runs not passed over
+for a newer version; on a tie, the earliest), and stores `evidenceRejected` as given. It
+says the quote does not back the suggestion: a report about the extraction, not about the
+answer, so it settles nothing. Accepting or changing a suggestion is not a review: it is a
+save of the answer (see "When the submitter acts on it").
 
-- `confirmed=true`: sets `reviewed=true` and `confidence=1.0`. The person vouched for
-  it.
-- `evidenceRejected`: stored as given. It says the quote does not back the answer. It is
-  a report about the extraction, not about the answer, so it settles nothing.
-
-A missing `question` gives a 400, and so does a question nothing was extracted for.
-`confirmed=false`, or a payload with neither field, changes nothing.
+A missing `question` gives a 400, and so does a question nothing was extracted for. A
+payload without `evidenceRejected` changes nothing.
 
 ## Statuses
 
@@ -779,9 +786,8 @@ A missing `question` gives a 400, and so does a question nothing was extracted f
 
 While it is `running`, the submission page (`SubmissionView`, `isBeingRead` in
 `submissionForm.ts`) holds the send step back, saying "Wait until the document has been
-read.", and the editor hides the questions and holds uploads back. An answer typed while
-the reading fills the form in would collide with it, and a request sent mid-reading
-would get answers after it was sent. The page reads the submission again every 3
+read.", and the editor hides the questions and holds uploads back, so the submitter
+answers once the suggestions are there, and no request is sent before they are. The page reads the submission again every 3
 seconds until the reading ends, then shows what it filled in. This is the page only: the
 server does not refuse a save or a send while a reading runs.
 
@@ -960,9 +966,9 @@ reading workflow could look like this (the research-proposal demo, not on this b
 has one called `readProposal`):
 
 1. `classifyDocument`: is this a proposal, and which kind?
-2. A gateway on the `is_proposal` decision. A settled "no" ends the reading. An
-   unsettled one waits at a user task for the submitter. This needs the `decision`
-   condition source, which is not on this branch yet.
+2. A gateway on the `is_proposal` decision, with a `decision` operand so it sees the
+   pick before anybody accepts it (step 7). A "no" ends the reading. No pick at all, the
+   model being unsure, waits at a user task for the submitter.
 3. A gateway on the category, leading to one `intakeAnswers` step per kind, each naming
    the requirements to ask (for example `[common, prospective]`).
 4. `finishReading` at the end of every path.
@@ -990,13 +996,11 @@ Keep in mind:
 | Gap | Effect |
 | --- | --- |
 | The `attachDocument` workflow does not run a `parseDocuments` step, and no schema sets `readingWorkflow` | No upload is parsed on its own. Only `retryParse` sends one, and only when the schema version names a reading workflow. |
-| The `decision` condition source is not merged | Reading workflows cannot route on a settled pick yet |
 | A `recordWhen` gate on a question the same `intakeAnswers` step asks has no confidence threshold | An unsure intake answer can still open the gate |
 | The submission page only knows that a reading runs; the view that shows `extractionMessage` and the provenance of answers is not merged | Nobody sees why a reading failed, or which answers a model suggested |
 | Only the start and end of a long document are read | The middle of a document past the context window is never read, and the confidence does not say so |
 | Only the first parsed upload is read unless `documents` is set | Satellite files, such as a consent form or a covering letter, are ignored by default |
 | The category does not choose the schema | It is recorded next to the schema the submitter already chose |
-| `editDistance` on `sub:Extraction` is declared but never written | Nothing measures how far the submitter's value moved from the model's |
 | No chat over the document (two calls: a router, then an answer) | The submitter cannot ask the document a question of their own |
 | Nothing better than asking the submitter when the model cannot place a study | The reading waits, and only goes on when somebody answers the category and completes the task |
 
@@ -1062,10 +1066,10 @@ repository root. Classes are in
 | `QueueExtractionHandler` | Service task `queueExtraction`: queues the reading job; the job reads once every parse has settled |
 | `ReadAgainHandler` | Service task `readAgain`: the submitter asks for the reading again; queues the same job |
 | `ExtractAnswersJobConsumer` | The background job that decides whose turn it is to read and fires `extractAnswers` |
-| `ClassifyDocumentHandler` | Service task `classifyDocument`: one call per document for the classification requirements that point at it; picks sure enough are written as pre-filled answers |
+| `ClassifyDocumentHandler` | Service task `classifyDocument`: one call per document for the classification requirements that point at it; picks sure enough are written as suggestions |
 | `IntakeAnswersHandler` | Service task `intakeAnswers`: the intake for one or more requirements, over the named documents (see step 8) |
 | `FinishReadingHandler` | Service task `finishReading`: moves a still-`running` submission to `done` with the step's `message`, and marks it blocked when the step sets `blocks` |
-| `ReviewExtractionHandler` | Service task `reviewExtraction`: the submitter's verdict on a pre-filled answer |
+| `ReviewExtractionHandler` | Service task `reviewExtraction`: the submitter's verdict on the quotes behind a suggestion |
 | `StopProcessingHandler` | Service task `stopProcessing`: stops a parse or a reading that is still going |
 | `ReadingRuns` | Which thread is reading each submission, so a Stop can reach it |
 | `SubmitterAccess` | Lets only the submitter, and only while the request is a draft, change how it is read |
@@ -1077,7 +1081,7 @@ repository root. Classes are in
 | `SystemWorkflows/readAgain` (`.json`, `bpmn.xml`) | Queues the reading again for the submitter |
 | `SystemWorkflows/retryParse` (`.json`, `bpmn.xml`) | Sends again the uploads whose parse failed, and any never sent. Today the only workflow that runs `parseDocuments`. |
 | `SystemWorkflows/stopProcessing` (`.json`, `bpmn.xml`) | Stops a parse or a reading that is still going |
-| `SystemWorkflows/reviewExtraction` (`.json`, `bpmn.xml`) | Records what the submitter made of a pre-filled answer |
+| `SystemWorkflows/reviewExtraction` (`.json`, `bpmn.xml`) | Records that the quotes behind a suggestion do not support it |
 
 Outside this module: the documents module's `ParseService` (stage and queue a parse for
 a repository node), `ParseControl` (abandon one) and `ParseOutcomeHandler` (be told how

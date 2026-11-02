@@ -27,6 +27,7 @@ import java.util.function.Function;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -231,6 +232,24 @@ final class SubmissionTree
     void addMarkdown(final Resource file, final String text)
     {
         storeText(file.getPath() + "/markdownFile", text);
+    }
+
+    /**
+     * Give what a handler wrote under the submission the resource types its node types autocreate, which the mock
+     * repository does not, so the models find the answers and runs it wrote.
+     */
+    void stampTypes()
+    {
+        stamp(this.context.resourceResolver().getResource(SUBMISSION_PATH));
+    }
+
+    private static void stamp(final Resource resource)
+    {
+        final String primary = resource.getValueMap().get("jcr:primaryType", String.class);
+        if (primary != null && primary.startsWith("sub:") && resource.getValueMap().get(TYPE) == null) {
+            resource.adaptTo(ModifiableValueMap.class).put(TYPE, primary.replace(':', '/'));
+        }
+        resource.getChildren().forEach(SubmissionTree::stamp);
     }
 
     /** A JCR REFERENCE, which the resolver cannot write. */

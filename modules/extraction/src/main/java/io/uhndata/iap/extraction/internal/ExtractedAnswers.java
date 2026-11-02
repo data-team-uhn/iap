@@ -23,19 +23,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.schemas.models.Question;
-import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.utils.ReferenceUtils;
 
 /**
- * Writes one answer the model read: the {@code sub:Answer}, the {@code sub:Extraction} under it saying where
- * it came from, and a {@code sub:Context} per quote.
+ * Writes one run of the model against a question: a {@code sub:Extraction} under the question's
+ * {@code sub:Answer}, saying what it read and where from, and a {@code sub:Context} per quote. The answer's value
+ * is the submitter's alone, so nothing here writes it.
  *
  * <p>Kept apart from the intake so that every step recording extracted answers writes the same nodes.
  *
@@ -50,70 +49,49 @@ final class ExtractedAnswers
 
     private static final String SOURCES_PROPERTY = "sources";
 
-    private static final String VALUE_PROPERTY = "value";
-
     private ExtractedAnswers()
     {
         // Utility
     }
 
     /**
-     * Record one answer, its extraction and its evidence.
+     * Record one run of the model against a question, under its answer, creating an empty answer when there is none.
+     * The answer's value is never written: a suggestion is not an answer until the submitter accepts or edits it.
      *
      * @param resolver the session to write through
      * @param target the submission
-     * @param existing an empty answer to the same question to fill, or {@code null} to create one
-     * @param question the question being answered
-     * @param result what the model found
+     * @param existing the answer to the same question to write under, or {@code null} to create one
+     * @param question the question that was asked
+     * @param result what the model found, or that it found nothing
      * @param files the files it was read from, all of them when several were sent as one text
      * @throws PersistenceException if anything cannot be written
      */
     static void write(final ResourceResolver resolver, final Resource target, final Resource existing,
         final Question question, final FieldResult result, final List<File> files) throws PersistenceException
     {
-        // Everything the answer points at is looked up before anything is written, so a missing one leaves no
-        // half-made answer behind for the engine's commit to refuse or a later reading to skip
+        // Everything the run points at is looked up before anything is written, so a missing one leaves no
+        // half-made answer behind for the engine's commit to refuse
         final Resource questionResource = resolver.getResource(question.getPath());
         if (questionResource == null) {
             throw new PersistenceException("Could not read the question " + question.getPath());
         }
         final List<Resource> versions = getVersions(resolver, files);
-        final String[] values = readValues(question, result.value());
         if (existing != null) {
-            fill(resolver, existing, values, result, versions, null);
+            writeExtraction(resolver, existing, result, versions);
             return;
         }
         final Resource answer = resolver.create(target, UUID.randomUUID().toString(),
-            Map.of(PRIMARY_TYPE, "sub:Answer", VALUE_PROPERTY, values));
+            Map.of(PRIMARY_TYPE, "sub:Answer"));
         try {
             ReferenceUtils.setReference(answer, QUESTION_PROPERTY, questionResource);
-            writeExtraction(resolver, answer, result, versions, null);
+            writeExtraction(resolver, answer, result, versions);
         } catch (final PersistenceException e) {
             resolver.delete(answer);
             throw e;
         }
     }
 
-    /**
-     * Replace an answer with what a newer revision of its document says, keeping the value it held on the new
-     * extraction so the submitter can go back to it.
-     *
-     * @param resolver the session to write through
-     * @param existing the answer to replace
-     * @param question the question it answers
-     * @param result what the model found in the newer revision
-     * @param files the files it was read from
-     * @param replaced what the answer held, empty when it held nothing
-     * @throws PersistenceException if anything cannot be written
-     */
-    static void replace(final ResourceResolver resolver, final Resource existing, final Question question,
-        final FieldResult result, final List<File> files, final List<String> replaced) throws PersistenceException
-    {
-        fill(resolver, existing, readValues(question, result.value()), result, getVersions(resolver, files),
-            replaced.stream().allMatch(String::isBlank) ? null : replaced.toArray(new String[0]));
-    }
-
-    /** The versions the files belong to, which are what an answer was read from. */
+    /** The versions the files belong to, which are what a run read. */
     private static List<Resource> getVersions(final ResourceResolver resolver, final List<File> files)
         throws PersistenceException
     {
@@ -129,45 +107,20 @@ final class ExtractedAnswers
     }
 
     /**
-     * Put the values into an existing answer - an empty one the form saved, or one a newer revision replaces -
-     * putting it back as it was if the extraction under it cannot be written.
-     */
-    private static void fill(final ResourceResolver resolver, final Resource existing, final String[] values,
-        final FieldResult result, final List<Resource> versions, final String[] replaced) throws PersistenceException
-    {
-        final ModifiableValueMap properties = existing.adaptTo(ModifiableValueMap.class);
-        if (properties == null) {
-            throw new PersistenceException("Not allowed to fill the answer " + existing.getPath());
-        }
-        final Object before = properties.get(VALUE_PROPERTY);
-        properties.put(VALUE_PROPERTY, values);
-        try {
-            writeExtraction(resolver, existing, result, versions, replaced);
-        } catch (final PersistenceException e) {
-            if (before == null) {
-                properties.remove(VALUE_PROPERTY);
-            } else {
-                properties.put(VALUE_PROPERTY, before);
-            }
-            throw e;
-        }
-    }
-
-    /**
-     * Write the extraction under an answer, with its quotes, removing it again if any of it cannot be written.
+     * Write the run under an answer, with its quotes, removing it again if any of it cannot be written. A run that
+     * found nothing has no extracted answer, and still names the versions it read.
      */
     private static void writeExtraction(final ResourceResolver resolver, final Resource answer,
-        final FieldResult result, final List<Resource> versions, final String[] replaced) throws PersistenceException
+        final FieldResult result, final List<Resource> versions) throws PersistenceException
     {
         final Map<String, Object> extraction = new HashMap<>();
         extraction.put(PRIMARY_TYPE, "sub:Extraction");
-        extraction.put("extractedAnswer", result.value());
+        if (result.found()) {
+            extraction.put("extractedAnswer", result.value());
+        }
         extraction.put("confidence", result.confidence());
         if (result.reasoning() != null) {
             extraction.put("reasoning", result.reasoning());
-        }
-        if (replaced != null) {
-            extraction.put("replacedValue", replaced);
         }
         final Resource extracted = resolver.create(answer, UUID.randomUUID().toString(), extraction);
         try {
@@ -180,16 +133,6 @@ final class ExtractedAnswers
             resolver.delete(extracted);
             throw e;
         }
-    }
-
-    /**
-     * The answer as the values to store, split by the same rule the form shows the suggestion under. Shared
-     * rather than repeated: the two lists are compared against each other to tell an untouched suggestion from a
-     * corrected one, so a difference between them is a difference nobody made.
-     */
-    private static String[] readValues(final Question question, final String value)
-    {
-        return Answer.readAnswer(value, question).toArray(new String[0]);
     }
 
     private static void writeContext(final ResourceResolver resolver, final Resource extracted,

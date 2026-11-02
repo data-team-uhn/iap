@@ -24,7 +24,7 @@
                   id="reviewExtractionDefinitions"
                   targetNamespace="https://iap.uhndata.io/system/reviewExtraction">
   <bpmn:message id="reviewExtractionMessage" name="reviewExtraction" />
-  <bpmn:process id="reviewExtraction" name="Record what the submitter said about a pre-filled answer"
+  <bpmn:process id="reviewExtraction" name="Record what the submitter said about the quotes behind a suggested answer"
                 isExecutable="true">
     <bpmn:startEvent id="reviewed" iap:performers="everyone" name="Answer reviewed">
       <bpmn:messageEventDefinition id="reviewRequested" messageRef="reviewExtractionMessage" />

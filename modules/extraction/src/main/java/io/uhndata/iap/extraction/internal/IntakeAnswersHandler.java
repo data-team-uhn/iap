@@ -151,7 +151,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         final Map<String, Question> questions = getQuestionsIncludingAnswered(submission, requirement);
         final boolean newRevision = ExtractionFields.isNewRevision(submission, questions.values(), files);
         if (!newRevision) {
-            // Reading again fills the gaps
+            // Reading again fills the gaps; a newer version is read for every question
             final Set<String> answered = ExtractionFields.getAnswered(submission);
             questions.values().removeIf(question -> answered.contains(question.getPath()));
         }
@@ -177,7 +177,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             return;
         }
         ExtractionFields.write(context.getResourceResolver(), target, submission, questions, result.fields(),
-            files, newRevision);
+            files);
         ExtractionStatus.recordDone(target, null);
         LOGGER.info("Reading step done: step=intake submission={} answered={} of={} ms={}", target.getPath(),
             result.fields().values().stream().filter(FieldResult::found).count(), questions.size(),
@@ -298,7 +298,8 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      * cannot be read, means write nothing: a document that is not a proposal must not leave other facts behind.
      *
      * <p>The gate field is compared as it would be stored, matched to the question's options, and ignoring case.
-     * When this step did not ask it, because it already holds an answer, that answer is what is compared.</p>
+     * When this step did not ask it, the submitter's answer to it is compared, or failing that what an earlier
+     * reading suggested, such as the gate's own pick.</p>
      */
     static boolean shouldRecord(final String gate, final Map<String, FieldResult> fields,
         final Submission submission, final ResourceResolver resolver)
@@ -324,7 +325,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     {
         final FieldResult field = fields.get(name);
         if (field == null) {
-            return submission.getAnswersTo(name);
+            return submission.getAnswerOrSuggestionTo(name);
         }
         if (!field.found()) {
             return List.of();

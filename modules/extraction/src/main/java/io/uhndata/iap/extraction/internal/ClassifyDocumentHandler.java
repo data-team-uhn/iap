@@ -171,9 +171,9 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
             .filter(entry -> isSure(entry.getValue(), thresholds.get(entry.getKey())))
             .filter(entry -> isOffered(entry.getValue(), questions.get(entry.getKey())))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        // Never replaced by a newer revision: a decision already made or confirmed stays
-        ExtractionFields.write(context.getResourceResolver(), target, submission, questions, sure, List.of(file),
-            false);
+        // Only a sure pick is recorded, so an unsure one leaves the question open for the submitter and the next
+        // reading. A pick recorded once is not asked again, even of a newer version.
+        ExtractionFields.write(context.getResourceResolver(), target, submission, questions, sure, List.of(file));
         LOGGER.info("Reading step done: step=classify submission={} decided={} of={} ms={}", target.getPath(),
             sure.size(), fields.size(), (System.nanoTime() - startedAt) / 1_000_000L);
         return true;

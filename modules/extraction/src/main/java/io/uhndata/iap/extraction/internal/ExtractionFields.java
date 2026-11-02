@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -96,44 +97,36 @@ final class ExtractionFields
     }
 
     /**
-     * Record every answer the model found, for the questions that carry no answer yet. Reading a new revision,
-     * an answer already there may be replaced too; see {@link #isNewRevision}.
+     * Record a run for every question asked, found or not, under the question's answer. Every run names the
+     * versions it read, which is what tells a later reading those versions were read for these questions. No
+     * answer's value is written: what the model read stays a suggestion until the submitter acts on it.
      *
      * @param resolver the session to write with
      * @param target the submission node
-     * @param submission the submission, for what it already holds
+     * @param submission the submission, for the answers it already holds
      * @param questions what was asked, by path within the schema version
      * @param results what the model answered, keyed the same way
      * @param files the documents the answers were read from
-     * @param newRevision whether the files include a revision these questions were not read from yet
      */
     static void write(final ResourceResolver resolver, final Resource target, final Submission submission,
-        final Map<String, Question> questions, final Map<String, FieldResult> results, final List<File> files,
-        final boolean newRevision)
+        final Map<String, Question> questions, final Map<String, FieldResult> results, final List<File> files)
     {
-        final Map<String, Answer> held = getHeld(submission);
-        final Set<String> answered = held.keySet();
-        final Map<String, Answer> empty = getEmpty(submission);
+        final Map<String, Answer> answers = getAnswers(submission);
         for (final Map.Entry<String, FieldResult> entry : results.entrySet()) {
             final Question question = questions.get(entry.getKey());
-            if (!entry.getValue().found() || question == null
-                || (answered.contains(question.getPath()) && !newRevision)) {
+            if (question == null) {
                 continue;
             }
-            // Isolated per field: one field's evidence failing to write (e.g. a source file that stopped
-            // resolving mid-transaction) must not cost every other, unrelated field its answer too.
+            // Isolated per field: one field's run failing to write (e.g. a source file that stopped resolving
+            // mid-transaction) must not cost every other, unrelated field its run too.
             try {
-                if (answered.contains(question.getPath())) {
-                    replace(resolver, held.get(question.getPath()), question, entry.getValue(), files);
-                } else {
-                    final Answer existing = empty.get(question.getPath());
-                    ExtractedAnswers.write(resolver, target,
-                        existing == null ? null : resolver.getResource(existing.getPath()), question,
-                        entry.getValue(), files);
-                }
+                final Answer existing = answers.get(question.getPath());
+                ExtractedAnswers.write(resolver, target,
+                    existing == null ? null : resolver.getResource(existing.getPath()), question, entry.getValue(),
+                    files);
             } catch (final PersistenceException e) {
-                LOGGER.warn("Could not record the answer for {}: {}", question.getPath(), e.getMessage(), e);
-                // The reading still says done, so a lost answer would go unnoticed
+                LOGGER.warn("Could not record the run for {}: {}", question.getPath(), e.getMessage(), e);
+                // The reading still says done, so a lost run would go unnoticed
                 ErrorLogger.logError(e, ErrorContext.of(ExtractionFields.class, "write").about(target)
                     .with("question", question.getPath()));
             }
@@ -141,34 +134,14 @@ final class ExtractionFields
     }
 
     /**
-     * Put what a newer revision says in place of an answer, when it differs both from the answer and from what
-     * the last reading suggested. Equal to either, the newer file has nothing new to say about it.
-     */
-    private static void replace(final ResourceResolver resolver, final Answer answer, final Question question,
-        final FieldResult result, final List<File> files) throws PersistenceException
-    {
-        final List<String> read = Answer.readAnswer(result.value(), question);
-        final String[] value = answer.getValue();
-        final List<String> current = value == null ? List.of() : Arrays.asList(value);
-        if (read.equals(current) || read.equals(answer.getSuggestedValues())) {
-            return;
-        }
-        final Resource resource = resolver.getResource(answer.getPath());
-        if (resource == null) {
-            throw new PersistenceException("Could not read the answer " + answer.getPath());
-        }
-        ExtractedAnswers.replace(resolver, resource, question, result, files, current);
-    }
-
-    /**
      * Whether a step reads a revision its questions were not read from yet: a file that is not its document's
      * first revision, and that no answer to these questions cites. Each file counts on its own, so a newer revision
-     * already read does not hide another nobody has read. Such a reading may replace answers, not only fill gaps.
+     * already read does not hide another nobody has read.
      *
      * @param submission the submission
      * @param questions the questions the step asks, answered or not
      * @param files the files the step reads
-     * @return {@code true} for a first reading of a newer revision
+     * @return {@code true} for a first reading of a newer revision, which asks every question again
      */
     static boolean isNewRevision(final Submission submission, final Collection<Question> questions,
         final List<File> files)
@@ -192,36 +165,24 @@ final class ExtractionFields
     }
 
     /**
-     * The paths of the questions a reading must leave alone: ones that hold a value, and ones the model already
-     * suggested an answer for, even if the submitter then cleared it.
-     *
-     * <p>An empty answer with no extraction is not one of them. The form saves a field when it loses focus, so
-     * clicking through a field leaves an empty answer behind, and that must not stop a reading from filling it.</p>
+     * The paths of the questions a reading leaves alone unless it reads a newer version: ones the submitter
+     * answered, and ones a reading already found a suggestion for. A question only ever asked and not found is
+     * asked again, and so is one whose answer the form saved empty.
      *
      * @param submission the submission
      * @return the question paths
      */
     static Set<String> getAnswered(final Submission submission)
     {
-        return getHeld(submission).keySet();
-    }
-
-    /**
-     * The empty answers a reading may fill, by the path of the question they answer.
-     *
-     * @param submission the submission
-     * @return the answers holding no value and no extraction
-     */
-    static Map<String, Answer> getEmpty(final Submission submission)
-    {
-        final Map<String, Answer> empty = new HashMap<>();
+        final Set<String> answered = new HashSet<>();
         for (final Answer answer : submission.getAnswers()) {
+            // Read once: every read resolves the reference again
             final Question question = answer.getQuestion();
-            if (question != null && isEmpty(answer)) {
-                empty.putIfAbsent(question.getPath(), answer);
+            if (question != null && isAnswered(answer)) {
+                answered.add(question.getPath());
             }
         }
-        return empty;
+        return answered;
     }
 
     private static boolean isAsking(final Question question, final Set<String> asked)
@@ -229,24 +190,24 @@ final class ExtractionFields
         return question != null && asked.contains(question.getPath());
     }
 
-    /** The answers a reading must otherwise leave alone, by the path of the question they answer. */
-    private static Map<String, Answer> getHeld(final Submission submission)
+    /** The answer each question already has, by the path of the question, for a run to be written under. */
+    private static Map<String, Answer> getAnswers(final Submission submission)
     {
-        final Map<String, Answer> held = new HashMap<>();
+        final Map<String, Answer> answers = new HashMap<>();
         for (final Answer answer : submission.getAnswers()) {
             final Question question = answer.getQuestion();
-            if (question != null && !isEmpty(answer)) {
-                held.putIfAbsent(question.getPath(), answer);
+            if (question != null) {
+                answers.putIfAbsent(question.getPath(), answer);
             }
         }
-        return held;
+        return answers;
     }
 
-    /** Whether an answer holds no value and the model never suggested one for it. */
-    private static boolean isEmpty(final Answer answer)
+    /** Whether the submitter gave an answer a value, or a reading found a suggestion for it. */
+    private static boolean isAnswered(final Answer answer)
     {
         final String[] values = answer.getValue();
         final boolean hasValue = values != null && Arrays.stream(values).anyMatch(value -> !value.isBlank());
-        return !hasValue && answer.getExtractions().isEmpty();
+        return hasValue || answer.getExtractions().stream().anyMatch(run -> run.getExtractedAnswer() != null);
     }
 }
