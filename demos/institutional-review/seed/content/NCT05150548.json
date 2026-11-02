@@ -1,0 +1,242 @@
+{
+  "nct": "NCT05150548",
+  "title": "Time-to-complication models after elective colectomy (NSQIP)",
+  "answers": {
+    "study/pi": "Dr. Xue Chen (Janny) Ke and Dr. Alana Flexman",
+    "study/department": "Department of Anesthesia and Pain Management, with the Division of General Surgery (colorectal). Statistics and machine learning co-investigators at UBC, BC Children's Hospital Research Institute and Harvard. A patient partner is on the team.",
+    "study/summary": "Retrospective cohort of about 130,000 elective colectomies in the ACS NSQIP Participant Use Data File and its Procedure Targeted Colectomy file, 2014 to 2019. We develop and internally validate Cox (or AFT) models and machine learning models to predict when each major complication (pneumonia, MI, stroke, VTE, acute renal failure, sepsis), death and readmission happens within 30 days.",
+    "study/sponsor": "none",
+    "classification/purpose": "research",
+    "classification/contact": "recordsOnly",
+    "classification/design": "model",
+    "classification/question": "Can we predict not only whether but when each major medical complication, death or readmission happens within 30 days of elective colectomy, and do machine learning models do better than Cox models?",
+    "classification/cohort/population": "Adults 18 and over having elective colectomy in the NSQIP Procedure Targeted Colectomy file, 2014 to 2019. Excluded: ASA V, urgent or emergency surgery, acute diverticulitis, enterocolitis or volvulus, and preoperative disseminated cancer, wound infection, sepsis or ventilator dependence.",
+    "classification/cohort/startDate": "2014-01-01",
+    "classification/cohort/endDate": "2019-12-31",
+    "classification/cohort/dateRationale": "Six full years of the targeted colectomy file, well over the 51 events per model our sample size calculation needs.",
+    "classification/cohort/records": 130000,
+    "classification/cohort/exclusions": ["completeness"],
+    "classification/cohort/exclusionsWhy": "Patients with a complication but no time-to-event data are left out of modelling, since time can't be imputed. We compare them to the rest to check for bias. Predictors missing in more than 10% of cases are dropped.",
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": ["qi"],
+    "classification/sources/dataSources": ["registry"],
+    "classification/sources/sourceDetails": "ACS NSQIP Participant Use Data File 2014-2019 and the Procedure Targeted Colectomy PUF, requested through UHN's NSQIP membership. No CAPCR number.",
+    "classification/sources/external": true,
+    "identifiability/arrival": "anonymized",
+    "identifiability/keyHolder": "none",
+    "identifiability/fields": "Only the PUF variables in Appendix 1: age (90+ grouped), sex, race, height, weight, comorbidities, indication, approach, operative time, anesthesia, wound class, and complications with postoperative day. No names, dates, hospitals or identifiers are in the PUF.",
+    "identifiability/recognizable": "unlikely",
+    "identifiability/lessIdentifiable": "no",
+    "identifiability/lessIdentifiableWhy": "The PUF is already de-identified by ACS. There is nothing less identifiable to use.",
+    "identifiability/reidentification": "ACS removes identifiers and hospital before release and top-codes age at 90. We don't link it to anything else, and the ACS data use agreement forbids attempts to re-identify.",
+    "identifiability/linkage": ["external"],
+    "identifiability/linkageRisk": "The general PUF and the targeted colectomy file are joined on the ACS case ID. Both come from ACS and are de-identified; the join only adds colectomy variables, no identifiers.",
+    "consent/sought": "notApplicable",
+    "consent/priorConsent": false,
+    "access/custodian": "American College of Surgeons (ACS NSQIP)",
+    "access/custodianApproval": "obtained",
+    "access/authority": ["agreement"],
+    "sensitivity/categories": ["none"],
+    "sensitivity/indigenous": "no",
+    "sensitivity/equity": true,
+    "handling/leaving/leaves": ["no"],
+    "handling/leaving/otherUses": ["software"],
+    "handling/storage/location": ["server"],
+    "handling/storage/access": "PUF files on the department research drive, limited to named team members who signed the ACS data use agreement.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "archived",
+    "handling/storage/retentionPeriod": "As long as needed for the two papers and follow-up analyses",
+    "handling/storage/breachHarm": ["minimal"],
+    "handling/storage/pia": "notRequired",
+    "handling/storage/disclosure": ["none"],
+    "handling/results/reporting": "suppressed",
+    "handling/results/threshold": 10,
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "Not possible, the data has no identities.",
+    "digital/uhnHosted": true,
+    "digital/integration": false,
+    "digital/external": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/previouslyApproved": false,
+    "digital/ai/used": true,
+    "digital/ai/details": "Machine learning models for time-to-event prediction (boosting trees, neural networks), trained on the PUF and compared with the Cox models on discrimination and calibration.",
+    "digital/ai/where": "local",
+    "digital/ai/training": true,
+    "digital/ai/phase": "development",
+    "digital/ai/governance": true,
+    "team/gcpDate": "2024-09-30",
+    "team/healthProfessionals": true,
+    "team/hpRoles": ["pi", "coi"],
+    "team/hpIdentifiable": false,
+    "team/conflict": false,
+    "team/glossary": true,
+    "resources/funding": false,
+    "resources/staff": false,
+    "resources/extraction": false,
+    "resources/analyst": false,
+    "resources/similar": false,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": true,
+    "agreements/organizations/names": "American College of Surgeons: provides the NSQIP PUF and the Procedure Targeted Colectomy file under its data use agreement.",
+    "agreements/organizations/accessUhnData": false,
+    "agreements/organizations/flow": "in",
+    "agreements/organizations/patientLevel": true,
+    "agreements/organizations/stores": false,
+    "agreements/organizations/funds": false,
+    "agreements/organizations/existing": true,
+    "agreements/organizations/related": "UHN's ACS NSQIP participation agreement."
+  },
+  "weaknesses": [
+    "Undeclared transfer: handling/leaving/leaves 'no' and digital/ai/where 'local', but the machine learning paper is led from BC Children's Hospital Research Institute and the co-investigators include UBC Statistics and a Harvard biostatistician (p. 1). The form doesn't say where they work on the data, and agreements/organizations names ACS only.",
+    "Vague retention: handling/storage/retention 'archived' for 'as long as needed for the two papers and follow-up analyses', with no period or end-of-study step, while the ACS data use agreement governs how long the PUF can be kept."
+  ],
+  "extractions": [
+    {
+      "question": "classification/cohort/startDate",
+      "extractedAnswer": "2014-01-01",
+      "quote": "whose data has been collected in the NSQIP® Procedure Targeted Colectomy dataset from 2014-2019, inclusively",
+      "page": 3,
+      "confidence": 0.85,
+      "reasoning": "The study population covers the 2014 to 2019 data years inclusively; I took the first day of 2014."
+    },
+    {
+      "question": "classification/cohort/endDate",
+      "extractedAnswer": "2019-12-31",
+      "quote": "whose data has been collected in the NSQIP® Procedure Targeted Colectomy dataset from 2014-2019, inclusively",
+      "page": 3,
+      "confidence": 0.85,
+      "reasoning": "Inclusive of 2019, so the last day of that year."
+    },
+    {
+      "question": "classification/cohort/records",
+      "extractedAnswer": 130000,
+      "quote": "The estimated sample size is approximately 130,000 patients.",
+      "page": 3,
+      "confidence": 0.93,
+      "reasoning": "Stated directly in the study population section."
+    },
+    {
+      "question": "identifiability/linkage",
+      "extractedAnswer": ["external"],
+      "quote": "The general dataset will be linked with the NSQIP® Procedure Targeted Colectomy dataset, which contains additional colectomy-specific variables.",
+      "page": 2,
+      "confidence": 0.78,
+      "reasoning": "Two NSQIP files from ACS, an outside organization, are joined."
+    },
+    {
+      "question": "consent/sought",
+      "extractedAnswer": "waiver",
+      "quote": "Following approval from the University of British Columbia Clinical Research Ethics Board with waived informed consent",
+      "page": 2,
+      "confidence": 0.7,
+      "reasoning": "The protocol describes the study as proceeding under a waiver of informed consent."
+    },
+    {
+      "question": "digital/ai/used",
+      "extractedAnswer": true,
+      "quote": "Machine learning models that can facilitate time-to-event predictions: including but not limited to boosting trees, neural networks.",
+      "page": 5,
+      "confidence": 0.9,
+      "reasoning": "The analysis plan includes machine learning models trained on the study data."
+    },
+    {
+      "question": "classification/design",
+      "extractedAnswer": "model",
+      "quote": "Develop and internal validate machine learning models to predict",
+      "page": 2,
+      "confidence": 0.92,
+      "reasoning": "Both objectives are to develop and internally validate prediction models."
+    }
+  ],
+  "screening": {
+    "summary": "A de-identified national registry analysis with little risk to individuals. The open questions are where the out-of-province co-investigators, who lead the machine learning work, will handle the data, and how long it is kept.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "identifiability",
+        "summary": "The PUF is de-identified by ACS, top-codes age and has no hospital or date fields, and the team doesn't link it to anything else. Consent not applicable is reasonable even though the original REB waived it. No comment.",
+        "comments": []
+      },
+      {
+        "approval": "reb",
+        "topic": "transfer",
+        "summary": "The form says the data never leaves UHN, but the machine learning lead and several co-investigators work at other institutions, one in the United States.",
+        "comments": [
+          {
+            "text": "The machine learning paper is led by a co-investigator at UBC and BC Children's Hospital Research Institute, and the team includes UBC Statistics and a Harvard biostatistician. The form says data stays at UHN and the AI runs locally, but doesn't say how they access it. If they analyze copies at their institutions, the PUF leaves UHN, one copy outside Canada, and the ACS agreement has to allow each user.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Say where each co-investigator works with the data. Either remote access to the UHN drive only, or declare the transfers, name the institutions in agreements, and confirm each is covered by the ACS data use agreement.",
+            "subjects": ["handling/leaving/leaves", "digital/ai/where", "agreements/organizations/names"],
+            "quote": "Assistant professor, Department of Anesthesiology, Pharmacology & Therapeutics, University of British Columbia; Research Institute, BC Children’s Hospital",
+            "page": 1
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "safeguards",
+        "summary": "Storage on a UHN drive with access limited to DUA signatories is fine. Retention has no end.",
+        "comments": [
+          {
+            "text": "The data will be archived for as long as it's needed for the papers and follow-up analyses. That has no end date and no end-of-study step, and the ACS data use agreement sets its own terms for keeping the PUF.",
+            "kind": "gap",
+            "severity": "minor",
+            "suggestion": "Give a period that fits the ACS agreement and UHN's records policy, and say the files are securely destroyed at the end.",
+            "subjects": ["handling/storage/retention", "handling/storage/retentionPeriod"]
+          }
+        ]
+      },
+      {
+        "approval": "digitalReview",
+        "topic": "ai",
+        "summary": "Machine learning models are trained on the study data. The data is de-identified and processing is said to run locally, so the risk is moderate. It still needs the AI Hub intake.",
+        "comments": [
+          {
+            "text": "The study data trains boosting tree and neural network models, which needs a Digital Demand and the AI Hub intake. The form shows neither.",
+            "kind": "gap",
+            "severity": "minor",
+            "suggestion": "File the AI Hub intake and say which UHN environment runs the training.",
+            "subjects": ["digital/ai/training", "digital/ai/where"]
+          }
+        ]
+      }
+    ]
+  },
+  "variableList": [
+    {"field": "ACS case ID", "source": "NSQIP PUF", "identifying": false, "why": "Joins the general PUF to the targeted colectomy file."},
+    {"field": "Age (90+ grouped)", "source": "NSQIP PUF", "identifying": false, "why": "Predictor; inclusion 18 and over."},
+    {"field": "Sex", "source": "NSQIP PUF", "identifying": false, "why": "Predictor."},
+    {"field": "Race", "source": "NSQIP PUF", "identifying": false, "why": "Predictor."},
+    {"field": "Height, weight, BMI", "source": "NSQIP PUF", "identifying": false, "why": "BMI as a predictor."},
+    {"field": "ASA class", "source": "NSQIP PUF", "identifying": false, "why": "Predictor; ASA V excluded."},
+    {"field": "Diabetes, smoking within 1 year, severe COPD, ascites, CHF, hypertension on medication", "source": "NSQIP PUF", "identifying": false, "why": "Predictors."},
+    {"field": "Preoperative renal failure, dialysis, creatinine", "source": "NSQIP PUF", "identifying": false, "why": "Preoperative renal failure predictor (GFR under 60)."},
+    {"field": "Functional status, dyspnea, coagulopathy", "source": "NSQIP PUF", "identifying": false, "why": "Predictors."},
+    {"field": "Steroid or immunosuppressant use", "source": "NSQIP PUF", "identifying": false, "why": "Predictor."},
+    {"field": "Chemotherapy within 90 days", "source": "NSQIP PUF", "identifying": false, "why": "Predictor."},
+    {"field": "Disseminated cancer, wound infection, sepsis, ventilator dependence before surgery", "source": "NSQIP PUF", "identifying": false, "why": "Exclusion criteria."},
+    {"field": "Elective, urgent or emergency", "source": "NSQIP PUF", "identifying": false, "why": "Only elective cases included."},
+    {"field": "Primary indication for colectomy", "source": "Targeted colectomy PUF", "identifying": false, "why": "Predictor (recategorized); some indications excluded."},
+    {"field": "Surgical approach (minimally invasive or open)", "source": "Targeted colectomy PUF", "identifying": false, "why": "Predictor."},
+    {"field": "Total operation time", "source": "NSQIP PUF", "identifying": false, "why": "Predictor."},
+    {"field": "Regional anesthesia (epidural, peripheral, spinal)", "source": "NSQIP PUF", "identifying": false, "why": "Predictor."},
+    {"field": "Wound classification", "source": "NSQIP PUF", "identifying": false, "why": "Predictor."},
+    {"field": "Pneumonia and days to pneumonia", "source": "NSQIP PUF", "identifying": false, "why": "Outcome and time to event."},
+    {"field": "Myocardial infarction and days to MI", "source": "NSQIP PUF", "identifying": false, "why": "Outcome and time to event."},
+    {"field": "Stroke and days to stroke", "source": "NSQIP PUF", "identifying": false, "why": "Outcome and time to event."},
+    {"field": "VTE (PE, DVT) and days to VTE", "source": "NSQIP PUF", "identifying": false, "why": "Outcome and time to event."},
+    {"field": "Acute renal failure and days to ARF", "source": "NSQIP PUF", "identifying": false, "why": "Outcome and time to event."},
+    {"field": "Sepsis or septic shock and days to sepsis", "source": "NSQIP PUF", "identifying": false, "why": "Outcome and time to event."},
+    {"field": "Death and days to death", "source": "NSQIP PUF", "identifying": false, "why": "Outcome and time to event."},
+    {"field": "Readmission (planned or unplanned) and days to readmission", "source": "NSQIP PUF", "identifying": false, "why": "Outcome and time to event."},
+    {"field": "Anastomotic leak, prolonged ileus", "source": "Targeted colectomy PUF", "identifying": false, "why": "Cohort characteristics."},
+    {"field": "Wound complications, UTI, transfusion, cardiac arrest, ventilation over 48 h, unplanned reoperation", "source": "NSQIP PUF", "identifying": false, "why": "Cohort characteristics."},
+    {"field": "Non-home discharge, still in hospital at 30 days", "source": "NSQIP PUF", "identifying": false, "why": "Cohort characteristics."}
+  ],
+  "dataSharingAgreement": null
+}

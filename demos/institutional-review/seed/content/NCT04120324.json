@@ -1,0 +1,375 @@
+{
+  "nct": "NCT04120324",
+  "title": "30-day return to hospital after same-day discharge hip arthroplasty (STAR)",
+  "answers": {
+    "study/pi": "Dr. Donald J Young",
+    "study/department": "Department of Anesthesia and Pain Management, Toronto Western Hospital. The study looks at the STAR (Short Term Accelerated Recovery) same-day discharge program, which Anesthesia runs with Orthopaedic Surgery and Physiotherapy.",
+    "study/summary": "STAR is our same-day discharge pathway for primary total hip arthroplasty and has been running since Oct 15, 2018. We have never followed up on what happens to these patients after they go home. This chart review counts returns to hospital for surgical problems within 30 days (and 7 days) of surgery, and compares patients sent home the same day with STAR patients who stayed at least one night and with patients taken off the pathway before surgery. Records only, no patient contact. The results tell us whether the program is safe and will help size a future prospective study.",
+    "study/sponsor": "none",
+    "classification/purpose": "research",
+    "classification/contact": "recordsOnly",
+    "classification/design": "cohort",
+    "classification/question": "Is the rate of return to hospital for surgery-related problems in the first 30 days different for STAR patients discharged home on the day of surgery, compared with STAR-eligible patients who stayed at least one night and with patients removed from STAR before surgery? Secondary: the same comparison at 7 days, and the age and gender of each group.",
+    "classification/cohort/population": "Everyone flagged by their surgeon as potentially STAR eligible when booked for primary THA at Toronto Western, from the start of the program. They are flagged before the physio and anesthesia STAR assessments, so the cohort includes patients who were later found ineligible. Patients who never came to surgery are excluded. Three groups: eligible and discharged same day, eligible but not discharged same day, removed from STAR before surgery.",
+    "classification/cohort/startDate": "2018-10-15",
+    "classification/cohort/endDate": "2019-10-31",
+    "classification/cohort/dateRationale": "Starts the day STAR began (Oct 15, 2018). Surgeries up to Oct 1, 2019, by when we expect about 120 patients to have been screened, plus 30 days of follow-up after the last surgery.",
+    "classification/cohort/records": 120,
+    "classification/cohort/exclusions": ["none"],
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": ["care", "qi"],
+    "classification/sources/dataSources": ["emr"],
+    "classification/sources/sourceDetails": "1. STAR enrolment list kept by the PI (program list of everyone flagged at booking). 2. UHN electronic patient record: the surgical admission and any return to a UHN emergency department or ward within 30 days. 2018-19 encounters are in the legacy EPR, viewable through Epic. 3. ConnectingOntario ClinicalViewer, looked up per patient, to catch visits to other hospitals, since STAR patients live within an hour's drive and may go to their local ED. No CAPCR numbers apply.",
+    "classification/sources/external": true,
+    "identifiability/arrival": "codedTeamKey",
+    "identifiability/keyHolder": "team",
+    "identifiability/fields": "Key list (PI only): name, date of birth, MRN, date of surgery, age and gender, against a Patient Study Number. Name, DOB and MRN are needed to pull each chart at UHN and in ConnectingOntario. Coded REDCap forms: study number, cohort, removal from STAR and reason, same-day discharge and reason if not, PACU arrival and discharge times, length of stay, days in hospital, return encounter Y/N, days post-op at return, nature of the surgical problem, anesthesia checklist complete. No names, DOB or MRN go into REDCap.",
+    "identifiability/recognizable": "unlikely",
+    "identifiability/lessIdentifiable": "yesWill",
+    "identifiability/reidentification": "Identifiers stay on one key list held by the PI, separate from all the data sheets. REDCap holds study numbers only. Paper copies of the key given to chart reviewers are handed over in person and shredded once collection is done. The statistician never sees identifiers. Surgery dates are not in the analysis file, only days post-op.",
+    "identifiability/linkage": ["external"],
+    "identifiability/linkageRisk": "Each patient is looked up in ConnectingOntario by name and DOB to see if they had a hospital visit elsewhere in the 30 days. We only record whether there was a visit, how many days post-op, and what the surgical problem was. Nothing else from the provincial record is copied, so the coded file is no more identifying than the UHN data on its own.",
+    "consent/sought": "waiver",
+    "consent/priorConsent": false,
+    "consent/waiver/whyIdentifiable": "We have to find each patient's charts, at UHN and in ConnectingOntario, and the only way to do that is by name, DOB and MRN. Returns to another hospital can't be found any other way. Identifiers are used only for the look-up and never go into the analysis data.",
+    "consent/waiver/welfare": "no",
+    "consent/waiver/impracticable": ["bias"],
+    "access/custodian": "UHN for the UHN record; Ontario Health for ConnectingOntario",
+    "access/custodianApproval": "pending",
+    "access/authority": ["phipa44"],
+    "sensitivity/categories": ["none"],
+    "sensitivity/indigenous": "no",
+    "sensitivity/equity": true,
+    "handling/leaving/leaves": ["no"],
+    "handling/leaving/otherUses": ["none"],
+    "handling/storage/location": ["server", "paper"],
+    "handling/storage/access": "Key list: PI only, in his folder on the UHN network drive. Paper copies of parts of it go to the chart reviewers by hand and are shredded when their charts are done. REDCap (UHN instance): the PI, department members and trained medical students on the delegation log, each with their own login. The statistician gets read-only export rights on the coded data and runs R on a UHN virtual desktop, so no copy leaves UHN. Accounts are removed when people leave the study.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "deidentified",
+    "handling/storage/retentionPeriod": "Key destroyed once the analysis is final; coded data kept 7 years after publication",
+    "handling/storage/breachHarm": ["reidentification"],
+    "handling/storage/pia": "notRequired",
+    "handling/storage/disclosure": ["none"],
+    "handling/results/reporting": "aggregate",
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "The returns we're looking at happened in 2018-19 and were handled clinically at the time. If a chart shows a problem that looks like it was never followed up, the PI will let the patient's surgeon know. Any safety pattern in the program goes to the STAR committee.",
+    "digital/uhnHosted": true,
+    "digital/integration": false,
+    "digital/external": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/previouslyApproved": true,
+    "digital/different": false,
+    "digital/usage": "UHN REDCap for coded data entry: one form per cohort, built by the team from the spreadsheet headings in the SAP. No surveys, no participant access.",
+    "digital/ai/used": false,
+    "team/gcpDate": "2018-11-20",
+    "team/healthProfessionals": true,
+    "team/hpRoles": ["pi", "team"],
+    "team/hpIdentifiable": false,
+    "team/conflict": false,
+    "team/glossary": true,
+    "resources/funding": false,
+    "resources/staff": true,
+    "resources/extraction": false,
+    "resources/analyst": true,
+    "resources/other": "A few days of the statistician's time for the chi-squared and Fisher's exact tests.",
+    "resources/similar": false,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": false
+  },
+  "weaknesses": [
+    "Small cells: handling/results/reporting is 'aggregate' with no suppression rule, but only about 24 patients go home the same day and the SAP already expects 2x2 cells small enough to need Fisher's exact test, so published counts of returns will be 1 to 5 people.",
+    "Linking key storage: the form says the key list is on the PI's UHN network drive (storage/location 'server', no policy deviation), while the protocol (p. 4) and the SAP (p. 2) still say it lives on a password protected personal computer hard drive. The protocol needs amending, or the form is wrong."
+  ],
+  "extractions": [
+    {
+      "question": "classification/purpose",
+      "extractedAnswer": "qi",
+      "quote": "As a Quality Assurance measure of safety for this program, we wish to know the rate of return to hospital for surgical related problems",
+      "page": 2,
+      "confidence": 0.74,
+      "reasoning": "The objective is framed as a quality assurance measure for the STAR program, and the design and conclusion sections use the same label."
+    },
+    {
+      "question": "classification/design",
+      "extractedAnswer": "cohort",
+      "quote": "This project is a retrospective cohort quality assurance study.",
+      "page": 2,
+      "confidence": 0.93,
+      "reasoning": "The methods section names the design as a retrospective cohort."
+    },
+    {
+      "question": "classification/contact",
+      "extractedAnswer": "recordsOnly",
+      "quote": "Sources of information for this data collection will be entirely by chart review. There will be NO patient contacts made for the purpose of data substantiation.",
+      "page": 3,
+      "confidence": 0.96,
+      "reasoning": "The protocol states the data comes entirely from chart review and rules out patient contact."
+    },
+    {
+      "question": "classification/question",
+      "extractedAnswer": "How many same-day discharge patients return to hospital within 30 days of surgery, compared with patients not discharged on the day of surgery; secondarily the 7-day rate and the age and gender of the cohorts.",
+      "quote": "The Primary Goal is to discern how many same day discharge patients had return to hospital encounters during the first 30 days post surgery",
+      "page": 3,
+      "confidence": 0.88,
+      "reasoning": "Primary and secondary goals are stated together on page 3."
+    },
+    {
+      "question": "classification/cohort/population",
+      "extractedAnswer": "All patients flagged by their surgeon as potentially STAR eligible, before the physiotherapy and anesthesiology assessments, excluding those who never had surgery.",
+      "quote": "All patients initially identified by their surgeon as potentially STAR eligible (this occurring prior to both Physiotherapy and Anesthesiology STAR assessments) are eligible as data sources in this study.",
+      "page": 3,
+      "confidence": 0.9,
+      "reasoning": "Taken from the inclusion criteria; the exclusion criteria remove only patients who did not come to surgery."
+    },
+    {
+      "question": "classification/cohort/startDate",
+      "extractedAnswer": "2018-10-15",
+      "quote": "The program came to be known as the Short Term Accelerated Recovery (STAR) program and has been running since Oct 15, 2018.",
+      "page": 2,
+      "confidence": 0.85,
+      "reasoning": "The cohort is everyone enrolled in STAR, so records start when the program began."
+    },
+    {
+      "question": "classification/cohort/endDate",
+      "extractedAnswer": "2019-10-01",
+      "quote": "will have been through the STAR screening process by Oct 1, 2019 and that this should allow ample opportunity to compare the two groups",
+      "page": 4,
+      "confidence": 0.66,
+      "reasoning": "The only end point the protocol gives is the date by which it expects screening to reach 120 patients."
+    },
+    {
+      "question": "classification/cohort/records",
+      "extractedAnswer": 120,
+      "quote": "To this end, we anticipate that up to 120 patients will have been through the STAR screening process",
+      "page": 4,
+      "confidence": 0.89,
+      "reasoning": "The expected cohort size is stated under Number of Patients."
+    },
+    {
+      "question": "classification/cohort/exclusions",
+      "extractedAnswer": ["none"],
+      "quote": "Such patients would be excluded from the study as all patients have to have had a surgical procedure performed to be included.",
+      "page": 3,
+      "confidence": 0.84,
+      "reasoning": "The only exclusion is not having had surgery, which is part of the clinical question rather than an exclusion for another reason."
+    },
+    {
+      "question": "classification/sources/external",
+      "extractedAnswer": true,
+      "quote": "the BC Care Connect network will be accessed for each patient to see if any hospital encounters other than at VGH occurred during the first 30 days after surgery",
+      "page": 3,
+      "confidence": 0.91,
+      "reasoning": "A provincial record system is searched for encounters at other hospitals, which is a source outside the institution."
+    },
+    {
+      "question": "identifiability/arrival",
+      "extractedAnswer": "codedTeamKey",
+      "quote": "Data collected to fulfill the Primary and Secondary Outcomes will only contain the Patient Study Numbers, with no personal identifiers.",
+      "page": 4,
+      "confidence": 0.82,
+      "reasoning": "Outcome data is coded by study number, and the key is held by the PI, who is on the team."
+    },
+    {
+      "question": "identifiability/keyHolder",
+      "extractedAnswer": "team",
+      "quote": "Data linking the patient’s personal identifiers and the Patient Study Numbers will be retained only by the PI.",
+      "page": 4,
+      "confidence": 0.94,
+      "reasoning": "The PI keeps the linking list."
+    },
+    {
+      "question": "handling/storage/location",
+      "extractedAnswer": ["workstation", "paper"],
+      "quote": "This linked data will be stored only on a password protected personal computer hard drive retained by the PI",
+      "page": 4,
+      "confidence": 0.87,
+      "reasoning": "The key is kept on the PI's own computer and handed to chart reviewers on paper; coded data goes into REDCap."
+    },
+    {
+      "question": "digital/uhnHosted",
+      "extractedAnswer": true,
+      "quote": "Deidentified data will be collected onto a spreadsheet and retained in Redcap.",
+      "page": 4,
+      "confidence": 0.68,
+      "reasoning": "REDCap is named as the data collection tool; the protocol does not say whose instance, so this assumes the institutional one."
+    },
+    {
+      "question": "team/healthProfessionals",
+      "extractedAnswer": true,
+      "quote": "All others collecting data will be either members of the Dept of Anesthesia at VGH & UBCH, or Medical Students from a Canadian University",
+      "page": 4,
+      "confidence": 0.92,
+      "reasoning": "The PI is an anesthesiologist and data collectors are anesthesia department members or medical students."
+    },
+    {
+      "question": "resources/analyst",
+      "extractedAnswer": true,
+      "quote": "Statistical analysis will be conducted with the aid of a Statistician affiliated with the UBC Department of Statistics",
+      "page": 3,
+      "confidence": 0.86,
+      "reasoning": "The SAP relies on a dedicated statistician for the analysis.",
+      "document": "sap"
+    },
+    {
+      "question": "handling/results/reporting",
+      "extractedAnswer": "aggregate",
+      "quote": "Data will be reported as percentages or means +/- confidence intervals as appropriate.",
+      "page": 3,
+      "confidence": 0.72,
+      "reasoning": "Results are summary statistics; the SAP says nothing about suppressing small counts.",
+      "document": "sap"
+    }
+  ],
+  "screening": {
+    "summary": "A small, records-only cohort study of about 120 STAR hip arthroplasty patients, with a sensible coding scheme and a clear analysis plan. Two things need tidying: the protocol's description of where the linking key is kept doesn't match the form, and results have no small-cell rule although several cells will be tiny. Custodian approval for the provincial record look-ups is still pending.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "classification",
+        "summary": "Records only, no contact, and the data comes from care records and the STAR program list. Research is the right classification: the study tests a hypothesis and is meant to size a future prospective study.",
+        "comments": []
+      },
+      {
+        "approval": "reb",
+        "topic": "terminology",
+        "summary": "The protocol calls the work quality assurance throughout, while the form files it as research.",
+        "comments": [
+          {
+            "text": "The protocol describes the study as quality assurance in the objective, the design and the conclusion, but the form classifies it as research. The form is right, given the hypothesis testing and the plan to inform a future study, but the protocol's wording could lead someone to treat it as exempt QA later.",
+            "kind": "conflict",
+            "severity": "minor",
+            "suggestion": "Amend the protocol to describe the work as a retrospective cohort research study.",
+            "subjects": ["classification/purpose", "protocol"],
+            "quote": "This project is a retrospective cohort quality assurance study.",
+            "page": 2
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "identifiability",
+        "summary": "Coded data with the key held by the PI, kept apart from all data sheets. Proportionate for a 120-patient chart review.",
+        "comments": [
+          {
+            "text": "The SAP compares age and gender across the three cohorts, but in its spreadsheet layout those two columns appear only on the De-identifier sheet that holds the names, DOB and MRN. As written, the statistician would need the key sheet to run the demographic comparison.",
+            "kind": "gap",
+            "severity": "minor",
+            "suggestion": "Copy age and gender into the coded All Patient List (Spreadsheet 2) and keep them off the key list, or confirm they will be in the REDCap forms.",
+            "subjects": ["variables", "identifiability/fields"],
+            "quote": "Demographic data (age and gender) will be statistically compared between the three cohorts as follows.",
+            "page": 4,
+            "document": "sap"
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "waiver",
+        "summary": "Each condition is argued. Identifiers are needed only to find charts, there's no foreseeable effect on welfare, and a 30-day safety rate needs the whole cohort, since patients who had complications may well answer a consent request differently.",
+        "comments": []
+      },
+      {
+        "approval": "reb",
+        "topic": "authority",
+        "summary": "UHN data is covered by PHIPA s. 44 once approved. The provincial record look-ups need Ontario Health's approval, which is still pending.",
+        "comments": [
+          {
+            "text": "Looking up every patient in ConnectingOntario is research use of a system whose access terms are written for clinical care. Approval from Ontario Health is marked pending, and the look-ups are central to the primary outcome.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Make approval conditional on Ontario Health's written approval, and file it with the REB before any look-ups begin.",
+            "subjects": ["access/custodianApproval", "access/custodian"],
+            "quote": "It is for this reason that the BC Care Connect network will be accessed for each patient",
+            "page": 3
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "linkage",
+        "summary": "The only linkage is a per-patient look-up of outside hospital visits, and only the visit, its timing and the surgical problem are recorded. The coded file gains nothing identifying from it.",
+        "comments": []
+      },
+      {
+        "approval": "reb",
+        "topic": "safeguards",
+        "summary": "Good separation of key and data, and paper copies are shredded after collection. Where the key lives is inconsistent between the form and the protocol.",
+        "comments": [
+          {
+            "text": "The form says the key list is kept on the UHN network drive, with no deviation from the records policy. The protocol and the SAP both say it is kept on a password protected personal computer hard drive, which would not meet UHN policy for identifiable data.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Confirm the key is on the UHN network drive or an encrypted UHN device, and amend the protocol and SAP to match.",
+            "subjects": ["handling/storage/location", "handling/storage/policyDeviation", "protocol"],
+            "quote": "This linked data will be stored only on a password protected personal computer hard drive retained by the PI",
+            "page": 4
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "reporting",
+        "summary": "Results are aggregate, but with no rule for small counts in a cohort this small.",
+        "comments": [
+          {
+            "text": "Only about 24 patients went home the same day, and the SAP already expects cells small enough to need Fisher's exact test. Return counts of one to five patients, broken down by days post-op and the nature of the problem, could point to individuals, especially for staff who know the program.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Set a suppression threshold (commonly fewer than 5) for counts in tables and the text, and describe complications in categories rather than case by case.",
+            "subjects": ["handling/results/reporting", "handling/results/threshold"],
+            "quote": "unless expected values are less than 10 (with degrees of freedom of 1) in which case Fisher’s Exact Test will be used",
+            "page": 5,
+            "document": "sap"
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "rigour",
+        "summary": "Inclusion is everyone flagged at booking, the only exclusion is not having surgery, and the SAP moves to Fisher's exact test for small counts. The groups differ in fitness by design, which the protocol accepts by presenting this as a preliminary safety assessment.",
+        "comments": []
+      },
+      {
+        "approval": "reb",
+        "topic": "dateRange",
+        "summary": "Records run from October 2018 to October 2019, well in the past, so no one is still in follow-up.",
+        "comments": []
+      },
+      {
+        "approval": "digitalReview",
+        "topic": "hosted",
+        "summary": "The only tool is UHN's own REDCap instance, the statistician works on a UHN virtual desktop, and nothing leaves UHN. Nothing to raise.",
+        "comments": []
+      }
+    ]
+  },
+  "variableList": [
+    {"field": "Patient Study Number", "source": "Assigned by the PI", "identifying": false, "why": "Links each patient's rows across the coded forms without identifiers."},
+    {"field": "MRN", "source": "UHN EPR / Epic", "identifying": true, "why": "Key list only. Used to pull the UHN chart."},
+    {"field": "Last name", "source": "STAR enrolment list", "identifying": true, "why": "Key list only. Needed for the ConnectingOntario look-up."},
+    {"field": "First name", "source": "STAR enrolment list", "identifying": true, "why": "Key list only. Needed for the ConnectingOntario look-up."},
+    {"field": "Date of birth", "source": "UHN EPR / Epic", "identifying": true, "why": "Key list only. Confirms the right patient in ConnectingOntario."},
+    {"field": "Date of surgery", "source": "UHN EPR / Epic", "identifying": true, "why": "Key list only. Start of the 30-day window."},
+    {"field": "Age at surgery", "source": "UHN EPR / Epic", "identifying": false, "why": "Compare age across the three cohorts (secondary outcome)."},
+    {"field": "Gender", "source": "UHN EPR / Epic", "identifying": false, "why": "Compare gender across the three cohorts (secondary outcome)."},
+    {"field": "Removed from STAR pathway (Y/N)", "source": "STAR enrolment list", "identifying": false, "why": "Assigns the patient to a cohort."},
+    {"field": "Discharged on day of surgery (Y/N)", "source": "UHN EPR / Epic", "identifying": false, "why": "Assigns the patient to a cohort."},
+    {"field": "Reason for STAR removal, general", "source": "UHN EPR / Epic", "identifying": false, "why": "Describes why patients failed the preop criteria."},
+    {"field": "Reason for STAR removal, specific", "source": "UHN EPR / Epic", "identifying": false, "why": "Detail behind the general reason, for the program committee."},
+    {"field": "Reason not discharged same day, general", "source": "UHN EPR / Epic", "identifying": false, "why": "Describes the day-of-surgery issues that kept eligible patients in."},
+    {"field": "Reason not discharged same day, specific", "source": "UHN EPR / Epic", "identifying": false, "why": "Detail behind the general reason."},
+    {"field": "PACU arrival time", "source": "UHN EPR / Epic", "identifying": false, "why": "Length of stay for same-day patients."},
+    {"field": "Discharge home time", "source": "UHN EPR / Epic", "identifying": false, "why": "Length of stay for same-day patients."},
+    {"field": "Duration of hospital stay (min)", "source": "Calculated", "identifying": false, "why": "Describes the same-day group."},
+    {"field": "Days in hospital post-op", "source": "UHN EPR / Epic", "identifying": false, "why": "Describes the groups that stayed overnight."},
+    {"field": "Hospital re-encounter within 30 days (Y/N)", "source": "UHN EPR / Epic, ConnectingOntario", "identifying": false, "why": "Primary outcome."},
+    {"field": "Days post-op at re-encounter", "source": "UHN EPR / Epic, ConnectingOntario", "identifying": false, "why": "Separates 7-day returns (secondary outcome) from 30-day returns."},
+    {"field": "Nature of surgical problem or complication", "source": "UHN EPR / Epic, ConnectingOntario", "identifying": false, "why": "Decides whether the return was surgery related."},
+    {"field": "Anesthesia checklist complete (Y/N)", "source": "UHN EPR / Epic", "identifying": false, "why": "Checks whether the STAR anesthesia criteria were documented."}
+  ],
+  "dataSharingAgreement": null
+}

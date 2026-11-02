@@ -1,0 +1,212 @@
+{
+  "nct": "NCT04088747",
+  "title": "Ultrasound texture model to diagnose fibromyalgia",
+  "answers": {
+    "study/pi": "Dr. Dinesh Kumbhare",
+    "study/department": "Toronto Rehabilitation Institute, MSK/pain specialty outpatient clinic. Division of Physical Medicine and Rehabilitation (University of Toronto) and IBBME for the image analysis.",
+    "study/summary": "Secondary analysis of upper trapezius ultrasound videos collected under study 15-9488 (recruitment completed Sept 6, 2019) from fibromyalgia patients and age-matched healthy controls. We extract 88 texture features from muscle regions of interest and fit an elastic net regularized logistic regression to tell FM from healthy muscle, with nested cross-validation and an 80/20 holdout.",
+    "study/sponsor": "none",
+    "classification/purpose": "research",
+    "classification/contact": "recordsOnly",
+    "classification/design": "caseControl",
+    "classification/question": "Can texture features from B-mode ultrasound of the upper trapezius discriminate fibromyalgia from healthy muscle (above 70% accuracy), does regularization help, and does the holdout set confirm the cross-validated performance?",
+    "classification/cohort/population": "Participants of 15-9488, aged 20 to 65: patients meeting the 2016 FM criteria with chronic widespread pain and no myofascial trigger points, and age-matched healthy controls with no past medical history.",
+    "classification/cohort/startDate": "2015-01-01",
+    "classification/cohort/endDate": "2019-09-06",
+    "classification/cohort/dateRationale": "Everyone enrolled in 15-9488, from its opening to the end of recruitment.",
+    "classification/cohort/records": 60,
+    "classification/cohort/exclusions": ["completeness"],
+    "classification/cohort/exclusionsWhy": "Videos that fail the quality check (intensity, contrast, visible muscle fibres) are dropped, we expect under 15%. The age range is the original study's.",
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": ["researchConsent"],
+    "classification/sources/dataSources": ["priorResearch", "imaging"],
+    "classification/sources/sourceDetails": "Study 15-9488 (CAPCR 15-9488), Dr. Kumbhare's lab at Toronto Rehab: upper trapezius ultrasound videos (Sonosite X-porte, one 10-second sweep per side), plus group, age and sex from the study forms.",
+    "classification/sources/external": false,
+    "identifiability/arrival": "codedTeamKey",
+    "identifiability/keyHolder": "team",
+    "identifiability/fields": "Study ID, group (FM or healthy), age, sex, side, and the ultrasound videos. Age and sex describe the groups and check the age matching. No names, MRNs or dates of birth in the analysis files.",
+    "identifiability/recognizable": "unlikely",
+    "identifiability/lessIdentifiable": "no",
+    "identifiability/lessIdentifiableWhy": "The key stays with the original study so we can honour a participant's request to withdraw their data before publication, which the consent promised.",
+    "identifiability/reidentification": "Files named by study ID only. The key is a separate file on the PI's UHN drive. Only aggregate model results are published.",
+    "identifiability/linkage": ["no"],
+    "consent/sought": "all",
+    "consent/priorConsent": true,
+    "consent/priorConsentCapcr": "15-9488",
+    "access/custodian": "Dr. Dinesh Kumbhare (study 15-9488)",
+    "access/custodianApproval": "self",
+    "access/authority": ["originalConsent"],
+    "sensitivity/categories": ["none"],
+    "sensitivity/indigenous": "no",
+    "sensitivity/equity": true,
+    "handling/leaving/leaves": ["no"],
+    "handling/leaving/otherUses": ["none"],
+    "handling/storage/location": ["server", "workstation"],
+    "handling/storage/access": "Videos and the key on the Toronto Rehab research drive, access limited to the four study team members. Processing in MATLAB on a UHN lab workstation, encrypted, UHN login.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "destroyed",
+    "handling/storage/retentionPeriod": "10 years after publication",
+    "handling/storage/breachHarm": ["minimal"],
+    "handling/storage/pia": "notRequired",
+    "handling/storage/disclosure": ["none"],
+    "handling/results/reporting": "aggregate",
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "The videos are analyzed as texture features, nobody reads them clinically. If something clearly abnormal is noticed, Dr. Kumbhare reviews it and follows up through the clinic.",
+    "digital/uhnHosted": true,
+    "digital/integration": false,
+    "digital/external": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/previouslyApproved": false,
+    "digital/ai/used": false,
+    "team/gcpDate": "2022-03-14",
+    "team/healthProfessionals": true,
+    "team/hpRoles": ["pi"],
+    "team/hpIdentifiable": false,
+    "team/conflict": false,
+    "team/glossary": true,
+    "resources/funding": false,
+    "resources/staff": false,
+    "resources/extraction": false,
+    "resources/analyst": false,
+    "resources/similar": true,
+    "resources/overlap": "Our earlier myofascial pain syndrome classifier used the same ultrasound protocol on the trapezius. Different participants and a different question.",
+    "resources/collaboration": true,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": true,
+    "agreements/involved": false
+  },
+  "weaknesses": [
+    "AI not declared: digital/ai/used false, but the study trains an elastic net classifier in MATLAB's Statistics and Machine Learning Toolbox as a diagnostic aid (p. 9-10), so the AI questions and the AI Hub intake are skipped.",
+    "Undeclared sharing: handling/leaving/otherUses 'none' and leaves 'no', while the protocol says the datasets will be available from the corresponding author on reasonable request (p. 13)."
+  ],
+  "extractions": [
+    {
+      "question": "classification/design",
+      "extractedAnswer": "caseControl",
+      "quote": "This proposed study is a diagnostic case-control study with one major independent binary outcome measure (FM present or Healthy), to create 2 patient cohort groups.",
+      "page": 6,
+      "confidence": 0.93,
+      "reasoning": "The Study Design section names it a diagnostic case-control study."
+    },
+    {
+      "question": "classification/cohort/endDate",
+      "extractedAnswer": "2019-09-06",
+      "quote": "Recruitment: Completed Sept. 6, 2019",
+      "page": 13,
+      "confidence": 0.72,
+      "reasoning": "The trial status gives the end of recruitment, which bounds the records available for this analysis."
+    },
+    {
+      "question": "consent/priorConsentCapcr",
+      "extractedAnswer": "15-9488",
+      "quote": "Number: 15-9488.8). The approval form is included in the supplementary files of this submission.",
+      "page": 13,
+      "confidence": 0.7,
+      "reasoning": "The declarations give the UHN REB approval of the original consented study as 15-9488.8; the CAPCR number is the part before the amendment suffix."
+    },
+    {
+      "question": "digital/ai/used",
+      "extractedAnswer": true,
+      "quote": "This will be done using MATLAB and the Statistics and Machine Learning Toolbox",
+      "page": 9,
+      "confidence": 0.82,
+      "reasoning": "The model is a machine-learned classifier trained on the study's images and meant as a computer-aided diagnosis tool."
+    },
+    {
+      "question": "handling/leaving/otherUses",
+      "extractedAnswer": ["sharing"],
+      "quote": "The datasets used and/or analyzed during the study will be available from the corresponding author upon reasonable request.",
+      "page": 13,
+      "confidence": 0.8,
+      "reasoning": "Making the datasets available on request is sharing outside the listed team."
+    },
+    {
+      "question": "team/conflict",
+      "extractedAnswer": false,
+      "quote": "The authors declare that they have no competing interests.",
+      "page": 13,
+      "confidence": 0.94,
+      "reasoning": "The declarations state no competing interests."
+    }
+  ],
+  "screening": {
+    "summary": "A small, consented secondary use of the team's own ultrasound data, kept inside UHN. Two answers don't match the protocol: the classifier is machine learning but AI is marked as not used, and the protocol offers the datasets on request while the form declares no other use. The videos themselves may carry identifiers.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "ai",
+        "summary": "The study develops a machine-learned diagnostic classifier on participant images, which is AI development under UHN's governance, though it runs entirely on a local workstation.",
+        "comments": [
+          {
+            "text": "AI is marked as not used, but the study trains an elastic net regularized classifier on the participants' ultrasound images, aimed at computer-aided diagnosis of fibromyalgia. That is model development on study data, so the AI questions (use, where it runs, training, phase, governance) should be answered.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Answer yes, development phase, local processing, data used for training, and confirm the AI governance documents were read.",
+            "subjects": ["digital/ai/used"],
+            "quote": "construct and train an elastic net regularized logistic regression model on the dataset using the binary class labels",
+            "page": 9
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "transfer",
+        "summary": "Nothing leaves UHN during the analysis, but the protocol commits to sharing the datasets on request after it, which the form doesn't declare.",
+        "comments": [
+          {
+            "text": "The protocol says the datasets will be available from the corresponding author on reasonable request, but the form says no other use and nothing leaving UHN. The consent under 15-9488 may not cover sharing, and the videos are not anonymized.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Either remove the statement or declare sharing, limit it to the extracted texture features (not the videos), check it against the original consent, and put it under an agreement.",
+            "subjects": ["handling/leaving/otherUses", "handling/leaving/leaves", "priorConsentForm"],
+            "quote": "The datasets used and/or analyzed during the study will be available from the corresponding author upon reasonable request.",
+            "page": 13
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "identifiability",
+        "summary": "Coded data with a team-held key, justified by the withdrawal promise in the consent. Reasonable for a small consented cohort, with one practical gap.",
+        "comments": [
+          {
+            "text": "Ultrasound exports often carry the patient name or ID and the exam date, burned into the frame or in the file metadata. The form doesn't say whether the Sonosite videos were exported without them.",
+            "kind": "gap",
+            "severity": "minor",
+            "suggestion": "Confirm the videos are free of on-screen and metadata identifiers, or crop to the region of interest and strip metadata before analysis.",
+            "subjects": ["identifiability/reidentification", "variables"]
+          }
+        ]
+      },
+      {
+        "approval": "digitalReview",
+        "topic": "ai",
+        "summary": "Training runs in MATLAB on a UHN workstation and no data goes to an external service, so the risk is low. Once AI use is declared, the model training still needs the AI Hub intake.",
+        "comments": []
+      }
+    ]
+  },
+  "variableList": [
+    {"field": "Study ID", "source": "15-9488 study forms", "identifying": false, "why": "Links videos to group without names."},
+    {"field": "Group (fibromyalgia or healthy control)", "source": "15-9488 study forms", "identifying": false, "why": "Binary outcome the model predicts."},
+    {"field": "Age", "source": "15-9488 study forms", "identifying": false, "why": "Describe the groups and check age matching."},
+    {"field": "Sex", "source": "15-9488 study forms", "identifying": false, "why": "Describe the groups."},
+    {"field": "2016 FM criteria met", "source": "15-9488 eligibility assessment", "identifying": false, "why": "Confirms the FM label."},
+    {"field": "Myofascial trigger points absent", "source": "15-9488 eligibility assessment", "identifying": false, "why": "Inclusion criterion, separates FM from MPS."},
+    {"field": "Exercise in the 3 days before imaging", "source": "15-9488 eligibility assessment", "identifying": false, "why": "Exclusion criterion, exercise changes the muscle image."},
+    {"field": "Side imaged (left or right)", "source": "Ultrasound video", "identifying": false, "why": "One video per side; keep both sides of a participant in the same split."},
+    {"field": "Upper trapezius ultrasound video (10 s)", "source": "Sonosite X-porte", "identifying": false, "why": "Source images for the texture features."},
+    {"field": "Image settings (depth, sector size, gain)", "source": "Sonosite X-porte", "identifying": false, "why": "Check settings were constant across participants."},
+    {"field": "Quality check result", "source": "Derived, MATLAB", "identifying": false, "why": "Excludes videos with poor intensity, contrast or fibre visibility."},
+    {"field": "Selected frames (CW-SSIM filter)", "source": "Derived, MATLAB", "identifying": false, "why": "Unique frames with minimal overlap."},
+    {"field": "Region of interest", "source": "Derived, MATLAB", "identifying": false, "why": "Muscle only, excluding fascial borders."},
+    {"field": "First-order histogram features (4)", "source": "Derived, MATLAB", "identifying": false, "why": "Mean, SD, skewness, kurtosis of grayscale."},
+    {"field": "GLCM texture features (76)", "source": "Derived, MATLAB", "identifying": false, "why": "Model inputs."},
+    {"field": "Run-length features (7)", "source": "Derived, MATLAB", "identifying": false, "why": "Model inputs."},
+    {"field": "Train or holdout assignment", "source": "Derived", "identifying": false, "why": "80/20 split for holdout validation."}
+  ],
+  "dataSharingAgreement": null
+}

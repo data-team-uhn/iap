@@ -1,0 +1,14 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Medium",
+  "description": "Should be addressed before approval.",
+  "category": [
+    "severity"
+  ],
+  "color": "#8a5410",
+  "icon": "WarningAmberOutlined",
+  "order": 30,
+  "targetResourceTypes": [
+    "sub/Comment"
+  ]
+}

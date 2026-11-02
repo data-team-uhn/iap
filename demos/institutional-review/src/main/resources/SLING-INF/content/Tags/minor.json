@@ -1,0 +1,14 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Minor",
+  "description": "Worth fixing, does not hold up approval.",
+  "category": [
+    "severity"
+  ],
+  "color": "#55408f",
+  "icon": "InfoOutlined",
+  "order": 40,
+  "targetResourceTypes": [
+    "sub/Comment"
+  ]
+}

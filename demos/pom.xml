@@ -36,6 +36,7 @@
   -->
   <modules>
     <module>data-study</module>
+    <module>institutional-review</module>
     <module>time-off-request</module>
   </modules>
 </project>

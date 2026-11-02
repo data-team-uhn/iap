@@ -1,0 +1,13 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Retrospective data study",
+  "systemWorkflow": false,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    // This workflow is automatically derived from the BPMN file
+    "bpmnAuthoritative": true,
+    "tags": ["active"],
+    "description": "PRETOTYPE. The study team describes the study; every reviewer group it concerns reviews it in parallel, each against a 15-day deadline; the REB can send it back for changes."
+  }
+}
