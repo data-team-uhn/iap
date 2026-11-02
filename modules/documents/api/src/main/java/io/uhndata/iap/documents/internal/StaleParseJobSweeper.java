@@ -275,15 +275,31 @@ public class StaleParseJobSweeper implements Runnable
             // The record is all that names the folder: kept, so the next sweep tries again
             return;
         }
+        final String target = jobNode.getValueMap().get(ParseJob.PN_TARGET, String.class);
         try {
             resolver.delete(jobNode);
             resolver.commit();
             LOGGER.info("Parse job {} settled more than {} minutes ago; its record is dropped", jobId,
                 this.maxAgeMinutes);
+            if (target != null) {
+                reportUntaken(jobId, target);
+            }
         } catch (final PersistenceException e) {
             LOGGER.error("Cannot drop the record of parse job {}: {}", jobId, e.getMessage(), e);
             resolver.revert();
         }
+    }
+
+    /**
+     * Say that an outcome nobody took is gone. A job with a target is dropped as soon as a handler takes it, so one
+     * still here was refused on every sweep, and whatever waited on it may now wait for good.
+     */
+    private void reportUntaken(final String jobId, final String target)
+    {
+        LOGGER.warn("No handler took the outcome of parse job {} for {} within {} minutes; it is dropped", jobId,
+            target, this.maxAgeMinutes);
+        ErrorLogger.logProblem("A parse outcome was never taken in, so its file may stay waiting for it",
+            ErrorContext.of(StaleParseJobSweeper.class, "forget").about(target).with("job", jobId));
     }
 
     /**
