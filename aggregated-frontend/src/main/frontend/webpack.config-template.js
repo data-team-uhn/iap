@@ -29,6 +29,8 @@ const __dirname = path.dirname(__filename);
 
 const isProduction = process.argv.find(arg => arg.startsWith("--mode"))?.substring(7) == 'production';
 
+const FRONTEND_RESOURCES_PATH = '/libs/iap/resources/';
+
 /**
  * Helper function to format and log React Compiler events
  * @param {string} filename - The full file path
@@ -186,7 +188,10 @@ ENTRY_CONTENT
       splitChunks: {
         chunks: 'all',
         cacheGroups: {
+          // Only what pages load up front. A package only ever imported with import() keeps a chunk
+          // of its own, loaded the first time a screen asks for it.
           defaultVendors: {
+            chunks: 'initial',
             minChunks: 1,
             minSize: 200,
             test: /[\\/]node_modules[\\/]/,
@@ -210,7 +215,8 @@ ENTRY_CONTENT
         type: "modern-module",
       },
       path: __dirname + '/dist/SLING-INF/content/libs/iap/resources/',
-      publicPath: '/',
+      // Where the runtime loads a chunk from when the code asks for it later, with import()
+      publicPath: FRONTEND_RESOURCES_PATH,
       filename: '[name].[contenthash].js',
     }
   }
