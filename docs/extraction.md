@@ -149,6 +149,10 @@ staging folder. If the folder cannot be removed, the record is kept, since it is
 that names the folder, and the next sweep tries again. A day after the job settled
 (`GIVE_UP_ON_FOLDER_MILLISECONDS`) the record is dropped anyway, with an `ERROR` log
 line and the problem "A parse staging folder cannot be removed" for an administrator.
+A record that names a `target` is dropped only when no handler ever took its outcome, so
+whatever waited on it may wait for good: that is logged as a `WARN` and recorded as the
+problem "A parse outcome was never taken in". A file left `queued` that way keeps the
+reading waiting until the submitter presses Stop.
 
 So the same outcome can reach the handlers more than once: offered again on a sweep, or
 again after its record could not be deleted. A `ParseOutcomeHandler` must therefore be
