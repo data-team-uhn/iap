@@ -29,6 +29,9 @@
     "{https://iap.uhndata.io/bpmn}linkType=linkType",
     "{https://iap.uhndata.io/bpmn}linkLabel=linkLabel",
     "{https://iap.uhndata.io/bpmn}requirement=requirement",
-    "{https://iap.uhndata.io/bpmn}subject=subject"
+    "{https://iap.uhndata.io/bpmn}subject=subject",
+    "{https://iap.uhndata.io/bpmn}action=action",
+    "{https://iap.uhndata.io/bpmn}duration=duration",
+    "{https://iap.uhndata.io/bpmn}fastTrackDuration=fastTrackDuration"
   ]
 }
