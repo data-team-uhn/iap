@@ -24,6 +24,7 @@ import {
   answerCap,
   countGuidance,
   fetchForm,
+  isBeingRead,
   isMultiple,
   isQuestion,
   isRequired,
@@ -44,6 +45,15 @@ describe("isQuestion", () => {
   it("tells a question apart from a section", () => {
     expect(isQuestion({ type: QUESTION } as FormItem)).toBe(true);
     expect(isQuestion({ type: SECTION } as FormItem)).toBe(false);
+  });
+});
+
+describe("isBeingRead", () => {
+  it("holds while a reading is running, and not once it has ended any way", () => {
+    expect(isBeingRead("running")).toBe(true);
+    expect(isBeingRead("done")).toBe(false);
+    expect(isBeingRead("failed")).toBe(false);
+    expect(isBeingRead(undefined)).toBe(false);
   });
 });
 
