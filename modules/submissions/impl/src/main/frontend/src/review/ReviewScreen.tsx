@@ -343,10 +343,10 @@ export default function ReviewScreen({ path }: { path: string }) {
         return (
           <ListItemButton
             key={requirement.name} selected={requirement.name === current?.name} onClick={() => go(requirement.name)}
-            sx={{ borderRadius: 1, opacity: mine(requirement) ? 1 : 0.55 }}
+            sx={{ borderRadius: 1, py: 0.25, opacity: mine(requirement) ? 1 : 0.55 }}
           >
-            <ListItemText primary={requirement.label} />
-            {count > 0 && <Chip size="small" label={count} sx={{ ml: 1 }} />}
+            <ListItemText primary={requirement.label} slotProps={{ primary: { variant: "body2" } }} sx={{ my: 0.25 }} />
+            {count > 0 && <Chip size="small" label={count} sx={{ ml: 1, height: 20 }} />}
           </ListItemButton>
         );
       })}
@@ -354,13 +354,13 @@ export default function ReviewScreen({ path }: { path: string }) {
   );
 
   return (
-    <Stack spacing={2}>
-      <Link component={RouterLink} to="/">← Back to your queue</Link>
-      <Paper sx={{ p: 2 }}>
-        <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 2, alignItems: { md: "flex-start" } }}>
+    <Stack spacing={1.5}>
+      <Link component={RouterLink} to="/" variant="body2">← Back to your queue</Link>
+      <Paper sx={{ px: 2, py: 1.5 }}>
+        <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: { xs: 0.5, md: 2 }, alignItems: { md: "flex-start" } }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Stack direction="row" sx={{ alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-              <Typography variant="pageTitle" component="h1">{text(submission.title)}</Typography>
+            <Stack direction="row" sx={{ alignItems: "center", columnGap: 1, flexWrap: "wrap" }}>
+              <Typography variant="h5" component="h1">{text(submission.title)}</Typography>
               <TagChip tags={submission.tags} category="lifecycle" />
               <TagChip tags={submission.tags} category="priority" />
             </Stack>
@@ -370,7 +370,8 @@ export default function ReviewScreen({ path }: { path: string }) {
           </Box>
           <Countdown due={submission.reviewDue} pausedAt={submission.reviewPausedAt} variant="subtitle1" />
         </Stack>
-        <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 2, mt: 2, alignItems: { sm: "center" } }}>
+        <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: { xs: 1, sm: 2 }, mt: 1.5, alignItems: { sm: "center" },
+          flexWrap: "wrap" }}>
           <ClickAwayListener onClickAway={() => setSearching(false)}>
             <Box sx={{ position: "relative", flex: 1, maxWidth: { sm: 480 } }}>
               <TextField
@@ -418,10 +419,11 @@ export default function ReviewScreen({ path }: { path: string }) {
             </Stack>
           )}
         </Stack>
-        <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap", mt: 2 }} role="group" aria-label="Which notes to show">
+        <Stack direction="row" sx={{ gap: 0.75, flexWrap: "wrap", mt: 1.5 }} role="group" aria-label="Which notes to show">
           {NOTE_KINDS.map(info => (
             <Chip
               key={info.kind}
+              size="small"
               label={info.label}
               variant={shown.has(info.kind) ? "filled" : "outlined"}
               onClick={() => toggleKind(info.kind)}
@@ -434,15 +436,17 @@ export default function ReviewScreen({ path }: { path: string }) {
           ))}
         </Stack>
       </Paper>
-      <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 2, alignItems: "flex-start" }}>
-        <Paper sx={{ p: 1, width: { xs: "100%", md: 260 }, flexShrink: 0, position: { md: "sticky" }, top: { md: 16 } }}>
+      <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, alignItems: "flex-start" }}>
+        <Paper sx={{ p: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0, position: { md: "sticky" }, top: { md: 16 } }}>
           {rail}
         </Paper>
-        <Paper sx={{ p: 2, flex: 1, minWidth: 0, width: "100%" }}>
+        <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%" }}>
           {current && (
             <>
-              <Typography variant="h6" component="h2">{current.label}</Typography>
-              {current.description && <Typography variant="description">{current.description}</Typography>}
+              <Stack direction="row" sx={{ alignItems: "baseline", columnGap: 1.5, flexWrap: "wrap" }}>
+                <Typography variant="h6" component="h2">{current.label}</Typography>
+                {current.description && <Typography variant="description">{current.description}</Typography>}
+              </Stack>
               {isFormRequirement(current) && (
                 <FormReview
                   items={current.items} data={data} groups={groups} myGroups={myGroups} isMine={minePart}
@@ -450,7 +454,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                 />
               )}
               {isDocumentRequirement(current) && shownDocument && (
-                <Box sx={{ mt: 2 }}>
+                <Box sx={{ mt: 1 }}>
                   <DocumentReview
                     key={current.name}
                     document={shownDocument} data={data} shown={shown} selected={mark.id}

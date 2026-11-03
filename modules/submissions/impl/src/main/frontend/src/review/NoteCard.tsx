@@ -63,7 +63,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove 
   }
   return (
     <Box>
-      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap", mb: 0.5 }}>
         <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
           {info.single}
         </Typography>
@@ -113,7 +113,10 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove 
           ))}
         </Stack>
       )}
-      {canAnswer && !replying && <Button size="small" sx={{ ml: -1 }} onClick={() => setReplying(true)}>Reply</Button>}
+      {canAnswer && !replying && (
+        <Button size="small" variant="text" sx={{ ml: -0.75, mt: 0.25, minWidth: 0, px: 0.75 }}
+          onClick={() => setReplying(true)}>Reply</Button>
+      )}
       {canAnswer && replying && (
         <Box sx={{ mt: 1 }}>
           <Composer

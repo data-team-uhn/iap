@@ -21,7 +21,7 @@ import { useState } from "react";
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
-import { Box, Button, Chip, Stack, Typography } from "@mui/material";
+import { Box, Chip, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 
 import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
@@ -65,7 +65,7 @@ function GroupChips({ groups, mine }: { groups: ReviewGroup[] | undefined; mine:
         <Chip
           key={group.name} size="small" variant="outlined" label={groupShortName(group.label)}
           color={mine.includes(group.group) ? "primary" : "default"}
-          sx={{ height: 20, fontSize: "caption.fontSize" }}
+          sx={{ height: 18, fontSize: "0.7rem", "& .MuiChip-label": { px: 0.75 } }}
         />
       ))}
     </Stack>
@@ -74,8 +74,9 @@ function GroupChips({ groups, mine }: { groups: ReviewGroup[] | undefined; mine:
 
 // PRETOTYPE. One question, compact: what was asked, what was answered, which groups asked it, where the answer
 // was found in the protocol, and everything written about it.
-function QuestionReview({ question, data, groups, myGroups, shown, faded, onEvidence, actions }: {
+function QuestionReview({ question, data, groups, myGroups, shown, faded, onEvidence, actions, homeOf }: {
   question: FormQuestion;
+  homeOf: Map<string, string>;
   data: ReviewData;
   groups: Map<string, ReviewGroup[]>;
   myGroups: string[];
@@ -89,53 +90,64 @@ function QuestionReview({ question, data, groups, myGroups, shown, faded, onEvid
   const notes = answer ? notesAbout(data.notes, [ answer.uuid ]) : [];
   const evidence = notes.find(note => note.kind === "evidence");
   const differs = disagrees(question, evidence?.extracted);
-  const others = notes.filter(note => note.kind !== "evidence" && shown.has(note.kind));
+  // A note about several answers shows under the first of them only
+  const others = notes.filter(note => note.kind !== "evidence" && shown.has(note.kind)
+    && (homeOf.get(note.id) ?? question.path) === question.path);
   return (
     <Box
       id={`question-${question.path}`}
-      sx={{ py: 1.5, borderBottom: 1, borderColor: "divider", opacity: faded ? 0.55 : 1, scrollMarginTop: 96 }}
+      sx={{ py: 1, borderBottom: 1, borderColor: "divider", opacity: faded ? 0.55 : 1, scrollMarginTop: 96 }}
     >
-      <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: { xs: 0.5, md: 2 } }}>
-        <Box sx={{ flex: "1 1 0", minWidth: 0 }}>
+      <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: { xs: 0.25, md: 2 }, alignItems: "baseline" }}>
+        <Stack direction="row" sx={{ flex: "1 1 0", minWidth: 0, gap: 0.75, flexWrap: "wrap", alignItems: "baseline" }}>
           <Typography variant="body2" sx={{ color: "text.secondary" }}>{question.text}</Typography>
           <GroupChips groups={groups.get(question.path)} mine={myGroups} />
-        </Box>
-        <Box sx={{ flex: "1 1 0", minWidth: 0 }}>
-          <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", fontWeight: "fontWeightMedium" }}>
-            {answerText(question, question.value)}
-          </Typography>
-          <Stack direction="row" sx={{ alignItems: "center", gap: 1, flexWrap: "wrap", mt: 0.5 }}>
+        </Stack>
+        <Stack direction="row" sx={{ flex: "1 1 0", minWidth: 0, gap: 1, alignItems: "flex-start" }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", fontWeight: "fontWeightMedium" }}>
+              {answerText(question, question.value)}
+            </Typography>
             {evidence && shown.has("evidence") && (
-              <Button
-                size="small" color="evidence" startIcon={<ArticleOutlined />} sx={{ ml: -0.5 }}
-                onClick={() => onEvidence(evidence)}
-              >
-                In the protocol{evidence.passage?.page ? `, page ${evidence.passage.page}` : ""}
-              </Button>
-            )}
-            {differs && shown.has("evidence") && (
-              <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "warning.main" }}>
-                <ErrorOutlineOutlined fontSize="small" />
-                <Typography variant="caption" sx={{ color: "warning.main" }}>
-                  The protocol says {answerText(question, evidence?.extracted?.split(";").map(one => one.trim()) ?? [])}
-                </Typography>
+              <Stack direction="row" sx={{ alignItems: "center", columnGap: 1.5, flexWrap: "wrap" }}>
+                {
+                  <Link
+                    component="button" variant="caption" underline="hover"
+                    onClick={() => onEvidence(evidence)}
+                    sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: "evidence.main" }}
+                  >
+                    <ArticleOutlined sx={{ fontSize: "1rem" }} />
+                    In the protocol{evidence.passage?.page ? `, page ${evidence.passage.page}` : ""}
+                  </Link>
+                }
+                {differs && (
+                  <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "warning.main" }}>
+                    <ErrorOutlineOutlined sx={{ fontSize: "1rem" }} />
+                    <Typography variant="caption" sx={{ color: "warning.main" }}>
+                      The protocol says {answerText(question,
+                        evidence.extracted?.split(";").map(one => one.trim()) ?? [])}
+                    </Typography>
+                  </Stack>
+                )}
               </Stack>
             )}
-            {!writing && (
-              <Button
-                size="small" startIcon={<AddCommentOutlined />} sx={{ ml: "auto" }} onClick={() => setWriting(true)}
+          </Box>
+          {!writing && (
+            <Tooltip title="Write about this">
+              <IconButton
+                size="small" onClick={() => setWriting(true)} sx={{ mt: -0.5 }}
                 aria-label={`Write about: ${question.text}`}
               >
-                Write
-              </Button>
-            )}
-          </Stack>
-        </Box>
+                <AddCommentOutlined fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Stack>
       </Stack>
       {(others.length > 0 || writing) && (
-        <Stack spacing={1} sx={{ mt: 1, ml: { md: "50%" } }}>
+        <Stack spacing={1} sx={{ mt: 1, ml: { md: "calc(50% + 8px)" } }}>
           {others.map(note => (
-            <Box key={note.id} sx={theme => ({ p: 1, borderRadius: 1, borderInlineStart: 3,
+            <Box key={note.id} sx={theme => ({ px: 1.5, py: 1.25, borderRadius: 1, borderInlineStart: 3,
               borderColor: theme.palette[kindInfo(note.kind).mark].main, bgcolor: "background.muted" })}
             >
               <NoteCard
@@ -147,19 +159,38 @@ function QuestionReview({ question, data, groups, myGroups, shown, faded, onEvid
             </Box>
           ))}
           {writing && answer && (
-            <Composer
-              kinds={WRITTEN} initialKind="issue"
-              onCancel={() => setWriting(false)}
-              onSave={async (kind, text, severity) => {
-                await actions.write({ kind, text, subjects: [ answer.uuid ], ...severity ? { severity } : {} });
-                setWriting(false);
-              }}
-            />
+            <Box sx={{ px: 1.5, py: 1.25, borderRadius: 1, bgcolor: "background.muted" }}>
+              <Composer
+                kinds={WRITTEN} initialKind="issue"
+                onCancel={() => setWriting(false)}
+                onSave={async (kind, text, severity) => {
+                  await actions.write({ kind, text, subjects: [ answer.uuid ], ...severity ? { severity } : {} });
+                  setWriting(false);
+                }}
+              />
+            </Box>
           )}
         </Stack>
       )}
     </Box>
   );
+}
+
+// The first shown question each note is about, in the order the form asks them
+function homes(items: FormItem[], data: ReviewData, shownQuestion: (path: string) => boolean): Map<string, string> {
+  const home = new Map<string, string>();
+  const visit = (list: FormItem[]) => list.forEach(item => {
+    if (!isQuestion(item)) {
+      visit(item.items);
+      return;
+    }
+    const answer = data.answers.get(item.path);
+    if (answer && shownQuestion(item.path)) {
+      notesAbout(data.notes, [ answer.uuid ]).forEach(note => home.has(note.id) || home.set(note.id, item.path));
+    }
+  });
+  visit(items);
+  return home;
 }
 
 // Whether anything in these items is shown
@@ -170,7 +201,7 @@ function anyShown(items: FormItem[], mine: (path: string) => boolean, whole: boo
 // The questions of a form requirement, section by section. Focused on the reviewer's own, the others are left
 // out; looking at the whole submission, they are faded.
 export default function FormReview({ items, data, groups, myGroups, isMine, whole, shown, onEvidence, actions,
-  depth = 0 }: {
+  depth = 0, homeOf }: {
   items: FormItem[];
   data: ReviewData;
   groups: Map<string, ReviewGroup[]>;
@@ -182,7 +213,10 @@ export default function FormReview({ items, data, groups, myGroups, isMine, whol
   onEvidence: (note: ReviewNote) => void;
   actions: ReviewActions;
   depth?: number;
+  // Which question each note shows under, worked out once for the whole form
+  homeOf?: Map<string, string>;
 }) {
+  const home = homeOf ?? homes(items, data, path => whole || isMine(path));
   return (
     <>
       {items.map(item => {
@@ -191,16 +225,16 @@ export default function FormReview({ items, data, groups, myGroups, isMine, whol
           return mine || whole ? (
             <QuestionReview
               key={item.path} question={item} data={data} groups={groups} myGroups={myGroups} shown={shown}
-              faded={!mine} onEvidence={onEvidence} actions={actions}
+              faded={!mine} onEvidence={onEvidence} actions={actions} homeOf={home}
             />
           ) : null;
         }
         return anyShown(item.items, isMine, whole) && (
-          <Box key={item.name} sx={{ mt: 2 }}>
+          <Box key={item.name} sx={{ mt: 1.5 }}>
             <Typography variant="subheading" component={depth === 0 ? "h3" : "h4"}>{item.label}</Typography>
             <FormReview
               items={item.items} data={data} groups={groups} myGroups={myGroups} isMine={isMine} whole={whole}
-              shown={shown} onEvidence={onEvidence} actions={actions} depth={depth + 1}
+              shown={shown} onEvidence={onEvidence} actions={actions} depth={depth + 1} homeOf={home}
             />
           </Box>
         );

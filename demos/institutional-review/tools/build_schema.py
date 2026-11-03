@@ -714,6 +714,14 @@ def build_items(prefix, items):
     return out
 
 
+def document(name, label, description, required, when):
+    node = {"jcr:primaryType": "sch:DocumentRequirement", "label": label,
+            "description": description, "required": required, "acceptedFileTypes": ["application/pdf"]}
+    if when:
+        node["cond:condition"] = condition(when)
+    return node
+
+
 def build():
     version = {
         "jcr:primaryType": "sch:SchemaVersion",
@@ -723,6 +731,10 @@ def build():
         "description": "Ask for institutional authorization of a study that uses data already collected: chart "
                        "reviews, registry and administrative data analyses, prediction models built on records.",
     }
+    # The protocol first: reviewers start from it
+    for name, label, description, required, when in DOCUMENTS[:1]:
+        paths[name] = ident(name)
+        version[name] = document(name, label, description, required, when)
     for name, label, description, items in FORMS:
         node = {"jcr:primaryType": "sch:FormRequirement", "label": label, "description": description}
         if name in EVERYONE:
@@ -730,13 +742,9 @@ def build():
             node["audience"] = "everyone"
         node.update(build_items(name, items))
         version[name] = node
-    for name, label, description, required, when in DOCUMENTS:
+    for name, label, description, required, when in DOCUMENTS[1:]:
         paths[name] = ident(name)
-        node = {"jcr:primaryType": "sch:DocumentRequirement", "label": label,
-                "description": description, "required": required, "acceptedFileTypes": ["application/pdf"]}
-        if when:
-            node["cond:condition"] = condition(when)
-        version[name] = node
+        version[name] = document(name, label, description, required, when)
     for name, label, group, description, when, topics in APPROVALS:
         node = {"jcr:primaryType": "sch:ApprovalRequirement", "label": label, "description": description,
                 "approverGroup": group}

@@ -9,6 +9,15 @@
     ],
     "jcr:reference:workflow": "/Workflows/retrospectiveStudy/v1",
     "description": "Ask for institutional authorization of a study that uses data already collected: chart reviews, registry and administrative data analyses, prediction models built on records.",
+    "protocol": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Study protocol",
+      "description": "The full protocol: background, objectives, methods, analysis plan.",
+      "required": true,
+      "acceptedFileTypes": [
+        "application/pdf"
+      ]
+    },
     "study": {
       "jcr:primaryType": "sch:FormRequirement",
       "label": "About the study",
@@ -2670,15 +2679,6 @@
           }
         }
       }
-    },
-    "protocol": {
-      "jcr:primaryType": "sch:DocumentRequirement",
-      "label": "Study protocol",
-      "description": "The full protocol: background, objectives, methods, analysis plan.",
-      "required": true,
-      "acceptedFileTypes": [
-        "application/pdf"
-      ]
     },
     "variables": {
       "jcr:primaryType": "sch:DocumentRequirement",
