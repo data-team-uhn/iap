@@ -303,7 +303,13 @@
   // provided by the submitter meets this requirement
   - aiCheckPrompt (STRING)
 
-  // Optional template document offered to submitters
+  // Whether the platform should offer to generate this document (via the
+  // `template` file below)
+  // Defaults to false.
+  - generated (BOOLEAN)
+
+  // Optional template document offered to submitters.
+  // For a generated document, this is the .docx the platform fills in
   + template (nt:file)
 
   // The sections the document is expected to contain

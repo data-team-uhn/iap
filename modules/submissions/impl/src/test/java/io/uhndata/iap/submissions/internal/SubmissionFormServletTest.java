@@ -428,6 +428,85 @@ class SubmissionFormServletTest
     }
 
     @Test
+    void saysADocumentIsGeneratedAndOffersNoBlankForIt() throws IOException
+    {
+        // Its template is what the platform fills in, not something for the submitter to start from
+        this.context.create().resource(VERSION_PATH + "/decisionLetter", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Decision letter",
+            "generated", true));
+        this.context.create().resource(VERSION_PATH + "/decisionLetter/template", Map.of(
+            "jcr:primaryType", "nt:file"));
+
+        final JsonObject form = form(REQUESTER);
+        final JsonObject letter = requirement(form, "decisionLetter");
+
+        assertTrue(letter.getBoolean("generated"));
+        assertFalse(letter.containsKey("template"), "the template must not be offered to the submitter");
+        assertFalse(letter.containsKey("templateName"));
+        assertFalse(requirement(form, "signedForm").getBoolean("generated"), "an uploaded document says so too");
+    }
+
+    // Until submitting is a workflow step (IAP-88): the submitter generates the document while still answering
+    @Test
+    void saysAGeneratedDocumentIsOutdatedOnceAnAnswerChangedAfterIt() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/decisionLetter", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Decision letter",
+            "generated", true));
+        answer(START_DATE, "2026-10-06");
+        final String answer = SUBMISSION_PATH + "/" + "2026-10-06".hashCode();
+        modify(answer, "jcr:lastModified", new GregorianCalendar(2026, Calendar.OCTOBER, 1));
+
+        assertFalse(requirement(form(REQUESTER), "decisionLetter").getBoolean("outdated"),
+            "nothing generated yet is missing, not outdated");
+
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/letter", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "Decision letter.pdf"));
+        reference(document.getPath(), VERSION_PATH + "/decisionLetter", "fulfills");
+        version(document, "v1", true);
+        created(document.getPath() + "/v1", new GregorianCalendar(2026, Calendar.OCTOBER, 2));
+        // Neither stamped nor created as far as the mock repository knows, so it says nothing either way
+        answer(END_DATE, "2026-10-09");
+
+        assertFalse(requirement(form(REQUESTER), "decisionLetter").getBoolean("outdated"));
+
+        modify(answer, "jcr:lastModified", new GregorianCalendar(2026, Calendar.OCTOBER, 3));
+
+        assertTrue(requirement(form(REQUESTER), "decisionLetter").getBoolean("outdated"));
+        assertFalse(requirement(form(REQUESTER), "doctorsNote").containsKey("outdated"),
+            "an uploaded document is the submitter's own, and never outdated");
+
+        // The submitter replaces it with a version of their own, which is theirs whatever it says
+        version(document, "v2", false);
+
+        assertFalse(requirement(form(REQUESTER), "decisionLetter").getBoolean("outdated"));
+    }
+
+    @Test
+    void offersTheDocxOfAGeneratedVersionForEditingAndNothingMoreForAnUpload() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/decisionLetter", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Decision letter",
+            "generated", true));
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/letter", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "Decision letter.pdf"));
+        reference(document.getPath(), VERSION_PATH + "/decisionLetter", "fulfills");
+        version(document, "v1", true);
+
+        final JsonObject generated = requirement(form(REQUESTER), "decisionLetter").getJsonArray("attached")
+            .getJsonObject(0);
+        assertEquals(document.getPath() + "/v1/file/uploadedFile", generated.getString("path"));
+        assertEquals(document.getPath() + "/v1/file/generated.docx", generated.getString("docx"));
+
+        version(document, "v2", false);
+
+        final JsonObject uploaded = requirement(form(REQUESTER), "decisionLetter").getJsonArray("attached")
+            .getJsonObject(0);
+        assertEquals(document.getPath() + "/v2/file/uploadedFile", uploaded.getString("path"));
+        assertFalse(uploaded.containsKey("docx"), "an upload is taken as it came, with nothing to edit beside it");
+    }
+
+    @Test
     void namesATemplateOfNoKnownTypeAfterTheRequirementAlone() throws IOException
     {
         // No label and no declared type: the requirement's name, with nothing guessed after it
@@ -772,6 +851,18 @@ class SubmissionFormServletTest
         }
     }
 
+    // By hand, through the node, since a real repository sets it itself and the mock one does not
+    private void created(final String path, final Calendar when)
+    {
+        try {
+            Objects.requireNonNull(this.context.resourceResolver().getResource(path)).adaptTo(Node.class)
+                .setProperty("jcr:created", when);
+            this.context.resourceResolver().commit();
+        } catch (final RepositoryException | PersistenceException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private static void inject(final SubmissionFormServlet servlet, final String name, final Object service)
         throws ReflectiveOperationException
     {
@@ -789,9 +880,25 @@ class SubmissionFormServletTest
      */
     private void uploaded(final Resource document)
     {
-        this.context.create().resource(document.getPath() + "/v1", Map.of(TYPE, DocumentVersion.RESOURCE_TYPE));
-        this.context.create().resource(document.getPath() + "/v1/file", Map.of(TYPE, File.RESOURCE_TYPE));
-        this.context.create().resource(document.getPath() + "/v1/file/uploadedFile",
-            Map.of("jcr:primaryType", "nt:file"));
+        version(document, "v1", false);
+    }
+
+    /**
+     * Puts a version in a document: what a submitter uploaded, or what the platform generated, which has the filled
+     * {@code .docx} beside its PDF.
+     *
+     * @param document the document
+     * @param name the version's node name
+     * @param generated whether the platform generated it
+     */
+    private void version(final Resource document, final String name, final boolean generated)
+    {
+        final String file = document.getPath() + "/" + name + "/file";
+        this.context.create().resource(document.getPath() + "/" + name, Map.of(TYPE, DocumentVersion.RESOURCE_TYPE));
+        this.context.create().resource(file, Map.of(TYPE, File.RESOURCE_TYPE));
+        this.context.create().resource(file + "/uploadedFile", Map.of("jcr:primaryType", "nt:file"));
+        if (generated) {
+            this.context.create().resource(file + "/generated.docx", Map.of("jcr:primaryType", "nt:file"));
+        }
     }
 }

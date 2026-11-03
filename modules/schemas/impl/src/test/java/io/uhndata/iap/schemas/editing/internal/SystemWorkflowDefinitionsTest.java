@@ -57,6 +57,7 @@ import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.schemas.editing.internal.handlers.CreateSchemaVersionHandler;
+import io.uhndata.iap.schemas.editing.internal.handlers.SetTemplateHandler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -78,6 +79,8 @@ class SystemWorkflowDefinitionsTest
 
     private static final String PART = "sch/SchemaPart";
 
+    private static final String DOCUMENT = "sch/DocumentRequirement";
+
     private static final String OPTION = "sch/AnswerOption";
 
     private static final String[] NONE = {};
@@ -87,11 +90,12 @@ class SystemWorkflowDefinitionsTest
     private static final String[] RETIRED = { "retired" };
 
     private static final Set<String> BOUND_TYPES =
-        Set.of("sch/SchemasHomepage", SCHEMA, VERSION, PART, OPTION);
+        Set.of("sch/SchemasHomepage", SCHEMA, VERSION, PART, DOCUMENT, OPTION);
 
     private static final Set<String> HANDLERS = Set.of("createEntity", "callActivity", "addTag", "removeTag", "delete",
         "addLink", "copyContent", "updateContent", "createContent", "moveContent", "renameContent", "replaceContent",
-        "retireActiveVersions", CreateSchemaVersionHandler.HANDLER_NAME, "checkValid");
+        "retireActiveVersions", CreateSchemaVersionHandler.HANDLER_NAME, SetTemplateHandler.HANDLER_NAME,
+        "checkValid");
 
     private final SlingContext context = new SlingContext();
 
@@ -122,7 +126,7 @@ class SystemWorkflowDefinitionsTest
     void everyDefinitionIsReachableAdministrativeAndPerformable() throws IOException, URISyntaxException
     {
         final List<Path> definitions = definitions();
-        assertEquals(24, definitions.size());
+        assertEquals(26, definitions.size());
         for (final Path path : definitions) {
             final JsonObject version = read(path).getJsonObject("v1");
             final String name = path.getFileName().toString();
@@ -248,6 +252,21 @@ class SystemWorkflowDefinitionsTest
             assertEquals(Set.of(), answeringPart(PART, "rename", new String[] { state }));
         }
         assertEquals(Set.of(), answeringPart(OPTION, "rename", new String[] { "draft" }));
+    }
+
+    @Test
+    void documentTemplatesAreSetAndRemovedInDraftsOnly()
+    {
+        // A template is part of what a version means, so a published one changes it only by a new version
+        assertEquals(Set.of("setSchemaTemplate"), answeringPart(DOCUMENT, "setTemplate", new String[] { "draft" }));
+        assertEquals(Set.of("removeSchemaTemplate"),
+            answeringPart(DOCUMENT, "removeTemplate", new String[] { "draft" }));
+        for (final String state : List.of("active", "retired")) {
+            assertEquals(Set.of(), answeringPart(DOCUMENT, "setTemplate", new String[] { state }));
+            assertEquals(Set.of(), answeringPart(DOCUMENT, "removeTemplate", new String[] { state }));
+        }
+        // Only a document requirement has a template
+        assertEquals(Set.of(), answeringPart(PART, "setTemplate", new String[] { "draft" }));
     }
 
     @Test

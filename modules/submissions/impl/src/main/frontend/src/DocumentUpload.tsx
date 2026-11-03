@@ -52,7 +52,7 @@ interface FileButtonProps {
 }
 
 // A button that opens the file dialog and hands over the file picked.
-function FileButton({ label, ariaLabel, accepted, disabled, onPick }: FileButtonProps) {
+export function FileButton({ label, ariaLabel, accepted, disabled, onPick }: FileButtonProps) {
   return (
     <Button component="label" size="small" variant="outlined" startIcon={<UploadIcon />} disabled={disabled}>
       {label}

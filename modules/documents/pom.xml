@@ -32,6 +32,8 @@
 
   <modules>
     <module>api</module>
+    <module>utils</module>
     <module>processing</module>
+    <module>generation</module>
   </modules>
 </project>

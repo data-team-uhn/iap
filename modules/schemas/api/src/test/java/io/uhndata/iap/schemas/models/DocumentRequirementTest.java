@@ -97,6 +97,19 @@ class DocumentRequirementTest
     }
 
     @Test
+    void isProvidedBySubmittersUnlessTheSchemaSaysItIsGenerated()
+    {
+        final Resource uploaded = this.context.create().resource("/Schemas/schema/1.0/consent",
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
+        final Resource generated = this.context.create().resource("/Schemas/schema/1.0/decisionLetter", Map.of(
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE,
+            "generated", true));
+
+        assertFalse(uploaded.adaptTo(DocumentRequirement.class).isGenerated());
+        assertTrue(generated.adaptTo(DocumentRequirement.class).isGenerated());
+    }
+
+    @Test
     void exposesTemplateWhenPresent()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/consent",

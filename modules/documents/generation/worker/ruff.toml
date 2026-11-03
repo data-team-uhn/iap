@@ -1,0 +1,8 @@
+# Lint config for the generation worker, the same rules as the processing module's ruff.toml.
+line-length = 100
+target-version = "py310"
+
+[lint]
+preview = true
+select = ["E", "W", "F", "B", "UP"]
+ignore = ["E203"]

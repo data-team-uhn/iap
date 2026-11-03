@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import re
 
+import shared_docs
+
 
 def get_page_marker(page_number: int) -> str:
     """The canonical page marker for ``page_number``: ``<!-- page: 12 -->``.
@@ -108,8 +110,9 @@ MIN_HEADING_CHARS = 5
 # Input file types Docling itself can convert (after LibreOffice prep).
 SUPPORTED_SUFFIXES = (".pdf", ".docx")
 
-# Staged upload types the daemon / CLI accept; ``.doc`` is converted to ``.docx`` first.
-INPUT_SUFFIXES = (".pdf", ".docx", ".doc")
+# Staged upload types the daemon / CLI accept. Defined in shared_docs (the utils module), whose
+# path check needs it, and named here too so the parsing code keeps one place to import from.
+INPUT_SUFFIXES = shared_docs.INPUT_SUFFIXES
 
 
 def count_tokens(text: str) -> int:

@@ -116,6 +116,11 @@
         "purpose": { "jcr:primaryType": "nt:unstructured", "label": "Purpose", "multiline": true },
         "extractionPrompt": { "jcr:primaryType": "nt:unstructured", "label": "Extraction prompt", "multiline": true },
         "required": { "jcr:primaryType": "nt:unstructured", "label": "Required" },
+        "generated": {
+          "jcr:primaryType": "nt:unstructured",
+          "label": "Generated from a template",
+          "help": "Filled in from the submission; the submitter may upload their own version instead. Needs a .docx template."
+        },
         "acceptedFileTypes": {
           "jcr:primaryType": "nt:unstructured",
           "label": "Accepted file types",
