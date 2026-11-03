@@ -16,21 +16,29 @@
  * limitations under the License.
  */
 
+import { NOT_A_WORD_DOCUMENT } from "./contentCheck";
+
 import type { ContentCheck } from "./contentCheck";
 
-// A legacy .doc is an OLE compound file, which always starts with these eight bytes.
-const OLE_MAGIC = [ 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 ];
+// How a .doc starts. A legacy Word file is an OLE compound file. Word also saves RTF under .doc, and
+// the parser converts that too.
+const SIGNATURES = [
+  [ 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 ],
+  [ 0x7B, 0x5C, 0x72, 0x74, 0x66 ],
+];
+
+const LONGEST_SIGNATURE = Math.max(...SIGNATURES.map(signature => signature.length));
 
 /**
- * Refuses a .doc that does not start the way every OLE file does.
+ * Refuses a .doc that starts neither the way an OLE file does nor the way RTF does.
  *
  * @param file the file, already known to be named .doc
  */
 export async function checkDoc(file: File): Promise<ContentCheck> {
   try {
-    const bytes = new Uint8Array(await file.slice(0, OLE_MAGIC.length).arrayBuffer());
-    if (!OLE_MAGIC.every((value, index) => bytes[index] === value)) {
-      return { valid: false, error: "It is not a Word document." };
+    const bytes = new Uint8Array(await file.slice(0, LONGEST_SIGNATURE).arrayBuffer());
+    if (!SIGNATURES.some(signature => signature.every((value, index) => bytes[index] === value))) {
+      return { valid: false, error: NOT_A_WORD_DOCUMENT };
     }
     return { valid: true };
   } catch {

@@ -31,6 +31,7 @@ import {
   PIPELINE_TYPES,
   validateUpload,
 } from "@iap/frontend-commons/fileValidation";
+import { messageOf } from "@iap/frontend-commons/requestFailure";
 
 const ACCEPTS: Record<string, { label: string; types: string[] }> = {
   anything: { label: "Anything", types: [] },
@@ -87,11 +88,15 @@ function FileValidationWidget() {
     // A check the settings have moved on from is stopped, not only ignored
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      validateUpload(file, ACCEPTS[accepts].types, {
-        maxFileSize: getByteLimit(maxMegabytes),
-        maxPdfPages: getLimit(maxPages),
-        maxUnzippedSize: getByteLimit(maxUnzipped),
-      }, controller.signal).then(
+      validateUpload(file, {
+        accepted: ACCEPTS[accepts].types,
+        limits: {
+          maxFileSize: getByteLimit(maxMegabytes),
+          maxPdfPages: getLimit(maxPages),
+          maxUnzippedSize: getByteLimit(maxUnzipped),
+        },
+        signal: controller.signal,
+      }).then(
         problem => {
           if (current) {
             setAnswer({ ...asked, problem });
@@ -99,7 +104,7 @@ function FileValidationWidget() {
         },
         (error: unknown) => {
           if (current) {
-            setAnswer({ ...asked, problem: String(error) });
+            setAnswer({ ...asked, problem: messageOf(error) });
           }
         }
       );

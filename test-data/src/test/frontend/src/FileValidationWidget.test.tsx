@@ -63,11 +63,11 @@ describe("FileValidationWidget", () => {
     const file = pick("proposal.pdf");
 
     expect(await screen.findByText("proposal.pdf passes every check.")).toBeInTheDocument();
-    expect(validate).toHaveBeenCalledWith(file, [], {
-      maxFileSize: 50 * 1024 * 1024,
-      maxPdfPages: 500,
-      maxUnzippedSize: 512 * 1024 * 1024,
-    }, expect.any(AbortSignal));
+    expect(validate).toHaveBeenCalledWith(file, {
+      accepted: [],
+      limits: { maxFileSize: 50 * 1024 * 1024, maxPdfPages: 500, maxUnzippedSize: 512 * 1024 * 1024 },
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
   });
 
   it("shows why a file is refused", async () => {
@@ -101,11 +101,11 @@ describe("FileValidationWidget", () => {
     fireEvent.change(screen.getByLabelText("Unzip limit (MB)"), { target: { value: "3" } });
 
     await screen.findByText("proposal.pdf passes every check.");
-    expect(validate).toHaveBeenLastCalledWith(file, [ "application/pdf" ], {
-      maxFileSize: 2 * 1024 * 1024,
-      maxPdfPages: 10,
-      maxUnzippedSize: 3 * 1024 * 1024,
-    }, expect.any(AbortSignal));
+    expect(validate).toHaveBeenLastCalledWith(file, {
+      accepted: [ "application/pdf" ],
+      limits: { maxFileSize: 2 * 1024 * 1024, maxPdfPages: 10, maxUnzippedSize: 3 * 1024 * 1024 },
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
   });
 
   it("falls back to the default for a limit left empty", async () => {
@@ -118,11 +118,11 @@ describe("FileValidationWidget", () => {
     fireEvent.change(screen.getByLabelText("Unzip limit (MB)"), { target: { value: "-1" } });
 
     await screen.findByText("proposal.pdf passes every check.");
-    expect(validate).toHaveBeenLastCalledWith(file, [], {
-      maxFileSize: undefined,
-      maxPdfPages: undefined,
-      maxUnzippedSize: undefined,
-    }, expect.any(AbortSignal));
+    expect(validate).toHaveBeenLastCalledWith(file, {
+      accepted: [],
+      limits: { maxFileSize: undefined, maxPdfPages: undefined, maxUnzippedSize: undefined },
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
   });
 
   it("checks once typing stops, not on every keystroke", async () => {
@@ -140,7 +140,7 @@ describe("FileValidationWidget", () => {
     await screen.findByText("proposal.pdf passes every check.");
     expect(validate).toHaveBeenCalledTimes(2);
     expect(validate).toHaveBeenLastCalledWith(
-      expect.anything(), [], expect.objectContaining({ maxPdfPages: 400 }), expect.any(AbortSignal));
+      expect.anything(), expect.objectContaining({ limits: expect.objectContaining({ maxPdfPages: 400 }) as unknown }));
   });
 
   it("stops the check it has moved on from", async () => {
@@ -153,7 +153,7 @@ describe("FileValidationWidget", () => {
 
     await screen.findByText("second.pdf passes every check.");
     const [ first ] = validate.mock.calls;
-    expect(first[3]?.aborted).toBe(true);
+    expect(first[1]?.signal?.aborted).toBe(true);
   });
 
   it("shows a check that failed outright", async () => {
@@ -162,7 +162,7 @@ describe("FileValidationWidget", () => {
 
     pick("proposal.pdf");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("worker gone");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/^worker gone$/);
   });
 
   it("ignores the answer to a check it has moved on from", async () => {

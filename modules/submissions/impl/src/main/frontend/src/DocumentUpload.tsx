@@ -83,18 +83,6 @@ function FileButton({ label, ariaLabel, accepted, disabled, onPick }: FileButton
 // the server checks again.
 const CHECK_TIMEOUT_MS = 30_000;
 
-// What is wrong with the file, or undefined when nothing is or the check ran out of time
-async function checkFile(file: File, accepted: string[]): Promise<string | undefined> {
-  try {
-    return await validateUpload(file, accepted, {}, AbortSignal.timeout(CHECK_TIMEOUT_MS));
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "TimeoutError") {
-      return undefined;
-    }
-    throw error;
-  }
-}
-
 export interface DocumentUploadProps {
   path: string;
   requirement: DocumentRequirement;
@@ -128,7 +116,7 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
   const upload = (file: File) => {
     setBusy(true);
     setFailure(undefined);
-    checkFile(file, accepted).then(problem => {
+    validateUpload(file, { accepted, timeoutMs: CHECK_TIMEOUT_MS }).then(problem => {
       if (problem !== undefined) {
         throw new Error(problem);
       }
@@ -140,7 +128,7 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
       },
       (error: unknown) => {
         setBusy(false);
-        // The engine's own reason, such as which file type it would not take
+        // Why the browser check or the engine refused the file, such as a type it would not take
         setFailure(messageOf(error));
       }
     );

@@ -39,6 +39,22 @@ describe("checkDocx", () => {
     expect(await getError(await createDocx())).toBeUndefined();
   });
 
+  // Some writers use ZIP64 for every archive, however small
+  it("accepts a small ZIP64 .docx", async () => {
+    expect(await getError(await createDocx(WORD_PARTS, true))).toBeUndefined();
+  });
+
+  it("reads content types written in UTF-16, either byte order", async () => {
+    const [ types, document ] = WORD_PARTS;
+    const littleEndian = [ 0xFF, 0xFE, ...[ ...types.text ].flatMap(char => [ char.charCodeAt(0), 0 ]) ];
+    const bigEndian = [ 0xFE, 0xFF, ...[ ...types.text ].flatMap(char => [ 0, char.charCodeAt(0) ]) ];
+
+    for (const bytes of [ littleEndian, bigEndian ]) {
+      const utf16 = { ...types, bytes: new Uint8Array(bytes) };
+      expect(await getError(await createDocx([ utf16, document ]))).toBeUndefined();
+    }
+  });
+
   it("refuses a .docx missing the parts that make it one", async () => {
     const [ , document ] = WORD_PARTS;
 

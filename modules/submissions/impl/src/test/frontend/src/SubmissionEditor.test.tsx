@@ -377,20 +377,8 @@ describe("SubmissionEditor", () => {
 
       expect(await screen.findByRole("alert")).toHaveTextContent("note.txt is not a file of an accepted type: .pdf.");
       expect(vi.mocked(validateUpload)).toHaveBeenCalledWith(
-        expect.any(File), [ "application/pdf", "image/png" ], {}, expect.any(AbortSignal));
+        expect.any(File), { accepted: [ "application/pdf", "image/png" ], timeoutMs: 30_000 });
       expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument.json`)).toBe(false);
-    });
-
-    it("sends the file anyway when checking it takes too long", async () => {
-      vi.mocked(validateUpload).mockRejectedValueOnce(new DOMException("Timed out", "TimeoutError"));
-      const fetchMock = serving(asked(), asked({ attached: [ NOTE_FILE ] }));
-      vi.stubGlobal("fetch", fetchMock);
-
-      render(<SubmissionEditor path={PATH} />);
-      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
-
-      expect(await screen.findByRole("link", { name: "note.pdf" })).toBeInTheDocument();
-      expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument.json`)).toBe(true);
     });
 
     it("posts the file as an event on the submission, then reads the form again", async () => {

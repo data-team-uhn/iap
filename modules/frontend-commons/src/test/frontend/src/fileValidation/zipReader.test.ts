@@ -121,6 +121,23 @@ describe("readZipEntry", () => {
     expect(await readText(bytes, document)).toBe("<w:document/>");
   });
 
+  // A ZIP64 local header carries an extra field, so this is the case that has to skip it
+  it("unzips an entry of a ZIP64 archive", async () => {
+    const bytes = await createZip(WORD_PARTS, { zip64: true });
+    const [ , document ] = readEntries(bytes) ?? [];
+
+    expect(await readText(bytes, document)).toBe("<w:document/>");
+  });
+
+  it("reads nothing from data that is not valid deflate", async () => {
+    const bytes = await createZip(WORD_PARTS);
+    const [ types ] = readEntries(bytes) ?? [];
+    // A deflate block whose type bits are 11 is reserved, so no decoder takes it
+    bytes[30 + types.name.length] = 0xFF;
+
+    expect(await readText(bytes, types)).toBeUndefined();
+  });
+
   it("reads an entry stored without compression", async () => {
     const bytes = await createZip(WORD_PARTS.map(part => ({ ...part, stored: true })));
     const [ , document ] = readEntries(bytes) ?? [];

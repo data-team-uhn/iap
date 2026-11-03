@@ -16,24 +16,27 @@
  * limitations under the License.
  */
 
-import { loadPdfjs } from "../pdfViewer/pdfjsClient";
+import { stopOnAbort } from "./stopOnAbort";
+import { PdfWorkerFailure, loadPdfjs } from "../pdfViewer/pdfjsClient";
 
 import type { ContentCheck } from "./contentCheck";
-import type { PDFWorker } from "pdfjs-dist";
+import type { PDFDocumentProxy } from "pdfjs-dist";
+
+type Pdfjs = Awaited<ReturnType<typeof loadPdfjs>>;
 
 // PDF.js names this exception when a file will not open without a password
 function isPasswordException(error: unknown): boolean {
   return error instanceof Error && error.name === "PasswordException";
 }
 
-// When PDF.js cannot load, the file is let through. Refusing would block every good upload over a
-// fault in this page, and the server checks again.
+// When PDF.js cannot load or its worker never started, the file is let through. Refusing would block
+// every good upload over a fault in this page, and the server checks again.
 function reportUncheckedFile(file: File, error: unknown): void {
   console.error("Could not load what checks %s, so it was not checked", file.name, error);
 }
 
 // PDF.js, or undefined when it could not load
-async function loadChecker(file: File) {
+async function loadChecker(file: File): Promise<Pdfjs | undefined> {
   try {
     return await loadPdfjs();
   } catch (error) {
@@ -42,23 +45,28 @@ async function loadChecker(file: File) {
   }
 }
 
-// A worker script that could not load, which is no fault of the file
-class WorkerFailure extends Error {}
-
-function isWorkerFailure(error: unknown): boolean {
-  return error instanceof WorkerFailure;
+// Opens a PDF on the shared worker. Destroying a task does not settle its promise once the worker has
+// the file, and a worker that never started never answers, so both end the wait here.
+async function openPdf({ pdfjs, worker, failed }: Pdfjs, data: ArrayBuffer, signal?: AbortSignal)
+  : Promise<PDFDocumentProxy> {
+  // No password is passed. A file whose only password is empty opens; one that needs a password throws.
+  const task = pdfjs.getDocument({ data, worker });
+  try {
+    return await stopOnAbort(Promise.race([ task.promise, failed ]), signal);
+  } finally {
+    // Ends a parse still running, and the shared worker keeps the whole file until then
+    void task.destroy();
+  }
 }
 
-// PDF.js does not watch a worker it was handed, so a check on one whose script never loaded would
-// wait forever. This rejects when the worker reports that failure.
-function watchWorker(worker: PDFWorker): { failed: Promise<never>; stop: () => void } {
-  let stop: () => void = () => undefined;
-  const failed = new Promise<never>((_resolve, reject) => {
-    const fail = () => reject(new WorkerFailure("The PDF.js worker did not start"));
-    worker.port.addEventListener("error", fail, { once: true });
-    stop = () => worker.port.removeEventListener("error", fail);
-  });
-  return { failed, stop };
+function checkPageCount(pages: number, maxPages: number): ContentCheck {
+  if (pages === 0) {
+    return { valid: false, error: "It has no pages." };
+  }
+  if (pages > maxPages) {
+    return { valid: false, error: `It has ${pages} pages, and the limit is ${maxPages}.` };
+  }
+  return { valid: true };
 }
 
 /**
@@ -69,44 +77,21 @@ function watchWorker(worker: PDFWorker): { failed: Promise<never>; stop: () => v
  * @param signal stops the check, which then rejects with the signal's reason
  */
 export async function checkPdf(file: File, maxPages: number, signal?: AbortSignal): Promise<ContentCheck> {
-  const loaded = await loadChecker(file);
-  if (loaded === undefined) {
+  const pdfjs = await loadChecker(file);
+  if (pdfjs === undefined) {
     return { valid: true };
   }
-  const { pdfjs, worker } = loaded;
   try {
     const data = await file.arrayBuffer();
     signal?.throwIfAborted();
-    // No password is passed. A file whose only password is empty opens; one that needs a password throws.
-    const task = pdfjs.getDocument({ data, worker });
-    // Destroying the task ends a parse that would otherwise run on, and rejects its promise
-    const stop = () => void task.destroy();
-    signal?.addEventListener("abort", stop, { once: true });
-    const watch = watchWorker(worker);
-    try {
-      const pdf = await Promise.race([ task.promise, watch.failed ]);
-      if (pdf.numPages === 0) {
-        return { valid: false, error: "It has no pages." };
-      }
-      if (pdf.numPages > maxPages) {
-        return {
-          valid: false,
-          error: `It has ${pdf.numPages} pages, and the limit is ${maxPages}.`,
-        };
-      }
-      return { valid: true };
-    } finally {
-      watch.stop();
-      signal?.removeEventListener("abort", stop);
-      // The shared worker keeps the whole file until the task is destroyed
-      void task.destroy();
-    }
+    const pdf = await openPdf(pdfjs, data, signal);
+    return checkPageCount(pdf.numPages, maxPages);
   } catch (error) {
     signal?.throwIfAborted();
     if (isPasswordException(error)) {
       return { valid: false, error: "It is encrypted with a password." };
     }
-    if (isWorkerFailure(error)) {
+    if (error instanceof PdfWorkerFailure) {
       reportUncheckedFile(file, error);
       return { valid: true };
     }

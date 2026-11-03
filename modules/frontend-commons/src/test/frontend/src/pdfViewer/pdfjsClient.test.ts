@@ -30,10 +30,26 @@ vi.mock("pdfjs-dist", () => ({
   },
 }));
 
-class FakeWorker {
-  constructor(readonly url: URL, readonly options: WorkerOptions) {}
+class FakeWorker extends EventTarget {
+  constructor(readonly url: URL, readonly options: WorkerOptions) {
+    super();
+  }
 }
 vi.stubGlobal("Worker", FakeWorker);
+
+// A fresh copy of the module, with no worker started yet
+async function loadFreshClient() {
+  vi.resetModules();
+  const client = await import("@iap/frontend-commons/pdfViewer/pdfjsClient");
+  const loaded = await client.loadPdfjs();
+  return { client, loaded, port: created.ports.at(-1) as FakeWorker };
+}
+
+// Whether the promise has settled yet, without waiting for it to
+async function isSettled(promise: Promise<unknown>): Promise<boolean> {
+  const pending = Symbol("pending");
+  return await Promise.race([ promise.then(() => true, () => true), Promise.resolve(pending) ]) !== pending;
+}
 
 describe("loadPdfjs", () => {
   it("starts PDF.js's worker as a module, and gives it with the library", async () => {
@@ -52,5 +68,24 @@ describe("loadPdfjs", () => {
 
     expect(second.worker).toBe(first.worker);
     expect(created.ports).toHaveLength(1);
+  });
+
+  it("reports a worker whose script never ran, to every later caller", async () => {
+    const { client, loaded, port } = await loadFreshClient();
+
+    port.dispatchEvent(new Event("error"));
+
+    await expect(loaded.failed).rejects.toBeInstanceOf(client.PdfWorkerFailure);
+    const later = await client.loadPdfjs();
+    expect(later.failed).toBe(loaded.failed);
+    expect(later.worker).toBe(loaded.worker);
+  });
+
+  it("keeps a worker that threw while running, since it still answers", async () => {
+    const { loaded, port } = await loadFreshClient();
+
+    port.dispatchEvent(new ErrorEvent("error", { message: "boom" }));
+
+    expect(await isSettled(loaded.failed)).toBe(false);
   });
 });

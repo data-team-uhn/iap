@@ -16,14 +16,8 @@
  * limitations under the License.
  */
 
-export const MEGABYTE = 1024 * 1024;
-
 /** What a look inside a file found: nothing wrong, or what is wrong, for a person to read. */
 export type ContentCheck = { valid: true } | { valid: false; error: string };
 
-// A size for a person to read: KB under a megabyte, two decimals at most. A file's size rounds up and
-// a limit's down, so a file over a limit never shows the same number as the limit.
-export function formatSize(bytes: number, rounding: (value: number) => number): string {
-  const [ unit, name ] = bytes < MEGABYTE ? [ 1024, "KB" ] : [ MEGABYTE, "MB" ];
-  return `${rounding(bytes / unit * 100) / 100} ${name}`;
-}
+// Both Word checks refuse with this when the content is something else
+export const NOT_A_WORD_DOCUMENT = "It is not a Word document.";

@@ -58,6 +58,11 @@ function createTypedUpload(name: string, type: string): File {
   return file;
 }
 
+// A content check that is still running when the test looks
+function stallChecks(): void {
+  checks.pdf.mockReturnValue(new Promise(() => undefined));
+}
+
 describe("getFileExtension", () => {
   it("reads the extension in lower case", () => {
     expect(getFileExtension("Proposal.PDF")).toBe(".pdf");
@@ -92,43 +97,51 @@ describe("what an upload is refused for", () => {
   });
 
   it("refuses what the pipeline cannot read, when asked for only that", async () => {
-    await expect(validateUpload(createUpload("proposal.txt"), PIPELINE_TYPES))
+    await expect(validateUpload(createUpload("proposal.txt"), { accepted: PIPELINE_TYPES }))
       .resolves.toBe("proposal.txt is not a file of an accepted type: .pdf, .docx, .doc.");
-    await expect(validateUpload(createUpload("proposal"), PIPELINE_TYPES)).resolves.toMatch(/accepted type/);
+    await expect(validateUpload(createUpload("proposal"), { accepted: PIPELINE_TYPES }))
+      .resolves.toMatch(/accepted type/);
   });
 
   it("does not read an entry written as an extension as a type", async () => {
-    await expect(validateUpload(createUpload("proposal.pdf"), [ ".pdf" ])).resolves.toMatch(/accepted type: .pdf\.$/);
-  });
-
-  it("honours the MIME types the requirement asks for", async () => {
-    await expect(validateUpload(createTypedUpload("note.png", "image/png"), [ "image/png" ])).resolves.toBeUndefined();
-    await expect(validateUpload(createTypedUpload("note.png", "image/png"), [ "application/pdf" ]))
+    await expect(validateUpload(createUpload("proposal.pdf"), { accepted: [ ".pdf" ] }))
       .resolves.toMatch(/accepted type: .pdf\.$/);
   });
 
-  it("names a known type by its extension, once, and any other type as given", async () => {
-    await expect(validateUpload(createUpload("notes.txt"), [ "application/pdf", ".PDF", "image/png" ]))
+  it("honours the MIME types the requirement asks for", async () => {
+    await expect(validateUpload(createTypedUpload("note.png", "image/png"), { accepted: [ "image/png" ] }))
+      .resolves.toBeUndefined();
+    await expect(validateUpload(createTypedUpload("note.png", "image/png"), { accepted: [ "application/pdf" ] }))
+      .resolves.toMatch(/accepted type: .pdf\.$/);
+  });
+
+  it("names a known type by its extension, once, and any other type in lower case", async () => {
+    await expect(validateUpload(createUpload("notes.txt"), { accepted: [ "application/pdf", ".PDF", "Image/PNG" ] }))
       .resolves.toBe("notes.txt is not a file of an accepted type: .pdf, image/png.");
   });
 
   it("reads the type from the name when the browser could not tell", async () => {
-    await expect(validateUpload(createUpload("proposal.pdf"), [ "application/pdf" ])).resolves.toBeUndefined();
-    await expect(validateUpload(createTypedUpload("proposal.pdf", "application/octet-stream"), [ "application/pdf" ]))
+    await expect(validateUpload(createUpload("proposal.pdf"), { accepted: [ "application/pdf" ] }))
       .resolves.toBeUndefined();
+    await expect(validateUpload(
+      createTypedUpload("proposal.pdf", "application/octet-stream"), { accepted: [ "application/pdf" ] },
+    )).resolves.toBeUndefined();
   });
 
   it("compares types without case or parameters", async () => {
-    await expect(validateUpload(createTypedUpload("proposal.pdf", "application/pdf; x=y"), [ "Application/PDF" ]))
-      .resolves.toBeUndefined();
+    await expect(validateUpload(
+      createTypedUpload("proposal.pdf", "application/pdf; x=y"), { accepted: [ "Application/PDF" ] },
+    )).resolves.toBeUndefined();
   });
 
   it("refuses an untyped file whose name is not an accepted kind", async () => {
-    expect(await validateUpload(createUpload("notes.xyz"), [ "application/pdf" ])).toMatch(/accepted type/);
+    expect(await validateUpload(createUpload("notes.xyz"), { accepted: [ "application/pdf" ] }))
+      .toMatch(/accepted type/);
   });
 
   it("refuses an untyped file with no extension where a type is asked for, since nothing says what it is", async () => {
-    expect(await validateUpload(createUpload("README"), [ "application/pdf" ])).toMatch(/accepted type/);
+    expect(await validateUpload(createUpload("README"), { accepted: [ "application/pdf" ] }))
+      .toMatch(/accepted type/);
   });
 });
 
@@ -138,14 +151,16 @@ describe("what is inside the file", () => {
     await validateUpload(createUpload("b.docx"));
     await validateUpload(createUpload("c.doc"));
 
-    expect(checks.pdf).toHaveBeenCalledWith(expect.objectContaining({ name: "a.PDF" }), MAX_PDF_PAGES, undefined);
-    expect(checks.docx).toHaveBeenCalledWith(expect.objectContaining({ name: "b.docx" }), MAX_UNZIPPED_SIZE, undefined);
+    expect(checks.pdf).toHaveBeenCalledWith(expect.objectContaining({ name: "a.PDF" }), MAX_PDF_PAGES, expect.any(AbortSignal));
+    expect(checks.docx)
+      .toHaveBeenCalledWith(expect.objectContaining({ name: "b.docx" }), MAX_UNZIPPED_SIZE, expect.any(AbortSignal));
     expect(checks.doc).toHaveBeenCalledWith(expect.objectContaining({ name: "c.doc" }));
   });
 
   it("is not looked at for any other extension", async () => {
     await validateUpload(createUpload("notes.txt"));
     await validateUpload(createUpload("README"));
+    await validateUpload(createUpload("constructor"));
 
     Object.values(checks).forEach(check => expect(check).not.toHaveBeenCalled());
   });
@@ -158,7 +173,7 @@ describe("what is inside the file", () => {
 
   it("is not looked at when the file was already refused", async () => {
     await validateUpload(createUpload("proposal.pdf", 0));
-    await validateUpload(createUpload("proposal.pdf"), [ "image/png" ]);
+    await validateUpload(createUpload("proposal.pdf"), { accepted: [ "image/png" ] });
 
     expect(checks.pdf).not.toHaveBeenCalled();
   });
@@ -179,36 +194,34 @@ describe("the limits themselves", () => {
 
 describe("how sizes read", () => {
   it("never shows a file just over the limit at the limit's size", async () => {
-    expect(await validateUpload(createUpload("proposal.pdf", 10_000_001), [], { maxFileSize: 10_000_000 }))
+    expect(await validateUpload(createUpload("proposal.pdf", 10_000_001), { limits: { maxFileSize: 10_000_000 } }))
       .toBe("proposal.pdf is 9.54 MB, and the limit is 9.53 MB.");
   });
 
   it("gives a size under a megabyte in KB", async () => {
-    expect(await validateUpload(createUpload("proposal.pdf", 20 * 1024), [], { maxFileSize: 10 * 1024 }))
+    expect(await validateUpload(createUpload("proposal.pdf", 20 * 1024), { limits: { maxFileSize: 10 * 1024 } }))
       .toBe("proposal.pdf is 20 KB, and the limit is 10 KB.");
   });
 });
 
 describe("limits set by the caller", () => {
   it("refuse a file over a smaller size limit, and say that limit", async () => {
-    await expect(validateUpload(createUpload("proposal.pdf", 2 * 1024 * 1024), [], { maxFileSize: 1024 * 1024 }))
+    await expect(validateUpload(createUpload("proposal.pdf", 2 * 1024 * 1024), { limits: { maxFileSize: 1024 * 1024 } }))
       .resolves.toMatch(/2 MB.*limit is 1 MB/);
   });
 
   it("reach the check for the file's content", async () => {
-    const controller = new AbortController();
+    await validateUpload(createUpload("a.pdf"), { limits: { maxPdfPages: 10 } });
+    await validateUpload(createUpload("b.docx"), { limits: { maxUnzippedSize: 2000 } });
 
-    await validateUpload(createUpload("a.pdf"), [], { maxPdfPages: 10 }, controller.signal);
-    await validateUpload(createUpload("b.docx"), [], { maxUnzippedSize: 2000 }, controller.signal);
-
-    expect(checks.pdf).toHaveBeenCalledWith(expect.any(File), 10, controller.signal);
-    expect(checks.docx).toHaveBeenCalledWith(expect.any(File), 2000, controller.signal);
+    expect(checks.pdf).toHaveBeenCalledWith(expect.any(File), 10, expect.any(AbortSignal));
+    expect(checks.docx).toHaveBeenCalledWith(expect.any(File), 2000, expect.any(AbortSignal));
   });
 
-  it("keep the default for each one left out", async () => {
-    await validateUpload(createUpload("proposal.pdf"), [], { maxFileSize: MAX_FILE_SIZE * 2 });
+  it("keep the default for each one left out, or given as undefined", async () => {
+    await validateUpload(createUpload("proposal.pdf"), { limits: { maxFileSize: MAX_FILE_SIZE * 2, maxPdfPages: undefined } });
 
-    expect(checks.pdf).toHaveBeenCalledWith(expect.any(File), MAX_PDF_PAGES, undefined);
+    expect(checks.pdf).toHaveBeenCalledWith(expect.any(File), MAX_PDF_PAGES, expect.any(AbortSignal));
   });
 });
 
@@ -217,8 +230,61 @@ describe("stopping a check", () => {
     const controller = new AbortController();
     controller.abort();
 
-    await expect(validateUpload(createUpload("proposal.pdf"), [], {}, controller.signal))
+    await expect(validateUpload(createUpload("proposal.pdf"), { signal: controller.signal }))
       .rejects.toMatchObject({ name: "AbortError" });
     expect(checks.pdf).not.toHaveBeenCalled();
+  });
+
+  it("ends a check the caller gives up on, even when the content check does not", async () => {
+    stallChecks();
+    const controller = new AbortController();
+    const pending = validateUpload(createUpload("proposal.pdf"), { signal: controller.signal });
+
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("tells the content check to stop too", async () => {
+    stallChecks();
+    const controller = new AbortController();
+    const pending = validateUpload(createUpload("proposal.pdf"), { signal: controller.signal });
+    controller.abort();
+    await pending.catch(() => undefined);
+
+    const [ [ , , passed ] ] = checks.pdf.mock.calls as [ [ File, number, AbortSignal ] ];
+    expect(passed.aborted).toBe(true);
+  });
+});
+
+describe("a time limit", () => {
+  it("lets the file through unchecked once it runs out", async () => {
+    stallChecks();
+
+    await expect(validateUpload(createUpload("proposal.pdf"), { timeoutMs: 10 })).resolves.toBeUndefined();
+    const [ [ , , passed ] ] = checks.pdf.mock.calls as [ [ File, number, AbortSignal ] ];
+    expect(passed.aborted).toBe(true);
+  });
+
+  it("does not change the answer of a check that finishes in time", async () => {
+    checks.pdf.mockResolvedValue({ valid: false, error: "It has no pages." });
+
+    expect(await validateUpload(createUpload("proposal.pdf"), { timeoutMs: 10_000 })).toBe("proposal.pdf: It has no pages.");
+  });
+
+  it("still lets the caller stop the check, which then rejects", async () => {
+    stallChecks();
+    const controller = new AbortController();
+    const pending = validateUpload(createUpload("proposal.pdf"), { signal: controller.signal, timeoutMs: 10_000 });
+
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("passes on a failure that is not about time", async () => {
+    checks.pdf.mockRejectedValue(new Error("broken"));
+
+    await expect(validateUpload(createUpload("proposal.pdf"), { timeoutMs: 10_000 })).rejects.toThrow("broken");
   });
 });

@@ -28,6 +28,12 @@ describe("checkDoc", () => {
     expect(await checkDoc(createDoc([ 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 ]))).toEqual({ valid: true });
   });
 
+  it("accepts a .doc that Word saved as RTF", async () => {
+    const rtf = [ ...new TextEncoder().encode("{\\rtf1\\ansi Proposal}") ];
+
+    expect(await checkDoc(createDoc(rtf))).toEqual({ valid: true });
+  });
+
   it("refuses a .doc that does not", async () => {
     expect(await checkDoc(createDoc([ 0x50, 0x4B, 3, 4, 0, 0, 0, 0 ])))
       .toEqual({ valid: false, error: "It is not a Word document." });

@@ -21,6 +21,8 @@
 export interface ZipPart {
   name: string;
   text: string;
+  // The content's own bytes, when it is not UTF-8 text
+  bytes?: Uint8Array<ArrayBuffer>;
   // The unzipped size the zip states, when it lies
   claimed?: number;
   // Kept as it is rather than deflated
@@ -88,7 +90,7 @@ export async function createZip(
   let offset = 0;
   for (const part of parts) {
     const name = encoder.encode(part.name);
-    const raw = encoder.encode(part.text);
+    const raw = part.bytes ?? encoder.encode(part.text);
     const data = part.stored
       ? raw
       : await readStream(createStream(raw).pipeThrough(new CompressionStream("deflate-raw")));

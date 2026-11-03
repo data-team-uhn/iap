@@ -17,17 +17,38 @@
  */
 import type { PDFWorker } from "pdfjs-dist";
 
-let worker: PDFWorker | undefined;
+/** The PDF.js worker's script never ran, so nothing sent to the worker gets an answer. */
+export class PdfWorkerFailure extends Error {}
 
-// Loads PDF.js and the one worker every document shares. A worker that fails to start
-// is not replaced, because PDF.js remembers the failure and a new one would fail the same way.
+let shared: { worker: PDFWorker; failed: Promise<never> } | undefined;
+
+// PDF.js does not watch a worker it is handed, and the script fails only once, so the failure is
+// caught from the start and kept for every later caller.
+function watchStart(port: Worker): Promise<never> {
+  const failed = new Promise<never>((_resolve, reject) => {
+    port.addEventListener("error", event => {
+      // A script that never ran fires a plain Event. An error thrown later is an ErrorEvent, and the
+      // worker keeps running.
+      if (!(event instanceof ErrorEvent)) {
+        reject(new PdfWorkerFailure("The PDF.js worker did not start"));
+      }
+    });
+  });
+  // The failure may come when nobody is waiting for it
+  failed.catch(() => undefined);
+  return failed;
+}
+
+// Loads PDF.js and the one worker every document shares. `failed` rejects if that worker never
+// started. Such a worker is not replaced, since a new one would load the same missing script.
 export async function loadPdfjs() {
   const pdfjs = await import("pdfjs-dist");
-  worker ??= pdfjs.PDFWorker.create({
+  if (shared === undefined) {
     // The worker is bundled as a plain module rather than as the project's modern-module library:
     // webpack 5.112 cannot render that for an entry none of whose exports are used, as a worker's are not
-    port: new Worker(/* webpackEntryOptions: { library: { type: "module" } } */
-      new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url), { type: "module" }),
-  });
-  return { pdfjs, worker };
+    const port = new Worker(/* webpackEntryOptions: { library: { type: "module" } } */
+      new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url), { type: "module" });
+    shared = { failed: watchStart(port), worker: pdfjs.PDFWorker.create({ port }) };
+  }
+  return { pdfjs, ...shared };
 }

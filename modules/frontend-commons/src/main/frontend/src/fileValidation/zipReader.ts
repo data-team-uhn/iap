@@ -19,18 +19,24 @@
 // Reads a zip's directory and single entries without unzipping the rest, so a zip that unzips to
 // gigabytes can be judged without hanging the tab.
 
-// Zip record layouts, from the zip format's APPNOTE
-const END_RECORD = 0x06054B50;
-const END_RECORD_SIZE = 22;
-const ZIP64_LOCATOR = 0x07064B50;
-const ZIP64_LOCATOR_SIZE = 20;
-const ZIP64_END_RECORD = 0x06064B50;
-const ZIP64_END_RECORD_SIZE = 56;
+// Each record's signature, size, and where its fields sit, from the zip format's APPNOTE
+const END_RECORD = { signature: 0x06054B50, size: 22, entryCount: 10, directoryStart: 16 } as const;
+const ZIP64_LOCATOR = { signature: 0x07064B50, size: 20, recordStart: 8 } as const;
+const ZIP64_END_RECORD = { signature: 0x06064B50, size: 56, entryCount: 32, directoryStart: 48 } as const;
+const DIRECTORY_ENTRY = {
+  signature: 0x02014B50,
+  size: 46,
+  method: 10,
+  storedSize: 20,
+  unzippedSize: 24,
+  nameLength: 28,
+  extraLength: 30,
+  commentLength: 32,
+  localHeader: 42,
+} as const;
+const LOCAL_HEADER = { signature: 0x04034B50, size: 30, nameLength: 26, extraLength: 28 } as const;
+const EXTRA_FIELD = { headerSize: 4, dataLength: 2 } as const;
 const ZIP64_EXTRA_FIELD = 0x0001;
-const DIRECTORY_ENTRY = 0x02014B50;
-const DIRECTORY_ENTRY_SIZE = 46;
-const LOCAL_HEADER = 0x04034B50;
-const LOCAL_HEADER_SIZE = 30;
 const MAX_ZIP_COMMENT = 0xFFFF;
 const STORED = 0;
 const DEFLATED = 8;
@@ -54,9 +60,9 @@ function readUint64(view: DataView, at: number): number {
 
 // The end record sits last, after a comment of up to 64 KB, so it is searched for backwards.
 function findEndRecord(view: DataView): number | undefined {
-  const last = view.byteLength - END_RECORD_SIZE;
+  const last = view.byteLength - END_RECORD.size;
   for (let at = last; at >= Math.max(0, last - MAX_ZIP_COMMENT); at--) {
-    if (view.getUint32(at, true) === END_RECORD) {
+    if (view.getUint32(at, true) === END_RECORD.signature) {
       return at;
     }
   }
@@ -65,31 +71,36 @@ function findEndRecord(view: DataView): number | undefined {
 
 // Where the directory starts, how many entries it has, and where it has to end
 function findDirectory(view: DataView, end: number): { start: number; count: number; limit: number } | undefined {
-  const count = view.getUint16(end + 10, true);
-  const start = view.getUint32(end + 16, true);
+  const count = view.getUint16(end + END_RECORD.entryCount, true);
+  const start = view.getUint32(end + END_RECORD.directoryStart, true);
   if (count !== ZIP64_COUNT && start !== ZIP64_MARKER) {
     return { start, count, limit: end };
   }
-  const locator = end - ZIP64_LOCATOR_SIZE;
-  if (locator < 0 || view.getUint32(locator, true) !== ZIP64_LOCATOR) {
+  const locator = end - ZIP64_LOCATOR.size;
+  if (locator < 0 || view.getUint32(locator, true) !== ZIP64_LOCATOR.signature) {
     return undefined;
   }
-  const record = readUint64(view, locator + 8);
-  if (record + ZIP64_END_RECORD_SIZE > locator || view.getUint32(record, true) !== ZIP64_END_RECORD) {
+  const record = readUint64(view, locator + ZIP64_LOCATOR.recordStart);
+  if (record + ZIP64_END_RECORD.size > locator || view.getUint32(record, true) !== ZIP64_END_RECORD.signature) {
     return undefined;
   }
-  return { start: readUint64(view, record + 48), count: readUint64(view, record + 32), limit: record };
+  return {
+    start: readUint64(view, record + ZIP64_END_RECORD.directoryStart),
+    count: readUint64(view, record + ZIP64_END_RECORD.entryCount),
+    limit: record,
+  };
 }
 
 // The real values of the fields that hold the marker. The ZIP64 extra field lists only those, in
 // this order.
 function readZip64Fields(view: DataView, entry: ZipEntry, from: number, to: number): ZipEntry | undefined {
-  for (let at = from; at + 4 <= to; at += 4 + view.getUint16(at + 2, true)) {
+  const getFieldEnd = (at: number) => at + EXTRA_FIELD.headerSize + view.getUint16(at + EXTRA_FIELD.dataLength, true);
+  for (let at = from; at + EXTRA_FIELD.headerSize <= to; at = getFieldEnd(at)) {
     if (view.getUint16(at, true) !== ZIP64_EXTRA_FIELD) {
       continue;
     }
-    const fieldEnd = Math.min(to, at + 4 + view.getUint16(at + 2, true));
-    let next = at + 4;
+    const fieldEnd = Math.min(to, getFieldEnd(at));
+    let next = at + EXTRA_FIELD.headerSize;
     const fields = { ...entry };
     for (const key of [ "unzippedSize", "storedSize", "offset" ] as const) {
       if (fields[key] === ZIP64_MARKER) {
@@ -122,21 +133,21 @@ export function readZipDirectory(data: ArrayBuffer): ZipEntry[] | undefined {
   const names = new Set<string>();
   let at = directory.start;
   for (let index = 0; index < directory.count; index++) {
-    if (at + DIRECTORY_ENTRY_SIZE > directory.limit || view.getUint32(at, true) !== DIRECTORY_ENTRY) {
+    if (at + DIRECTORY_ENTRY.size > directory.limit || view.getUint32(at, true) !== DIRECTORY_ENTRY.signature) {
       return undefined;
     }
-    const nameLength = view.getUint16(at + 28, true);
-    const extraStart = at + DIRECTORY_ENTRY_SIZE + nameLength;
-    const extraEnd = extraStart + view.getUint16(at + 30, true);
+    const nameLength = view.getUint16(at + DIRECTORY_ENTRY.nameLength, true);
+    const extraStart = at + DIRECTORY_ENTRY.size + nameLength;
+    const extraEnd = extraStart + view.getUint16(at + DIRECTORY_ENTRY.extraLength, true);
     if (extraEnd > directory.limit) {
       return undefined;
     }
     let entry: ZipEntry | undefined = {
-      name: decoder.decode(new Uint8Array(data, at + DIRECTORY_ENTRY_SIZE, nameLength)),
-      method: view.getUint16(at + 10, true),
-      storedSize: view.getUint32(at + 20, true),
-      unzippedSize: view.getUint32(at + 24, true),
-      offset: view.getUint32(at + 42, true),
+      name: decoder.decode(new Uint8Array(data, at + DIRECTORY_ENTRY.size, nameLength)),
+      method: view.getUint16(at + DIRECTORY_ENTRY.method, true),
+      storedSize: view.getUint32(at + DIRECTORY_ENTRY.storedSize, true),
+      unzippedSize: view.getUint32(at + DIRECTORY_ENTRY.unzippedSize, true),
+      offset: view.getUint32(at + DIRECTORY_ENTRY.localHeader, true),
     };
     if ([ entry.storedSize, entry.unzippedSize, entry.offset ].includes(ZIP64_MARKER)) {
       entry = readZip64Fields(view, entry, extraStart, extraEnd);
@@ -148,12 +159,12 @@ export function readZipDirectory(data: ArrayBuffer): ZipEntry[] | undefined {
     }
     names.add(entry.name);
     entries.push(entry);
-    at = extraEnd + view.getUint16(at + 32, true);
+    at = extraEnd + view.getUint16(at + DIRECTORY_ENTRY.commentLength, true);
   }
   return entries;
 }
 
-// Unzips a deflated entry, giving up once it grows past the limit
+// Unzips a deflated entry, giving up once it grows past the limit or the data is not valid deflate
 async function inflate(
   stored: Uint8Array<ArrayBuffer>,
   maxBytes: number,
@@ -168,14 +179,19 @@ async function inflate(
   const reader = source.pipeThrough(new DecompressionStream("deflate-raw")).getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
-  for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
-    total += chunk.value.length;
-    if (total > maxBytes || signal?.aborted) {
-      await reader.cancel();
-      signal?.throwIfAborted();
-      return undefined;
+  try {
+    for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+      total += chunk.value.length;
+      if (total > maxBytes || signal?.aborted) {
+        await reader.cancel();
+        signal?.throwIfAborted();
+        return undefined;
+      }
+      chunks.push(chunk.value);
     }
-    chunks.push(chunk.value);
+  } catch {
+    signal?.throwIfAborted();
+    return undefined;
   }
   const bytes = new Uint8Array(total);
   chunks.reduce((at, part) => {
@@ -197,12 +213,13 @@ export async function readZipEntry(
   signal?: AbortSignal,
 ): Promise<Uint8Array | undefined> {
   const view = new DataView(data);
-  if (entry.offset + LOCAL_HEADER_SIZE > data.byteLength || view.getUint32(entry.offset, true) !== LOCAL_HEADER) {
+  const header = entry.offset;
+  if (header + LOCAL_HEADER.size > data.byteLength || view.getUint32(header, true) !== LOCAL_HEADER.signature) {
     return undefined;
   }
   // The local header carries its own name and extra field, whose lengths can differ from the directory's
-  const start = entry.offset + LOCAL_HEADER_SIZE + view.getUint16(entry.offset + 26, true)
-    + view.getUint16(entry.offset + 28, true);
+  const start = header + LOCAL_HEADER.size + view.getUint16(header + LOCAL_HEADER.nameLength, true)
+    + view.getUint16(header + LOCAL_HEADER.extraLength, true);
   if (start + entry.storedSize > data.byteLength) {
     return undefined;
   }

@@ -16,14 +16,15 @@
  * limitations under the License.
  */
 
-import { MEGABYTE, formatSize } from "./fileValidation/contentCheck";
 import { checkDoc } from "./fileValidation/docCheck";
 import { checkDocx } from "./fileValidation/docxCheck";
 import { checkPdf } from "./fileValidation/pdfCheck";
+import { MEGABYTE, formatSize } from "./fileValidation/size";
+import { stopOnAbort } from "./fileValidation/stopOnAbort";
 
 import type { ContentCheck } from "./fileValidation/contentCheck";
 
-export { MEGABYTE };
+export { MEGABYTE } from "./fileValidation/size";
 
 // Checks an upload in the browser so a bad file is refused in a moment, not after a slow upload. It
 // only advises: the server checks again.
@@ -49,7 +50,7 @@ export const MIME_TYPE_BY_EXTENSION = {
 // For a caller that takes only what the pipeline reads
 export const PIPELINE_TYPES: string[] = Object.values(MIME_TYPE_BY_EXTENSION);
 
-const MIME_TYPES = new Map<string, string>(Object.entries(MIME_TYPE_BY_EXTENSION));
+type PipelineExtension = keyof typeof MIME_TYPE_BY_EXTENSION;
 
 const EXTENSIONS = new Map<string, string>(
   Object.entries(MIME_TYPE_BY_EXTENSION).map(([ extension, type ]) => [ type, extension ]));
@@ -67,6 +68,33 @@ export interface UploadLimits {
   maxUnzippedSize?: number;
 }
 
+/** How to check an upload; everything left out takes its default. */
+export interface UploadCheckOptions {
+  /** The MIME types taken, as the server compares them. Empty or left out takes any type. */
+  accepted?: string[];
+  /** The size, length and unzipped-size limits, where the defaults do not fit. */
+  limits?: UploadLimits;
+  /** Stops the check, which then rejects with the signal's reason. */
+  signal?: AbortSignal;
+  /** How long the check may take, in milliseconds. Past it, the file passes unchecked. */
+  timeoutMs?: number;
+}
+
+// Each format the pipeline reads has a check of its own, in fileValidation/. A format added to the
+// map above does not compile until it has one here.
+const CONTENT_CHECKS: Record<
+  PipelineExtension,
+  (file: File, limits: Required<UploadLimits>, signal?: AbortSignal) => Promise<ContentCheck>
+> = {
+  ".pdf": (file, limits, signal) => checkPdf(file, limits.maxPdfPages, signal),
+  ".docx": (file, limits, signal) => checkDocx(file, limits.maxUnzippedSize, signal),
+  ".doc": file => checkDoc(file),
+};
+
+function isPipelineExtension(extension: string | undefined): extension is PipelineExtension {
+  return extension !== undefined && Object.hasOwn(MIME_TYPE_BY_EXTENSION, extension);
+}
+
 // The lowercase extension including the dot, or undefined when the name carries none.
 export function getFileExtension(fileName: string): string | undefined {
   const dot = fileName.lastIndexOf(".");
@@ -76,25 +104,6 @@ export function getFileExtension(fileName: string): string | undefined {
   return fileName.slice(dot).toLowerCase();
 }
 
-// Each format the pipeline reads has a check of its own, in fileValidation/. Any other file passes.
-async function checkContent(
-  file: File,
-  extension: string | undefined,
-  limits: Required<Pick<UploadLimits, "maxPdfPages" | "maxUnzippedSize">>,
-  signal?: AbortSignal,
-): Promise<ContentCheck> {
-  if (extension === ".pdf") {
-    return checkPdf(file, limits.maxPdfPages, signal);
-  }
-  if (extension === ".docx") {
-    return checkDocx(file, limits.maxUnzippedSize, signal);
-  }
-  if (extension === ".doc") {
-    return checkDoc(file);
-  }
-  return { valid: true };
-}
-
 // The file's type as the server reads it (AttachDocumentHandler#getMimeType): lower case and without
 // parameters. The extension names it when the browser sent no type or only the generic one.
 function getMimeType(file: File, extension: string | undefined): string | undefined {
@@ -102,7 +111,7 @@ function getMimeType(file: File, extension: string | undefined): string | undefi
   if (declared !== "" && declared !== GENERIC_TYPE) {
     return declared;
   }
-  const fromName = extension === undefined ? undefined : MIME_TYPES.get(extension);
+  const fromName = isPipelineExtension(extension) ? MIME_TYPE_BY_EXTENSION[extension] : undefined;
   return fromName ?? (declared === "" ? undefined : declared);
 }
 
@@ -112,37 +121,57 @@ function describeWrongType(file: File, accepted: string[]): string {
   return `${file.name} is not a file of an accepted type: ${[ ...names ].join(", ")}.`;
 }
 
-/**
- * What is wrong with an upload, or undefined when nothing is.
- *
- * @param file the file the person picked
- * @param accepted the MIME types taken, as the server compares them; empty takes any type
- * @param limits the size, length and unzipped-size limits, where the defaults do not fit
- * @param signal stops the check, which then rejects with the signal's reason
- */
-export async function validateUpload(
+function getLimits({
+  maxFileSize = MAX_FILE_SIZE,
+  maxPdfPages = MAX_PDF_PAGES,
+  maxUnzippedSize = MAX_UNZIPPED_SIZE,
+}: UploadLimits): Required<UploadLimits> {
+  return { maxFileSize, maxPdfPages, maxUnzippedSize };
+}
+
+async function checkUpload(
   file: File,
-  accepted: string[] = [],
-  limits: UploadLimits = {},
-  signal?: AbortSignal,
+  accepted: string[],
+  limits: Required<UploadLimits>,
+  signal: AbortSignal,
 ): Promise<string | undefined> {
-  signal?.throwIfAborted();
-  const maxFileSize = limits.maxFileSize ?? MAX_FILE_SIZE;
   if (file.size === 0) {
     return `${file.name} is empty.`;
   }
-  if (file.size > maxFileSize) {
+  if (file.size > limits.maxFileSize) {
     const size = formatSize(file.size, Math.ceil);
-    return `${file.name} is ${size}, and the limit is ${formatSize(maxFileSize, Math.floor)}.`;
+    return `${file.name} is ${size}, and the limit is ${formatSize(limits.maxFileSize, Math.floor)}.`;
   }
   const extension = getFileExtension(file.name);
   const type = getMimeType(file, extension);
   if (accepted.length > 0 && !accepted.some(entry => entry.toLowerCase() === type)) {
     return describeWrongType(file, accepted);
   }
-  const content = await checkContent(file, extension, {
-    maxPdfPages: limits.maxPdfPages ?? MAX_PDF_PAGES,
-    maxUnzippedSize: limits.maxUnzippedSize ?? MAX_UNZIPPED_SIZE,
-  }, signal);
+  if (!isPipelineExtension(extension)) {
+    return undefined;
+  }
+  const content = await CONTENT_CHECKS[extension](file, limits, signal);
   return content.valid ? undefined : `${file.name}: ${content.error}`;
+}
+
+/**
+ * What is wrong with an upload, or undefined when nothing is.
+ *
+ * @param file the file the person picked
+ * @param options the accepted types, limits, signal and time limit, each optional
+ */
+export async function validateUpload(file: File, options: UploadCheckOptions = {}): Promise<string | undefined> {
+  const { accepted = [], limits = {}, signal, timeoutMs } = options;
+  signal?.throwIfAborted();
+  const timeout = timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs);
+  const stop = AbortSignal.any([ signal, timeout ].filter(each => each !== undefined));
+  try {
+    return await stopOnAbort(checkUpload(file, accepted, getLimits(limits), stop), stop);
+  } catch (error) {
+    // Out of time, the file goes through unchecked, since the server decides anyway
+    if (timeout?.aborted === true && signal?.aborted !== true) {
+      return undefined;
+    }
+    throw error;
+  }
 }

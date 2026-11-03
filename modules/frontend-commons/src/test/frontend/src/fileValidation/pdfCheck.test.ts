@@ -18,81 +18,80 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { checkPdf } from "@iap/frontend-commons/fileValidation/pdfCheck";
+import { PdfWorkerFailure } from "@iap/frontend-commons/pdfViewer/pdfjsClient";
 
-// The tests stand in for PDF.js. A stand-in PDF opens when its first byte is 0x25, and its next two
-// bytes carry the page count, low byte first. A first byte of 0x26 needs a password, 0x27 meets a
-// worker that did not load, and 0x28 never finishes until it is destroyed.
-const destroyed = vi.hoisted(() => ({ count: 0 }));
+// What the fake PDF.js does with the next file it is asked to open. Like the real one, destroying a
+// task never settles its promise, and a worker that failed to start stays failed.
+type Opening = { pages: number } | "locked" | "damaged" | "endless";
 
-// What the last check asked PDF.js for
-const opened = vi.hoisted((): { options: Record<string, unknown> } => ({ options: {} }));
+interface FakeState {
+  opening: Opening;
+  loadFails: boolean;
+  workerFailed: Promise<never>;
+  destroyed: number;
+  // What the last check asked PDF.js for
+  options: Record<string, unknown>;
+}
 
-// A switch that makes PDF.js fail to load, as a chunk that 404s after a deploy would
-const missing = vi.hoisted(() => ({ pdfjs: false }));
+const fake = vi.hoisted((): FakeState => ({
+  opening: { pages: 3 },
+  loadFails: false,
+  workerFailed: new Promise<never>(() => undefined),
+  destroyed: 0,
+  options: {},
+}));
 
-// The one worker the loader shares between documents. Its port is the web worker PDF.js talks to.
+// The one worker the loader shares between documents
 const sharedWorker = vi.hoisted(() => ({ port: new EventTarget() }));
 
 const pdfjs = vi.hoisted(() => ({
-  getDocument: (args: { data: ArrayBuffer }) => {
-    opened.options = args;
-    const bytes = new Uint8Array(args.data);
+  getDocument: (options: Record<string, unknown>) => {
+    fake.options = options;
     const destroy = () => {
-      destroyed.count++;
+      fake.destroyed++;
       return Promise.resolve();
     };
-    if (bytes[0] === 0x26) {
+    const opening = fake.opening;
+    if (opening === "locked") {
       const locked = new Error("No password given");
       locked.name = "PasswordException";
       return { promise: Promise.reject(locked), destroy };
     }
-    if (bytes[0] === 0x28) {
-      let fail: (error: Error) => void = () => undefined;
-      const promise = new Promise((_resolve, reject: (error: Error) => void) => {
-        fail = reject;
-      });
-      return {
-        promise,
-        destroy: () => {
-          destroyed.count++;
-          fail(new Error("Worker was destroyed"));
-          return Promise.resolve();
-        },
-      };
+    if (opening === "damaged") {
+      return { promise: Promise.reject(new Error("Invalid PDF structure")), destroy };
     }
-    if (bytes[0] === 0x27) {
-      setTimeout(() => sharedWorker.port.dispatchEvent(new Event("error")), 0);
+    if (opening === "endless") {
       return { promise: new Promise(() => undefined), destroy };
     }
-    return {
-      promise: bytes[0] === 0x25
-        ? Promise.resolve({ numPages: bytes[1] + (bytes[2] ?? 0) * 256 })
-        : Promise.reject(new Error("not a pdf")),
-      destroy,
-    };
+    return { promise: Promise.resolve({ numPages: opening.pages }), destroy };
   },
 }));
 
-vi.mock("@iap/frontend-commons/pdfViewer/pdfjsClient", () => ({
-  loadPdfjs: () => missing.pdfjs
+vi.mock("@iap/frontend-commons/pdfViewer/pdfjsClient", async importOriginal => ({
+  ...await importOriginal<typeof import("@iap/frontend-commons/pdfViewer/pdfjsClient")>(),
+  loadPdfjs: () => fake.loadFails
     ? Promise.reject(new Error("Loading chunk pdfjs failed"))
-    : Promise.resolve({ pdfjs, worker: sharedWorker }),
+    : Promise.resolve({ pdfjs, worker: sharedWorker, failed: fake.workerFailed }),
 }));
 
 const MAX_PAGES = 500;
 
 afterEach(() => {
   vi.restoreAllMocks();
-  missing.pdfjs = false;
+  fake.opening = { pages: 3 };
+  fake.loadFails = false;
+  fake.workerFailed = new Promise<never>(() => undefined);
+  fake.options = {};
 });
 
-function createUpload(bytes: number[]): File {
-  return new File([ new Uint8Array(bytes) ], "proposal.pdf");
+function openNextAs(opening: Opening): File {
+  fake.opening = opening;
+  return new File([ new Uint8Array([ 0x25, 0x50, 0x44, 0x46 ]) ], "proposal.pdf");
 }
 
-/** A stand-in PDF of a given length. */
-function createPdf(pages: number): File {
-  return createUpload([ 0x25, pages % 256, Math.floor(pages / 256) ]);
+function failWorker(): void {
+  fake.workerFailed = Promise.reject(new PdfWorkerFailure("The PDF.js worker did not start"));
+  fake.workerFailed.catch(() => undefined);
 }
 
 async function getError(file: File, maxPages = MAX_PAGES): Promise<string | undefined> {
@@ -107,43 +106,43 @@ function spyOnErrors() {
 describe("checkPdf", () => {
   // A worker of its own per check would fetch and compile the PDF.js worker script again
   it("opens a PDF on the shared PDF.js worker", async () => {
-    await checkPdf(createPdf(3), MAX_PAGES);
+    await checkPdf(openNextAs({ pages: 3 }), MAX_PAGES);
 
-    expect(opened.options.worker).toBe(sharedWorker);
+    expect(fake.options.worker).toBe(sharedWorker);
   });
 
   it("refuses a .pdf that is not a PDF", async () => {
     spyOnErrors();
 
-    expect(await getError(createUpload([ 0x00, 1, 0 ]))).toBe("The PDF is damaged, or it is not a PDF.");
+    expect(await getError(openNextAs("damaged"))).toBe("The PDF is damaged, or it is not a PDF.");
   });
 
   it("refuses a PDF encrypted with a password", async () => {
-    expect(await getError(createUpload([ 0x26 ]))).toBe("It is encrypted with a password.");
+    expect(await getError(openNextAs("locked"))).toBe("It is encrypted with a password.");
   });
 
   it("refuses a PDF with no pages", async () => {
-    expect(await getError(createPdf(0))).toBe("It has no pages.");
+    expect(await getError(openNextAs({ pages: 0 }))).toBe("It has no pages.");
   });
 
   it("accepts a PDF within the page limit", async () => {
-    expect(await getError(createPdf(10))).toBeUndefined();
+    expect(await getError(openNextAs({ pages: 10 }))).toBeUndefined();
   });
 
   it("refuses a PDF over the page limit, and says how long it is", async () => {
-    expect(await getError(createPdf(11), 10)).toBe("It has 11 pages, and the limit is 10.");
+    expect(await getError(openNextAs({ pages: 11 }), 10)).toBe("It has 11 pages, and the limit is 10.");
   });
 
   it("accepts one exactly at the page limit", async () => {
-    expect(await getError(createPdf(MAX_PAGES))).toBeUndefined();
+    expect(await getError(openNextAs({ pages: MAX_PAGES }))).toBeUndefined();
   });
 
   it("lets go of the PDF it opened", async () => {
-    const before = destroyed.count;
-    await checkPdf(createPdf(3), MAX_PAGES);
-    await checkPdf(createUpload([ 0x26 ]), MAX_PAGES);
+    const before = fake.destroyed;
+    await checkPdf(openNextAs({ pages: 3 }), MAX_PAGES);
+    await checkPdf(openNextAs("locked"), MAX_PAGES);
 
-    expect(destroyed.count).toBe(before + 2);
+    expect(fake.destroyed).toBe(before + 2);
   });
 });
 
@@ -152,35 +151,45 @@ describe("stopping a PDF check", () => {
     const controller = new AbortController();
     controller.abort();
 
-    await expect(checkPdf(createPdf(3), MAX_PAGES, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    await expect(checkPdf(openNextAs({ pages: 3 }), MAX_PAGES, controller.signal))
+      .rejects.toMatchObject({ name: "AbortError" });
   });
 
-  it("ends a check that would never finish, and lets go of the PDF", async () => {
+  it("ends a parse that would never finish, and lets go of the PDF", async () => {
     const controller = new AbortController();
-    const before = destroyed.count;
-    const pending = checkPdf(createUpload([ 0x28 ]), MAX_PAGES, controller.signal);
-    await new Promise(resolve => setTimeout(resolve, 10));
+    const before = fake.destroyed;
+    const pending = checkPdf(openNextAs("endless"), MAX_PAGES, controller.signal);
+    await vi.waitFor(() => expect(fake.options.worker).toBe(sharedWorker));
 
     controller.abort();
 
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
-    expect(destroyed.count).toBeGreaterThan(before);
+    expect(fake.destroyed).toBe(before + 1);
   });
 });
 
 describe("when PDF.js cannot load", () => {
   it("lets a PDF through when PDF.js does not load, and says so in the console", async () => {
     const logged = spyOnErrors();
-    missing.pdfjs = true;
+    fake.loadFails = true;
 
-    expect(await getError(createPdf(3))).toBeUndefined();
+    expect(await getError(openNextAs({ pages: 3 }))).toBeUndefined();
     expect(logged).toHaveBeenCalledWith(expect.stringContaining("not checked"), "proposal.pdf", expect.any(Error));
   });
 
-  it("lets a PDF through when the PDF.js worker does not load", async () => {
+  it("lets a PDF through when the PDF.js worker never started", async () => {
     const logged = spyOnErrors();
+    failWorker();
 
-    expect(await getError(createUpload([ 0x27 ]))).toBeUndefined();
-    expect(logged).toHaveBeenCalledWith(expect.stringContaining("not checked"), "proposal.pdf", expect.any(Error));
+    expect(await getError(openNextAs("endless"))).toBeUndefined();
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining("not checked"), "proposal.pdf", expect.any(PdfWorkerFailure));
+  });
+
+  it("lets every later PDF through too, without waiting on the dead worker", async () => {
+    spyOnErrors();
+    failWorker();
+    await checkPdf(openNextAs("endless"), MAX_PAGES);
+
+    expect(await getError(openNextAs("endless"))).toBeUndefined();
   });
 });

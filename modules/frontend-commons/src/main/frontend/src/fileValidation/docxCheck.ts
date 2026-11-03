@@ -16,7 +16,8 @@
  * limitations under the License.
  */
 
-import { formatSize } from "./contentCheck";
+import { NOT_A_WORD_DOCUMENT } from "./contentCheck";
+import { formatSize } from "./size";
 import { readZipDirectory, readZipEntry } from "./zipReader";
 
 import type { ContentCheck } from "./contentCheck";
@@ -31,6 +32,17 @@ const CONTENT_TYPES = "[Content_Types].xml";
 
 // A real one is a few KB. Reading stops past this, whatever size the zip states.
 const MAX_CONTENT_TYPES_BYTES = 256 * 1024;
+
+// The format allows UTF-16 as well as UTF-8. A UTF-16 part starts with its byte order mark.
+function decodeXmlPart(bytes: Uint8Array): string {
+  if (bytes[0] === 0xFF && bytes[1] === 0xFE) {
+    return new TextDecoder("utf-16le").decode(bytes);
+  }
+  if (bytes[0] === 0xFE && bytes[1] === 0xFF) {
+    return new TextDecoder("utf-16be").decode(bytes);
+  }
+  return new TextDecoder().decode(bytes);
+}
 
 /**
  * Checks the sizes the directory states before unzipping anything, then unzips only the content
@@ -53,14 +65,14 @@ export async function checkDocx(file: File, maxUnzippedSize: number, signal?: Ab
     }
     const listed = entries.find(entry => entry.name === CONTENT_TYPES);
     if (listed === undefined) {
-      return { valid: false, error: "It is not a Word document." };
+      return { valid: false, error: NOT_A_WORD_DOCUMENT };
     }
     const types = await readZipEntry(data, listed, MAX_CONTENT_TYPES_BYTES, signal);
     if (types === undefined) {
       return { valid: false, error: DOCX_DAMAGED };
     }
-    if (!new TextDecoder().decode(types).includes(WORD_MAIN_DOCUMENT)) {
-      return { valid: false, error: "It is not a Word document." };
+    if (!decodeXmlPart(types).includes(WORD_MAIN_DOCUMENT)) {
+      return { valid: false, error: NOT_A_WORD_DOCUMENT };
     }
     return { valid: true };
   } catch {
