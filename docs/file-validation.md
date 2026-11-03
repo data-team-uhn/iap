@@ -1,7 +1,7 @@
 # File validation
 
-**Module:** `modules/frontend-commons` · **Files:** `fileValidation.ts`,
-`pdfViewer/pdfjsClient.ts` · **Used by:** `DocumentUpload.tsx` (submissions) · **Demo:**
+**Module:** `modules/frontend-commons` · **Files:** `fileValidation.ts`, one check per
+format in `fileValidation/`, `pdfViewer/pdfjsClient.ts` · **Used by:** `DocumentUpload.tsx` (submissions) · **Demo:**
 `test-data`'s `FileValidationWidget`
 
 Checks a file in the browser before it is uploaded: its size, its type, and whether its
@@ -51,16 +51,22 @@ The module also exports:
 ## The checks
 
 ```
-validateUpload
+validateUpload                               fileValidation.ts
 ├── 1. empty
-├── 2. size                    before anything is read
-├── 3. type                    against accepted
+├── 2. size                                  before anything is read
+├── 3. type                                  against accepted
 └── 4. content, by extension
-       ├── .pdf   checkPdf     loadPdfjs → getDocument → numPages → task.destroy()
-       ├── .docx  checkDocx    readZipDirectory → readZipEntry([Content_Types].xml)
-       ├── .doc   checkDoc     first 8 bytes against the OLE signature
-       └── other               passes
+       ├── .pdf   checkPdf                   fileValidation/pdfCheck.ts
+       │          loadPdfjs → getDocument → numPages → task.destroy()
+       ├── .docx  checkDocx                  fileValidation/docxCheck.ts
+       │          readZipDirectory → readZipEntry([Content_Types].xml), from zipReader.ts
+       ├── .doc   checkDoc                   fileValidation/docCheck.ts
+       │          first 8 bytes against the OLE signature
+       └── other                             passes
 ```
+
+A new format gets a check of its own in `fileValidation/`, returning a `ContentCheck`
+(`contentCheck.ts`), and a branch in `checkContent` that calls it.
 
 | # | Check | Fails when | Message |
 | --- | --- | --- | --- |
@@ -165,7 +171,7 @@ with the browser's `DecompressionStream`, stopping once it passes 256 KB, where 
 one is a few KB. Two entries with one name count as damage because which of them is read
 is up to the reader, so this check and the parser could see different files.
 
->  **When working on this:** `readZipDirectory` finds the end record (`PK 05 06`) by
+>  **When working on this:** `readZipDirectory` (`zipReader.ts`) finds the end record (`PK 05 06`) by
 > searching back from the end, since a trailing comment of up to 64 KB can follow it,
 > then walks the entries (`PK 01 02`). ZIP64 is read wherever a field holds its maximum
 > (`FFFF`, `FFFFFFFF`), through the ZIP64 locator and the entries' extra fields — some
@@ -290,14 +296,15 @@ ignored.
 
 ## Tests
 
-`fileValidation.test.ts` (`frontend-commons`) covers the module and
-`FileValidationWidget.test.tsx` (`test-data`) the widget, which replaces
-`validateUpload` since the rules have tests of their own.
+Each source file has its own test in `frontend-commons`: `fileValidation.test.ts` for
+the common checks, which replaces the three content checks, and one test per file in
+`fileValidation/`. `FileValidationWidget.test.tsx` (`test-data`) covers the widget, which
+replaces `validateUpload`.
 
-The module's tests use a fake PDF.js rather than the real one. A file whose first byte
+`pdfCheck.test.ts` uses a fake PDF.js rather than the real one. A file whose first byte
 is `0x25` is a PDF whose page count is the next two bytes, low byte first; `0x26` needs
 a password; `0x27` meets a worker that will not start; `0x28` never finishes until it is
 destroyed; anything else is not a PDF. A switch makes PDF.js fail to load, as a missing
-chunk would. A `.docx` is a real zip, written byte by byte by `createZip`, so a test can
-shape it exactly — lying sizes, ZIP64 records, a comment, an entry stored or named twice
-— or damage a few bytes of a good one.
+chunk would. A `.docx` is a real zip, written byte by byte by `createZip` in
+`zip.fixture.ts`, so a test can shape it exactly — lying sizes, ZIP64 records, a comment,
+an entry stored or named twice — or damage a few bytes of a good one.
