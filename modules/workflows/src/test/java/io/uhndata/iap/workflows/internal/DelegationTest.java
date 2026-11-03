@@ -20,6 +20,9 @@ package io.uhndata.iap.workflows.internal;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -39,8 +42,10 @@ import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link Delegation}. A delegate acting for someone gets past every later check as that person, so
@@ -167,6 +172,59 @@ class DelegationTest
 
         assertThrows(WorkflowFailedException.class,
             () -> this.delegation.actor(repository(Map.of("broken", broken)), sender(DELEGATE), "broken"));
+    }
+
+    @Test
+    void countsASessionBoundToTheDelegatesAsADelegate() throws Exception
+    {
+        // A Keycloak role arrives as a bound principal, with no group node to be a member of
+        assertTrue(this.delegation.isDelegate(session(DELEGATE, false, DELEGATES)));
+    }
+
+    @Test
+    void countsTheAdministratorAsADelegate() throws Exception
+    {
+        assertTrue(this.delegation.isDelegate(session("admin", true)));
+    }
+
+    @Test
+    void doesNotCountAnyoneElseAsADelegate() throws Exception
+    {
+        assertFalse(this.delegation.isDelegate(session(ALICE, false, "time-off-approvers")));
+    }
+
+    @Test
+    void doesNotCountASessionWithNoUserStoreAsADelegate() throws Exception
+    {
+        final Session plain = Mockito.mock(Session.class);
+        Mockito.when(plain.getUserID()).thenReturn(ALICE);
+
+        assertFalse(this.delegation.isDelegate(plain));
+    }
+
+    /**
+     * A user's own session, as what they read is serialized through.
+     *
+     * @param id the user's id
+     * @param admin whether they are the administrator
+     * @param bound the principals the session is bound to besides the user's own
+     * @return a stub session
+     * @throws RepositoryException never, but the stubbed methods declare it
+     */
+    private static JackrabbitSession session(final String id, final boolean admin, final String... bound)
+        throws RepositoryException
+    {
+        final User user = user(id);
+        Mockito.when(user.isAdmin()).thenReturn(admin);
+        final UserManager users = Mockito.mock(UserManager.class);
+        Mockito.when(users.getAuthorizable(id)).thenReturn(user);
+        // Built before stubbing: making the principals' own mocks inside a stubbing would interrupt it
+        final Set<Principal> principals = Stream.of(bound).map(DelegationTest::principal).collect(Collectors.toSet());
+        final JackrabbitSession session = Mockito.mock(JackrabbitSession.class);
+        Mockito.when(session.getUserID()).thenReturn(id);
+        Mockito.when(session.getUserManager()).thenReturn(users);
+        Mockito.when(session.getBoundPrincipals()).thenReturn(principals);
+        return session;
     }
 
     /**
