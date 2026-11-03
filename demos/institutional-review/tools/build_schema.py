@@ -405,6 +405,9 @@ FORMS = [
      ]),
 ]
 
+# The forms every reviewer reads
+EVERYONE = {"study"}
+
 DOCUMENTS = [
     ("protocol", "Study protocol", "The full protocol: background, objectives, methods, analysis plan.", True, None),
     ("variables", "Variable list",
@@ -722,6 +725,9 @@ def build():
     }
     for name, label, description, items in FORMS:
         node = {"jcr:primaryType": "sch:FormRequirement", "label": label, "description": description}
+        if name in EVERYONE:
+            # PRETOTYPE: every reviewer reads it, whichever groups' risks also draw on it
+            node["audience"] = "everyone"
         node.update(build_items(name, items))
         version[name] = node
     for name, label, description, required, when in DOCUMENTS:

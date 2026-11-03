@@ -13,6 +13,7 @@
       "jcr:primaryType": "sch:FormRequirement",
       "label": "About the study",
       "description": "The study at a glance. Every reviewer reads this part.",
+      "audience": "everyone",
       "pi": {
         "jcr:primaryType": "sch:Question",
         "text": "Who is the principal investigator?",

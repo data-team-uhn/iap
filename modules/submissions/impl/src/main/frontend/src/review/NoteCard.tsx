@@ -1,0 +1,130 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { useState } from "react";
+
+import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+import EditOutlined from "@mui/icons-material/EditOutlined";
+import { Box, Button, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+
+import TagChip from "@iap/tags/TagChip";
+
+import Composer from "./Composer";
+import { PersonName } from "./people";
+import { kindInfo, type ReviewNote } from "./reviewData";
+
+function when(created: string): string {
+  const date = new Date(created);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// PRETOTYPE. One note as a card: what kind it is, who wrote it and when, and what it says; for an extracted
+// answer, what the AI read and how sure it is. Discussion and issues can be answered; the reviewer's own can be
+// changed or removed.
+export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove }: {
+  note: ReviewNote;
+  // The extracted answer as the question's options call it
+  answerLabel?: string;
+  onReply?: (text: string) => Promise<void>;
+  onEdit?: (text: string, severity?: string) => Promise<void>;
+  onRemove?: () => Promise<void>;
+}) {
+  const info = kindInfo(note.kind);
+  const [ replying, setReplying ] = useState(false);
+  const [ editing, setEditing ] = useState(false);
+  const canAnswer = onReply && (note.kind === "discussion" || note.kind === "issue");
+
+  if (editing && onEdit) {
+    return (
+      <Composer
+        kinds={[ note.kind ]} initialText={note.text} initialSeverity={note.severity} saveLabel="Save"
+        onCancel={() => setEditing(false)}
+        onSave={async (_kind, text, severity) => {
+          await onEdit(text, severity);
+          setEditing(false);
+        }}
+      />
+    );
+  }
+  return (
+    <Box>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+        <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
+          {info.single}
+        </Typography>
+        {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
+        {note.topic && <Typography variant="caption" sx={{ color: "text.secondary" }}>{note.topic}</Typography>}
+        <Typography variant="caption" sx={{ color: "text.secondary", ml: "auto" }}>
+          {note.kind !== "evidence" && <><PersonName user={note.author} />, </>}{when(note.created)}
+        </Typography>
+        {note.mine && onEdit && (
+          <Tooltip title="Change">
+            <IconButton size="small" aria-label="Change" onClick={() => setEditing(true)}>
+              <EditOutlined fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+        {note.mine && onRemove && (
+          <Tooltip title="Remove">
+            <IconButton size="small" aria-label="Remove" onClick={() => void onRemove()}>
+              <DeleteOutlined fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Stack>
+      {note.kind === "evidence" ? (
+        <>
+          <Typography variant="body2"><b>{answerLabel ?? note.extracted}</b></Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            {note.reasoning}
+            {note.confidence !== undefined ? ` Confidence ${Math.round(note.confidence * 100)}%.` : ""}
+          </Typography>
+        </>
+      ) : (
+        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{note.text}</Typography>
+      )}
+      {note.suggestion && (
+        <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>Suggestion. {note.suggestion}</Typography>
+      )}
+      {note.replies.length > 0 && (
+        <Stack spacing={1} sx={{ mt: 1, pl: 1.5, borderLeft: 2, borderColor: "divider" }}>
+          {note.replies.map(reply => (
+            <Box key={reply.path}>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                <PersonName user={reply.author} />, {when(reply.created)}
+              </Typography>
+              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{reply.text}</Typography>
+            </Box>
+          ))}
+        </Stack>
+      )}
+      {canAnswer && !replying && <Button size="small" sx={{ ml: -1 }} onClick={() => setReplying(true)}>Reply</Button>}
+      {canAnswer && replying && (
+        <Box sx={{ mt: 1 }}>
+          <Composer
+            kinds={[]} saveLabel="Reply" onCancel={() => setReplying(false)}
+            onSave={async (_kind, text) => {
+              await onReply(text);
+              setReplying(false);
+            }}
+          />
+        </Box>
+      )}
+    </Box>
+  );
+}

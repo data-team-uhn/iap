@@ -46,6 +46,7 @@ import { carriesTag } from "@iap/tags/carriesTag";
 import TagChip from "@iap/tags/TagChip";
 
 import ApprovalState from "./ApprovalState";
+import ReviewScreen from "./review/ReviewScreen";
 import SubmissionEditor from "./SubmissionEditor";
 import {
   type DocumentRequirement,
@@ -61,6 +62,8 @@ import SubmissionTasks from "./SubmissionTasks";
 
 // The extension that asks for the editor rather than the read-only page
 const EDIT = ".edit";
+// PRETOTYPE: a reviewer works through a submission on a page of its own
+const REVIEW = ".review";
 
 function formatValue(value: unknown): string {
   if (Array.isArray(value)) {
@@ -336,6 +339,12 @@ function whyNotReady(submission: SerializedNode | undefined): string | undefined
 // reviews. The submission is read with the `deep` serialization, which also expands the schema
 // version it answers.
 function SubmissionView() {
+  const location = useLocation();
+  const address = location.pathname.replace(/\.html$/, "");
+  return address.endsWith(REVIEW) ? <ReviewScreen path={address.slice(0, -REVIEW.length)} /> : <SubmissionPage />;
+}
+
+function SubmissionPage() {
   const location = useLocation();
   const navigate = useNavigate();
   // The page URL is the submission's repository path, with an optional `.html`. A trailing `.edit`
