@@ -32,10 +32,12 @@ import {
   type RequirementComponentProps,
 } from "./requirementComponents";
 import { registerBuiltinRequirementComponents, useRequirementComponents } from "./requirements";
+import { AskedByProvider } from "./review/AskedBy";
 import {
   type FormQuestion,
   type SubmissionForm,
   fetchForm,
+  isApprovalRequirement,
   saveAnswer,
 } from "./submissionForm";
 
@@ -136,32 +138,36 @@ function SubmissionEditor({ path, queueSave, onChanged }: {
   }
 
   return (
-    <Stack spacing={2}>
-      <Typography variant="h5">{form.title}</Typography>
-      { !form.editable && (
-        <Alert severity="info">
-          This request can no longer be changed. It is shown as it was submitted.
-        </Alert>
-      ) }
-      { form.requirements.map(requirement => (
-        <Panel key={requirement.name} title={requirement.label || requirement.name} subtitle={requirement.description}>
-          <ErrorBoundary fallback={CANNOT_COMPLETE_HERE}>
-            <RequirementBody
-              path={path}
-              requirement={requirement}
-              disabled={!form.editable}
-              states={states}
-              onAnswered={answered}
-              queueSave={queueSave}
-              onChanged={changed}
-            />
-          </ErrorBoundary>
-        </Panel>
-      )) }
-      { form.requirements.length === 0 && (
-        <Typography variant="placeholder">This request asks nothing yet.</Typography>
-      ) }
-    </Stack>
+    <AskedByProvider approvals={form.requirements.filter(isApprovalRequirement).map(one => one.path)}>
+      <Stack spacing={2}>
+        <Typography variant="h5">{form.title}</Typography>
+        { !form.editable && (
+          <Alert severity="info">
+            This request can no longer be changed. It is shown as it was submitted.
+          </Alert>
+        ) }
+        { form.requirements.map(requirement => (
+          <Panel
+            key={requirement.name} title={requirement.label || requirement.name} subtitle={requirement.description}
+          >
+            <ErrorBoundary fallback={CANNOT_COMPLETE_HERE}>
+              <RequirementBody
+                path={path}
+                requirement={requirement}
+                disabled={!form.editable}
+                states={states}
+                onAnswered={answered}
+                queueSave={queueSave}
+                onChanged={changed}
+              />
+            </ErrorBoundary>
+          </Panel>
+        )) }
+        { form.requirements.length === 0 && (
+          <Typography variant="placeholder">This request asks nothing yet.</Typography>
+        ) }
+      </Stack>
+    </AskedByProvider>
   );
 }
 
