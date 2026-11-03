@@ -71,8 +71,8 @@ public class FlowRouting
 
     /**
      * Whether a token may pass through a node without stopping there. A start event and a gateway may be passed, and
-     * so may a service task, which is performed on the way, and an intermediate throwing event, whose message is
-     * thrown on the way. So may a boundary event a token stands on, since it stands there only once the event has
+     * so may a service task, which is performed on the way, and an intermediate throwing event, which never waits.
+     * So may a boundary event a token stands on, since it stands there only once the event has
      * fired.
      *
      * <p>A token stops at a user task, to wait for a person, and at an end event, where it ends. A free-standing

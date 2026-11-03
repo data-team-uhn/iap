@@ -351,6 +351,12 @@ class RecordReviewHandlerTest
     private static Activity recordingActivity(final String requirement)
     {
         final Activity activity = Mockito.mock(Activity.class);
+        try {
+            // It decides what it acts on as the model does
+            Mockito.doCallRealMethod().when(activity).actsOn(Mockito.any());
+        } catch (final WorkflowDefinitionException e) {
+            throw new AssertionError("Stubbing a method never runs it", e);
+        }
         Mockito.when(activity.get(REQUIREMENT_KEY, String.class)).thenReturn(requirement);
         Mockito.when(activity.getPath()).thenReturn("/Workflows/timeOffRequest/v1/recordReview");
         return activity;

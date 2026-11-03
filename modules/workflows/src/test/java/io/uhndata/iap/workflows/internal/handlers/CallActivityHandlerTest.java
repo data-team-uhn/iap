@@ -27,7 +27,6 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
 
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -35,8 +34,8 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
-import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -58,7 +57,7 @@ class CallActivityHandlerTest
 
     private final WorkflowTaskContext context = Mockito.mock(WorkflowTaskContext.class);
 
-    private final Activity activity = Mockito.mock(Activity.class);
+    private final Activity activity = WorkflowFixture.activity();
 
     private final Resource target = Mockito.mock(Resource.class);
 
@@ -110,11 +109,8 @@ class CallActivityHandlerTest
     void sendsItToWhatTheExecutionCreated() throws Exception
     {
         final Resource created = Mockito.mock(Resource.class);
-        final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         Mockito.when(this.activity.get(MESSAGE)).thenReturn("createVersion");
-        Mockito.when(this.context.getVariable(WorkflowResult.CREATED_PATH_VARIABLE)).thenReturn("/Schemas/consent");
-        Mockito.when(this.context.getResourceResolver()).thenReturn(resolver);
-        Mockito.when(resolver.getResource("/Schemas/consent")).thenReturn(created);
+        Mockito.when(this.context.getCreated()).thenReturn(created);
 
         this.handler.execute(this.context);
 

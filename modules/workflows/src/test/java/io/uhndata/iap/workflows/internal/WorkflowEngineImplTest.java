@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import javax.jcr.AccessDeniedException;
@@ -63,6 +62,7 @@ import io.uhndata.iap.workflows.internal.handlers.CreateEntityHandler;
 import io.uhndata.iap.workflows.internal.handlers.StartWorkflowHandler;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
+import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.IntermediateThrowingEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
@@ -103,7 +103,6 @@ class WorkflowEngineImplTest
 
     private static final String MESSAGE_NAME = "messageName";
 
-    private static final String RECIPIENTS = "recipients";
 
     /** A second system workflow, for the tests where two of them catch the same event. */
     private static final String OTHER_VERSION = "/SystemWorkflows/otherWorkflow/v1";
@@ -907,8 +906,39 @@ class WorkflowEngineImplTest
 
         assertEquals(List.of("creating", "created"), this.told.events());
         final NotificationContext notification = this.told.sent().get(0).notification();
-        assertEquals(target.getPath(), notification.getSubject().getPath());
+        // About what the run created, as a service task after the creation would act on it
+        assertEquals("/Workflows/myCoolWorkflow", notification.getSubject().getPath());
         assertEquals(EngineFixture.ADMIN, notification.getActor());
+    }
+
+    @Test
+    void tellsPeopleAboutTheTargetWhenTheMessageEventSaysSo() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        announceAfterCreating("creating");
+        EngineFixture.modify(this.context, VERSION + "/announce").put("subject", FlowNode.TARGET_SUBJECT);
+
+        engine().receiveEvent(target, CREATE);
+
+        assertEquals(target.getPath(), this.told.sent().get(0).notification().getSubject().getPath());
+    }
+
+    @Test
+    void refusesAMessageEventActingOnAnUnknownSubject() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context);
+        announceAfterCreating("creating");
+        EngineFixture.modify(this.context, VERSION + "/announce").put("subject", "parent");
+        final WorkflowEngine engine = engine();
+
+        final WorkflowDefinitionException refusal =
+            assertThrows(WorkflowDefinitionException.class, () -> engine.receiveEvent(target, CREATE));
+        assertTrue(refusal.getMessage().contains("acts on parent"));
+        assertTrue(this.told.sent().isEmpty());
     }
 
     @Test
@@ -1001,9 +1031,8 @@ class WorkflowEngineImplTest
      */
     private void announce(final String path, final String name)
     {
-        Objects.requireNonNull(this.context.resourceResolver().getResource(path).adaptTo(ModifiableValueMap.class),
-            "The mock repository lets any node be modified")
-            .putAll(Map.of(MESSAGE_NAME, name, RECIPIENTS, new String[] {EngineFixture.ADMIN}));
+        EngineFixture.modify(this.context, path).putAll(
+            Map.of(MESSAGE_NAME, name, PendingNotifications.RECIPIENTS_PROPERTY, new String[] {EngineFixture.ADMIN}));
     }
 
     /**
@@ -1014,14 +1043,8 @@ class WorkflowEngineImplTest
      */
     private void announceAfterCreating(final String message) throws PersistenceException
     {
-        this.context.resourceResolver().delete(
-            this.context.resourceResolver().getResource(VERSION + "/create/toDone"));
-        this.context.create().resource(VERSION + "/create/toAnnounce", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toAnnounce", "targetRef", "announce"));
-        this.context.create().resource(VERSION + "/announce", Map.of(TYPE, IntermediateThrowingEvent.RESOURCE_TYPE,
-            ELEMENT_ID, "announce", MESSAGE_NAME, message, RECIPIENTS, new String[] {EngineFixture.ADMIN}));
-        this.context.create().resource(VERSION + "/announce/toDone", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", "targetRef", "done"));
+        insertAfterCreating("announce", Map.of(TYPE, IntermediateThrowingEvent.RESOURCE_TYPE));
+        announce(VERSION + "/announce", message);
     }
 
     /**
@@ -1032,14 +1055,27 @@ class WorkflowEngineImplTest
      */
     private void sendAfterCreating(final String message) throws PersistenceException
     {
+        insertAfterCreating("send", Map.of(TYPE, Activity.RESOURCE_TYPE,
+            "handler", CallActivityHandler.HANDLER_NAME, "message", message));
+    }
+
+    /**
+     * Puts a node into the bootstrap graph between creating the workflow and ending.
+     *
+     * @param name the node's name and element identifier
+     * @param node the node's other properties, its type among them
+     * @throws PersistenceException never, the mock repository removes the old arc in memory
+     */
+    private void insertAfterCreating(final String name, final Map<String, Object> node) throws PersistenceException
+    {
         this.context.resourceResolver().delete(
             this.context.resourceResolver().getResource(VERSION + "/create/toDone"));
-        this.context.create().resource(VERSION + "/create/toSend", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toSend", "targetRef", "send"));
-        this.context.create().resource(VERSION + "/send", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "send", "handler", CallActivityHandler.HANDLER_NAME,
-            "message", message));
-        this.context.create().resource(VERSION + "/send/toDone", Map.of(
+        this.context.create().resource(VERSION + "/create/toInserted", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toInserted", "targetRef", name));
+        final Map<String, Object> properties = new HashMap<>(node);
+        properties.put(ELEMENT_ID, name);
+        this.context.create().resource(VERSION + "/" + name, properties);
+        this.context.create().resource(VERSION + "/" + name + "/toDone", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", "targetRef", "done"));
     }
 

@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import javax.jcr.Node;
@@ -185,8 +184,7 @@ class UserWorkflowTest
      */
     private void addToTheUserTask(final Map<String, Object> properties)
     {
-        Objects.requireNonNull(this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE)
-            .adaptTo(ModifiableValueMap.class), "The mock repository lets any node be modified").putAll(properties);
+        EngineFixture.modify(this.context, PROCESS + "/" + APPROVE).putAll(properties);
     }
 
     /**
@@ -602,9 +600,7 @@ class UserWorkflowTest
      */
     private void announceBeforeApproval(final Map<String, Object> properties)
     {
-        Objects.requireNonNull(this.context.resourceResolver().getResource(PROCESS + "/requestSubmitted/toApproval")
-            .adaptTo(ModifiableValueMap.class), "The mock repository lets any node be modified")
-            .put(TARGET_REF, ANNOUNCE);
+        EngineFixture.modify(this.context, PROCESS + "/requestSubmitted/toApproval").put(TARGET_REF, ANNOUNCE);
         final Map<String, Object> event = new HashMap<>(properties);
         event.put(TYPE, IntermediateThrowingEvent.RESOURCE_TYPE);
         event.put(ELEMENT_ID, ANNOUNCE);
@@ -806,8 +802,10 @@ class UserWorkflowTest
     void tellsPeopleWhatAMessageEventOnTheWayAnnounces() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
-        announceBeforeApproval(Map.of(MESSAGE_NAME, "submitted", "recipients", new String[] {EngineFixture.REQUESTERS},
-            "template", "/libs/iap/notificationTemplates/submitted", "urgency", "batched"));
+        announceBeforeApproval(Map.of(MESSAGE_NAME, "submitted",
+            PendingNotifications.RECIPIENTS_PROPERTY, new String[] {EngineFixture.REQUESTERS},
+            PendingNotifications.TEMPLATE_PROPERTY, "/libs/iap/notificationTemplates/submitted",
+            PendingNotifications.URGENCY_PROPERTY, "batched"));
 
         started();
 
@@ -829,7 +827,8 @@ class UserWorkflowTest
     {
         createProcess(EngineFixture.REQUESTERS);
         // Somebody to tell, but nothing to tell them
-        announceBeforeApproval(Map.of("recipients", new String[] {EngineFixture.REQUESTERS}));
+        announceBeforeApproval(
+            Map.of(PendingNotifications.RECIPIENTS_PROPERTY, new String[] {EngineFixture.REQUESTERS}));
 
         started();
 
@@ -841,17 +840,16 @@ class UserWorkflowTest
     void tellsPeopleWhatTheEndEventTheInstanceReachesAnnouncesWithTheDecision() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
-        Objects.requireNonNull(this.context.resourceResolver().getResource(PROCESS + "/requestApproved")
-            .adaptTo(ModifiableValueMap.class), "The mock repository lets any node be modified")
-            .putAll(Map.of(MESSAGE_NAME, "approved", "recipients", new String[] {"@creator"}));
+        EngineFixture.modify(this.context, PROCESS + "/requestApproved").putAll(
+            Map.of(MESSAGE_NAME, "decided", PendingNotifications.RECIPIENTS_PROPERTY, new String[] {"@creator"}));
         final WorkflowEngine engine = started();
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
 
-        assertEquals(List.of("approved"), this.told.events());
+        assertEquals(List.of("decided"), this.told.events());
         // The decision travels to the template, which may quote it
-        assertEquals("approved", this.told.sent().get(0).notification().getVariables().get("outcome"));
-        assertEquals(List.of("approved"), List.of((String[]) read(HOST).get("tags")));
+        assertEquals("approved", this.told.sent().get(0).notification().getVariables()
+            .get(TaskCompletion.OUTCOME_PARAMETER));
     }
 
     @Test

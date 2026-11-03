@@ -116,7 +116,12 @@ extension attributes (namespace `https://iap.uhndata.io/bpmn`); elsewhere they a
 by hand.
 
 - **`messageName` on an event** is the domain event name it catches or throws, resolved
-  from the BPMN `messageRef`, and what an incoming event is matched against.
+  from the BPMN `messageRef`. A catching event is reached by an incoming event of that
+  name; a throwing event names the notification it announces.
+- **`recipients`, `template` and `urgency` on a message throw or end event** say who to
+  tell and how; see [message events](#message-events-tell-people-what-happened).
+- **`subject` on a service task or a message event** chooses the resource it acts on:
+  `created`, the default, or `target`; see `ExecutionHost` below.
 - **`targetResourceType` on a version**, e.g. `wf/WorkflowsHomepage`, is the resource
   type whose events a system workflow handles. Content workflows need none: they are
   reached through the schema version that references them.
@@ -556,8 +561,8 @@ Doing this through definitions buys three things:
 - **The lifecycle is content.** Each move's guard says which tags it applies to, and its
   `addTag` what the version becomes; a new state is a new definition, not Java. A move a
   version is past is not offered, and refused with a 409 if sent anyway.
-- **Each action can grow without touching the platform**: a validation step, a
-  notification, another service task on the definition.
+- **Each action can grow without touching the platform**: a validation step or another
+  service task on the definition, or a message event that tells people.
 
 Three actions are more than one write, which is why a run commits once:
 
@@ -694,6 +699,9 @@ shipped bootstraps admit `iap-administrators` for `/Workflows` and `everyone` fo
   or the host of the task being completed — as recorded in `createdBy`. Where nothing
   recorded one, such as on a homepage, it falls back to `jcr:createdBy`, the account
   that wrote the node.
+- **`@entityCreator` means whoever raised the entity that resource belongs to**: the
+  resource itself when it is an entity, or the entity above it, such as the submission a
+  review was written on.
 - **Every other name is resolved by the principals service**, so a group admits its
   members transitively however a deployment stores it, including a role an identity
   provider synchronises with no group node.
@@ -756,9 +764,10 @@ ask the engine for more within the same execution and commit; the built-in
 `callActivity` and `startWorkflow` handlers are thin over them.
 
 Two helpers keep a module's handlers consistent with the built-in ones in
-`internal.handlers`. `ExecutionHost.of` is what a task acts on: what an earlier step of
-the run created, or else the target, which is how `createEntity` followed by `addTag`
-tags the entity it just made. `Payloads` reads one payload entry: text trimmed, with
+`internal.handlers`. `ExecutionHost.of` is what a task acts on, as its activity answers
+through `FlowNode.actsOn`: what an earlier step of the run created, or else the target, which is how `createEntity` followed by `addTag`
+tags the entity it just made. A node whose `subject` is `target` acts on the target even
+after a creation; `created` says the default out loud. Activation refuses any other value. `Payloads` reads one payload entry: text trimmed, with
 blank counted as absent, or an uploaded file.
 
 A handler that writes properties onto its target extends `AbstractPropertiesHandler`,
@@ -783,16 +792,18 @@ sent empty unless it is mandatory, and stores a reference as a `REFERENCE`.
 
 A workflow announces what happened with a message event: a message intermediate throw
 event a token passes, or a message end event it stops at. The engine turns it into a
-[notification](notifications.md) about the resource the workflow is moving, named after
-the message, from whoever the run acts for. A throwing event with no message name is a
-milestone and announces nothing. Both kinds of workflow announce the same way.
+[notification](notifications.md) about what the event acts on, as a service task would
+(`subject` above), named after the message, from whoever the run acts for. A throwing
+event with no message name is a milestone and announces nothing, and activation refuses
+one that says who to tell without naming its message. Both kinds of workflow announce the
+same way.
 
 | Property | Meaning |
 | --- | --- |
 | `messageName` | What happened, which a person's notification settings key on |
 | `recipients` | Who to tell, in the vocabulary `performers` uses; naming nobody tells nobody, and records a problem |
-| `template` | The template folder |
-| `urgency` | How soon, `immediate` by default |
+| `template` | The template folder, as [notifications](notifications.md#where-the-templates-live) describes |
+| `urgency` | How soon: `immediate`, the default, `batched`, or a deployment's own |
 
 The notification carries the delivered event's `outcome` and `outcomeNote` when it has
 them, so a template can quote the reason a request was refused. Nothing is sent until the
@@ -988,8 +999,9 @@ each completed on its own.
 - **Instance variables are not exposed to handlers.** `outcome` persists as a
   `wf:Variable`, but a service task inside an instance sees variables that last only for
   that delivery.
-- **Nothing delivers a message to a catching event**, and event-based gateways are not
-  executed: a thrown message becomes a notification, never an event for another workflow.
+- **Nothing delivers a message to an intermediate catching event**, and event-based
+  gateways are not executed: a thrown message becomes a notification, never an event for
+  another workflow.
   An instance reaching a free-standing catching event is refused rather than parked,
   since nothing could wake it: the engine's door opens onto a homepage or a task.
 - **Read access is never revoked.** It lasts for the life of the instance rather than

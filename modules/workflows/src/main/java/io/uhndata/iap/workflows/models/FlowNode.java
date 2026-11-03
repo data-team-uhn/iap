@@ -27,6 +27,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
+import io.uhndata.iap.workflows.spi.Execution;
 
 /**
  * The abstract base shared by everything that can appear as a node of a workflow graph: an {@link Event}, an
@@ -50,6 +52,15 @@ public abstract class FlowNode extends EntityPart
     /** The {@code sling:resourceType} of a {@code wf:FlowNode} node. */
     public static final String RESOURCE_TYPE = "wf/FlowNode";
 
+    /** The subject acting on what the execution created, or on the target when it created nothing. */
+    public static final String CREATED_SUBJECT = "created";
+
+    /** The subject acting on the resource the event was aimed at. */
+    public static final String TARGET_SUBJECT = "target";
+
+    /** Every subject a node may name. */
+    public static final List<String> KNOWN_SUBJECTS = List.of(CREATED_SUBJECT, TARGET_SUBJECT);
+
     @ValueMapValue
     private String elementId;
 
@@ -64,6 +75,9 @@ public abstract class FlowNode extends EntityPart
 
     @ValueMapValue
     private String hostTag;
+
+    @ValueMapValue
+    private String subject;
 
     /**
      * The stable BPMN identifier of this node, e.g. {@code task_1}. This, not the node name, is how the rest of the
@@ -137,6 +151,40 @@ public abstract class FlowNode extends EntityPart
     public String getHostTag()
     {
         return this.hostTag;
+    }
+
+    /**
+     * Which resource this node acts on, when it acts on one: a service task's handler works on it, and a message
+     * event's notification is about it. {@value #CREATED_SUBJECT} means what the execution created, if anything, and
+     * is the default; {@value #TARGET_SUBJECT} means the resource the event was aimed at.
+     *
+     * @return one of {@link #KNOWN_SUBJECTS}, or {@code null} for the default
+     */
+    @Nullable
+    public String getSubject()
+    {
+        return this.subject;
+    }
+
+    /**
+     * The resource this node acts on, as its {@link #getSubject() subject} chooses: what the execution created, if
+     * it created anything, or else the resource the event was aimed at.
+     *
+     * @param execution the execution reaching this node
+     * @return the resource it acts on
+     * @throws WorkflowDefinitionException when it names an unknown subject, or nothing is where the execution
+     *     recorded its creation
+     */
+    @NotNull
+    public Resource actsOn(@NotNull final Execution execution) throws WorkflowDefinitionException
+    {
+        final String chosen = getSubject();
+        if (chosen != null && !KNOWN_SUBJECTS.contains(chosen)) {
+            throw new WorkflowDefinitionException(getPath() + " acts on " + chosen + ", which is not one of "
+                + String.join(", ", KNOWN_SUBJECTS));
+        }
+        final Resource created = TARGET_SUBJECT.equals(chosen) ? null : execution.getCreated();
+        return created == null ? execution.getTarget() : created;
     }
 
     /**

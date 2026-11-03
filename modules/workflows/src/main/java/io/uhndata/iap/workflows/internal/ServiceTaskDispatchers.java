@@ -65,16 +65,6 @@ public class ServiceTaskDispatchers
     }
 
     /**
-     * Replaces the service task handlers, as the service registry does when they come and go.
-     *
-     * @param handlers every handler
-     */
-    void setHandlers(final List<ServiceTaskHandler> handlers)
-    {
-        this.handlers = handlers;
-    }
-
-    /**
      * A dispatcher for one delivery, working from the handlers registered now.
      *
      * @param chain how the engine admits an event a service task sends

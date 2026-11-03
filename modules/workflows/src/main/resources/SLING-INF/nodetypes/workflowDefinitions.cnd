@@ -207,6 +207,13 @@
   // finished as "approved" must stop being "in-review".
   - hostTag (STRING)
 
+  // Which resource this node acts on, for a node that acts on one: what a
+  // service task works on, what a message event's notification is about.
+  // "created" means what the execution created, if anything, and the event's
+  // target otherwise; it is the default. "target" means the event's target even
+  // after a creation.
+  - subject (STRING)
+
   // Allow any other properties for extensibility: the properties a flow node
   // carries beyond these depend on its type, and are listed by that type's
   // wf:FlowNodeType.properties
@@ -238,10 +245,12 @@
   // declaring one here would be the appearance of a guarantee rather than one.
   - catching (BOOLEAN) protected
 
-  // The resolved name of the BPMN message this event catches or throws — the
-  // domain event name the engine matches incoming events against. Only set for
-  // message-flavored events; the parser will resolve it from the messageRef,
-  // hand-authored definitions set it directly.
+  // The resolved name of the BPMN message this event catches or throws. On a
+  // catching event, it is what an incoming event must be called to reach it; on
+  // a throwing event, what the notification it announces is called. A throwing
+  // event without one announces nothing. Only set for message-flavored events;
+  // the parser resolves it from the messageRef, hand-authored definitions set it
+  // directly.
   - messageName (STRING)
 
 //-----------------------------------------------------------------------------

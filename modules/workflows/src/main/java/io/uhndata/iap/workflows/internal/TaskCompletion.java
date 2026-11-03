@@ -64,6 +64,9 @@ public class TaskCompletion
     /** The payload entry carrying the person's decision. */
     static final String OUTCOME_PARAMETER = "outcome";
 
+    /** The payload entry carrying what the person deciding said about it. */
+    static final String OUTCOME_NOTE_PARAMETER = "outcomeNote";
+
     /** The event a passed deadline delivers. */
     static final String TIMEOUT_EVENT = "timeout";
 

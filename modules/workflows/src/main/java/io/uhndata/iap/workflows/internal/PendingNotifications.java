@@ -34,51 +34,44 @@ import io.uhndata.iap.workflows.models.Event;
 import io.uhndata.iap.workflows.spi.Payloads;
 
 /**
- * The notifications one delivery's message events announced, held until it commits. A delivery that fails discards
- * them with its writes, so nobody is told about something that did not happen, and a delivery retried after a
- * conflict tells them once.
- *
- * <p>A message event is how a workflow tells people what happened. Its message name says what, and the event
- * carries the template, the roles to tell, and how urgent it is, so a notification is a node and a template, never
- * Java.</p>
- *
- * <p>Sending never fails the delivery. The decision a notification reports has been committed, and undoing it
- * because nobody could be told would be the worse outcome. Anything that goes wrong is recorded.</p>
+ * The notifications one delivery's message events announced, held until the engine sends them after the commit. A
+ * notification that cannot be sent is recorded, and the delivery still succeeds.
  *
  * @version $Id$
  * @since 0.1.0
  */
-final class PendingNotifications
+public final class PendingNotifications
 {
     /** The event property naming the template folder. */
-    static final String TEMPLATE_PROPERTY = "template";
+    public static final String TEMPLATE_PROPERTY = "template";
 
     /** The event property listing who to tell. */
-    static final String RECIPIENTS_PROPERTY = "recipients";
+    public static final String RECIPIENTS_PROPERTY = "recipients";
 
     /** The event property saying how soon they should hear. */
-    static final String URGENCY_PROPERTY = "urgency";
+    public static final String URGENCY_PROPERTY = "urgency";
 
     /**
      * The payload entries passed on to the template when the delivered event carries them: the decision a person
      * just made, and what they said about it.
      */
-    static final List<String> CARRIED_ENTRIES = List.of("outcome", "outcomeNote");
+    static final List<String> CARRIED_ENTRIES =
+        List.of(TaskCompletion.OUTCOME_PARAMETER, TaskCompletion.OUTCOME_NOTE_PARAMETER);
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PendingNotifications.class);
 
-    private final NotificationService notifications;
+    private final NotificationService notificationsService;
 
     private final List<Pending> pending = new ArrayList<>();
 
     /**
      * Constructor.
      *
-     * @param notifications who tells people, once the delivery has committed
+     * @param notificationsService who tells people, once the delivery has committed
      */
-    PendingNotifications(final NotificationService notifications)
+    PendingNotifications(final NotificationService notificationsService)
     {
-        this.notifications = notifications;
+        this.notificationsService = notificationsService;
     }
 
     /**
@@ -86,17 +79,17 @@ final class PendingNotifications
      * marks that the process got there.
      *
      * @param source the throwing event
-     * @param target what the workflow is moving, which the notification is about
+     * @param subject what the notification is about
      * @param cause the event being delivered
      * @param actor the user the run acts for
      */
-    void announce(final Event source, final Resource target, final WorkflowEvent cause, final String actor)
+    void hold(final Event source, final Resource subject, final WorkflowEvent cause, final String actor)
     {
         final String name = source.getMessageName();
         if (name == null) {
             return;
         }
-        final NotificationContext.Builder notification = NotificationContext.about(target)
+        final NotificationContext.Builder notification = NotificationContext.about(subject)
             .becauseOf(name)
             .by(actor)
             .urgency(source.get(URGENCY_PROPERTY, String.class))
@@ -125,7 +118,7 @@ final class PendingNotifications
             return;
         }
         try {
-            this.notifications.notify(notification.context(), notification.recipients());
+            this.notificationsService.notify(notification.context(), notification.recipients());
         } catch (final RuntimeException e) {
             LOGGER.error("The {} notification from {} could not be sent: {}", notification.context().getEvent(),
                 notification.source(), e.getMessage(), e);

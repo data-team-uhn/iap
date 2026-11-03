@@ -28,7 +28,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.workflows.internal.PendingNotifications;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.EndEvent;
+import io.uhndata.iap.workflows.models.FlowNode;
+import io.uhndata.iap.workflows.models.IntermediateThrowingEvent;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
@@ -39,7 +43,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link StartEventCheck}, {@link SystemWorkflowTriggerCheck} and {@link SystemWorkflowUserTaskCheck}.
+ * Unit tests for {@link StartEventCheck}, {@link SystemWorkflowTriggerCheck}, {@link SystemWorkflowUserTaskCheck},
+ * {@link MessageEventCheck} and {@link SubjectCheck}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -147,6 +152,65 @@ class WorkflowChecksTest
             new SystemWorkflowUserTaskCheck().check(version));
     }
 
+    @Test
+    void acceptsMessageEventsThatNameTheirMessage()
+    {
+        final Resource version = version(USER_VERSION, null);
+        node(version, "decided", EndEvent.RESOURCE_TYPE, Map.of("messageName", "decided",
+            PendingNotifications.RECIPIENTS_PROPERTY, new String[] {"@creator"}));
+        node(version, "milestone", IntermediateThrowingEvent.RESOURCE_TYPE, Map.of());
+        userTask(version);
+
+        assertEquals(List.of(), new MessageEventCheck().check(version));
+    }
+
+    @Test
+    void refusesMessageEventsThatSayWhoToTellButNameNoMessage()
+    {
+        final Resource version = version(USER_VERSION, null);
+        node(version, "decided", EndEvent.RESOURCE_TYPE,
+            Map.of(PendingNotifications.RECIPIENTS_PROPERTY, new String[] {"@creator"}));
+        node(version, "submitted", IntermediateThrowingEvent.RESOURCE_TYPE,
+            Map.of(PendingNotifications.TEMPLATE_PROPERTY, "/libs/iap/notificationTemplates/submitted"));
+
+        assertEquals(List.of("the event decided says who to tell, but names no message",
+            "the event submitted says who to tell, but names no message"),
+            new MessageEventCheck().check(version));
+    }
+
+    @Test
+    void acceptsTheSubjectsTheEngineKnows()
+    {
+        final Resource version = version(USER_VERSION, null);
+        node(version, "tag", Activity.RESOURCE_TYPE, Map.of("subject", FlowNode.CREATED_SUBJECT));
+        node(version, "decided", EndEvent.RESOURCE_TYPE, Map.of("subject", FlowNode.TARGET_SUBJECT));
+        userTask(version);
+
+        assertEquals(List.of(), new SubjectCheck().check(version));
+    }
+
+    @Test
+    void refusesASubjectTheEngineDoesNotKnow()
+    {
+        final Resource version = version(USER_VERSION, null);
+        node(version, "tag", Activity.RESOURCE_TYPE, Map.of("subject", "parent"));
+
+        assertEquals(List.of("the node tag acts on parent, which is not one of created, target"),
+            new SubjectCheck().check(version));
+    }
+
+    @Test
+    void checksEveryWorkflowVersion()
+    {
+        final Resource version = version(USER_VERSION, null);
+        final Resource notes = this.context.create().resource("/Workflows/notes",
+            Map.of(WorkflowFixture.TYPE, "nt:unstructured"));
+        for (final ValidityCheck check : List.of(new MessageEventCheck(), new SubjectCheck())) {
+            assertTrue(check.appliesTo(version));
+            assertFalse(check.appliesTo(notes));
+        }
+    }
+
     private Resource version(final String path, final String targetType)
     {
         final Map<String, Object> properties = new HashMap<>();
@@ -167,6 +231,15 @@ class WorkflowChecksTest
             properties.put("messageName", messageName);
         }
         this.context.create().resource(version, name, properties);
+    }
+
+    private void node(final Resource version, final String name, final String type,
+        final Map<String, Object> properties)
+    {
+        final Map<String, Object> node = new HashMap<>(properties);
+        node.put(WorkflowFixture.TYPE, type);
+        node.put("elementId", name);
+        this.context.create().resource(version, name, node);
     }
 
     private void userTask(final Resource version)

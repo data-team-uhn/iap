@@ -119,10 +119,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
             if (privilegedTarget.isResourceType(TaskInstance.RESOURCE_TYPE)) {
                 return resume(privilegedTarget, event, actor);
             }
-            final StartEvent start =
-                SystemWorkflowLocator.find(serviceResolver, privilegedTarget, event, this.conditionEvaluator);
-            this.performers.createCheck(serviceResolver, actor).verify(start, privilegedTarget);
-            return execute(privilegedTarget, event, start, actor);
+            return execute(privilegedTarget, event, admit(privilegedTarget, event, actor, 0), actor);
         }
     }
 
@@ -188,7 +185,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 throw e;
             }
         });
-        committed.getNotifications().send();
+        committed.sendNotifications();
         return new WorkflowResult(Map.of());
     }
 
@@ -218,18 +215,19 @@ public class WorkflowEngineImpl implements WorkflowEngine
             revert(resolver);
             throw e;
         }
-        dispatcher.getNotifications().send();
+        dispatcher.sendNotifications();
         return new WorkflowResult(variables);
     }
 
     /**
-     * Admits an event another workflow sent, as part of the sender's execution: matched, guarded and authorized like
-     * any incoming event, for the same user.
+     * Admits an event: finds the system workflow waiting for it, and checks that the user may fire it. An event
+     * another workflow sent is admitted the same way as one that came in, as part of the sender's execution and for
+     * the same user.
      *
-     * @param target the resource the event is sent to
-     * @param event the sent event
-     * @param actor the user the sending execution acts for
-     * @param depth how many sent events deep this is
+     * @param target the resource the event is aimed at, backed by the engine's own session
+     * @param event the event
+     * @param actor the user firing it, or the user the sending execution acts for
+     * @param depth how many sent events deep this is, 0 for an event that came in
      * @return the start event of the system workflow waiting for it
      * @throws WorkflowException when the event is refused, or events are sent too deep
      */

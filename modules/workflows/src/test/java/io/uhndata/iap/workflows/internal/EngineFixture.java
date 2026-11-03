@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import javax.jcr.RepositoryException;
@@ -39,6 +40,7 @@ import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -272,6 +274,19 @@ public final class EngineFixture
     }
 
     /**
+     * The properties of a node, to change what a definition or an instance carries.
+     *
+     * @param context the Sling context holding the node
+     * @param path the node
+     * @return its modifiable properties
+     */
+    static ModifiableValueMap modify(final SlingContext context, final String path)
+    {
+        return Objects.requireNonNull(context.resourceResolver().getResource(path).adaptTo(ModifiableValueMap.class),
+            "The mock repository lets any node be modified");
+    }
+
+    /**
      * A resolver factory handing out the engine's service session, wrapped so that it can be asked who the
      * repository's users are. The mock repository has no user store at all, so without this every event would
      * fail as "the repository cannot be asked who its users are" rather than exercising the check.
@@ -459,7 +474,7 @@ public final class EngineFixture
         throws ReflectiveOperationException
     {
         final ServiceTaskDispatchers dispatchers = new ServiceTaskDispatchers(routing(), runners(), notifications);
-        dispatchers.setHandlers(handlers);
+        inject(dispatchers, "handlers", handlers);
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", resolverFactory);
         inject(engine, "dispatchers", dispatchers);
@@ -471,19 +486,19 @@ public final class EngineFixture
     }
 
     /**
-     * Sets one of the engine's references.
+     * Sets one of a component's references, as the DS runtime would.
      *
-     * @param engine the engine
+     * @param component the component
      * @param field the reference's field name
      * @param value what to set it to
      * @throws ReflectiveOperationException when there is no such field
      */
-    static void inject(final WorkflowEngineImpl engine, final String field, final Object value)
+    static void inject(final Object component, final String field, final Object value)
         throws ReflectiveOperationException
     {
-        final Field reference = WorkflowEngineImpl.class.getDeclaredField(field);
+        final Field reference = component.getClass().getDeclaredField(field);
         reference.setAccessible(true);
-        reference.set(engine, value);
+        reference.set(component, value);
     }
 
     /**

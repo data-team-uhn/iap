@@ -21,13 +21,16 @@ import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.models.FlowNode;
 
 /**
  * The resource a service task acts on, by the rule every built-in one follows: the one the execution created, if it
  * created one, or else the resource the event was aimed at. That is what lets a step act on what an earlier step of
  * the same run created — {@code createEntity} and then {@code addTag} tags the new entity — so a handler that may
  * follow a creation finds its resource here rather than reading the target.
+ *
+ * <p>The activity decides, through {@link FlowNode#actsOn}: its {@link FlowNode#getSubject() subject} may keep the
+ * target even when the run created another resource.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -42,20 +45,13 @@ public final class ExecutionHost
      * The resource the executing task acts on.
      *
      * @param context the executing task's context
-     * @return the created resource, or the target when nothing was created
-     * @throws WorkflowDefinitionException when the recorded path leads nowhere
+     * @return what its activity's subject chooses
+     * @throws WorkflowDefinitionException when the activity names an unknown subject, or the recorded path leads
+     *     nowhere
      */
     @NotNull
     public static Resource of(@NotNull final WorkflowTaskContext context) throws WorkflowDefinitionException
     {
-        final Object created = context.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
-        if (!(created instanceof String)) {
-            return context.getTarget();
-        }
-        final Resource host = context.getResourceResolver().getResource((String) created);
-        if (host == null) {
-            throw new WorkflowDefinitionException("Nothing was created at " + created + " to act on");
-        }
-        return host;
+        return context.getActivity().actsOn(context);
     }
 }

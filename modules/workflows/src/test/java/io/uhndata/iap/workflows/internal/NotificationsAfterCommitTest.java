@@ -59,7 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class PendingNotificationsTest
+class NotificationsAfterCommitTest
 {
     private static final String TASK = "/Submissions/request/wf:instances/process/approve";
 

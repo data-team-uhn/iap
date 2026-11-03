@@ -78,32 +78,12 @@ event its process passes, or a message end event it stops at. The event carries 
 happened as its message name, who to tell, how urgent it is, and where its template
 lives, so adding a notification is adding a node and a template, never Java. Who to tell
 is written in the same vocabulary the workflow uses to say who may act: `@creator` is
-whoever raised the thing in question, and anything else is a person or a group, expanded
-into its members when the moment comes. The same name always means the same people in
-both places, because both are answered by the same service.
-
-```json
-"requestApproved": {
-  "jcr:primaryType": "wf:EndEvent",
-  "jcr:reference:flowNodeType": "/WorkflowTypes/MessageEndEvent",
-  "elementId": "requestApproved",
-  "messageName": "approved",
-  "template": "/libs/iap/notificationTemplates/submissionApproved",
-  "recipients": [ "@creator" ],
-  "urgency": "immediate"
-}
-```
-
-| Property | Default | Meaning |
-|---|---|---|
-| `messageName` | — | What happened, which a person's notification settings key on |
-| `template` | — | The template folder, as [below](#where-the-templates-live) |
-| `recipients` | — | Who to tell; an event naming nobody tells nobody, and records a problem |
-| `urgency` | `immediate` | How soon: `immediate`, `batched`, or a deployment's own |
-
-Nothing is sent until the workflow's changes are committed, so nobody hears of a decision
-that did not happen, and a run retried after a conflict tells them once
-([workflows](workflows.md#message-events-tell-people-what-happened)).
+whoever raised the thing in question, `@entityCreator` whoever raised the entity it
+belongs to, and anything else is a person or a group, expanded into its members when the
+moment comes. The same name always means the same people in both places, because both are
+answered by the same service. The event's properties, and why nothing is sent before the
+workflow's changes are committed, are in
+[workflows](workflows.md#message-events-tell-people-what-happened).
 
 What happens next deliberately splits in two. The workflow states *what happened and who it
 concerns*; **how each person hears about it is decided per channel**, by whichever deliveries are

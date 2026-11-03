@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
@@ -30,8 +31,8 @@ import io.uhndata.iap.workflows.models.Event;
 
 /**
  * How a running instance performs the steps it meets during one delivery, through the dispatch a system workflow
- * uses. Both act on the instance's host. The variables belong to the delivery; an instance's persisted variables are
- * not yet exposed to handlers.
+ * uses. A service task and a thrown message both act on the instance's host. The variables belong to the delivery; an
+ * instance's persisted variables are not yet exposed to handlers.
  *
  * @version $Id$
  * @since 0.1.0
@@ -69,8 +70,9 @@ final class InstanceSteps implements InstanceRunner.StepPerformer
     }
 
     @Override
-    public void throwMessage(final Event source, final Resource instance)
+    public void throwMessage(final Event source, final Resource instance) throws WorkflowDefinitionException
     {
-        this.dispatcher.getNotifications().announce(source, InstanceRecords.hostOf(instance), this.event, this.actor);
+        this.dispatcher.throwMessage(source, InstanceRecords.hostOf(instance), this.event, this.actor,
+            this.variables);
     }
 }

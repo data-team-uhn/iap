@@ -456,7 +456,8 @@ final class InstanceRunner
          *
          * @param source the throwing event a token reached
          * @param instance the running instance it belongs to
+         * @throws WorkflowDefinitionException when the event names an unknown subject
          */
-        void throwMessage(Event source, Resource instance);
+        void throwMessage(Event source, Resource instance) throws WorkflowDefinitionException;
     }
 }

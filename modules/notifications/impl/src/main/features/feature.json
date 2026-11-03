@@ -23,8 +23,8 @@
       "start-order":"26"
     },
     {
-      // After the workflows bundle whose handler extension point it plugs into, and after the content and
-      // entity node types the models it reads are built on
+      // After the principals service it resolves recipients through. The API sits at the same order as the
+      // workflows bundle, which imports it, and must not start later
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
       "start-order":"26"
     }

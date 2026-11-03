@@ -34,6 +34,7 @@ import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -55,7 +56,7 @@ class AddLinkHandlerTest
 
     private final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
 
-    private final Activity activity = Mockito.mock(Activity.class);
+    private final Activity activity = WorkflowFixture.activity();
 
     private final Resource host = Mockito.mock(Resource.class);
 

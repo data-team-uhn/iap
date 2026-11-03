@@ -28,12 +28,14 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.Event;
 import io.uhndata.iap.workflows.models.StartEvent;
+import io.uhndata.iap.workflows.spi.Execution;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Performs service tasks and holds the notifications message events announce, the same way for both kinds of
+ * Performs service tasks and throws the messages of message events, the same way for both kinds of
  * workflow: a system workflow's run, and a running instance's through {@link #performer}. A handler therefore behaves
  * identically whichever kind reached it, and nothing here may assume which.
  *
@@ -79,13 +81,28 @@ final class ServiceTaskDispatcher
     }
 
     /**
-     * What the delivery's message events announced, to be sent once it commits.
+     * Throws the message a throwing event names, as part of this delivery. The notification it announces is about
+     * what the event {@link Event#actsOn acts on}, and waits for the delivery to commit.
      *
-     * @return the delivery's notifications
+     * @param source the throwing event reached
+     * @param target the resource the event is aimed at, backed by the engine's own session
+     * @param cause the event being delivered
+     * @param actor the user the execution acts for
+     * @param variables the execution's variables, which say what it created
+     * @throws WorkflowDefinitionException when the event names an unknown subject
      */
-    PendingNotifications getNotifications()
+    void throwMessage(final Event source, final Resource target, final WorkflowEvent cause, final String actor,
+        final Map<String, Object> variables) throws WorkflowDefinitionException
     {
-        return this.notifications;
+        this.notifications.hold(source, source.actsOn(new Run(target, variables)), cause, actor);
+    }
+
+    /**
+     * Sends the notifications this delivery's message events announced. Called once the delivery has committed.
+     */
+    void sendNotifications()
+    {
+        this.notifications.send();
     }
 
     /**
@@ -176,6 +193,35 @@ final class ServiceTaskDispatcher
     }
 
     /**
+     * What a run is working on, for a step that has no task context of its own, such as a thrown message.
+     *
+     * @param target the resource the event is aimed at, backed by the engine's own session
+     * @param variables the run's variables
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private record Run(Resource target, Map<String, Object> variables) implements Execution
+    {
+        @Override
+        public Resource getTarget()
+        {
+            return this.target;
+        }
+
+        @Override
+        public Object getVariable(final String name)
+        {
+            return this.variables.get(name);
+        }
+
+        @Override
+        public ResourceResolver getResourceResolver()
+        {
+            return this.target.getResourceResolver();
+        }
+    }
+
+    /**
      * How the engine admits an event a service task sent: which system workflow is waiting for it, and whether the
      * user the sending execution acts for may fire it.
      *
@@ -186,7 +232,7 @@ final class ServiceTaskDispatcher
     interface EventChain
     {
         /**
-         * Finds the start event waiting for a sent event, once it is known that the event may be sent.
+         * Checks that the sending execution's user may send the event, and finds the start event waiting for it.
          *
          * @param target the resource the event is sent to, backed by the engine's own session
          * @param event the sent event
