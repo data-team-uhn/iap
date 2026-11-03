@@ -70,7 +70,7 @@ function DecisionTasks({ path, onCompleted }: { path: string; onCompleted?: () =
       params[ON_BEHALF_OF] = onBehalfOf.trim();
     }
     close();
-    void run(() => sendEvent(doFetch, task.path, COMPLETE_EVENT, params)
+    run(() => sendEvent(doFetch, task.path, COMPLETE_EVENT, params)
       .then(() => {
         onCompleted?.();
         return reload();
