@@ -72,6 +72,12 @@
   // /Tags and managed by the attached user workflow. Whoever creates a submission is expected
   // to tag it `draft`.
 
+  // Where reading answers out of the attached documents got to: running, done or
+  // failed - with a short message for the person looking at it.
+  // Set by the extraction module's steps and its reading job.
+  - extractionStatus (STRING)
+  - extractionMessage (STRING)
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
@@ -141,6 +147,10 @@
   // The model's explanation of how it got there
   - reasoning (STRING)
 
+  // Whether the submitter said the quoted passage does not support the
+  // answer: a verdict on the evidence, not on the answer, so it settles nothing
+  - evidenceRejected (BOOLEAN)
+
   // How far the submitter's own value ended up from extractedAnswer: the raw
   // edit distance, and that distance as a percentage of the extracted answer's
   // own length. Written when the submitter accepts or edits the extracted
@@ -171,7 +181,9 @@
   // can be removed without first deleting every quote taken from it.
   - source (WEAKREFERENCE)
 
-  // The quoted text
+  // The quoted text. Every one stored was found in the document: a quote that
+  // could not be found is not evidence, so it is dropped rather than kept.
+  // The answer still pays for it, through a lower confidence.
   - quote (STRING)
 
   // A little of the text just before and after the quote, so the passage can
@@ -182,8 +194,8 @@
   // The nearest detected header of the quoted text
   - header (STRING)
 
-  // Page in the source PDF, when known. Absent for documents that carry no
-  // page markers, e.g. anything that came in as DOCX.
+  // The page the model gave for the quote; not checked. Absent for documents
+  // that carry no page markers, e.g. anything that came in as DOCX.
   - page (LONG)
 
   // Allow any other properties for extensibility
@@ -252,11 +264,16 @@
 [sub:File] > data:EntityPart, mix:referenceable, mix:lastModified
   - sling:resourceType (STRING) = "sub/File" mandatory autocreated protected
 
-  // Where the parse got to: queued, active, completed or failed. Kept here as
-  // well as on the parse job so that a file that failed parsing does not look
-  // like one that was never parsed.
+  // Where the parse got to: queued, completed or failed. Only the parse job
+  // record is ever active. Kept here as well as on the job so that a file that
+  // failed parsing does not look like one that was never parsed.
   - parseStatus (STRING)
   - parseError (STRING)
+  // The parse job the file was queued under, and where the upload was staged for
+  // the daemon on the shared volume. The job record is deleted once its outcome
+  // has been read in, so these are what is left to trace a parse by.
+  - parseJobId (STRING)
+  - sharedPath (STRING)
 
   // Token count of the Markdown. A cheap character heuristic, len(md) // 4;
   // no ML tokenizer is involved.
@@ -265,8 +282,15 @@
   // The upload, exactly as it was received
   + uploadedFile (nt:file) = nt:file
 
-  // The renditions LibreOffice and Docling produced: the .md and other
-  // versions of the document created during the parsing process
+  // What the parse produced and is worth keeping: the Markdown the extraction
+  // reads, and the PDF of this document. pdfFile is only there when
+  // LibreOffice rendered one beside an office file; a PDF upload is the PDF,
+  // kept once as uploadedFile. The .docx and anything else made along the way
+  // is not kept.
+  + markdownFile (nt:file) = nt:file
+  + pdfFile (nt:file) = nt:file
+
+  // Allowed for other renditions; the pipeline stores none today
   + * (nt:file) = nt:file
 
   // Allow any other properties for extensibility

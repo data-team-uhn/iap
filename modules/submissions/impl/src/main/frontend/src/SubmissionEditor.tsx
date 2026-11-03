@@ -85,16 +85,26 @@ function Items({ items, disabled, states, onAnswered }: {
 
 // What a requirement asks for, answered here where it can be: questions are filled in and a document
 // is uploaded. An approval says where it stands, and any other kind says it cannot be completed here
-// yet.
-function RequirementBody({ path, requirement, disabled, states, onAnswered, onAttached }: {
+// yet. While a document is being read the questions are not shown at all, since the reading is filling
+// them in and an answer typed meanwhile would collide with it.
+function RequirementBody({ path, requirement, disabled, reading, states, onAnswered, onAttached }: {
   path: string;
   requirement: Requirement;
   disabled: boolean;
+  reading: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
   onAttached: () => void;
 }) {
   if (isFormRequirement(requirement)) {
+    if (reading) {
+      return (
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+          <CircularProgress size={16} />
+          <Typography variant="placeholder">The answers are shown once the document has been read.</Typography>
+        </Stack>
+      );
+    }
     return <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />;
   }
   if (isDocumentRequirement(requirement)) {
@@ -114,9 +124,11 @@ function RequirementBody({ path, requirement, disabled, states, onAnswered, onAt
 // Nothing here evaluates a condition; a question that stops applying simply stops being sent.
 // `onSaving` hears of each save as it starts, for whatever must wait until the answers are stored.
 // `onChanged` hears that a save or an attachment went through, so a page reading the submission
-// itself, such as what it is still missing, can read it again.
-function SubmissionEditor({ path, onSaving, onChanged }: {
+// itself, such as what it is still missing, can read it again. `reading` says a document is being read
+// for answers, which hides the questions and holds uploads back until it ends.
+function SubmissionEditor({ path, reading = false, onSaving, onChanged }: {
   path: string;
+  reading?: boolean;
   onSaving?: (save: Promise<unknown>) => void;
   onChanged?: () => void;
 }) {
@@ -177,6 +189,17 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
     reload(token).catch((e: unknown) => setError(message(e)));
   }, [ reload, onChanged ]);
 
+  // The form again once a reading ends, to show the answers it filled in
+  const wasReading = useRef(reading);
+  useEffect(() => {
+    if (wasReading.current && !reading) {
+      const token = latestFormRead.current + 1;
+      latestFormRead.current = token;
+      reload(token).catch((e: unknown) => setError(message(e)));
+    }
+    wasReading.current = reading;
+  }, [ reading, reload ]);
+
   if (error) {
     return <Alert severity="error">{error}</Alert>;
   }
@@ -197,7 +220,8 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
           <RequirementBody
             path={path}
             requirement={requirement}
-            disabled={!form.editable}
+            disabled={!form.editable || reading}
+            reading={reading}
             states={states}
             onAnswered={answered}
             onAttached={attached}

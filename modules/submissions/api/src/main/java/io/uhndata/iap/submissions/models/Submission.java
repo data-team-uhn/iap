@@ -22,7 +22,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -35,10 +37,13 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.schemas.models.FormItem;
+import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstances;
@@ -268,6 +273,58 @@ public class Submission extends Entity
     }
 
     /**
+     * The questions this submission is asked now: every question of every form requirement that applies, with
+     * conditions resolved, in schema order.
+     *
+     * @return the questions asked, empty when none apply
+     */
+    @NotNull
+    public List<Question> getQuestions()
+    {
+        return this.getQuestionsOf(requirement -> true);
+    }
+
+    /**
+     * The questions one named requirement asks, on the same terms as {@link #getQuestions()}. A model reading a
+     * document in stages asks for one stage by its requirement's name.
+     *
+     * @param name the requirement's node name, or its full path
+     * @return its questions, empty when it does not apply, is not a form, or does not exist
+     */
+    @NotNull
+    public List<Question> getQuestions(@Nullable final String name)
+    {
+        if (name == null || name.isBlank()) {
+            return List.of();
+        }
+        return this.getQuestionsOf(requirement -> name.equals(requirement.getName())
+            || name.equals(requirement.getPath()));
+    }
+
+    private List<Question> getQuestionsOf(final Predicate<Requirement> chosen)
+    {
+        return this.getSchemaVersion().getRequirements().stream()
+            .filter(chosen)
+            .filter(FormRequirement.class::isInstance)
+            .filter(this::isApplicable)
+            .flatMap(form -> ((FormRequirement) form).getChildren().stream())
+            .flatMap(this::getApplicableQuestions)
+            .collect(Collectors.toList());
+    }
+
+    private Stream<Question> getApplicableQuestions(final FormItem item)
+    {
+        if (!this.isApplicable(item)) {
+            return Stream.empty();
+        }
+        if (item instanceof Question) {
+            return Stream.of((Question) item);
+        }
+        // Section is the only other item type
+        return ((Section) item).getChildren().stream().flatMap(this::getApplicableQuestions);
+    }
+
+    /**
      * What has been answered, by the path of the question each answer is for.
      *
      * <p>Both the completeness of a question and the form shown to the submitter are read from this, so the two count
@@ -315,6 +372,38 @@ public class Submission extends Entity
         return this.getAnswersByQuestion().getOrDefault(version.getPath() + "/" + questionPath, List.of()).stream()
             .filter(value -> !value.isBlank())
             .toList();
+    }
+
+    /**
+     * What answers a particular question for a step acting on a reading before anybody has looked at it: the
+     * submitter's values, or failing those, what a reading suggested. See {@link Answer#getValueOrSuggestion()}.
+     *
+     * @param questionPath the path of the question to read, relative to the schema version, e.g.
+     *     {@code is_proposal/decision}
+     * @return the values; empty if there are none, the schema version has no question at that path, or this session
+     *     cannot read the schema version
+     */
+    @NotNull
+    public List<String> getAnswerOrSuggestionTo(@NotNull final String questionPath)
+    {
+        final SchemaVersion version = this.findSchemaVersion();
+        if (version == null) {
+            return List.of();
+        }
+        final String wanted = version.getPath() + "/" + questionPath;
+        return this.getAnswers().stream()
+            .filter(answer -> isAnswering(answer, wanted))
+            .map(Answer::getValueOrSuggestion)
+            .filter(values -> !values.isEmpty())
+            .findFirst()
+            .orElse(List.of());
+    }
+
+    /** Whether an answer is for the question at a path, read once since every read resolves the reference. */
+    private static boolean isAnswering(final Answer answer, final String questionPath)
+    {
+        final Question question = answer.getQuestion();
+        return question != null && questionPath.equals(question.getPath());
     }
 
     /**

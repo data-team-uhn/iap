@@ -77,6 +77,20 @@ class ExtractionTest
         assertNotNull(resource.adaptTo(Extraction.class));
     }
 
+    // A verdict on the quote behind the answer, which says nothing about the answer itself
+    @Test
+    void keepsTheSubmittersVerdictOnTheEvidence()
+    {
+        final Resource resource = this.context.create().resource(EXTRACTION_PATH, Map.of(
+            "sling:resourceType", Extraction.RESOURCE_TYPE,
+            "extractedAnswer", "42",
+            "evidenceRejected", true));
+        final Extraction extraction = resource.adaptTo(Extraction.class);
+
+        assertTrue(extraction.isEvidenceRejected());
+        assertFalse(extraction.isActedOn(), "judging the quote is not acting on the answer");
+    }
+
     @Test
     void exposesWhatTheModelRead()
     {
@@ -90,6 +104,7 @@ class ExtractionTest
         assertEquals("42", extraction.getExtractedAnswer());
         assertEquals(0.87, extraction.getConfidence());
         assertEquals("The recruitment table gives 42 in the final column", extraction.getReasoning());
+        assertFalse(extraction.isEvidenceRejected());
         // Nobody has accepted or edited it yet, so there is nothing to compare against
         assertFalse(extraction.isActedOn());
         assertNull(extraction.getEditDistance());
@@ -172,6 +187,7 @@ class ExtractionTest
         assertNull(extraction.getExtractedAnswer());
         assertNull(extraction.getConfidence());
         assertNull(extraction.getReasoning());
+        assertFalse(extraction.isEvidenceRejected());
         assertNull(extraction.getEditDistance());
         assertNull(extraction.getPercentageDistance());
         assertFalse(extraction.isActedOn());

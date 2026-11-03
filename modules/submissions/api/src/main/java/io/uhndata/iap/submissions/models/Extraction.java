@@ -58,6 +58,9 @@ public class Extraction extends EntityPart
     private String reasoning;
 
     @ValueMapValue
+    private boolean evidenceRejected;
+
+    @ValueMapValue
     private Long editDistance;
 
     @ValueMapValue
@@ -116,6 +119,17 @@ public class Extraction extends EntityPart
     public String getReasoning()
     {
         return this.reasoning;
+    }
+
+    /**
+     * Whether the submitter said the quoted passage does not support the answer. A verdict on the evidence, not on
+     * the answer, so it settles nothing.
+     *
+     * @return {@code true} if the passage was reported as wrong
+     */
+    public boolean isEvidenceRejected()
+    {
+        return this.evidenceRejected;
     }
 
     /**

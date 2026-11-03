@@ -99,7 +99,7 @@ class SubmissionTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class,
+        this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class, Extraction.class,
             Document.class, Review.class, Discussion.class, Comment.class, SchemaVersion.class, FormRequirement.class,
             DocumentRequirement.class, ApprovalRequirement.class, Section.class, Question.class,
             SingleCondition.class, WorkflowInstance.class, WorkflowInstances.class, Schema.class);
@@ -483,6 +483,109 @@ class SubmissionTest
             Objects.requireNonNull(resource.adaptTo(Submission.class)).getAnswersByQuestion().get(QUESTION_1_PATH));
     }
 
+    private void registerConditionEvaluator()
+    {
+        // Applies what carries no condition, so a test hides an item by giving it one
+        final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
+        Mockito.when(conditions.applies(Mockito.any(), Mockito.any()))
+            .thenAnswer(call -> call.<Conditionable>getArgument(0).getCondition() == null);
+        this.context.registerService(ConditionEvaluator.class, conditions);
+    }
+
+    private Submission createBareSubmission()
+    {
+        return this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID))
+            .adaptTo(Submission.class);
+    }
+
+    @Test
+    void listsTheQuestionsCurrentlyAsked()
+        throws RepositoryException
+    {
+        // Both questions, and only the questions: the document and approval requirements ask for other things
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertEquals(List.of("Q1", "Q2"), submission.getQuestions().stream().map(Question::getText).toList());
+    }
+
+    @Test
+    void asksOnlyTheQuestionsWhoseConditionHolds()
+        throws RepositoryException
+    {
+        // A question that is not shown is not asked, so nothing downstream should judge its answer
+        this.registerConditionEvaluator();
+        this.createSchemaVersionWithRequirements();
+        this.context.create().resource("/Schemas/schema/1.0/form/q2/cond:condition", Map.of(
+            SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
+        final Submission submission = this.createBareSubmission();
+
+        assertEquals(List.of("Q1"), submission.getQuestions().stream().map(Question::getText).toList());
+    }
+
+    @Test
+    void asksOneRequirementByName()
+        throws RepositoryException
+    {
+        // A schema says which questions belong together by putting them in one requirement, and reading a
+        // document in stages means asking for a stage by name rather than re-deriving the grouping
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertEquals(List.of("Q1", "Q2"),
+            submission.getQuestions("form").stream().map(Question::getText).toList());
+    }
+
+    @Test
+    void asksOneRequirementByItsFullPath()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertEquals(List.of("Q1", "Q2"),
+            submission.getQuestions("/Schemas/schema/1.0/form").stream().map(Question::getText).toList());
+    }
+
+    @Test
+    void asksNothingOfARequirementThatIsNotBeingAsked()
+        throws RepositoryException
+    {
+        // The whole point of naming a stage: a stage whose turn has not come yields nothing rather than
+        // being asked anyway
+        this.registerConditionEvaluator();
+        this.createSchemaVersionWithRequirements();
+        this.context.create().resource("/Schemas/schema/1.0/form/cond:condition", Map.of(
+            SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
+        final Submission submission = this.createBareSubmission();
+
+        assertTrue(submission.getQuestions("form").isEmpty());
+    }
+
+    @Test
+    void asksNothingOfARequirementThatAsksNoQuestions()
+        throws RepositoryException
+    {
+        // The document and approval requirements ask for other things, and a name nobody carries is not a form
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertTrue(submission.getQuestions("consent").isEmpty());
+        assertTrue(submission.getQuestions("nothing-by-that-name").isEmpty());
+    }
+
+    @Test
+    void asksNothingWhenNoRequirementIsNamed()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertTrue(submission.getQuestions(null).isEmpty());
+        assertTrue(submission.getQuestions("   ").isEmpty());
+    }
+
     @Test
     void readsAnAnswerByItsQuestionPathWithinTheSchemaVersion()
         throws RepositoryException
@@ -500,6 +603,42 @@ class SubmissionTest
         assertEquals("yes", submission.getAnswerTo("form/section/q1"));
         // The whole path names the question, never just its end
         assertEquals(List.of(), submission.getAnswersTo("section/q1"));
+    }
+
+    // A step acting on a reading before anybody has looked at it reads the suggestion, until a value is given
+    @Test
+    void readsTheSuggestionToAQuestionNobodyHasAnswered()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
+        // Empty, as the form leaves one behind, so it is passed over for the answer that has something
+        this.context.create().resource("/Submissions/submission/a0", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID));
+        this.context.create().resource("/Submissions/submission/a1", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID));
+        this.context.create().resource("/Submissions/submission/a1/run", Map.of(
+            SLING_RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "yes", "confidence", 0.9));
+        this.context.create().resource("/Submissions/submission/a2", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", new String[]{ "no" }));
+
+        final Submission submission = Objects.requireNonNull(resource.adaptTo(Submission.class));
+
+        assertEquals(List.of("yes"), submission.getAnswerOrSuggestionTo("form/section/q1"));
+        assertEquals(List.of("no"), submission.getAnswerOrSuggestionTo("form/q2"));
+        assertEquals(List.of(), submission.getAnswerOrSuggestionTo("nothing/like/this"));
+        assertEquals(List.of(), submission.getAnswersTo("form/section/q1"), "a suggestion is not an answer");
+    }
+
+    @Test
+    void readsNoSuggestionWhereTheSchemaVersionCannotBeReached()
+    {
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
+
+        assertEquals(List.of(),
+            Objects.requireNonNull(resource.adaptTo(Submission.class)).getAnswerOrSuggestionTo("form/q2"));
     }
 
     @Test

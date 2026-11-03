@@ -53,6 +53,7 @@ import {
   type SubmissionForm,
   describeNothingAttached,
   isApprovalRequirement,
+  isBeingRead,
   isDocumentRequirement,
   toFileUrl
 } from "./submissionForm";
@@ -327,8 +328,21 @@ const INCOMPLETE_TAG = "incomplete";
 
 const INCOMPLETE_REASON = "Answer everything this request asks for first.";
 
+const READING_REASON = "Wait until the document has been read.";
+
+// How often a request whose document is being read is read again, to see the reading end
+const READING_RECHECK_MILLISECONDS = 3000;
+
+// Whether a reading is filling the request in, which holds the next step back until it ends
+function isReading(submission: SerializedNode | undefined): boolean {
+  return isBeingRead(submission?.extractionStatus);
+}
+
 // Why the submission is not ready for its next step, or nothing when it is
 function whyNotReady(submission: SerializedNode | undefined): string | undefined {
+  if (isReading(submission)) {
+    return READING_REASON;
+  }
   return carriesTag(submission, INCOMPLETE_TAG) ? INCOMPLETE_REASON : undefined;
 }
 
@@ -418,6 +432,17 @@ function SubmissionView() {
     };
   }, [path, fetchUtil, reloads]);
 
+  // A reading ends on the server, with nobody on the page to say so, so the request is read again
+  // until it has
+  const reading = isReading(submission);
+  useEffect(() => {
+    if (!reading) {
+      return undefined;
+    }
+    const timer = setTimeout(readAgain, READING_RECHECK_MILLISECONDS);
+    return () => clearTimeout(timer);
+  }, [reading, submission, readAgain]);
+
   // Reading and filling in are two modes of the same page, so the way between them belongs to the
   // page rather than to either mode. It is rendered whatever the page is doing, because the states
   // with nothing to show are exactly the ones somebody needs a way out of. Before this, the
@@ -430,6 +455,7 @@ function SubmissionView() {
         <SubmissionTasks
           path={path}
           readinessNote={whyNotReady(submission)}
+          blocked={reading}
           beforeComplete={readyForNextStep}
           onCompleted={() => {
             if (shownPath.current !== path) {
@@ -476,7 +502,7 @@ function SubmissionView() {
         {header}
         {/* Keyed, so navigating to another submission builds a new editor rather than showing
             the previous one's answers until the new form lands */}
-        <SubmissionEditor key={path} path={path} onSaving={trackSave} onChanged={readAgain} />
+        <SubmissionEditor key={path} path={path} reading={reading} onSaving={trackSave} onChanged={readAgain} />
       </Stack>
     );
   }

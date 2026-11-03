@@ -35,9 +35,11 @@ import { useSubmissionTasks } from "./useSubmissionTasks";
 // `beforeComplete` settles once anything a completion must not overtake is done, such as an answer
 // still being saved; when it fails, nothing is completed, and the reader is told why.
 // `readinessNote`, when given, says what still stands between the submission and its next step.
-function SubmissionTasks({ path, readinessNote, beforeComplete, onCompleted }: {
+// `blocked` holds the step back until something under way has finished, such as a document being read.
+function SubmissionTasks({ path, readinessNote, blocked = false, beforeComplete, onCompleted }: {
   path: string;
   readinessNote?: string;
+  blocked?: boolean;
   beforeComplete?: () => Promise<void>;
   onCompleted?: () => void;
 }) {
@@ -68,7 +70,7 @@ function SubmissionTasks({ path, readinessNote, beforeComplete, onCompleted }: {
           key={task.path}
           variant="contained"
           startIcon={<SendOutlinedIcon />}
-          disabled={working}
+          disabled={working || blocked}
           onClick={() => complete(task)}
         >
           {task.label}
