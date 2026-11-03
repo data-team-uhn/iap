@@ -98,12 +98,12 @@ function QuestionReview({ question, data, groups, myGroups, shown, faded, onEvid
       id={`question-${question.path}`}
       sx={{ py: 1, borderBottom: 1, borderColor: "divider", opacity: faded ? 0.55 : 1, scrollMarginTop: 96 }}
     >
-      <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: { xs: 0.25, md: 2 }, alignItems: "baseline" }}>
-        <Stack direction="row" sx={{ flex: "1 1 0", minWidth: 0, gap: 0.75, flexWrap: "wrap", alignItems: "baseline" }}>
+      <Stack sx={{ gap: 0.25 }}>
+        <Stack direction="row" sx={{ minWidth: 0, gap: 0.75, flexWrap: "wrap", alignItems: "baseline" }}>
           <Typography variant="body2" sx={{ color: "text.secondary" }}>{question.text}</Typography>
           <GroupChips groups={groups.get(question.path)} mine={myGroups} />
         </Stack>
-        <Stack direction="row" sx={{ flex: "1 1 0", minWidth: 0, gap: 1, alignItems: "flex-start" }}>
+        <Stack direction="row" sx={{ minWidth: 0, gap: 1, alignItems: "flex-start" }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", fontWeight: "fontWeightMedium" }}>
               {answerText(question, question.value)}
@@ -145,7 +145,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, faded, onEvid
         </Stack>
       </Stack>
       {(others.length > 0 || writing) && (
-        <Stack spacing={1} sx={{ mt: 1, ml: { md: "calc(50% + 8px)" } }}>
+        <Stack spacing={1} sx={{ mt: 1 }}>
           {others.map(note => (
             <Box key={note.id} sx={theme => ({ px: 1.5, py: 1.25, borderRadius: 1, borderInlineStart: 3,
               borderColor: theme.palette[kindInfo(note.kind).mark].main, bgcolor: "background.muted" })}
