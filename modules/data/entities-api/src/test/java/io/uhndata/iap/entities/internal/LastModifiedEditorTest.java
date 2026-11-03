@@ -20,14 +20,22 @@ package io.uhndata.iap.entities.internal;
 import java.io.StringReader;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
+import javax.jcr.AccessDeniedException;
 import javax.jcr.Node;
+import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.SimpleCredentials;
+import javax.jcr.security.Privilege;
 
+import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.commons.cnd.CndImporter;
+import org.apache.jackrabbit.commons.jackrabbit.authorization.AccessControlUtils;
 import org.apache.jackrabbit.oak.Oak;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.Type;
@@ -44,6 +52,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -69,11 +78,16 @@ class LastModifiedEditorTest
 
     private static final String NOTES = "notes";
 
+    private static final String WRITER = "writer";
+
+    private static final String WRITE_PRIVILEGE = "rep:write";
+
     private static final String TYPES = String.join("\n",
         "<data = 'https://iap.test/data'>",
         "<test = 'https://iap.test/test'>",
-        "[data:Entity] > nt:base, mix:lastModified abstract",
+        "[data:Entity] > nt:base, mix:lastModified abstract orderable",
         "  - * (UNDEFINED)",
+        "  - * (UNDEFINED) multiple",
         "  - status (STRING) IGNORE",
         "  + log (test:Log) = test:Log IGNORE",
         "  + * (nt:base) = test:Part",
@@ -132,11 +146,7 @@ class LastModifiedEditorTest
         journal.addNode("log", "test:Log");
         journal.addNode("page", PART);
         this.session.save();
-        this.fixtureSaved = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        // A stamp records milliseconds, so the commits under test must land in a later one than the fixture's
-        while (!Instant.now().truncatedTo(ChronoUnit.MILLIS).isAfter(this.fixtureSaved)) {
-            Thread.onSpinWait();
-        }
+        this.fixtureSaved = startNextMillisecond();
     }
 
     @AfterEach
@@ -242,7 +252,7 @@ class LastModifiedEditorTest
     @Test
     void countsAnAddedChildAndKeepsTheStampItCameWith() throws Exception
     {
-        // As an import or a copy brings one
+        // As an XML import brings one
         final String imported = "2020-01-02T03:04:05.000Z";
         commitDirectly(root -> record(root).child("imported")
             .setProperty("jcr:primaryType", PART, Type.NAME)
@@ -289,7 +299,8 @@ class LastModifiedEditorTest
     @Test
     void countsAddingAMixin() throws RepositoryException
     {
-        // The registry files the definitions of jcr:mixinTypes and jcr:uuid under other names
+        // Counted through the jcr:uuid it brings, which the registry files under another name. A version works out the
+        // mixins themselves, so the list of them is not content
         this.session.getNode("/" + NOTES).addMixin("mix:referenceable");
         this.session.save();
 
@@ -299,7 +310,8 @@ class LastModifiedEditorTest
     @Test
     void ignoresOaksHiddenNodes() throws Exception
     {
-        commitDirectly(root -> record(root).getChildNode("part").child(":index"));
+        commitDirectly(root -> record(root).getChildNode("part").setProperty(":note", CHANGED).child(":index"));
+        commitDirectly(root -> record(root).getChildNode("part").getChildNode(":index").setProperty(TEXT, CHANGED));
 
         assertFalse(stamped(RECORD + "/part"));
     }
@@ -308,9 +320,76 @@ class LastModifiedEditorTest
     void toleratesANodeWithoutAType() throws Exception
     {
         commitDirectly(root -> record(root).child("loose"));
+        final Instant added = startNextMillisecond();
+
         commitDirectly(root -> record(root).child("loose").setProperty(TEXT, CHANGED));
 
+        assertTrue(lastModified(RECORD).isAfter(added));
+    }
+
+    @Test
+    void countsReorderingTheChildrenItKeeps() throws RepositoryException
+    {
+        // Whichever of the two kept children comes first, moved last, so the order surely changes
+        final String first = childOrder(RECORD).stream().filter(List.of("part", "folder")::contains).findFirst()
+            .orElseThrow();
+        this.session.getNode(RECORD).orderBefore(first, null);
+        this.session.save();
+
         assertTrue(stamped(RECORD));
+    }
+
+    @Test
+    void ignoresMovingOnlyAChildLeftOutOfTheVersions() throws RepositoryException
+    {
+        // To the other end from wherever it is, so that it surely moves
+        final List<String> order = childOrder(RECORD);
+        final String before = order.get(order.size() - 1).equals("log") ? order.get(0) : null;
+        this.session.getNode(RECORD).orderBefore("log", before);
+        this.session.save();
+
+        assertFalse(stamped(RECORD));
+    }
+
+    @Test
+    void ignoresGrantingAccess() throws RepositoryException
+    {
+        // The first grant adds a mixin, a policy child, and a new child order
+        AccessControlUtils.addAccessControlEntry(this.session, RECORD,
+            ((JackrabbitSession) this.session).getPrincipalManager().getEveryone(),
+            new String[] {Privilege.JCR_READ}, true);
+        this.session.save();
+
+        assertFalse(stamped(RECORD));
+    }
+
+    @Test
+    void choosesAPropertysDefinitionByItsType() throws RepositoryException
+    {
+        // The named definition is for one value, so several fall to the residual definition, which keeps them
+        this.session.getNode(RECORD).setProperty("status", new String[] {"sent", "seen"});
+        this.session.save();
+
+        assertTrue(stamped(RECORD));
+    }
+
+    @Test
+    void refusesAWriterWhoMayNotModifyWhatTheChangeStamps() throws Exception
+    {
+        final User writer = ((JackrabbitSession) this.session).getUserManager().createUser(WRITER, WRITER);
+        AccessControlUtils.addAccessControlEntry(this.session, "/records", writer.getPrincipal(),
+            new String[] {Privilege.JCR_READ}, true);
+        AccessControlUtils.addAccessControlEntry(this.session, RECORD + "/part", writer.getPrincipal(),
+            new String[] {WRITE_PRIVILEGE}, true);
+        this.session.save();
+        final Session own = this.repository.login(new SimpleCredentials(WRITER, WRITER.toCharArray()));
+        try {
+            own.getNode(RECORD + "/part").setProperty(TEXT, CHANGED);
+
+            assertThrows(AccessDeniedException.class, own::save);
+        } finally {
+            own.logout();
+        }
     }
 
     /**
@@ -330,6 +409,36 @@ class LastModifiedEditorTest
     private static NodeBuilder record(final NodeBuilder root)
     {
         return root.getChildNode("records").getChildNode("record");
+    }
+
+    /**
+     * Waits for the clock to pass into the next millisecond, the precision a stamp records. A commit made after this
+     * returns can then be told apart from one made before.
+     *
+     * @return the millisecond waited out
+     */
+    private static Instant startNextMillisecond()
+    {
+        final Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        while (!Instant.now().truncatedTo(ChronoUnit.MILLIS).isAfter(now)) {
+            Thread.onSpinWait();
+        }
+        return now;
+    }
+
+    /**
+     * The order of a node's children, as a session sees it.
+     *
+     * @param path the node
+     * @return its child names, in order
+     */
+    private List<String> childOrder(final String path) throws RepositoryException
+    {
+        final List<String> names = new ArrayList<>();
+        for (final NodeIterator children = this.session.getNode(path).getNodes(); children.hasNext();) {
+            names.add(children.nextNode().getName());
+        }
+        return names;
     }
 
     private void change(final String path) throws RepositoryException

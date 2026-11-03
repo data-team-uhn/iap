@@ -340,21 +340,30 @@ Never write `jcr:lastModified` or `jcr:lastModifiedBy`. A commit editor in
 `iap-data-entities-api` stamps them on every node of a `mix:lastModified` type, as
 `data:Entity` and `nt:resource` are, whenever its content changes, whoever commits.
 
-A node's content is what a version of it keeps. A change modifies its node, then climbs
-to the parent until it reaches an entity, and stops at any child the parent's type
-declares `IGNORE`:
+A node's content is what a version of it keeps: neither what its type declares `IGNORE`
+nor what a version works out for itself (`COMPUTE`, such as its mixins). A change
+modifies its node, then climbs to the parent until it reaches an entity, and stops at
+any child the parent's type declares `IGNORE`. Reordering children counts.
 
 | A change to | Stamps |
 | --- | --- |
 | an answer | the answer, then its submission |
 | an uploaded file | its `jcr:content`, every part above it, then the submission |
 | a submission | the submission, never its homepage |
-| a tag | nothing, since tag properties are `IGNORE` |
-| a workflow instance, a link | the changed node, but nothing above it: both are `IGNORE` children |
+| a tag, or access | nothing: tags and access control lists are `IGNORE` |
+| a workflow instance | the instance, never the resource it drives: `wf:instances` is `IGNORE` |
+| a link | the link, but nothing above it: links are `IGNORE` children |
 
-Declare as `IGNORE` whatever describes the content without being part of it, and it
-will not move the stamp. `jcr:lastModifiedBy` names the session that committed, which
-for anything the engine writes is its service user, as with `jcr:createdBy`.
+Declaring something `IGNORE` keeps it from moving the stamp, and also leaves it out of
+every version.
+
+The stamp is a write like any other. Writing a part therefore needs
+`jcr:modifyProperties` on every node it stamps, up to its entity, or the whole commit is
+refused. The engine's service user has it.
+
+`jcr:lastModifiedBy` names the user whose session committed, or `oak:unknown` when no
+user did. For anything the engine writes, that is its service user, as with
+`jcr:createdBy`.
 
 ## Bundle assembly
 

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -34,11 +35,12 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
  * Answers the node type questions that decide what a change modifies, from the node type registry stored at
- * {@code /jcr:system/jcr:nodeTypes}. It caches what it reads, so one instance serves one commit.
+ * {@code /jcr:system/jcr:nodeTypes}. It caches the type hierarchy it reads, so one instance serves one commit.
  *
- * <p>Whether a change is part of a node's content follows its definition's {@code onParentVersion}: what a version
- * of the node leaves out ({@code IGNORE}) is not its content. When several definitions could apply, the change
- * counts unless all of them say {@code IGNORE}.</p>
+ * <p>Whether a change is part of a node's content follows its definition's {@code onParentVersion}. A version of
+ * the node leaves out what is {@code IGNORE} and works out for itself what is {@code COMPUTE}, so neither is content.
+ * The definition is chosen as the repository chooses it. When several node types offer one, the change counts unless
+ * none of them keeps it.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,7 +51,8 @@ final class NodeTypeRules
 
     private static final String LAST_MODIFIED_MIXIN = "mix:lastModified";
 
-    private static final String IGNORE_ACTION = "IGNORE";
+    /** The {@code onParentVersion} actions under which a version does not keep the value it finds. */
+    private static final Set<String> UNVERSIONED_ON_PARENT_VERSION_ACTIONS = Set.of("IGNORE", "COMPUTE");
 
     private static final String ON_PARENT_VERSION_PROPERTY = "jcr:onParentVersion";
 
@@ -61,7 +64,15 @@ final class NodeTypeRules
 
     private static final String SUPERTYPES_PROPERTY = "rep:supertypes";
 
-    /** The registry stores these properties' definitions under another name, which the definition node can hold. */
+    private static final String NAMED_PROPERTIES = "rep:namedPropertyDefinitions";
+
+    private static final String RESIDUAL_PROPERTIES = "rep:residualPropertyDefinitions";
+
+    private static final String NAMED_CHILDREN = "rep:namedChildNodeDefinitions";
+
+    private static final String RESIDUAL_CHILDREN = "rep:residualChildNodeDefinitions";
+
+    /** The names the registry files these properties' definitions under. */
     private static final Map<String, String> REGISTRY_NAMES =
         Map.of(PRIMARY_TYPE_PROPERTY, "rep:primaryType", MIXIN_TYPES_PROPERTY, "rep:mixinTypes",
             "jcr:uuid", "rep:uuid");
@@ -104,54 +115,95 @@ final class NodeTypeRules
     }
 
     /**
-     * Whether a property is left out of its node's content.
+     * Whether a property is left out of its node's content. The repository looks for a named definition for the
+     * value's type, then for any type, then for residual definitions in the same order.
      *
      * @param node the node holding the property
-     * @param name the property name
-     * @return {@code true} if every definition that could apply to it says {@code IGNORE}
+     * @param property the property, as it was before the commit if the commit removes it
+     * @return {@code true} if no definition that could apply to it keeps it in a version
      */
-    boolean isUnversionedProperty(final NodeState node, final String name)
+    boolean isUnversionedProperty(final NodeState node, final PropertyState property)
     {
-        final String registryName = REGISTRY_NAMES.getOrDefault(name, name);
-        final List<NodeState> named = types(node)
-            .flatMap(type -> children(definition(type).getChildNode("rep:namedPropertyDefinitions")
-                .getChildNode(registryName)))
-            .collect(Collectors.toList());
-        return allIgnored(named.isEmpty()
-            ? types(node).flatMap(type -> children(definition(type).getChildNode("rep:residualPropertyDefinitions")))
-                .collect(Collectors.toList())
-            : named);
+        final String name = REGISTRY_NAMES.getOrDefault(property.getName(), property.getName());
+        final String exact = property.getType().toString();
+        final String any = (property.isArray() ? Type.UNDEFINEDS : Type.UNDEFINED).toString();
+        return noneVersioned(firstFound(List.of(
+            () -> definitions(node, NAMED_PROPERTIES, name, exact),
+            () -> definitions(node, NAMED_PROPERTIES, name, any),
+            () -> definitions(node, RESIDUAL_PROPERTIES, exact),
+            () -> definitions(node, RESIDUAL_PROPERTIES, any))));
     }
 
     /**
-     * Whether a child node is left out of its parent's content.
+     * Whether a child node is left out of its parent's content. Named definitions come before residual ones, and a
+     * definition applies only to a child of a type it accepts.
      *
      * @param parent the parent node
-     * @param name the child's name
+     * @param name the child's node name
      * @param child the child node, as it was before the commit if the commit removes it
-     * @return {@code true} if every definition that could apply to it says {@code IGNORE}
+     * @return {@code true} if no definition that could apply to it keeps it in a version
      */
     boolean isUnversionedChild(final NodeState parent, final String name, final NodeState child)
     {
         final Set<String> childTypes = lineage(child.getName(PRIMARY_TYPE_PROPERTY));
-        final Predicate<NodeState> admitsChild = definition -> childTypes.containsAll(names(definition));
-        final List<NodeState> named = types(parent)
-            .flatMap(type -> children(definition(type).getChildNode("rep:namedChildNodeDefinitions")
-                .getChildNode(name)))
-            .filter(admitsChild)
-            .collect(Collectors.toList());
-        return allIgnored(named.isEmpty()
-            ? types(parent).flatMap(type -> children(definition(type).getChildNode("rep:residualChildNodeDefinitions")))
-                .filter(admitsChild)
-                .collect(Collectors.toList())
-            : named);
+        final Predicate<NodeState> accepted =
+            definition -> childTypes.containsAll(names(definition.getProperty(REQUIRED_PRIMARY_TYPES_PROPERTY)));
+        return noneVersioned(firstFound(List.of(
+            () -> definitionsUnder(parent, accepted, NAMED_CHILDREN, name),
+            () -> definitionsUnder(parent, accepted, RESIDUAL_CHILDREN))));
     }
 
-    private static boolean allIgnored(final List<NodeState> definitions)
+    private static boolean noneVersioned(final List<NodeState> definitions)
     {
-        return !definitions.isEmpty()
-            && definitions.stream()
-                .allMatch(definition -> IGNORE_ACTION.equals(definition.getString(ON_PARENT_VERSION_PROPERTY)));
+        return !definitions.isEmpty() && definitions.stream()
+            .allMatch(definition -> UNVERSIONED_ON_PARENT_VERSION_ACTIONS
+                .contains(definition.getString(ON_PARENT_VERSION_PROPERTY)));
+    }
+
+    /**
+     * The first non-empty set of definitions, trying each source in turn.
+     *
+     * @param sources where to look, in the order the repository looks
+     * @return the definitions found; empty if no source has any
+     */
+    private static List<NodeState> firstFound(final List<Supplier<List<NodeState>>> sources)
+    {
+        return sources.stream().map(Supplier::get).filter(found -> !found.isEmpty()).findFirst().orElse(List.of());
+    }
+
+    /**
+     * The definition at a path inside each of a node's types, where the type has one.
+     *
+     * @param node the node whose types to look in
+     * @param path the path inside a type's registry entry
+     * @return the definitions found, one at most per type
+     */
+    private List<NodeState> definitions(final NodeState node, final String... path)
+    {
+        return types(node).map(type -> walk(definition(type), path)).filter(NodeState::exists).toList();
+    }
+
+    /**
+     * The definitions under a path inside each of a node's types, keeping those that pass a filter.
+     *
+     * @param node the node whose types to look in
+     * @param accepted which definitions to keep
+     * @param path the path inside a type's registry entry
+     * @return the definitions found
+     */
+    private List<NodeState> definitionsUnder(final NodeState node, final Predicate<NodeState> accepted,
+        final String... path)
+    {
+        return types(node).flatMap(type -> children(walk(definition(type), path))).filter(accepted).toList();
+    }
+
+    private static NodeState walk(final NodeState start, final String... path)
+    {
+        NodeState current = start;
+        for (final String name : path) {
+            current = current.getChildNode(name);
+        }
+        return current;
     }
 
     private Set<String> lineage(final String type)
@@ -176,20 +228,13 @@ final class NodeTypeRules
 
     private static Stream<String> types(final NodeState node)
     {
-        final String primary = node.getName(PRIMARY_TYPE_PROPERTY);
-        return Stream.concat(primary == null ? Stream.empty() : Stream.of(primary),
-            StreamSupport.stream(node.getNames(MIXIN_TYPES_PROPERTY).spliterator(), false));
+        return Stream.concat(Stream.ofNullable(node.getName(PRIMARY_TYPE_PROPERTY)),
+            stream(node.getNames(MIXIN_TYPES_PROPERTY)));
     }
 
     private static Stream<NodeState> children(final NodeState node)
     {
-        return StreamSupport.stream(node.getChildNodeEntries().spliterator(), false)
-            .map(ChildNodeEntry::getNodeState);
-    }
-
-    private static Set<String> names(final NodeState childDefinition)
-    {
-        return names(childDefinition.getProperty(REQUIRED_PRIMARY_TYPES_PROPERTY));
+        return stream(node.getChildNodeEntries()).map(ChildNodeEntry::getNodeState);
     }
 
     private static Set<String> names(final PropertyState property)
@@ -197,6 +242,11 @@ final class NodeTypeRules
         if (property == null) {
             return Set.of();
         }
-        return StreamSupport.stream(property.getValue(Type.NAMES).spliterator(), false).collect(Collectors.toSet());
+        return stream(property.getValue(Type.NAMES)).collect(Collectors.toSet());
+    }
+
+    private static <T> Stream<T> stream(final Iterable<T> items)
+    {
+        return StreamSupport.stream(items.spliterator(), false);
     }
 }

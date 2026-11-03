@@ -18,13 +18,13 @@
 package io.uhndata.iap.entities.internal;
 
 import java.time.ZonedDateTime;
-import java.util.GregorianCalendar;
 
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.GenericPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.StringPropertyState;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
-import org.apache.jackrabbit.util.ISO8601;
+
+import io.uhndata.iap.utils.DateUtils;
 
 /**
  * The {@code mix:lastModified} properties of one commit: when it was made, and by whom. Every node the commit
@@ -40,14 +40,15 @@ record ModificationStamp(PropertyState lastModified, PropertyState lastModifiedB
     /**
      * The stamp of a commit.
      *
-     * @param when when the commit was made
-     * @param who the user whose session committed
+     * @param when when the commit was made, the same for every node it stamps
+     * @param who the user id the commit carries, as {@code CommitInfo.getUserId()} reports it: {@code oak:unknown}
+     *     when no user made it
      * @return the two properties to set
      */
     static ModificationStamp of(final ZonedDateTime when, final String who)
     {
         return new ModificationStamp(
-            GenericPropertyState.dateProperty("jcr:lastModified", ISO8601.format(GregorianCalendar.from(when))),
+            GenericPropertyState.dateProperty("jcr:lastModified", DateUtils.toString(when)),
             StringPropertyState.stringProperty("jcr:lastModifiedBy", who));
     }
 

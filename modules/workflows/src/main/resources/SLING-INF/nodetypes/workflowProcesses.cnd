@@ -71,8 +71,9 @@
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// A running or completed execution of a workflow definition.
-[wf:WorkflowInstance] > data:EntityPart
+// A running or completed execution of a workflow definition. It records when it
+// last moved, without moving the resource it drives: wf:instances is IGNORE there.
+[wf:WorkflowInstance] > data:EntityPart, mix:lastModified
   - sling:resourceType (STRING) = "wf/WorkflowInstance" mandatory autocreated protected
 
   // The definition this instance was created from

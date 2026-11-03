@@ -17,37 +17,50 @@
  */
 package io.uhndata.iap.entities.internal;
 
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.commit.DefaultEditor;
 import org.apache.jackrabbit.oak.spi.commit.Editor;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.apache.jackrabbit.oak.spi.state.NodeStateUtils;
 
 /**
- * A commit editor keeping {@code jcr:lastModified} and {@code jcr:lastModifiedBy} current on every node that has
- * them, whoever commits. No writer has to remember to.
+ * A commit editor keeping {@code jcr:lastModified} and {@code jcr:lastModifiedBy} current on every node whose type is
+ * {@code mix:lastModified}, so that no writer has to remember to.
  *
- * <p>A node is modified when its own content changes, or the content of a child that is part of it. A node's content
- * is what a version of it keeps, so whatever its type marks {@code IGNORE} is left out, such as tags, workflow
- * instances and links. A modification climbs to the parent until it reaches an entity, so a changed answer modifies
- * its submission, and the submission's homepage is never touched.</p>
+ * <p>A node is modified when its own content changes, or the content of a child that is part of it, as
+ * {@link NodeTypeRules} decides. Reordering the children that are part of it counts too, since a version keeps their
+ * order. A modification climbs to the parent until it reaches a {@code data:Entity}.</p>
  *
- * <p>The traversal visits only what the commit changed. A node the commit adds is not stamped here: it got its
- * stamp when it was created.</p>
+ * <p>Only what the commit changed is visited. A node the commit adds keeps the stamp it comes with: Oak sets one when
+ * a session creates it. Oak's own hidden items are never content.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
-class LastModifiedEditor extends DefaultEditor
+final class LastModifiedEditor extends DefaultEditor
 {
+    /** The hidden property where Oak keeps the order of an orderable node's children. */
+    private static final String CHILD_ORDER = ":childOrder";
+
+    /** The editor of the parent node, {@code null} for the repository root. */
     private final LastModifiedEditor parent;
+
+    /** This node's name under its parent, {@code null} for the repository root. */
+    private final String name;
 
     private final NodeBuilder builder;
 
-    private final NodeState node;
+    /** This node as it was before the commit. */
+    private final NodeState original;
 
-    /** Whether this node is part of its parent, so that modifying it modifies the parent. */
-    private final boolean partOfParent;
+    private final NodeState node;
 
     private final NodeTypeRules rules;
 
@@ -59,63 +72,70 @@ class LastModifiedEditor extends DefaultEditor
      * Constructor for the repository root, receiving the whole commit.
      *
      * @param builder the root node builder
-     * @param root the root as committed
+     * @param before the root before the commit
+     * @param after the root as committed
      * @param rules the node type rules of this commit
      * @param stamp the modification stamp of this commit
      */
-    LastModifiedEditor(final NodeBuilder builder, final NodeState root, final NodeTypeRules rules,
-        final ModificationStamp stamp)
+    LastModifiedEditor(final NodeBuilder builder, final NodeState before, final NodeState after,
+        final NodeTypeRules rules, final ModificationStamp stamp)
     {
-        this(null, builder, root, false, rules, stamp);
-    }
-
-    private LastModifiedEditor(final LastModifiedEditor parent, final NodeBuilder builder, final NodeState node,
-        final boolean partOfParent, final NodeTypeRules rules, final ModificationStamp stamp)
-    {
-        this.parent = parent;
+        this.parent = null;
+        this.name = null;
         this.builder = builder;
-        this.node = node;
-        this.partOfParent = partOfParent;
+        this.original = before;
+        this.node = after;
         this.rules = rules;
         this.stamp = stamp;
+    }
+
+    private LastModifiedEditor(final LastModifiedEditor parent, final String name, final NodeState before,
+        final NodeState after)
+    {
+        this.parent = parent;
+        this.name = name;
+        this.builder = parent.builder.getChildNode(name);
+        this.original = before;
+        this.node = after;
+        this.rules = parent.rules;
+        this.stamp = parent.stamp;
     }
 
     @Override
     public void propertyAdded(final PropertyState after)
     {
-        changed(after);
+        recordPropertyChange(after);
     }
 
     @Override
     public void propertyChanged(final PropertyState before, final PropertyState after)
     {
-        changed(after);
+        recordPropertyChange(after);
     }
 
     @Override
     public void propertyDeleted(final PropertyState before)
     {
-        changed(before);
+        recordPropertyChange(before);
     }
 
     @Override
-    public Editor childNodeAdded(final String name, final NodeState after)
+    public Editor childNodeAdded(final String childName, final NodeState after)
     {
-        childChanged(name, after);
+        recordChildChange(childName, after);
         return null;
     }
 
     @Override
-    public Editor childNodeChanged(final String name, final NodeState before, final NodeState after)
+    public Editor childNodeChanged(final String childName, final NodeState before, final NodeState after)
     {
-        return new LastModifiedEditor(this, this.builder.getChildNode(name), after,
-            !this.rules.isUnversionedChild(this.node, name, after), this.rules, this.stamp);
+        return NodeStateUtils.isHidden(childName) ? null : new LastModifiedEditor(this, childName, before, after);
     }
 
     @Override
-    public Editor childNodeDeleted(final String name, final NodeState before)
+    public Editor childNodeDeleted(final String childName, final NodeState before)
     {
-        childChanged(name, before);
+        recordChildChange(childName, before);
         return null;
     }
 
@@ -128,18 +148,72 @@ class LastModifiedEditor extends DefaultEditor
         if (this.rules.tracksModifications(this.node)) {
             this.stamp.applyTo(this.builder);
         }
-        if (this.partOfParent && !this.rules.isEntity(this.node)) {
-            this.parent.modified = true;
+        if (modifiesParent()) {
+            this.parent.markModified();
         }
     }
 
-    private void changed(final PropertyState property)
+    /**
+     * Whether modifying this node modifies its parent: it is part of the parent, and not an entity of its own.
+     *
+     * @return {@code false} for the repository root
+     */
+    private boolean modifiesParent()
     {
-        this.modified |= !this.rules.isUnversionedProperty(this.node, property.getName());
+        return this.parent != null && !this.rules.isEntity(this.node)
+            && !this.rules.isUnversionedChild(this.parent.node, this.name, this.node);
     }
 
-    private void childChanged(final String name, final NodeState child)
+    private void markModified()
     {
-        this.modified |= !this.rules.isUnversionedChild(this.node, name, child);
+        this.modified = true;
+    }
+
+    private void recordPropertyChange(final PropertyState property)
+    {
+        if (this.modified) {
+            return;
+        }
+        if (CHILD_ORDER.equals(property.getName())) {
+            this.modified = isReordered();
+        } else if (!NodeStateUtils.isHidden(property.getName())) {
+            this.modified = !this.rules.isUnversionedProperty(this.node, property);
+        }
+    }
+
+    private void recordChildChange(final String childName, final NodeState child)
+    {
+        if (!this.modified && !NodeStateUtils.isHidden(childName)) {
+            this.modified = !this.rules.isUnversionedChild(this.node, childName, child);
+        }
+    }
+
+    /**
+     * Whether the children that are part of this node changed order. Children added or removed are counted on their
+     * own, so only those present both before and after are compared.
+     *
+     * @return {@code true} if they are in a different order
+     */
+    private boolean isReordered()
+    {
+        final List<String> after = orderOf(this.node);
+        final Set<String> stayed = orderOf(this.original).stream().filter(after::contains)
+            .filter(child -> !this.rules.isUnversionedChild(this.node, child, this.node.getChildNode(child)))
+            .collect(Collectors.toSet());
+        return !orderOf(this.original).stream().filter(stayed::contains).toList()
+            .equals(after.stream().filter(stayed::contains).toList());
+    }
+
+    /**
+     * The order of a node's children: as Oak records it once the order has been set, as it stores them before.
+     *
+     * @param state the node
+     * @return the child names, in order
+     */
+    private static List<String> orderOf(final NodeState state)
+    {
+        final PropertyState order = state.getProperty(CHILD_ORDER);
+        final Iterable<String> names = order == null ? state.getChildNodeNames() : order.getValue(Type.NAMES);
+        return StreamSupport.stream(names.spliterator(), false).toList();
     }
 }

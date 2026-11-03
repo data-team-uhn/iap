@@ -22,14 +22,13 @@ import java.time.ZonedDateTime;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.Editor;
 import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
-import org.apache.jackrabbit.oak.spi.commit.VisibleEditor;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.osgi.service.component.annotations.Component;
 
 /**
  * Provides a {@link LastModifiedEditor} for every commit, stamping it with the time of the commit and the user whose
- * session made it. Oak's hidden nodes are left out, since they are its own bookkeeping and never content.
+ * session made it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -41,7 +40,7 @@ public class LastModifiedEditorProvider implements EditorProvider
     public Editor getRootEditor(final NodeState before, final NodeState after, final NodeBuilder builder,
         final CommitInfo info)
     {
-        return VisibleEditor.wrap(new LastModifiedEditor(builder, after, new NodeTypeRules(after),
-            ModificationStamp.of(ZonedDateTime.now(), info.getUserId())));
+        return new LastModifiedEditor(builder, before, after, new NodeTypeRules(after),
+            ModificationStamp.of(ZonedDateTime.now(), info.getUserId()));
     }
 }
