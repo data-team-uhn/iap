@@ -71,6 +71,41 @@ describe("readZipDirectory", () => {
     expect(readEntries(bytes)).toBeUndefined();
   });
 
+  it("reads nothing when the end record points at a ZIP64 record that is not there", async () => {
+    const plain = await createZip(WORD_PARTS);
+    // The entry count sits 10 bytes into the end record; its largest value means "see the ZIP64 record"
+    new DataView(plain.buffer).setUint16(plain.length - 22 + 10, 0xFFFF, true);
+    const zip64 = await createZip(WORD_PARTS, { zip64: true });
+    // The locator sits just before the end record, and gives the ZIP64 record's offset 8 bytes in
+    new DataView(zip64.buffer).setBigUint64(zip64.length - 22 - 20 + 8, BigInt(0), true);
+
+    expect(readEntries(plain)).toBeUndefined();
+    expect(readEntries(zip64)).toBeUndefined();
+  });
+
+  it("reads nothing when an entry's ZIP64 field is missing or too short", async () => {
+    const missing = await createZip(WORD_PARTS, { zip64: true });
+    const short = await createZip(WORD_PARTS, { zip64: true });
+    // An entry's extra field follows its 46-byte header and name: an id, then the length of the rest
+    const extraField = (bytes: Uint8Array<ArrayBuffer>) => {
+      const at = findDirectoryEntry(bytes);
+      return at + 46 + new DataView(bytes.buffer).getUint16(at + 28, true);
+    };
+    new DataView(missing.buffer).setUint16(extraField(missing), 0x9999, true);
+    new DataView(short.buffer).setUint16(extraField(short) + 2, 8, true);
+
+    expect(readEntries(missing)).toBeUndefined();
+    expect(readEntries(short)).toBeUndefined();
+  });
+
+  it("reads nothing when an entry runs past the directory", async () => {
+    const bytes = await createZip(WORD_PARTS);
+    // The extra field's length sits 30 bytes into the entry
+    new DataView(bytes.buffer).setUint16(findDirectoryEntry(bytes) + 30, 0xFFFF, true);
+
+    expect(readEntries(bytes)).toBeUndefined();
+  });
+
   it("reads nothing from a zip that names an entry twice", async () => {
     const [ types ] = WORD_PARTS;
 
@@ -108,5 +143,29 @@ describe("readZipEntry", () => {
 
     // 12 is bzip2, which neither this reader nor Word uses
     expect(await readText(bytes, { ...types, method: 12 })).toBeUndefined();
+  });
+
+  it("reads nothing where there is no local header", async () => {
+    const bytes = await createZip(WORD_PARTS);
+    const [ types ] = readEntries(bytes) ?? [];
+
+    expect(await readText(bytes, { ...types, offset: 1 })).toBeUndefined();
+    expect(await readText(bytes, { ...types, offset: bytes.length })).toBeUndefined();
+  });
+
+  it("reads nothing that runs past the end of the zip", async () => {
+    const bytes = await createZip(WORD_PARTS);
+    const [ types ] = readEntries(bytes) ?? [];
+
+    expect(await readText(bytes, { ...types, storedSize: bytes.length })).toBeUndefined();
+  });
+
+  it("stops unzipping when the caller gives up", async () => {
+    const bytes = await createZip(WORD_PARTS);
+    const [ types ] = readEntries(bytes) ?? [];
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(readZipEntry(bytes.buffer, types, 1024, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
   });
 });

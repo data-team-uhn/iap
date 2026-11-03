@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { checkDoc } from "@iap/frontend-commons/fileValidation/docCheck";
 
@@ -31,5 +31,14 @@ describe("checkDoc", () => {
   it("refuses a .doc that does not", async () => {
     expect(await checkDoc(createDoc([ 0x50, 0x4B, 3, 4, 0, 0, 0, 0 ])))
       .toEqual({ valid: false, error: "It is not a Word document." });
+  });
+
+  it("refuses a .doc whose bytes cannot be read", async () => {
+    const doc = createDoc([ 0xD0 ]);
+    vi.spyOn(doc, "slice").mockImplementation(() => {
+      throw new Error("unreadable");
+    });
+
+    expect(await checkDoc(doc)).toEqual({ valid: false, error: "The document is damaged, or it is not a .doc file." });
   });
 });
