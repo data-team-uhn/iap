@@ -74,5 +74,5 @@ registerEntityType(REVIEW_QUEUE_TYPE, {
   homepage: "/Submissions",
   columns: COLUMNS,
   defaultSort: { field: "reviewDue", sort: "asc" },
-  rowLink: row => row["@path"] as string | undefined,
+  rowLink: row => typeof row["@path"] === "string" ? `${row["@path"]}.review` : undefined,
 });

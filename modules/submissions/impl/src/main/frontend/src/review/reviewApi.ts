@@ -23,7 +23,13 @@ import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 // the other reviewers or a note to self, or a reply, an edit or a removal.
 export type CommentKind = "issue" | "discussion" | "note";
 
-export function writeComment(doFetch: AuthenticatedFetch, submission: string, fields: Record<string, string>)
-  : Promise<string | undefined> {
-  return sendEvent(doFetch, submission, "reviewComment", fields);
+export function writeComment(doFetch: AuthenticatedFetch, submission: string,
+  fields: Record<string, string | string[]>): Promise<string | undefined> {
+  const body = new FormData();
+  for (const [ name, value ] of Object.entries(fields)) {
+    for (const one of Array.isArray(value) ? value : [ value ]) {
+      body.append(name, one);
+    }
+  }
+  return sendEvent(doFetch, submission, "reviewComment", body);
 }
