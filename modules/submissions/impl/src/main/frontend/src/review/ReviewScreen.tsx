@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import {
   Box,
+  Button,
   Chip,
   ClickAwayListener,
   FormControlLabel,
@@ -56,7 +57,11 @@ import {
 } from "../submissionForm";
 import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
+import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, type ReviewActions } from "./FormReview";
+import LetterDialog from "./LetterDialog";
+import { usePersonName } from "./people";
+import { draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, type NoteKind, type ReviewData,
   type ReviewGroup, type ReviewNote } from "./reviewData";
@@ -152,6 +157,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ whole, setWhole ] = useState(false);
   const [ shown, setShown ] = useState(storedKinds);
   const [ mark, setMark ] = useState<{ id?: string; page?: number }>({});
+  const [ dialog, setDialog ] = useState<"letter" | "board">();
+  const myName = usePersonName(me ?? "");
   const [ query, setQuery ] = useState("");
 
   // Bumped after anything is written, so the page reads the submission again
@@ -272,6 +279,43 @@ export default function ReviewScreen({ path }: { path: string }) {
   }, [ terms, data, requirements, doFetch ]);
   const hits = searching && terms.length >= 3 && found?.terms === terms ? found.hits : undefined;
 
+  // What an issue is about, as the study team would recognize it: the question or the document
+  const about = (note: ReviewNote): string => {
+    const part = note.subjects.map(subject => data?.partOf.get(subject)).find(Boolean);
+    if (!part) {
+      return "";
+    }
+    const asked = requirements.filter(isFormRequirement).flatMap(one => questions(one.items))
+      .find(one => one.path === part);
+    return asked?.text ?? requirements.find(one => one.name === part)?.label ?? "";
+  };
+
+  // The REB's review task, which the letter completes
+  const rebTask = (): string | undefined => {
+    const instances = loaded?.submission["wf:instances"];
+    for (const instance of Object.values(typeof instances === "object" && instances ? instances : {})) {
+      const task = typeof instance === "object" && instance ? (instance as Node).rebTask : undefined;
+      if (typeof task === "object" && task && [ "created", "active" ].includes(text((task as Node).status))) {
+        return text((task as Node)["@path"]);
+      }
+    }
+    return undefined;
+  };
+  const sendLetter = async (letter: string) => {
+    const task = rebTask();
+    if (!task) {
+      throw new Error("The REB's review is not waiting on a decision now.");
+    }
+    const body = new FormData();
+    body.append("outcome", "changes-requested");
+    body.append("outcomeNote", letter);
+    const response = await doFetch(`${task}.json`, { method: "POST", body });
+    if (!response.ok) {
+      throw new Error(`The letter could not be sent (${response.status})`);
+    }
+    load();
+  };
+
   if (error) {
     return <LoadError title="This submission could not be loaded" message={error} onRetry={retry} />;
   }
@@ -367,6 +411,12 @@ export default function ReviewScreen({ path }: { path: string }) {
             control={<Switch checked={whole} onChange={event => setWhole(event.target.checked)} />}
             label="Whole submission"
           />
+          {myGroups.includes("reb-reviewers") && (
+            <Stack direction="row" spacing={1} sx={{ ml: { sm: "auto" } }}>
+              <Button variant="outlined" onClick={() => setDialog("board")}>Escalate to the board</Button>
+              <Button variant="contained" onClick={() => setDialog("letter")}>Letter of review</Button>
+            </Stack>
+          )}
         </Stack>
         <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap", mt: 2 }} role="group" aria-label="Which notes to show">
           {NOTE_KINDS.map(info => (
@@ -411,6 +461,24 @@ export default function ReviewScreen({ path }: { path: string }) {
                 </Box>
               )}
             </>
+          )}
+          {dialog === "letter" && (
+            <LetterDialog
+              open issueCount={data.notes.filter(note => note.kind === "issue").length}
+              draft={draftLetter({ title: text(submission.title), identifier: text(submission.identifier),
+                pi: text(submission.pi), about, issues: data.notes.filter(note => note.kind === "issue"),
+                reviewer: myName })}
+              onSend={sendLetter} onClose={() => setDialog(undefined)}
+            />
+          )}
+          {dialog === "board" && (
+            <EscalateDialog
+              open title={text(submission.title)} identifier={text(submission.identifier)} pi={text(submission.pi)}
+              summary={data.answers.get("study/summary")?.values.at(0) ?? ""}
+              parts={listed.map(one => ({ name: one.name, label: one.label }))}
+              issues={data.notes.filter(note => note.kind === "issue")} about={about}
+              onClose={() => setDialog(undefined)}
+            />
           )}
           {!current && (
             <Typography>Nothing here is for your group. Switch to the whole submission to see it all.</Typography>
