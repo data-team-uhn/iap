@@ -49,6 +49,12 @@ public interface PrincipalService
     /** The special name standing for whoever raised the resource in question. */
     String CREATOR_SPECIAL_NAME = "@creator";
 
+    /**
+     * The special name standing for whoever raised the entity the resource in question belongs to: the submission a
+     * review was written on, say.
+     */
+    String ENTITY_CREATOR_SPECIAL_NAME = "@entityCreator";
+
     /** The special name standing for whoever is acting right now. */
     String ME_SPECIAL_NAME = "@me";
 

@@ -43,6 +43,7 @@ import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityHomepage;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.tags.models.Taggable;
+import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 
 /**
  * Shared setup for the workflow model tests: the models under test, and the {@code /libs/wf} resource type
@@ -87,6 +88,23 @@ public final class WorkflowFixture
     public static String[] tags(final String... names)
     {
         return names;
+    }
+
+    /**
+     * A mock activity that still decides what it acts on as the model does, so that a handler asking
+     * {@link io.uhndata.iap.workflows.spi.ExecutionHost} under test gets the target, or what was created.
+     *
+     * @return the mock, ready for further stubbing
+     */
+    public static Activity activity()
+    {
+        final Activity activity = Mockito.mock(Activity.class);
+        try {
+            Mockito.doCallRealMethod().when(activity).actsOn(Mockito.any());
+        } catch (final WorkflowDefinitionException e) {
+            throw new AssertionError("Stubbing a method never runs it", e);
+        }
+        return activity;
     }
 
     /**

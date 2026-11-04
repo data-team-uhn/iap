@@ -59,8 +59,9 @@ public abstract class Event extends FlowNode
     }
 
     /**
-     * The name of the BPMN message this event catches or throws — the domain event name the engine matches
-     * incoming events against.
+     * The name of the BPMN message this event catches or throws. On a catching event, it is what an incoming event
+     * must be called to reach it. On a throwing event, it is what the notification it announces is called, and a
+     * throwing event without one announces nothing.
      *
      * @return a message name, or {@code null} for events that are not message-flavored
      */

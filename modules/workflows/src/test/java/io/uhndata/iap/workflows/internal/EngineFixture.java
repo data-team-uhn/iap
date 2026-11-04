@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -38,6 +40,7 @@ import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -52,6 +55,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.conditions.internal.TagsOperandResolver;
+import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.principals.internal.CreatorResolver;
 import io.uhndata.iap.principals.internal.MeResolver;
@@ -200,7 +204,7 @@ public final class EngineFixture
         try {
             return new ServiceTaskDispatcher(List.of(), (to, event, actor, depth) -> {
                 throw new IllegalStateException("No event was expected to be sent here");
-            }, routing(), runners());
+            }, routing(), runners(), new PendingNotifications(Mockito.mock(NotificationService.class)));
         } catch (final ReflectiveOperationException e) {
             throw new IllegalStateException("The fixture could not build its condition evaluator", e);
         }
@@ -270,6 +274,19 @@ public final class EngineFixture
     }
 
     /**
+     * The properties of a node, to change what a definition or an instance carries.
+     *
+     * @param context the Sling context holding the node
+     * @param path the node
+     * @return its modifiable properties
+     */
+    static ModifiableValueMap modify(final SlingContext context, final String path)
+    {
+        return Objects.requireNonNull(context.resourceResolver().getResource(path).adaptTo(ModifiableValueMap.class),
+            "The mock repository lets any node be modified");
+    }
+
+    /**
      * A resolver factory handing out the engine's service session, wrapped so that it can be asked who the
      * repository's users are. The mock repository has no user store at all, so without this every event would
      * fail as "the repository cannot be asked who its users are" rather than exercising the check.
@@ -279,6 +296,20 @@ public final class EngineFixture
      * @return a factory to inject into the engine
      */
     static ResourceResolverFactory serviceUsers(final SlingContext context, final PersistenceException failure)
+    {
+        return serviceUsersFailing(context, () -> failure);
+    }
+
+    /**
+     * A resolver factory as {@link #serviceUsers(SlingContext, PersistenceException)} hands out, whose commits fail
+     * as told commit by commit.
+     *
+     * @param context the Sling context whose real factory does the work
+     * @param failures asked at each commit what it should throw, answering {@code null} for a commit that succeeds
+     * @return a factory to inject into the engine
+     */
+    static ResourceResolverFactory serviceUsersFailing(final SlingContext context,
+        final Supplier<PersistenceException> failures)
     {
         GRANTED.clear();
         final ResourceResolverFactory real = context.getService(ResourceResolverFactory.class);
@@ -301,6 +332,7 @@ public final class EngineFixture
                     @Override
                     public void commit() throws PersistenceException
                     {
+                        final PersistenceException failure = failures.get();
                         if (failure != null) {
                             throw failure;
                         }
@@ -424,32 +456,49 @@ public final class EngineFixture
     static WorkflowEngineImpl engine(final ResourceResolverFactory resolverFactory,
         final List<ServiceTaskHandler> handlers) throws ReflectiveOperationException
     {
+        return engine(resolverFactory, handlers, Mockito.mock(NotificationService.class));
+    }
+
+    /**
+     * An engine as {@link #engine(ResourceResolverFactory, List)} builds one, telling people through the given
+     * notification service.
+     *
+     * @param resolverFactory where the engine opens its own sessions
+     * @param handlers the service task handlers to register
+     * @param notifications what sends the notifications message events announce
+     * @return a ready engine
+     * @throws ReflectiveOperationException when a field cannot be set, which would be a bug in this fixture
+     */
+    static WorkflowEngineImpl engine(final ResourceResolverFactory resolverFactory,
+        final List<ServiceTaskHandler> handlers, final NotificationService notifications)
+        throws ReflectiveOperationException
+    {
+        final ServiceTaskDispatchers dispatchers = new ServiceTaskDispatchers(routing(), runners(), notifications);
+        inject(dispatchers, "handlers", handlers);
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", resolverFactory);
-        inject(engine, "handlers", handlers);
+        inject(engine, "dispatchers", dispatchers);
         inject(engine, "conditionEvaluator", conditions());
-        inject(engine, "routing", routing());
         inject(engine, "performers", performers());
-        inject(engine, "runners", runners());
         inject(engine, "taskCompletion", taskCompletion());
         inject(engine, "queries", queries());
         return engine;
     }
 
     /**
-     * Sets one of the engine's references.
+     * Sets one of a component's references, as the DS runtime would.
      *
-     * @param engine the engine
+     * @param component the component
      * @param field the reference's field name
      * @param value what to set it to
      * @throws ReflectiveOperationException when there is no such field
      */
-    static void inject(final WorkflowEngineImpl engine, final String field, final Object value)
+    static void inject(final Object component, final String field, final Object value)
         throws ReflectiveOperationException
     {
-        final Field reference = WorkflowEngineImpl.class.getDeclaredField(field);
+        final Field reference = component.getClass().getDeclaredField(field);
         reference.setAccessible(true);
-        reference.set(engine, value);
+        reference.set(component, value);
     }
 
     /**

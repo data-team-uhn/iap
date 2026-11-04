@@ -9,6 +9,7 @@
   "jcrProperties": "{\"handler\": \"callActivity\"}",
   "properties": [
     "{https://iap.uhndata.io/bpmn}hostTag=hostTag",
-    "{https://iap.uhndata.io/bpmn}message=message"
+    "{https://iap.uhndata.io/bpmn}message=message",
+    "{https://iap.uhndata.io/bpmn}subject=subject"
   ]
 }

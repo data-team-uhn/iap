@@ -39,8 +39,8 @@ import org.mockito.Mockito;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -76,7 +76,7 @@ class ReplaceContentHandlerTest
 
     private final ReplaceContentHandler handler = new ReplaceContentHandler();
 
-    private final Activity activity = Mockito.mock(Activity.class);
+    private final Activity activity = WorkflowFixture.activity();
 
     private FieldsFixture fixture;
 
@@ -242,7 +242,7 @@ class ReplaceContentHandlerTest
     {
         final WorkflowTaskContext task = this.fixture.task("condition", this.activity,
             Map.of(ReplaceContentHandler.CONTENT_PARAMETER, json(ALL_OF)), new HashMap<>());
-        Mockito.when(task.getVariable(WorkflowResult.CREATED_PATH_VARIABLE)).thenReturn("/made");
+        Mockito.when(task.getCreated()).thenReturn(this.context.resourceResolver().getResource("/made"));
         Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource(CARD));
 
         this.handler.execute(task);

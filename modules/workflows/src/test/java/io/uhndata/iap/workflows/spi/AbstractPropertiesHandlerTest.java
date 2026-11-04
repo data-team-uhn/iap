@@ -40,8 +40,8 @@ import org.mockito.Mockito;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.WorkflowFixture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -82,7 +82,7 @@ class AbstractPropertiesHandlerTest
         this.context.create().resource(THING, TITLE, "Old", NOTE, "Kept");
         this.context.create().resource("/people/alice", "sling:resourceType", "test/Person");
         this.context.create().resource("/places/home", "sling:resourceType", "test/Place");
-        final Activity activity = Mockito.mock(Activity.class);
+        final Activity activity = WorkflowFixture.activity();
         Mockito.when(activity.getPath()).thenReturn("/SystemWorkflows/saveTest/v1/save");
         Mockito.when(this.task.getActivity()).thenReturn(activity);
         Mockito.when(this.task.getTarget()).thenReturn(this.thing());
@@ -104,8 +104,8 @@ class AbstractPropertiesHandlerTest
     void writesOntoWhatAnEarlierStepCreated() throws WorkflowException, PersistenceException
     {
         // Following createEntity in one run, the step edits the new entity rather than the homepage it went into
-        this.context.create().resource("/content/created", TITLE, "Untitled");
-        Mockito.when(this.task.getVariable(WorkflowResult.CREATED_PATH_VARIABLE)).thenReturn("/content/created");
+        Mockito.when(this.task.getCreated())
+            .thenReturn(this.context.create().resource("/content/created", TITLE, "Untitled"));
         this.requested.put(TITLE, "Named");
 
         this.handler.execute(this.task);

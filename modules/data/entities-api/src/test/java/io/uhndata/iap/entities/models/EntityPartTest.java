@@ -31,6 +31,7 @@ import io.uhndata.iap.content.models.Content;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Unit tests for {@link EntityPart}, including the properties it inherits from
@@ -49,7 +50,7 @@ class EntityPartTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class);
+        this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class);
         this.created = Calendar.getInstance();
         this.created.set(2026, Calendar.MAY, 12, 11, 0, 0);
     }
@@ -90,5 +91,25 @@ class EntityPartTest
         assertNotNull(content);
         assertEquals(Content.class, content.getClass());
         assertEquals("data/EntityPart", content.getType());
+    }
+
+    @Test
+    void belongsToTheNearestEntityAboveIt()
+    {
+        this.context.create().resource("/content/entity", "sling:resourceType", Entity.RESOURCE_TYPE);
+        this.context.create().resource("/content/entity/parts", "sling:resourceType", EntityPart.RESOURCE_TYPE);
+        final Resource part = this.context.create().resource("/content/entity/parts/one",
+            "sling:resourceType", EntityPart.RESOURCE_TYPE);
+
+        assertEquals("/content/entity", part.adaptTo(EntityPart.class).getEntity().getPath());
+    }
+
+    @Test
+    void belongsToNoEntityOutsideOne()
+    {
+        final Resource part = this.context.create().resource("/content/stray",
+            "sling:resourceType", EntityPart.RESOURCE_TYPE);
+
+        assertNull(part.adaptTo(EntityPart.class).getEntity());
     }
 }

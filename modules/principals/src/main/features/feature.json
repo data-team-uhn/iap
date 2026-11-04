@@ -19,10 +19,10 @@
   "description": "Special names resolved into principals, groups expanded into people, membership answered once",
   "bundles":[
     {
-      // After the content node types the @creator resolver reads its answer from, and before everything that
-      // says who: the engine, notifications, and anything else naming people by role
+      // After the content and entity models the creator resolvers read their answers from, and before everything
+      // that says who: the engine, notifications, and anything else naming people by role
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
-      "start-order":"22"
+      "start-order":"24"
     }
   ]
 }

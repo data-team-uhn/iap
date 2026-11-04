@@ -24,6 +24,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.Gateway;
+import io.uhndata.iap.workflows.models.IntermediateThrowingEvent;
 import io.uhndata.iap.workflows.models.StartEvent;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -61,5 +62,11 @@ class FlowRoutingTest
     {
         assertTrue(this.routing.canPassThrough(Mockito.mock(StartEvent.class)));
         assertTrue(this.routing.canPassThrough(Mockito.mock(Gateway.class)));
+    }
+
+    @Test
+    void passesThroughAnIntermediateThrowingEvent()
+    {
+        assertTrue(this.routing.canPassThrough(Mockito.mock(IntermediateThrowingEvent.class)));
     }
 }

@@ -43,6 +43,7 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -68,7 +69,7 @@ class CopyContentHandlerTest
 
     private final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
 
-    private final Activity activity = Mockito.mock(Activity.class);
+    private final Activity activity = WorkflowFixture.activity();
 
     private final Node sourceNode = Mockito.mock(Node.class);
 

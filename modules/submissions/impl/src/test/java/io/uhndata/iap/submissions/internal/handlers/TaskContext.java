@@ -47,8 +47,8 @@ final class TaskContext implements WorkflowTaskContext
     /** The session the handler works through, when it is not the target's own. */
     private ResourceResolver resolver;
 
-    /** The activity being performed, for a handler that reads it. */
-    private Activity activity;
+    /** The activity being performed, by default one that configures nothing. */
+    private Activity activity = new Activity();
 
     /**
      * A context for one handler run, for an event whose name the handler does not read.
@@ -134,9 +134,6 @@ final class TaskContext implements WorkflowTaskContext
     @Override
     public Activity getActivity()
     {
-        if (this.activity == null) {
-            throw new IllegalStateException("No activity was expected to be read here");
-        }
         return this.activity;
     }
 
