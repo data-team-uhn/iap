@@ -18,21 +18,23 @@
 
 // Lets a person enter several values for one field, picked from a list or typed.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Autocomplete, Chip, TextField } from "@mui/material";
 
-import { type Choice, choiceLabel } from "./choices";
-import { picker, useFieldProps, type ValueInputProps } from "./valueInput";
+import { type Choice, withValues } from "./choices";
+import { changeAndCommit, useFieldProps, type ValueInputProps } from "./valueInput";
 import ValueText from "./ValueText";
 
 interface MultiValueInputProps extends ValueInputProps {
   choices?: Choice[];
-  // Whether a value can be typed rather than picked. Defaults to true if are no choices, false otherwise.
+  // How to label a stored value the list does not offer. By default, the value is its own label.
+  labelOf?: (value: string) => string;
+  // Whether a value can be typed rather than picked. By default, only when there are no choices.
   free?: boolean;
   // Whether the choices are still being read
   loading?: boolean;
-  // The values one typed entry stands for, e.g. each item of "a, b"
+  // Splits one newly typed entry into the values it holds, such as "a, b" into "a" and "b"
   splitTyped?: (typed: string) => string[];
   // Whether a value's chip is marked in error
   chipError?: (value: string) => boolean;
@@ -41,22 +43,16 @@ interface MultiValueInputProps extends ValueInputProps {
 
 // Several values, shown as chips, picked from a list or typed.
 export default function MultiValueInput(props: MultiValueInputProps) {
-  const {
-    label,
-    values,
-    choices = [],
-    splitTyped,
-    chipError,
-    openOnMount = false,
-    disabled,
-    readOnly = false
-  } = props;
-  const { free = choices.length === 0, loading = false } = props;
+  const { label, values, choices = [], labelOf, splitTyped, chipError, openOnMount = false, disabled } = props;
+  const { free = choices.length === 0, loading = false, readOnly = false } = props;
   const { field, visit } = useFieldProps(props);
   const [ listed, setListed ] = useState(openOnMount);
+  const known = useMemo(() => withValues(choices, values, labelOf), [ choices, values, labelOf ]);
+  const labels = useMemo(() => new Map(known.map(choice => [ choice.value, choice.label ])), [ known ]);
+  const labelFor = (value: string) => labels.get(value) ?? value;
 
   if (readOnly) {
-    return <ValueText label={label} values={values} choices={choices} />;
+    return <ValueText label={label} values={values} choices={known} />;
   }
   return (
     <Autocomplete<string, true, false, boolean>
@@ -67,18 +63,21 @@ export default function MultiValueInput(props: MultiValueInputProps) {
       freeSolo={free}
       loading={loading}
       autoSelect={free}
-      options={choices.map(choice => choice.value)}
-      getOptionLabel={value => choiceLabel(choices, value)}
+      options={known.map(choice => choice.value)}
+      getOptionLabel={labelFor}
+      getOptionKey={value => value}
       value={values}
       disabled={disabled}
-      onChange={(_event, next) => picker(props)(splitTyped ? next.flatMap(splitTyped) : next)}
+      onChange={(_event, next) => changeAndCommit(props)(splitTyped
+        ? next.flatMap(value => values.includes(value) ? [ value ] : splitTyped(value))
+        : next)}
       onBlur={visit}
       renderValue={(selected, getItemProps) => selected.map((value, index) => {
         const { key, ...itemProps } = getItemProps({ index });
         return (
           <Chip
             key={key}
-            label={choiceLabel(choices, value)}
+            label={labelFor(value)}
             color={chipError?.(value) ? "error" : "default"}
             // A long value wraps rather than being cut short
             sx={{ height: "auto" }}
@@ -87,15 +86,7 @@ export default function MultiValueInput(props: MultiValueInputProps) {
           />
         );
       })}
-      renderInput={params => (
-        <TextField
-          {...params}
-          label={field.label}
-          required={field.required}
-          error={field.error}
-          helperText={field.helperText}
-        />
-      )}
+      renderInput={params => <TextField {...params} {...field} />}
     />
   );
 }

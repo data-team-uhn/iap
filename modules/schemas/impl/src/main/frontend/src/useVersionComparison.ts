@@ -20,9 +20,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { whenApplies } from "@iap/conditions/conditionModel";
 import { useTagChoices } from "@iap/conditions/useTagChoices";
-import {
-  readReferences, type ReferenceCandidate, type ReferenceTarget,
-} from "@iap/frontend-commons/inputs/referenceChoices";
+import { readReferences } from "@iap/frontend-commons/inputs/referenceChoices";
+import { type ReferenceCandidate, type ReferenceTarget } from "@iap/frontend-commons/inputs/referenceTargets";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import type { SerializedNode } from "@iap/frontend-commons/serializedNode";

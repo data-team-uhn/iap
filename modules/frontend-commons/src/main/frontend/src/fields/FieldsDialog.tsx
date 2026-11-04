@@ -23,11 +23,13 @@ import {
 } from "@mui/material";
 
 import ResponsiveDialog from "../components/ResponsiveDialog";
+import { booleanChoices } from "../inputs/choices";
 import ChoiceSelect from "../inputs/ChoiceSelect";
 import MultiValueInput from "../inputs/MultiValueInput";
 import NumberInput from "../inputs/NumberInput";
 import TextInput from "../inputs/TextInput";
 import { fromSingle, singleValue } from "../inputs/valueInput";
+import { NUMBER_PROBLEM, WHOLE_NUMBER_PROBLEM } from "../numberText";
 import { messageOf } from "../requestFailure";
 import { useAsyncAction } from "../useAsyncAction";
 import {
@@ -35,6 +37,11 @@ import {
   type PatchValue, type SerializedNode,
 } from "./fieldsModel";
 import ReferenceInput from "./ReferenceInput";
+
+// The problem shown for a many-valued number field when one of its values is not a number of its kind
+const LIST_PROBLEMS: Partial<Record<ContentField["kind"], string>> = {
+  long: WHOLE_NUMBER_PROBLEM, double: NUMBER_PROBLEM,
+};
 
 interface FieldInputProps {
   field: ContentField;
@@ -60,9 +67,11 @@ function FieldInput({ field, value, disabled, onChange }: FieldInputProps) {
       <ReferenceInput field={field} value={value} disabled={disabled} helperText={field.help} onChange={onChange} />
     );
   }
-  const choices = field.choices ?? [];
-  const whole = field.kind === "long";
-  const problems = isValid(field, value) ? [] : [ whole ? "Enter a whole number." : "Enter a number." ];
+  // A boolean field here holds several values, each picked rather than typed
+  const choices = field.kind === "boolean" ? booleanChoices() : field.choices ?? [];
+  // A single number is checked by its own input
+  const listProblem = LIST_PROBLEMS[field.kind];
+  const problems = Array.isArray(value) && listProblem && !isValid(field, value) ? [ listProblem ] : [];
   const common = { label: field.label, description: field.help, required: field.mandatory, disabled, problems };
   if (Array.isArray(value)) {
     return <MultiValueInput {...common} choices={choices} values={value} onChange={onChange} />;
@@ -74,7 +83,7 @@ function FieldInput({ field, value, disabled, onChange }: FieldInputProps) {
   if (field.kind === "text") {
     return <TextInput {...single} multiline={field.multiline} />;
   }
-  return <NumberInput {...single} kind={whole ? "whole" : "decimal"} />;
+  return <NumberInput {...single} kind={field.kind === "long" ? "whole" : "decimal"} />;
 }
 
 interface FieldsDialogProps {

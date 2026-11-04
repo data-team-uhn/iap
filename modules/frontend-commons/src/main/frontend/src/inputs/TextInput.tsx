@@ -29,16 +29,12 @@ interface TextInputProps extends ValueInputProps {
 
 // One value, typed freely.
 export default function TextInput(props: TextInputProps) {
-  const { label, values, onChange, onCommit, multiline = false, readOnly = false } = props;
-  const { field, visit } = useFieldProps(props);
+  const { label, values, onChange, multiline = false, readOnly = false } = props;
+  const { field, commit } = useFieldProps(props);
 
   if (readOnly) {
     return <ValueText label={label} values={values} />;
   }
-  const commit = () => {
-    visit();
-    onCommit?.(values);
-  };
   return (
     <TextField
       {...field}

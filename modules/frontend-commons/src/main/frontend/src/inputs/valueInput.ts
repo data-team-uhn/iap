@@ -18,9 +18,9 @@
 
 // What every value input shares: its props, when its problems show, and when a typed value is committed.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
-// What every input takes. An input never saves: it reports values, and the caller decides what to keep.
+// The props every value input takes.
 export interface ValueInputProps {
   label: string;
   description?: string;
@@ -31,14 +31,18 @@ export interface ValueInputProps {
   onChange: (values: string[]) => void;
   // Called once a changed value is finished: when the field is left, Enter is pressed or a choice is picked
   onCommit?: (values: string[]) => void;
-  // What is wrong with the values, one message each, such as "Enter a whole number."
+  // What is wrong with the values, one sentence each, such as "Enter a whole number."; shown in place of the
+  // description
   problems?: string[];
   disabled?: boolean;
   readOnly?: boolean;
 }
 
 // The problem shown once a required field is left without a value.
-export const REQUIRED_PROBLEM = "A value is required";
+export const REQUIRED_PROBLEM = "A value is required.";
+
+// Whether a value is empty or only spaces, either of which counts as no value.
+export const isBlank = (value: string): boolean => value.trim() === "";
 
 // The one value of a single-valued field, or "" when it has none.
 export const singleValue = (values: readonly string[]): string => values.at(0) ?? "";
@@ -46,9 +50,8 @@ export const singleValue = (values: readonly string[]): string => values.at(0) ?
 // The values of a single-valued field holding this text: none when the text is empty.
 export const fromSingle = (value: string): string[] => value === "" ? [] : [ value ];
 
-// What a choice is reported with: one made from a list is finished the moment it is made. Values other than strings,
-// such as a structure's records, are reported the same way.
-export function picker<Value = string>({ onChange, onCommit }: {
+// Reports a pick from a list as a change and as a commit, since a pick is finished as soon as it is made.
+export function changeAndCommit<Value = string>({ onChange, onCommit }: {
   onChange: (values: Value[]) => void;
   onCommit?: (values: Value[]) => void;
 }) {
@@ -75,21 +78,40 @@ export function useVisited() {
   return [ visited, () => setVisited(true) ] as const;
 }
 
-// The props of the field an input renders, and the handler that marks it left.
-export function useFieldProps(props: ValueInputProps) {
-  const { label, description, required, values, problems = [], disabled } = props;
+const sameValues = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
+
+/**
+ * The props of the field an input renders, and the functions that record the field left and finish its value.
+ *
+ * @param props the input's own props
+ * @param onceLeft problems shown only once the field has been left, such as a value not finished yet
+ */
+export function useFieldProps(props: ValueInputProps, onceLeft: string[] = []) {
+  const { label, description, required, values, onCommit, problems = [], disabled } = props;
   const [ visited, visit ] = useVisited();
+  const committed = useRef(values);
   // Flagged only once the field has been left, so that a form does not open with every field in error
-  const missing = required && values.every(value => value === "");
-  const currentProblems = visited && missing ? [ ...problems, REQUIRED_PROBLEM ] : problems;
+  const missing = required && values.every(isBlank);
+  const flagged = visited ? [ ...onceLeft, ...missing ? [ REQUIRED_PROBLEM ] : [] ] : [];
+  // A message several sources agree on is shown once
+  const currentProblems = [ ...new Set([ ...problems, ...flagged ]) ];
   return {
     visit,
+    // Marks the field left and reports its values, unless they were reported already
+    commit: () => {
+      visit();
+      if (!sameValues(values, committed.current)) {
+        committed.current = values;
+        onCommit?.(values);
+      }
+    },
     field: {
       label,
       required,
       disabled,
       error: currentProblems.length > 0,
-      helperText: currentProblems.length > 0 ? currentProblems.join(". ") : description,
+      helperText: currentProblems.length > 0 ? currentProblems.join(" ") : description,
       fullWidth: true,
     },
   };

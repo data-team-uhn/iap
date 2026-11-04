@@ -26,7 +26,6 @@ import {
   Box, Button, Chip, IconButton, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from "@mui/material";
 
-import { withCurrent } from "@iap/frontend-commons/inputs/choices";
 import ChoiceSelect from "@iap/frontend-commons/inputs/ChoiceSelect";
 import { singleValue } from "@iap/frontend-commons/inputs/valueInput";
 import { usePhone } from "@iap/frontend-commons/usePhone";
@@ -197,8 +196,8 @@ function SingleEditor({ condition, onChange, onRemove, ...common }: SingleEditor
         <Row>
           <Box sx={NARROW}>
             <ChoiceSelect required label="Comparison" values={[ condition.comparator ]} disabled={disabled}
-              choices={withCurrent(offered.map(item => ({ value: item.name, label: item.phrase })),
-                condition.comparator, name => comparatorOf(name)?.phrase ?? name)}
+              choices={offered.map(item => ({ value: item.name, label: item.phrase }))}
+              labelOf={name => comparatorOf(name)?.phrase ?? name}
               onChange={values => withComparator(singleValue(values))} />
           </Box>
         </Row>
