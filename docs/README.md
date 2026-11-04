@@ -53,6 +53,14 @@ How content is shaped, related, and moved through its process.
 | [links.md](links.md) | Ad-hoc typed connections between resources, for the relations that are not part of a node type's own shape |
 | [deletion.md](deletion.md) | Deleting a resource together with everything that depends on it: the impact analysis, the archive at `/Archive`, restoring, and purging |
 
+## Documents
+
+The files people attach to a submission, from the browser to the parser.
+
+| Document | What it covers |
+| --- | --- |
+| [file-validation.md](file-validation.md) | Checking a file in the browser before it is uploaded: size, type, and whether a PDF or Word file really is one, plus the checks the parser runs after it |
+
 ## The user interface
 
 | Document | What it covers |

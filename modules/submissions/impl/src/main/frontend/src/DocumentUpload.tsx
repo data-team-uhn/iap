@@ -21,6 +21,7 @@ import { type ChangeEvent, Fragment, useEffect, useState } from "react";
 import UploadIcon from "@mui/icons-material/UploadFile";
 import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 
+import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 
@@ -78,6 +79,10 @@ function FileButton({ label, ariaLabel, accepted, disabled, onPick }: FileButton
   );
 }
 
+// How long the browser may look at a file before sending it unchecked. The check only advises, and
+// the server checks again.
+const CHECK_TIMEOUT_MS = 30_000;
+
 export interface DocumentUploadProps {
   path: string;
   requirement: DocumentRequirement;
@@ -111,14 +116,19 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
   const upload = (file: File) => {
     setBusy(true);
     setFailure(undefined);
-    attachDocument(doFetch, path, requirement.name, file).then(
+    validateUpload(file, { accepted, timeoutMs: CHECK_TIMEOUT_MS }).then(problem => {
+      if (problem !== undefined) {
+        throw new Error(problem);
+      }
+      return attachDocument(doFetch, path, requirement.name, file);
+    }).then(
       () => {
         setBusy(false);
         onAttached();
       },
       (error: unknown) => {
         setBusy(false);
-        // The engine's own reason, such as which file type it would not take
+        // Why the browser check or the engine refused the file, such as a type it would not take
         setFailure(messageOf(error));
       }
     );
