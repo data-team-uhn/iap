@@ -54,12 +54,18 @@ describe("MultiValueInput", () => {
     expect(onChange).toHaveBeenCalledWith([ "age", "adult" ]);
   });
 
-  it("splits a typed entry as asked", () => {
-    const { onChange, input } = renderInput({ splitTyped: typed => typed.split(",") });
+  it("splits a newly typed entry as asked, and leaves stored values whole", () => {
+    const { onChange, input } = renderInput({ values: [ "Smith, John" ], splitTyped: typed => typed.split(",") });
 
     type(input!, "a,b");
 
-    expect(onChange).toHaveBeenCalledWith([ "age", "a", "b" ]);
+    expect(onChange).toHaveBeenCalledWith([ "Smith, John", "a", "b" ]);
+  });
+
+  it("keeps a value no longer among the choices, labelled as asked", () => {
+    renderInput({ choices: FORMATS, values: [ "gone" ], labelOf: value => `Was ${value}` });
+
+    expect(screen.getByText("Was gone")).toBeInTheDocument();
   });
 
   it("picks among the choices, shown by their labels, and keeps nothing typed", async () => {

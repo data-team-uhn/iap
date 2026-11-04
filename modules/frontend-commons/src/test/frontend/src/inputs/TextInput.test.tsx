@@ -24,8 +24,14 @@ import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/valueInput";
 const renderInput = (props: Partial<Parameters<typeof TextInput>[0]> = {}) => {
   const onChange = vi.fn();
   const onCommit = vi.fn();
-  render(<TextInput label="Name" values={[ "Ann" ]} onChange={onChange} onCommit={onCommit} {...props} />);
-  return { onChange, onCommit, input: screen.queryByRole("textbox", { name: /Name/ }) };
+  const element = (more: typeof props) =>
+    <TextInput label="Name" values={[ "Ann" ]} onChange={onChange} onCommit={onCommit} {...more} />;
+  const { rerender } = render(element(props));
+  return {
+    onChange, onCommit, input: screen.queryByRole("textbox", { name: /Name/ }),
+    // As if the caller took a change
+    retype: (values: string[]) => rerender(element({ ...props, values })),
+  };
 };
 
 describe("TextInput", () => {
@@ -38,22 +44,25 @@ describe("TextInput", () => {
     expect(onChange.mock.calls).toEqual([ [ [ "Bo" ] ], [ [] ] ]);
   });
 
-  it("commits when left or on Enter", () => {
-    const { onCommit, input } = renderInput();
+  it("commits a changed value once, on Enter or when left", () => {
+    const { onCommit, input, retype } = renderInput();
 
+    fireEvent.blur(input!);
+    retype([ "Anne" ]);
     fireEvent.keyDown(input!, { key: "Enter" });
     fireEvent.blur(input!);
 
-    expect(onCommit.mock.calls).toEqual([ [ [ "Ann" ] ], [ [ "Ann" ] ] ]);
+    expect(onCommit.mock.calls).toEqual([ [ [ "Anne" ] ] ]);
   });
 
   it("commits a multiline value only when left", () => {
-    const { onCommit, input } = renderInput({ multiline: true });
+    const { onCommit, input, retype } = renderInput({ multiline: true });
 
+    retype([ "Anne" ]);
     fireEvent.keyDown(input!, { key: "Enter" });
     expect(onCommit).not.toHaveBeenCalled();
     fireEvent.blur(input!);
-    expect(onCommit).toHaveBeenCalledWith([ "Ann" ]);
+    expect(onCommit).toHaveBeenCalledWith([ "Anne" ]);
   });
 
   it("finishes a value with no one listening", () => {
@@ -70,9 +79,9 @@ describe("TextInput", () => {
   });
 
   it("shows problems in place of the description", () => {
-    const { input } = renderInput({ description: "Given name", problems: [ "Too short", "Taken" ] });
+    const { input } = renderInput({ description: "Given name", problems: [ "Too short.", "Taken.", "Too short." ] });
 
-    expect(screen.getByText("Too short. Taken")).toBeInTheDocument();
+    expect(screen.getByText("Too short. Taken.")).toBeInTheDocument();
     expect(screen.queryByText("Given name")).not.toBeInTheDocument();
     expect(input).toHaveAttribute("aria-invalid", "true");
   });

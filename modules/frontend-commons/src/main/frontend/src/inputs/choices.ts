@@ -41,5 +41,20 @@ export const withCurrent = (
   (current === undefined || current === "" || choices.some(choice => choice.value === current)
     ? choices : [ ...choices, { value: current, label: labelOf(current) } ]);
 
+/**
+ * The choices, plus each of the values the choices do not contain, so that a stored value the list no longer offers
+ * stays shown and selected.
+ *
+ * @param choices the known choices
+ * @param values the values picked now
+ * @param labelOf how to label a value that is added
+ * @returns the choices, with the added values last
+ */
+export const withValues = (
+  choices: Choice[],
+  values: readonly string[],
+  labelOf?: (value: string) => string
+): Choice[] => values.reduce((list, value) => withCurrent(list, value, labelOf), choices);
+
 export const booleanChoices = (trueLabel = "Yes", falseLabel = "No"): Choice[] =>
   [ { value: "true", label: trueLabel }, { value: "false", label: falseLabel } ];

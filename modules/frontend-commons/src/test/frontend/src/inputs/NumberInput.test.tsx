@@ -24,8 +24,14 @@ import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/valueInput";
 const renderInput = (props: Partial<Parameters<typeof NumberInput>[0]> = {}) => {
   const onChange = vi.fn();
   const onCommit = vi.fn();
-  render(<NumberInput label="Age" kind="whole" values={[ "12" ]} onChange={onChange} onCommit={onCommit} {...props} />);
-  return { onChange, onCommit, input: screen.queryByRole("textbox", { name: /Age/ }) };
+  const element = (more: typeof props) =>
+    <NumberInput label="Age" kind="whole" values={[ "12" ]} onChange={onChange} onCommit={onCommit} {...more} />;
+  const { rerender } = render(element(props));
+  return {
+    onChange, onCommit, input: screen.queryByRole("textbox", { name: /Age/ }),
+    // As if the caller took a change
+    retype: (values: string[]) => rerender(element({ ...props, values })),
+  };
 };
 
 describe("NumberInput", () => {
@@ -39,24 +45,41 @@ describe("NumberInput", () => {
     expect(onChange.mock.calls).toEqual([ [ [ "-" ] ], [ [ "-4" ] ] ]);
   });
 
-  it("refuses a keystroke that would stop the value being a number", () => {
-    const { onChange, input } = renderInput();
+  it("passes on every keystroke, and flags at once text that cannot become a number", () => {
+    const { onChange, input, retype } = renderInput();
 
-    fireEvent.change(input!, { target: { value: "12." } });
     fireEvent.change(input!, { target: { value: "12x" } });
+    expect(onChange.mock.calls).toEqual([ [ [ "12x" ] ] ]);
+    expect(screen.queryByText("Enter a whole number.")).not.toBeInTheDocument();
+    retype([ "12x" ]);
 
-    expect(onChange).not.toHaveBeenCalled();
-    expect(input).toHaveValue("12");
+    expect(screen.getByText("Enter a whole number.")).toBeInTheDocument();
   });
 
-  it("takes a decimal from a decimal keypad", () => {
-    const { onChange, input } = renderInput({ kind: "decimal" });
+  it("flags a decimal comma rather than dropping it", () => {
+    renderInput({ kind: "decimal", values: [ "2," ] });
+
+    expect(screen.getByText("Enter a number.")).toBeInTheDocument();
+  });
+
+  it("takes a number pasted with spaces around it", () => {
+    const { onCommit, input } = renderInput({ values: [ " 42 " ] });
+
+    fireEvent.blur(input!);
+
+    expect(screen.queryByText("Enter a whole number.")).not.toBeInTheDocument();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("takes a decimal from a decimal keypad, and flags one left unfinished only once the field is left", () => {
+    const { onCommit, input } = renderInput({ kind: "decimal", values: [ "12.5e" ] });
 
     expect(input).toHaveAttribute("inputmode", "decimal");
-    fireEvent.change(input!, { target: { value: "12.5e" } });
-    fireEvent.change(input!, { target: { value: "12.5e." } });
+    expect(screen.queryByText("Enter a number.")).not.toBeInTheDocument();
+    fireEvent.blur(input!);
 
-    expect(onChange.mock.calls).toEqual([ [ [ "12.5e" ] ] ]);
+    expect(screen.getByText("Enter a number.")).toBeInTheDocument();
+    expect(onCommit).not.toHaveBeenCalled();
   });
 
   it("shows a stored value that is no number as written, and lets it be typed over", () => {
@@ -77,13 +100,15 @@ describe("NumberInput", () => {
     expect(onChange).toHaveBeenCalledWith([]);
   });
 
-  it("commits when left or on Enter", () => {
-    const { onCommit, input } = renderInput();
+  it("commits a changed number once, on Enter or when left", () => {
+    const { onCommit, input, retype } = renderInput();
 
+    fireEvent.blur(input!);
+    retype([ "13" ]);
     fireEvent.keyDown(input!, { key: "Enter" });
     fireEvent.blur(input!);
 
-    expect(onCommit.mock.calls).toEqual([ [ [ "12" ] ], [ [ "12" ] ] ]);
+    expect(onCommit.mock.calls).toEqual([ [ [ "13" ] ] ]);
   });
 
   it("finishes a value with no one listening", () => {

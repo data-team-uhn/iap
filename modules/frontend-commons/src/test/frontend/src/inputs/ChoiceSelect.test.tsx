@@ -74,6 +74,12 @@ describe("ChoiceSelect", () => {
     expect(await options()).toEqual([ "None", "List", "Grid", "matrix" ]);
   });
 
+  it("labels a value no longer among the choices as asked", async () => {
+    renderSelect({ values: [ "matrix" ], labelOf: value => `Was ${value}` });
+
+    expect(await options()).toEqual([ "None", "List", "Grid", "Was matrix" ]);
+  });
+
   it("opens as soon as it appears when asked to", async () => {
     renderSelect({ openOnMount: true });
     expect(await screen.findByRole("listbox")).toBeInTheDocument();

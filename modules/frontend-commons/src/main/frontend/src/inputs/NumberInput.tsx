@@ -18,12 +18,16 @@
 
 import { TextField } from "@mui/material";
 
-import { isDecimalSoFar, isWholeSoFar } from "../numberText";
+import {
+  isDecimalNumber, isDecimalSoFar, isWholeNumber, isWholeSoFar, NUMBER_PROBLEM, WHOLE_NUMBER_PROBLEM,
+} from "../numberText";
 import { commitProps, fromSingle, singleValue, useFieldProps, type ValueInputProps } from "./valueInput";
 import ValueText from "./ValueText";
 
-const SO_FAR = { whole: isWholeSoFar, decimal: isDecimalSoFar };
-const INPUT_MODES = { whole: "numeric", decimal: "decimal" } as const;
+const KINDS = {
+  whole: { complete: isWholeNumber, soFar: isWholeSoFar, problem: WHOLE_NUMBER_PROBLEM, inputMode: "numeric" },
+  decimal: { complete: isDecimalNumber, soFar: isDecimalSoFar, problem: NUMBER_PROBLEM, inputMode: "decimal" },
+} as const;
 
 interface NumberInputProps extends ValueInputProps {
   // - whole: a sign and digits, e.g. "-12"
@@ -31,34 +35,28 @@ interface NumberInputProps extends ValueInputProps {
   kind: "whole" | "decimal";
 }
 
-// One number, typed. A keystroke that would stop the value being a number is refused.
+// One number, typed. Text that cannot become one is flagged at once, and a number left unfinished once the field is
+// left. Only a finished number, or nothing, is committed.
 export default function NumberInput(props: NumberInputProps) {
-  const { label, values, onChange, onCommit, kind, readOnly = false } = props;
-  const { field, visit } = useFieldProps(props);
+  const { label, values, onChange, kind, problems = [], readOnly = false } = props;
+  const { complete, soFar, problem, inputMode } = KINDS[kind];
+  const typed = singleValue(values).trim();
+  const finished = typed === "" || complete(typed);
+  const { field, commit } = useFieldProps(
+    { ...props, problems: soFar(typed) ? problems : [ ...problems, problem ] },
+    finished ? [] : [ problem ]);
 
   if (readOnly) {
     return <ValueText label={label} values={values} />;
   }
-  const single = singleValue(values);
-  const soFar = SO_FAR[kind];
-  // A number field would show a stored value that is not a number as blank.
-  // A text field shows it as written, and it can be typed over freely until it is one.
-  const numeric = soFar(single);
+  // A text field rather than a number field, which would show a stored value that is no number as blank
   return (
     <TextField
       {...field}
-      value={single}
-      slotProps={{ htmlInput: { inputMode: INPUT_MODES[kind] } }}
-      onChange={event => {
-        const typed = event.target.value;
-        if (soFar(typed) || !numeric) {
-          onChange(fromSingle(typed));
-        }
-      }}
-      {...commitProps(() => {
-        visit();
-        onCommit?.(values);
-      })}
+      value={singleValue(values)}
+      slotProps={{ htmlInput: { inputMode } }}
+      onChange={event => onChange(fromSingle(event.target.value))}
+      {...commitProps(() => commit(finished))}
     />
   );
 }

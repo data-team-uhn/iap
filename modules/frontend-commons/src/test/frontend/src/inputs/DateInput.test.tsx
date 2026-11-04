@@ -24,8 +24,14 @@ import { REQUIRED_PROBLEM } from "@iap/frontend-commons/inputs/valueInput";
 const renderInput = (props: Partial<Parameters<typeof DateInput>[0]> = {}) => {
   const onChange = vi.fn();
   const onCommit = vi.fn();
-  render(<DateInput label="Due" values={[ "2026-09-29" ]} onChange={onChange} onCommit={onCommit} {...props} />);
-  return { onChange, onCommit, input: screen.queryByLabelText(/Due/) };
+  const element = (more: typeof props) =>
+    <DateInput label="Due" values={[ "2026-09-29" ]} onChange={onChange} onCommit={onCommit} {...more} />;
+  const { rerender } = render(element(props));
+  return {
+    onChange, onCommit, input: screen.queryByLabelText(/Due/),
+    // As if the caller took a change
+    retype: (values: string[]) => rerender(element({ ...props, values })),
+  };
 };
 
 describe("DateInput", () => {
@@ -39,13 +45,24 @@ describe("DateInput", () => {
     expect(onChange.mock.calls).toEqual([ [ [ "2026-10-01" ] ], [ [] ] ]);
   });
 
-  it("commits when left or on Enter", () => {
-    const { onCommit, input } = renderInput();
+  it("commits a changed day once, on Enter or when left", () => {
+    const { onCommit, input, retype } = renderInput();
 
+    fireEvent.blur(input!);
+    retype([ "2026-09-30" ]);
     fireEvent.keyDown(input!, { key: "Enter" });
     fireEvent.blur(input!);
 
-    expect(onCommit.mock.calls).toEqual([ [ [ "2026-09-29" ] ], [ [ "2026-09-29" ] ] ]);
+    expect(onCommit.mock.calls).toEqual([ [ [ "2026-09-30" ] ] ]);
+  });
+
+  it("keeps the stored day while one is half typed", () => {
+    const { onChange, input } = renderInput();
+    Object.defineProperty(input, "validity", { value: { badInput: true } });
+
+    fireEvent.change(input!, { target: { value: "" } });
+
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("does not commit a half-typed day", () => {
