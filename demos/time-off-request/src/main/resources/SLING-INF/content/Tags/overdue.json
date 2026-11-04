@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Overdue",
+  "description": "This waited longer for a decision than the time allowed. It stays once the request is decided, as a record of how it went.",
+  "category": ["timeliness"],
+  "targetResourceTypes": ["sub/Submission"],
+  "system": true,
+  "color": "#8a1f1f",
+  "icon": "AlarmOutlined",
+  "order": 30
+}

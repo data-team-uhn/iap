@@ -76,11 +76,11 @@ test.describe('a new schema can start as a copy of a version of another', () => 
     expect(original.tags, 'the source stays where it stood').toContain('active');
 
     const [question, copiedQuestion, copiedApproval] = await Promise.all([
-      read(request, `${SOURCE}/details/day`),
-      read(request, `${copy}/details/day`),
+      read(request, `${SOURCE}/details/startDate`),
+      read(request, `${copy}/details/startDate`),
       read(request, `${copy}/approval`),
     ]);
-    expect(copiedQuestion.text).toBe('Which day are you taking off?');
+    expect(copiedQuestion.text).toBe('Which day does your time off start?');
     expect(copiedQuestion.dataType).toBe('date');
     expect(copiedQuestion.minAnswers).toBe(1);
     expect(copiedQuestion['jcr:uuid'], 'answers will point at the question by its identifier').toBeTruthy();
