@@ -30,6 +30,7 @@ import javax.jcr.RepositoryException;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.osgi.service.component.annotations.Activate;
@@ -158,15 +159,7 @@ public final class IapJwtTokenManagerImpl implements TokenManager
         return create(userId, expiration, extraData, Set.of(this.identity));
     }
 
-    /**
-     * Mint a token addressed to the given instances.
-     *
-     * @param userId the username the token authenticates, its {@code sub} claim
-     * @param expiration the time after which the token is no longer valid, its {@code exp} claim
-     * @param extraData extra claims to sign into the token, as names and values; empty for none
-     * @param audiences the identities of the instances that should accept the token, its {@code aud} claim
-     * @return the new token, or {@code null} if no key pair was loaded at activation
-     */
+    @Override
     public IapJwtTokenImpl create(final String userId, final Calendar expiration,
         final Map<String, String> extraData, final Set<String> audiences)
     {
@@ -182,7 +175,26 @@ public final class IapJwtTokenManagerImpl implements TokenManager
             .header().keyId(this.selfID).and()
             .signWith(this.signingKey)
             .compact();
-        return new IapJwtTokenImpl(jws, userId, expiration, extraData);
+        return new IapJwtTokenImpl(jws, this.identity, userId, expiration, extraData);
+    }
+
+    @Override
+    public boolean isTrustedPeer(final String identity)
+    {
+        try (ResourceResolver resolver = this.rrf.getServiceResourceResolver(null)) {
+            final Resource keys = resolver.getResource(KEY_ROOT);
+            if (keys == null) {
+                return false;
+            }
+            for (final Resource key : keys.getChildren()) {
+                if (identity.equals(key.getValueMap().get(ISSUER_PROP, String.class))) {
+                    return true;
+                }
+            }
+        } catch (final LoginException e) {
+            LOGGER.error("Service access not granted: {}", e.getMessage());
+        }
+        return false;
     }
 
     /**

@@ -20,10 +20,12 @@ package io.uhndata.iap.auth.token;
 import java.util.Calendar;
 
 import org.apache.jackrabbit.oak.spi.security.authentication.token.TokenInfo;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A login token, as Oak's {@link TokenInfo} describes one, that also tells when it expires.
+ * A login token, as Oak's {@link TokenInfo} describes one, that also tells when it expires, who issued it, and what
+ * else it claims.
  *
  * @version $Id$
  * @since 0.1.0
@@ -37,4 +39,23 @@ public interface IapToken extends TokenInfo
      */
     @Nullable
     Calendar getExpirationTime();
+
+    /**
+     * Obtain the identity of the instance that issued this token.
+     *
+     * @return the issuer, or {@code null} if the token does not name one
+     */
+    @Nullable
+    String getIssuer();
+
+    /**
+     * Obtain one of this token's claims, such as an item of the extra data it was created with. Unlike
+     * {@link #getPublicAttributes()}, which become session attributes, this offers everything the issuer put in the
+     * token.
+     *
+     * @param name the claim's name
+     * @return its value, or {@code null} if the token carries no such claim, or one that is not a string
+     */
+    @Nullable
+    String getClaim(@NotNull String name);
 }
