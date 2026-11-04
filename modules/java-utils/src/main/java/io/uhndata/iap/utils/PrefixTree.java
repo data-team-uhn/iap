@@ -148,11 +148,26 @@ public final class PrefixTree
     @NotNull
     public static String pathFor(@NotNull final String rootPath, @NotNull final String name)
     {
+        return bucketPathFor(rootPath, name) + "/" + name;
+    }
+
+    /**
+     * The path of the bucket a node filed in a prefix tree belongs in, computed without touching the repository.
+     *
+     * @param rootPath the absolute path of the top of the prefix tree
+     * @param name the name of the node, at least {@value #MINIMUM_NAME_LENGTH} uniformly distributed characters
+     * @return the bucket's absolute path, the root path followed by {@value #BUCKET_LEVELS} segments of
+     *         {@value #SEGMENT_LENGTH} characters taken from the start of the name, whether or not the bucket exists
+     * @throws IllegalArgumentException if the name is too short to file
+     */
+    @NotNull
+    public static String bucketPathFor(@NotNull final String rootPath, @NotNull final String name)
+    {
         checkName(name);
         final String prefix = rootPath.endsWith("/") ? rootPath : rootPath + "/";
         return IntStream.range(0, BUCKET_LEVELS)
             .mapToObj(level -> segment(name, level))
-            .collect(Collectors.joining("/", prefix, "/" + name));
+            .collect(Collectors.joining("/", prefix, ""));
     }
 
     /**
