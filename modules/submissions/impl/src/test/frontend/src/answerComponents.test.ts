@@ -18,80 +18,31 @@
 
 import {
   clearAnswerComponents,
-  getAnswerComponent,
   registerAnswerComponent,
   type AnswerComponent,
-  type AnswerComponentCandidate
+  type AnswerComponentCandidate,
 } from "@iap/submissions/answerComponents";
-import { QUESTION, type FormQuestion } from "@iap/submissions/submissionForm";
-
-function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
-  return {
-    name: "duration",
-    type: QUESTION,
-    path: "details/duration",
-    text: "How long?",
-    dataType: "text",
-    minAnswers: 0,
-    maxAnswers: 1,
-    options: [],
-    value: [],
-    ...overrides,
-  };
-}
 
 const Stub = (() => null) as AnswerComponent;
-const Other = (() => null) as AnswerComponent;
 
 describe("the answer component registry", () => {
+  // The candidates live on the window, which outlives a file sharing its process: whatever another file imported
+  // registered itself there
+  beforeEach(() => {
+    clearAnswerComponents();
+  });
+
   afterEach(() => {
     clearAnswerComponents();
   });
 
-  it("has nothing to offer until something registers", () => {
-    clearAnswerComponents();
+  // Spelled out rather than read from the module: the name is what a separately built bundle
+  // contributing a question type agrees on
+  it("keeps its candidates where a separately built bundle finds them", () => {
+    const candidate: AnswerComponentCandidate = () => [ Stub, 50 ];
 
-    expect(getAnswerComponent(question())).toBeNull();
-  });
-
-  it("picks the candidate that is most confident", () => {
-    clearAnswerComponents();
-    registerAnswerComponent(() => [ Stub, 10 ]);
-    registerAnswerComponent(() => [ Other, 60 ]);
-    registerAnswerComponent(() => [ Stub, 40 ]);
-
-    expect(getAnswerComponent(question())).toBe(Other);
-  });
-
-  // Registration order decides a tie, so which component wins does not depend on the order the
-  // registry happens to visit its candidates in
-  it("leaves a tie to whichever registered first", () => {
-    clearAnswerComponents();
-    registerAnswerComponent(() => [ Stub, 50 ]);
-    registerAnswerComponent(() => [ Other, 50 ]);
-
-    expect(getAnswerComponent(question())).toBe(Stub);
-  });
-
-  it("passes over the candidates that do not recognize the question", () => {
-    clearAnswerComponents();
-    registerAnswerComponent(() => null);
-    registerAnswerComponent(candidate => (candidate.dataType === "date" ? [ Stub, 50 ] : null));
-
-    expect(getAnswerComponent(question({ dataType: "text" }))).toBeNull();
-    expect(getAnswerComponent(question({ dataType: "date" }))).toBe(Stub);
-  });
-
-  // Counted rather than resolved. A duplicate answers with the same component at the same
-  // confidence, so what it changes is not which component wins but how often one is asked, and
-  // asserting on the winner would hold whether or not anything deduplicated
-  it("asks a candidate offered twice only once", () => {
-    clearAnswerComponents();
-    const candidate = vi.fn<AnswerComponentCandidate>(() => [ Stub, 90 ]);
-    registerAnswerComponent(candidate);
     registerAnswerComponent(candidate);
 
-    expect(getAnswerComponent(question())).toBe(Stub);
-    expect(candidate).toHaveBeenCalledTimes(1);
+    expect((window as unknown as Record<string, unknown>).__iapAnswerComponents).toEqual([ candidate ]);
   });
 });

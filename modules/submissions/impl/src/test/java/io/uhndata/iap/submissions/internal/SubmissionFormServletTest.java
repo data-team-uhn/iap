@@ -29,6 +29,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -37,6 +38,7 @@ import javax.jcr.Session;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonString;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -53,26 +55,35 @@ import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRe
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.submissions.internal.describers.ApprovalRequirementDescriber;
+import io.uhndata.iap.submissions.internal.describers.DocumentRequirementDescriber;
+import io.uhndata.iap.submissions.internal.describers.FormRequirementDescriber;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.submissions.spi.RequirementDescriber;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -127,7 +138,9 @@ class SubmissionFormServletTest
     // JCR-backed: the submission points at its schema version with a real REFERENCE
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
-    private final SubmissionFormServlet servlet = new SubmissionFormServlet();
+    private ConditionEvaluator evaluator;
+
+    private SubmissionFormServlet servlet;
 
     @BeforeEach
     void setUp() throws Exception
@@ -141,11 +154,13 @@ class SubmissionFormServletTest
         Tagging.enable(this.context);
         // Everything applies unless a test says otherwise. The evaluator is exercised by its own module's
         // tests; what matters here is that this servlet asks it about every part and honors the answer
-        final ConditionEvaluator evaluator = Mockito.mock(ConditionEvaluator.class);
-        Mockito.when(evaluator.applies(Mockito.any(), Mockito.any()))
+        this.evaluator = Mockito.mock(ConditionEvaluator.class);
+        Mockito.when(this.evaluator.applies(Mockito.any(), Mockito.any()))
             .thenAnswer(call -> !this.hidden.contains(((Content) call.getArgument(0)).getName()));
-        inject(this.servlet, "conditions", evaluator);
-        inject(this.servlet, "mimeTypes", this.context.getService(MimeTypeService.class));
+        this.servlet = new SubmissionFormServlet(this.evaluator);
+        // The real describers rather than stand-ins: these cases pin the document a reader is served, whichever
+        // describer writes each key
+        this.servlet.setDescribers(builtinDescribers());
 
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
@@ -297,6 +312,78 @@ class SubmissionFormServletTest
         this.hidden.add(APPROVAL);
 
         assertEquals(Set.of(DETAILS), names(form(REQUESTER).getJsonArray("requirements")));
+    }
+
+    @Test
+    void namesEveryRequirementEvenWhenNothingDescribesItsKind() throws Exception
+    {
+        // Before the first describer arrives, the registry leaves the list unset
+        this.servlet = new SubmissionFormServlet(this.evaluator);
+
+        final JsonObject form = form(REQUESTER);
+
+        assertEquals(Set.of(DETAILS, "doctorsNote", "signedForm", APPROVAL),
+            names(form.getJsonArray("requirements")));
+        final JsonObject note = requirement(form, "doctorsNote");
+        assertEquals(DocumentRequirement.RESOURCE_TYPE, note.getString("type"));
+        assertEquals("Doctor's note", note.getString("label"));
+        // Nothing of the kind's own, because nothing claimed it
+        assertFalse(note.containsKey("acceptedFileTypes"));
+        assertFalse(requirement(form, DETAILS).containsKey("items"));
+    }
+
+    @Test
+    void skipsAndRecordsADescriberThatFails() throws Exception
+    {
+        final IllegalStateException fault = new IllegalStateException("broken");
+        this.servlet.setDescribers(withBuiltins(new FailingDescriber(fault)));
+        final ErrorLoggerService recorder = recordInto();
+        try {
+            final JsonObject note = requirement(form(REQUESTER), "doctorsNote");
+
+            assertTrue(note.containsKey("acceptedFileTypes"), "the other describers still ran");
+            assertFalse(note.containsKey(FailingDescriber.HALF_WRITTEN_KEY), "what it wrote before failing is dropped");
+            final ArgumentCaptor<Throwable> recorded = ArgumentCaptor.forClass(Throwable.class);
+            Mockito.verify(recorder, Mockito.atLeastOnce())
+                .logError(recorded.capture(), Mockito.any(ErrorContext.class));
+            assertEquals(fault, recorded.getValue());
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+    }
+
+    @Test
+    void servesTheFormWhenADescriberCannotSayWhatItHandles() throws Exception
+    {
+        this.servlet.setDescribers(withBuiltins(new UndecidedDescriber()));
+        final ErrorLoggerService recorder = recordInto();
+        try {
+            final JsonObject form = form(REQUESTER);
+
+            assertEquals(Set.of(DETAILS, "doctorsNote", "signedForm", APPROVAL),
+                names(form.getJsonArray("requirements")));
+            assertTrue(requirement(form, "doctorsNote").containsKey("acceptedFileTypes"));
+            Mockito.verify(recorder, Mockito.atLeastOnce()).logError(Mockito.any(IllegalStateException.class),
+                Mockito.any(ErrorContext.class));
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+    }
+
+    @Test
+    void letsADescriberRewordACommonField() throws Exception
+    {
+        this.servlet.setDescribers(withBuiltins(new KeyWriter("description", "Worded by its kind")));
+
+        assertEquals("Worded by its kind", requirement(form(REQUESTER), "doctorsNote").getString("description"));
+    }
+
+    @Test
+    void keepsTheValueOfTheDescriberAppliedLast() throws Exception
+    {
+        this.servlet.setDescribers(List.of(new KeyWriter("shade", "first"), new KeyWriter("shade", "last")));
+
+        assertEquals("last", requirement(form(REQUESTER), "doctorsNote").getString("shade"));
     }
 
     @Test
@@ -772,14 +859,88 @@ class SubmissionFormServletTest
         }
     }
 
-    private static void inject(final SubmissionFormServlet servlet, final String name, final Object service)
-        throws ReflectiveOperationException
+    /**
+     * The describers this module ships, built the way the service registry builds them.
+     *
+     * @return the three built-in describers
+     */
+    private List<RequirementDescriber> builtinDescribers()
     {
-        // The house idiom for a component under unit test: DS metadata only exists in the packaged bundle, so the
-        // references are set by reflection rather than by registerInjectActivateService
-        final var field = SubmissionFormServlet.class.getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(servlet, service);
+        return List.of(new FormRequirementDescriber(this.evaluator),
+            new DocumentRequirementDescriber(this.context.getService(MimeTypeService.class)),
+            new ApprovalRequirementDescriber());
+    }
+
+    /**
+     * The built-in describers, followed by one more.
+     *
+     * @param last the describer applied after the built-ins
+     * @return the describers, in the order they are applied
+     */
+    private List<RequirementDescriber> withBuiltins(final RequirementDescriber last)
+    {
+        return Stream.concat(builtinDescribers().stream(), Stream.of(last)).collect(Collectors.toList());
+    }
+
+    private static ErrorLoggerService recordInto()
+    {
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        return recorder;
+    }
+
+    /** A describer that claims every requirement and adds one key to it. */
+    private record KeyWriter(String key, String value) implements RequirementDescriber
+    {
+        @Override
+        public boolean handles(final Requirement requirement)
+        {
+            return true;
+        }
+
+        @Override
+        public void describe(final Requirement requirement,
+            final Submission submission, final JsonObjectBuilder json)
+        {
+            json.add(this.key, this.value);
+        }
+    }
+
+    /** A describer that claims every requirement and fails halfway through describing it. */
+    private record FailingDescriber(RuntimeException fault) implements RequirementDescriber
+    {
+        static final String HALF_WRITTEN_KEY = "halfWritten";
+
+        @Override
+        public boolean handles(final Requirement requirement)
+        {
+            return true;
+        }
+
+        @Override
+        public void describe(final Requirement requirement,
+            final Submission submission, final JsonObjectBuilder json)
+        {
+            json.add(HALF_WRITTEN_KEY, true);
+            throw this.fault;
+        }
+    }
+
+    /** A describer that fails when asked whether a requirement is its own. */
+    private static final class UndecidedDescriber implements RequirementDescriber
+    {
+        @Override
+        public boolean handles(final Requirement requirement)
+        {
+            throw new IllegalStateException("undecided");
+        }
+
+        @Override
+        public void describe(final Requirement requirement,
+            final Submission submission, final JsonObjectBuilder json)
+        {
+            json.add("never", true);
+        }
     }
 
     /**

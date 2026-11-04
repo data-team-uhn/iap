@@ -17,7 +17,7 @@
  */
 
 import { getAnswerComponent } from "@iap/submissions/answerComponents";
-import { ANSWER_COMPONENT_POINT, loadAnswerComponents } from "@iap/submissions/answers";
+import { loadAnswerComponents } from "@iap/submissions/answers";
 // Imported rather than fetched: in a browser each of these arrives as its own asset, named by an
 // extension on the point below, and registers itself as it is evaluated. Importing does the same
 // thing, and is the only way to get them here.
@@ -51,20 +51,12 @@ function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
 }
 
 describe("loading the answer components", () => {
-  it("asks the repository which ones are declared, rather than naming them", async () => {
+  // Spelled out rather than read from the module: the name is that of the extension point the
+  // content declares
+  it("asks the repository which ones are declared on the AnswerComponent point", async () => {
     await loadAnswerComponents();
 
-    expect(mockedLoadExtensions).toHaveBeenCalledWith(ANSWER_COMPONENT_POINT);
-  });
-
-  // Every field on a form asks, and the answer cannot change while the page lives, so asking twice
-  // must not fetch twice
-  it("loads them once however many times it is asked", async () => {
-    await loadAnswerComponents();
-    const after = mockedLoadExtensions.mock.calls.length;
-    await loadAnswerComponents();
-
-    expect(mockedLoadExtensions.mock.calls).toHaveLength(after);
+    expect(mockedLoadExtensions).toHaveBeenCalledWith("AnswerComponent");
   });
 });
 

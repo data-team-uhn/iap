@@ -18,11 +18,11 @@
 
 import type { ReactElement } from "react";
 
+import { type Candidate, createCandidateRegistry } from "@iap/frontend-commons/candidateRegistry";
+
 import type { FormQuestion } from "./submissionForm";
 
-// Which component displays each question type, decided by the question itself rather than by a list of
-// dataTypes kept somewhere central. A new kind of question is added by registering a candidate for
-// it, and nothing that already exists has to learn about it.
+// Which component displays each question type
 
 export interface AnswerComponentProps {
   question: FormQuestion;
@@ -38,61 +38,23 @@ export interface AnswerComponentProps {
 
 export type AnswerComponent = (props: AnswerComponentProps) => ReactElement | null;
 
-/**
- * How well a component suits a question: the component, and a confidence between 0 and 100. The
- * highest confidence wins, so a candidate answering a narrow question outbids a general one without
- * either having to know about the other. Returning null means "not mine".
- */
-export type AnswerComponentCandidate = (question: FormQuestion) => [AnswerComponent, number] | null;
+// How well a component suits a question
+export type AnswerComponentCandidate = Candidate<FormQuestion, AnswerComponent>;
 
-// The property name the registry hides under on `window`, and the reason it is not simply a module
-// variable: an answer component is fetched as its own asset and may be contributed by a bundle this
-// one was never built with. A deployment shipping its own question type builds separately,
-// so its copy of this module would be a second, private registry, and the candidates it collected
-// would be invisible to the field asking here. A store on `window` is the one thing both builds can
-// agree on.
+// The `window` property holding the candidates, shared by every bundle that contributes a question type
 export const STORE_KEY = "__iapAnswerComponents";
 
-const candidates = (): AnswerComponentCandidate[] => {
-  const holder = window as unknown as Record<string, AnswerComponentCandidate[] | undefined>;
-  holder[STORE_KEY] ??= [];
-  return holder[STORE_KEY];
-};
+const registry = createCandidateRegistry<FormQuestion, AnswerComponent>(STORE_KEY);
 
-/**
- * Offers a component for the questions it recognizes.
- *
- * Registering the same candidate again does nothing, so whoever registers need not track whether
- * they already have. The same module evaluated twice, or two modules each making sure their own
- * components are present, leave one registration and not several.
- */
-export function registerAnswerComponent(candidate: AnswerComponentCandidate): void {
-  if (!candidates().includes(candidate)) {
-    candidates().push(candidate);
-  }
-}
+// Offers a component for the questions it recognizes
+export const registerAnswerComponent = registry.register;
 
-// Only for tests: registration is otherwise a one-way, load-time act
-export function clearAnswerComponents(): void {
-  candidates().length = 0;
-}
+export const clearAnswerComponents = registry.clear;
 
 /**
  * The registered component that fits this question best, or null when nothing does.
  *
- * Null rather than a fallback to some default. A question whose kind this deployment has no
- * component for should say so. Typing an answer into an input never meant for it produces a value
- * the schema does not accept, and nobody notices until a condition somewhere stops matching.
+ * Null rather than a fallback to some default. Typing an answer into an input never meant for it
+ * produces a value the schema does not accept, and nobody notices until a condition stops matching.
  */
-export function getAnswerComponent(question: FormQuestion): AnswerComponent | null {
-  let best: AnswerComponent | null = null;
-  let bestConfidence = -1;
-  for (const candidate of candidates()) {
-    const offer = candidate(question);
-    // Strictly greater, so a tie goes to the first registered
-    if (offer && offer[1] > bestConfidence) {
-      [ best, bestConfidence ] = offer;
-    }
-  }
-  return best;
-}
+export const getAnswerComponent = registry.get;
