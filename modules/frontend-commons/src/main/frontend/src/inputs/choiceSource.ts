@@ -16,10 +16,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
-
-import { type AuthenticatedFetch, useAuthenticatedFetch } from "../reLogin";
-import { describeRequestFailure } from "../requestFailure";
+import { type AuthenticatedFetch } from "../reLogin";
 import { type Choice } from "./choices";
 
 /** Where the choices of a search come from. */
@@ -28,44 +25,6 @@ export interface ChoiceSource {
   key: string;
   /** Every choice the source offers. */
   search: (doFetch: AuthenticatedFetch) => Promise<Choice[]>;
-  /** How a stored value is labelled when no choice holds it. */
-  labelOf: (value: string) => string;
-}
-
-interface Found {
-  key: string;
-  choices: Choice[];
-  loadError?: string;
-}
-
-/** The choices a source offers. */
-export function useChoices(source: ChoiceSource) {
-  const doFetch = useAuthenticatedFetch();
-  // A caller builds a new source on every render; only a new key reads again
-  const [ wanted, setWanted ] = useState(source);
-  if (wanted.key !== source.key) {
-    setWanted(source);
-  }
-  const [ found, setFound ] = useState<Found>();
-
-  useEffect(() => {
-    let current = true;
-    wanted.search(doFetch)
-      .then(choices => {
-        if (current) {
-          setFound({ key: wanted.key, choices });
-        }
-      })
-      .catch((error: unknown) => {
-        if (current) {
-          setFound({ key: wanted.key, choices: [], loadError: describeRequestFailure(error) });
-        }
-      });
-    return () => {
-      current = false;
-    };
-  }, [ doFetch, wanted ]);
-
-  const shown = found?.key === source.key ? found : undefined;
-  return { choices: shown?.choices ?? [], loading: shown === undefined, loadError: shown?.loadError };
+  /** How a stored value is labelled when no choice holds it. By default, as it is. */
+  labelOf?: (value: string) => string;
 }

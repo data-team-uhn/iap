@@ -29,7 +29,7 @@ interface ValueTextProps {
   choices?: readonly Choice[];
 }
 
-// Values shown as text under their label, for a form that cannot be edited.
+// Values shown as text after their label, as "Label: a, b", for a form that cannot be edited.
 export default function ValueText({ label, values, choices = [] }: ValueTextProps) {
   const shown = values.map(value => choiceLabel(choices, value));
   return <Typography>{label}: {shown.length === 0 ? NOTHING : shown.join(", ")}</Typography>;

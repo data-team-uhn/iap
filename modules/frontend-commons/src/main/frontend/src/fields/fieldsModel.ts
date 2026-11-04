@@ -17,6 +17,7 @@
  */
 
 import { type Choice } from "../inputs/choices";
+import { isBlank } from "../inputs/valueInput";
 import { isDecimalNumber, isWholeNumber } from "../numberText";
 import { isNode, type SerializedNode } from "../serializedNode";
 
@@ -132,7 +133,7 @@ const entered = (value: FieldValue): string[] => {
   if (typeof value === "boolean") {
     return [ String(value) ];
   }
-  return (Array.isArray(value) ? value : [ value ]).map(text => text.trim()).filter(text => text !== "");
+  return (Array.isArray(value) ? value : [ value ]).filter(text => !isBlank(text)).map(text => text.trim());
 };
 
 // Whether a field applies, judged on the value being entered for the property it depends on, if that is

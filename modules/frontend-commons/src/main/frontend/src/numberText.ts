@@ -19,6 +19,10 @@
 // Numbers as people type them. Number() reads more than that: hexadecimal, binary and octal literals, and whole
 // numbers too large to hold exactly, which it rounds without a word
 
+// What a value that is not a number of the expected kind is told
+export const WHOLE_NUMBER_PROBLEM = "Enter a whole number.";
+export const NUMBER_PROBLEM = "Enter a number.";
+
 // Whether the text is a whole number, maybe signed, small enough to hold exactly
 export const isWholeNumber = (text: string): boolean => /^[-+]?\d+$/.test(text) && Number.isSafeInteger(Number(text));
 

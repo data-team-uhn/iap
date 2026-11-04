@@ -189,9 +189,10 @@ card per schema, so the card describes its versions.
 
 ### Value inputs
 
-Before writing a field that edits a value, check `frontend-commons/inputs`. Each input takes the values as a list
-of strings, whatever the cardinality, and reports them through `onChange` while typing and `onCommit` once a value
-is finished. An input never saves anything: the caller decides what to keep, and how a value is stored.
+Before writing a field that edits a value, check `frontend-commons/inputs`. Each input
+takes the values as a list of strings, whatever the cardinality, and reports them
+through `onChange` while typing and `onCommit` once a changed value is finished. An
+input never saves anything: the caller decides what to keep, and how a value is stored.
 
 | Input | For |
 |---|---|
@@ -200,25 +201,32 @@ is finished. An input never saves anything: the caller decides what to keep, and
 | `BooleanInput` | A yes or no, stored as `true` or `false` and shown as Yes and No unless `trueLabel` and `falseLabel` say otherwise |
 | `MultiValueInput` | Several values as chips, picked from a list or typed |
 | `ChoiceSearch` | One value or several, picked from a list read from a `ChoiceSource` and narrowed as it is typed |
-| `NumberInput` | One number, whole or decimal, typed on a numeric keypad |
+| `NumberInput` | One number, whole or decimal; text that is no number is flagged |
 | `DateInput` | One calendar day, stored as `yyyy-mm-dd` |
-| `ValueText` | Values shown as text under their label; every input shows this when `readOnly` |
+| `ValueText` | Values shown as text after their label, as "Label: a, b"; every input shows this when `readOnly` |
 
-The common props are in `valueInput.ts`. `problems` replaces the description and marks the field in error.
-A `required` field with no value, or only empty ones, adds "A value is required", but only once it has been
-left. A stored value that the list no longer offers stays selected and shown as it is, rather than being dropped
-when the form is saved. So does a `BooleanInput` value that is neither `true` nor `false`.
+The common props are in `valueInput.ts`. `problems` replaces the description and marks
+the field in error; each is a sentence, and the same one is shown once. A `required`
+field with no value, or only blank ones, adds "A value is required.", but only once it
+has been left. A stored value that the list no longer offers stays selected and shown
+as it is, rather than being dropped when the form is saved. So does a `BooleanInput`
+value that is neither `true` nor `false`.
 
-A `ChoiceSource` (`choiceSource.ts`) is where a `ChoiceSearch` gets its list, such as `referenceChoices` for the nodes a
-reference may point at. `useChoices` reads a source once, and again only when its `key` changes. `referenceChoices`
-takes a `resourceType`, a JCR `nodeType` or both, and a `root`. A node type takes in its subtypes and the nodes that
-have it as a mixin, as `isNodeType` does on the server. Each node is offered by its title or label and stored as its
-absolute path. At most a thousand are read, and a stored path among none of them stays selected, labelled with the path.
-`ReferenceInput` in `fields/` is this for a `ContentField`.
+A `ChoiceSource` (`choiceSource.ts`) is where a `ChoiceSearch` gets its list, such as
+`referenceChoices` for the nodes a reference may point at. `useChoices` reads a source
+once, and again only when its `key` changes. `referenceChoices` takes a
+`resourceType`, a JCR `nodeType` or both, and a `root`; the query and the parsing it
+builds on are in `referenceTargets.ts`. A node type matches its subtypes and the nodes
+that have it as a mixin. Each node is labelled by its title or label, else by its path
+under the root, and stored as its absolute path. At most a thousand are read, and a
+stored path among none of them stays selected, labelled with the path. `ReferenceInput`
+in `fields/` uses a `ChoiceSearch` over `referenceChoices` for a `ContentField`.
 
-While a `NumberInput` value is a number so far, a keystroke that would break that is refused. A stored value that is no
-number shows as written and can be typed over freely. `DateInput` reports a half-typed day as empty through `onChange`,
-but only `onCommit` skips it.
+`NumberInput` passes every keystroke on. Text that cannot become a number of its kind
+is flagged at once, and a number left unfinished once the field is left; only a
+finished number, or nothing, is committed. A stored value that is no number shows as
+written. A date field reports a half-typed day as empty, so `DateInput` ignores it,
+and the stored day stays until a whole one is typed.
 
 ## Styling
 

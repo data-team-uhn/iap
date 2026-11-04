@@ -101,9 +101,9 @@ describe("ChoiceSearch", () => {
   });
 
   it("flags a missing value once the field is left, beside its problems", () => {
-    const { input } = renderSearch({ required: true, problems: [ "Not this one" ], description: "Which schema" });
+    const { input } = renderSearch({ required: true, problems: [ "Not this one." ], description: "Which schema" });
 
-    expect(screen.getByText("Not this one")).toBeInTheDocument();
+    expect(screen.getByText("Not this one.")).toBeInTheDocument();
     fireEvent.blur(input!);
 
     expect(screen.getByText(`Not this one. ${REQUIRED_PROBLEM}`)).toBeInTheDocument();

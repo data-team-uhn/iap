@@ -22,7 +22,7 @@
 // pluggable: a module offering one says what its operands hold and how they read. No React, no fetch.
 
 import { booleanChoices, type Choice } from "@iap/frontend-commons/inputs/choices";
-import { isDecimalNumber, isWholeNumber } from "@iap/frontend-commons/numberText";
+import { isDecimalNumber, isWholeNumber, NUMBER_PROBLEM, WHOLE_NUMBER_PROBLEM } from "@iap/frontend-commons/numberText";
 import { isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 
 export { type Choice } from "@iap/frontend-commons/inputs/choices";
@@ -185,10 +185,10 @@ export function valuesTaken(comparator: Comparator | undefined, shape: OperandSh
 export function valueProblem(value: string, type?: ValueType): string | undefined {
   switch (type) {
     case "long":
-      return isWholeNumber(value.trim()) ? undefined : "Enter a whole number.";
+      return isWholeNumber(value.trim()) ? undefined : WHOLE_NUMBER_PROBLEM;
     case "double":
     case "decimal":
-      return isDecimalNumber(value.trim()) ? undefined : "Enter a number.";
+      return isDecimalNumber(value.trim()) ? undefined : NUMBER_PROBLEM;
     case "date":
       return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) ? undefined : "Enter a date.";
     case "boolean":

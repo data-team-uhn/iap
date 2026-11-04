@@ -18,12 +18,14 @@
 
 import { MenuItem, TextField } from "@mui/material";
 
-import { type Choice, withCurrent } from "./choices";
-import { fromSingle, picker, singleValue, useFieldProps, type ValueInputProps } from "./valueInput";
+import { type Choice, withValues } from "./choices";
+import { changeAndCommit, fromSingle, singleValue, useFieldProps, type ValueInputProps } from "./valueInput";
 import ValueText from "./ValueText";
 
-interface ChoiceSelectProps extends ValueInputProps {
+export interface ChoiceSelectProps extends ValueInputProps {
   choices: Choice[];
+  // How a stored value the list does not offer is labelled. By default, as it is.
+  labelOf?: (value: string) => string;
   // Whether the value can be cleared. By default, when it is not required.
   allowNone?: boolean;
   // Whether the list opens as soon as it appears
@@ -32,31 +34,25 @@ interface ChoiceSelectProps extends ValueInputProps {
 
 // One value, picked from a list.
 export default function ChoiceSelect(props: ChoiceSelectProps) {
-  const {
-    label,
-    required = false,
-    values,
-    choices,
-    readOnly = false
-  } = props;
+  const { label, required = false, values, choices, labelOf, readOnly = false } = props;
   const { allowNone = !required, openOnMount = false } = props;
   const { field, visit } = useFieldProps(props);
-  const current = singleValue(values);
+  const known = withValues(choices, values, labelOf);
 
   if (readOnly) {
-    return <ValueText label={label} values={values} choices={choices} />;
+    return <ValueText label={label} values={values} choices={known} />;
   }
   return (
     <TextField
       select
       {...field}
-      value={current}
-      onChange={event => picker(props)(fromSingle(event.target.value))}
+      value={singleValue(values)}
+      onChange={event => changeAndCommit(props)(fromSingle(event.target.value))}
       onBlur={visit}
       slotProps={{ select: { defaultOpen: openOnMount } }}
     >
       { allowNone && <MenuItem value=""><em>None</em></MenuItem> }
-      { withCurrent(choices, current).map(choice => (
+      { known.map(choice => (
         <MenuItem key={choice.value} value={choice.value}>{choice.label}</MenuItem>
       )) }
     </TextField>

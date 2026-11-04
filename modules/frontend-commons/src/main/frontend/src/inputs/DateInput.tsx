@@ -23,8 +23,8 @@ import ValueText from "./ValueText";
 
 // One calendar day, stored as `yyyy-mm-dd` whatever the reader's locale displays.
 export default function DateInput(props: ValueInputProps) {
-  const { label, values, onChange, onCommit, readOnly = false } = props;
-  const { field, visit } = useFieldProps(props);
+  const { label, values, onChange, readOnly = false } = props;
+  const { field, commit } = useFieldProps(props);
 
   if (readOnly) {
     return <ValueText label={label} values={values} />;
@@ -35,14 +35,13 @@ export default function DateInput(props: ValueInputProps) {
       type="date"
       value={singleValue(values)}
       slotProps={{ inputLabel: { shrink: true } }}
-      onChange={event => onChange(fromSingle(event.target.value))}
-      {...commitProps(input => {
-        visit();
-        // A half-typed day reads as empty, which would clear the stored one. badInput tells the two apart.
-        if (!(input as HTMLInputElement).validity.badInput) {
-          onCommit?.(values);
+      // A half-typed day reads as empty, which would clear the stored one. badInput tells the two apart.
+      onChange={event => {
+        if (!event.target.validity.badInput) {
+          onChange(fromSingle(event.target.value));
         }
-      })}
+      }}
+      {...commitProps(input => commit(!(input as HTMLInputElement).validity.badInput))}
     />
   );
 }

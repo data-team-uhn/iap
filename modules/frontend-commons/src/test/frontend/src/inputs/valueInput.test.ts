@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { commitProps, fromSingle, picker, singleValue } from "@iap/frontend-commons/inputs/valueInput";
+import { changeAndCommit, commitProps, fromSingle, singleValue } from "@iap/frontend-commons/inputs/valueInput";
 
 describe("valueInput", () => {
   it("reads one value from a list, and back", () => {
@@ -30,8 +30,8 @@ describe("valueInput", () => {
     const onChange = vi.fn();
     const onCommit = vi.fn();
 
-    picker({ onChange, onCommit })([ "a" ]);
-    picker({ onChange })([ "b" ]);
+    changeAndCommit({ onChange, onCommit })([ "a" ]);
+    changeAndCommit({ onChange })([ "b" ]);
 
     expect(onChange.mock.calls).toEqual([ [ [ "a" ] ], [ [ "b" ] ] ]);
     expect(onCommit.mock.calls).toEqual([ [ [ "a" ] ] ]);

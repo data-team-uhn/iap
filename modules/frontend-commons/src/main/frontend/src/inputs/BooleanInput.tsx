@@ -17,15 +17,11 @@
  */
 
 import { booleanChoices } from "./choices";
-import ChoiceSelect from "./ChoiceSelect";
-import { type ValueInputProps } from "./valueInput";
+import ChoiceSelect, { type ChoiceSelectProps } from "./ChoiceSelect";
 
-interface BooleanInputProps extends ValueInputProps {
-  allowNone?: boolean;
+interface BooleanInputProps extends Omit<ChoiceSelectProps, "choices"> {
   trueLabel?: string;
   falseLabel?: string;
-  // Whether the list opens as soon as it appears
-  openOnMount?: boolean;
 }
 
 // A yes or no, picked from a list and stored as "true" or "false".
