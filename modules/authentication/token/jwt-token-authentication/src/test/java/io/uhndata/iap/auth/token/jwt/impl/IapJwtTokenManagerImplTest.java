@@ -23,6 +23,7 @@ import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -31,10 +32,12 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.jcr.Node;
 import javax.jcr.Property;
 
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.NonExistingResource;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -271,6 +274,84 @@ public class IapJwtTokenManagerImplTest
     }
 
     @Test
+    public void tokensForAPeerAreAddressedToItAndSignedAsUs()
+    {
+        final IapJwtTokenImpl created = this.manager.create("submitter", oneHourFromNow(),
+            Map.of("email", "submitter@example.org", "sub", "someone-else"), Set.of(PEER_ID));
+        final Claims claims = Jwts.parser().verifyWith(this.keyPair.getPublic()).build()
+            .parseSignedClaims(created.getToken()).getPayload();
+
+        Assertions.assertEquals(Set.of(PEER_ID), claims.getAudience());
+        Assertions.assertEquals(SELF_ID, claims.getIssuer());
+        Assertions.assertEquals(SELF_ID, created.getIssuer());
+        Assertions.assertEquals("submitter@example.org", created.getClaim("email"));
+        Assertions.assertEquals(claims.getSubject(), created.getClaim("sub"), "The token says what it was signed with");
+        Assertions.assertEquals(SELF_ID, created.getClaim("iss"));
+    }
+
+    @Test
+    public void aPeersTokenTellsWhoIssuedItAndWhatElseItCarries() throws Exception
+    {
+        final KeyPair peerPair = Jwts.SIG.RS256.keyPair().build();
+        final String peerFingerprint = IapJwtTokenManagerImpl.getFingerprint(peerPair.getPublic());
+        when(this.resolver.resolve(PEER_KEY_PATH_PREFIX + peerFingerprint)).thenReturn(this.peerResource);
+        when(this.peerResource.adaptTo(Node.class)).thenReturn(this.peerNode);
+        when(this.peerNode.hasProperty("verify")).thenReturn(true);
+        when(this.peerNode.getProperty("verify")).thenReturn(this.peerVerifyProperty);
+        when(this.peerNode.getProperty("iss")).thenReturn(this.peerIssuerProperty);
+        when(this.peerVerifyProperty.getString()).thenReturn(
+            Encoders.BASE64.encode(peerPair.getPublic().getEncoded()));
+        when(this.peerIssuerProperty.getString()).thenReturn(PEER_ID);
+        final String foreign = Jwts.builder()
+            .claim("email", "submitter@example.org")
+            .claim("attempt", 2)
+            .issuer(PEER_ID)
+            .audience().add(SELF_ID).and()
+            .subject("submitter")
+            .expiration(oneHourFromNow().getTime())
+            .header().keyId(peerFingerprint).and()
+            .signWith(peerPair.getPrivate())
+            .compact();
+
+        final IapJwtTokenImpl parsed = this.manager.parse(foreign);
+
+        Assertions.assertEquals(PEER_ID, parsed.getIssuer());
+        Assertions.assertEquals("submitter@example.org", parsed.getClaim("email"));
+        Assertions.assertNull(parsed.getClaim("attempt"), "Only string claims are offered");
+        Assertions.assertEquals(PEER_ID, parsed.getClaim("iss"));
+        Assertions.assertNull(parsed.getPublicAttributes().get("email"), "Extra data is not a session attribute");
+    }
+
+    @Test
+    public void onlyAnIdentityWithARegisteredKeyIsATrustedPeer()
+    {
+        final List<Resource> registered = List.of(
+            keyNode(Map.of("key", "private", "verify", "public")),
+            keyNode(Map.of("verify", "public", "iss", PEER_ID)));
+        final Resource keys = mock(Resource.class);
+        when(this.resolver.getResource(IapJwtTokenManagerImpl.KEY_ROOT)).thenReturn(keys);
+        when(keys.getChildren()).thenReturn(registered);
+
+        Assertions.assertTrue(this.manager.isTrustedPeer(PEER_ID));
+        Assertions.assertFalse(this.manager.isTrustedPeer("https://elsewhere.example.org"));
+        Assertions.assertFalse(this.manager.isTrustedPeer(SELF_ID), "This instance's own key names no issuer");
+    }
+
+    @Test
+    public void noPeerIsTrustedWithoutAKeyStore()
+    {
+        Assertions.assertFalse(this.manager.isTrustedPeer(PEER_ID));
+    }
+
+    @Test
+    public void noPeerIsTrustedWhenTheKeysCannotBeRead() throws Exception
+    {
+        when(this.resolverFactory.getServiceResourceResolver(any())).thenThrow(new LoginException("no service user"));
+
+        Assertions.assertFalse(this.manager.isTrustedPeer(PEER_ID));
+    }
+
+    @Test
     public void parseRejectsUnsecuredTokenBuiltByTheLibrary()
     {
         // Claims an attacker cannot otherwise produce, with no signature at all. JJWT refuses unsecured JWTs
@@ -370,6 +451,13 @@ public class IapJwtTokenManagerImplTest
             + "."
             + base64Url("{\"iss\":\"" + SELF_ID + "\",\"aud\":[\"" + SELF_ID
                 + "\"],\"sub\":\"attacker\",\"exp\":" + expiry + "}");
+    }
+
+    private static Resource keyNode(final Map<String, Object> properties)
+    {
+        final Resource key = mock(Resource.class);
+        when(key.getValueMap()).thenReturn(new ValueMapDecorator(properties));
+        return key;
     }
 
     private String selfFingerprint()
