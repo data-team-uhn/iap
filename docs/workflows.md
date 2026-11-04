@@ -752,10 +752,13 @@ task, and the reader granted on a started instance. A handler's `getActor()` ans
 the action's `createdBy`, and Alice as its `onBehalfOf`.
 
 Who may do this is a single group, the **delegates**, set by the `Delegates` property of the
-`io.uhndata.iap.workflows.internal.Delegation` configuration. It defaults to
-`iap-administrators`. Membership is resolved by the principals service, as for
-`performers`, so a Keycloak role works as well as a local group. The `admin` user may
-always act for others.
+`io.uhndata.iap.workflows.internal.Delegation` configuration. It defaults to `iap-delegates`,
+which the workflows module creates with `iap-administrators` as a member. Granting delegation
+to anyone else is a matter of adding them, or a group they are in, to `iap-delegates`; a
+module that needs a user of its own to act for others adds it in its repoinit. Membership is
+resolved by the principals service, as for `performers`, so nested groups count, and the
+property can name a Keycloak role directly instead. The `admin` user may always act for
+others.
 
 The rules, each of which refuses with the same **403** so that a refusal does not reveal
 which one failed, or whether the user exists:
