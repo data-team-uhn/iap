@@ -16,17 +16,16 @@
  * limitations under the License.
  */
 
+import { type AuthenticatedFetch } from "../reLogin";
 import { readJson, RequestError } from "../requestFailure";
-import {
-  candidateOf, type ContentField, type ReferenceCandidate, referenceQuery, type SerializedNode,
-} from "./fieldsModel";
+import { type SerializedNode } from "../serializedNode";
+import { type ChoiceSource } from "./choiceSource";
+import { candidateOf, type ReferenceCandidate, referenceQuery, type ReferenceTarget } from "./referenceTargets";
 
-import type { AuthenticatedFetch } from "../reLogin";
-
-// The nodes a reference field may point at, sorted by their labels. A field naming no type of node has none.
-export async function readCandidates(doFetch: AuthenticatedFetch,
-  field: Pick<ContentField, "referenceType" | "referenceRoot">): Promise<ReferenceCandidate[]> {
-  const query = referenceQuery(field);
+/** The nodes a reference may point at, at most a thousand, sorted by their labels. */
+export async function readReferences(doFetch: AuthenticatedFetch, target: ReferenceTarget)
+  : Promise<ReferenceCandidate[]> {
+  const query = referenceQuery(target);
   if (!query) {
     return [];
   }
@@ -36,7 +35,14 @@ export async function readCandidates(doFetch: AuthenticatedFetch,
   }
   const { rows } = await readJson<{ rows?: SerializedNode[] }>(response);
   return (rows ?? [])
-    .map(row => candidateOf(row, field.referenceRoot))
+    .map(row => candidateOf(row, target.root))
     .filter((candidate): candidate is ReferenceCandidate => candidate !== undefined)
     .sort((a, b) => a.label.localeCompare(b.label));
 }
+
+/** The nodes a reference may point at, as a source of choices, each stored as its path. */
+export const referenceChoices = (target: ReferenceTarget): ChoiceSource => ({
+  key: `reference:${JSON.stringify(target)}`,
+  search: async doFetch =>
+    (await readReferences(doFetch, target)).map(({ path, label }) => ({ value: path, label })),
+});

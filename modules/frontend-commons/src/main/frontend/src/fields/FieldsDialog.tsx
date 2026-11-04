@@ -19,11 +19,17 @@
 import { Fragment, useState, type ReactNode } from "react";
 
 import {
-  Alert, Autocomplete, Button, DialogActions, DialogContent, FormControl, FormControlLabel, FormHelperText, MenuItem,
-  Stack, Switch, TextField,
+  Alert, Button, DialogActions, DialogContent, FormControl, FormControlLabel, FormHelperText, Stack, Switch,
 } from "@mui/material";
 
 import ResponsiveDialog from "../components/ResponsiveDialog";
+import { booleanChoices } from "../inputs/choices";
+import ChoiceSelect from "../inputs/ChoiceSelect";
+import MultiValueInput from "../inputs/MultiValueInput";
+import NumberInput from "../inputs/NumberInput";
+import TextInput from "../inputs/TextInput";
+import { fromSingle, singleValue } from "../inputs/valueInput";
+import { NUMBER_PROBLEM, WHOLE_NUMBER_PROBLEM } from "../numberText";
 import { messageOf } from "../requestFailure";
 import { useAsyncAction } from "../useAsyncAction";
 import {
@@ -32,15 +38,8 @@ import {
 } from "./fieldsModel";
 import ReferenceInput from "./ReferenceInput";
 
-const INVALID: Partial<Record<ContentField["kind"], string>> = {
-  long: "Enter a whole number.",
-  double: "Enter a number.",
-};
-
-const INPUT_MODES: Partial<Record<ContentField["kind"], "numeric" | "decimal">> = {
-  long: "numeric",
-  double: "decimal",
-};
+// What a field of several numbers is told when one of them is not a number of its kind
+const INVALID: Partial<Record<ContentField["kind"], string>> = { long: WHOLE_NUMBER_PROBLEM, double: NUMBER_PROBLEM };
 
 interface FieldInputProps {
   field: ContentField;
@@ -50,10 +49,6 @@ interface FieldInputProps {
 }
 
 function FieldInput({ field, value, disabled, onChange }: FieldInputProps) {
-  const invalid = !isValid(field, value);
-  const helperText = invalid ? INVALID[field.kind] : field.help;
-  const common = { label: field.label, required: field.mandatory, disabled, error: invalid, helperText };
-
   if (typeof value === "boolean") {
     return (
       <FormControl disabled={disabled}>
@@ -70,45 +65,23 @@ function FieldInput({ field, value, disabled, onChange }: FieldInputProps) {
       <ReferenceInput field={field} value={value} disabled={disabled} helperText={field.help} onChange={onChange} />
     );
   }
-  const choices = field.choices ?? [];
+  // A boolean field here holds several values, each picked rather than typed
+  const choices = field.kind === "boolean" ? booleanChoices() : field.choices ?? [];
+  // A single number says what is wrong with it itself
+  const invalid = INVALID[field.kind];
+  const problems = Array.isArray(value) && invalid && !isValid(field, value) ? [ invalid ] : [];
+  const common = { label: field.label, description: field.help, required: field.mandatory, disabled, problems };
   if (Array.isArray(value)) {
-    // Several values: picked among the choices when there are some, else typed in one at a time
-    const labelOf = (option: string) => choices.find(choice => choice.value === option)?.label ?? option;
-    return (
-      <Autocomplete<string, true, false, boolean>
-        multiple
-        freeSolo={choices.length === 0}
-        autoSelect={choices.length === 0}
-        options={choices.map(choice => choice.value)}
-        getOptionLabel={labelOf}
-        value={value}
-        disabled={disabled}
-        onChange={(_event, picked) => onChange(picked)}
-        renderInput={params => <TextField {...params} {...common} />}
-      />
-    );
+    return <MultiValueInput {...common} choices={choices} values={value} onChange={onChange} />;
   }
+  const single = { ...common, values: fromSingle(value), onChange: (next: string[]) => onChange(singleValue(next)) };
   if (choices.length > 0) {
-    // A value no longer among the choices is still shown for what it is
-    const offered = choices.some(choice => choice.value === value) || value === ""
-      ? choices : [ ...choices, { value, label: value } ];
-    return (
-      <TextField select {...common} value={value} onChange={event => onChange(event.target.value)}>
-        { !field.mandatory && <MenuItem value=""><em>None</em></MenuItem> }
-        { offered.map(choice => <MenuItem key={choice.value} value={choice.value}>{choice.label}</MenuItem>) }
-      </TextField>
-    );
+    return <ChoiceSelect {...single} choices={choices} />;
   }
-  return (
-    <TextField
-      {...common}
-      value={value}
-      multiline={field.multiline}
-      minRows={field.multiline ? 2 : undefined}
-      slotProps={{ htmlInput: { inputMode: INPUT_MODES[field.kind] ?? "text" } }}
-      onChange={event => onChange(event.target.value)}
-    />
-  );
+  if (field.kind === "text") {
+    return <TextInput {...single} multiline={field.multiline} />;
+  }
+  return <NumberInput {...single} kind={field.kind === "long" ? "whole" : "decimal"} />;
 }
 
 interface FieldsDialogProps {

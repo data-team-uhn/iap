@@ -19,9 +19,20 @@
 // Numbers as people type them. Number() reads more than that: hexadecimal, binary and octal literals, and whole
 // numbers too large to hold exactly, which it rounds without a word
 
+// What a value that is not a number of the expected kind is told
+export const WHOLE_NUMBER_PROBLEM = "Enter a whole number.";
+export const NUMBER_PROBLEM = "Enter a number.";
+
 // Whether the text is a whole number, maybe signed, small enough to hold exactly
 export const isWholeNumber = (text: string): boolean => /^[-+]?\d+$/.test(text) && Number.isSafeInteger(Number(text));
 
 // Whether the text is a decimal number, maybe signed, with an optional point and exponent, and not too large to hold
 export const isDecimalNumber = (text: string): boolean =>
   /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(text) && Number.isFinite(Number(text));
+
+// Whether the text could still become a whole number as more is typed: a sign, digits, or nothing yet
+export const isWholeSoFar = (text: string): boolean => /^[-+]?\d*$/.test(text);
+
+// Whether the text could still become a decimal number as more is typed, e.g. "-.", "1." or "2e-"
+export const isDecimalSoFar = (text: string): boolean =>
+  /^[-+]?(\d*\.?\d*|(\d+\.?\d*|\.\d+)e[-+]?\d*)$/i.test(text);
