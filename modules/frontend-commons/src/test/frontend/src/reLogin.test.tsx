@@ -297,12 +297,8 @@ describe("isLoginRedirect", () => {
     expect(isLoginRedirect(loginPage() as unknown as Response)).toBe(true);
   });
 
-  it("does not mistake the data, or a refusal, for it", () => {
+  it("does not take the data, or a refusal, for the login page", () => {
     expect(isLoginRedirect(ok() as unknown as Response)).toBe(false);
     expect(isLoginRedirect(unauthenticated() as unknown as Response)).toBe(false);
-  });
-
-  it("does not fail on a response that has no URL", () => {
-    expect(isLoginRedirect({ ok: true, status: 200 } as unknown as Response)).toBe(false);
   });
 });

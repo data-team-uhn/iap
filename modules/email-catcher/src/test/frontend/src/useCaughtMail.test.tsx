@@ -118,7 +118,7 @@ describe("useCaughtMessage", () => {
     const { result } = renderHook(() => useCaughtMessage("abc"));
 
     await waitFor(() => { expect(result.current.settled).toBe(true); });
-    expect(result.current.loadError).toBe("The server's response could not be read.");
+    expect(result.current.loadError).toBe("The server's response could not be read. Reload and try again.");
   });
 
   // A route naming no single message is not a read to make, and not a failure either

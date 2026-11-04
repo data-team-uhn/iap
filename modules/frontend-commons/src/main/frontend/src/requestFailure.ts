@@ -40,39 +40,35 @@ export class RequestError extends Error {
 export const isRefusal = (error: unknown): boolean =>
   error instanceof RequestError && error.reason !== undefined && error.status < 500;
 
-// Thrown when a response that should have carried data carried a page instead, such as an error page
-// from Sling or from a proxy in front of it. The message is for the user, since some screens show it
-// as it stands. It names no status: callers read data only from a success, and "HTTP 200" beside a
-// failure would confuse. The status and the page itself go to the console.
-export class UnreadableResponseError extends Error {
-  readonly status: number;
+const UNREADABLE_RESPONSE = "The server's response could not be read. Reload and try again.";
 
-  constructor(status: number) {
-    super("The server's response could not be read. Reload and try again.");
+const SESSION_EXPIRED = "Your session has expired. Sign in again, then retry.";
+
+// Thrown when a response that should have carried data carried a page instead, such as a proxy's
+// page served as a success. The message is for the user, since some screens show it as it stands.
+export class UnreadableResponseError extends Error {
+  constructor() {
+    super(UNREADABLE_RESPONSE);
     this.name = "UnreadableResponseError";
-    this.status = status;
   }
 }
 
-// How much of an unreadable page goes to the console: enough to tell a login page from an error page
-const PAGE_EXCERPT_LENGTH = 300;
-
 // The JSON body of a response that should carry data. Sling's login page, after the session has
 // gone, fails as an expired session; any other page fails as UnreadableResponseError instead of the
-// parser's "Unexpected token '<'". The page itself only goes to the console: it can name the server.
+// parser's "Unexpected token '<'". A connection lost mid-body still fails as a connection failure.
 export async function readJson<T>(response: Response): Promise<T> {
   if (isLoginRedirect(response)) {
     throw new NotAuthenticatedError(`Not authenticated: ${response.url}`);
   }
-  // A copy is taken every time, since the body can be read only once; it is read only when parsing
-  // fails, to log the page. Test stand-ins without clone() get no copy.
-  const copy = typeof response.clone === "function" ? response.clone() : undefined;
   try {
     return (await response.json()) as T;
-  } catch {
-    const page = copy ? await copy.text().catch(() => "") : "";
-    console.warn(`Expected data, got a page (HTTP ${response.status})`, page.slice(0, PAGE_EXCERPT_LENGTH));
-    throw new UnreadableResponseError(response.status);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) {
+      throw error;
+    }
+    // The page itself is in the browser's network panel
+    console.warn(`Expected data, got a page (HTTP ${response.status})`, response.url);
+    throw new UnreadableResponseError();
   }
 }
 
@@ -96,13 +92,10 @@ const describe = (error: unknown): string => {
         + "Try again in a moment.";
   }
   if (isNotAuthenticated(error)) {
-    return "Your session has expired. Sign in again, then retry.";
+    return SESSION_EXPIRED;
   }
-  if (error instanceof UnreadableResponseError) {
-    return error.message;
-  }
-  if (error instanceof SyntaxError) {
-    return "The server's response could not be read.";
+  if (error instanceof UnreadableResponseError || error instanceof SyntaxError) {
+    return UNREADABLE_RESPONSE;
   }
   if (error instanceof RequestError && error.reason) {
     return error.reason;
@@ -110,7 +103,7 @@ const describe = (error: unknown): string => {
   if (error instanceof RequestError) {
     switch (error.status) {
       case 401:
-        return "Your session has expired. Sign in again, then retry.";
+        return SESSION_EXPIRED;
       case 403:
         return `You do not have permission to do this. (HTTP ${error.status})`;
       case 404:

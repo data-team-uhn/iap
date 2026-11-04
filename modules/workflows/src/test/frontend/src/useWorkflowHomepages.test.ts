@@ -21,7 +21,7 @@ import { forgetWorkflowHomepages, loadWorkflowHomepages } from "@iap/workflows/u
 type FetchStub = (url: string) => Promise<Response>;
 
 const okResponse = (body: unknown) =>
-  ({ ok: true, status: 200, json: () => Promise.resolve(body) } as unknown as Response);
+  ({ ok: true, status: 200, url: "", json: () => Promise.resolve(body) } as unknown as Response);
 
 const answering = (body: unknown) => vi.fn<FetchStub>(() => Promise.resolve(okResponse(body)));
 

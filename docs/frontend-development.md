@@ -108,13 +108,19 @@ anything, and the hook above it stays small enough to read.
 
 ## Failures
 
-Three helpers, and the distinction between them matters.
+Four helpers, and the distinction between them matters.
 
 | Helper | Use |
 |---|---|
 | `RequestError` | Thrown when the server answered without success, carrying the status |
+| `readJson(response)` | The data of a successful response; a page in its place fails readably |
 | `messageOf(error)` | Whatever a rejection has to say, for anything that is not necessarily an `Error` |
 | `describeRequestFailure(error)` | One sentence a user can act on, and logs the original |
+
+Read the data of a successful response with `readJson`, never `response.json()`. A
+proxy's page, or the login page after the session expired, can arrive as a success, and
+`readJson` turns it into "your session has expired" or "the server's response could not
+be read" instead of "Unexpected token '<'".
 
 `describeRequestFailure` is what a user should see. It turns a `TypeError` into "the
 server could not be reached" (or "you appear to be offline", by checking

@@ -32,7 +32,7 @@ export default function useCatching(): boolean {
   const ask = useCallback((applies: () => boolean) => {
     fetch(CATCHING_PATH)
       .then(response => (response.ok ? readJson<{ catching?: unknown }>(response) : null))
-      .then((body: { catching?: unknown } | null) => {
+      .then(body => {
         if (applies()) {
           setCatching(body?.catching === true);
         }

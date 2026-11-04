@@ -112,8 +112,7 @@ describe("describeRequestFailure", () => {
   });
 
   it("says a response could not be read when a page came back instead of data", () => {
-    // The page and its status went to the console when it was read; the user gets the next step
-    expect(describeRequestFailure(new UnreadableResponseError(200)))
+    expect(describeRequestFailure(new UnreadableResponseError()))
       .toBe("The server's response could not be read. Reload and try again.");
   });
 
@@ -124,7 +123,7 @@ describe("describeRequestFailure", () => {
 
   it("says a response could not be read when it did not parse", () => {
     expect(describeRequestFailure(new SyntaxError("Unexpected token < in JSON at position 0")))
-      .toBe("The server's response could not be read.");
+      .toBe("The server's response could not be read. Reload and try again.");
   });
 
   describe("when the server answered with a status", () => {
@@ -182,31 +181,28 @@ describe("readJson", () => {
     expect(json).not.toHaveBeenCalled();
   });
 
-  it("fails any other page as unreadable, and logs its status and start for a developer", async () => {
+  it("fails any other page as unreadable, and logs its status for a developer", async () => {
     // A proxy can answer 200 with a page of its own, which no status check catches
     const page = "<html><body>Down for maintenance</body></html>";
 
     const failure = readJson(new Response(page, { status: 200, headers: { "Content-Type": "text/html" } }));
 
     await expect(failure).rejects.toBeInstanceOf(UnreadableResponseError);
-    await expect(failure).rejects.toMatchObject({
-      status: 200,
-      message: "The server's response could not be read. Reload and try again.",
-    });
-    expect(warned).toHaveBeenCalledWith("Expected data, got a page (HTTP 200)", page);
-  });
-
-  it("logs no more of a long page than its start", async () => {
-    const page = `<html>${"x".repeat(1000)}</html>`;
-
-    await expect(readJson(new Response(page, { status: 200 }))).rejects.toBeInstanceOf(UnreadableResponseError);
-    expect(warned).toHaveBeenCalledWith("Expected data, got a page (HTTP 200)", page.slice(0, 300));
-  });
-
-  it("copes with a stand-in for a response that cannot be copied", async () => {
-    const standIn = { ok: true, status: 200, json: () => Promise.reject(new SyntaxError("Unexpected token <")) };
-
-    await expect(readJson(standIn as unknown as Response)).rejects.toBeInstanceOf(UnreadableResponseError);
+    await expect(failure).rejects.toThrow("The server's response could not be read. Reload and try again.");
     expect(warned).toHaveBeenCalledWith("Expected data, got a page (HTTP 200)", "");
+  });
+
+  it("passes on a body that stopped arriving, as the connection failure it is", async () => {
+    const dropped = new Response(new ReadableStream({
+      start(controller) {
+        controller.error(new TypeError("network error"));
+      },
+    }));
+
+    const failure = readJson(dropped);
+
+    await expect(failure).rejects.toBeInstanceOf(TypeError);
+    await expect(failure.catch(describeRequestFailure)).resolves.toContain("The server could not be reached");
+    expect(warned).not.toHaveBeenCalled();
   });
 });

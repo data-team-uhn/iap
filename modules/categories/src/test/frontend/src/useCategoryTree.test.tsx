@@ -89,7 +89,10 @@ beforeEach(() => {
   requests = [];
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe("useCategoryTree", () => {
   it("loads and parses the tree on mount", async () => {
@@ -118,10 +121,8 @@ describe("useCategoryTree", () => {
   });
 
   it("reports a tree that arrived unreadable", async () => {
-    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
-      ok: true, status: 200, statusText: "OK", url,
-      json: () => Promise.reject(new SyntaxError("Unexpected token < in JSON at position 0")),
-    } as unknown as Response)));
+    vi.spyOn(console, "warn").mockImplementation(() => { /* kept out of the test output */ });
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("<html>Bad gateway</html>", { status: 200 }))));
     const result = await loadedHook();
 
     expect(result.current.loadError).toBe("The server's response could not be read. Reload and try again.");
