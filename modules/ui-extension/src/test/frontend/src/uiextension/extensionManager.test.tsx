@@ -47,6 +47,7 @@ afterEach(() => {
 function mockExtensionPointResponse(extensions: unknown[]) {
   global.fetch = vi.fn().mockResolvedValue({
     ok: true,
+    url: "",
     json: () => Promise.resolve(extensions),
   });
 }

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { RequestError } from "../requestFailure";
+import { readJson, RequestError } from "../requestFailure";
 import {
   candidateOf, type ContentField, type ReferenceCandidate, referenceQuery, type SerializedNode,
 } from "./fieldsModel";
@@ -34,7 +34,7 @@ export async function readCandidates(doFetch: AuthenticatedFetch,
   if (!response.ok) {
     throw new RequestError(response.status);
   }
-  const { rows } = await response.json() as { rows?: SerializedNode[] };
+  const { rows } = await readJson<{ rows?: SerializedNode[] }>(response);
   return (rows ?? [])
     .map(row => candidateOf(row, field.referenceRoot))
     .filter((candidate): candidate is ReferenceCandidate => candidate !== undefined)

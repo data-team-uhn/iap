@@ -36,6 +36,7 @@ function response(body: unknown, init: { ok?: boolean; status?: number } = {}) {
   return Promise.resolve({
     ok: init.ok ?? true,
     status: init.status ?? 200,
+    url: "",
     json: () => Promise.resolve(body),
   } as unknown as Response);
 }

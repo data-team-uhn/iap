@@ -40,11 +40,11 @@ const stubManifests = (
   const fetchMock = vi.fn((url: RequestInfo | URL) => {
     const target = String(url);
     if (target.endsWith("assets.json")) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(assets) } as unknown as Response);
+      return Promise.resolve({ ok: true, url: target, json: () => Promise.resolve(assets) } as unknown as Response);
     }
     if (target.endsWith("assetDependencies.json")) {
       return Promise.resolve((dependencies
-        ? { ok: true, json: () => Promise.resolve(dependencies) }
+        ? { ok: true, url: target, json: () => Promise.resolve(dependencies) }
         : { ok: false, status: 404 }) as unknown as Response);
     }
     return Promise.resolve({ ok: false, status: 404 } as Response);

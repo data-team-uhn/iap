@@ -21,6 +21,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { ListSubheader, MenuItem, Stack, TextField } from "@mui/material";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { readJson } from "@iap/frontend-commons/requestFailure";
 import TagChip from "@iap/tags/TagChip";
 
 import type { JcrNode } from "./categoryModel";
@@ -95,7 +96,7 @@ function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
     // version's whole requirement subtree, and its dereferenced workflow, to list version labels
     authenticatedFetch("/Schemas.deep.simple.json")
       .then(response => response.ok
-        ? response.json() as Promise<JcrNode>
+        ? readJson<JcrNode>(response)
         : Promise.reject(new Error(`Failed to load schemas: ${response.status}`)))
       .then(json => setGroups(parseSchemas(json)))
       .catch((err: unknown) => {

@@ -26,6 +26,7 @@ import { STORE_KEY, getActivePersona } from "@iap/ui-extension/personas";
 const stubUserEndpoints = (userId: string, userProperties: Record<string, unknown> = {}) =>
   vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
     ok: true,
+    url,
     json: () => Promise.resolve(
       url.endsWith("sessionInfo.json") ? { userID: userId } : userProperties),
   } as unknown as Response)));
@@ -91,6 +92,7 @@ describe("UserMenu", () => {
   it("renders nothing when the session reports no user at all", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
       ok: true,
+      url: "",
       json: () => Promise.resolve({}),
     } as unknown as Response)));
 
@@ -124,7 +126,7 @@ describe("UserMenu", () => {
   it("falls back to the user name when the profile cannot be read", async () => {
     vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL) => Promise.resolve(
       String(url).endsWith("sessionInfo.json")
-        ? { ok: true, json: () => Promise.resolve({ userID: "jdoe" }) }
+        ? { ok: true, url: String(url), json: () => Promise.resolve({ userID: "jdoe" }) }
         : { ok: false, status: 500 }
     ) as unknown as Promise<Response>));
 

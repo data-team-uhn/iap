@@ -42,11 +42,11 @@ export type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Re
 // Sling's session endpoint, reporting who the current session is authenticated as
 export const SESSION_INFO_URL = "/system/sling/info.sessionInfo.json";
 
-// Why a request through useAuthenticatedFetch gave up: the session was gone and could not be
-// recovered, either because no sign-in is available or because the user abandoned it. Its own type,
-// rather than a recognisable message, so that a caller can tell it apart from a transport failure
-// and say "sign in" instead of "the server could not be reached" -- the server was reached, and it
-// answered.
+// The session is gone and was not recovered: the login page came back in place of data, or
+// useAuthenticatedFetch could not sign in again because no sign-in is available or the user
+// abandoned it. Its own type, rather than a recognisable message, so that a caller can tell it apart
+// from a transport failure and say "sign in" instead of "the server could not be reached" -- the
+// server was reached, and it answered.
 export class NotAuthenticatedError extends Error {
   constructor(message: string) {
     super(message);
@@ -63,7 +63,7 @@ export function isNotAuthenticated(error: unknown): boolean {
 // Sling answers an unauthenticated request either with a 401, or -- when the authentication handler
 // prefers to redirect -- with a 200 whose body is the login page, recognisable only from the URL the
 // response came back from.
-function isLoginRedirect(response: Response): boolean {
+export function isLoginRedirect(response: Response): boolean {
   return response.ok && response.url.startsWith(`${window.location.origin}/login`);
 }
 

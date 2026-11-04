@@ -22,7 +22,7 @@
 
 
 import { type AuthenticatedFetch } from "../reLogin";
-import { RequestError } from "../requestFailure";
+import { readJson, RequestError } from "../requestFailure";
 
 // One serialized entity; the exact properties depend on the entity type. Every row carries at
 // least the `@path` and `@name` identification of the underlying node.
@@ -131,5 +131,5 @@ export async function fetchEntityPage(
   if (!response.ok) {
     throw new RequestError(response.status);
   }
-  return await response.json() as PaginatedPage;
+  return await readJson<PaginatedPage>(response);
 }

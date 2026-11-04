@@ -18,8 +18,8 @@
 
 import { useEffect, useState } from "react";
 
-import { isNotAuthenticated, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { describeRequestFailure, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { type JsonNode, type SchemaChoice, SCHEMAS_URL, schemaChoices } from "./schemaModel";
 
@@ -57,7 +57,7 @@ export function useSchemas(): SchemasOnOffer {
         if (!response.ok) {
           throw new RequestError(response.status);
         }
-        return response.json().then(body => {
+        return readJson<unknown>(response).then(body => {
           if (typeof body !== "object" || body === null) {
             throw new SyntaxError("The list of schemas is not a node");
           }
@@ -73,11 +73,7 @@ export function useSchemas(): SchemasOnOffer {
         if (cancelled) {
           return;
         }
-        // The session went and they chose not to sign in again. Describing that as a request
-        // failure would send them to check their network instead.
-        setError(isNotAuthenticated(failure)
-          ? "You are no longer signed in. Sign in and try again."
-          : describeRequestFailure(failure));
+        setError(describeRequestFailure(failure));
       })
       .finally(() => {
         if (!cancelled) {

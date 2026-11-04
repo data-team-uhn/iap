@@ -22,6 +22,7 @@ import { Box, Chip, Link as MuiLink, Skeleton, Typography } from "@mui/material"
 import { Link as RouterLink } from "react-router";
 
 import { useAuthenticatedFetch } from "../reLogin";
+import { readJson } from "../requestFailure";
 
 // One figure, as a summary reports it: a count of something, or a state it is in.
 interface WidgetStat {
@@ -172,7 +173,7 @@ function WidgetStatList({ url, name, hrefFor }: WidgetStatListProps) {
         if (!response.ok) {
           throw new Error(String(response.status));
         }
-        return response.json() as Promise<unknown>;
+        return readJson<unknown>(response);
       })
       .then(body => { if (!cancelled) { setRead({ url, stats: readSummary(body) }); } })
       .catch(() => { if (!cancelled) { setRead({ url, stats: null }); } });

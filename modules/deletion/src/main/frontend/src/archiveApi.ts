@@ -21,6 +21,8 @@
 // a hook, so that this file stays free of React and can be tested as plain functions; components
 // pass `useAuthenticatedFetch()` in.
 
+import { readJson } from "@iap/frontend-commons/requestFailure";
+
 /** The fetch a caller supplies, normally the session-aware one from `@iap/frontend-commons/reLogin`. */
 export type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -163,7 +165,7 @@ export const fetchArchiveEntries = async (
   if (!response.ok) {
     throw new Error(`The archive could not be listed (${String(response.status)})`);
   }
-  const body = await response.json() as ArchivePage | null;
+  const body = await readJson<ArchivePage | null>(response);
   if (!body) {
     throw new Error("The archive could not be listed");
   }
@@ -224,7 +226,7 @@ export const fetchArchiveEntry = async (
   if (!response.ok) {
     throw new Error(`That archive entry could not be read (${String(response.status)})`);
   }
-  const body = await response.json() as ArchiveEntryDetail | null;
+  const body = await readJson<ArchiveEntryDetail | null>(response);
   if (!body?.path) {
     throw new Error("That is not an archive entry.");
   }

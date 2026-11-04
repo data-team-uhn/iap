@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { isLoginRedirect, isNotAuthenticated, NotAuthenticatedError } from "./reLogin";
+
 // Thrown when the server answered, but not with success. The status is kept so the failure can be
 // described in the user's terms rather than the protocol's; the reason phrase is deliberately not,
 // since HTTP/2 drops it and it would render as a dangling blank.
@@ -38,6 +40,38 @@ export class RequestError extends Error {
 export const isRefusal = (error: unknown): boolean =>
   error instanceof RequestError && error.reason !== undefined && error.status < 500;
 
+const UNREADABLE_RESPONSE = "The server's response could not be read. Reload and try again.";
+
+const SESSION_EXPIRED = "Your session has expired. Sign in again, then retry.";
+
+// Thrown when a response that should have carried data carried a page instead, such as a proxy's
+// page served as a success. The message is for the user, since some screens show it as it stands.
+export class UnreadableResponseError extends Error {
+  constructor() {
+    super(UNREADABLE_RESPONSE);
+    this.name = "UnreadableResponseError";
+  }
+}
+
+// The JSON body of a response that should carry data. Sling's login page, after the session has
+// gone, fails as an expired session; any other page fails as UnreadableResponseError instead of the
+// parser's "Unexpected token '<'". A connection lost mid-body still fails as a connection failure.
+export async function readJson<T>(response: Response): Promise<T> {
+  if (isLoginRedirect(response)) {
+    throw new NotAuthenticatedError(`Not authenticated: ${response.url}`);
+  }
+  try {
+    return (await response.json()) as T;
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) {
+      throw error;
+    }
+    // The page itself is in the browser's network panel
+    console.warn(`Expected data, got a page (HTTP ${response.status})`, response.url);
+    throw new UnreadableResponseError();
+  }
+}
+
 // What a rejection has to say for itself. Anything can be thrown, so the many places that end up
 // having to display one need this, and none of them need to care that it is not always an Error.
 export const messageOf = (error: unknown): string =>
@@ -57,8 +91,11 @@ const describe = (error: unknown): string => {
       : "The server could not be reached. It may be restarting, or the connection may have dropped. "
         + "Try again in a moment.";
   }
-  if (error instanceof SyntaxError) {
-    return "The server's response could not be read.";
+  if (isNotAuthenticated(error)) {
+    return SESSION_EXPIRED;
+  }
+  if (error instanceof UnreadableResponseError || error instanceof SyntaxError) {
+    return UNREADABLE_RESPONSE;
   }
   if (error instanceof RequestError && error.reason) {
     return error.reason;
@@ -66,7 +103,7 @@ const describe = (error: unknown): string => {
   if (error instanceof RequestError) {
     switch (error.status) {
       case 401:
-        return "Your session has expired. Sign in again, then retry.";
+        return SESSION_EXPIRED;
       case 403:
         return `You do not have permission to do this. (HTTP ${error.status})`;
       case 404:

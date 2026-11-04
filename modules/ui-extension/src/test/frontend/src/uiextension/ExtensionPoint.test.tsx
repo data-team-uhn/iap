@@ -37,6 +37,7 @@ const extensionResponse = (
 ) => ({
   ok,
   status,
+  url: "",
   headers: new Headers(contentType === null ? {} : { "Content-Type": contentType }),
   text: () => Promise.resolve(body),
   json: () => Promise.resolve(JSON.parse(body || "null") as unknown),

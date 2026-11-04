@@ -48,7 +48,7 @@ function row(name: string, read: boolean | string, extras: Record<string, unknow
 }
 
 function respond(body: unknown, ok = true) {
-  return { ok, status: ok ? 200 : 500, json: () => Promise.resolve(body) };
+  return { ok, status: ok ? 200 : 500, url: "", json: () => Promise.resolve(body) };
 }
 
 function servesNotifications(rows: Record<string, unknown>[], unread?: number) {

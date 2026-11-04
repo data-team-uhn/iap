@@ -19,6 +19,7 @@
 import { useEffect, useState } from "react";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { readJson } from "@iap/frontend-commons/requestFailure";
 
 import { type ItemChoices, itemChoicesOf } from "./conditionModel";
 import { type QuestionIndex, strings } from "./schemaVersionTreeModel";
@@ -33,7 +34,7 @@ export function useOptionsFrom(index: QuestionIndex): ItemChoices {
     void Promise.all(paths.split("\n").filter(path => path !== "").map(async path => {
       try {
         const response = await doFetch(`${path}.deep.simple.json`);
-        return [ path, response.ok ? itemChoicesOf(await response.json() as Record<string, unknown>) : [] ] as const;
+        return [ path, response.ok ? itemChoicesOf(await readJson<Record<string, unknown>>(response)) : [] ] as const;
       } catch {
         return [ path, [] ] as const;
       }

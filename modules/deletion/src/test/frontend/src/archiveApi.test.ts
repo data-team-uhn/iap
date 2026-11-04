@@ -36,6 +36,10 @@ const emptyPage = {
   totalIsApproximate: false, sortBy: "jcr:created", descending: true,
 };
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe("fetchArchiveEntries", () => {
   it("asks for the default page when nothing is specified", async () => {
     const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, emptyPage));
@@ -79,6 +83,13 @@ describe("fetchArchiveEntries", () => {
   it("rejects when the body is empty", async () => {
     const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, null));
     await expect(fetchArchiveEntries(doFetch)).rejects.toThrow();
+  });
+
+  it("rejects a page with a message the browser can show as it stands", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => { /* kept out of the test output */ });
+    const doFetch = vi.fn().mockResolvedValue(new Response("<html>Down for maintenance</html>", { status: 200 }));
+    await expect(fetchArchiveEntries(doFetch)).rejects
+      .toThrow("The server's response could not be read. Reload and try again.");
   });
 });
 
