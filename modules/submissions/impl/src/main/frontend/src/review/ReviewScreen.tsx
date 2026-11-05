@@ -41,6 +41,7 @@ import {
 
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
+import { type PageContext, usePublishedPageContext } from "@iap/frontend-commons/pageContext";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import TagChip from "@iap/tags/TagChip";
 
@@ -208,6 +209,16 @@ export default function ReviewScreen({ path }: { path: string }) {
     return document ? notesAbout(data.notes, [ document.uuid, document.version ]).filter(note => note.passage) : [];
   }, [ data, whole, minePart ]);
 
+  // The submission's title and where it stands, in the app bar, in view however far the reviewer scrolls
+  const header = loaded?.submission;
+  const context: PageContext | undefined = useMemo(() => header && {
+    title: text(header.title),
+    details: `${text(header.identifier)} · ${text(header.pi)}`,
+    badges: <><TagChip tags={header.tags} category="lifecycle" /><TagChip tags={header.tags} category="priority" /></>,
+    end: <Countdown due={header.reviewDue} pausedAt={header.reviewPausedAt} />,
+  }, [ header ]);
+  usePublishedPageContext(context);
+
   const actions: ReviewActions = useMemo(() => ({
     write: async fields => {
       await writeComment(doFetch, path, fields);
@@ -353,69 +364,59 @@ export default function ReviewScreen({ path }: { path: string }) {
 
   return (
     <Stack spacing={1.5}>
-      <Paper sx={{ px: 2, py: 1.5 }}>
-        <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: { xs: 1, md: 3 }, alignItems: { md: "flex-start" } }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Stack direction="row" sx={{ alignItems: "center", columnGap: 1, flexWrap: "wrap" }}>
-              <Typography variant="h5" component="h1">{text(submission.title)}</Typography>
-              <TagChip tags={submission.tags} category="lifecycle" />
-              <TagChip tags={submission.tags} category="priority" />
-            </Stack>
-            <Stack direction="row" sx={{ alignItems: "center", columnGap: 2, flexWrap: "wrap", mt: 0.25 }}>
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                {text(submission.identifier)} · {text(submission.pi)}
-              </Typography>
-              <Countdown due={submission.reviewDue} pausedAt={submission.reviewPausedAt} />
-            </Stack>
-          </Box>
-          <Stack spacing={1} sx={{ width: { xs: "100%", md: 380 }, flexShrink: 0, alignItems: "flex-end" }}>
-            <ClickAwayListener onClickAway={() => setSearching(false)}>
-              <Box sx={{ position: "relative", width: "100%" }}>
-                <TextField
-                  fullWidth size="small" value={query} placeholder="Search the answers and documents"
-                  onChange={event => {
-                    setQuery(event.target.value);
-                    setSearching(true);
-                  }}
-                  onFocus={() => setSearching(true)}
-                  slotProps={{
-                    input: { startAdornment: <InputAdornment position="start"><SearchOutlined /></InputAdornment> },
-                    htmlInput: { "aria-label": "Search the submission" },
-                  }}
-                />
-                {hits && (
-                  <Paper elevation={8} sx={{ position: "absolute", zIndex: "modal", left: 0, right: 0, mt: 0.5,
-                    maxHeight: 420, overflowY: "auto" }}>
-                    {hits.length === 0 && <Typography sx={{ p: 2 }} variant="body2">Nothing found yet</Typography>}
-                    <List dense>
-                      {hits.map(hit => (
-                        <ListItemButton
-                          key={`${hit.requirement}-${hit.question ?? hit.page ?? ""}`}
-                          onClick={() => {
-                            setSearching(false);
-                            go(hit.requirement, { question: hit.question, page: hit.page });
-                            if (hit.question && !minePart(hit.question)) {
-                              setWhole(true);
-                            }
-                          }}
-                        >
-                          <ListItemText primary={hit.where} secondary={hit.snippet} />
-                        </ListItemButton>
-                      ))}
-                    </List>
-                  </Paper>
-                )}
-              </Box>
-            </ClickAwayListener>
-            {myGroups.includes("reb-reviewers") && (
-              <Stack direction="row" spacing={1}>
-                <Button size="small" variant="outlined" onClick={() => setDialog("board")}>Escalate to the board</Button>
-                <Button size="small" variant="contained" onClick={() => setDialog("letter")}>Letter of review</Button>
-              </Stack>
+      {/* The app bar names the submission, but a phone's has no room for it, and a short screen folds the bar
+          away: those repeat the title and the time left */}
+      <Box sx={theme => ({ display: { sm: "none" },
+        [`@media (max-height: ${theme.iapShell?.frameTop?.collapseHeight ?? 500}px)`]: { display: "block" } })}>
+        <Typography variant="h6" aria-hidden sx={{ lineHeight: 1.3 }}>{text(submission.title)}</Typography>
+        <Countdown due={submission.reviewDue} pausedAt={submission.reviewPausedAt} />
+      </Box>
+      <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1, alignItems: { sm: "center" } }}>
+        <ClickAwayListener onClickAway={() => setSearching(false)}>
+          <Box sx={{ position: "relative", width: { xs: "100%", sm: 380 } }}>
+            <TextField
+              fullWidth size="small" value={query} placeholder="Search the answers and documents"
+              onChange={event => {
+                setQuery(event.target.value);
+                setSearching(true);
+              }}
+              onFocus={() => setSearching(true)}
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start"><SearchOutlined /></InputAdornment> },
+                htmlInput: { "aria-label": "Search the submission" },
+              }}
+            />
+            {hits && (
+              <Paper elevation={8} sx={{ position: "absolute", zIndex: "modal", left: 0, right: 0, mt: 0.5,
+                maxHeight: 420, overflowY: "auto" }}>
+                {hits.length === 0 && <Typography sx={{ p: 2 }} variant="body2">Nothing found yet</Typography>}
+                <List dense>
+                  {hits.map(hit => (
+                    <ListItemButton
+                      key={`${hit.requirement}-${hit.question ?? hit.page ?? ""}`}
+                      onClick={() => {
+                        setSearching(false);
+                        go(hit.requirement, { question: hit.question, page: hit.page });
+                        if (hit.question && !minePart(hit.question)) {
+                          setWhole(true);
+                        }
+                      }}
+                    >
+                      <ListItemText primary={hit.where} secondary={hit.snippet} />
+                    </ListItemButton>
+                  ))}
+                </List>
+              </Paper>
             )}
+          </Box>
+        </ClickAwayListener>
+        {myGroups.includes("reb-reviewers") && (
+          <Stack direction="row" spacing={1} sx={{ ml: { sm: "auto" } }}>
+            <Button size="small" variant="outlined" onClick={() => setDialog("board")}>Escalate to the board</Button>
+            <Button size="small" variant="contained" onClick={() => setDialog("letter")}>Letter of review</Button>
           </Stack>
-        </Stack>
-      </Paper>
+        )}
+      </Stack>
       <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, alignItems: "flex-start" }}>
         <Paper sx={{ p: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0, position: { md: "sticky" }, top: { md: 16 } }}>
           <ToggleButtonGroup
