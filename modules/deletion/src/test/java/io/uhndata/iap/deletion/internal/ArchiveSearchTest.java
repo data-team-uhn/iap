@@ -92,7 +92,7 @@ class ArchiveSearchTest
     @Test
     void entriesAreFoundThroughTheBucketsTheyAreStoredIn() throws Exception
     {
-        // Nothing is a direct child of /Archive, which is exactly why a listing has to be a query
+        // The entries sit in buckets, never directly under /Archive
         this.entry("ab", "one", "alice", "/content/one");
         this.entry("cd", "two", "bob", "/content/two");
         assertEquals(2,

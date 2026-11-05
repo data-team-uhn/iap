@@ -40,22 +40,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Lists the archive entries: {@code GET /Archive.entries.json} answers with one page of the deletions recorded
- * under the addressed archive subtree, newest first.
+ * Lists archive entries: {@code GET /Archive.entries.json} answers with one page of the entries under the addressed
+ * node, newest first by default. A client learns an entry's path from here, since entries are filed in a prefix tree
+ * of buckets.
  *
  * <p>
- * This is the listing the restore and purge endpoints have always needed: both act on an entry's path, and entries
- * live in a prefix tree of buckets, so without a listing there is no way for a client to name one. Only users who
- * can see the archive — in practice, administrators — can reach this endpoint; everyone else gets a 404 from the
- * resource resolution itself, the same rule those two endpoints rely on. The query runs with the requester's own
- * session, so nothing here can widen what they may see.
+ * Only a user who can read the archive reaches this servlet, and Sling answers 404 to anyone else. The query runs
+ * with the requesting user's own session.
  * </p>
  *
  * <p>
- * Parameters: {@code offset} and {@code limit} page the results; {@code filter} keeps only the entries whose
- * requested path or requesting user contains it, ignoring case; {@code sortBy} is one of {@code jcr:created},
- * {@code deletedBy} or {@code requestedPath}, and {@code descending} reverses the order. The effective sort is
- * echoed back, since an unrecognised column falls back to the default rather than failing the request.
+ * {@code offset} and {@code limit} page the results. {@code filter} keeps the entries whose requested path or
+ * requesting user contains it, ignoring case. {@code sortBy} is one of {@code jcr:created}, {@code deletedBy} or
+ * {@code requestedPath}, and {@code descending=false} reverses the order. An unknown {@code sortBy} falls back to
+ * {@code jcr:created}, and the answer says which sort it used.
  * </p>
  *
  * @version $Id$
@@ -76,7 +74,7 @@ public class ArchiveEntriesServlet extends SlingJakartaSafeMethodsServlet
     /** How many entries are returned when no {@code limit} is asked for. */
     private static final long DEFAULT_LIMIT = 25;
 
-    /** The outcome word and wording used whichever way the query fails to run. */
+    /** The outcome word for a query that cannot run, whatever the reason. */
     private static final String FAILED_OUTCOME = "failed";
 
     private static final String UNQUERYABLE_MESSAGE = "The archive cannot be queried";
@@ -119,8 +117,7 @@ public class ArchiveEntriesServlet extends SlingJakartaSafeMethodsServlet
         long returned = 0;
         for (final String path : page.paths()) {
             final Resource entry = resolver.getResource(path);
-            // A query result can name an entry that a concurrent restore or purge has since removed; it is simply
-            // no longer there to list.
+            // A restore or purge can remove an entry after the query found it
             if (entry != null) {
                 rows.add(ArchiveEntryRow.of(entry));
                 returned++;

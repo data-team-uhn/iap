@@ -48,10 +48,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * Tests for {@link DeletedPathDisclosureImpl}.
  *
  * <p>
- * The three disclosure levels turn on two questions: whether the requester's own resolver can read the archive
- * entry, and whether they are the one who deleted it. The privileged case is the plain test resolver, which
- * bypasses access control. The other two use a wrapper that hides the archive, as the repository does to everyone
- * it has not been granted to.
+ * What a reader is told turns on two questions: whether their own resolver can read the archive entry, and whether
+ * they deleted it. The test's own resolver bypasses access control, and reads the entry. The other readers use a
+ * wrapper that hides the archive, as Oak hides it from everyone it is not granted to.
  * </p>
  *
  * @version $Id$
@@ -194,8 +193,7 @@ class DeletedPathDisclosureImplTest
     @Test
     void aDeletionWithNoUsableDateIsNotReportedAsOne()
     {
-        // Reached directly: the date it stands in for is mandatory on the node type, so a query can never return
-        // a match without one. This is what keeps a broken repository from being read as a live path
+        // Called directly: every entry has a jcr:created, so a query never finds one without it
         final DeletedPathLookup.Archived undated =
             new DeletedPathLookup.Archived("/Submissions/one", "/Archive/ab/one", "one", "alice", null);
 
@@ -236,9 +234,8 @@ class DeletedPathDisclosureImplTest
     @Test
     void aServiceSessionThatCannotSeeTheArchiveIsReportedRatherThanReadAsNothingDeleted() throws Exception
     {
-        // The failure this sentinel exists for: a session that logs in and then sees no archive. Removing the
-        // archive stands in for that: access control is what hides it in the real case, and this repository
-        // has none
+        // A session that logs in and sees no archive. Removing the archive stands in for access control,
+        // which this repository does not enforce.
         this.session.getNode("/Archive").remove();
         this.session.save();
 

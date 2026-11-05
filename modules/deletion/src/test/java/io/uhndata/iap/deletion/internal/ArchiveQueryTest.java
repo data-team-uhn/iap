@@ -66,7 +66,7 @@ class ArchiveQueryTest
     void aFilterMatchesEitherThePathOrTheUser()
     {
         final String statement = ArchiveQuery.entries("/Archive", "Smith", ArchiveQuery.DEFAULT_SORT, true);
-        // Lower-cased on both sides, so the match ignores case without needing the index to
+        // Lower-cased on both sides, so the match ignores case
         assertTrue(statement.contains("LOWER(entry.[requestedPath]) LIKE '%smith%'"), statement);
         assertTrue(statement.contains("LOWER(entry.[deletedBy]) LIKE '%smith%'"), statement);
     }
@@ -74,7 +74,6 @@ class ArchiveQueryTest
     @Test
     void anUnknownSortColumnFallsBackInsteadOfBeingInterpolated()
     {
-        // The column cannot be a bound variable, so anything unrecognised is refused rather than escaped
         final String statement = ArchiveQuery.entries("/Archive", null, "jcr:created] ; DROP", true);
         assertTrue(statement.endsWith("ORDER BY entry.[jcr:created] DESC"), statement);
         assertFalse(statement.contains("DROP"), statement);
@@ -98,7 +97,6 @@ class ArchiveQueryTest
     @Test
     void wildcardsInTheFilterAreMatchedLiterally()
     {
-        // Otherwise typing a % would quietly turn the filter into a different query
         final String statement = ArchiveQuery.entries("/Archive", "100%_x", ArchiveQuery.DEFAULT_SORT, true);
         assertTrue(statement.contains("'%100\\%\\_x%'"), statement);
     }
@@ -126,7 +124,6 @@ class ArchiveQueryTest
     @Test
     void timestampsArePrintedWithANumericZeroOffset()
     {
-        // The platform's ruling: a zero offset reads +00:00, never Z
         assertEquals("1970-01-01T00:00:00.000+00:00", ArchiveQuery.timestamp(0));
     }
 }

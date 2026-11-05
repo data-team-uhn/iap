@@ -129,7 +129,7 @@ class ArchiveEntryServletTest
         final JsonObject conflict = body.getJsonArray("restoreConflicts").getJsonObject(0);
         assertEquals("/content/one", conflict.getString("originalPath"));
         assertEquals("OCCUPIED", conflict.getString("reason"));
-        // The two actions are judged independently: one being blocked says nothing about the other
+        // A blocked restore says nothing about the purge
         assertTrue(body.getBoolean("purgeable"));
     }
 

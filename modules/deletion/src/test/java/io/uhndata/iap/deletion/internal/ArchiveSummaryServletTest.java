@@ -51,9 +51,8 @@ import static org.mockito.Mockito.when;
  * Tests for {@link ArchiveSummaryServlet}.
  *
  * <p>
- * The windows are exercised by moving the clock rather than the data: {@code jcr:created} is autocreated and
- * protected, so an entry cannot be backdated through the JCR API, but asking what the counts look like a week later
- * tests the same boundary from the other side.
+ * The tests move the clock rather than the entries. {@code jcr:created} is autocreated and protected, so an entry
+ * cannot be backdated, and counting a week later tests the same boundary.
  * </p>
  *
  * @version $Id$
@@ -181,7 +180,7 @@ class ArchiveSummaryServletTest
 
         try (var reader = Json.createReader(new StringReader(this.response.getOutputAsString()))) {
             final JsonObject body = reader.readObject();
-            // Two of the three were counted, and the answer says so rather than claiming there are two
+            // Two of the three were counted, and the answer says the count stopped
             assertEquals(2, count(body, "total"));
             assertTrue(approximate(body, "total"));
         }
@@ -190,7 +189,7 @@ class ArchiveSummaryServletTest
     @Test
     void theDefaultConstructorReadsTheRealClock() throws Exception
     {
-        // The OSGi constructor is the one production uses, so it has to work as well as the test seam
+        // The constructor OSGi uses
         this.entry("one");
         new ArchiveSummaryServlet().doGet(this.request(this.context.resourceResolver()), this.response);
         try (var reader = Json.createReader(new StringReader(this.response.getOutputAsString()))) {
@@ -220,8 +219,7 @@ class ArchiveSummaryServletTest
     @Test
     void aFailingQueryIsReportedWithoutLeakingTheRepositoryError() throws Exception
     {
-        // Session.getWorkspace() declares no checked exception; the query manager is the first thing
-        // on this path that can fail, so that is where the repository is made to break.
+        // Session.getWorkspace() throws no checked exception, so the query manager is what fails
         final Workspace workspace = mock(Workspace.class);
         when(workspace.getQueryManager()).thenThrow(new RepositoryException("the index is on fire"));
         final Session broken = mock(Session.class);

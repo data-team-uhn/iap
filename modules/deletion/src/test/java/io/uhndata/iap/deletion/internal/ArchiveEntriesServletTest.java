@@ -146,7 +146,7 @@ class ArchiveEntriesServletTest
     @Test
     void anUnknownSortColumnIsReportedAsTheOneActuallyApplied() throws Exception
     {
-        // The request is answered rather than refused, so the client is told what it really got
+        // An unknown column falls back to the default, and the answer says which it used
         this.entry("one", "alice", "/content/one");
         final MockSlingJakartaHttpServletRequest request = this.request();
         request.setParameterMap(Map.of("sortBy", "somethingElse"));
@@ -251,7 +251,7 @@ class ArchiveEntriesServletTest
     {
         this.entry("one", "alice", "/content/one");
         this.entry("two", "bob", "/content/two");
-        // A concurrent restore or purge takes an entry away after the query named it
+        // A restore or purge removes an entry after the query found it
         final ResourceResolver hidingOne = new ResourceResolverWrapper(this.context.resourceResolver())
         {
             @Override
@@ -263,7 +263,7 @@ class ArchiveEntriesServletTest
         this.servlet.doGet(this.request(hidingOne), this.response);
 
         final JsonObject body = this.body();
-        // Counted by the query, but not listed, and the two numbers say so rather than pretending
+        // Counted by the query, but not listed
         assertEquals(2, body.getInt("totalrows"));
         assertEquals(1, body.getInt("returnedrows"));
         assertEquals(1, body.getJsonArray("rows").size());
@@ -289,8 +289,7 @@ class ArchiveEntriesServletTest
     @Test
     void aFailingQueryIsReportedWithoutLeakingTheRepositoryError() throws Exception
     {
-        // Session.getWorkspace() declares no checked exception; the query manager is the first thing
-        // on this path that can fail, so that is where the repository is made to break.
+        // Session.getWorkspace() throws no checked exception, so the query manager is what fails
         final Workspace workspace = mock(Workspace.class);
         when(workspace.getQueryManager()).thenThrow(new RepositoryException("the index is on fire"));
         final Session broken = mock(Session.class);

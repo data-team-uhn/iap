@@ -21,16 +21,10 @@ import type { Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import type { ActionResponse } from "./archiveApi";
 
 /**
- * Turns an endpoint answer into a notice worth raising.
+ * The notice to raise for a restore or purge answer. The title says what happened to the entry, and
+ * the message under it is the server's `status.message`, which names the actual reason.
  *
- * Said in the two parts a notice is read in: the title is what happened to the entry, and the detail
- * under it is the server's own words wherever it had any. The endpoints explain themselves in
- * `status.message` whenever there is anything to explain, and a refusal in the server's wording beats
- * a sentence invented here that might not describe the actual reason.
- *
- * `onRetry` is passed on only where trying again could come out differently. A conflict and a veto
- * are decisions rather than mishaps — offering to repeat them would be offering to fail again, which
- * is the same reason the delete dialog stops offering a vetoed deletion.
+ * `onRetry` is offered only after a failure. A conflict or a veto would only be refused again.
  */
 export function describeOutcome(response: ActionResponse, onRetry?: () => void): Notice {
   const explanation = response["status.message"];
@@ -53,7 +47,7 @@ export function describeOutcome(response: ActionResponse, onRetry?: () => void):
       return {
         severity: "warning",
         title: "Nothing was restored, because something is in the way",
-        // What is in the way, item by item, or whatever the server said instead
+        // Each item and its conflict, or the server's message if it listed none
         message: detail.length > 0 ? detail : explanation,
       };
     }
@@ -67,11 +61,8 @@ export function describeOutcome(response: ActionResponse, onRetry?: () => void):
 }
 
 /**
- * The sentence to show for a failed request, whatever was thrown.
- *
- * Lives here rather than inline at the call site so that both arms can be exercised directly: the
- * fetch layer only ever rejects with an `Error`, so a component-level test cannot reach the other
- * one without faking a rejection the application cannot actually produce.
+ * The sentence to show for a failed request: the error's message, or the fallback if what was thrown
+ * is not an `Error`.
  */
 export function failureMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;

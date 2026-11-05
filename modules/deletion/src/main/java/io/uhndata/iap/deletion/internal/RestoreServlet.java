@@ -35,11 +35,9 @@ import io.uhndata.iap.deletion.api.DeletionService;
 import io.uhndata.iap.deletion.api.RestoreResult;
 
 /**
- * Restores an archive entry: {@code POST /Archive/<entry>.restore.json} moves every archived item back to its
- * recorded original location and removes the emptied entry. The restore is all-or-nothing; when anything is in the
- * way, a 409 response lists every conflict and nothing is changed. Only users who can see the archive — in
- * practice, administrators — can reach this endpoint; everyone else gets a 404 from the resource resolution
- * itself.
+ * Restores an archive entry: {@code POST <entry>.restore.json} moves every archived item back to its original path
+ * and removes the emptied entry. If any item cannot go back, nothing changes and a 409 lists every conflict. Only a
+ * user who can read the entry reaches this servlet, and Sling answers 404 to anyone else.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,7 +47,7 @@ import io.uhndata.iap.deletion.api.RestoreResult;
     selectors = { "restore" }, extensions = { "json" })
 public class RestoreServlet extends SlingJakartaAllMethodsServlet
 {
-    /** The {@code sling:resourceType} of an {@code del:ArchiveEntry} node. */
+    /** The {@code sling:resourceType} of a {@code del:ArchiveEntry} node. */
     static final String ENTRY_RESOURCE_TYPE = "del/ArchiveEntry";
 
     private static final long serialVersionUID = 1L;

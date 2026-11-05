@@ -66,7 +66,7 @@ class ArchiveRetentionVetoTest
         final Node node = mock(Node.class);
 
         assertNull(this.veto.veto(node, DeletionMode.PURGE, this.requester));
-        // Nothing was even asked of the node: a disabled policy should not cost a repository read
+        // A disabled policy reads nothing off the node
         verifyNoInteractions(node);
     }
 
@@ -78,8 +78,6 @@ class ArchiveRetentionVetoTest
         assertNull(this.veto.veto(mock(Node.class), DeletionMode.PURGE, this.requester));
     }
 
-    // The purge sweep visits the archived content too, and that content keeps its ORIGINAL jcr:created: reading an
-    // age from it would compare against when it was authored rather than when it was archived.
     @Test
     void ignoresEverythingThatIsNotAnArchiveEntry() throws Exception
     {
@@ -100,7 +98,7 @@ class ArchiveRetentionVetoTest
 
         final String reason = this.veto.veto(entry, DeletionMode.PURGE, this.requester);
 
-        // The instant is named, and formatted with the repository's canonical format rather than a local one
+        // The message names the instant, in DateUtils' format
         assertEquals("This archive entry cannot be destroyed before "
             + DateUtils.toString(archivedAt.toInstant().atZone(archivedAt.getTimeZone().toZoneId())
                 .plusDays(RETENTION_DAYS)),
@@ -124,7 +122,6 @@ class ArchiveRetentionVetoTest
         assertNull(this.veto.veto(this.entryArchivedAt(daysAgo(RETENTION_DAYS)), DeletionMode.PURGE, this.requester));
     }
 
-    // Fail closed: an entry whose age cannot be read is the case a retention period exists to catch
     @Test
     void vetoesAnEntryOfUnknownAge() throws Exception
     {
@@ -136,7 +133,7 @@ class ArchiveRetentionVetoTest
         assertNotNull(this.veto.veto(entry, DeletionMode.PURGE, this.requester));
     }
 
-    // The rule follows the node type, not the mode, so no future caller can present a different mode and skip it
+    // The rule follows the node type, not the mode
     @Test
     void protectsAnEntryWhicheverModeIsPresented() throws Exception
     {

@@ -53,26 +53,24 @@ interface DeleteItemProps {
   onClose?: () => void;
 }
 
-// A delete control for any resource, with the confirmation dialog that belongs to it.
+// A delete button for any resource, with its confirmation dialog.
 //
-// Unlike a plain DELETE button, this asks the server what the deletion would do *before*
-// showing the confirmation, so the dialog states the actual consequences — how much goes, what
-// refers to it, which guard forbids it — instead of discovering them only after the user has
-// already committed to the action. The dry run is what the deletion endpoint's `dryRun` option
-// exists for; see docs/deletion.md.
+// Before the dialog asks for confirmation, it asks the deletion endpoint for a dry run. The dialog
+// then says what the deletion would do: how much goes, what references the resource, and which guard
+// refuses it.
 //
 // Required props:
-// path: the absolute repository path of the resource to delete
+// path: the absolute path of the resource to delete
 //
 // Optional props:
 // name: what to call the resource in the dialog. Defaults to the last segment of the path
-// type: the kind of thing being deleted ("submission", "schema"), used in the wording
-// permanent: skip the archive and destroy the resource. Off by default, which means deletions
-//   are recoverable and the dialog says so
+// type: the kind of thing being deleted, such as "submission", used in the wording
+// permanent: skip the archive and remove the resource for good. Off by default, and the dialog
+//   says the deletion can be undone
 // variant: "icon" (default), "text", or "extended" (icon and text)
-// size, label, disabled, className: passed to the trigger
-// onDeleted: called with the successful outcome once the resource is gone. A resource that was
-//   already gone counts as deleted, since the caller's goal is met either way
+// size, disabled: passed to the button
+// label: the button's text, and the icon's tooltip. Defaults to "Delete <type>", or "Delete item"
+// onDeleted: called with the outcome once the resource is gone, including when it was gone already
 // onClose: called whenever the dialog closes, deleted or not
 //
 // Sample usage:
@@ -103,11 +101,10 @@ const DeleteItem = (props: DeleteItemProps) => {
   const subject = type ? `${type} "${name}"` : `"${name}"`;
   const buttonText = label ?? `Delete ${type ?? "item"}`;
 
-  // A veto is final: nothing the user can choose here makes the deletion proceed, so the dialog
-  // must not offer them an option that would only fail again
+  // No option makes a vetoed deletion proceed, so the dialog offers none
   const vetoes = impact?.vetoes ?? [];
   const blocked = vetoes.length > 0;
-  // Referrers, on the other hand, are an offer: deleting them too is exactly what `recursive` is
+  // Referencing resources can be deleted too, with `recursive`
   const referrers = impact?.referrers ?? [];
   const hiddenReferrers = impact?.inaccessibleReferrers ?? 0;
   const cascades = !blocked && (referrers.length > 0 || hiddenReferrers > 0);
@@ -119,8 +116,7 @@ const DeleteItem = (props: DeleteItemProps) => {
     onClose?.();
   };
 
-  // Closing the confirmation and opening the error dialog are one render: they are two separate
-  // dialogs, so the user sees the explanation, not a silent dismissal
+  // Closes the confirmation and opens the error dialog in the same render
   const fail = (message: string) => {
     setOpen(false);
     setImpact(null);
@@ -130,8 +126,8 @@ const DeleteItem = (props: DeleteItemProps) => {
   const failWith = (outcome: DeletionResponse) =>
     fail(outcome["status.message"] ?? `The ${type ?? "item"} could not be deleted.`);
 
-  // The session went and could not be recovered. Reporting a transport failure here would be false —
-  // the server answered — and would send the user to check their network instead of signing in.
+  // The session expired and the user did not sign back in. The server did answer, so this is not
+  // reported as a network failure.
   const failNotAuthenticated = () =>
     fail(`You are no longer signed in, so the ${type ?? "item"} was not deleted. Sign in and try again.`);
 
@@ -144,13 +140,12 @@ const DeleteItem = (props: DeleteItemProps) => {
       .catch((err: unknown) => {
         console.error("Could not determine what deleting %s would do", path, err);
         if (isNotAuthenticated(err)) {
-          // The deletion itself would fail the same way, so offering a confirmation would offer a
-          // button that cannot work
+          // The deletion would fail the same way, so there is nothing to confirm
           failNotAuthenticated();
           return;
         }
-        // Losing the preview is not a reason to block the deletion; the endpoint refuses
-        // anything unsafe on its own, so the dialog just falls back to a plain confirmation
+        // Without a dry run, the dialog asks a plain confirmation. The deletion endpoint still
+        // refuses what it must.
         setImpact(null);
       })
       .finally(() => setBusy(false));
@@ -161,21 +156,19 @@ const DeleteItem = (props: DeleteItemProps) => {
     requestDeletion(authenticatedFetch, path, { permanent, recursive })
       .then(outcome => {
         switch (outcome.status) {
-          // "missing" counts as done: the caller wanted it absent, and it is
+          // "missing" counts as deleted: the resource is gone either way
           case "archived":
           case "deleted":
           case "missing":
             close();
             onDeleted?.(outcome);
             break;
-          // Something started referring to it, or a guard changed its mind, between the dry run
-          // and now — show the new answer rather than the stale one
+          // Something changed since the dry run, so the dialog shows the new answer
           case "referenced":
           case "vetoed":
             setImpact(outcome);
             break;
-          // "dryRun" cannot arrive here, since this call does not ask for one; if it somehow
-          // does, treating it as a failure is right — nothing was deleted
+          // This call asks for no dry run, but if "dryRun" arrives, nothing was deleted
           case "denied":
           case "invalid":
           case "failed":
@@ -265,8 +258,8 @@ const DeleteItem = (props: DeleteItemProps) => {
   );
 };
 
-// What else goes along with the resource, and whether any of it can be undone. Silent when the
-// deletion takes nothing but the resource itself, so the common case stays a plain question.
+// What else goes with the resource, and whether the deletion can be undone. Says only the latter
+// when the deletion takes nothing else.
 const ImpactSummary = (props: { impact: DeletionResponse | null; permanent: boolean }) => {
   const { impact, permanent } = props;
   const items = impact?.items?.length ?? 0;

@@ -60,7 +60,7 @@ import { describeOutcome, failureMessage } from "./archiveOutcome";
 /** How long to wait after the last keystroke before asking the server again. */
 const FILTER_DELAY_MS = 300;
 
-/** The columns that can be ordered on, paired with the JCR property the server knows them by. */
+/** The table's columns. A sortable column's `property` is what the server sorts by. */
 const COLUMNS: { property: string; label: string; sortable: boolean }[] = [
   { property: "jcr:created", label: "Deleted at", sortable: true },
   { property: "deletedBy", label: "Deleted by", sortable: true },
@@ -68,8 +68,7 @@ const COLUMNS: { property: string; label: string; sortable: boolean }[] = [
   { property: "itemCount", label: "Items", sortable: false },
 ];
 
-// When the entry was deleted, in the reader's own locale. The raw timestamp stays available as a
-// tooltip, since a support conversation about a deletion is usually conducted in ISO-8601.
+// When the entry was deleted, in the reader's locale, with the ISO-8601 timestamp as a tooltip.
 function Deleted({ entry }: { entry: ArchiveEntry }) {
   if (!entry.created) {
     return <>—</>;
@@ -81,15 +80,11 @@ function Deleted({ entry }: { entry: ArchiveEntry }) {
   );
 }
 
-// The archive: every recorded deletion, with what it took with it, and the two things that can be
-// done about it. Restoring puts everything back where it came from; purging destroys it for good,
-// which is why only that one asks first.
+// The archive's page: every archive entry, with a restore and a purge for each. Only the purge asks
+// for confirmation.
 //
-// Registered as a view on the `iap/coreUI/view` extension point, so it is displayed by the
-// application shell's router at /admin/archive rather than being a page of its own.
-//
-// Reachable only by users who can read /Archive — the server decides that, and a refusal surfaces
-// here as an ordinary message rather than as an empty table.
+// A view on the `iap/coreUI/view` extension point, which the application shell shows at
+// /admin/archive. A user who cannot read /Archive gets an error message rather than an empty table.
 export function ArchiveBrowser() {
   const doFetch = useAuthenticatedFetch();
 
@@ -109,8 +104,7 @@ export function ArchiveBrowser() {
   const [ busyPath, setBusyPath ] = useState<string | null>(null);
   const [ confirming, setConfirming ] = useState<ArchiveEntry | null>(null);
 
-  // Requests are sent in order but can land out of order, and an older listing would put back rows
-  // a newer one has already replaced.
+  // Answers can arrive out of order. Only the latest request's answer is shown.
   const latest = useRef(0);
 
   useEffect(() => {
@@ -137,8 +131,7 @@ export function ArchiveBrowser() {
         if (current()) { setLoadError(failureMessage(error, "The archive could not be listed.")); }
       })
       .finally(() => { if (current()) { setSettled(true); } });
-    // Retiring the token on the way out covers unmounting as well as being superseded: a response
-    // that lands after either one has nothing left to update.
+    // Ignores an answer that arrives after unmounting or after a newer request
     return () => { latest.current += 1; };
   }, [ doFetch, appliedFilter, sortBy, descending, page, rowsPerPage, reloadKey ]);
 
@@ -153,19 +146,19 @@ export function ArchiveBrowser() {
   };
 
   const act = (entry: ArchiveEntry, action: (f: AuthenticatedFetch, path: string) => Promise<ActionResponse>) => {
-    // The same action on the same entry, if there's a need to retry
+    // The same action on the same entry
     const retry = () => { act(entry, action); };
     setBusyPath(entry.path);
     action(doFetch, entry.path)
       .then((response: ActionResponse) => {
         notify(describeOutcome(response, retry));
-        // Only a completed action changes what the table should show; a refusal changed nothing.
+        // A refusal changed nothing, so the table stays
         if (response.status === "restored" || response.status === "deleted") {
           setReloadKey(key => key + 1);
         }
       })
       .catch(() => {
-        // Nothing reached the server, so nothing was decided: this is the outcome most worth another go
+        // The request got no answer, so nothing was decided and it can be sent again
         notify({ severity: "error", title: "The request could not be sent.", onRetry: retry });
       })
       .finally(() => { setBusyPath(null); });
@@ -225,8 +218,7 @@ export function ArchiveBrowser() {
                 <TableCell>{entry.deletedBy}</TableCell>
                 <TableCell>
                   <Tooltip title={entry.originalPaths.join(", ")}>
-                    {/* Through to the entry, where what-would-happen can be seen before acting. The short
-                        address is the one a reader should ever see; the buckets are storage. */}
+                    {/* To the entry's page, which says whether a restore and a purge would succeed */}
                     <MuiLink component={RouterLink} to={entryRoute(entry.shortPath)}>
                       {entry.requestedPath}
                     </MuiLink>
@@ -280,8 +272,7 @@ export function ArchiveBrowser() {
         }}
       />
 
-      {/* Mounted only while it is being asked, so the entry it is about is a value rather than
-          something to keep defending against being absent. */}
+      {/* Mounted only while asking, so that its entry is never null */}
       {confirming !== null && (
         <ResponsiveDialog open onClose={() => { setConfirming(null); }} title="Purge this entry?">
           <DialogContent dividers>

@@ -83,9 +83,8 @@ class DeletedPathLookupTest
         final Node item = entry.addNode("item", "del:DeletedItem");
         item.setProperty("originalPath", originalPath);
         this.session.save();
-        // These entries must not share a jcr:created: the tests below are about which deletion is newer, and a
-        // tie is settled by name instead. Saving them apart is not enough, two saves fitting inside one
-        // millisecond on a warm JVM
+        // Two entries sharing a jcr:created would be ranked by name instead of by date, and two saves can fit in
+        // one millisecond
         tick();
         return entry;
     }
@@ -301,8 +300,6 @@ class DeletedPathLookupTest
     @Test
     void aWrapperArchivedInsideAnotherDeletionIsNotADeletionRecord() throws Exception
     {
-        // The archive can be archived. Such a wrapper records where it used to be, and nothing lives at that
-        // path on its account
         final Node entry = this.entry("one", "alice", "/Archive/old");
         final Node nested = entry.getNode("item").addNode("inner", "del:DeletedItem");
         nested.setProperty("originalPath", "/Submissions/ghost");

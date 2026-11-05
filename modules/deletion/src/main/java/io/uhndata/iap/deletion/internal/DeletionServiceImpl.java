@@ -51,10 +51,10 @@ import io.uhndata.iap.deletion.spi.DeletionVeto;
 import io.uhndata.iap.links.api.LinkManager;
 
 /**
- * The standard {@link DeletionService} implementation. Impact analysis and all writes run through the privileged
- * {@code deletion} service session, so that hidden referrers are found and the archive can be written to, while
- * every business decision — vetoes, blocking referrers, missing permissions — is made against the requesting
- * user's own session.
+ * Deletes, restores and purges through the {@code iap-deletion} service user's session. That session finds the
+ * referrers the requesting user cannot see, and can write to the archive. Permissions are checked against the
+ * requesting user's own session, and the guards are told who that user is. {@link #deleteWithin} writes through the
+ * caller's resolver instead, and commits nothing.
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,14 +62,14 @@ import io.uhndata.iap.links.api.LinkManager;
 @Component
 public class DeletionServiceImpl implements DeletionService
 {
-    /** The subservice name mapped to the {@code iap-deletion} service user. */
+    /** The subservice name that the feature maps to the {@code iap-deletion} service user. */
     public static final String SUBSERVICE_NAME = "deletion";
 
     @Reference
     private ResourceResolverFactory resolverFactory;
 
-    // Not used directly — link removal is behavior on the Link models — but the reference guarantees the links
-    // machinery those models delegate to is active before any deletion runs
+    // Not used here. The Link models remove links through the links module, and this reference makes this
+    // component wait until that module is active.
     @Reference
     @SuppressWarnings("checkstyle:UnusedPrivateField")
     private LinkManager linkManager;
@@ -102,11 +102,11 @@ public class DeletionServiceImpl implements DeletionService
     }
 
     /**
-     * Plans a deletion, refuses it when anything forbids it, and otherwise hands it over to be carried out.
+     * Plans a deletion, refuses it when anything forbids it, and otherwise carries it out.
      *
-     * @param item the resource to delete
+     * @param item the resource to delete, read through the requesting user's resolver
      * @param options how to delete
-     * @param writer chooses, given the service resolver, the resolver the changes are made through
+     * @param writer given the service resolver, returns the resolver to make the changes through
      * @param execution carries the deletion out through that resolver
      * @return the outcome
      */
@@ -184,7 +184,7 @@ public class DeletionServiceImpl implements DeletionService
     }
 
     /**
-     * Run the analysis phase: locate the requested resource in the service session and resolve the full cascade.
+     * Finds the requested resource in the service session, and works out everything its deletion affects.
      */
     private DeletionPlan resolvePlan(final Resource item, final DeletionOptions options,
         final ResourceResolver serviceResolver) throws RepositoryException
@@ -252,8 +252,8 @@ public class DeletionServiceImpl implements DeletionService
     }
 
     /**
-     * The registered guards. The injected list is replaced wholesale on service changes, so a stable snapshot is
-     * taken per operation; it can only be {@code null} when no guard is registered at all.
+     * The registered guards, copied once per operation. OSGi replaces the injected list whenever a guard comes or
+     * goes.
      */
     private List<DeletionVeto> currentVetoes()
     {
@@ -285,12 +285,12 @@ public class DeletionServiceImpl implements DeletionService
     }
 
     /**
-     * Ask every guard whether this entry may be destroyed. Shared with {@link #purge} so that a preflight and the
-     * purge itself cannot disagree about what is destroyable.
+     * Ask every guard whether this entry may be purged. {@link #purge} and {@link #checkPurge} both ask through
+     * here, so they cannot disagree.
      *
      * @param entry the entry node, in the service session
      * @param archiveEntry the entry as the requester addressed it, whose session identifies them to the guards
-     * @return every objection raised, empty if there are none
+     * @return every objection raised; empty if there are none
      * @throws RepositoryException if the archive cannot be read
      */
     private List<Veto> sweepPurgeVetoes(final Node entry, final Resource archiveEntry) throws RepositoryException
@@ -314,9 +314,9 @@ public class DeletionServiceImpl implements DeletionService
          * Carries the deletion out.
          *
          * @param operations the operations, bound to the resolver the changes are made through
-         * @param plan the plan, whose execution was authorized
-         * @param impact the impact of the plan
-         * @param requester the user the deletion is recorded as requested by
+         * @param plan the plan, which nothing forbids
+         * @param impact what the plan removes
+         * @param requester the user id the archive entry records as having deleted the resources
          * @return the outcome
          * @throws RepositoryException if the changes cannot be applied
          * @throws PersistenceException if a missing bucket of the archive cannot be added

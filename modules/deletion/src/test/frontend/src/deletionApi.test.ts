@@ -24,8 +24,7 @@ const jsonResponse = (status: number, body: unknown) => new Response(JSON.string
   headers: { "Content-Type": "application/json" }
 });
 
-// The session-aware fetch the caller supplies. Taking it as an argument is what keeps this module
-// free of both React and globals, so these tests drive it directly rather than patching `fetch`.
+// A stand-in for the fetch the caller passes in.
 const answering = (response: Response) =>
   vi.fn<AuthenticatedFetch>().mockResolvedValue(response);
 
@@ -92,8 +91,8 @@ describe("requestDeletion", () => {
     expect(outcome.status).toBe("failed");
   });
 
-  // An expired session the user declined to sign back in for surfaces as a rejection from the
-  // supplied fetch; it is not an outcome the endpoint gave, so it must not be reported as one.
+  // The fetch rejects when the user declines to sign back in. The endpoint gave no outcome, so none is
+  // reported.
   it("lets a failure from the supplied fetch reject", async () => {
     const failing = vi.fn<AuthenticatedFetch>()
       .mockRejectedValue(new Error("Not authenticated, and signing in was abandoned"));

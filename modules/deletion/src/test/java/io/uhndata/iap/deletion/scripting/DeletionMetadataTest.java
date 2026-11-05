@@ -39,9 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link DeletionMetadata}.
  *
  * <p>
- * What is left in this class, once the archive is somebody else's problem, is the request. Which path the error
- * dispatch was about, and how the answer reaches the page. The disclosure service is a stand-in that records what
- * it was asked about, which is what the encoding tests assert against.
+ * The disclosure service is a stand-in that records the paths it was asked about, which the decoding tests check.
  * </p>
  *
  * @version $Id$
@@ -128,8 +126,7 @@ class DeletionMetadataTest
     @Test
     void theEncodingTheRequestUriCarriesIsUndoneBeforeAsking()
     {
-        // An error handler is handed the request URI, still percent-encoded. No second layer is involved:
-        // nothing had to carry the path through a query string to get here
+        // An error handler gets the request URI, percent-encoded once
         this.about("/Submissions/one%20two", null);
 
         assertEquals(List.of("/Submissions/one two"), this.asked);
@@ -138,8 +135,7 @@ class DeletionMetadataTest
     @Test
     void aPlusInAPathIsAPlus()
     {
-        // The character the form decoder and the URI decoder disagree about: URLDecoder would read this as a
-        // space, and a browser never escapes a + in a path, so a reader cannot escape it for us
+        // URLDecoder would read this + as a space
         this.about("/Submissions/a+b", null);
 
         assertEquals(List.of("/Submissions/a+b"), this.asked);

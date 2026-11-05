@@ -34,9 +34,9 @@ import io.uhndata.iap.deletion.api.Veto;
 import io.uhndata.iap.utils.JsonResponses;
 
 /**
- * The JSON vocabulary shared by the deletion endpoints. Every response carries {@code status.code} and, when there
- * is something to say, {@code status.message}, mirroring the default POST servlet's error format, plus a short
- * machine-readable {@code status} word and operation-specific details.
+ * The JSON the deletion, restore and purge endpoints answer with. An answer carries {@code status.code}, a short
+ * {@code status} word a client can switch on, {@code status.message} when there is something to explain, and the
+ * operation's details.
  *
  * @version $Id$
  * @since 0.1.0
@@ -115,11 +115,12 @@ final class DeletionResponses
     }
 
     /**
-     * The details of a blocked or examined deletion: what would go, and what stands in the way.
+     * Adds the details of a blocked or examined deletion: what would go, and what blocks it.
      *
-     * @param body a body started with {@link #body}, which gains {@code items}, {@code removedLinks}, and the
-     *            vetoes, referrers and summary when there are any
-     * @param impact what the deletion would remove, and what stands in its way
+     * @param body a body started with {@link #body}, which gains {@code items} and {@code removedLinks}, and
+     *            {@code vetoes}, {@code referrers}, {@code inaccessibleReferrers} and {@code status.message} when
+     *            there are any
+     * @param impact what the deletion would remove, and what blocks it
      */
     static void describeImpact(final JsonObjectBuilder body, final DeletionImpact impact)
     {

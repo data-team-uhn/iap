@@ -33,21 +33,18 @@ import javax.jcr.query.RowIterator;
 import io.uhndata.iap.deletion.api.DeletionService;
 
 /**
- * Answers "was something that used to live here deleted?" for one requested path.
+ * Finds the deletion that took a requested path away, if any.
  *
  * <p>
- * The question comes from the 404 page, which has a request URI rather than a resource path. The resource never
- * resolved, so nothing split the selectors and extension off it. {@link #candidates} reproduces that split the way
- * resource resolution does, peeling one dot-suffix at a time off the last segment before dropping the segment
- * itself. The lookup asks about every result at once. Climbing matters as much as peeling. A deletion archives a
- * whole subtree under one recorded path, so a request for something inside it matches an ancestor and nothing
- * else.
+ * The path is a request URI that never resolved, so it still carries its selectors and extension.
+ * {@link #candidates} splits them off as Sling's resource resolution does: one dot-suffix at a time off the last
+ * segment, then the segment itself. A deletion records only the top of the subtree it archived, so a path inside it
+ * matches an ancestor. One query asks about every candidate.
  * </p>
  *
  * <p>
- * A path can have been archived more than once: deleted, restored, deleted again, or simply reused. Matches are
- * ranked rather than assumed unique. The most specific recorded path wins, and between two deletions of the same
- * path the most recent one does. That is the one that made the link dead.
+ * A path can have been archived more than once: deleted, restored and deleted again, or reused. The longest recorded
+ * path wins, and between two deletions of the same path, the most recent one.
  * </p>
  *
  * @version $Id$
@@ -56,10 +53,8 @@ import io.uhndata.iap.deletion.api.DeletionService;
 public final class DeletedPathLookup
 {
     /**
-     * How many paths one request may ask about. Deeper than any real content path with selectors on it, and a
-     * bound on what a crafted URI can make the repository do. A path
-     * deeper than this keeps its most specific candidates and loses its topmost ancestors, which are the least
-     * likely to be the deleted subtree.
+     * How many paths one request may ask about. This bounds what a crafted URI can make the query do. A path with
+     * more candidates loses its topmost ancestors.
      */
     static final int MAX_CANDIDATES = 24;
 
@@ -69,11 +64,11 @@ public final class DeletedPathLookup
     }
 
     /**
-     * Find the archived item covering a requested path.
+     * Find the deletion that took a requested path away.
      *
-     * @param serviceSession a session that can read the archive, since the requester's cannot
-     * @param requestedPath the path from the request
-     * @return the deletion that took the path away, or empty if none did
+     * @param serviceSession a session that can read the whole archive
+     * @param requestedPath the path from the request, possibly with selectors and an extension
+     * @return the deletion; empty if none took the path away
      * @throws RepositoryException if the archive cannot be queried
      */
     public static Optional<Archived> find(final Session serviceSession, final String requestedPath)
@@ -107,15 +102,14 @@ public final class DeletedPathLookup
         if (requestedPath == null || !requestedPath.startsWith("/")) {
             return List.of();
         }
-        // Every step strictly shortens the path, so the sequence terminates and cannot repeat itself
+        // Each step shortens the path, so the sequence ends
         return Stream.iterate(requestedPath.replaceAll("/+$", ""), path -> path.length() > 1,
             DeletedPathLookup::shorten).limit(MAX_CANDIDATES).toList();
     }
 
     /**
-     * The statement asking for every archived item recorded at any of the candidate paths. A chain of equalities
-     * rather than a {@code LIKE} over the subtree. It stays on the {@code originalPath} property index, and a
-     * wildcard character in a path cannot widen the match.
+     * The statement asking for every archived item recorded at any of the candidate paths. It compares with
+     * {@code =}, which the {@code originalPath} property index serves, and which a wildcard in a path cannot widen.
      *
      * @param candidates the paths to ask about
      * @return a JCR-SQL2 statement
@@ -132,12 +126,12 @@ public final class DeletedPathLookup
     }
 
     /**
-     * One path shortened by one step, the way resource resolution would have. A trailing dot-suffix comes off
-     * before the segment carrying it does, so {@code /a/b.sel.html} yields {@code /a/b.sel} rather than
-     * {@code /a}. A dot opening a segment is part of the name, and is never peeled.
+     * One path shortened by one step. A dot-suffix comes off before the segment that carries it, so
+     * {@code /a/b.sel.html} gives {@code /a/b.sel} rather than {@code /a}. A dot at the start of a segment belongs to
+     * the name, and stays.
      *
      * @param path the path to shorten, without a trailing slash
-     * @return the next shorter path, empty once there is nothing left
+     * @return the next shorter path; empty after the last segment
      */
     private static String shorten(final String path)
     {
@@ -147,10 +141,8 @@ public final class DeletedPathLookup
     }
 
     /**
-     * Describe one matching archived item, or {@code null} if it is not the record of a deletion at all. The
-     * archive can hold an archived wrapper, dragged along by somebody else's deletion, and that wrapper's recorded
-     * path is history rather than a resource anybody is looking for. Everything else read here is guaranteed by
-     * the node types and by the equality the query matched on, so a missing one is a broken repository.
+     * Describe one matching archived item, or return {@code null} if its parent is not an archive entry. Only an
+     * entry's own items record a deletion. The node types make the properties read here mandatory.
      */
     private static Archived describe(final Node item) throws RepositoryException
     {
@@ -169,9 +161,9 @@ public final class DeletedPathLookup
      *
      * @param originalPath the path the archived subtree was moved from: the requested path, or an ancestor of it
      * @param entryPath where the archive entry is stored, inside the prefix tree
-     * @param entryName the entry's name, which is how it is addressed without the prefix tree
-     * @param deletedBy the user who requested the deletion
-     * @param deletedAt when the entry was created, in the timezone the repository recorded it in
+     * @param entryName the entry's name, which addresses it without the prefix tree
+     * @param deletedBy the user id of the user who requested the deletion
+     * @param deletedAt when the entry was created, in the time zone the repository recorded it in
      * @version $Id$
      * @since 0.1.0
      */
@@ -179,16 +171,15 @@ public final class DeletedPathLookup
         ZonedDateTime deletedAt)
     {
         /**
-         * Whether this match should be preferred over another. Length stands in for specificity: every candidate
-         * is strictly shorter than the one before it, so the longer recorded path is always the more specific one.
+         * Whether this match is a better answer than another. The longer recorded path is the closer ancestor, and
+         * wins. Between two deletions of the same path, the later one wins.
          *
          * <p>
-         * The name settles a tie. {@code jcr:created} has millisecond resolution, so two deletions of one path
-         * can carry the same instant, and nothing then says which came second. Answering by name is arbitrary and
-         * stable. Without it the winner is whichever the query returned first, and one question gets two answers.
+         * Two deletions in the same millisecond carry the same {@code jcr:created}. The entry name then decides, so
+         * that the answer does not depend on the order the query returns them in.
          * </p>
          *
-         * @param other the match to compare against, {@code null} when there is none yet
+         * @param other the match to compare against; {@code null} if there is none yet
          * @return {@code true} if this match is the better answer
          */
         boolean isBetterThan(final Archived other)

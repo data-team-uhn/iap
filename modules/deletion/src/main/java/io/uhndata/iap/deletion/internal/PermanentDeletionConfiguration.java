@@ -21,7 +21,8 @@ import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
 /**
- * Who, if anybody, may destroy a resource irreversibly, whether outright or out of the archive.
+ * Whether deletion for good is banned, and who is exempt. Deleting for good covers both permanent deletion and
+ * purging the archive.
  *
  * @version $Id$
  * @since 0.1.0
@@ -32,9 +33,9 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 public @interface PermanentDeletionConfiguration
 {
     /**
-     * Whether irreversible deletion is banned for everyone outside the allowlist.
+     * Whether deletion for good is banned for everyone outside the allowlist.
      *
-     * @return {@code true} to ban it, {@code false}, the default, to leave it to access control alone
+     * @return {@code true} to ban it; {@code false}, the default, to leave it to access control alone
      */
     @AttributeDefinition(name = "Prevent permanent deletion",
         description = "Refuse the two deletions that leave nothing to restore: permanent deletion, which never "
@@ -47,7 +48,7 @@ public @interface PermanentDeletionConfiguration
     /**
      * The principals exempt from the ban.
      *
-     * @return user ids and principal names, empty to exempt nobody
+     * @return user ids and principal names, such as group names and identity provider roles; empty to exempt nobody
      */
     @AttributeDefinition(name = "Allowed principals",
         description = "User ids and principal names exempt from the ban. Group principals work as well as user "
