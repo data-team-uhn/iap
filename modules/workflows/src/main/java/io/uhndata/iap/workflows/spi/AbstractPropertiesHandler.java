@@ -101,6 +101,7 @@ public abstract class AbstractPropertiesHandler implements ServiceTaskHandler
         for (final Map.Entry<EditableProperty, Object> change : changes.entrySet()) {
             write(target, change.getKey(), change.getValue());
         }
+        context.recordRole(target, "edited");
     }
 
     /**

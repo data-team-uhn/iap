@@ -92,6 +92,17 @@ class UpdateContentHandlerTest
     }
 
     @Test
+    void namesTheContentAsEditedForTheHistory() throws WorkflowException, PersistenceException
+    {
+        final WorkflowTaskContext updating = context(Map.of("patch", "{\"note\": \"A note\"}"));
+
+        this.handler.execute(updating);
+
+        Mockito.verify(updating).recordRole(Mockito.argThat(resource -> "/item".equals(resource.getPath())),
+            Mockito.eq("edited"));
+    }
+
+    @Test
     void pointsAReferenceAtWhatAPathNames() throws WorkflowException, PersistenceException, RepositoryException
     {
         update("{\"link\": \"/other\"}");

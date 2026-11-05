@@ -89,6 +89,7 @@ public class CreateContentHandler implements ServiceTaskHandler
                 parent.orderBefore(name, before);
             }
             context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, created.getPath());
+            context.recordRole(Nodes.written(context, created.getPath()), "added " + type.nodeType());
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot create content in " + target.getPath() + ": " + e.getMessage(), e);
         }

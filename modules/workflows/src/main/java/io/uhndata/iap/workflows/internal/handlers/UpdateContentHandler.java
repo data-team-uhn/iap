@@ -104,6 +104,7 @@ public class UpdateContentHandler implements ServiceTaskHandler
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot update " + host.getPath() + ": " + e.getMessage(), e);
         }
+        context.recordRole(host, "edited");
     }
 
     /**

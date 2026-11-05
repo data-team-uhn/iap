@@ -104,6 +104,17 @@ class ReplaceContentHandlerTest
     }
 
     @Test
+    void namesTheChildItReplacedForTheHistory() throws WorkflowException, PersistenceException
+    {
+        final WorkflowTaskContext replacing = task(Map.of(ReplaceContentHandler.CONTENT_PARAMETER, json(ALL_OF)));
+
+        this.handler.execute(replacing);
+
+        Mockito.verify(replacing).recordRole(Mockito.argThat(resource -> CARD.equals(resource.getPath())),
+            Mockito.eq("replaced test:rule"));
+    }
+
+    @Test
     void writesTheWholeTree() throws WorkflowException, PersistenceException, RepositoryException
     {
         replace(ALL_OF);
@@ -274,10 +285,15 @@ class ReplaceContentHandlerTest
     private void replace(final Map<String, Object> payload)
         throws WorkflowException, PersistenceException, RepositoryException
     {
+        this.handler.execute(task(payload));
+        this.session.save();
+    }
+
+    private WorkflowTaskContext task(final Map<String, Object> payload)
+    {
         final WorkflowTaskContext task = this.fixture.task("condition", this.activity, payload, new HashMap<>());
         Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource(CARD));
-        this.handler.execute(task);
-        this.session.save();
+        return task;
     }
 
     private static String json(final String content)

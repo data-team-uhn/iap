@@ -107,9 +107,22 @@ class CopyContentHandlerTest
     @Test
     void copiesNothingWithoutASource() throws WorkflowException, PersistenceException
     {
-        this.handler.execute(context(Map.of()));
+        final WorkflowTaskContext unnamed = context(Map.of());
+
+        this.handler.execute(unnamed);
 
         Mockito.verifyNoInteractions(this.copier);
+        Mockito.verify(unnamed, Mockito.never()).recordRole(Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    void namesWhereTheCopyCameFromForTheHistory() throws WorkflowException, PersistenceException
+    {
+        final WorkflowTaskContext copying = context(Map.of("source", SOURCE));
+
+        this.handler.execute(copying);
+
+        Mockito.verify(copying).recordRole(this.host, "copied from " + SOURCE);
     }
 
     @Test

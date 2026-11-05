@@ -81,6 +81,7 @@ public class AddLinkHandler implements ServiceTaskHandler
         } catch (final IllegalStateException e) {
             throw new PersistenceException("Cannot link " + host.getPath() + " to " + destination.getPath(), e);
         }
+        context.recordRole(host, "linked as " + type);
     }
 
     /**

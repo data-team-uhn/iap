@@ -101,6 +101,17 @@ class AbstractPropertiesHandlerTest
     }
 
     @Test
+    void namesWhatItWroteAsEditedForTheHistory() throws WorkflowException, PersistenceException
+    {
+        this.requested.put(TITLE, "New");
+
+        this.handler.execute(this.task);
+
+        Mockito.verify(this.task).recordRole(Mockito.argThat(resource -> THING.equals(resource.getPath())),
+            Mockito.eq("edited"));
+    }
+
+    @Test
     void writesOntoWhatAnEarlierStepCreated() throws WorkflowException, PersistenceException
     {
         // Following createEntity in one run, the step edits the new entity rather than the homepage it went into
