@@ -2,7 +2,7 @@
   "jcr:primaryType": "ext:Extension",
   "ext:pointId": "iap/dashboard/widget",
   "ext:name": "PDF viewer",
-  "ext:subtitle": "Find a quote in a PDF",
+  "ext:subtitle": "Find passages in a PDF, comment on what you select, and compare it with an older version",
   "ext:renderURL": "asset:iap-test-data.PdfViewerTestWidget.js",
   "defaultOrder": 7
 }

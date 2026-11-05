@@ -70,4 +70,10 @@ describe("ValueChange", () => {
     expect(container.querySelector("ins")).toBeNull();
     expect(container).toHaveTextContent(/^Required$/);
   });
+
+  it("reads as part of a sentence, inline", () => {
+    const { container } = renderInTheme(<p>The fee is <ValueChange inline before="100" after="120" /> dollars.</p>);
+
+    expect(container).toHaveTextContent("The fee is 100 → 120 dollars.", { normalizeWhitespace: false });
+  });
 });

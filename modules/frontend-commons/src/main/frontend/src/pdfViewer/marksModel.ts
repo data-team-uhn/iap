@@ -26,22 +26,34 @@ import {
   type QuoteMatch,
 } from "./quoteMatch";
 
-export const MARK_KINDS = [ "assistant", "annotation" ] as const;
+// Whose mark a passage is, an AI assistant's or a person's, and what a comparison of two versions of a
+// document found.
+export const PASSAGE_KINDS = [ "assistant", "annotation" ] as const;
+export const CHANGE_KINDS = [ "added", "removed" ] as const;
+export const MARK_KINDS = [ ...PASSAGE_KINDS, ...CHANGE_KINDS ] as const;
 
 export type MarkKind = typeof MARK_KINDS[number];
+export type PassageKind = typeof PASSAGE_KINDS[number];
+export type ChangeKind = typeof CHANGE_KINDS[number];
+
+export function isChangeKind(kind: MarkKind): kind is ChangeKind {
+  return (CHANGE_KINDS as readonly string[]).includes(kind);
+}
 
 // What a mark covers on one page, as offsets into the page's text as PDF.js reads it for its text
-// layer: the whole passage, or the part of it on that page. Equal offsets are a point between two
-// characters.
+// layer. A passage that runs over several pages has one span on each. Equal offsets are a point between
+// two characters. A point is drawn after the character before it, or, with `starts`, before the character
+// after it, as it starts the text after it. At the end of a line, the two are a line apart.
 export interface MarkSpan {
   page: number;
   start: number;
   end: number;
+  starts?: boolean;
 }
 
 interface MarkBase {
   id: string;
-  // Whose mark it is, an AI assistant's or a person's. It is coloured accordingly.
+  // Whose mark it is, or what change. It is coloured accordingly.
   kind: MarkKind;
 }
 
@@ -420,7 +432,7 @@ export function getMarksKey(marks: Mark[]): string {
       return { id, kind, anchor: { start: point(start), end: point(end), quote, before, after } };
     }
     return "spans" in mark
-      ? { id, kind, spans: mark.spans.map(({ page, start, end }) => ({ page, start, end })) }
+      ? { id, kind, spans: mark.spans.map(({ page, start, end, starts }) => ({ page, start, end, starts })) }
       : { id, quote: mark.quote, page: mark.page, kind };
   }));
 }
