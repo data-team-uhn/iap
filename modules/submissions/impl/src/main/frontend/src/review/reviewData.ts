@@ -71,8 +71,9 @@ export interface ReviewNote {
   passage?: Passage;
   replies: Message[];
   severity?: string;
-  // An AI issue's risk
+  // The risk an AI issue was raised under, or a reviewer's issue is filed under: its name, and its path
   topic?: string;
+  topicPath?: string;
   suggestion?: string;
   // An extracted answer's question, by path, what was read, and how
   question?: string;
@@ -149,8 +150,18 @@ function severityOf(node: Node): string | undefined {
   return tags.find(tag => (SEVERITIES as readonly string[]).includes(tag));
 }
 
-function comment(node: Node, kind: NoteKind, me: string, topic?: string): ReviewNote {
+// A risk a reviewer group weighs, under the group's approval: the schema parts it draws on, relative to the schema
+export interface Topic {
+  path: string;
+  label: string;
+  description?: string;
+  approval: string;
+  sources: string[];
+}
+
+function comment(node: Node, kind: NoteKind, me: string, topic?: Node, topics?: Map<string, Topic>): ReviewNote {
   const author = text(node.author);
+  const topicPath = topic ? text(topic["@path"]) : text(node.topic);
   return {
     id: text(node["@path"]),
     kind,
@@ -162,12 +173,13 @@ function comment(node: Node, kind: NoteKind, me: string, topic?: string): Review
     passage: passageOf(node),
     replies: replies(node),
     severity: severityOf(node),
-    topic,
+    topic: (topic ? text(topic.text) : topics?.get(topicPath)?.label ?? "") || undefined,
+    topicPath: topicPath || undefined,
     suggestion: text(node.suggestion) || undefined,
   };
 }
 
-export function parseReview(submission: Node, schema: string, me: string): ReviewData {
+export function parseReview(submission: Node, schema: string, me: string, topics?: Map<string, Topic>): ReviewData {
   const answers = new Map<string, ReviewedAnswer>();
   const documents = new Map<string, ReviewedDocument>();
   const partOf = new Map<string, string>();
@@ -206,7 +218,7 @@ export function parseReview(submission: Node, schema: string, me: string): Revie
       }
     } else if (type === "sub/Screening") {
       for (const assessment of childrenOf(node, "sub:Assessment")) {
-        const topic = isNode(assessment.topic) ? text(assessment.topic.text) : undefined;
+        const topic = isNode(assessment.topic) ? assessment.topic : undefined;
         const comments = childrenOf(assessment, "sub:Comment");
         comments.filter(one => Array.isArray(one.dismissedBy) && one.dismissedBy.includes(me))
           .forEach(one => settled.add(text(one["@path"])));
@@ -215,7 +227,7 @@ export function parseReview(submission: Node, schema: string, me: string): Revie
     } else if (type === "sub/Review") {
       const comments = childrenOf(node, "sub:Comment");
       comments.filter(one => one.author === me && text(one.from)).forEach(one => settled.add(text(one.from)));
-      notes.push(...comments.map(one => comment(one, "issue", me)));
+      notes.push(...comments.map(one => comment(one, "issue", me, undefined, topics)));
     } else if (type === "sub/Discussion") {
       notes.push(...childrenOf(node, "sub:Comment").map(one => comment(one, "discussion", me)));
     } else if (type === "irv/Notes" && node.owner === me) {
@@ -223,6 +235,23 @@ export function parseReview(submission: Node, schema: string, me: string): Revie
     }
   }
   return { answers, documents, notes: notes.filter(note => !settled.has(note.id)), partOf };
+}
+
+// The risks each approval lists, by path
+export function parseTopics(approvals: Node[], schema: string): Map<string, Topic> {
+  const topics = new Map<string, Topic>();
+  for (const approval of approvals) {
+    for (const [ name, topic ] of Object.entries(approval)) {
+      if (!isNode(topic) || topic["jcr:primaryType"] !== "sch:Topic") {
+        continue;
+      }
+      const path = text(topic["@path"]) || `${text(approval["@path"])}/${name}`;
+      topics.set(path, { path, label: text(topic.text), description: text(topic.description) || undefined,
+        approval: text(approval["@name"]),
+        sources: (Array.isArray(topic.sources) ? topic.sources : []).map(source => relative(pathOf(source), schema)) });
+    }
+  }
+  return topics;
 }
 
 // Which reviewer groups each question and document matters to, from the risks each approval lists
@@ -261,10 +290,12 @@ export function notesAbout(notes: ReviewNote[], uuids: string[]): ReviewNote[] {
 // A short label for reviewer groups on a chip
 // An issue for the study team written from an AI pre-review note: about the same answers and documents, on the
 // same passage, as the reviewer worded it
-export function issueFrom(note: ReviewNote, text: string, severity?: string): Record<string, string | string[]> {
+export function issueFrom(note: ReviewNote, text: string, severity?: string, topic?: string)
+  : Record<string, string | string[]> {
   const passage = note.passage;
   return {
     kind: "issue", text, from: note.id, subjects: note.subjects, ...severity ? { severity } : {},
+    ...topic ? { topic } : {},
     ...passage ? {
       quote: passage.quote,
       ...passage.source ? { source: passage.source } : {},

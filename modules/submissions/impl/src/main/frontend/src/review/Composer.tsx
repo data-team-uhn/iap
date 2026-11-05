@@ -16,32 +16,48 @@
  * limitations under the License.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 
-import { Button, Chip, MenuItem, Stack, TextField } from "@mui/material";
+import { Button, Chip, Divider, MenuItem, Stack, TextField } from "@mui/material";
 
 import { loadTagDefinitions, type TagDefinition } from "@iap/tags/tagDefinitions";
 
-import { kindInfo, SEVERITIES, type NoteKind } from "./reviewData";
+import { kindInfo, SEVERITIES, type NoteKind, type Topic } from "./reviewData";
 
 // What a reviewer can write themselves
 export const WRITTEN: NoteKind[] = [ "issue", "discussion", "note" ];
 
-// PRETOTYPE. Writing a note: which kind, for an issue how serious, and what it says.
-export default function Composer({ kinds, initialKind, initialText = "", initialSeverity, saveLabel = "Add",
-  onSave, onCancel }: {
+// The risks the reviewer's groups weigh, in the schema's order, which an issue can be filed under; and every risk, to
+// name one that is not theirs
+export const ReviewerTopics = createContext<{ mine: Topic[]; all: Map<string, Topic> }>({ mine: [], all: new Map() });
+
+// PRETOTYPE. Writing a note: which kind, for an issue how serious and under which risk, and what it says. The risk
+// is chosen for the reviewer when only one of theirs draws on what the note is about.
+export default function Composer({ kinds, initialKind, initialText = "", initialSeverity, initialTopic, about = [],
+  saveLabel = "Add", onSave, onCancel }: {
   // The kinds to choose between; none for a reply
   kinds: NoteKind[];
   initialKind?: NoteKind;
   initialText?: string;
   initialSeverity?: string;
+  // The risk to start with, by path; empty for none
+  initialTopic?: string;
+  // What the note is about: questions and documents, by schema path
+  about?: string[];
   saveLabel?: string;
-  onSave: (kind: NoteKind, text: string, severity?: string) => Promise<void>;
+  // The topic is empty for none, and undefined unless the note is an issue
+  onSave: (kind: NoteKind, text: string, severity?: string, topic?: string) => Promise<void>;
   onCancel: () => void;
 }) {
   const [ kind, setKind ] = useState<NoteKind>(initialKind ?? kinds.at(0) ?? "discussion");
   const [ text, setText ] = useState(initialText);
   const [ severity, setSeverity ] = useState(initialSeverity ?? "medium");
+  const { mine, all } = useContext(ReviewerTopics);
+  const fitting = mine.filter(topic => topic.sources.some(source => about.includes(source)));
+  const [ topic, setTopic ] = useState(initialTopic ?? (fitting.length === 1 ? fitting[0].path : ""));
+  // Those drawing on what the note is about first; and the one it starts with, even when not the reviewer's own
+  const others = mine.filter(one => !fitting.includes(one));
+  const outside = topic && !mine.some(one => one.path === topic) ? topic : undefined;
   const [ saving, setSaving ] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
   const [ severities, setSeverities ] = useState<TagDefinition[]>([]);
@@ -59,7 +75,7 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
     }
     setSaving(true);
     try {
-      await onSave(kind, text.trim(), kind === "issue" ? severity : undefined);
+      await onSave(kind, text.trim(), kind === "issue" ? severity : undefined, kind === "issue" ? topic : undefined);
     } finally {
       setSaving(false);
     }
@@ -90,14 +106,27 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
         </Stack>
       )}
       {kind === "issue" && (
-        <TextField
-          select size="small" label="Severity" value={severity} onChange={event => setSeverity(event.target.value)}
-          sx={{ maxWidth: 220 }}
-        >
-          {SEVERITIES.map(one => (
-            <MenuItem key={one} value={one}>{severities.find(tag => tag.name === one)?.label ?? one}</MenuItem>
-          ))}
-        </TextField>
+        <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap" }}>
+          <TextField
+            select size="small" label="Severity" value={severity} onChange={event => setSeverity(event.target.value)}
+            sx={{ width: 150 }}
+          >
+            {SEVERITIES.map(one => (
+              <MenuItem key={one} value={one}>{severities.find(tag => tag.name === one)?.label ?? one}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select size="small" label="Topic" value={topic} onChange={event => setTopic(event.target.value)}
+            sx={{ flex: 1, minWidth: 200 }}
+            slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
+          >
+            <MenuItem value=""><em>None</em></MenuItem>
+            {outside && <MenuItem value={outside}>{all.get(outside)?.label ?? outside.split("/").at(-1)}</MenuItem>}
+            {fitting.map(one => <MenuItem key={one.path} value={one.path}>{one.label}</MenuItem>)}
+            {fitting.length > 0 && others.length > 0 && <Divider />}
+            {others.map(one => <MenuItem key={one.path} value={one.path}>{one.label}</MenuItem>)}
+          </TextField>
+        </Stack>
       )}
       <TextField
         inputRef={field} multiline minRows={2} maxRows={8} fullWidth size="small" value={text}

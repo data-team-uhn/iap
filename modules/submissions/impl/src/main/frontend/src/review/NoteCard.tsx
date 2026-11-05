@@ -43,9 +43,9 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   // The extracted answer as the question's options call it
   answerLabel?: string;
   onReply?: (text: string) => Promise<void>;
-  onEdit?: (text: string, severity?: string) => Promise<void>;
+  onEdit?: (text: string, severity?: string, topic?: string) => Promise<void>;
   onRemove?: () => Promise<void>;
-  onMakeIssue?: (text: string, severity?: string) => Promise<void>;
+  onMakeIssue?: (text: string, severity?: string, topic?: string) => Promise<void>;
   onDismiss?: () => Promise<void>;
   adopting?: boolean;
   onAdopting?: (adopting: boolean) => void;
@@ -62,10 +62,11 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   if (editing && onEdit) {
     return (
       <Composer
-        kinds={[ note.kind ]} initialText={note.text} initialSeverity={note.severity} saveLabel="Save"
+        kinds={[ note.kind ]} initialText={note.text} initialSeverity={note.severity}
+        initialTopic={note.topicPath ?? ""} saveLabel="Save"
         onCancel={() => setEditing(false)}
-        onSave={async (_kind, text, severity) => {
-          await onEdit(text, severity);
+        onSave={async (_kind, text, severity, topic) => {
+          await onEdit(text, severity, topic);
           setEditing(false);
         }}
       />
@@ -75,10 +76,10 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
     return (
       <Composer
         kinds={[ "issue" ]} initialText={note.suggestion ? `${note.text}\n\n${note.suggestion}` : note.text}
-        initialSeverity={note.severity} saveLabel="Add issue"
+        initialSeverity={note.severity} initialTopic={note.topicPath ?? ""} saveLabel="Add issue"
         onCancel={() => setAdopting(false)}
-        onSave={async (_kind, text, severity) => {
-          await onMakeIssue(text, severity);
+        onSave={async (_kind, text, severity, topic) => {
+          await onMakeIssue(text, severity, topic);
           setAdopting(false);
         }}
       />

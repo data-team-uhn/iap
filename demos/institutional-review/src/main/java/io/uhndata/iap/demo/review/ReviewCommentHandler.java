@@ -48,7 +48,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * {@code replyTo} naming a comment, it is a reply to it instead; with {@code edit} naming one of the writer's own
  * comments, it changes that comment's text and severity; with {@code remove}, it removes it. An issue made from an
  * AI pre-review comment names it as {@code from}; with {@code dismiss} naming one, the reviewer sets it aside, and
- * it is recorded on the AI comment, in {@code dismissedBy}, since another reviewer may still want it.
+ * it is recorded on the AI comment, in {@code dismissedBy}, since another reviewer may still want it. An issue is
+ * filed under the risk {@code topic} names, by path, when it names one; editing it with an empty one unfiles it.
  *
  * <p>The notes are kept apart from the review and the discussion, in an {@code irv:Notes} node per reviewer. They
  * are not hidden from the other reviewers by an access rule yet: the pages only show a reviewer their own.</p>
@@ -66,6 +67,8 @@ public class ReviewCommentHandler implements ServiceTaskHandler
     private static final String AUTHOR_PROPERTY = "author";
 
     private static final String DISMISSED_PROPERTY = "dismissedBy";
+
+    private static final String TOPIC_PROPERTY = "topic";
 
     @Override
     public String getName()
@@ -113,13 +116,33 @@ public class ReviewCommentHandler implements ServiceTaskHandler
     }
 
     private static void edit(final WorkflowTaskContext context, final Resource comment, final String text)
-        throws PersistenceException
+        throws PersistenceException, InvalidPayloadException
     {
         Objects.requireNonNull(comment.adaptTo(ModifiableValueMap.class), "Writable").put(TEXT_PROPERTY, text);
         final String severity = Payloads.text(context.getEvent(), "severity");
         if (severity != null) {
             Objects.requireNonNull(comment.adaptTo(Taggable.class), "Taggable").tagReplacing(severity, false);
         }
+        if (context.getEvent().getPayload().containsKey(TOPIC_PROPERTY)) {
+            final String topic = Payloads.text(context.getEvent(), TOPIC_PROPERTY);
+            final ModifiableValueMap values = Objects.requireNonNull(comment.adaptTo(ModifiableValueMap.class),
+                "Writable");
+            if (topic == null) {
+                values.remove(TOPIC_PROPERTY);
+            } else {
+                values.put(TOPIC_PROPERTY, topic(comment, topic));
+            }
+        }
+    }
+
+    // A risk of the schema, by path
+    private static String topic(final Resource near, final String path) throws InvalidPayloadException
+    {
+        final Resource topic = near.getResourceResolver().getResource(path);
+        if (topic == null || !"sch:Topic".equals(topic.getValueMap().get(PRIMARY_TYPE, String.class))) {
+            throw new InvalidPayloadException("There is no risk " + path);
+        }
+        return topic.getPath();
     }
 
     private static void write(final WorkflowTaskContext context, final Resource submission, final String actor,
@@ -136,6 +159,10 @@ public class ReviewCommentHandler implements ServiceTaskHandler
         final String from = Payloads.text(context.getEvent(), "from");
         if ("issue".equals(kind) && from != null) {
             properties.put("from", within(submission, from).getPath());
+        }
+        final String topic = Payloads.text(context.getEvent(), TOPIC_PROPERTY);
+        if ("issue".equals(kind) && topic != null) {
+            properties.put(TOPIC_PROPERTY, topic(submission, topic));
         }
         final Resource comment = submission.getResourceResolver().create(holder, name("comment"), properties);
         final String severity = Payloads.text(context.getEvent(), "severity");
