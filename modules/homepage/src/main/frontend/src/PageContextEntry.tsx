@@ -49,8 +49,11 @@ function PageContextEntry() {
         <Box sx={{ minWidth: 0 }}>
           <Stack direction="row" sx={{ alignItems: "center", gap: 1, minWidth: 0 }}>
             {context.short && (
-              <Typography variant="caption" sx={{ color: "text.secondary", whiteSpace: "nowrap", flexShrink: 0 }}>
-                {context.short}{context.details && " ·"}
+              <Typography
+                variant="caption"
+                sx={{ color: "primary.main", fontWeight: "fontWeightBold", whiteSpace: "nowrap", flexShrink: 0 }}
+              >
+                {context.short}
               </Typography>
             )}
             {context.details && (
@@ -59,7 +62,7 @@ function PageContextEntry() {
                 sx={{ color: "text.secondary", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis",
                   whiteSpace: "nowrap", ml: context.short ? -0.5 : 0 }}
               >
-                {context.details}
+                {context.short && "· "}{context.details}
               </Typography>
             )}
             <Box sx={{ display: { xs: "none", md: "flex" }, gap: 0.5, flexShrink: 0 }}>{context.badges}</Box>
