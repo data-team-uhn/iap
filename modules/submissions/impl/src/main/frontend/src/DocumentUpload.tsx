@@ -22,8 +22,9 @@ import UploadIcon from "@mui/icons-material/UploadFile";
 import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
+import { fetchUploadLimits } from "@iap/frontend-commons/uploadLimits";
 
 import {
   type DocumentRequirement,
@@ -83,6 +84,15 @@ function FileButton({ label, ariaLabel, accepted, disabled, onPick }: FileButton
 // the server checks again.
 const CHECK_TIMEOUT_MS = 30_000;
 
+// What is wrong with the file, judged by the server's own limits, or undefined when nothing is or the
+// check ran out of time. Reading the limits counts against the same time as the check.
+async function checkFile(
+  file: File, accepted: string[], doFetch: AuthenticatedFetch): Promise<string | undefined> {
+  const deadline = performance.now() + CHECK_TIMEOUT_MS;
+  const limits = await fetchUploadLimits(doFetch, AbortSignal.timeout(CHECK_TIMEOUT_MS));
+  return validateUpload(file, { accepted, limits, timeoutMs: Math.max(0, deadline - performance.now()) });
+}
+
 export interface DocumentUploadProps {
   path: string;
   requirement: DocumentRequirement;
@@ -116,7 +126,7 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
   const upload = (file: File) => {
     setBusy(true);
     setFailure(undefined);
-    validateUpload(file, { accepted, timeoutMs: CHECK_TIMEOUT_MS }).then(problem => {
+    checkFile(file, accepted, doFetch).then(problem => {
       if (problem !== undefined) {
         throw new Error(problem);
       }

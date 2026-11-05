@@ -96,6 +96,9 @@ from docling_pdf_parser import (
 )
 from shared_docs import (
     ParseRequestError,
+    NO_REQUESTED_LIMITS,
+    RequestedLimits,
+    get_requested_limits,
     refuse_oversized_input,
     resolve_parse_path,
     get_shared_docs_root,
@@ -461,7 +464,8 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
         """Parse a document already on the shared volume.
 
         Query: ``?path=/shared-docs/.../file.pdf``, plus ``&job_id=`` for the asynchronous,
-        callback-delivered variant.
+        callback-delivered variant, and optionally ``&max_bytes=&max_pages=&max_expanded_bytes=``,
+        the platform's own limits, which apply where lower than the daemon's.
         """
         if self._refuse_unauthorized("/parse"):
             return
@@ -484,11 +488,12 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                 query = parse_query(self.path)
                 input_path = resolve_parse_path(query.get("path", [""])[0] or "")
                 job_id = (query.get("job_id", [""])[0] or "").strip()
+                requested = get_requested_limits(query)
 
                 if job_id:
                     # Answers immediately; the background task takes the parse slot when it
                     # actually converts, so the acquire below covers the blocking path only
-                    reply = self._accept_async_parse(job_id, input_path)
+                    reply = self._accept_async_parse(job_id, input_path, requested)
                 elif not _STATE.parse_slots.acquire(blocking=False):
                     # Refused rather than queued: a conversion takes minutes, and holding the
                     # socket open for one that has not started yet only invites client timeouts
@@ -503,7 +508,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                     try:
                         # Inside the slot: reading the document to measure it is real work, and
                         # the RAM budget covers one conversion, not one per concurrent caller.
-                        refuse_oversized_input(input_path)
+                        refuse_oversized_input(input_path, requested)
                         reply = (HTTPStatus.OK, _run_parse(input_path))
                     finally:
                         _STATE.parse_slots.release()
@@ -548,6 +553,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
         self,
         job_id: str,
         input_path: Path,
+        requested: RequestedLimits = NO_REQUESTED_LIMITS,
     ) -> tuple[HTTPStatus, dict[str, Any]]:
         """Queue a background parse and answer immediately; the outcome goes to the callback.
 
@@ -561,6 +567,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
 
         @param job_id: the caller's identifier for this parse, echoed back in the callback
         @param input_path: the already-validated document path
+        @param requested: the caller's limits, applied where lower than the daemon's own
         @return: the status and body ``_handle_parse`` should send
         @raise ParseRequestError: when the job_id is malformed, or the document is oversized
         """
@@ -568,7 +575,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
             raise ParseRequestError("job_id is unreasonably long")
         # The sync path only checks this once a slot is held; here there is no slot yet to hold,
         # so check up front instead of queuing a background task that would only fail later.
-        refuse_oversized_input(input_path)
+        refuse_oversized_input(input_path, requested)
         callback_url = parse_callbacks.callback_url()
         token = parse_callbacks.callback_token()
         missing = [
