@@ -407,7 +407,18 @@ export default function ReviewScreen({ path }: { path: string }) {
           <ListItemButton
             key={requirement.name}
             selected={requirement.name === current?.name} onClick={() => go(requirement.name)}
-            sx={{ borderRadius: 1, py: 0.75, mb: 0.25, alignItems: "flex-start" }}
+            // Navigation, so it looks it: names in the link colour, a tint under the pointer, and the one being read
+            // marked by a bar down its side
+            sx={theme => ({
+              borderRadius: 1, py: 0.75, mb: 0.25, alignItems: "flex-start",
+              borderInlineStart: "3px solid", borderColor: "transparent",
+              "& .requirement-name": { color: "primary.main", fontWeight: "fontWeightMedium" },
+              "&:hover": { bgcolor: theme.alpha(theme.palette.primary.main, 0.06) },
+              "&&.Mui-selected, &&.Mui-selected:hover": {
+                bgcolor: theme.alpha(theme.palette.primary.main, 0.1), borderColor: "primary.main",
+              },
+              "&.Mui-selected .requirement-name": { fontWeight: "fontWeightBold" },
+            })}
           >
             <ListItemText
               primary={
@@ -416,7 +427,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                   placement="right" describeChild
                   title={requirement.name === current?.name ? "" : requirement.description ?? ""}
                 >
-                  <span>{requirement.label}</span>
+                  <span className="requirement-name">{requirement.label}</span>
                 </Tooltip>
               }
               secondary={<>
