@@ -43,9 +43,9 @@ import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.spi.Execution;
 
 /**
- * What one delivery leaves behind besides its writes. What its steps said they did is recorded by its commit. The
- * notifications its message events announced are sent once it commits, and the nodes its steps checked out are
- * checked back in.
+ * What one delivery leaves behind besides its writes. What its steps said they did, and the instance it started, are
+ * recorded by its commit. The notifications its message events announced are sent once it commits, and the nodes its
+ * steps checked out are checked back in.
  *
  * @version $Id$
  * @since 0.1.0
@@ -59,6 +59,8 @@ final class DeliveryConsequences
     private final List<RecordedEffect> effects = new ArrayList<>();
 
     private final Set<String> toCheckIn = new LinkedHashSet<>();
+
+    private String startedInstance;
 
     /**
      * Constructor.
@@ -99,6 +101,18 @@ final class DeliveryConsequences
     }
 
     /**
+     * Notes an instance a step started. The first one started is the one the history names.
+     *
+     * @param path the path of the instance
+     */
+    void noteStartedInstance(final String path)
+    {
+        if (this.startedInstance == null) {
+            this.startedInstance = path;
+        }
+    }
+
+    /**
      * Notes a node to check back in once the delivery has committed.
      *
      * @param path the path of the versionable node
@@ -114,11 +128,11 @@ final class DeliveryConsequences
      * @param actor the user who sent the event
      * @param event the event
      * @param start the start event of the system workflow that caught it
-     * @return the action, with what its steps said they did
+     * @return the action, with the instance the delivery started and what its steps said they did
      */
     RecordedAction recordedAsSystemWorkflow(final String actor, final WorkflowEvent event, final FlowNode start)
     {
-        return withEffects(DeliveryCauses.ofSystemWorkflow(actor, event, start));
+        return withEffects(DeliveryCauses.ofSystemWorkflow(actor, event, start, this.startedInstance));
     }
 
     /**
