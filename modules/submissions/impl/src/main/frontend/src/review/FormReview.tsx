@@ -16,18 +16,25 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
-import { Box, Chip, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, ButtonBase, Chip, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+
+import { cutShort, passageCard, passageLayer, passageTint } from "@iap/frontend-commons/pdfViewer/passageStyles";
 
 import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
 import NoteCard from "./NoteCard";
 import { groupShortName, issueFrom, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
   type ReviewNote } from "./reviewData";
+
+// How wide a question's notes are, beside it, as a document's are beside its pages; and how wide the form must be
+// for them to go there rather than under the question
+const NOTES_WIDTH = 300;
+const WIDE = "@container (min-width: 640px)";
 
 export interface ReviewActions {
   write: (fields: Record<string, string | string[]>) => Promise<void>;
@@ -101,12 +108,17 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
   // A note about several answers shows under the first of them only
   const others = notes.filter(note => note.kind !== "evidence" && shown.has(note.kind)
     && (homeOf.get(note.id) ?? question.path) === question.path);
+  const extracted = evidence ? answerText(question, evidence.extracted?.split(";").map(one => one.trim()) ?? [])
+    : undefined;
+  const side = [ ...evidence && shown.has("evidence") ? [ evidence ] : [], ...others ];
   return (
+    // Beside the question, its notes, as a document has them beside its pages; under it when the page is narrow
     <Box
       id={`question-${question.path}`}
-      sx={{ py: 1.5, scrollMarginTop: 96 }}
+      sx={{ py: 1.5, scrollMarginTop: 96, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", rowGap: 1.5,
+        [WIDE]: { gridTemplateColumns: `minmax(0, 1fr) ${NOTES_WIDTH}px`, columnGap: 3 } }}
     >
-      <Stack sx={{ gap: 0.5 }}>
+      <Stack sx={{ gap: 0.5, minWidth: 0 }}>
         <Stack direction="row" sx={{ minWidth: 0, gap: 0.75, flexWrap: "wrap", alignItems: "baseline" }}>
           <Typography variant="body2" sx={{ fontWeight: "fontWeightBold" }}>{question.text}</Typography>
           <GroupChips groups={groups.get(question.path)} mine={myGroups} />
@@ -116,27 +128,10 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
             <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
               {answerText(question, question.value)}
             </Typography>
-            {evidence && shown.has("evidence") && (
-              <Stack direction="row" sx={{ alignItems: "center", columnGap: 1.5, flexWrap: "wrap" }}>
-                {
-                  <Link
-                    component="button" variant="caption" underline="hover"
-                    onClick={() => onEvidence(evidence)}
-                    sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, color: "evidence.main" }}
-                  >
-                    <ArticleOutlined sx={{ fontSize: "1rem" }} />
-                    In the protocol{evidence.passage?.page ? `, page ${evidence.passage.page}` : ""}
-                  </Link>
-                }
-                {differs && (
-                  <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "warning.main" }}>
-                    <ErrorOutlineOutlined sx={{ fontSize: "1rem" }} />
-                    <Typography variant="caption" sx={{ color: "warning.main" }}>
-                      The protocol says {answerText(question,
-                        evidence.extracted?.split(";").map(one => one.trim()) ?? [])}
-                    </Typography>
-                  </Stack>
-                )}
+            {evidence && shown.has("evidence") && differs && (
+              <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "warning.main", mt: 0.25 }}>
+                <ErrorOutlineOutlined sx={{ fontSize: "1rem" }} />
+                <Typography variant="caption" sx={{ color: "warning.main" }}>The protocol says {extracted}</Typography>
               </Stack>
             )}
           </Box>
@@ -152,15 +147,13 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
           )}
         </Stack>
       </Stack>
-      {(others.length > 0 || writing) && (
-        <Stack spacing={1} sx={{ mt: 1 }}>
-          {others.map(note => (
-            <Box key={note.id} sx={theme => ({ px: 1.5, py: 1.25, borderRadius: 1, borderInlineStart: 3,
-              borderColor: theme.palette[kindInfo(adopting === note.id ? "issue" : note.kind).mark].main,
-              bgcolor: "background.muted" })}
-            >
+      {(side.length > 0 || writing) && (
+        <Stack spacing={1} sx={{ minWidth: 0 }}>
+          {side.map(note => (
+            <SideCard key={note.id} note={note} kind={adopting === note.id ? "issue" : note.kind}
+              onOpen={note.passage ? () => onEvidence(note) : undefined}>
               <NoteCard
-                note={note}
+                note={note} answerLabel={note.kind === "evidence" ? extracted : undefined}
                 onReply={text => actions.write({ replyTo: note.id, text })}
                 onEdit={(text, severity) => actions.write({ edit: note.id, text, ...severity ? { severity } : {} })}
                 onRemove={() => actions.write({ remove: note.id })}
@@ -169,7 +162,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
                 adopting={adopting === note.id}
                 onAdopting={on => setAdopting(on ? note.id : undefined)}
               />
-            </Box>
+            </SideCard>
           ))}
           {writing && answer && (
             <Box sx={{ px: 1.5, py: 1.25, borderRadius: 1, bgcolor: "background.muted" }}>
@@ -185,6 +178,39 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
           )}
         </Stack>
       )}
+    </Box>
+  );
+}
+
+// A note beside a question, on a card like a document's notes: when it points at a passage of a document, the
+// passage heads it and leads there
+function SideCard({ note, kind, onOpen, children }: {
+  note: ReviewNote;
+  kind: NoteKind;
+  onOpen?: () => void;
+  children: ReactNode;
+}) {
+  const mark = kindInfo(kind).mark;
+  return (
+    <Box sx={theme => ({ ...passageCard(theme, mark), overflow: "hidden" })}>
+      {note.passage && onOpen && (
+        <ButtonBase
+          onClick={onOpen}
+          aria-label={`Show it in the document${note.passage.page ? `, page ${note.passage.page}` : ""}`}
+          sx={theme => ({ display: "block", width: "100%", px: 1.5, py: 1, textAlign: "start",
+            ...passageLayer(theme, mark),
+            "@media (hover: hover)": { "&:hover": { bgcolor: passageTint(theme, mark, 0.5) } },
+            "&.Mui-focusVisible": { bgcolor: passageTint(theme, mark, 0.5) } })}
+        >
+          <Typography variant="body2" component="span" sx={cutShort(3)}>“{note.passage.quote}”</Typography>
+          <Typography variant="caption" component="span" sx={{ display: "flex", alignItems: "center", gap: 0.5,
+            color: "text.secondary" }}>
+            <ArticleOutlined sx={{ fontSize: "1rem" }} />
+            In the protocol{note.passage.page ? `, page ${note.passage.page}` : ""}
+          </Typography>
+        </ButtonBase>
+      )}
+      <Box sx={{ px: 1.5, py: 1 }}>{children}</Box>
     </Box>
   );
 }
@@ -221,7 +247,7 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
   homeOf?: Map<string, string>;
 }) {
   const home = homeOf ?? homes(items, data);
-  return (
+  const body = (
     <>
       {items.map(item => {
         if (isQuestion(item)) {
@@ -244,4 +270,6 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
       })}
     </>
   );
+  // The questions go side by side with their notes by the width the form has, whatever folds around it
+  return depth === 0 ? <Box sx={{ containerType: "inline-size" }}>{body}</Box> : body;
 }
