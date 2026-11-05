@@ -30,6 +30,7 @@ import {
   Stack,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   TextField,
   Typography,
   useMediaQuery,
@@ -365,19 +366,24 @@ export default function ReviewScreen({ path }: { path: string }) {
       {listed.map(requirement => {
         const count = notesOf(requirement).filter(note => shown.has(note.kind)).length;
         return (
-          <ListItemButton
-            key={requirement.name} selected={requirement.name === current?.name} onClick={() => go(requirement.name)}
-            sx={{ borderRadius: 1, py: 0.25, opacity: mine(requirement) ? 1 : 0.55 }}
+          // The one being read says what it asks for under its name; the others on hover
+          <Tooltip
+            key={requirement.name} placement="right"
+            title={requirement.name === current?.name ? "" : requirement.description ?? ""}
           >
-            {/* What the requirement asks for, under the one being read */}
-            <ListItemText
-              primary={requirement.label}
-              secondary={requirement.name === current?.name ? requirement.description : undefined}
-              slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption" } }}
-              sx={{ my: 0.25 }}
-            />
-            {count > 0 && <Chip size="small" label={count} sx={{ ml: 1, height: 20 }} />}
-          </ListItemButton>
+            <ListItemButton
+              selected={requirement.name === current?.name} onClick={() => go(requirement.name)}
+              sx={{ borderRadius: 1, py: 0.25, opacity: mine(requirement) ? 1 : 0.55 }}
+            >
+              <ListItemText
+                primary={requirement.label}
+                secondary={requirement.name === current?.name ? requirement.description : undefined}
+                slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption" } }}
+                sx={{ my: 0.25 }}
+              />
+              {count > 0 && <Chip size="small" label={count} sx={{ ml: 1, height: 20 }} />}
+            </ListItemButton>
+          </Tooltip>
         );
       })}
     </List>
