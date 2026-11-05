@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import ChatBubbleOutlineOutlined from "@mui/icons-material/ChatBubbleOutlineOutlined";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import {
@@ -429,7 +430,11 @@ export default function ReviewScreen({ path }: { path: string }) {
             />
             {count > 0 && (
               <Tooltip title={countText(notesOf(requirement).filter(note => shown.has(note.kind)))} placement="right">
-                <Chip size="small" label={count} sx={{ ml: 1, height: 20 }} />
+                <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, ml: 1, mt: 0.25, color: "text.secondary",
+                  flexShrink: 0 }}>
+                  <ChatBubbleOutlineOutlined sx={{ fontSize: "0.9rem" }} />
+                  <Typography variant="caption">{count}</Typography>
+                </Stack>
               </Tooltip>
             )}
           </ListItemButton>
