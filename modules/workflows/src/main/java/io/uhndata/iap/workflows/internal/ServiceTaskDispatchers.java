@@ -74,6 +74,6 @@ public class ServiceTaskDispatchers
     {
         // Read once: the registry replaces the list, and a REPLACE field is null until the first handler arrives
         return new ServiceTaskDispatcher(Objects.requireNonNullElse(this.handlers, List.of()), chain, this.routing,
-            this.runners, new PendingNotifications(this.notifications));
+            this.runners, new DeliveryConsequences(new PendingNotifications(this.notifications)));
     }
 }

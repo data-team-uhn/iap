@@ -746,6 +746,7 @@ ResourceResolver getResourceResolver();
 void             sendEvent(Resource target, WorkflowEvent event);
 void             startWorkflow(Resource host, WorkflowVersion version);
 void             replaceWorkflow(Resource host, WorkflowVersion version);
+void             checkInAfterCommit(String path);
 
 // ExecutionHost, Payloads — reading a task's input the way the built-in handlers do
 static Resource        ExecutionHost.of(WorkflowTaskContext context);
@@ -761,7 +762,9 @@ write through the context's resolver and never commit — the engine owns the tr
 — and pass results through execution variables (`context.setVariable(...)`), which is
 also how they reach the channel that fired the event. `sendEvent` and `startWorkflow`
 ask the engine for more within the same execution and commit; the built-in
-`callActivity` and `startWorkflow` handlers are thin over them.
+`callActivity` and `startWorkflow` handlers are thin over them. A step that checked a node
+out cannot check it back in, since a check-in refuses pending changes, so it asks with
+`checkInAfterCommit`.
 
 Two helpers keep a module's handlers consistent with the built-in ones in
 `internal.handlers`. `ExecutionHost.of` is what a task acts on, as its activity answers

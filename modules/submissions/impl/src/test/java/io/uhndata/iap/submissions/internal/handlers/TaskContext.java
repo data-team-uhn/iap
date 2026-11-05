@@ -172,4 +172,10 @@ final class TaskContext implements WorkflowTaskContext
     {
         throw new IllegalStateException("No workflow was expected to be started here");
     }
+
+    @Override
+    public void checkInAfterCommit(final String path)
+    {
+        // No handler tested here checks anything out
+    }
 }
