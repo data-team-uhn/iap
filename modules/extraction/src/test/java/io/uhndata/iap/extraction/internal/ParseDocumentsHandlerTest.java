@@ -184,6 +184,34 @@ class ParseDocumentsHandlerTest
     }
 
     @Test
+    void leavesAnUploadWhoseRequirementSkipsParsingAlone() throws Exception
+    {
+        final Resource file = this.tree.createFile(null);
+        final Resource requirement = this.tree.createDocumentRequirement("signedForm");
+        requirement.adaptTo(ModifiableValueMap.class).put("skipParsing", true);
+        SubmissionTree.reference(file.getParent().getParent(), "fulfills", requirement);
+
+        this.handler.execute(createTask(this.submission));
+
+        Mockito.verifyNoInteractions(this.parseService);
+        assertNull(file.getValueMap().get("parseStatus", String.class));
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class),
+            "nothing was queued, so nothing is being read");
+    }
+
+    @Test
+    void sendsAnUploadWhoseRequirementKeepsTheDefault() throws Exception
+    {
+        final Resource file = this.tree.createFile(null);
+        SubmissionTree.reference(file.getParent().getParent(), "fulfills",
+            this.tree.createDocumentRequirement("proposal"));
+
+        this.handler.execute(createTask(this.submission));
+
+        Mockito.verify(this.parseService).queue(STAGED, file.getPath());
+    }
+
+    @Test
     void skipsADocumentWithNoUpload() throws Exception
     {
         this.tree.createEmptyDocument();

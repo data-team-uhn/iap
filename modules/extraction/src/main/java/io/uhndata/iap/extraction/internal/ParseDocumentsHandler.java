@@ -96,7 +96,7 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
             return;
         }
         int queued = 0;
-        for (final File file : SubmissionFiles.getCurrentFiles(submission)) {
+        for (final File file : SubmissionFiles.getFilesToParse(submission)) {
             if (!isParseWanted(file)) {
                 continue;
             }

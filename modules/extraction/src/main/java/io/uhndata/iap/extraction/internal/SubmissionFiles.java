@@ -20,9 +20,11 @@ package io.uhndata.iap.extraction.internal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
@@ -87,6 +89,29 @@ final class SubmissionFiles
             }
         }
         return files;
+    }
+
+    /**
+     * The latest upload of every document whose requirement wants it parsed, in the order the repository lists
+     * the documents.
+     *
+     * @param submission the submission
+     * @return the current files to parse, skipping documents with no upload yet
+     */
+    static List<File> getFilesToParse(final Submission submission)
+    {
+        return submission.getDocuments().stream()
+            .filter(document -> !isParsingSkipped(document))
+            .map(Document::getCurrentVersion)
+            .filter(Objects::nonNull)
+            .map(DocumentVersion::getFile)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+    }
+
+    private static boolean isParsingSkipped(final Document document)
+    {
+        return document.getFulfills() instanceof DocumentRequirement requirement && requirement.isParsingSkipped();
     }
 
     /**

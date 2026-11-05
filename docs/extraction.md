@@ -78,10 +78,12 @@ What it does, in order:
    request gets a 409.
 2. Reads `readingWorkflow` on the submission's schema version. **No reading workflow
    means nothing is parsed**, so a schema that never reads its documents costs nothing.
-3. For each document, takes the latest upload (`SubmissionFiles.getCurrentFiles`). An
-   upload is sent when its `parseStatus` is empty (never sent) or `failed`. One that is
-   `queued` or `completed` is left alone. An upload with no content is skipped, and the
-   problem "An uploaded file holds no content to parse" is recorded.
+3. For each document, takes the latest upload (`SubmissionFiles.getFilesToParse`). A
+   document whose requirement sets `skipParsing` is left out, so its uploads are never
+   parsed and no reading uses them. An upload is sent when its `parseStatus` is empty
+   (never sent) or `failed`. One that is `queued` or `completed` is left alone. An
+   upload with no content is skipped, and the problem "An uploaded file holds no content
+   to parse" is recorded.
 4. For each upload sent:
    - `ParseService.stage` copies the bytes into a new folder on the shared volume,
      `/shared-docs/<uuid>/<name>`. The name is `fileName` on the `sub:File`, or the
@@ -758,7 +760,8 @@ never asked again.
 ### Retry a failed parse
 
 The `parseDocuments` step. Only uploads with no `parseStatus` or with
-`failed` are sent, and nothing is sent when the schema names no reading workflow.
+`failed` are sent, and nothing is sent when the schema names no reading workflow. Uploads
+for a requirement that sets `skipParsing` are never sent.
 Usually the daemon was down, not the document broken.
 
 ### Review the quotes behind a suggestion
