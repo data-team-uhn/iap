@@ -111,17 +111,19 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * The extraction run a submitter reviews, and the one the form will show: whichever was surest of itself.
+     * Picks the one extraction run to show the submitter for this answer. An answer can have many runs, because
+     * the documents can be read many times.
      *
-     * <p>Kept here so the review handler and the planned form pick the same run; two copies of the rule could let
-     * the form show one run while the verdict landed on another.</p>
+     * <p>The rules, in order:</p>
+     * <ol>
+     * <li>Skip old runs. A run is old when another run read a newer version of the same document. A new version
+     * that no run has read yet does not make a run old. If every run is old, none are skipped.</li>
+     * <li>From the runs that are left, pick the run with the highest confidence. A run with no confidence counts
+     * as zero.</li>
+     * <li>If two runs have the same confidence, pick the earlier one.</li>
+     * </ol>
      *
-     * <p>Ties go to the earlier run, since the first is as good an answer as any and picking consistently is the
-     * whole point.</p>
-     *
-     * <p>A run is passed over when another run read a newer revision of one of its documents: what was read from
-     * a replaced file is no longer what the submitter should see. A newer revision nobody has read yet changes
-     * nothing.</p>
+     * <p>The review step and the form both use this method, so they always pick the same run.</p>
      *
      * @return the surest run, or {@code null} if extraction has never run
      */
