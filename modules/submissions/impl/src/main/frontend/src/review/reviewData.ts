@@ -71,9 +71,8 @@ export interface ReviewNote {
   passage?: Passage;
   replies: Message[];
   severity?: string;
-  // An AI issue's risk, and the approval it is assessed for, by name
+  // An AI issue's risk
   topic?: string;
-  approval?: string;
   suggestion?: string;
   // An extracted answer's question, by path, what was read, and how
   question?: string;
@@ -108,8 +107,6 @@ export interface ReviewData {
   notes: ReviewNote[];
   // The schema part an answer or document UUID stands for
   partOf: Map<string, string>;
-  // The AI pre-review's overall read of the submission
-  aiSummary?: string;
 }
 
 const isNode = (value: unknown): value is Node => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -177,7 +174,6 @@ export function parseReview(submission: Node, schema: string, me: string): Revie
   const notes: ReviewNote[] = [];
   // The AI pre-review comments this reviewer made into issues or dismissed, which they no longer need to see
   const settled = new Set<string>();
-  let aiSummary: string | undefined;
   for (const node of Object.values(submission).filter(isNode)) {
     const type = node["sling:resourceType"];
     if (type === "sub/Answer") {
@@ -214,11 +210,8 @@ export function parseReview(submission: Node, schema: string, me: string): Revie
         const comments = childrenOf(assessment, "sub:Comment");
         comments.filter(one => Array.isArray(one.dismissedBy) && one.dismissedBy.includes(me))
           .forEach(one => settled.add(text(one["@path"])));
-        // Named after the approval it assesses a risk for, e.g. reb-consent
-        const approval = text(assessment["@name"]).split("-")[0] || undefined;
-        notes.push(...comments.map(one => ({ ...comment(one, "aiIssue", me, topic), approval })));
+        notes.push(...comments.map(one => comment(one, "aiIssue", me, topic)));
       }
-      aiSummary = text(node.summary) || undefined;
     } else if (type === "sub/Review") {
       const comments = childrenOf(node, "sub:Comment");
       comments.filter(one => one.author === me && text(one.from)).forEach(one => settled.add(text(one.from)));
@@ -229,7 +222,7 @@ export function parseReview(submission: Node, schema: string, me: string): Revie
       notes.push(...childrenOf(node, "sub:Comment").map(one => comment(one, "note", me)));
     }
   }
-  return { answers, documents, notes: notes.filter(note => !settled.has(note.id)), partOf, aiSummary };
+  return { answers, documents, notes: notes.filter(note => !settled.has(note.id)), partOf };
 }
 
 // Which reviewer groups each question and document matters to, from the risks each approval lists
