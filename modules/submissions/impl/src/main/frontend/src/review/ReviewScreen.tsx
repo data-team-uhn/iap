@@ -59,13 +59,13 @@ import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
+import IssuesPanel from "./IssuesPanel";
 import LetterDialog from "./LetterDialog";
 import { usePersonName } from "./people";
 import { draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, type NoteKind, type ReviewData,
   type ReviewGroup, type ReviewNote } from "./reviewData";
-import ReviewPanel from "./ReviewPanel";
 import { documentText, searchAnswers, searchPages, type Hit } from "./searchSubmission";
 import { PANEL_HEIGHT, PanelBody, panelPlacement } from "./sidePanel";
 import SubmissionSearch from "./SubmissionSearch";
@@ -76,7 +76,6 @@ type Node = Record<string, unknown>;
 const KINDS_KEY = "iap.review.kinds";
 const CONTENTS_OPEN_KEY = "iap.review.contentsOpen";
 const ISSUES_OPEN_KEY = "iap.review.issuesOpen";
-const AI_OPEN_KEY = "iap.review.aiOpen";
 
 // Whether a side panel is open, remembered in the reviewer's browser; undefined until they choose
 function useStoredFlag(key: string): [ boolean | undefined, (open: boolean) => void ] {
@@ -196,7 +195,6 @@ export default function ReviewScreen({ path }: { path: string }) {
   // Whether the issues are shown beside the requirement; until the reviewer says, open beside a form and folded
   // beside a document, which needs the width
   const [ issuesOpen, setIssuesOpen ] = useStoredFlag(ISSUES_OPEN_KEY);
-  const [ aiOpen = true, setAiOpen ] = useStoredFlag(AI_OPEN_KEY);
   const [ railOpen = true, setRailOpen ] = useStoredFlag(CONTENTS_OPEN_KEY);
   const myName = usePersonName(me ?? "");
   const [ query, setQuery ] = useState("");
@@ -424,11 +422,6 @@ export default function ReviewScreen({ path }: { path: string }) {
   const submission = loaded.submission;
   // The reviewer's own issues: what their panel lists, and what their letter and escalation are made of
   const myIssues = data.notes.filter(note => note.kind === "issue" && note.mine);
-  // The AI pre-review of the risks the reviewer's groups approve
-  const myApprovals = loaded.form.requirements.filter(isApprovalRequirement)
-    .filter(one => myGroups.includes(one.approverGroup)).map(one => one.name);
-  const myAiNotes = data.notes.filter(note => note.kind === "aiIssue" && note.approval
-    && myApprovals.includes(note.approval));
   const waiting = myTask() !== undefined;
   const reviewActions = {
     send: () => setDialog("letter"),
@@ -646,12 +639,11 @@ export default function ReviewScreen({ path }: { path: string }) {
 
         </Paper>
         <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", ...panelPlacement, flexShrink: 0 }}>
-          <ReviewPanel
-            issues={myIssues} aiNotes={myAiNotes} aiSummary={data.aiSummary} about={about}
+          <IssuesPanel
+            issues={myIssues} about={about}
             open={issuesOpen ?? !(current && isDocumentRequirement(current))}
             onToggle={() => setIssuesOpen(!(issuesOpen ?? !(current && isDocumentRequirement(current))))}
-            aiOpen={aiOpen} onToggleAi={() => setAiOpen(!aiOpen)}
-            onOpen={openIssue}
+            onOpenIssue={openIssue}
             actions={reviewActions}
           />
         </Box>
