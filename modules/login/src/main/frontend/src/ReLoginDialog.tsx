@@ -24,17 +24,13 @@ import { ReLoginContext } from "@iap/frontend-commons/reLogin";
 
 import LoginForm from "./LoginForm";
 
-// Signing back in without leaving the page, so that work in progress is not lost to an expired
-// session. Only dismissable by giving up: the requests that ran into the expired session are
-// waiting on this, and abandoning it fails them, which is better than a dialog with no way out
-// when the user cannot produce the credentials it is asking for.
+// Asks the user to sign in again without leaving the page, so that unsaved work survives an
+// expired session. Short of signing in, Cancel is the only way to close it, and it calls
+// `onAbandoned`.
 //
-// The absence of `onClose` is what enforces that, and it is deliberate rather than an oversight:
-// MUI swallows Escape and reports a backdrop click by calling `onClose(event, reason)`, so a dialog
-// that does not supply one cannot be dismissed by either. Adding an `onClose` that merely closes
-// would strand every request waiting on `settle`, so if this ever needs one it has to answer them.
-// (There is no `disableEscapeKeyDown` to reach for here -- MUI dropped that prop in v9 in favour of
-// the `reason` argument.)
+// The dialog has no `onClose`. MUI closes a dialog on Escape or a backdrop click only through
+// `onClose`, so neither closes this one. An `onClose` that only closed the dialog would leave the
+// requests waiting for the sign-in unanswered.
 export function ReLoginDialog(
   { open, onSignedIn, onAbandoned }: { open: boolean; onSignedIn: () => void; onAbandoned: () => void },
 ) {
@@ -64,19 +60,16 @@ const release = (waiting: Waiting, recovered: boolean) => {
   pending.forEach(resolve => { resolve(recovered); });
 };
 
-// Recovers an expired session by asking for credentials, and releases the requests that were waiting
-// on it. Mount it around any part of the application that talks to the repository.
+// Lets `useAuthenticatedFetch` sign the user in again after their session expires. It opens
+// ReLoginDialog, and answers every request waiting for the sign-in once the user signs in or
+// gives up. Mount it around any part of the application that sends requests to the server.
 //
-// This is the local-credentials implementation of the contract in
-// @iap/frontend-commons/reLogin, which is all a deployment signing its users in locally needs.
-// One authenticating against an external identity provider will want a provider of its own: the
-// sign-in has to happen in a popup window, since navigating this page to the provider and back is
-// what would lose the unsaved work being protected here. Only this component changes for that --
-// `useAuthenticatedFetch` and every caller of it stay as they are.
+// It asks for a local username and password. An account synced from an identity provider has
+// no local password, so its user can only cancel.
 export function ReLoginProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  // Held in a ref rather than in state: several requests can fail in the same tick, and each has
-  // to be remembered even though only the last render's state would be visible to them.
+  // A ref, not state: several requests can fail in the same tick, and state set by one would not
+  // yet be visible to the next.
   const waiting: Waiting = useRef<((recovered: boolean) => void)[]>([]);
 
   const requestReLogin = useCallback(() => new Promise<boolean>(resolve => {
@@ -89,7 +82,7 @@ export function ReLoginProvider({ children }: { children: ReactNode }) {
     release(waiting, recovered);
   }, []);
 
-  // Nothing can sign in once this is gone, so anything still waiting has to fail rather than hang
+  // Once the provider is gone nothing can sign in, so the requests still waiting fail
   useEffect(() => () => { release(waiting, false); }, []);
 
   return (

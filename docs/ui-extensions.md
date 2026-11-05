@@ -144,22 +144,22 @@ path. Hide a link whose page is not ready with `ext:defaultDisabled: true`.
 
 ### Sign-in methods — `iap/login/signInMethod` (node `SignInMethod`)
 
-The first enabled method renders in place; further methods collapse behind a quiet
-link labelled by `ext:collapsedLabel` (falling back to `ext:name`).
+The first enabled method is shown in place. Each further method is a link that opens
+it, labelled by its `ext:collapsedLabel`, or else its `ext:name`.
 
 The login module registers the local credentials form as the default
-(`/Extensions/SignInMethod/CredentialsForm`, order 100). If no method is registered,
-or the point cannot be loaded, the page renders the credentials form directly — there
-is always a way to sign in.
+(`/Extensions/SignInMethod/CredentialsForm`, order 100). If no method is enabled, or
+the point cannot be loaded, the page shows the credentials form anyway. There is always
+a way to sign in.
 
-An identity-provider integration needs **no frontend code**: the generic
-`iap-login.RedirectSignIn` asset renders a redirect method from a data-only
-extension — `ext:targetURL` (the endpoint starting the round trip; the validated
-in-app return path is attached as its `resource` parameter), optional
-`ext:actionLabel` (default "Continue to sign-in") and optional `ext:hint`. Register it
-with a lower `defaultOrder` than the credentials form to make it primary, and disable
-the credentials form with `ext:defaultDisabled: true` where local accounts shouldn't
-be offered.
+An identity provider needs **no frontend code**. The `iap-login.RedirectSignIn` asset
+renders a data-only extension as a button leading to its `ext:targetURL`, the endpoint
+that starts the sign-in. The page to return to goes along in the `resource` query
+parameter, which the endpoint may ignore. `ext:actionLabel` sets the button's text,
+"Continue to sign-in" by default, and `ext:hint` adds a line under it. Give the
+extension a lower `defaultOrder` than the credentials form to make it the first method.
+Where local accounts should not be offered, disable the credentials form with
+`ext:defaultDisabled: true`.
 
 ### Dashboard widgets — `iap/dashboard/widget` (node `DashboardWidget`)
 

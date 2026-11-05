@@ -20,7 +20,7 @@ import { render, screen } from "@testing-library/react";
 
 import CredentialsForm from "@iap/login/CredentialsForm";
 
-// The form itself is LoginForm's business; what matters here is what happens once it succeeds.
+// LoginForm has tests of its own. These check what happens once it succeeds.
 vi.mock("@iap/login/LoginForm", () => ({
   default: ({ onSuccess }: { onSuccess: () => void }) => (
     <button type="button" onClick={onSuccess}>Sign in</button>

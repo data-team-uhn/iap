@@ -23,10 +23,8 @@ import { useColorScheme } from "@mui/material/styles";
 
 import { readJson } from "@iap/frontend-commons/requestFailure";
 
-// The registry of institutions participating in this deployment, one child node per
-// institution. It lives directly under /libs/iap (anonymous-readable) rather than under
-// /libs/iap/conf, because ConfigMetadata flattens every property below conf into one shared
-// meta map, where an institution's `logoLight` would collide with the application logo's.
+// The registry of the institutions taking part in this deployment, one child node per
+// institution, in display order. Everyone can read it, so it shows before signing in.
 const INSTITUTIONS_URL = "/libs/iap/ParticipatingInstitutions.1.json";
 
 interface Institution {
@@ -36,13 +34,11 @@ interface Institution {
   url?: string;
 }
 
-// The strip of participating institutions displayed under the sign-in form on "front door"
-// deployments — the shared entry point serving users from every institution, where a single
-// affiliation logo would be wrong. Institutions are content: child nodes of
-// /libs/iap/ParticipatingInstitutions carrying `name`, `logoLight`/`logoDark` (image paths),
-// and an optional `url`; an optional `label` property on the registry node overrides the strip
-// heading. Single-institution deployments simply don't create the registry, and nothing is
-// rendered.
+// The institutions taking part in a deployment that serves several, shown as a strip of logos
+// under the sign-in form. Each is a child node of /libs/iap/ParticipatingInstitutions, with a
+// `name`, an optional `url`, and the image paths of its logos, `logoLight` and `logoDark`. The
+// registry's optional `label` replaces the heading. An institution without a logo is shown by
+// name. Without the registry, nothing is shown.
 export default function ParticipatingInstitutions() {
   const { mode, systemMode } = useColorScheme();
   const resolvedMode = (mode === "system" ? systemMode : mode) ?? "light";
@@ -51,7 +47,7 @@ export default function ParticipatingInstitutions() {
 
   useEffect(() => {
     fetch(INSTITUTIONS_URL)
-      // A missing registry is the expected state of single-institution deployments
+      // A deployment serving one institution has no registry
       .then(response => response.ok
         ? readJson<Record<string, unknown>>(response)
         : Promise.reject(new Error(String(response.status))))

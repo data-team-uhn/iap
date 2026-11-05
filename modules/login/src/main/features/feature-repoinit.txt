@@ -17,18 +17,16 @@
 create path (app:LoginPage) /login
 create path (app:Configuration) /libs/iap/conf/LoginPage
 
-# The login page must be readable without a session. This is the JCR half of the access
-# setup; the HTTP half is the -/login exemption in sling.auth.requirements
-# (packaging/slingfeature/src/main/features/core/sling-configuration.json). Both are needed.
+# The login page is readable without a session. Sling also has to let the request through
+# without one, which the `-/login` entry of `sling.auth.requirements` does, in
+# packaging/slingfeature/src/main/features/core/sling-configuration.json.
 set ACL for everyone
     allow   jcr:read    on /login
 end
 
-# The login page texts, delivered to the page as meta tags like the rest of the branding;
-# deployments override them without code changes. The intro text (what the platform does) is
-# not seeded here; the pilot wording ships as initial content instead
-# (SLING-INF/content/libs/iap/conf/LoginPage.json). See the module README for the conf
-# reference and for the wording to switch to once several institutions participate.
+# The login page's texts, which reach the page as <meta> tags. `default` leaves a value a
+# deployment has already set as it is. The text introducing the platform is initial content,
+# in SLING-INF/content/libs/iap/conf/LoginPage.json.
 set properties on /libs/iap/conf/LoginPage
   default tagline to "Where research moves forward"
   default signInLabel to "Sign in"

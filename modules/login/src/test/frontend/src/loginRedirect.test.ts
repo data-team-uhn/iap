@@ -45,8 +45,6 @@ describe("loginRedirectPath", () => {
   });
 
   it("rejects paths that URL parsing would turn into external URLs", () => {
-    // Tabs and newlines are removed by URL parsers, so "/\t/evil.example" navigates to
-    // the protocol-relative "//evil.example" despite passing naive string checks
     expect(loginRedirectPath(onLoginPage("?resource=%2F%09%2Fevil.example"))).toBe("/");
     expect(loginRedirectPath(onLoginPage("?resource=%2F%0A%2Fevil.example"))).toBe("/");
     expect(loginRedirectPath(onLoginPage("?resource=%2F%0D%2Fevil.example"))).toBe("/");

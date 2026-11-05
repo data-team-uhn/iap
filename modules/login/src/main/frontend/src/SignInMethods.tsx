@@ -25,10 +25,10 @@ import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
 import CredentialsForm from "./CredentialsForm";
 
-// A sign-in method other than the primary one: rendered collapsed, as a quiet link labelled
-// by the extension's `ext:collapsedLabel` (e.g. "Use a local account instead"). Once
-// revealed, the method appears as its own section — separated by a divider and titled with
-// the extension's name — so it is not read as part of the primary method above it.
+// A sign-in method after the first, shown as a link until it is opened. The link's text is the
+// extension's `ext:collapsedLabel`, such as "Use a local account instead", or else its `ext:name`,
+// or else "More sign-in options". Once opened, the method is a section of its own, under a divider.
+// Its title is its `ext:name`, so it does not read as part of the method above it.
 function CollapsedMethod({ extension }: { extension: Extension }) {
   const [ open, setOpen ] = useState(false);
   const label = (extension["ext:collapsedLabel"] as string | undefined)
@@ -60,15 +60,12 @@ function CollapsedMethod({ extension }: { extension: Extension }) {
   );
 }
 
-// The auth action area of the login page: the sign-in methods registered on the
-// `iap/login/signInMethod` extension point, in their configured order. The first (enabled)
-// method renders in place; any further methods are collapsed behind their labels — which is
-// how the local credentials form stays reachable for administrators once a deployment makes
-// an external identity provider the primary method.
+// The ways of signing in that the login page offers: the enabled extensions on the
+// `iap/login/signInMethod` point, in their `defaultOrder`. The first is shown in place, and each
+// of the others behind a link.
 //
-// The login module registers the credentials form as the default method; if no method at all
-// is registered (or the extension point cannot be loaded), the credentials form is rendered
-// directly, so the page never ends up with no way to sign in.
+// With no method enabled, or when the point cannot be loaded, it shows the credentials form, so
+// there is always a way to sign in.
 export default function SignInMethods() {
   const [ methods, setMethods ] = useState<Extension[]>();
 
@@ -81,7 +78,7 @@ export default function SignInMethods() {
       });
   }, []);
 
-  // Still loading; the methods arrive in one round trip
+  // Nothing is shown while the methods load
   if (!methods) {
     return null;
   }

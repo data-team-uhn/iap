@@ -29,14 +29,13 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
-// The page composes parts tested on their own (LoginForm, ParticipatingInstitutions,
-// PreLoginExtensions, FooterContent), so this only checks the page-level wiring: the
-// content-driven texts with their fallbacks, and where the pieces land.
+// The parts of the page have tests of their own. These check the page's texts, with their
+// defaults, and where each part goes.
 describe("LoginPage", () => {
   beforeEach(() => {
     // Both the pre-login extensions and the footer links come through loadExtensions
     mockedLoadExtensions.mockResolvedValue([]);
-    // The participating-institutions registry is not configured in these tests
+    // There is no registry of participating institutions
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 404 }));
   });
 
@@ -60,8 +59,7 @@ describe("LoginPage", () => {
         <LoginPage />
       </ThemeProvider>
     );
-    // Commit the state updates of the extension- and registry-loading effects before the
-    // test proceeds, so no update lands outside act() after the assertions
+    // Lets the state updates of the loading effects happen before the assertions
     await act(() => Promise.resolve());
     return result;
   };
@@ -69,11 +67,10 @@ describe("LoginPage", () => {
   it("renders the sign-in area with default texts when nothing is configured", async () => {
     await renderPage();
 
-    // The label overline specifically — the form's submit button also says "Sign in"
+    // The label, not the submit button, which also says "Sign in"
     expect(screen.getByText("Sign in", { selector: "p" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Continue with institutional credentials" }))
       .toBeInTheDocument();
-    // The sign-in form is inside the main landmark
     expect(screen.getByRole("main")).toContainElement(screen.getByLabelText(/username/i));
     expect(mockedLoadExtensions).toHaveBeenCalled();
   });
@@ -98,14 +95,10 @@ describe("LoginPage", () => {
     await renderPage();
 
     expect(screen.getByRole("region", { name: "About the platform" })).toBeInTheDocument();
-    // The page splits the footer: the shared content renders without credits, and the credits
-    // render once, in their own grid area next to the sign-in panel
+    // The footer is shown without its credits, which have a place of their own
     expect(screen.getAllByText("Built by")).toHaveLength(1);
   });
 
-  // The application theme enables MUI's CSS variables, so the page normally reads its colours from
-  // theme.vars. A theme without them has to keep working, since nothing stops a deployment from
-  // dropping the variables.
   it("reads its colours straight off the palette when the theme has no CSS variables", async () => {
     render(
       <ThemeProvider theme={createTheme()}>

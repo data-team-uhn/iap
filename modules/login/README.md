@@ -1,50 +1,51 @@
 # IAP login page
 
-The landing page served to unauthenticated visitors at `/login`, and the only page they can
-reach — everything else requires a session (`sling.auth.requirements` in
-`packaging/slingfeature/src/main/features/core/sling-configuration.json`, with this module's
-repoinit granting `everyone` read on `/login`). Sling's form authentication is pointed at it
-through the `form.login.form` property in this module's `feature.json`; the form submits to
-`/j_security_check` and then navigates to the validated `?resource=` return path.
+The page at `/login`, where a visitor without a session signs in. It is the only page
+such a visitor can reach. The `-/login` entry of `sling.auth.requirements`, in
+`packaging/slingfeature/src/main/features/core/sling-configuration.json`, lets a request
+for it through without a session, and this module's repoinit grants `everyone` read on
+`/login`. The `form.login.form` property in this module's `feature.json` makes Sling's
+form authentication send visitors here. The form posts the credentials to
+`/j_security_check`, then goes to the path in the `?resource=` parameter, if it is a
+path on this site.
 
-The page is a split landing page: a muted brand panel introducing the platform, and a paper
-panel with the sign-in action. The auth action area is composed from the
-`iap/login/signInMethod` extension point (see
-[Sign-in methods](#sign-in-methods)), so an identity provider integration replaces or joins
-the credentials form through content alone.
+The page has two panels: a muted one introducing the platform, and one for signing in.
+The ways of signing in are extensions on the `iap/login/signInMethod` point (see
+[Sign-in methods](#sign-in-methods)). An identity provider replaces or joins the
+credentials form with content alone.
 
 ## Configuration reference
 
-All texts are content, delivered as meta tags through the standard `/libs/iap/conf` pipeline:
+The texts are content under `/libs/iap/conf`, and reach the page as `<meta>` tags:
 
 | Property | Node | Renders as |
 | --- | --- | --- |
-| `tagline` | `/libs/iap/conf/LoginPage` | Small uppercase line under the logo |
-| `introText` | `/libs/iap/conf/LoginPage` | The description paragraph (markdown) |
-| `signInLabel` | `/libs/iap/conf/LoginPage` | Eyebrow label above the sign-in heading |
+| `tagline` | `/libs/iap/conf/LoginPage` | A short uppercase line under the logo |
+| `introText` | `/libs/iap/conf/LoginPage` | The paragraph introducing the platform, in markdown |
+| `signInLabel` | `/libs/iap/conf/LoginPage` | A small label above the sign-in heading |
 | `signInHeading` | `/libs/iap/conf/LoginPage` | The sign-in heading |
-| `title` (AppName) | `/libs/iap/conf/AppName` | The display heading of the brand panel |
-| `logoLight`/`logoDark`, `affiliationLogo*` | `/libs/iap/conf/Media` | Logo top-start; affiliation in the footer credits |
+| `title` | `/libs/iap/conf/AppName` | The logo's alternative text, which names the page's heading |
+| `logoLight`/`logoDark`, `affiliationLogo*` | `/libs/iap/conf/Media` | The application's logo, at the top of the brand panel; the institution's logo, at the start of the footer |
 
-`tagline`, `signInLabel`, and `signInHeading` are seeded as repoinit defaults; `introText`
-ships as initial content (`SLING-INF/content/libs/iap/conf/LoginPage.json`).
+`tagline`, `signInLabel` and `signInHeading` are repoinit defaults. `introText` is
+initial content, in `SLING-INF/content/libs/iap/conf/LoginPage.json`.
 
-Every node in the tree is an `app:Configuration`, the root included, which is both how it is
-served as JSON (`/libs/iap/conf.1.json`, through our own serializer rather than Sling's default
-renderer) and the type a deployment adding a configuration node of its own should use. The
-property vocabulary itself is open: `ConfigMetadata` flattens whatever it finds.
+Every node in the tree is an `app:Configuration`, the root included. Only nodes of that
+type reach the page, so a deployment adding a configuration node of its own gives it
+that type. Their property names are open: any property with a value and no namespace
+becomes a `<meta>` tag.
 
 ### Sign-in methods
 
-The ways of signing in are `iap/login/signInMethod` extensions, rendered in their configured
-order: the first enabled method in place, any further ones collapsed behind a quiet link
-labelled by their `ext:collapsedLabel`. This module registers the local credentials form as
-the default method; if no method is registered (or the point fails to load), the page falls
-back to the credentials form directly, so there is always a way to sign in.
+The ways of signing in are `iap/login/signInMethod` extensions, shown in their
+`defaultOrder`. The first enabled method is shown in place. Each further one is a link,
+labelled by its `ext:collapsedLabel`, that opens it. This module registers the local
+credentials form as the default method. If no method is enabled, or the point fails to
+load, the page shows the credentials form anyway, so there is always a way to sign in.
 
-An identity-provider integration (e.g. the planned Keycloak module) is content-only on the
-frontend side — register the generic redirect method with a lower order than the credentials
-form (100), which then collapses into its "Use a local account instead" link:
+An identity provider needs no frontend code. It registers the redirect method with a
+lower `defaultOrder` than the credentials form's 100, and the form then collapses behind
+its "Use a local account instead" link:
 
 ```json
 {
@@ -59,20 +60,24 @@ form (100), which then collapses into its "Use a local account instead" link:
 }
 ```
 
-The redirect method navigates to `ext:targetURL` with the validated in-app return path
-attached as its `resource` parameter, for the authentication endpoint to round-trip. Where
-local accounts should not be offered at all, disable the credentials form with
-`ext:defaultDisabled: true` on its extension node.
+The redirect method goes to `ext:targetURL`, with the page to return to in its
+`resource` query parameter. Where the user lands after signing in is up to the endpoint,
+which may ignore the parameter. Sling's OIDC authentication handler ignores it, and
+sends the user back to the path that started the sign-in.
 
-A demo registration of the redirect method (pointing at a placeholder endpoint) ships with
-the test data (`test-data/.../Extensions/SignInMethod/ExternalDemo.json`), so instances
-started with `./start.sh --test` present the two-method composition out of the box.
+Where local accounts should not be offered, disable the credentials form with
+`ext:defaultDisabled: true` on its extension node. With no other method enabled, the
+page still shows it.
+
+The test data registers a demo redirect method with a placeholder endpoint, in
+`test-data/.../Extensions/SignInMethod/ExternalDemo.json`. An instance started with
+`./start.sh --test` shows both methods.
 
 ### Participating institutions
 
-A front-door deployment can display the strip of participating institutions under the sign-in
-form by creating the `/libs/iap/ParticipatingInstitutions` registry — one child node per
-institution, in display order:
+A deployment serving several institutions can show the institutions taking part under
+the sign-in form. It creates the `/libs/iap/ParticipatingInstitutions` registry, with
+one child node per institution, in display order:
 
 ```json
 {
@@ -81,23 +86,21 @@ institution, in display order:
   "uhn": {
     "jcr:primaryType": "nt:unstructured",
     "name": "University Health Network",
-    "logoLight": "/libs/iap/resources/media/uhn/logo-light.png",
-    "logoDark": "/libs/iap/resources/media/uhn/logo-dark.png",
+    "logoLight": "/libs/iap/resources/media/default/uhn-logo-light.png",
+    "logoDark": "/libs/iap/resources/media/default/uhn-logo-dark.png",
     "url": "https://www.uhn.ca"
   }
 }
 ```
 
-The registry node must be an orderable type (`nt:unstructured`, not `sling:Folder`) for the
-institutions to display in the declared order. The `label` property (optional) overrides the
-strip heading. An institution without logos is shown by name; a sample registry (UHN and
-CAMH) ships with the test data, so `./start.sh --test` displays the strip. The registry deliberately lives outside `/libs/iap/conf`: `ConfigMetadata`
-flattens everything below `conf` into one meta map, where an institution's `logoLight` would
-collide with the application logo's. Single-institution deployments simply don't create the
-registry, and nothing is rendered.
+The registry node must be an orderable type, such as `nt:unstructured` and not
+`sling:Folder`, for the institutions to keep their order. Its optional `label` replaces
+the heading. An institution without logos is shown by name. Without the registry,
+nothing is shown. The test data has a sample registry with UHN and CAMH, so `./start.sh
+--test` shows the strip.
 
 ### Pre-login banners
 
-The page renders `iap/coreUI/frameTop` extensions that opt in with `ext:visibleBeforeLogin:
-true` (e.g. a maintenance notice) above its content — see
+Above its content, the page shows the `iap/coreUI/frameTop` extensions marked with
+`ext:visibleBeforeLogin: true`, such as a maintenance notice. See
 [docs/ui-extensions.md](../../docs/ui-extensions.md).

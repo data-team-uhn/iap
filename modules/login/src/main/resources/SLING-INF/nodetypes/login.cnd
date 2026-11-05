@@ -18,23 +18,10 @@
 <app = 'https://iap.uhndata.io/app/'>
 
 //-----------------------------------------------------------------------------
-//
-// The login page
-//
-//-----------------------------------------------------------------------------
-
-//-----------------------------------------------------------------------------
-// Simple nodetype for identifying the login page, the only page served to
-// unauthenticated visitors.
+// The login page, at /login: the only page a visitor without a session can reach.
 [app:LoginPage] > sling:Folder
-  // Attributes:
-  // We can use the login page in a query
   query
 
-  // Properties:
-  // Hardcode the resource type
   - sling:resourceType (STRING) = "app/LoginPage" mandatory autocreated protected
-  // Hardcode the resource supertype: the login page is plain content
   - sling:resourceSuperType (STRING) = "data/Content" mandatory autocreated protected
-  // Set a default title
   - title (String) = "${platform.name} - Sign in" mandatory autocreated
