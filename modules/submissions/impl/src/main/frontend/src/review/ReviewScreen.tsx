@@ -85,7 +85,7 @@ function storedKinds(): Set<NoteKind> {
 function countText(notes: ReviewNote[]): string {
   const parts = NOTE_KINDS.map(info => [ info, notes.filter(note => note.kind === info.kind).length ] as const)
     .filter(([ , count ]) => count > 0)
-    .map(([ info, count ]) => `${count} ${info.label.toLowerCase()}`);
+    .map(([ info, count ]) => `${count} ${info.label.startsWith("AI") ? info.label : info.label.toLowerCase()}`);
   return `${notes.length} ${notes.length === 1 ? "note" : "notes"}: ${parts.join(", ")}`;
 }
 
@@ -403,33 +403,36 @@ export default function ReviewScreen({ path }: { path: string }) {
       {listed.map(requirement => {
         const count = notesOf(requirement).filter(note => shown.has(note.kind)).length;
         return (
-          // The one being read says what it asks for under its name; the others on hover
-          <Tooltip
-            key={requirement.name} placement="right" describeChild
-            title={requirement.name === current?.name ? "" : requirement.description ?? ""}
+          <ListItemButton
+            key={requirement.name}
+            selected={requirement.name === current?.name} onClick={() => go(requirement.name)}
+            sx={{ borderRadius: 1, py: 0.25, alignItems: "flex-start" }}
           >
-            <ListItemButton
-              selected={requirement.name === current?.name} onClick={() => go(requirement.name)}
-              sx={{ borderRadius: 1, py: 0.25, alignItems: "flex-start" }}
-            >
-              <ListItemText
-                primary={requirement.label}
-                secondary={<>
-                  {requirement.name === current?.name && requirement.description}
-                  <Box component="span" sx={{ display: "block", mt: 0.25 }}>
-                    <GroupChips groups={groupsOf(requirement)} mine={myGroups} />
-                  </Box>
-                </>}
-                slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption", component: "div" } }}
-                sx={{ my: 0.25 }}
-              />
-              {count > 0 && (
-                <Tooltip title={countText(notesOf(requirement).filter(note => shown.has(note.kind)))} placement="right">
-                  <Chip size="small" label={count} sx={{ ml: 1, height: 20 }} />
+            <ListItemText
+              primary={
+                // What a requirement asks for: under the one being read, on hover over the name of the others
+                <Tooltip
+                  placement="right" describeChild
+                  title={requirement.name === current?.name ? "" : requirement.description ?? ""}
+                >
+                  <span>{requirement.label}</span>
                 </Tooltip>
-              )}
-            </ListItemButton>
-          </Tooltip>
+              }
+              secondary={<>
+                {requirement.name === current?.name && requirement.description}
+                <Box component="span" sx={{ display: "block", mt: 0.25 }}>
+                  <GroupChips groups={groupsOf(requirement)} mine={myGroups} />
+                </Box>
+              </>}
+              slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption", component: "div" } }}
+              sx={{ my: 0.25 }}
+            />
+            {count > 0 && (
+              <Tooltip title={countText(notesOf(requirement).filter(note => shown.has(note.kind)))} placement="right">
+                <Chip size="small" label={count} sx={{ ml: 1, height: 20 }} />
+              </Tooltip>
+            )}
+          </ListItemButton>
         );
       })}
     </List>
