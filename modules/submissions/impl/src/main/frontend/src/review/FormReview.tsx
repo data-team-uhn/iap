@@ -23,7 +23,7 @@ import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import { Box, ButtonBase, Chip, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 
-import { cutShort, passageCard, passageLayer, passageTint } from "@iap/frontend-commons/pdfViewer/passageStyles";
+import { cutShort, getSelectedOutline, passageCard, passageLayer, passageTint } from "@iap/frontend-commons/pdfViewer/passageStyles";
 
 import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
@@ -169,7 +169,8 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
           ))}
           {writing && answer && (
             // On a draft's card, as a document shows a note being started
-            <Box sx={theme => ({ ...passageCard(theme, "draft"), px: 1.5, py: 1.25 })}>
+            <Box sx={theme => ({ ...passageCard(theme, "draft"), px: 1.5, py: 1.25, outline: "2px solid",
+              outlineColor: getSelectedOutline(theme, "draft"), outlineOffset: "-2px" })}>
               <Composer
                 kinds={WRITTEN} initialKind="issue"
                 onCancel={() => setWriting(false)}

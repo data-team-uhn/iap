@@ -57,6 +57,7 @@ import {
   isFormRequirement,
   isQuestion,
 } from "../submissionForm";
+import { WRITTEN } from "./Composer";
 import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
@@ -79,6 +80,16 @@ type Node = Record<string, unknown>;
 const KINDS_KEY = "iap.review.kinds";
 const CONTENTS_OPEN_KEY = "iap.review.contentsOpen";
 const ISSUES_OPEN_KEY = "iap.review.issuesOpen";
+
+// The kinds of notes shown, remembered in the reviewer's browser
+function storeKinds(kinds: Set<NoteKind>): Set<NoteKind> {
+  try {
+    localStorage.setItem(KINDS_KEY, JSON.stringify([ ...kinds ]));
+  } catch {
+    // Remembered for this page only
+  }
+  return kinds;
+}
 
 // Whether a side panel is open, remembered in the reviewer's browser; undefined until they choose
 function useStoredFlag(key: string): [ boolean | undefined, (open: boolean) => void ] {
@@ -259,6 +270,11 @@ export default function ReviewScreen({ path }: { path: string }) {
   const actions: ReviewActions = useMemo(() => ({
     write: async fields => {
       await writeComment(doFetch, path, fields);
+      // A new note of a kind the reviewer hides shows that kind again, rather than vanishing as it is added
+      const written = WRITTEN.find(kind => kind === fields.kind);
+      if (written) {
+        setShown(current => current.has(written) ? current : storeKinds(new Set([ ...current, written ])));
+      }
       load();
     },
   }), [ doFetch, path, load ]);
@@ -277,12 +293,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     } else {
       next.add(kind);
     }
-    try {
-      localStorage.setItem(KINDS_KEY, JSON.stringify([ ...next ]));
-    } catch {
-      // Remembered for this page only
-    }
-    return next;
+    return storeKinds(next);
   });
 
   const go = (requirement: string, focus?: { id?: string; page?: number; question?: string }) => {
