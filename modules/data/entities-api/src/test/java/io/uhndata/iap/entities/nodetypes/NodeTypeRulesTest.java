@@ -36,8 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for the parts of {@link NodeTypeRules} the commit editors in other modules use on their own. The rest is
- * exercised through the modification stamps.
+ * Unit tests for {@link NodeTypeRules#isComputedProperty}, the one rule the modification stamps do not use. The tests
+ * of {@code LastModifiedEditor} cover the others.
  *
  * @version $Id$
  * @since 0.1.0

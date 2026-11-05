@@ -336,14 +336,16 @@ requester's `remove` rights node by node before the privileged scan begins.
 
 ### Modification stamps
 
-Never write `jcr:lastModified` or `jcr:lastModifiedBy`. A commit editor in
-`iap-data-entities-api` stamps them on every node of a `mix:lastModified` type, as
-`data:Entity` and `nt:resource` are, whenever its content changes, whoever commits.
+Never write `jcr:lastModified` or `jcr:lastModifiedBy`. `LastModifiedEditor`, a commit
+editor in `iap-data-entities-api`, sets them whenever a node's content changes,
+whoever commits. It stamps every node of a `mix:lastModified` type, as `data:Entity`
+and `nt:resource` are.
 
 A node's content is what a version of it keeps: neither what its type declares `IGNORE`
 nor what a version works out for itself (`COMPUTE`, such as its mixins). A change
 modifies its node, then climbs to the parent until it reaches an entity, and stops at
-any child the parent's type declares `IGNORE`. Reordering children counts.
+any child the parent's type declares `IGNORE`. Reordering the children a version keeps
+counts too.
 
 | A change to | Stamps |
 | --- | --- |

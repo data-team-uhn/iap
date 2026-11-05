@@ -28,9 +28,8 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * A Sling Model wrapping an {@code data:EntityPart} node, a sub-piece of a standalone {@code data:Entity} (e.g. a
- * question, an answer). Parts are versioned together with their owning entity, so, unlike {@link Entity}, this
- * exposes no properties beyond the generic {@code data:Content} ones, only the entity it belongs to.
+ * The model of an entity part: a {@code data:EntityPart} node, a piece of an entity, such as an answer in a
+ * submission. Beyond what every content node has, it finds the entity the part belongs to.
  *
  * @version $Id$
  * @since 0.1.0
@@ -39,13 +38,13 @@ import io.uhndata.iap.content.models.Content;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class EntityPart extends Content
 {
-    /** The {@code sling:resourceType} of an {@code data:EntityPart} node. */
+    /** The resource type of {@code data:EntityPart}, which the resource type of every entity part extends. */
     public static final String RESOURCE_TYPE = "data/EntityPart";
 
     /**
-     * The entity this part belongs to: the nearest one above it, whose versions carry it.
+     * The entity this part belongs to: the nearest entity above it.
      *
-     * @return the entity, or {@code null} for a part outside any entity
+     * @return the entity; {@code null} if no entity holds this part
      */
     @Nullable
     public Entity getEntity()
