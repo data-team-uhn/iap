@@ -21,20 +21,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Thrown when a template cannot be turned into text: it does not parse, or it asks for something the caller did not
- * supply.
+ * Thrown when an email template cannot be filled in: it does not parse, or it uses a variable that nobody supplied.
+ * No email is sent from a template that fails.
  *
  * <p>
- * <strong>Rendering fails loudly rather than producing what it can.</strong> A half-filled email is worse than no
- * email: it goes to a person, it carries the platform's name, and nothing downstream can tell that a paragraph is
- * missing or that a greeting reads "Dear ${name}". Whoever asked for the email is in a position to decide what to do
- * instead -- retry, fall back, or record the failure -- and this is unchecked so that decision can be made where it
- * belongs rather than at every call site in between.
- * </p>
- *
- * <p>
- * The message carries the position in the template, which is what a template author needs, and never the values,
- * which are somebody's answers.
+ * The message is Velocity's account of the failure, which names the line and column in the template.
  * </p>
  *
  * @version $Id$
@@ -47,8 +38,8 @@ public class EmailTemplateException extends RuntimeException
     /**
      * Constructor.
      *
-     * @param message what could not be rendered, and where
-     * @param cause the underlying template engine failure, may be {@code null}
+     * @param message what could not be filled in, and where in the template
+     * @param cause the Velocity failure, or {@code null} if there is none
      */
     public EmailTemplateException(@NotNull final String message, @Nullable final Throwable cause)
     {

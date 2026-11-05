@@ -33,44 +33,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Names the class that writes each part of an email, instead of letting Jakarta Activation look it up.
+ * Gives Jakarta Activation the Angus Mail classes that write each part of an email. Without it, an email with an HTML
+ * body or an attachment cannot be sent.
  *
  * <p>
- * Writing any part of a message asks the {@link CommandMap} for a handler, and the default map answers by reading
- * {@code META-INF/mailcap} files for handler <em>class names</em>, then resolving each name with the thread context
- * classloader. Inside OSGi neither half works: the sending thread's context classloader belongs to whoever is
- * sending, the map's own belongs to the activation API bundle, and neither can see the bundle the handlers live in.
+ * Writing a part of a message asks the default {@link CommandMap} for a handler. The stock map reads handler class
+ * names from {@code META-INF/mailcap} files and loads each by name. Inside OSGi the loading fails: neither the thread
+ * context classloader nor the Jakarta Activation bundle can see the Angus Mail bundle. This map names the handlers in
+ * code instead, and the bundle imports their package.
  * </p>
  *
  * <p>
- * That failure hides well. Every bundle involved reports itself {@code Active}, because each of the OSGi
- * requirements behind the lookup is declared optional, and a plain text message goes out regardless: with no
- * handler at all, a {@code String} body is written by a fallback that special-cases {@code String} and
- * {@code byte[]}. Only a {@code Multipart} body needs a real handler, so every template with an HTML alternative or
- * an inline attachment fails while the plain text smoke test passes.
+ * A plain text message is sent even without a handler, because Jakarta Activation writes a {@code String} body
+ * itself. Only a multipart body needs one, which is any email with an HTML body or an attachment.
  * </p>
  *
  * <p>
- * Naming the classes here removes the lookup rather than repairing it. This bundle imports
- * {@code org.eclipse.angus.mail.handlers} like any other package, so the framework wires it and the compiler checks
- * it: no file to find, no name to resolve, nothing for a classloader to get wrong. That is also why the runtime
- * needs neither a {@code ServiceLoader} mediator nor a fragment attached to the activation API bundle &mdash; both
- * existed only to make that lookup succeed.
- * </p>
- *
- * <p>
- * This is the shape of Sling's own answer to the same problem one API generation earlier:
- * {@code org.apache.sling.javax.activation}, which the boot feature still installs, registers an
- * {@code OsgiMailcapCommandMap} as the default from its activator. There is no equivalent for the {@code jakarta}
- * namespace, and this is the small version of one: a single provider means a fixed list rather than a map that
- * tracks bundles.
- * </p>
- *
- * <p>
- * The set below is Angus Mail's own {@code META-INF/mailcap}, entry for entry. Its two image handlers are left out
- * because upstream leaves them out too, commented with the reason: {@code java.awt.Toolkit} does not work on a
- * server. Attachments are unaffected either way, since those are written straight from a byte-array data source and
- * never consult this map.
+ * The handlers are those of Angus Mail's own {@code META-INF/mailcap}. It comments out its two image handlers,
+ * since {@code java.awt.Toolkit} does not work on a server. An attachment is written from its data source and needs
+ * no handler.
  * </p>
  *
  * @version $Id$
@@ -82,8 +63,7 @@ public class AngusContentHandlers extends CommandMap
     private static final Logger LOGGER = LoggerFactory.getLogger(AngusContentHandlers.class);
 
     /**
-     * Offers no commands, only handlers. {@code CommandMap} carries both because it dates from an era of desktop
-     * "open with" verbs, and nothing sending mail asks for those.
+     * Offers no commands, only handlers.
      *
      * @param mimeType the media type being asked about
      * @return an empty array, always
@@ -120,22 +100,19 @@ public class AngusContentHandlers extends CommandMap
     }
 
     /**
-     * The handler that writes this media type, or {@code null} when none of Angus' handlers does, which the caller
-     * reports as an unsupported type just as an unmatched mailcap entry would.
+     * The handler that writes a media type.
      *
-     * @param mimeType the media type of the part being written, possibly followed by parameters
-     * @return a handler, or {@code null} if this type is not one Angus provides a handler for
+     * @param mimeType the media type of the part being written, with any parameters, such as
+     *            {@code text/plain; charset=UTF-8}
+     * @return a new handler, or {@code null} if Angus Mail has none for the type
      */
     @Override
     public DataContentHandler createDataContentHandler(final String mimeType)
     {
-        // Match on the bare type: a real part carries parameters too, and a multipart always carries the boundary
-        // separating its own children
+        // The type without its parameters, since a multipart type always carries a boundary
         final String type = mimeType == null ? "" : mimeType.toLowerCase().split(";")[0].trim();
         if (type.startsWith("multipart/")) {
-            // One handler for every multipart subtype, alternative and related included, exactly as upstream's
-            // `multipart/*` fallback entry does: what differs between them is how a reader should present the
-            // parts, not how they are written out
+            // One handler writes every multipart subtype, alternative and related included
             return new multipart_mixed();
         }
         return switch (type) {
@@ -148,8 +125,7 @@ public class AngusContentHandlers extends CommandMap
     }
 
     /**
-     * Installs this map as the JVM-wide default, replacing the one that cannot find its handlers. Immediate, so that
-     * it happens when the bundle starts rather than when something first asks to send.
+     * Installs this map as the JVM-wide default command map when the bundle starts.
      */
     @Activate
     public void activate()
@@ -159,8 +135,7 @@ public class AngusContentHandlers extends CommandMap
     }
 
     /**
-     * Restores the stock default, so that a message sent after this bundle stops fails on its own terms rather than
-     * against classes that are no longer wired.
+     * Restores the stock default command map, unless another map has replaced this one since.
      */
     @Deactivate
     public void deactivate()
