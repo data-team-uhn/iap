@@ -91,6 +91,17 @@ public class WorkflowInstance extends EntityPart
     }
 
     /**
+     * The identifier this instance names its version by, which stays readable after the version itself is gone.
+     *
+     * @return the {@code jcr:uuid} of the workflow version
+     */
+    @NotNull
+    public String getWorkflowVersionIdentifier()
+    {
+        return this.workflowVersion;
+    }
+
+    /**
      * Where this instance stands as a whole, e.g. {@code active}, {@code completed}, {@code failed} or
      * {@code cancelled}.
      *

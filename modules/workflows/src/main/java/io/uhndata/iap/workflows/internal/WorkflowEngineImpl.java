@@ -56,7 +56,8 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * allow.</p>
  *
  * <p>Everything a run changes lands in a single commit at quiescence. An event either fully happened, or did not
- * happen at all. The notifications its message events announced are sent only after that commit.</p>
+ * happen at all. The commit records the delivery in the history, and the notifications its message events announced
+ * are sent only after it.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -102,6 +103,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /** Hands out what performs a delivery's service tasks and holds its notifications. */
     @Reference
     private ServiceTaskDispatchers dispatchers;
+
+    /** Commits each delivery so that the commit records it in the history. */
+    @Reference
+    private DeliveryRecorder recorder;
 
     @Override
     public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event) throws WorkflowException
@@ -173,9 +178,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final ServiceTaskDispatcher committed = RepositoryFailures.retryingConflicts(CONFLICT_RETRIES, () -> {
             final ServiceTaskDispatcher attempt = dispatcher();
             try {
-                this.taskCompletion.apply(resolver, Objects.requireNonNull(resolver.getResource(task.getPath()),
-                    "A task is never deleted while its instance runs"), event, actor, attempt.performer(event, actor));
-                resolver.commit();
+                final Resource current = Objects.requireNonNull(resolver.getResource(task.getPath()),
+                    "A task is never deleted while its instance runs");
+                this.taskCompletion.apply(resolver, current, event, actor, attempt.performer(event, actor));
+                this.recorder.commit(resolver, attempt.recordedAsTask(actor, event, current));
                 return attempt;
             } catch (final PersistenceException e) {
                 revert(resolver);
@@ -207,7 +213,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final Map<String, Object> variables;
         try {
             variables = dispatcher.runSystemWorkflow(target, event, start, actor, 0);
-            resolver.commit();
+            this.recorder.commit(resolver, dispatcher.recordedAsSystemWorkflow(actor, event, start));
         } catch (final PersistenceException e) {
             revert(resolver);
             throw RepositoryFailures.translate(e);

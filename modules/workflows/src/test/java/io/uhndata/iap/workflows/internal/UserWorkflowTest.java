@@ -41,6 +41,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.history.api.RecordedAction;
 import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -129,6 +130,8 @@ class UserWorkflowTest
 
     /** What the engine told whom. */
     private final RecordedNotifications told = new RecordedNotifications();
+
+    private final RecordedDeliveries history = new RecordedDeliveries();
 
     @BeforeEach
     void setUp()
@@ -590,7 +593,8 @@ class UserWorkflowTest
         this.context.resourceResolver().commit();
         final List<ServiceTaskHandler> registered = new ArrayList<>(List.of(handlers));
         registered.add(new StartWorkflowHandler());
-        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, null), registered, this.told);
+        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, null), registered, this.told,
+            this.history);
     }
 
     /**
@@ -739,6 +743,29 @@ class UserWorkflowTest
 
         assertArrayEquals(new String[] {EngineFixture.REQUESTER},
             (String[]) read(RAISED + "/wf:instances/timeOffRequest/" + APPROVE).get(TaskInstance.PERFORMERS_PROPERTY));
+    }
+
+    @Test
+    void describesACompletedTaskToTheHistoryWithTheDecisionTakenOnIt() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent(TaskCompletion.COMPLETE_EVENT,
+            Map.of(TaskCompletion.OUTCOME_PARAMETER, "approved", TaskCompletion.OUTCOME_NOTE_PARAMETER, "Enjoy")));
+
+        final RecordedAction completed = this.history.described().get(this.history.described().size() - 1);
+        assertEquals(EngineFixture.REQUESTER, completed.getRequestedBy());
+        assertEquals(TaskCompletion.COMPLETE_EVENT, completed.getOperation());
+        assertEquals(TaskCompletion.COMPLETE_EVENT, completed.getEvent());
+        assertEquals(TASK, completed.getTaskInstance());
+        assertEquals(HOST + "/wf:instances/timeOffRequest", completed.getWorkflowInstance());
+        assertEquals(this.context.resourceResolver().getResource(PROCESS).adaptTo(Node.class).getIdentifier(),
+            completed.getWorkflowVersion());
+        assertEquals(APPROVE, completed.getActivityId());
+        assertEquals("Approve the request", completed.getActivityLabel());
+        assertEquals("approved", completed.getOutcome());
+        assertEquals("Enjoy", completed.getOutcomeNote());
     }
 
     @Test

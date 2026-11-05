@@ -46,6 +46,8 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Condition;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.models.SingleCondition;
+import io.uhndata.iap.history.api.RecordedAction;
+import io.uhndata.iap.history.api.RecordedEffect;
 import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
@@ -118,6 +120,8 @@ class WorkflowEngineImplTest
     /** What the engine told whom. */
     private final RecordedNotifications told = new RecordedNotifications();
 
+    private final RecordedDeliveries history = new RecordedDeliveries();
+
     @BeforeEach
     void setUp()
     {
@@ -162,7 +166,8 @@ class WorkflowEngineImplTest
         allHandlers.add(new CreateEntityHandler());
         allHandlers.add(new CallActivityHandler());
         allHandlers.add(new StartWorkflowHandler());
-        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, failure), allHandlers, this.told);
+        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, failure), allHandlers, this.told,
+            this.history);
     }
 
     /**
@@ -236,6 +241,31 @@ class WorkflowEngineImplTest
         assertEquals(EngineFixture.REQUESTER, handler.seen);
         // A workflow that creates nothing completes all the same: there is simply nowhere to send the caller
         assertNull(result.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+    }
+
+    @Test
+    void describesEachDeliveryToItsHistoryWithWhatItsStepsSaidTheyDid() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        createNoopGraph(EngineFixture.REQUESTERS);
+        this.context.resourceResolver().getResource(VERSION).adaptTo(ModifiableValueMap.class)
+            .put("jcr:uuid", "version-id");
+        this.context.resourceResolver().getResource(VERSION + "/requested").adaptTo(ModifiableValueMap.class)
+            .put("label", "Requested");
+
+        engine(new RoleNamingHandler()).receiveEvent(target, CREATE);
+
+        assertEquals(1, this.history.described().size());
+        final RecordedAction delivery = this.history.described().get(0);
+        assertEquals(EngineFixture.REQUESTER, delivery.getRequestedBy());
+        assertEquals(CREATE.getName(), delivery.getOperation());
+        assertEquals(CREATE.getName(), delivery.getEvent());
+        assertEquals("version-id", delivery.getWorkflowVersion());
+        assertNull(delivery.getWorkflowInstance(), "A system workflow that starts no instance names none");
+        assertEquals("requested", delivery.getActivityId());
+        assertEquals("Requested", delivery.getActivityLabel());
+        assertEquals(List.of(new RecordedEffect(target.getPath(), "touched")), delivery.getEffects());
     }
 
     @Test
@@ -1216,6 +1246,24 @@ class WorkflowEngineImplTest
         public void execute(final WorkflowTaskContext taskContext)
         {
             this.seen = taskContext.getActor();
+        }
+    }
+
+    /**
+     * A handler that says, for the history, what it did to the resource the event was aimed at.
+     */
+    private static final class RoleNamingHandler implements ServiceTaskHandler
+    {
+        @Override
+        public String getName()
+        {
+            return "noop";
+        }
+
+        @Override
+        public void execute(final WorkflowTaskContext taskContext)
+        {
+            taskContext.recordRole(taskContext.getTarget(), "touched");
         }
     }
 

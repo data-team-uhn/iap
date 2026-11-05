@@ -474,11 +474,30 @@ public final class EngineFixture
         final List<ServiceTaskHandler> handlers, final NotificationService notifications)
         throws ReflectiveOperationException
     {
+        return engine(resolverFactory, handlers, notifications, new RecordedDeliveries());
+    }
+
+    /**
+     * An engine as {@link #engine(ResourceResolverFactory, List)} builds one, telling people through the given
+     * notification service and describing its deliveries to the given recorder.
+     *
+     * @param resolverFactory where the engine opens its own sessions
+     * @param handlers the service task handlers to register
+     * @param notifications what sends the notifications message events announce
+     * @param recorder what each delivery is described to before its commit
+     * @return a ready engine
+     * @throws ReflectiveOperationException when a field cannot be set, which would be a bug in this fixture
+     */
+    static WorkflowEngineImpl engine(final ResourceResolverFactory resolverFactory,
+        final List<ServiceTaskHandler> handlers, final NotificationService notifications,
+        final DeliveryRecorder recorder) throws ReflectiveOperationException
+    {
         final ServiceTaskDispatchers dispatchers = new ServiceTaskDispatchers(routing(), runners(), notifications);
         inject(dispatchers, "handlers", handlers);
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", resolverFactory);
         inject(engine, "dispatchers", dispatchers);
+        inject(engine, "recorder", recorder);
         inject(engine, "conditionEvaluator", conditions());
         inject(engine, "performers", performers());
         inject(engine, "taskCompletion", taskCompletion());

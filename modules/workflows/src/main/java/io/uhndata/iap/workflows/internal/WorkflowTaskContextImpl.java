@@ -141,6 +141,12 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     }
 
     @Override
+    public void recordRole(final Resource resource, final String role)
+    {
+        this.dispatcher.recordRole(resource.getPath(), role);
+    }
+
+    @Override
     public void checkInAfterCommit(final String path)
     {
         this.dispatcher.checkInAfterCommit(path);
