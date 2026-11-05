@@ -23,7 +23,8 @@ import { usePageContext } from "@iap/frontend-commons/pageContext";
 
 // PRETOTYPE. The current page's title and what goes with it, in the app bar after the logo, so it stays in view.
 // Registered on the `iap/appBar/entry` extension point, start section. The details go above the title, as what
-// identifies the page. Shows nothing on pages that publish nothing. A long title is cut short, whole on hover.
+// identifies the page; what ends it, e.g. a countdown, after the title's chips. Shows nothing on pages that publish
+// nothing. A long title is cut short, whole on hover.
 function PageContextEntry() {
   const context = usePageContext();
   if (!context) {
@@ -53,7 +54,6 @@ function PageContextEntry() {
             >
               {context.details}
             </Typography>
-            {context.end && <Box sx={{ flexShrink: 0 }}>{context.end}</Box>}
           </Stack>
           <Stack direction="row" sx={{ alignItems: "center", gap: 1, minWidth: 0 }}>
             <Tooltip title={context.title}>
@@ -66,6 +66,7 @@ function PageContextEntry() {
               </Typography>
             </Tooltip>
             <Box sx={{ display: { xs: "none", md: "flex" }, gap: 0.5, flexShrink: 0 }}>{context.badges}</Box>
+            {context.end && <Box sx={{ flexShrink: 0, ml: 0.5 }}>{context.end}</Box>}
           </Stack>
         </Box>
       </Stack>
