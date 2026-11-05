@@ -568,7 +568,9 @@ export default function ReviewScreen({ path }: { path: string }) {
           </Paper>
         )}
         {/* At least as tall as the panels, so the contents' tab always meets it; a document fills it exactly */}
+        {/* A form gets more room around its questions than a document, whose viewer brings its own */}
         <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%", alignSelf: { md: "stretch" },
+          ...current && isFormRequirement(current) ? { px: { md: 4 }, py: { md: 3 } } : {},
           minHeight: { md: PANEL_HEIGHT },
           ...!narrow && current && isDocumentRequirement(current)
             ? { height: PANEL_HEIGHT, display: "flex", flexDirection: "column" } : {},
