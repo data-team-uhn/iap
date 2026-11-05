@@ -18,8 +18,8 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import type { TextAnchor } from "@iap/frontend-commons/pdfViewer/marksModel";
-import type { PdfViewerProps } from "@iap/frontend-commons/pdfViewer/PdfViewer";
+import type { TextAnchor } from "@iap/documents-pdf-viewer/marksModel";
+import type { PdfViewerProps } from "@iap/documents-pdf-viewer/PdfViewer";
 import PdfViewerTestWidget from "@iap/test-data/PdfViewerTestWidget";
 
 const ANCHOR: TextAnchor = {
@@ -32,7 +32,7 @@ const ANCHOR: TextAnchor = {
 
 // A stand-in viewer showing what the widget hands it, and listing the marks with what the widget shows
 // under each. Its Comment button, there when the widget takes comments, gives a fixed anchor.
-vi.mock("@iap/frontend-commons/pdfViewer/PdfViewer", () => ({
+vi.mock("@iap/documents-pdf-viewer/PdfViewer", () => ({
   default: (props: PdfViewerProps) => {
     const { marks, selectedMarkId, onSelectMark, onAnnotate, renderMarkDetails, onClose, container, ...shown } = props;
     return (
