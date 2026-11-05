@@ -18,7 +18,7 @@
 
 import { SEVERITIES, type ReviewNote } from "./reviewData";
 
-// PRETOTYPE. The REB's letter of review, drafted from the issues the reviewers raised, the most serious first.
+// PRETOTYPE. A reviewer's letter to the study team, drafted from the issues they raised, the most serious first.
 
 export interface LetterInput {
   title: string;
@@ -28,6 +28,8 @@ export interface LetterInput {
   about: (note: ReviewNote) => string;
   issues: ReviewNote[];
   reviewer: string;
+  // The reviewer group writing, such as "Research ethics"
+  group: string;
 }
 
 const HEADINGS: Record<string, string> = {
@@ -43,7 +45,7 @@ export function leadIn(where: string): string {
   return !where ? "" : /[?.!]$/.test(where) ? `${where} ` : `${where}. `;
 }
 
-export function draftLetter({ title, identifier, pi, about, issues, reviewer }: LetterInput): string {
+export function draftLetter({ title, identifier, pi, about, issues, reviewer, group }: LetterInput): string {
   const date = new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
   const lines = [
     date,
@@ -52,7 +54,7 @@ export function draftLetter({ title, identifier, pi, about, issues, reviewer }: 
     "",
     `Re: ${title} (${identifier})`,
     "",
-    "Thank you for your submission. The Research Ethics Board has reviewed it and asks that you respond to the "
+    `Thank you for your submission. The ${group} review has looked at it and asks that you respond to the `
       + "points below. Please answer each one, revise the submission where it applies, and send it back.",
   ];
   let number = 1;
@@ -71,6 +73,6 @@ export function draftLetter({ title, identifier, pi, about, issues, reviewer }: 
       number++;
     }
   }
-  lines.push("", "Sincerely,", "", reviewer, "On behalf of the Research Ethics Board");
+  lines.push("", "Sincerely,", "", reviewer, `On behalf of the ${group} review`);
   return lines.join("\n");
 }

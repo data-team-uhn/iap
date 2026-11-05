@@ -28,14 +28,14 @@ FAST_TRACK_DEADLINE = "P5D"
 # (requirement, task label, performers, outcomes, guard question or None)
 REVIEWS = [
     ("reb", "Research ethics review", "reb-reviewers", "approved,changes-requested,rejected", None),
-    ("digitalReview", "Digital review", "digital-reviewers", "approved,rejected", None),
-    ("deptHead", "Department head review", "department-heads", "approved,rejected", None),
-    ("rqi", "Research quality review", "rqi-reviewers", "approved,rejected", None),
-    ("cta", "Agreements review", "cta-reviewers", "approved,rejected", "externalInvolved"),
-    ("lmp", "Laboratory Medicine review", "lmp-reviewers", "approved,rejected", "needsLab"),
-    ("jdmi", "Medical Imaging review", "jdmi-reviewers", "approved,rejected", "needsImaging"),
-    ("crdac", "Princess Margaret data review", "crdac-reviewers", "approved,rejected", "usesPmData"),
-    ("healthProfessions", "Health Professions acknowledgement", "health-professions", "approved",
+    ("digitalReview", "Digital review", "digital-reviewers", "approved,changes-requested", None),
+    ("deptHead", "Department head review", "department-heads", "approved,changes-requested", None),
+    ("rqi", "Research quality review", "rqi-reviewers", "approved,changes-requested", None),
+    ("cta", "Agreements review", "cta-reviewers", "approved,changes-requested", "externalInvolved"),
+    ("lmp", "Laboratory Medicine review", "lmp-reviewers", "approved,changes-requested", "needsLab"),
+    ("jdmi", "Medical Imaging review", "jdmi-reviewers", "approved,changes-requested", "needsImaging"),
+    ("crdac", "Princess Margaret data review", "crdac-reviewers", "approved,changes-requested", "usesPmData"),
+    ("healthProfessions", "Health Professions acknowledgement", "health-professions", "approved,changes-requested",
      "involvesHealthProfessionals"),
 ]
 
@@ -155,38 +155,44 @@ def build():
                      f' iap:requirement="{requirement}" />')
         d.shape(record, 820, y, 120, 80)
         flow(f"to{record[0].upper()}{record[1:]}", task, record)
-        if requirement != "reb":
-            flow(f"{requirement}ToReviewed", record, "reviewed")
-            continue
-        nodes.append('    <bpmn:exclusiveGateway id="rebDecision" name="REB decision" default="rebApproved" />')
-        d.shape("rebDecision", 990, y + 15, 50, 50, marker=True)
-        flow("toRebDecision", record, "rebDecision")
-        flow("rebApproved", "rebDecision", "reviewed")
-        nodes.append('    <bpmn:serviceTask id="markChanges" name="Send it back for changes" iap:handler="addTag"'
+        # Any group can send the study back for changes, which pauses the clock until the study team answers and
+        # comes back to that group; only the REB can turn it down. The REB keeps the ids it always had.
+        def ident(name):
+            if requirement == "reb":
+                return {"approvedArc": "rebApproved", "changesArc": "rebChanges"}.get(name, name)
+            return f"{requirement}{name[0].upper()}{name[1:]}"
+        decision = "rebDecision" if requirement == "reb" else f"{requirement}Decision"
+        nodes.append(f'    <bpmn:exclusiveGateway id="{decision}" name="{label}: decision" default="{ident("approvedArc")}" />')
+        d.shape(decision, 990, y + 15, 50, 50, marker=True)
+        flow(ident("toDecision") if requirement != "reb" else "toRebDecision", record, decision)
+        flow(ident("approvedArc"), decision, "reviewed")
+        nodes.append(f'    <bpmn:serviceTask id="{ident("markChanges")}" name="Send it back for changes" iap:handler="addTag"'
                      ' iap:replaceExisting="true" iap:tag="changes-requested" />')
-        d.shape("markChanges", 1090, y - 20, 100, 60)
-        flow("rebChanges", "rebDecision", "markChanges", guard("variable", "outcome", "changes-requested"))
-        nodes.append('    <bpmn:serviceTask id="pauseClock" name="Pause the review clock" iap:handler="reviewClock"'
+        d.shape(ident("markChanges"), 1090, y - 20, 100, 60)
+        flow(ident("changesArc"), decision, ident("markChanges"), guard("variable", "outcome", "changes-requested"))
+        nodes.append(f'    <bpmn:serviceTask id="{ident("pauseClock")}" name="Pause the review clock" iap:handler="reviewClock"'
                      ' iap:action="pause" />')
-        d.shape("pauseClock", 1090, y - 110, 100, 60)
-        flow("toPauseClock", "markChanges", "pauseClock")
-        nodes.append('    <bpmn:userTask id="respond" name="Answer the reviewers" iap:performers="@creator" />')
-        d.shape("respond", 1230, y - 20, 120, 60)
-        flow("toRespond", "pauseClock", "respond")
-        nodes.append('    <bpmn:serviceTask id="markResubmitted" name="Back in review" iap:handler="addTag"'
+        d.shape(ident("pauseClock"), 1090, y - 110, 100, 60)
+        flow(ident("toPauseClock"), ident("markChanges"), ident("pauseClock"))
+        nodes.append(f'    <bpmn:userTask id="{ident("respond")}" name="Answer the reviewers" iap:performers="@creator" />')
+        d.shape(ident("respond"), 1230, y - 20, 120, 60)
+        flow(ident("toRespond"), ident("pauseClock"), ident("respond"))
+        nodes.append(f'    <bpmn:serviceTask id="{ident("markResubmitted")}" name="Back in review" iap:handler="addTag"'
                      ' iap:replaceExisting="true" iap:tag="in-review" />')
-        d.shape("markResubmitted", 1230, y - 110, 120, 60)
-        flow("toMarkResubmitted", "respond", "markResubmitted")
-        nodes.append('    <bpmn:serviceTask id="resumeClock" name="Resume the review clock" iap:handler="reviewClock"'
+        d.shape(ident("markResubmitted"), 1230, y - 110, 120, 60)
+        flow(ident("toMarkResubmitted"), ident("respond"), ident("markResubmitted"))
+        nodes.append(f'    <bpmn:serviceTask id="{ident("resumeClock")}" name="Resume the review clock" iap:handler="reviewClock"'
                      ' iap:action="resume" />')
-        d.shape("resumeClock", 1380, y - 110, 100, 60)
-        flow("toResumeClock", "markResubmitted", "resumeClock")
-        flow("backToReb", "resumeClock", task)
+        d.shape(ident("resumeClock"), 1380, y - 110, 100, 60)
+        flow(ident("toResumeClock"), ident("markResubmitted"), ident("resumeClock"))
+        flow(ident("backToTask") if requirement != "reb" else "backToReb", ident("resumeClock"), task)
+        if requirement != "reb":
+            continue
         nodes.append('    <bpmn:endEvent id="studyRejected" name="Not authorized" iap:hostTag="rejected">\n'
                      '      <bpmn:terminateEventDefinition />\n'
                      '    </bpmn:endEvent>')
         d.shape("studyRejected", 1100, y + 70, 36, 36)
-        flow("rebRejected", "rebDecision", "studyRejected", guard("variable", "outcome", "rejected"))
+        flow("rebRejected", decision, "studyRejected", guard("variable", "outcome", "rejected"))
 
     nodes.append('    <bpmn:endEvent id="studyApproved" name="Authorized" iap:hostTag="approved" />')
     d.shape("studyApproved", 1480, middle, 36, 36)

@@ -22,8 +22,8 @@ import { Alert, Button, DialogActions, DialogContent, Stack, TextField, Typograp
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 
-// PRETOTYPE. The letter of review, editable before it goes: sending it asks the study team for changes, through
-// the REB's review task, with the letter as the decision's note.
+// PRETOTYPE. The reviewer's letter to the study team, editable before it goes: sending it asks the study team for
+// changes, through the reviewer's own review task, with the letter as the decision's note.
 export default function LetterDialog({ open, draft, issueCount, onSend, onClose }: {
   open: boolean;
   draft: string;
@@ -47,7 +47,7 @@ export default function LetterDialog({ open, draft, issueCount, onSend, onClose 
     }
   };
   return (
-    <ResponsiveDialog open={open} onClose={onClose} title="Letter of review" width="md" withCloseButton>
+    <ResponsiveDialog open={open} onClose={onClose} title="Send your issues to the study team" width="md" withCloseButton>
       <DialogContent>
         <Stack spacing={2}>
           <Typography variant="description">
