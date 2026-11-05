@@ -20,11 +20,12 @@ package io.uhndata.iap.principals.api;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The repository could not answer a membership question at all.
+ * The repository could not say who somebody is or what they belong to: the session has no user store, or reading
+ * it failed.
  *
- * <p>Distinct from "no". A name the repository does not know is a normal answer, and
- * {@link PrincipalService#isOneOf} folds it into {@code false}. This is for a session that cannot reach the user
- * store at all. Whether that refuses an actor or fails the request is the caller's policy, not this service's.</p>
+ * <p>A name the repository does not know is not a failure. It names nobody, and {@link PrincipalService#isOneOf}
+ * answers {@code false} for it. Whether a failure refuses an actor or fails the request is for the caller to
+ * decide.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -37,7 +38,7 @@ public class PrincipalLookupException extends RuntimeException
      * Constructor.
      *
      * @param message what could not be answered
-     * @param cause what the repository said, possibly {@code null}
+     * @param cause the repository's exception; {@code null} if the session has no user store
      */
     public PrincipalLookupException(@NotNull final String message, final Throwable cause)
     {

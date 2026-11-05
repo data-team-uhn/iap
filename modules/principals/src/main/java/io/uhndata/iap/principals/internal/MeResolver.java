@@ -26,12 +26,7 @@ import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.principals.spi.SpecialNameResolver;
 
 /**
- * Answers {@code @me}: whoever is acting right now.
- *
- * <p>The context carries the actor as a user id so that this works wherever the question is asked: in a
- * request, where the session says who is asking, and inside the engine, where the work runs privileged for
- * somebody the session no longer names. With nobody acting the name stands for nobody, rather than for the
- * service user the machinery happens to run as.</p>
+ * Answers {@code @me}: the user the context names as acting. With nobody acting, the name stands for nobody.
  *
  * @version $Id$
  * @since 0.1.0

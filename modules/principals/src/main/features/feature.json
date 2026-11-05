@@ -16,11 +16,11 @@
 
 {
   "title": "IAP - Principals",
-  "description": "Special names resolved into principals, groups expanded into people, membership answered once",
+  "description": "Says who a list of names stands for, special names and groups included",
   "bundles":[
     {
-      // After the content and entity models the creator resolvers read their answers from, and before everything
-      // that says who: the engine, notifications, and anything else naming people by role
+      // The creator resolvers read the content and entity models, so this starts no earlier than
+      // iap-data-entities-api (24). The bundles that use this service start later.
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
       "start-order":"24"
     }
