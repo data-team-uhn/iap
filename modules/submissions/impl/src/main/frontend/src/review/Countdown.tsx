@@ -43,7 +43,7 @@ export default function Countdown({ due, pausedAt, variant = "body2" }: {
   return (
     <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, color }}>
       <Icon fontSize="small" />
-      <Typography variant={variant} sx={{ color, fontWeight: overdue ? "fontWeightBold" : undefined }}>
+      <Typography variant={variant} sx={{ color, fontWeight: overdue ? "fontWeightBold" : undefined, whiteSpace: "nowrap" }}>
         {countdown.label}
       </Typography>
     </Stack>
