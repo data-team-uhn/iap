@@ -113,7 +113,8 @@ public final class SelectorUtils
      *     {@code .deep.2.json}, possibly URL-encoded; {@code null} or blank if there is none
      * @return the depth; empty if no selector asks for one
      */
-    public static OptionalInt parseDepth(final String resolutionPathInfo)
+    @NotNull
+    public static OptionalInt parseDepth(@Nullable final String resolutionPathInfo)
     {
         return parseSelectors(resolutionPathInfo).stream()
             .filter(SelectorUtils::isDepthSelector)
@@ -129,13 +130,13 @@ public final class SelectorUtils
      * {@code =} not escaped with a backslash.
      *
      * @param optionPrefix the name of the processor the options are for, such as {@code dataFilter}, with or without
-     *     the colon after it; blank to read no options
+     *     the colon after it; {@code null} or blank to read no options
      * @param resolutionPathInfo the part of the request path after the resource's path, possibly URL-encoded;
      *     {@code null} or blank if there is none
      * @return each option's key and value, in order; the value is empty for an option without {@code =}
      */
     @NotNull
-    public static List<Pair<String, String>> parseOptions(@NotNull final String optionPrefix,
+    public static List<Pair<String, String>> parseOptions(@Nullable final String optionPrefix,
         @Nullable final String resolutionPathInfo)
     {
         if (StringUtils.isBlank(optionPrefix)) {
@@ -160,13 +161,13 @@ public final class SelectorUtils
      * times, the last value wins.
      *
      * @param optionPrefix the name of the processor the options are for, such as {@code dataFilter}, with or without
-     *     the colon after it; blank to read no options
+     *     the colon after it; {@code null} or blank to read no options
      * @param resolutionPathInfo the part of the request path after the resource's path, possibly URL-encoded;
      *     {@code null} or blank if there is none
      * @return each option's key, mapped to its value
      */
     @NotNull
-    public static Map<String, String> parseOptionsToMap(@NotNull final String optionPrefix,
+    public static Map<String, String> parseOptionsToMap(@Nullable final String optionPrefix,
         @Nullable final String resolutionPathInfo)
     {
         List<Pair<String, String>> allOptions = parseOptions(optionPrefix, resolutionPathInfo);
