@@ -22,26 +22,21 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * One person a notification is for: who they are, and their account to read the rest from.
+ * One person a notification is for: who they are, and their account.
  *
  * <p>
- * Nothing about any channel. How to reach somebody is a fact about their account, read by each delivery
- * that needs it. For example, an email delivery reads {@code profile/email} and declines accounts without one.
+ * It says nothing about any channel. How to reach somebody is on their account, and each delivery reads what it
+ * needs from there, such as an email address at {@code profile/email}.
  * </p>
  *
  * <p>
- * Carrying the account resource keeps the reading contained. The account resource is backed by the notification
- * service's own session, so a delivery can read account details without rights of its own.
+ * A delivery reads the account without rights of its own. The resource is valid only during
+ * {@link io.uhndata.iap.notifications.spi.NotificationDelivery#deliver deliver}. A delivery that queues work for
+ * later copies what it needs, and does not keep the resource.
  * </p>
  *
- * <p>
- * The account is only alive for the duration of {@link io.uhndata.iap.notifications.spi.NotificationDelivery#deliver
- * delivery}, and is closed with the session that resolved it. A delivery that queues work for later must read what it
- * needs and let go rather than store the resource.
- * </p>
- *
- * @param userId the repository user id, which is what a per-user setting is keyed on
- * @param account the user's account resource, home of everything else about them
+ * @param userId the user id of the account
+ * @param account the user's home node in the user store, such as {@code /home/users/j/jdoe}
  * @version $Id$
  * @since 0.1.0
  */
@@ -50,7 +45,7 @@ public record Recipient(@NotNull String userId, @NotNull Resource account)
     /**
      * What to call this person.
      *
-     * @return their recorded full name, or {@code null} when the account does not say
+     * @return the account's {@code rep:fullname}, or {@code null} if it has none
      */
     @Nullable
     public String name()

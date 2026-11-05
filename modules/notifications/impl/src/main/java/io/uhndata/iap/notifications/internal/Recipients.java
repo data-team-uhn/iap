@@ -36,12 +36,11 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.notifications.api.Recipient;
 
 /**
- * Turns user ids into the people a notification is for, each carrying their account.
+ * Finds the account of each person a notification is for.
  *
  * <p>
- * Who a role names is not judged here. The principals service resolves special names and expands groups.
- * What is left for this class is the notification-specific half: finding each person's account and handing it over.
- * A delivery can then read whatever channel facts it needs out of the profile without rights of its own.
+ * The user ids come already resolved, with groups expanded into their members. Each recipient carries their home
+ * node, read through the session given.
  * </p>
  *
  * @version $Id$
@@ -59,9 +58,10 @@ final class Recipients
     /**
      * The people behind a list of user ids, each with their account, in the given order.
      *
-     * @param resolver a session that may read the user home
-     * @param userIds whose accounts to find
-     * @return the recipients, skipping anybody whose account cannot be read
+     * @param resolver the session to find the accounts with; it must be able to read the user store
+     * @param userIds the user ids of the people to find
+     * @return the recipients, without anybody whose account cannot be found or read; empty if the session cannot
+     *         reach the user store
      */
     static List<Recipient> of(final ResourceResolver resolver, final List<String> userIds)
     {
@@ -76,19 +76,19 @@ final class Recipients
     }
 
     /**
-     * One person, as their account tells it.
+     * One person and their account.
      *
-     * @param resolver the session the account resource is served through
+     * @param resolver the session to read the account's home node with
      * @param users the repository's user manager
-     * @param userId whose account to read
-     * @return the recipient, or {@code null} when the account cannot be read at all
+     * @param userId the user id of the person
+     * @return the recipient, or {@code null} if there is no such account, its home node cannot be read, or the
+     *         repository fails
      */
     private static Recipient describe(final ResourceResolver resolver, final UserManager users,
         final String userId)
     {
         try {
-            // Neither of the next two is recorded, unlike the repository failure below: they are facts
-            // about one account, not something an administrator can act on for everybody
+            // A missing or unreadable account concerns one person, so it is logged and not recorded
             final Authorizable account = users.getAuthorizable(userId);
             if (account == null) {
                 LOGGER.warn("A recipient has no account in this repository, so they cannot be told anything");
@@ -109,10 +109,10 @@ final class Recipients
     }
 
     /**
-     * The repository's user manager, when this session can reach it.
+     * The repository's user manager.
      *
      * @param resolver the session to ask
-     * @return the user manager, or {@code null} when the session is not a Jackrabbit one
+     * @return the user manager, or {@code null} if the session is not a Jackrabbit one or cannot reach it
      */
     private static UserManager userManager(final ResourceResolver resolver)
     {

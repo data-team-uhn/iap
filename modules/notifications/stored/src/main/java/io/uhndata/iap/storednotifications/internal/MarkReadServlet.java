@@ -40,12 +40,12 @@ import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.UserIds;
 
 /**
- * Marks one stored notification as read: {@code POST /Notifications/…/<id>.markRead.json}.
+ * Marks one stored notification as read: {@code POST /Notifications/…/<name>.markRead.json}.
  *
  * <p>
- * Two checks have to agree: the repository must give the caller's own session a writable view, and the
- * notification must name them as its recipient. Marking an already-read notification read again is fine and does
- * nothing.
+ * The caller's own session must be able to write the notification, and its {@code recipient} must be the caller.
+ * Otherwise the answer is 403. An administrator's session can write every notification, and is still refused one
+ * that is not theirs. Marking a notification that is already read succeeds.
  * </p>
  *
  * @version $Id$

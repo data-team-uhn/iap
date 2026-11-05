@@ -25,21 +25,20 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The details about a notification: what happened, who it concerns, and how soon they should hear about it.
+ * What a notification says: what happened, to which resource, who caused it, and how soon people should hear about
+ * it.
  *
- * <p>The subject is a resource, not a path. A notification is always about something: a submission, a review, a
- * task. Carrying the resource is what lets the rest of the system work from it. Recipient roles resolve against
- * it, a template reads its properties, a per-user setting can be scoped to it.</p>
+ * <p>The subject is a resource, not a path. Special names such as {@code @creator} resolve against it, and a
+ * template reads its properties.</p>
  *
- * <p>There is no explicit recipient and delivery method here. A workflow says what happened and who it concerns.
- * A person's own settings say how they hear about it. One thing happening produces one notification and several
- * deliveries. The same notice of approval may be emailed to its author now, batched into the weekly digest for an
- * administrator, and left as an unread notice in the UI for the watcher who has turned email off.</p>
+ * <p>It names no recipient and no channel. The same notification is offered to every delivery, for each person it
+ * concerns, and each delivery decides whether and how to carry it. Several deliveries can carry the same
+ * notification to the same person.</p>
  *
- * <p>{@link #getUrgency() Urgency} is the workflow's side of that: a statement about the message, not about the
- * channel. "A decision was made" is {@link #IMMEDIATE_URGENCY}; "somebody replied to a comment" can wait to be
- * batched. It is a string rather than an enum because the vocabulary is open. A deployment adding a weekly digest
- * sent to a Slack channel names its own urgency in a workflow definition and registers a delivery that accepts it.</p>
+ * <p>{@link #getUrgency() Urgency} describes the message, not the channel. "A decision was made" is
+ * {@link #IMMEDIATE_URGENCY}, and "somebody replied to a comment" can be {@link #BATCHED_URGENCY}. It is a string,
+ * not an enum, because the vocabulary is open. A deployment can name its own urgency in a workflow definition and
+ * register a delivery that accepts it.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,7 +48,7 @@ public final class NotificationContext
     /** Urgency for something the recipient should hear about as soon as it happens. */
     public static final String IMMEDIATE_URGENCY = "immediate";
 
-    /** Urgency for something that can wait to be collected into a digest. */
+    /** Urgency for something that can wait, and be told together with others later. */
     public static final String BATCHED_URGENCY = "batched";
 
     private final Resource subject;
@@ -78,7 +77,7 @@ public final class NotificationContext
     /**
      * Starts describing a notification about a resource.
      *
-     * @param subject what the notification is about
+     * @param subject the resource the notification is about, such as a submission
      * @return a builder
      */
     @NotNull
@@ -88,9 +87,9 @@ public final class NotificationContext
     }
 
     /**
-     * What the notification is about.
+     * The resource the notification is about.
      *
-     * @return the subject resource
+     * @return the resource given to {@link #about}
      */
     @NotNull
     public Resource getSubject()
@@ -99,9 +98,9 @@ public final class NotificationContext
     }
 
     /**
-     * What happened to it, as the event name in the workflow, e.g. {@code approved}.
+     * What happened to the subject.
      *
-     * @return the event name
+     * @return the event name, such as {@code approved}; empty if the notification was described without one
      */
     @NotNull
     public String getEvent()
@@ -110,9 +109,9 @@ public final class NotificationContext
     }
 
     /**
-     * Who caused it, as a repository user id, or {@code null} when nobody did, as when a deadline passes.
+     * Who caused it.
      *
-     * @return the actor's user id, or {@code null}
+     * @return the user id of the person who caused it, or {@code null} if nobody did, as when a deadline passes
      */
     @Nullable
     public String getActor()
@@ -121,9 +120,10 @@ public final class NotificationContext
     }
 
     /**
-     * How soon the recipient should hear about it. Advice from the workflow, not a direction to a channel.
+     * How soon the recipients should hear about it. It is advice to the deliveries, and each decides what to do with
+     * it.
      *
-     * @return the urgency
+     * @return the urgency, such as {@link #IMMEDIATE_URGENCY}, which is the default
      */
     @NotNull
     public String getUrgency()
@@ -132,13 +132,11 @@ public final class NotificationContext
     }
 
     /**
-     * Where the template lives, or {@code null} when the caller left it to the delivery to decide.
+     * The name of the notification's template. Each delivery reads it in its own way. A delivery that reads its text
+     * from the repository takes it as the path of a template folder, such as
+     * {@code /libs/iap/notificationTemplates/timeOffApproved}. A delivery that renders no text may ignore it.
      *
-     * <p>Just a name. Deliveries usually read it as the path of a template folder holding one rendering per channel,
-     * but that is not required. A delivery rendering its text some other way, from a bundle resource or a message
-     * catalogue key, reads the same string its own way. A delivery that renders no text may ignore it.</p>
-     *
-     * @return where this notification's template is to be found, or {@code null}
+     * @return the template's name, or {@code null} if the notification names none
      */
     @Nullable
     public String getTemplate()
@@ -147,9 +145,10 @@ public final class NotificationContext
     }
 
     /**
-     * Anything else a template needs that cannot be read off the subject.
+     * Values for the template that cannot be read off the subject, such as the note a person wrote with a decision.
      *
-     * @return the variables, empty when there are none
+     * @return the values by variable name, none of them {@code null}; empty if there are none. The map cannot be
+     *         changed.
      */
     @NotNull
     public Map<String, Object> getVariables()
@@ -185,7 +184,7 @@ public final class NotificationContext
         /**
          * What happened to the subject.
          *
-         * @param name the event name, e.g. {@code approved}
+         * @param name the event name, such as {@code approved}
          * @return this builder
          */
         @NotNull
@@ -198,7 +197,7 @@ public final class NotificationContext
         /**
          * Who caused it.
          *
-         * @param userId the actor's repository user id, or {@code null} when there is no explicit actor
+         * @param userId the user id of the person who caused it, or {@code null} if nobody did
          * @return this builder
          */
         @NotNull
@@ -209,9 +208,10 @@ public final class NotificationContext
         }
 
         /**
-         * How soon the recipient should hear about it. Defaults to {@link #IMMEDIATE_URGENCY} when not said.
+         * How soon the recipients should hear about it.
          *
-         * @param level the implied urgency
+         * @param level the urgency, such as {@link #BATCHED_URGENCY}; {@code null} or blank keeps
+         *            {@link #IMMEDIATE_URGENCY}
          * @return this builder
          */
         @NotNull
@@ -224,9 +224,9 @@ public final class NotificationContext
         }
 
         /**
-         * Where the template lives, in whatever terms the deliveries that render it understand.
+         * Names the notification's template.
          *
-         * @param template where to find it, e.g. the path of a template folder
+         * @param template the template's name, such as the path of a template folder; {@code null} for none
          * @return this builder
          */
         @NotNull
@@ -237,19 +237,15 @@ public final class NotificationContext
         }
 
         /**
-         * One more thing a template may need, a variable and its value made available to the template (and the delivery
-         * channel in general).
+         * Adds a value for the template.
          *
-         * @param name the variable name
-         * @param value its value, or {@code null} to leave the variable out entirely
+         * @param name the variable name, such as {@code outcomeNote}
+         * @param value its value, of any type; {@code null} leaves the variable out, and removes a value given before
          * @return this builder
          */
         @NotNull
         public Builder with(@NotNull final String name, @Nullable final Object value)
         {
-            // A value that is not there leaves the variable out rather than putting an empty one in. A
-            // template asks `#if($note)`, and one that is always present but sometimes empty answers that
-            // question wrongly. It is also the only reading the finished map allows, holding no nulls
             if (value != null) {
                 this.variables.put(name, value);
             } else {
@@ -259,9 +255,9 @@ public final class NotificationContext
         }
 
         /**
-         * The finished description.
+         * Builds the notification.
          *
-         * @return the context
+         * @return the notification
          */
         @NotNull
         public NotificationContext build()

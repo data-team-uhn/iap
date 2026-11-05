@@ -42,8 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link NotificationServiceImpl}. The only judgement it makes is who. Delivery is observed at the
- * channels rather than reported back, and a channel's failure is its own business.
+ * Tests for {@link NotificationServiceImpl}. Recording deliveries show who was offered each notification.
  *
  * @version $Id$
  * @since 0.1.0
@@ -65,7 +64,7 @@ class NotificationServiceImplTest
     {
         this.subject = this.context.create().resource("/Submissions/one",
             "title", "A request", "createdBy", CREATOR);
-        // The real vocabulary, so that the @creator these tests notify resolves the way production resolves it
+        // The real principals service, with the resolvers of @creator and @me
         final PrincipalServiceImpl principals = new PrincipalServiceImpl();
         inject(PrincipalServiceImpl.class, principals, "resolvers",
             List.of(new CreatorResolver(), new MeResolver()));
@@ -110,7 +109,6 @@ class NotificationServiceImplTest
         reference.set(target, value);
     }
 
-    // No channel at all is a platform that cannot tell anybody anything: worth a warning, not a crash
     @Test
     void tellsNobodyWhenNothingCanDeliver()
     {
@@ -174,7 +172,7 @@ class NotificationServiceImplTest
         assertEquals(1, working.told.size());
     }
 
-    // A subject nothing raised makes @creator name nobody
+    // The subject has no createdBy, so @creator names nobody
     @Test
     void aRoleNamingNobodyTellsNobody() throws Exception
     {
