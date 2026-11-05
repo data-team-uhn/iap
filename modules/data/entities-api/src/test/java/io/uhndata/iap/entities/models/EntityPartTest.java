@@ -82,8 +82,6 @@ class EntityPartTest
     @Test
     void adaptsToParentModel()
     {
-        // A node of a derived type can also be wrapped by the parent Content model, letting callers work
-        // with any resource through the base model when they only need the generic content properties.
         final Resource resource = this.context.create().resource("/content/part",
             "sling:resourceType", "data/EntityPart");
         final Content content = resource.adaptTo(Content.class);

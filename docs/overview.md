@@ -123,9 +123,9 @@ data:Content            anything IAP stores — taggable, serializable, addressa
 A domain module declares its own concrete types under those and inherits the
 entire toolbox. `data:Entity` is the unit of identity and history: it is
 `mix:referenceable`, so other content can point at it, and `mix:versionable`, so
-its past can be recovered. A `data:EntityPart` is neither, on the theory that it
-has no independent existence — an answer outside its submission is not a smaller
-thing, it is a broken one.
+its past can be recovered. A `data:EntityPart` has no versions of its own, on the
+theory that it has no independent existence — an answer outside its submission is
+not a smaller thing, it is a broken one.
 
 A `data:EntityHomepage`, meanwhile, is the container gathering every entity of a
 single kind: one for submissions, one for schemas, one for each new type a module
@@ -163,17 +163,15 @@ same autodoc endpoints. That last is what allows `/WorkflowTypes.doc.json` to fi
 the workflow editor's toolbars with exactly the phases and actions the parser knows
 how to read, without having to write new code, recompile, and redeploy it.
 
-Definition-style node types extend `data:Content` directly rather than
-`data:Entity`; they are platform vocabulary, referred to by name, so
-referenceability and version history would be dead weight and the entity semantics
-would amount to a misleading promise.
+Not every definition is an entity, though. A tag definition extends `data:Content`
+directly: content names a tag rather than pointing at it, so the definition needs
+neither an identifier nor a history of its own.
 
 ## Reading and serving it
 
-Nothing outside the model hierarchy touches the repository directly. Every content
-node adapts to a Sling Model, with `Content` as the base of them all, offering
-property access, typed child and reference lookups, JSON, and a re-view of the
-same node as some other model:
+Every content node adapts to a Sling Model, with `Content` as the base of them all,
+offering property access, typed child and reference lookups, JSON, and a re-view of
+the same node as some other model:
 
 ```java
 Submission submission = resource.adaptTo(Submission.class);
