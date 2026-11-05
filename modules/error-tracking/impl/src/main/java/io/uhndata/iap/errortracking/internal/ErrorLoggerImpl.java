@@ -375,7 +375,7 @@ public class ErrorLoggerImpl implements ErrorLoggerService
         }
         // Forgets when a fault was written, once its interval has passed and none of its occurrences is waiting
         this.lastWritten.entrySet().removeIf(
-            written -> now - written.getValue() >= WRITE_INTERVAL_MS && !this.pending.containsKey(written.getKey()));
+            written -> now - written.getValue() >= this.writeInterval && !this.pending.containsKey(written.getKey()));
         return batch;
     }
 
