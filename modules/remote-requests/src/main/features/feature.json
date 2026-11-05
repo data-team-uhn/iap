@@ -17,7 +17,7 @@
 {
   "bundles":[
     {
-      // The TokenManager it authenticates with comes from iap-token-authentication-support (25)
+      // Starts after iap-token-authentication-support (25), which exports TokenManager
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
       "start-order":"26"
     }
