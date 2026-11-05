@@ -125,8 +125,8 @@ class AutocreateBacklinksListenerTest
     }
 
     /**
-     * Builds the fixture through a committing resolver: service resolvers only see committed content, exactly like
-     * at runtime, where the listener fires after the user's session saved the link.
+     * Builds the fixture through a resolver that commits. Service resolvers see only committed content, and the
+     * listener runs after the link is committed.
      */
     private void createCommittedFixture()
         throws Exception
@@ -250,8 +250,6 @@ class AutocreateBacklinksListenerTest
     void recordsTheMissingServiceUserRatherThanOnlyLoggingIt()
         throws Exception
     {
-        // Nothing downstream can tell a backlink that was never wanted from one this failed to create, so an
-        // instance whose links service user is misconfigured would look healthy while quietly losing every backlink
         this.createCommittedFixture();
         final ResourceResolverFactory badFactory = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(badFactory.getServiceResourceResolver(Mockito.anyMap()))
@@ -296,13 +294,8 @@ class AutocreateBacklinksListenerTest
     }
 
     /**
-     * Publishes a recorder to the static facade, so that a test can see what was recorded.
-     *
-     * <p>
-     * The facade is process-global, so every test doing this withdraws it again in a {@code finally}: the surefire
-     * configuration asks for parallel classes and methods, which the JUnit 5 provider currently ignores, and a
-     * leaked recorder would turn that into flakiness the day it stops ignoring it.
-     * </p>
+     * Publishes a recorder to the static facade, so that a test can see what was recorded. The facade is
+     * process-global, so every test that calls this withdraws it in a {@code finally}.
      *
      * @return the recorder, to verify against
      */

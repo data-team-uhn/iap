@@ -34,24 +34,24 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
- * A Sling Model wrapping an {@code link:Definition} node: the definition of a type of link, stored under
- * {@code /LinkTypes}. The definition is the single source of truth for what a connection means, what it may
- * connect, and how it behaves, and each one documents itself as an entry of the catalogue served at
+ * A type of link, defined by a {@code link:Definition} node under {@code /LinkTypes}: what a link of this type means,
+ * what it may connect, and how it behaves. Each definition is an entry of the catalogue served at
  * {@code /LinkTypes.doc.json} and {@code /LinkTypes.doc.md}.
  *
- * <p>This is the abstract base holding what every kind of link type says regardless of what it points at.
- * Everything that depends on where the target lives belongs to a concrete kind — {@link InternalLinkDefinition}
- * for targets inside the repository, {@link ExternalLinkDefinition} for recorded values — so a definition never
- * offers a setting that means nothing for it. Like the other abstract bases in the data model, this class is
- * deliberately not itself a registered Sling Model: each subtype declares {@code adapters = LinkDefinition.class}
- * on its own {@code @Model}, so {@code resource.adaptTo(LinkDefinition.class)} dispatches to the actual kind.</p>
+ * <p>This abstract class holds the settings every kind of link type has. What depends on where the target lives
+ * belongs to a kind: {@link InternalLinkDefinition} for content in the repository, {@link ExternalLinkDefinition}
+ * for a value naming something outside it.</p>
+ *
+ * <p>It is not a Sling Model itself. Each kind lists {@code LinkDefinition} among the adapters of its own
+ * {@code @Model}, so {@code resource.adaptTo(LinkDefinition.class)} returns the model of the definition's
+ * kind.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 public abstract class LinkDefinition extends Content implements DocumentedItem, Referenceable
 {
-    /** The {@code sling:resourceType} of an {@code link:Definition} node, shared by every kind of definition. */
+    /** The resource type of {@code link:Definition}, which the resource type of every kind extends. */
     public static final String RESOURCE_TYPE = "link/Definition";
 
     @ValueMapValue
@@ -70,9 +70,9 @@ public abstract class LinkDefinition extends Content implements DocumentedItem, 
     private String targetLabelTemplate;
 
     /**
-     * A user-friendly name for this type of link.
+     * The name of this type of link, as people read it.
      *
-     * @return the configured label, or the node name if none is set
+     * @return the {@code label} property; the node name if it is not set
      */
     @NotNull
     public String getLabel()
@@ -81,9 +81,9 @@ public abstract class LinkDefinition extends Content implements DocumentedItem, 
     }
 
     /**
-     * A longer explanation of what this type of link means and when it applies.
+     * What this type of link means and when it applies.
      *
-     * @return a description, or {@code null} if none is set
+     * @return plain text; {@code null} if none is set
      */
     @Override
     @Nullable
@@ -93,11 +93,10 @@ public abstract class LinkDefinition extends Content implements DocumentedItem, 
     }
 
     /**
-     * Whether links of this type appear in the user-facing UI. This is only a rendering hint, not access control:
-     * the links remain readable by anyone who can read the resource holding them, and administrative or diagnostic
-     * views ignore it.
+     * Whether a user interface should show links of this type. It is a hint, not access control: anybody who can
+     * read a resource can read its links.
      *
-     * @return {@code false} only when the definition explicitly opts out of display
+     * @return {@code true} unless the definition sets {@code displayed} to {@code false}
      */
     public boolean isDisplayed()
     {
@@ -105,32 +104,29 @@ public abstract class LinkDefinition extends Content implements DocumentedItem, 
     }
 
     /**
-     * The kind of link type this is, naming the concrete subtype for the self-documenting catalogue. Not part of
-     * the Java API on purpose: callers distinguish the kinds by their model type, and a string would invite
-     * branching on a value where the type system already has the answer.
+     * The kind of this link type, as the catalogue names it. Code tells the kinds apart by their model class.
      *
-     * @return a short lowercase kind name, e.g. {@code internal}
+     * @return {@code internal} or {@code external}
      */
     @NotNull
     protected abstract String getKind();
 
     /**
-     * An optional list of node types allowed as the linking resource. When empty, any node can hold this link.
+     * The node types the content holding a link of this type must have, any one of them.
      *
-     * @return an array of node type names, or {@code null} if unrestricted
+     * @return node type names, such as {@code data:Entity}; {@code null} or empty if any content may hold it
      */
     @Nullable
     public String[] getRequiredSourceTypes()
     {
-        // A copy, since arrays are mutable and callers must not be able to alter the model's own state
         return this.requiredSourceTypes == null ? null : this.requiredSourceTypes.clone();
     }
 
     /**
-     * An optional template rendering a nicer label for the link target, e.g. {@code {typeLabel}: {name}}. See the
-     * node type definition for the supported placeholders.
+     * A template for the label of a link's target, such as {@code {typeLabel}: {name}}. The {@code link:Definition}
+     * node type lists the placeholders.
      *
-     * @return a template, or {@code null} if the target's natural label should be used
+     * @return the template; {@code null} to use the target's node name, or an external link's value
      */
     @Nullable
     public String getTargetLabelTemplate()
@@ -159,18 +155,17 @@ public abstract class LinkDefinition extends Content implements DocumentedItem, 
     }
 
     /**
-     * Describes what this kind of link type does, one bullet per behavior worth calling out. Left to the kinds
-     * entirely: every behavior a definition can have depends on what it points at, so there is nothing here to
-     * share.
+     * Adds a Markdown bullet for each behavior of this link type a reader should know about.
      *
-     * @param details the list to append to
+     * @param details the list to add to
      */
     protected abstract void addBehaviorDetails(@NotNull List<String> details);
 
     /**
-     * Describes the limits placed on where this link type may be used. Subtypes calling this add their own after.
+     * Adds a Markdown bullet for each limit on what links of this type may connect. A kind that overrides it calls
+     * it first.
      *
-     * @param details the list to append to
+     * @param details the list to add to
      */
     protected void addRestrictionDetails(@NotNull final List<String> details)
     {
@@ -191,11 +186,11 @@ public abstract class LinkDefinition extends Content implements DocumentedItem, 
     }
 
     /**
-     * Appends a list of node type names, leaving the entry out entirely when there are none.
+     * Adds an array of node type names to the JSON, unless there are none.
      *
-     * @param json the builder to append to
+     * @param json the builder to add to
      * @param name the name of the JSON property
-     * @param types the node type names, may be {@code null} or empty
+     * @param types the node type names; {@code null} or empty to add nothing
      */
     protected void addTypeList(@NotNull final JsonObjectBuilder json, @NotNull final String name,
         @Nullable final String[] types)

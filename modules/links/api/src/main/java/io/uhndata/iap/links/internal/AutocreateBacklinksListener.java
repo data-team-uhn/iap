@@ -38,11 +38,9 @@ import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.links.models.InternalLink;
 
 /**
- * Completes backlink pairs after links are committed. Links whose reverse the creating user could not write —
- * including links created inside commit hooks, where no second commit is possible — are picked up here and
- * completed with the links service user. Completed pairs are recognized from the stored data itself (see
- * {@link InternalLink#isReverseOf}), so processing the reverse link's own creation event finds the pair already
- * complete and stops, instead of ping-ponging new links between the two resources.
+ * Adds the missing reverse of each committed link whose definition names a backlink, as the {@code iap-links}
+ * service user. It completes the pairs whose creator could not add the reverse. A link whose reverse exists, as
+ * {@link InternalLink#isReverseOf} tells, is left alone, so the reverse's own creation event adds nothing.
  *
  * @version $Id$
  * @since 0.1.0
@@ -70,7 +68,7 @@ public class AutocreateBacklinksListener implements ResourceChangeListener
     private void handleChange(final ResourceChange change)
     {
         final String path = change.getPath();
-        // Quick filtering to avoid creating a new session for unrelated changes
+        // Only a node inside a links container can be a link; skip the rest before logging in
         if (!path.contains("/" + LinkManager.CONTAINER_NAME + "/")) {
             return;
         }
