@@ -22,7 +22,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Box, ButtonBase, IconButton, Typography, useMediaQuery } from "@mui/material";
 import { useTheme, type SxProps, type Theme } from "@mui/material/styles";
 
-import { cutShort, passageCard } from "./passageStyles";
+import { cutShort, failedColour, passageCard } from "./passageStyles";
 import { unquote } from "./quoteMatch";
 
 import type { MarkKind } from "./marksModel";
@@ -32,12 +32,6 @@ import type { PassageNote } from "./pdfViewerModel";
 // cut to one line, sharing its row with the note and the button showing all of it.
 const MAX_PASSAGE_LINES = 3;
 const MAX_PASSAGE_LINES_ON_PHONE = 1;
-
-// The error colour, in the shade that stays readable as small text on the passage's card in each scheme
-function failedColour(theme: Theme) {
-  const { error } = (theme.vars ?? theme).palette;
-  return { color: error.dark, ...theme.applyStyles("dark", { color: `color-mix(in srgb, ${error.main}, white)` }) };
-}
 
 // The passage and how the search for it went, on a card in its mark's colour. Once it is found, the
 // passage and its note take the reader to it. A passage running past its limit of lines is cut short,
