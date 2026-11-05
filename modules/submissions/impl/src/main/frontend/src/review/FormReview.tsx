@@ -55,33 +55,39 @@ export function disagrees(question: FormQuestion, extracted: string | undefined)
   return normal(extracted.split(";")) !== normal(question.value);
 }
 
-function GroupChips({ groups, mine }: { groups: ReviewGroup[] | undefined; mine: string[] }) {
+// The reviewer groups something matters to: the reviewer's own first and filled, the others muted
+export function GroupChips({ groups, mine }: { groups: ReviewGroup[] | undefined; mine: string[] }) {
   if (!groups) {
     return null;
   }
   return (
     <Stack direction="row" sx={{ gap: 0.5, flexWrap: "wrap" }}>
-      {groups.map(group => (
-        <Chip
-          key={group.name} size="small" variant="outlined" label={groupShortName(group.label)}
-          color={mine.includes(group.group) ? "primary" : "default"}
-          sx={{ height: 18, fontSize: "0.7rem", "& .MuiChip-label": { px: 0.75 } }}
-        />
-      ))}
+      {[ ...groups ].sort((a, b) => Number(mine.includes(b.group)) - Number(mine.includes(a.group))).map(group =>
+        mine.includes(group.group) ? (
+          <Chip
+            key={group.name} size="small" color="primary" label={groupShortName(group.label)}
+            sx={{ height: 18, fontSize: "0.7rem", "& .MuiChip-label": { px: 0.75 } }}
+          />
+        ) : (
+          <Chip
+            key={group.name} size="small" variant="outlined" label={groupShortName(group.label)}
+            sx={{ height: 18, fontSize: "0.7rem", color: "text.secondary", borderColor: "divider",
+              "& .MuiChip-label": { px: 0.75 } }}
+          />
+        ))}
     </Stack>
   );
 }
 
 // PRETOTYPE. One question, compact: what was asked, what was answered, which groups asked it, where the answer
 // was found in the protocol, and everything written about it.
-function QuestionReview({ question, data, groups, myGroups, shown, faded, onEvidence, actions, homeOf }: {
+function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, actions, homeOf }: {
   question: FormQuestion;
   homeOf: Map<string, string>;
   data: ReviewData;
   groups: Map<string, ReviewGroup[]>;
   myGroups: string[];
   shown: Set<NoteKind>;
-  faded: boolean;
   onEvidence: (note: ReviewNote) => void;
   actions: ReviewActions;
 }) {
@@ -96,7 +102,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, faded, onEvid
   return (
     <Box
       id={`question-${question.path}`}
-      sx={{ py: 1, borderBottom: 1, borderColor: "divider", opacity: faded ? 0.55 : 1, scrollMarginTop: 96 }}
+      sx={{ py: 1, borderBottom: 1, borderColor: "divider", scrollMarginTop: 96 }}
     >
       <Stack sx={{ gap: 0.25 }}>
         <Stack direction="row" sx={{ minWidth: 0, gap: 0.75, flexWrap: "wrap", alignItems: "baseline" }}>
@@ -176,8 +182,8 @@ function QuestionReview({ question, data, groups, myGroups, shown, faded, onEvid
   );
 }
 
-// The first shown question each note is about, in the order the form asks them
-function homes(items: FormItem[], data: ReviewData, shownQuestion: (path: string) => boolean): Map<string, string> {
+// The first question each note is about, in the order the form asks them
+function homes(items: FormItem[], data: ReviewData): Map<string, string> {
   const home = new Map<string, string>();
   const visit = (list: FormItem[]) => list.forEach(item => {
     if (!isQuestion(item)) {
@@ -185,7 +191,7 @@ function homes(items: FormItem[], data: ReviewData, shownQuestion: (path: string
       return;
     }
     const answer = data.answers.get(item.path);
-    if (answer && shownQuestion(item.path)) {
+    if (answer) {
       notesAbout(data.notes, [ answer.uuid ]).forEach(note => home.has(note.id) || home.set(note.id, item.path));
     }
   });
@@ -193,22 +199,13 @@ function homes(items: FormItem[], data: ReviewData, shownQuestion: (path: string
   return home;
 }
 
-// Whether anything in these items is shown
-function anyShown(items: FormItem[], mine: (path: string) => boolean, whole: boolean): boolean {
-  return items.some(item => isQuestion(item) ? whole || mine(item.path) : anyShown(item.items, mine, whole));
-}
-
-// The questions of a form requirement, section by section. Focused on the reviewer's own, the others are left
-// out; looking at the whole submission, they are faded.
-export default function FormReview({ items, data, groups, myGroups, isMine, whole, shown, onEvidence, actions,
-  depth = 0, homeOf }: {
+// The questions of a form requirement, section by section, every one of them: the group chips say which concern
+// the reviewer.
+export default function FormReview({ items, data, groups, myGroups, shown, onEvidence, actions, depth = 0, homeOf }: {
   items: FormItem[];
   data: ReviewData;
   groups: Map<string, ReviewGroup[]>;
   myGroups: string[];
-  // Whether a question is the reviewer's to look at
-  isMine: (path: string) => boolean;
-  whole: boolean;
   shown: Set<NoteKind>;
   onEvidence: (note: ReviewNote) => void;
   actions: ReviewActions;
@@ -216,25 +213,24 @@ export default function FormReview({ items, data, groups, myGroups, isMine, whol
   // Which question each note shows under, worked out once for the whole form
   homeOf?: Map<string, string>;
 }) {
-  const home = homeOf ?? homes(items, data, path => whole || isMine(path));
+  const home = homeOf ?? homes(items, data);
   return (
     <>
       {items.map(item => {
         if (isQuestion(item)) {
-          const mine = isMine(item.path);
-          return mine || whole ? (
+          return (
             <QuestionReview
               key={item.path} question={item} data={data} groups={groups} myGroups={myGroups} shown={shown}
-              faded={!mine} onEvidence={onEvidence} actions={actions} homeOf={home}
+              onEvidence={onEvidence} actions={actions} homeOf={home}
             />
-          ) : null;
+          );
         }
-        return anyShown(item.items, isMine, whole) && (
+        return (
           <Box key={item.name} sx={{ mt: 1.5 }}>
             <Typography variant="subheading" component={depth === 0 ? "h3" : "h4"}>{item.label}</Typography>
             <FormReview
-              items={item.items} data={data} groups={groups} myGroups={myGroups} isMine={isMine} whole={whole}
-              shown={shown} onEvidence={onEvidence} actions={actions} depth={depth + 1} homeOf={home}
+              items={item.items} data={data} groups={groups} myGroups={myGroups} shown={shown}
+              onEvidence={onEvidence} actions={actions} depth={depth + 1} homeOf={home}
             />
           </Box>
         );
