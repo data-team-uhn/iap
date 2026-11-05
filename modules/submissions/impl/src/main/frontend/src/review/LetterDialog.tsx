@@ -47,7 +47,7 @@ export default function LetterDialog({ open, draft, issueCount, onSend, onClose 
     }
   };
   return (
-    <ResponsiveDialog open={open} onClose={onClose} title="Send your issues to the study team" width="md" withCloseButton>
+    <ResponsiveDialog open={open} onClose={onClose} title="Request changes" width="md" withCloseButton>
       <DialogContent>
         <Stack spacing={2}>
           <Typography variant="description">
@@ -65,7 +65,7 @@ export default function LetterDialog({ open, draft, issueCount, onSend, onClose 
         <Button onClick={() => void navigator.clipboard.writeText(letter)}>Copy</Button>
         <Button onClick={onClose}>Close</Button>
         <Button variant="contained" disabled={sending || !letter.trim()} onClick={() => void send()}>
-          Send and request changes
+          Send
         </Button>
       </DialogActions>
     </ResponsiveDialog>

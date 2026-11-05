@@ -57,8 +57,8 @@ export default function IssuesPanel({ issues, about, open, onToggle, onOpenIssue
         </Tooltip>
         {actions && (
           <>
-            <Tooltip title="Send your issues to the study team" placement="left">
-              <IconButton size="small" aria-label="Send your issues to the study team" color="primary"
+            <Tooltip title="Request changes" placement="left">
+              <IconButton size="small" aria-label="Request changes" color="primary"
                 onClick={actions.send}>
                 <ForwardToInboxOutlined />
               </IconButton>
@@ -132,7 +132,7 @@ export default function IssuesPanel({ issues, about, open, onToggle, onOpenIssue
       {actions && (
         <Stack spacing={1} sx={{ p: 1.5, borderTop: 1, borderColor: "divider" }}>
           <Button variant="outlined" size="small" startIcon={<ForwardToInboxOutlined />} onClick={actions.send}>
-            Send issues to the study team
+            Request changes
           </Button>
           <Tooltip title={actions.approveBlocked ?? ""}>
             <span>

@@ -426,7 +426,9 @@ export default function ReviewScreen({ path }: { path: string }) {
     send: () => setDialog("letter"),
     approve: () => void decide("approved"),
     approveBlocked: !waiting ? "Your review is not waiting on a decision now"
-      : myIssues.length > 0 ? `Send your ${myIssues.length === 1 ? "issue" : `${myIssues.length} issues`} first` : undefined,
+      : myIssues.length > 0
+        ? `Request changes for your ${myIssues.length === 1 ? "issue" : `${myIssues.length} issues`} first`
+        : undefined,
     board: myGroups.includes("reb-reviewers") ? () => setDialog("board") : undefined,
   };
   const shownDocument = current ? data.documents.get(current.name) : undefined;
@@ -520,7 +522,7 @@ export default function ReviewScreen({ path }: { path: string }) {
           {reviewActions.board && (
             <Button size="small" variant="text" onClick={reviewActions.board}>Escalate to the board</Button>
           )}
-          <Button size="small" variant="outlined" onClick={reviewActions.send}>Send issues to the study team</Button>
+          <Button size="small" variant="outlined" onClick={reviewActions.send}>Request changes</Button>
           <Button size="small" variant="contained" disabled={Boolean(reviewActions.approveBlocked)}
             onClick={reviewActions.approve}>Approve</Button>
         </Stack>
