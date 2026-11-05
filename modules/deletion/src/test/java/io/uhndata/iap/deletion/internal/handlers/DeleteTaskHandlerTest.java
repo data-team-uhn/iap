@@ -104,6 +104,17 @@ class DeleteTaskHandlerTest
     }
 
     @Test
+    void asksForWhatTheDeletionCheckedOutToBeCheckedInOnceTheDeliveryCommits() throws Exception
+    {
+        answer(DeletionResult.Status.ARCHIVED, List.of("/Schemas", "/Schemas/other"));
+
+        this.handler.execute(this.context);
+
+        Mockito.verify(this.context).checkInAfterCommit("/Schemas");
+        Mockito.verify(this.context).checkInAfterCommit("/Schemas/other");
+    }
+
+    @Test
     void refusesWhatSomethingElseRefersTo()
     {
         answer(DeletionResult.Status.REQUIRES_CONFIRMATION);
@@ -134,7 +145,7 @@ class DeleteTaskHandlerTest
     @Test
     void failsWhenTheDeletionServiceFails()
     {
-        Mockito.when(this.deletionService.delete(Mockito.any(), Mockito.any()))
+        Mockito.when(this.deletionService.deleteWithin(Mockito.any(), Mockito.any()))
             .thenThrow(new DeletionException("no service user", null));
 
         assertThrows(WorkflowFailedException.class, () -> this.handler.execute(this.context));
@@ -148,14 +159,27 @@ class DeleteTaskHandlerTest
      */
     private ArgumentCaptor<DeletionOptions> answer(final DeletionResult.Status status)
     {
+        return answer(status, List.of());
+    }
+
+    /**
+     * Makes the deletion service answer with a status, leaving some nodes checked out, and captures the options it
+     * was asked with.
+     *
+     * @param status the outcome
+     * @param checkedOut the nodes the deletion left checked out
+     * @return the captured options
+     */
+    private ArgumentCaptor<DeletionOptions> answer(final DeletionResult.Status status, final List<String> checkedOut)
+    {
         final DeletionImpact impact = Mockito.mock(DeletionImpact.class);
         Mockito.when(impact.getSummary()).thenReturn("Referenced by 1 category (Intake)");
         Mockito.when(impact.getVetoes()).thenReturn(List.of(
             new Veto("undeletable", "/Schemas/intake", "It is undeletable"),
             new Veto("undeletable", "/Schemas/intake/v1", "It is undeletable")));
         final ArgumentCaptor<DeletionOptions> options = ArgumentCaptor.forClass(DeletionOptions.class);
-        Mockito.when(this.deletionService.delete(Mockito.eq(this.target), options.capture()))
-            .thenReturn(new DeletionResult(status, null, impact));
+        Mockito.when(this.deletionService.deleteWithin(Mockito.eq(this.target), options.capture()))
+            .thenReturn(new DeletionResult(status, null, impact, checkedOut));
         return options;
     }
 }

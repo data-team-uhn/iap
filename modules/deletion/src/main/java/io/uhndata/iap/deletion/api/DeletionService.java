@@ -93,6 +93,26 @@ public interface DeletionService
     DeletionResult delete(@NotNull Resource item, @NotNull DeletionOptions options);
 
     /**
+     * Delete a resource as {@link #delete} does, but as part of the caller's own transaction. The changes are made
+     * through the resolver the item came from, which therefore needs write access to the archive. They are left there
+     * for the caller to commit or revert with the rest of its work.
+     *
+     * <p>
+     * Moving a node out of a checked-in versionable ancestor needs that ancestor checked out, and a check-out takes
+     * effect at once. A check-in has to wait for the commit, so the result {@link DeletionResult#getCheckedOut lists}
+     * the nodes for the caller to check back in once it has committed.
+     * </p>
+     *
+     * @param item the resource to delete, whose resolver holds the caller's transaction
+     * @param options how to delete, as for {@link #delete}
+     * @return the outcome, as for {@link #delete}, with the nodes left checked out
+     * @throws DeletionException if the deletion fails for a non-business reason, e.g. the repository is unavailable
+     * @since 0.1.0
+     */
+    @NotNull
+    DeletionResult deleteWithin(@NotNull Resource item, @NotNull DeletionOptions options);
+
+    /**
      * Move the contents of an archive entry back to their recorded original locations, and remove the emptied
      * entry. The restore is all-or-nothing: if any archived item cannot be restored — its original parent is gone,
      * its original path is occupied, or the requesting user may not create it — nothing is changed and all the

@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.deletion.api;
 
+import java.util.List;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -60,8 +62,10 @@ public final class DeletionResult
 
     private final DeletionImpact impact;
 
+    private final List<String> checkedOut;
+
     /**
-     * Record an outcome.
+     * Record the outcome of a deletion that committed, or changed nothing.
      *
      * @param status what happened
      * @param archiveEntryPath the path of the created archive entry, only for {@link Status#ARCHIVED}
@@ -70,9 +74,24 @@ public final class DeletionResult
     public DeletionResult(@NotNull final Status status, @Nullable final String archiveEntryPath,
         @NotNull final DeletionImpact impact)
     {
+        this(status, archiveEntryPath, impact, List.of());
+    }
+
+    /**
+     * Record the outcome of a deletion left for its caller to commit.
+     *
+     * @param status what happened
+     * @param archiveEntryPath the path of the created archive entry, only for {@link Status#ARCHIVED}
+     * @param impact the impact that was examined or executed
+     * @param checkedOut the versionable nodes the deletion checked out, to check back in once committed
+     */
+    public DeletionResult(@NotNull final Status status, @Nullable final String archiveEntryPath,
+        @NotNull final DeletionImpact impact, @NotNull final List<String> checkedOut)
+    {
         this.status = status;
         this.archiveEntryPath = archiveEntryPath;
         this.impact = impact;
+        this.checkedOut = List.copyOf(checkedOut);
     }
 
     /**
@@ -106,5 +125,17 @@ public final class DeletionResult
     public DeletionImpact getImpact()
     {
         return this.impact;
+    }
+
+    /**
+     * The versionable nodes a deletion {@link DeletionService#deleteWithin within the caller's transaction} had to
+     * check out, which the caller checks back in once it has committed.
+     *
+     * @return their paths; empty when the deletion committed itself, since it checked them back in already
+     */
+    @NotNull
+    public List<String> getCheckedOut()
+    {
+        return this.checkedOut;
     }
 }

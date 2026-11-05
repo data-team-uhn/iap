@@ -21,12 +21,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.UnaryOperator;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -89,6 +91,28 @@ public class DeletionServiceImpl implements DeletionService
     @Override
     public DeletionResult delete(final Resource item, final DeletionOptions options)
     {
+        return this.execute(item, options, serviceResolver -> serviceResolver, DeletionServiceImpl::commit);
+    }
+
+    @Override
+    public DeletionResult deleteWithin(final Resource item, final DeletionOptions options)
+    {
+        return this.execute(item, options, serviceResolver -> item.getResourceResolver(),
+            DeletionServiceImpl::leavePending);
+    }
+
+    /**
+     * Plans a deletion, refuses it when anything forbids it, and otherwise hands it over to be carried out.
+     *
+     * @param item the resource to delete
+     * @param options how to delete
+     * @param writer chooses, given the service resolver, the resolver the changes are made through
+     * @param execution carries the deletion out through that resolver
+     * @return the outcome
+     */
+    private DeletionResult execute(final Resource item, final DeletionOptions options,
+        final UnaryOperator<ResourceResolver> writer, final Execution execution)
+    {
         try (ResourceResolver serviceResolver = this.getServiceResolver()) {
             final DeletionPlan plan = this.resolvePlan(item, options, serviceResolver);
             final DeletionImpact impact = this.buildImpact(plan);
@@ -101,17 +125,32 @@ public class DeletionServiceImpl implements DeletionService
             if (plan.isDenied()) {
                 return new DeletionResult(DeletionResult.Status.DENIED, null, impact);
             }
-            final ArchiveOperations operations = ArchiveOperations.forResolver(serviceResolver);
-            if (options.isPermanent()) {
-                operations.deletePermanently(plan);
-                return new DeletionResult(DeletionResult.Status.DELETED, null, impact);
-            }
-            final String entryPath = operations.store(plan, Objects.requireNonNullElse(options.getOnBehalfOf(),
-                plan.getUserSession().getUserID()));
-            return new DeletionResult(DeletionResult.Status.ARCHIVED, entryPath, impact);
-        } catch (final RepositoryException e) {
+            return execution.carryOut(ArchiveOperations.forResolver(writer.apply(serviceResolver)), plan, impact,
+                Objects.requireNonNullElse(options.getOnBehalfOf(), plan.getUserSession().getUserID()));
+        } catch (final RepositoryException | PersistenceException e) {
             throw new DeletionException("Failed to delete " + item.getPath(), e);
         }
+    }
+
+    private static DeletionResult commit(final ArchiveOperations operations, final DeletionPlan plan,
+        final DeletionImpact impact, final String requester) throws RepositoryException
+    {
+        if (plan.getOptions().isPermanent()) {
+            operations.deletePermanently(plan);
+            return new DeletionResult(DeletionResult.Status.DELETED, null, impact);
+        }
+        return new DeletionResult(DeletionResult.Status.ARCHIVED, operations.store(plan, requester), impact);
+    }
+
+    private static DeletionResult leavePending(final ArchiveOperations operations, final DeletionPlan plan,
+        final DeletionImpact impact, final String requester) throws RepositoryException, PersistenceException
+    {
+        if (plan.getOptions().isPermanent()) {
+            operations.deletePermanentlyPending(plan);
+            return new DeletionResult(DeletionResult.Status.DELETED, null, impact, operations.checkedOut());
+        }
+        final String entryPath = operations.storePending(plan, requester);
+        return new DeletionResult(DeletionResult.Status.ARCHIVED, entryPath, impact, operations.checkedOut());
     }
 
     @Override
@@ -262,4 +301,27 @@ public class DeletionServiceImpl implements DeletionService
         return found;
     }
 
+    /**
+     * Carries out a planned deletion that nothing forbids.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    @FunctionalInterface
+    private interface Execution
+    {
+        /**
+         * Carries the deletion out.
+         *
+         * @param operations the operations, bound to the resolver the changes are made through
+         * @param plan the plan, whose execution was authorized
+         * @param impact the impact of the plan
+         * @param requester the user the deletion is recorded as requested by
+         * @return the outcome
+         * @throws RepositoryException if the changes cannot be applied
+         * @throws PersistenceException if a missing bucket of the archive cannot be added
+         */
+        DeletionResult carryOut(ArchiveOperations operations, DeletionPlan plan, DeletionImpact impact,
+            String requester) throws RepositoryException, PersistenceException;
+    }
 }

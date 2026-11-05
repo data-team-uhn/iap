@@ -204,7 +204,8 @@ public final class EngineFixture
         try {
             return new ServiceTaskDispatcher(List.of(), (to, event, actor, depth) -> {
                 throw new IllegalStateException("No event was expected to be sent here");
-            }, routing(), runners(), new PendingNotifications(Mockito.mock(NotificationService.class)));
+            }, routing(), runners(),
+                new DeliveryConsequences(new PendingNotifications(Mockito.mock(NotificationService.class))));
         } catch (final ReflectiveOperationException e) {
             throw new IllegalStateException("The fixture could not build its condition evaluator", e);
         }

@@ -42,8 +42,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * refers to, or content a veto protects, is left alone and the event answered with a conflict. The archive
  * records the user the workflow acts for as having deleted it.
  *
- * <p>The service writes through its own session and commits there, so the deletion is not undone if a later
- * step fails: {@code delete} belongs at the end of a workflow.</p>
+ * <p>The deletion is made {@link DeletionService#deleteWithin within the delivery}: it commits with the delivery's
+ * other changes, or is undone with them. The nodes it checks out are checked back in once the delivery commits.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -74,15 +74,13 @@ public class DeleteTaskHandler implements ServiceTaskHandler
             Boolean.parseBoolean(String.valueOf(context.getActivity().get(PERMANENT_PARAMETER)));
         final DeletionResult result;
         try {
-            result = this.deletionService.delete(target,
+            result = this.deletionService.deleteWithin(target,
                 DeletionOptions.of(DeletionOptions.REFUSE_IF_REFERENCED, permanent).onBehalfOf(context.getActor()));
         } catch (final DeletionException e) {
             throw new WorkflowFailedException("Could not delete " + target.getPath(), e);
         }
         switch (result.getStatus()) {
-            case ARCHIVED, DELETED -> {
-                // Done
-            }
+            case ARCHIVED, DELETED -> result.getCheckedOut().forEach(context::checkInAfterCommit);
             case VETOED -> throw new InvalidStateException(result.getImpact().getVetoes().stream()
                 .map(Veto::getReason)
                 .distinct()

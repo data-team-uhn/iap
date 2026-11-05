@@ -139,4 +139,10 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     {
         this.dispatcher.createRunner(getResourceResolver(), this.event, this.actor).replaceInstance(host, version);
     }
+
+    @Override
+    public void checkInAfterCommit(final String path)
+    {
+        this.dispatcher.checkInAfterCommit(path);
+    }
 }

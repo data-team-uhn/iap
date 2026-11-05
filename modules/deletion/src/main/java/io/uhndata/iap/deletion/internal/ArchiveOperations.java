@@ -33,6 +33,7 @@ import javax.jcr.Session;
 import javax.jcr.version.OnParentVersionAction;
 import javax.jcr.version.VersionManager;
 
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.slf4j.Logger;
@@ -47,15 +48,17 @@ import io.uhndata.iap.utils.PrefixTree;
 import io.uhndata.iap.utils.VersioningUtils;
 
 /**
- * The execution phase of deletions: performs the actual moves and removals through the privileged service session,
- * after a {@link CascadeResolver resolved} {@link DeletionPlan} established that they are allowed. Also owns the
- * reverse operations, restoring and purging archive entries.
+ * The execution phase of deletions: performs the actual moves and removals after a {@link CascadeResolver resolved}
+ * {@link DeletionPlan} established that they are allowed. They go through the privileged service session, or, for a
+ * deletion inside the caller's transaction, through the caller's own. Also owns the reverse operations, restoring and
+ * purging archive entries.
  *
  * <p>
  * Every {@code data:Entity} is versionable, and JCR refuses to change the children of a checked-in versionable
  * node, so before every move or removal the closest versionable ancestor is checked out; the ancestors <em>this
- * operation</em> checked out, and only those, are checked back in after saving. Items whose own definition sets
- * the {@code IGNORE} on-parent-version action, like the links container and its links, need no checkout at all.
+ * operation</em> checked out, and only those, are checked back in after saving. For a deletion left pending, that
+ * is up to whoever saves. Items whose own definition sets the {@code IGNORE} on-parent-version action, like the
+ * links container and its links, need no checkout at all.
  * </p>
  *
  * @version $Id$
@@ -65,42 +68,42 @@ final class ArchiveOperations
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(ArchiveOperations.class);
 
-    private final ResourceResolver serviceResolver;
+    private final ResourceResolver resolver;
 
-    private final Session serviceSession;
+    private final Session session;
 
     private final VersionManager versionManager;
 
     /** The versionable ancestors checked out by this operation, to be checked back in after saving. */
     private final Set<String> checkedOut = new LinkedHashSet<>();
 
-    private ArchiveOperations(final ResourceResolver serviceResolver, final Session serviceSession,
+    private ArchiveOperations(final ResourceResolver resolver, final Session session,
         final VersionManager versionManager)
     {
-        this.serviceResolver = serviceResolver;
-        this.serviceSession = serviceSession;
+        this.resolver = resolver;
+        this.session = session;
         this.versionManager = versionManager;
     }
 
     /**
-     * Prepare to execute over a service resolver.
+     * Prepare to execute over a resolver.
      *
-     * @param serviceResolver the privileged resolver performing the changes
+     * @param resolver the resolver performing the changes, with write access to the archive
      * @return an executor bound to the resolver's session
      * @throws RepositoryException if the session's version manager is unavailable
      */
-    static ArchiveOperations forResolver(final ResourceResolver serviceResolver)
+    static ArchiveOperations forResolver(final ResourceResolver resolver)
         throws RepositoryException
     {
-        final Session session = serviceResolver.adaptTo(Session.class);
+        final Session session = resolver.adaptTo(Session.class);
         if (session == null) {
-            throw new DeletionException("The service resolver is not backed by a repository session", null);
+            throw new DeletionException("The deleting resolver is not backed by a repository session", null);
         }
-        return new ArchiveOperations(serviceResolver, session, session.getWorkspace().getVersionManager());
+        return new ArchiveOperations(resolver, session, session.getWorkspace().getVersionManager());
     }
 
     /**
-     * Move every subtree marked in the plan into a new archive entry, and remove the marked links.
+     * Move every subtree marked in the plan into a new archive entry, remove the marked links, and commit.
      *
      * @param plan a resolved plan whose execution was authorized
      * @param userId the user requesting the deletion, recorded on the entry
@@ -111,8 +114,77 @@ final class ArchiveOperations
     {
         // Opening the buckets saves them, so it has to happen before this deletion has anything else pending
         final String entryName = UUID.randomUUID().toString();
-        final Node bucket = PrefixTree.bucketFor(this.serviceSession.getNode(DeletionService.ARCHIVE_PATH),
+        final Node bucket = PrefixTree.bucketFor(this.session.getNode(DeletionService.ARCHIVE_PATH),
             entryName, DeletionService.ARCHIVE_NODETYPE);
+        final String entryPath = this.fillEntry(bucket, entryName, plan, userId);
+        this.saveAndCheckin();
+        return entryPath;
+    }
+
+    /**
+     * Move every subtree marked in the plan into a new archive entry and remove the marked links, leaving it all
+     * pending in the session for its owner to commit.
+     *
+     * @param plan a resolved plan whose execution was authorized
+     * @param userId the user requesting the deletion, recorded on the entry
+     * @return the path the archive entry will have once committed
+     * @throws RepositoryException if the changes cannot be applied
+     * @throws PersistenceException if a missing bucket of the archive cannot be added
+     */
+    String storePending(final DeletionPlan plan, final String userId)
+        throws RepositoryException, PersistenceException
+    {
+        final String entryName = UUID.randomUUID().toString();
+        final Resource archive = this.resolver.getResource(DeletionService.ARCHIVE_PATH);
+        if (archive == null) {
+            throw new DeletionException("The archive is not visible to the session deleting", null);
+        }
+        final Resource bucket = PrefixTree.pendingBucketFor(archive, entryName, DeletionService.ARCHIVE_NODETYPE);
+        return this.fillEntry(this.session.getNode(bucket.getPath()), entryName, plan, userId);
+    }
+
+    /**
+     * Permanently remove every subtree marked in the plan, along with the marked links, and commit.
+     *
+     * @param plan a resolved plan whose execution was authorized
+     * @throws RepositoryException if the changes cannot be applied
+     */
+    void deletePermanently(final DeletionPlan plan) throws RepositoryException
+    {
+        this.deletePermanentlyPending(plan);
+        this.saveAndCheckin();
+    }
+
+    /**
+     * Permanently remove every subtree marked in the plan, along with the marked links, leaving the removals pending
+     * in the session for its owner to commit.
+     *
+     * @param plan a resolved plan whose execution was authorized
+     * @throws RepositoryException if the changes cannot be applied
+     */
+    void deletePermanentlyPending(final DeletionPlan plan) throws RepositoryException
+    {
+        this.removeLinks(plan);
+        for (final String rootPath : plan.getRoots().keySet()) {
+            final Node root = this.session.getNode(rootPath);
+            this.checkoutForRemoval(root);
+            root.remove();
+        }
+    }
+
+    /**
+     * The versionable nodes this operation checked out and has not checked back in.
+     *
+     * @return their paths, in the order they were checked out
+     */
+    List<String> checkedOut()
+    {
+        return List.copyOf(this.checkedOut);
+    }
+
+    private String fillEntry(final Node bucket, final String entryName, final DeletionPlan plan, final String userId)
+        throws RepositoryException
+    {
         final Node entry = bucket.addNode(entryName, DeletionService.ENTRY_NODETYPE);
         entry.setProperty(DeletionService.DELETED_BY_PROPERTY, userId);
         entry.setProperty(DeletionService.REQUESTED_PATH_PROPERTY, plan.getRequestedPath());
@@ -120,31 +192,15 @@ final class ArchiveOperations
         // everything is still in place
         this.removeLinks(plan);
         int index = 0;
-        for (final Map.Entry<String, Node> root : plan.getRoots().entrySet()) {
-            this.checkoutForRemoval(root.getValue());
+        for (final String rootPath : plan.getRoots().keySet()) {
+            final Node root = this.session.getNode(rootPath);
+            this.checkoutForRemoval(root);
             final Node wrapper = entry.addNode(String.valueOf(index), DeletionService.ITEM_NODETYPE);
-            wrapper.setProperty(DeletionService.ORIGINAL_PATH_PROPERTY, root.getKey());
-            this.serviceSession.move(root.getKey(), wrapper.getPath() + "/" + root.getValue().getName());
+            wrapper.setProperty(DeletionService.ORIGINAL_PATH_PROPERTY, rootPath);
+            this.session.move(rootPath, wrapper.getPath() + "/" + root.getName());
             index++;
         }
-        this.saveAndCheckin();
         return entry.getPath();
-    }
-
-    /**
-     * Permanently remove every subtree marked in the plan, along with the marked links.
-     *
-     * @param plan a resolved plan whose execution was authorized
-     * @throws RepositoryException if the changes cannot be applied
-     */
-    void deletePermanently(final DeletionPlan plan) throws RepositoryException
-    {
-        this.removeLinks(plan);
-        for (final Node root : plan.getRoots().values()) {
-            this.checkoutForRemoval(root);
-            root.remove();
-        }
-        this.saveAndCheckin();
     }
 
     /**
@@ -184,8 +240,8 @@ final class ArchiveOperations
             return new RestoreResult(RestoreResult.Status.CONFLICT, List.of(), conflicts);
         }
         for (final Map.Entry<String, Node> item : toRestore.entrySet()) {
-            this.checkoutForAddition(this.serviceSession.getNode(parentPath(item.getKey())));
-            this.serviceSession.move(item.getValue().getPath(), item.getKey());
+            this.checkoutForAddition(this.session.getNode(parentPath(item.getKey())));
+            this.session.move(item.getValue().getPath(), item.getKey());
         }
         entry.remove();
         this.saveAndCheckin();
@@ -217,9 +273,9 @@ final class ArchiveOperations
             LOGGER.warn("Archived item {} is empty, nothing to restore from it", wrapper.getPath());
             return;
         }
-        if (!this.serviceSession.nodeExists(parentPath(originalPath))) {
+        if (!this.session.nodeExists(parentPath(originalPath))) {
             conflicts.add(new RestoreConflict(originalPath, RestoreConflict.Reason.PARENT_MISSING));
-        } else if (this.serviceSession.nodeExists(originalPath)) {
+        } else if (this.session.nodeExists(originalPath)) {
             conflicts.add(new RestoreConflict(originalPath, RestoreConflict.Reason.OCCUPIED));
         } else if (!userSession.hasPermission(originalPath, Session.ACTION_ADD_NODE)) {
             conflicts.add(new RestoreConflict(originalPath, RestoreConflict.Reason.NO_RIGHTS));
@@ -230,9 +286,10 @@ final class ArchiveOperations
 
     private void removeLinks(final DeletionPlan plan) throws RepositoryException
     {
-        for (final Node linkNode : plan.getLinksToRemove().values()) {
+        for (final String linkPath : plan.getLinksToRemove().keySet()) {
+            final Node linkNode = this.session.getNode(linkPath);
             this.checkoutForRemoval(linkNode);
-            final Resource linkResource = this.serviceResolver.getResource(linkNode.getPath());
+            final Resource linkResource = this.resolver.getResource(linkNode.getPath());
             final Link link = linkResource == null ? null : Link.toLink(linkResource);
             if (link == null) {
                 // Not recognized by the links machinery, e.g. an ad-hoc reference property holder; take it out
@@ -273,7 +330,7 @@ final class ArchiveOperations
     private void saveAndCheckin() throws RepositoryException
     {
         try {
-            this.serviceSession.save();
+            this.session.save();
         } catch (final ReferentialIntegrityException e) {
             // The analysis phase removes or blocks on every incoming hard reference it can find, so this should
             // be unreachable; if the repository still objects, report it as a failure instead of a crash
@@ -281,7 +338,7 @@ final class ArchiveOperations
         }
         for (final String path : this.checkedOut) {
             // An ancestor checked out earlier may itself have been deleted by the same operation
-            if (this.serviceSession.nodeExists(path)) {
+            if (this.session.nodeExists(path)) {
                 this.versionManager.checkin(path);
             }
         }

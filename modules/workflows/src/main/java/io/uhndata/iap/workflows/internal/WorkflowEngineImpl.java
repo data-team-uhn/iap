@@ -185,7 +185,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 throw e;
             }
         });
-        committed.sendNotifications();
+        committed.completeAfterCommit(resolver);
         return new WorkflowResult(Map.of());
     }
 
@@ -215,7 +215,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
             revert(resolver);
             throw e;
         }
-        dispatcher.sendNotifications();
+        dispatcher.completeAfterCommit(resolver);
         return new WorkflowResult(variables);
     }
 

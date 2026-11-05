@@ -115,4 +115,13 @@ public interface WorkflowTaskContext extends Execution
      */
     void replaceWorkflow(@NotNull Resource host, @NotNull WorkflowVersion version)
         throws WorkflowException, PersistenceException;
+
+    /**
+     * Asks for a versionable node to be checked back in once this delivery has committed. A step that had to check
+     * a node out cannot check it back in itself. A check-in refuses pending changes, and the delivery's changes stay
+     * pending until the engine commits them all at once.
+     *
+     * @param path the absolute path of the versionable node
+     */
+    void checkInAfterCommit(@NotNull String path);
 }

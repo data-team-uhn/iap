@@ -30,7 +30,6 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.Event;
 import io.uhndata.iap.workflows.models.StartEvent;
-import io.uhndata.iap.workflows.spi.Execution;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -58,8 +57,8 @@ final class ServiceTaskDispatcher
     /** Hands out the runner for any instance a task starts. */
     private final InstanceRunners runners;
 
-    /** What the delivery's message events announced, sent once it commits. */
-    private final PendingNotifications notifications;
+    /** What the delivery's message events announced, and what its steps said they did. */
+    private final DeliveryConsequences consequences;
 
     /**
      * Constructor.
@@ -68,16 +67,16 @@ final class ServiceTaskDispatcher
      * @param chain how the engine admits an event a service task sends
      * @param routing moves a system workflow's run from node to node
      * @param runners hands out the runner for any instance a task starts
-     * @param notifications where the delivery's notifications wait for its commit
+     * @param consequences what the delivery leaves behind besides its writes
      */
     ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain, final FlowRouting routing,
-        final InstanceRunners runners, final PendingNotifications notifications)
+        final InstanceRunners runners, final DeliveryConsequences consequences)
     {
         this.handlers = handlers;
         this.chain = chain;
         this.routing = routing;
         this.runners = runners;
-        this.notifications = notifications;
+        this.consequences = consequences;
     }
 
     /**
@@ -94,15 +93,27 @@ final class ServiceTaskDispatcher
     void throwMessage(final Event source, final Resource target, final WorkflowEvent cause, final String actor,
         final Map<String, Object> variables) throws WorkflowDefinitionException
     {
-        this.notifications.hold(source, source.actsOn(new Run(target, variables)), cause, actor);
+        this.consequences.hold(source, target, variables, cause, actor);
     }
 
     /**
-     * Sends the notifications this delivery's message events announced. Called once the delivery has committed.
+     * Asks for a node a step checked out to be checked back in once this delivery has committed.
+     *
+     * @param path the path of the versionable node
      */
-    void sendNotifications()
+    void checkInAfterCommit(final String path)
     {
-        this.notifications.send();
+        this.consequences.checkInAfterCommit(path);
+    }
+
+    /**
+     * Finishes what waited for this delivery's commit: its notifications, and the nodes its steps checked out.
+     *
+     * @param resolver the engine's resolver, which committed the delivery
+     */
+    void completeAfterCommit(final ResourceResolver resolver)
+    {
+        this.consequences.completeAfterCommit(resolver);
     }
 
     /**
@@ -190,35 +201,6 @@ final class ServiceTaskDispatcher
         throws WorkflowException, PersistenceException
     {
         runSystemWorkflow(target, event, this.chain.admit(target, event, actor, depth), actor, depth);
-    }
-
-    /**
-     * What a run is working on, for a step that has no task context of its own, such as a thrown message.
-     *
-     * @param target the resource the event is aimed at, backed by the engine's own session
-     * @param variables the run's variables
-     * @version $Id$
-     * @since 0.1.0
-     */
-    private record Run(Resource target, Map<String, Object> variables) implements Execution
-    {
-        @Override
-        public Resource getTarget()
-        {
-            return this.target;
-        }
-
-        @Override
-        public Object getVariable(final String name)
-        {
-            return this.variables.get(name);
-        }
-
-        @Override
-        public ResourceResolver getResourceResolver()
-        {
-            return this.target.getResourceResolver();
-        }
     }
 
     /**

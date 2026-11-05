@@ -645,6 +645,93 @@ class DeletionServiceImplTest
     }
 
     @Test
+    void deletesWithinTheCallersTransactionWithoutCommitting() throws Exception
+    {
+        this.target(VICTIM);
+
+        final DeletionResult result = this.service.deleteWithin(this.resource(VICTIM_PATH),
+            DeletionOptions.of(REFUSE_IF_REFERENCED, MOVE_TO_ARCHIVE));
+
+        assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
+        assertFalse(this.session.nodeExists(VICTIM_PATH));
+        assertTrue(this.session.nodeExists(result.getArchiveEntryPath() + "/0/" + VICTIM));
+        assertTrue(this.session.hasPendingChanges(), "The caller commits");
+        this.session.refresh(false);
+        assertTrue(this.session.nodeExists(VICTIM_PATH), "and may still revert all of it, buckets included");
+        assertFalse(this.session.nodeExists(result.getArchiveEntryPath()));
+    }
+
+    @Test
+    void deletesForGoodWithinTheCallersTransactionWithoutCommitting() throws Exception
+    {
+        this.target(VICTIM);
+
+        final DeletionResult result = this.service.deleteWithin(this.resource(VICTIM_PATH),
+            DeletionOptions.of(REFUSE_IF_REFERENCED, DELETE_PERMANENTLY));
+
+        assertEquals(DeletionResult.Status.DELETED, result.getStatus());
+        assertFalse(this.session.nodeExists(VICTIM_PATH));
+        this.session.refresh(false);
+        assertTrue(this.session.nodeExists(VICTIM_PATH));
+    }
+
+    @Test
+    void leavesTheCallerToCheckInWhatADeletionWithinItCheckedOut() throws Exception
+    {
+        final Node parent = this.session.getNode(CONTENT).addNode("parent");
+        parent.addMixin("mix:versionable");
+        parent.addNode("child");
+        this.session.save();
+        this.versionManager.checkin("/content/parent");
+
+        final DeletionResult result = this.service.deleteWithin(this.resource("/content/parent/child"),
+            DeletionOptions.of(REFUSE_IF_REFERENCED, MOVE_TO_ARCHIVE));
+        this.session.save();
+
+        assertEquals(List.of("/content/parent"), result.getCheckedOut());
+        assertTrue(this.versionManager.isCheckedOut("/content/parent"));
+        assertFalse(this.session.nodeExists("/content/parent/child"));
+    }
+
+    @Test
+    void refusesWithinTheCallersTransactionWhatItRefusesOutright() throws Exception
+    {
+        this.target(VICTIM).addMixin(DeletionService.UNDELETABLE_MIXIN);
+        this.session.save();
+
+        final DeletionResult result = this.service.deleteWithin(this.resource(VICTIM_PATH),
+            DeletionOptions.of(REFUSE_IF_REFERENCED, MOVE_TO_ARCHIVE));
+
+        assertEquals(DeletionResult.Status.VETOED, result.getStatus());
+        assertFalse(this.session.hasPendingChanges());
+    }
+
+    @Test
+    void cannotArchiveWithinATransactionThatCannotSeeTheArchive() throws Exception
+    {
+        this.target(VICTIM);
+        final ResourceResolver blind = new ResourceResolverWrapper(this.context.resourceResolver())
+        {
+            @Override
+            public Resource getResource(final String path)
+            {
+                return DeletionService.ARCHIVE_PATH.equals(path) ? null : super.getResource(path);
+            }
+        };
+        final Resource victim = new ResourceWrapper(this.resource(VICTIM_PATH))
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return blind;
+            }
+        };
+
+        assertThrows(DeletionException.class,
+            () -> this.service.deleteWithin(victim, DeletionOptions.of(REFUSE_IF_REFERENCED, MOVE_TO_ARCHIVE)));
+    }
+
+    @Test
     void checkedOutAncestorsAreLeftCheckedOut() throws Exception
     {
         final Node parent = this.session.getNode(CONTENT).addNode("parent");
