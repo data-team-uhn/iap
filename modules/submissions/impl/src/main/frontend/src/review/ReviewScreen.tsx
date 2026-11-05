@@ -489,9 +489,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             mr: { md: -1.5 }, borderTopRightRadius: { md: 0 }, borderBottomRightRadius: { md: 0 },
             borderRight: { md: "none" } }}>
             <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, pt: 0.75, pb: 0.5 }}>
-              <Typography variant="h6" component="h2" sx={{ flex: 1, color: "primary.main", fontSize: "1.05rem" }}>
-                Submission contents
-              </Typography>
+              <Typography variant="panelTitle" sx={{ flex: 1 }}>Submission contents</Typography>
               {!narrow && (
                 <Tooltip title="Fold away">
                   <IconButton size="small" aria-label="Fold the contents away" onClick={() => setRailOpen(false)}>
