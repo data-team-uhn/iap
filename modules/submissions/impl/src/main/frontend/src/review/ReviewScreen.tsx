@@ -81,6 +81,14 @@ function storedKinds(): Set<NoteKind> {
   }
 }
 
+// "29 notes: 18 extracted answers, 6 AI pre-review…", what a requirement's count is made of
+function countText(notes: ReviewNote[]): string {
+  const parts = NOTE_KINDS.map(info => [ info, notes.filter(note => note.kind === info.kind).length ] as const)
+    .filter(([ , count ]) => count > 0)
+    .map(([ info, count ]) => `${count} ${info.label.toLowerCase()}`);
+  return `${notes.length} ${notes.length === 1 ? "note" : "notes"}: ${parts.join(", ")}`;
+}
+
 function questions(items: FormItem[]): FormQuestion[] {
   return items.flatMap(item => isQuestion(item) ? [ item ] : questions(item.items));
 }
@@ -415,7 +423,11 @@ export default function ReviewScreen({ path }: { path: string }) {
                 slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption", component: "div" } }}
                 sx={{ my: 0.25 }}
               />
-              {count > 0 && <Chip size="small" label={count} sx={{ ml: 1, height: 20 }} />}
+              {count > 0 && (
+                <Tooltip title={countText(notesOf(requirement).filter(note => shown.has(note.kind)))} placement="right">
+                  <Chip size="small" label={count} sx={{ ml: 1, height: 20 }} />
+                </Tooltip>
+              )}
             </ListItemButton>
           </Tooltip>
         );
