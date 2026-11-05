@@ -49,7 +49,8 @@ final class EntityLocator
      * @param path the node's absolute path
      * @param node the node
      * @param enclosing the entity its parent is part of, {@code null} if none
-     * @return the node itself if it is an entity, else the enclosing one
+     * @return the node itself if it is an entity with a {@code jcr:uuid}, else the enclosing one; {@code null} if
+     *         there is neither
      */
     Subject entityAt(final String path, final NodeState node, final Subject enclosing)
     {

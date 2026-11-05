@@ -12,9 +12,8 @@ months later.
 
 > **Status.** The store, its node types, their Sling Models, the recorder and the commit
 > editor that writes the record are built and tested, and the workflow engine records
-> every delivery. **No snapshot is taken yet**: the engine has no phase after its commit
-> for them to run in. Nothing serves the history to a reader, and nothing writes read
-> markers.
+> every delivery. **No snapshot is taken yet**: no workflow step asks for one. Nothing
+> serves the history to a reader, and nothing writes read markers.
 
 ## Two stores, one record
 
@@ -66,21 +65,21 @@ resource, and the `role` that resource played: which version was *retired* and w
 | --- | --- |
 | `subject` | **Mandatory.** The `jcr:uuid` of the affected node |
 | `subjectPath`, `subjectType` | **Mandatory.** Its path and its primary node type, such as `sub:Submission`, at the time |
-| `role` | **Mandatory.** The part it played: `submitted`, `retired`, `activated` |
+| `role` | **Mandatory.** The part it played: `raised`, `retired`, `tagged as active` |
 | `changed` | The properties that changed, by path relative to the subject |
 | `added`, `removed` | The topmost node of each branch added or removed, by path relative to the subject |
 | `snapshot` | The `jcr:uuid` of the JCR version taken after the action, if any |
 
 `jcr:createdBy` on an action is whoever wrote the record, often a service user. The
 person who requested the action is `createdBy`, which `Action.getRequestedBy()` reads.
-`role` is free-form: the workflow definitions own the vocabulary.
+`role` is free-form: the code that acted names it, or else the commit supplies one, as
+[Recording](#recording) lists.
 
-**The record holds where the subject changed, never the values.** A
-record carrying a value would have to be redacted when the content it describes is
-purged.
+**The record holds where the subject changed, never the values.** A record carrying a
+value would have to be redacted when the content it describes is purged.
 
-An entry is named after its subject's identifier, so the repository refuses a second
-entry for the same resource in the same action.
+An entry is named after its subject's `jcr:uuid`, so an action holds at most one entry
+for each resource.
 
 ### Notes added afterwards
 
@@ -141,8 +140,8 @@ succeeds or not; it replaces any the session carried.
 the transaction it broke is rolled back, so its record is written apart from it.
 
 **Two sources fill an entry, each with what it knows.** The code that acts names the
-part each resource played, by purpose: `addTag` names it `tagged as submitted`,
-`removeTag` `untagged as draft`, and `retireActiveVersions` `retired`. The commit
+part each resource played, by purpose: `addTag` names it `tagged as active`,
+`removeTag` `untagged as retired`, and `retireActiveVersions` `retired`. The commit
 supplies what changed, from its own diff, so nothing depends on the code remembering:
 
 | The commit | The entry |
@@ -174,7 +173,7 @@ repository checks those writes like any other. So recording needs write access t
 **`iap-history-writers`** group, and a module that records joins the group in its own
 repoinit. Every change goes through the workflow engine, whose user holds that access
 already. The store's own `iap-history` service user can only read: it is the user the
-history is read as.
+history is meant to be read as.
 
 **Nobody holding these grants can delete an action or an entry**: neither
 `jcr:removeNode` nor `jcr:removeChildNodes` is granted. They can change a property,
@@ -187,18 +186,16 @@ An action has a random name, and is filed in a prefix tree under
 [`PrefixTree`](../modules/java-utils/src/main/java/io/uhndata/iap/utils/PrefixTree.java).
 
 The commit editor creates a missing bucket in the commit it records, so a commit that
-fails leaves none behind. Two commits adding the same new bucket conflict, and the
-second is retried like any other conflict.
+fails leaves none behind.
 
 ## Reading
 
 **No person reads the store directly.** No person is granted read on `/History`, not
 even the people whose work it describes. The history is meant to be served by a service
 that reads the store as `iap-history` and adapts what it finds to what the person asking
-may see. Oak
-cannot express a permission on a single version, so who may learn what about a past
-change is decided when the history is served. A bug in that service would be a
-disclosure bug.
+may see. Oak cannot express a permission on a single version, so who may learn what
+about a past change is decided when the history is served. A bug in that service would
+be a disclosure bug.
 
 **A note on an action is shown only to someone who may see every entry of that action.**
 It can speak of any resource the action affected, so showing it beside the one a reader
@@ -285,8 +282,8 @@ change. An incidental check-in costs a full copy and records nothing.
 
 ## What is still missing
 
-- **No snapshots.** The engine has no phase after its commit for them to run in, and no
-  step asks for one.
+- **No snapshots.** No workflow step asks for one, and nothing calls
+  `completeSnapshots`.
 - **Nothing serves the history.** The service that reads the store as `iap-history` and
   decides what each person may see of it is not written.
 - **Nothing writes read markers**, and no node type declares `hist:Watchable`.
