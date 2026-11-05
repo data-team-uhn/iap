@@ -11,10 +11,10 @@ like afterwards. An authorization decision has to be defensible against this rec
 months later.
 
 > **Status.** The store, its node types, their Sling Models, the recorder and the commit
-> editor that writes the record are built and tested. **Nothing records yet**: the
-> workflow engine does not commit through the recorder, and has no phase after its
-> commit for the snapshots to run in. Nothing serves the history to a reader, and
-> nothing writes read markers.
+> editor that writes the record are built and tested, and the workflow engine records
+> every delivery. **No snapshot is taken yet**: the engine has no phase after its commit
+> for them to run in. Nothing serves the history to a reader, and nothing writes read
+> markers.
 
 ## Two stores, one record
 
@@ -98,6 +98,11 @@ could take either, and the rule decides which.
 | `resolution` | A short keyword for software to act on, for a note that records a decision |
 
 ## Recording
+
+**The workflow engine records every delivery**, so a workflow records without asking.
+Its cause is the event, who sent it, and what handled it: the system workflow's start
+event, or the task the event completed with its decision and note. A handler adds what
+its step meant through `WorkflowTaskContext.recordRole(resource, role)`.
 
 ```java
 // HistoryRecorder
@@ -280,8 +285,8 @@ change. An incidental check-in costs a full copy and records nothing.
 
 ## What is still missing
 
-- **Nothing records.** The engine does not commit through the recorder, and has no
-  phase after its commit for the snapshots to run in.
+- **No snapshots.** The engine has no phase after its commit for them to run in, and no
+  step asks for one.
 - **Nothing serves the history.** The service that reads the store as `iap-history` and
   decides what each person may see of it is not written.
 - **Nothing writes read markers**, and no node type declares `hist:Watchable`.

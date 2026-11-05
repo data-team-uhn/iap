@@ -17,7 +17,9 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,14 +34,18 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.history.api.RecordedAction;
+import io.uhndata.iap.history.api.RecordedEffect;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Event;
+import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.spi.Execution;
 
 /**
- * What one delivery leaves for after its commit: the notifications its message events announced are sent, and the
- * nodes its steps checked out are checked back in.
+ * What one delivery leaves behind besides its writes. What its steps said they did is recorded by its commit. The
+ * notifications its message events announced are sent once it commits, and the nodes its steps checked out are
+ * checked back in.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,6 +55,8 @@ final class DeliveryConsequences
     private static final Logger LOGGER = LoggerFactory.getLogger(DeliveryConsequences.class);
 
     private final PendingNotifications notifications;
+
+    private final List<RecordedEffect> effects = new ArrayList<>();
 
     private final Set<String> toCheckIn = new LinkedHashSet<>();
 
@@ -80,6 +88,17 @@ final class DeliveryConsequences
     }
 
     /**
+     * Notes what a step did to a resource.
+     *
+     * @param path the path of the resource
+     * @param role the part it played, named by its purpose
+     */
+    void recordRole(final String path, final String role)
+    {
+        this.effects.add(new RecordedEffect(path, role));
+    }
+
+    /**
      * Notes a node to check back in once the delivery has committed.
      *
      * @param path the path of the versionable node
@@ -87,6 +106,38 @@ final class DeliveryConsequences
     void checkInAfterCommit(final String path)
     {
         this.toCheckIn.add(path);
+    }
+
+    /**
+     * The delivery as its history records it, when a system workflow handled its event.
+     *
+     * @param actor the user who sent the event
+     * @param event the event
+     * @param start the start event of the system workflow that caught it
+     * @return the action, with what its steps said they did
+     */
+    RecordedAction recordedAsSystemWorkflow(final String actor, final WorkflowEvent event, final FlowNode start)
+    {
+        return withEffects(DeliveryCauses.ofSystemWorkflow(actor, event, start));
+    }
+
+    /**
+     * The delivery as its history records it, when its event completed a task of a running instance.
+     *
+     * @param actor the user who sent the event
+     * @param event the event
+     * @param task the task the event completed, as the event left it
+     * @return the action, with what its steps said they did
+     */
+    RecordedAction recordedAsTask(final String actor, final WorkflowEvent event, final Resource task)
+    {
+        return withEffects(DeliveryCauses.ofTask(actor, event, task));
+    }
+
+    private RecordedAction withEffects(final RecordedAction.Builder cause)
+    {
+        this.effects.forEach(cause::affecting);
+        return cause.build();
     }
 
     /**

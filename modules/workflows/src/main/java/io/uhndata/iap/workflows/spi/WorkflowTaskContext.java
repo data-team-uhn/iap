@@ -117,6 +117,16 @@ public interface WorkflowTaskContext extends Execution
         throws WorkflowException, PersistenceException;
 
     /**
+     * Says what this step did to a resource, for the history: the part the resource played, named by its purpose.
+     * The history records what changed on its own; only the meaning of the change has to be said.
+     *
+     * @param resource the resource; a part of an entity stands for the entity it belongs to
+     * @param role a word for the part it played, in the vocabulary of the workflow rather than of the storage, such
+     *            as {@code submitted}, {@code retired} or {@code activated}
+     */
+    void recordRole(@NotNull Resource resource, @NotNull String role);
+
+    /**
      * Asks for a versionable node to be checked back in once this delivery has committed. A step that had to check
      * a node out cannot check it back in itself. A check-in refuses pending changes, and the delivery's changes stay
      * pending until the engine commits them all at once.

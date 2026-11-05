@@ -122,6 +122,12 @@ final class TaskContext implements WorkflowTaskContext
     }
 
     @Override
+    public void recordRole(final Resource resource, final String role)
+    {
+        // The history is not under test here
+    }
+
+    @Override
     public void checkInAfterCommit(final String path)
     {
         // No handler tested here checks anything out
