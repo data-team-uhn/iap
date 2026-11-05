@@ -38,7 +38,7 @@ import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import {
   ARCHIVE_ROUTE,
@@ -48,7 +48,6 @@ import {
   restoreEntry,
   type ActionResponse,
   type ArchiveEntryDetail,
-  type AuthenticatedFetch,
 } from "./archiveApi";
 import { describeOutcome, failureMessage } from "./archiveOutcome";
 

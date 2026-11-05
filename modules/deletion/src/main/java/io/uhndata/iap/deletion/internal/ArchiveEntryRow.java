@@ -67,15 +67,15 @@ final class ArchiveEntryRow
             // Built from PrefixTree.ADDRESS_SEGMENT, where the provider mounted beside the archive answers
             .add("shortPath", DeletionService.ARCHIVE_PATH + "/" + PrefixTree.ADDRESS_SEGMENT
                 + "/" + entry.getName())
-            .add("requestedPath", properties.get("requestedPath", ""))
-            .add("deletedBy", properties.get("deletedBy", ""));
+            .add(DeletionService.REQUESTED_PATH_PROPERTY, properties.get(DeletionService.REQUESTED_PATH_PROPERTY, ""))
+            .add(DeletionService.DELETED_BY_PROPERTY, properties.get(DeletionService.DELETED_BY_PROPERTY, ""));
         final Calendar created = properties.get("jcr:created", Calendar.class);
         if (created != null) {
             row.add("created", DateUtils.toString(created));
         }
         // Only the children that record an original path are archived items
         final List<String> originalPaths = StreamSupport.stream(entry.getChildren().spliterator(), false)
-            .map(item -> item.getValueMap().get("originalPath", String.class))
+            .map(item -> item.getValueMap().get(DeletionService.ORIGINAL_PATH_PROPERTY, String.class))
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
         final JsonArrayBuilder paths = Json.createArrayBuilder();
