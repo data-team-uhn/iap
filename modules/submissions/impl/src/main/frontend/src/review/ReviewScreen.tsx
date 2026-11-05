@@ -480,6 +480,8 @@ export default function ReviewScreen({ path }: { path: string }) {
         )}
       </Stack>
       <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, alignItems: "flex-start" }}>
+        {/* The page runs at least as far down as the contents beside it, so whichever requirement is being read,
+            its tab meets the page */}
         {railOpen || narrow ? (
           // Part of the frame, tinted like the app bar; the requirement being read is a tab of the white page beside it
           <Paper sx={{ py: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0, position: { md: "sticky" }, top: { md: 16 },
@@ -517,7 +519,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             </Typography>
           </Paper>
         )}
-        <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%",
+        <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%", alignSelf: { md: "stretch" },
           ...railOpen && !narrow ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: "none" } : {} }}>
           {current && (
             <>
