@@ -67,6 +67,7 @@ import { writeComment } from "./reviewApi";
 import { isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, type NoteKind, type ReviewData,
   type ReviewGroup, type ReviewNote } from "./reviewData";
 import { documentText, searchAnswers, searchPages, type Hit } from "./searchSubmission";
+import { PANEL_HEIGHT, PanelBody, panelPlacement } from "./sidePanel";
 import SubmissionSearch from "./SubmissionSearch";
 import { useCurrentUser } from "./useCurrentUser";
 
@@ -532,7 +533,8 @@ export default function ReviewScreen({ path }: { path: string }) {
             its tab meets the page */}
         {railOpen || narrow ? (
           // Part of the frame, tinted like the app bar; the requirement being read is a tab of the white page beside it
-          <Paper sx={{ py: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0, position: { md: "sticky" }, top: { md: 16 },
+          <Paper sx={{ py: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0,
+            ...narrow ? {} : { ...panelPlacement, display: "flex", flexDirection: "column" },
             overflow: "hidden", bgcolor: { md: "background.tinted" }, boxShadow: { md: "none" },
             mr: { md: -1.5 }, borderTopRightRadius: { md: 0 }, borderBottomRightRadius: { md: 0 },
             borderRight: { md: "none" } }}>
@@ -546,11 +548,11 @@ export default function ReviewScreen({ path }: { path: string }) {
                 </Tooltip>
               )}
             </Stack>
-            {rail}
+            {narrow ? rail : <PanelBody follow={current?.name}>{rail}</PanelBody>}
           </Paper>
         ) : (
           // Folded, it still says what it is
-          <Paper sx={{ width: 48, py: 1, flexShrink: 0, position: "sticky", top: 16, display: "flex",
+          <Paper sx={{ width: 48, py: 1, flexShrink: 0, ...panelPlacement, display: "flex",
             flexDirection: "column", alignItems: "center", gap: 1 }}>
             <Tooltip title="Show the contents" placement="right">
               <IconButton size="small" aria-label="Show the submission contents" onClick={() => setRailOpen(true)}>
@@ -565,7 +567,11 @@ export default function ReviewScreen({ path }: { path: string }) {
             </Typography>
           </Paper>
         )}
+        {/* At least as tall as the panels, so the contents' tab always meets it; a document fills it exactly */}
         <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%", alignSelf: { md: "stretch" },
+          minHeight: { md: PANEL_HEIGHT },
+          ...!narrow && current && isDocumentRequirement(current)
+            ? { height: PANEL_HEIGHT, display: "flex", flexDirection: "column" } : {},
           ...railOpen && !narrow ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: "none" } : {} }}>
           {current && (
             <>
@@ -598,7 +604,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                 />
               )}
               {isDocumentRequirement(current) && shownDocument && (
-                <Box sx={{ mt: 1 }}>
+                <Box sx={{ mt: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
                   <DocumentReview
                     key={current.name}
                     document={shownDocument} data={data} shown={shown} selected={mark.id}
@@ -630,7 +636,7 @@ export default function ReviewScreen({ path }: { path: string }) {
           )}
 
         </Paper>
-        <Box sx={{ display: { xs: "none", md: "block" }, position: "sticky", top: 16, flexShrink: 0 }}>
+        <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", ...panelPlacement, flexShrink: 0 }}>
           <IssuesPanel
             issues={myIssues} about={about}
             open={issuesOpen ?? !(current && isDocumentRequirement(current))}
