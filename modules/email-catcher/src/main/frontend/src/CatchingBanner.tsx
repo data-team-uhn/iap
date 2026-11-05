@@ -21,15 +21,15 @@ import { type Extension } from "@iap/ui-extension/ExtensionList";
 
 import useCatching from "./useCatching";
 
-// The message is here rather than on the extension node so that it cannot drift from the state it describes.
-// A node property would be edited by hand, and a wrong warning about mail is worse than none.
+// The notice is in code, not on the extension node, so that it changes only with the code that decides
+// when it shows.
 const NOTICE: Extension = {
   "ext:data": "**No email is being sent from this instance.** Everything it would have emailed is"
     + " being kept here instead, including password resets and invitations.",
   "ext:severity": "error",
 };
 
-// Says, on every page and before sign-in too, that mail is going nowhere.
+// Warns, on every page and before sign-in too, that mail is being caught and not sent.
 export default function CatchingBanner() {
   const catching = useCatching();
 

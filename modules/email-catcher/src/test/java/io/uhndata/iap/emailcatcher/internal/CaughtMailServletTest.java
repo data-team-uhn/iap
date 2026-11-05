@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link CaughtMailServlet}: that what was caught can be read back in one request, newest first.
+ * Tests for {@link CaughtMailServlet}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,10 +62,10 @@ class CaughtMailServletTest
     }
 
     /**
-     * Files one message, as the catcher would have.
+     * Creates one caught message.
      *
      * @param name the node name
-     * @param subject what it says
+     * @param subject its subject
      * @param minutesAgo how long ago it was caught
      */
     private void caught(final String name, final String subject, final int minutesAgo)
@@ -115,8 +115,6 @@ class CaughtMailServletTest
         assertEquals("recipient@example.com", message.getJsonArray("to").getString(0));
     }
 
-    // The ACL protecting the folder is a child node of it. Counting children rather than messages reported one
-    // had been sent before anything had, which is the failure this exists to keep from coming back.
     @Test
     void doesNotCountTheFoldersOwnAccessPolicy() throws IOException
     {
@@ -128,7 +126,6 @@ class CaughtMailServletTest
         assertTrue(answer.getJsonArray("messages").isEmpty());
     }
 
-    // What a test or a developer wants is almost always the message that was just sent
     @Test
     void putsTheNewestFirst() throws IOException
     {
@@ -144,7 +141,7 @@ class CaughtMailServletTest
         assertEquals("Older", messages.getJsonObject(2).getString("subject"));
     }
 
-    // Sorting must not throw on a message that somehow says nothing about when it arrived; it goes last
+    // caughtAt is mandatory in Oak, but this mock repository does not enforce node types
     @Test
     void toleratesAMessageWithNoDate() throws IOException
     {
@@ -159,7 +156,6 @@ class CaughtMailServletTest
         assertFalse(messages.getJsonObject(1).containsKey("caughtAt"));
     }
 
-    // The one date format the platform writes, so a caller parses this the same way it parses everything else
     @Test
     void writesTheDateTheWayEverythingElseDoes() throws IOException
     {
@@ -171,8 +167,6 @@ class CaughtMailServletTest
             .getValueMap().get("caughtAt", Calendar.class)));
     }
 
-    // Every list is stated, empty or not, so a caller can tell "nobody was copied" from "this reader has to
-    // guess" without checking for a missing key
     @Test
     void statesEveryListEvenWhenEmpty() throws IOException
     {

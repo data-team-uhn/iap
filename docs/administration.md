@@ -202,8 +202,8 @@ any repository content.
 | Archive | `/admin/archive` | `deletion` | Operations | 30 |
 | Caught mail | `/admin/mail` | `email-catcher` | Operations | 40 |
 
-The last of those is a development facility that ships everywhere and is off unless
-switched on.
+Caught mail is a development tool. It ships everywhere and is off until somebody switches
+it on; see [catching mail](notifications.md#catching-mail-in-development).
 
 ## Future work
 

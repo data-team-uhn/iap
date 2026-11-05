@@ -47,8 +47,7 @@ const view = (route = "/admin/mail/abc") => render(
   </MemoryRouter>
 );
 
-// Reading one message and then another, the way the grid's row links do it: the page stays mounted
-// and only the address changes.
+// Reads one message and then another: the page stays mounted and only the route changes.
 function Reader() {
   const navigate = useNavigate();
   return (
@@ -80,8 +79,6 @@ describe("CaughtMessageView", () => {
   });
 
   it("shows every address list the message carried, one address per line", async () => {
-    // A comma is legal inside a display name, so a joined list is ambiguous exactly where somebody
-    // is checking whether the addressing came out right
     vi.stubGlobal("fetch", answering(STORED));
     view();
 
@@ -92,7 +89,6 @@ describe("CaughtMessageView", () => {
   });
 
   it("shows no heading for an address list the message did not carry", async () => {
-    // An empty "Bcc" would suggest a blind copy that failed to render
     vi.stubGlobal("fetch", answering(STORED));
     view();
 
@@ -102,8 +98,6 @@ describe("CaughtMessageView", () => {
   });
 
   it("draws the HTML body in a sandbox with nothing allowed", async () => {
-    // A caught message is whatever was handed to the mail service, and this page renders it inside
-    // an administrator's session
     vi.stubGlobal("fetch", answering(STORED));
     view();
 
@@ -132,8 +126,6 @@ describe("CaughtMessageView", () => {
   });
 
   it("falls back to a body the message actually has", async () => {
-    // The chosen view is kept while reading several messages in a row, so it can name a body the
-    // next one lacks — as the default does for a message with no HTML at all
     vi.stubGlobal("fetch", answering({ textBody: "Only text." }));
     view();
 
@@ -172,7 +164,6 @@ describe("CaughtMessageView", () => {
     view();
 
     expect(await screen.findByText("Caught message")).toBeInTheDocument();
-    // A message with no date shows a dash rather than an empty fact
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
@@ -193,7 +184,6 @@ describe("CaughtMessageView", () => {
     vi.stubGlobal("fetch", fetchMock);
     view();
 
-    // The screen says what failed; the sentence under it says why, and does not repeat the attempt
     expect(await screen.findByText("The message could not be read")).toBeInTheDocument();
     expect(screen.getByText(/could not be found on the server/)).toBeInTheDocument();
     expect(screen.getByText(/\(HTTP 404\)/)).toBeInTheDocument();
@@ -219,8 +209,6 @@ describe("CaughtMessageView", () => {
   });
 
   it("ignores a read that lands after the address has moved on", async () => {
-    // Reads are sent in order but can land out of order, and the slow one arriving second would
-    // otherwise replace the message actually being looked at
     const pending: ((response: Response) => void)[] = [];
     vi.stubGlobal("fetch", vi.fn((url: string) => (url.startsWith("/CaughtMail/abc")
       ? new Promise<Response>(resolve => { pending.push(resolve); })
@@ -241,8 +229,7 @@ describe("CaughtMessageView", () => {
   });
 
   it("reports a request that never reached the server", async () => {
-    // A fetch that never completes rejects with a TypeError, which is what distinguishes "no server,
-    // no route, no DNS" from a server that answered badly — so the stub has to reject with one
+    // fetch rejects with a TypeError when the request never reaches the server
     vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))));
     view();
 

@@ -70,8 +70,6 @@ describe("CaughtMailBrowser", () => {
   });
 
   it("says mail is being delivered normally, and where to switch that", async () => {
-    // Without this the page is indistinguishable from one where nothing has been sent, and somebody
-    // debugging a notification would conclude the notification never fired
     vi.stubGlobal("fetch", answering(false, []));
     browser();
 
@@ -96,8 +94,6 @@ describe("CaughtMailBrowser", () => {
   });
 
   it("still lists the messages when the catcher's state cannot be read", async () => {
-    // The list is the page's substance, and the grid reports its own failures; a second report of
-    // the same unreadable folder would say nothing more
     const fetchMock = vi.fn((url: string) => Promise.resolve(url.includes(".adminSummary.json")
       ? new Response("", { status: 403 })
       : new Response(JSON.stringify(page([ MESSAGE_ROW ])),

@@ -22,7 +22,7 @@ import { MemoryRouter } from "react-router";
 
 import CaughtMailWidget from "@iap/email-catcher/CaughtMailWidget";
 
-// A fresh answer per request: the list and the switch each read the summary.
+// A fresh Response per request: the stat list and the widget's status each read the summary.
 const summary = (enabled: boolean, total: number) => () => Promise.resolve(new Response(
   JSON.stringify({ enabled: { label: "Catching mail", value: enabled }, total: { label: "Caught so far", value: total } }),
   { status: 200, headers: { "Content-Type": "application/json" } }

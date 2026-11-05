@@ -61,48 +61,33 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.metrics.api.MetricsManager;
 
 /**
- * A mail service that files what would have been sent, instead of sending it.
+ * A mail service that files each message under {@value #CAUGHT_MAIL_PATH} instead of sending it, so that email
+ * can be read back on an instance with no mail server.
  *
  * <p>
- * <strong>This is a development facility, and what keeps it out of the way is a setting that defaults to
- * off.</strong> The bundle ships in every distribution and publishes nothing until somebody enables it, which is
- * a better safeguard than leaving the bundle out of some of them: there is one set of artifacts rather than two,
- * the difference between environments is a configuration a deployment can read back, and switching it on
- * somewhere new needs no rebuild.
+ * Its {@code enabled} setting is off by default, and while off it registers no mail service.
  * </p>
  *
  * <p>
- * <strong>Registered above the real one rather than instead of it.</strong> Sling's {@code SimpleMailService} is
- * still there and still starts; this simply outranks it, so every {@code @Reference MailService} gets this one.
- * That is one configuration property rather than a mechanism for disabling a component that belongs to another
- * bundle, and it leaves the real service reachable by anything that deliberately asks for it.
+ * While on, it registers as a {@link MailService} ranked above Sling's {@code SimpleMailService}, which keeps
+ * running. A reference already bound to Sling's service moves to the catcher only if it is dynamic and greedy.
  * </p>
  *
  * <p>
- * <strong>Filed synchronously, and loudly.</strong> {@code sendMessage} returns a {@link CompletableFuture}, and
- * the platform's callers do not consume it — a failure inside one reaches neither the caller nor the log. That is
- * survivable for a real send, which the mail server would report on separately; it is not survivable here, where
- * the whole purpose is that the message can be read back afterwards. So the write happens on the calling thread
- * and anything that goes wrong is logged as an error before the failed future is handed back.
- * </p>
- *
- * <p>
- * <strong>How much it has caught is a metric.</strong> The count answers a question the listing cannot: whether
- * anything was sent at all during a run. It rolls over nightly, so the previous day's traffic stays readable
- * beside the running total — a demo or a test environment is exercised in bursts, and a total that only ever
- * grows says nothing about whether today's run sent what it should have.
+ * A message is filed on the calling thread, before {@code sendMessage} returns. A failure is logged here, and the
+ * returned {@link CompletableFuture} fails with it. Each message filed adds one to the {@link CaughtMailCounter}.
  * </p>
  *
  * @version $Id$
  * @since 0.1.0
  */
-// service = {} because the MailService registration is made by hand, in activate, only when enabled
+// No declared service: activate registers the MailService itself, and only while enabled
 @Component(service = {})
 @Designate(ocd = CaughtMailService.Config.class)
 public class CaughtMailService implements MailService
 {
     /**
-     * What an administrator sees in the Felix console's configuration list.
+     * The catcher's setting, as the Felix console shows it.
      *
      * @version $Id$
      * @since 0.1.0
@@ -115,7 +100,7 @@ public class CaughtMailService implements MailService
         /**
          * Whether to catch mail rather than send it.
          *
-         * @return {@code true} while the catcher should be filing messages
+         * @return {@code true} to file messages instead of sending them
          */
         @AttributeDefinition(name = "Enabled",
             description = "While this is on, everything the platform would have emailed is filed under"
@@ -128,9 +113,8 @@ public class CaughtMailService implements MailService
     public static final String CAUGHT_MAIL_PATH = "/CaughtMail";
 
     /**
-     * Set on this service's registration, so that it can be told apart from the real mail service it outranks.
-     * Whether a service carrying it exists is the only honest answer to "is mail being caught right now": the
-     * configuration says what was asked for, this says what is in force.
+     * A service property, set to {@code true} on the catcher's mail service registration. A target filter on it
+     * finds the catcher while it is on, and nothing while it is off.
      */
     public static final String CATCHER_PROPERTY = "iap.mail.catcher";
 
@@ -141,13 +125,12 @@ public class CaughtMailService implements MailService
 
     private static final Map<String, Object> SERVICE_USER = Map.of(ResourceResolverFactory.SUBSERVICE, "emailcatcher");
 
-    /** The property naming a node's type, which has to be set explicitly when creating through Sling. */
+    /** The property that sets the type of a node created through Sling. */
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
     /**
-     * The headers read into their own properties, and therefore left out of the catch-all list. {@code Date} is
-     * not among them: it says when the message was built, which is a different fact from when it was caught, and
-     * it stays readable as an ordinary header.
+     * The headers stored as properties of their own, and so left out of {@code headers}. {@code Date} stays in
+     * {@code headers}: {@code caughtAt} records when the message was caught, not when it was built.
      */
     private static final List<String> OWN_PROPERTIES = List.of("From", "To", "Cc", "Bcc", "Reply-To", "Subject");
 
@@ -157,17 +140,17 @@ public class CaughtMailService implements MailService
     @Reference
     private MetricsManager metricsManager;
 
-    /** The mail service registration, held only while enabled, so that deactivating can withdraw it. */
+    /** The mail service registration; {@code null} while the catcher is off. */
     private ServiceRegistration<MailService> registration;
 
-    /** The counter of caught messages, held only while the catcher is on. */
+    /** The counter of caught messages; {@code null} while the catcher is off. */
     private CaughtMailCounter caught;
 
     /**
-     * Publishes the catcher as a mail service, if it is switched on.
+     * Registers the catcher as a mail service, if it is switched on.
      *
-     * @param bundleContext this bundle's context, which is what a manual registration is made against
-     * @param config the setting an administrator can change
+     * @param bundleContext the context of this bundle, to register the mail service in
+     * @param config the catcher's setting
      */
     @Activate
     void activate(final BundleContext bundleContext, final Config config)
@@ -176,13 +159,9 @@ public class CaughtMailService implements MailService
             LOGGER.debug("The email catcher is switched off, so mail will be sent normally");
             return;
         }
-        // Above Sling's own mail service, which registers without a configuration and so ranks at zero. Ranking
-        // decides this rather than disabling a component that belongs to another bundle, which also leaves the
-        // real service reachable by anything that deliberately asks for it.
+        // Sling's SimpleMailService is configured without a service.ranking, so it ranks at zero
         final Dictionary<String, Object> properties = new Hashtable<>();
         properties.put(Constants.SERVICE_RANKING, 1000);
-        // Marks this registration as the catcher's own, so that something wanting to report whether mail is
-        // being caught can ask for it by target filter rather than by guessing from the ranking
         properties.put(CATCHER_PROPERTY, Boolean.TRUE);
         this.registration = bundleContext.registerService(MailService.class, this, properties);
         this.caught = CaughtMailCounter.define(this.metricsManager, CAUGHT_MAIL_PATH);
@@ -190,7 +169,7 @@ public class CaughtMailService implements MailService
             CAUGHT_MAIL_PATH);
     }
 
-    /** Withdraws the mail service, so that switching the catcher off puts real sending back. */
+    /** Withdraws the catcher's mail service, if it registered one. */
     @Deactivate
     void deactivate()
     {
@@ -214,19 +193,19 @@ public class CaughtMailService implements MailService
             file(message);
             return CompletableFuture.completedFuture(null);
         } catch (final MessagingException | LoginException | PersistenceException | RuntimeException e) {
-            // Said out loud, because nothing consumes the future this is reported in
+            // Logged as well as returned, since a caller may drop the future
             LOGGER.error("A message could not be caught: {}", e.getMessage(), e);
             return CompletableFuture.failedFuture(e);
         }
     }
 
     /**
-     * Writes one message into the repository.
+     * Files one message as a new {@value #MESSAGE_TYPE} node under {@value #CAUGHT_MAIL_PATH}.
      *
-     * @param message the message that would have been sent
+     * @param message the message to file
      * @throws MessagingException if the message cannot be read
      * @throws LoginException if the catcher's service user is not available
-     * @throws PersistenceException if the message cannot be written
+     * @throws PersistenceException if {@value #CAUGHT_MAIL_PATH} does not exist, or the node cannot be saved
      */
     private void file(final MimeMessage message)
         throws MessagingException, LoginException, PersistenceException
@@ -236,11 +215,9 @@ public class CaughtMailService implements MailService
             if (home == null) {
                 throw new PersistenceException(CAUGHT_MAIL_PATH + " does not exist, so no message can be caught");
             }
-            // Named after nothing in the message: a subject is not unique, not always present, and not always a
-            // usable node name, while what a reader wants is ordering, which the caughtAt property carries
             resolver.create(home, UUID.randomUUID().toString(), describe(message));
             resolver.commit();
-            // After the commit, so the count only ever reports messages that can actually be read back
+            // After the commit, so that a message that failed to save is not counted
             if (this.caught != null) {
                 this.caught.count();
             }
@@ -250,19 +227,17 @@ public class CaughtMailService implements MailService
     }
 
     /**
-     * Reads a message into the properties of the node recording it.
+     * The properties of the node that files a message. A header or body the message lacks gets no property.
      *
      * @param message the message to describe
-     * @return the properties of a new node
+     * @return each property's name, mapped to its value
      * @throws MessagingException if the message cannot be read
      */
     private static Map<String, Object> describe(final MimeMessage message) throws MessagingException
     {
         final Map<String, Object> properties = new HashMap<>();
         properties.put(PRIMARY_TYPE, MESSAGE_TYPE);
-        // When it was caught, not when it was built. The message's own Date header has second precision, so
-        // reading that would leave two messages sent in the same second in no particular order — and this is the
-        // property a reader sorts by.
+        // Not the Date header, which has second precision. Readers sort by this property.
         properties.put("caughtAt", Calendar.getInstance());
         put(properties, "subject", message.getSubject());
         putAll(properties, "from", addresses(message.getFrom()));
@@ -279,13 +254,10 @@ public class CaughtMailService implements MailService
     }
 
     /**
-     * Every header except the ones read into properties of their own.
-     *
-     * <p>Kept so that anything the platform sets deliberately can be checked without this class having to know
-     * what that might be.</p>
+     * The message's headers, except those stored as properties of their own.
      *
      * @param message the message being filed
-     * @return the remaining headers, as {@code Name: value}
+     * @return each header as {@code Name: value}; empty if there are no others
      * @throws MessagingException if the headers cannot be read
      */
     private static List<String> otherHeaders(final MimeMessage message) throws MessagingException
@@ -306,11 +278,11 @@ public class CaughtMailService implements MailService
     }
 
     /**
-     * Addresses as they were written on the message, display names and all, because what is worth checking is
-     * what a recipient would have seen.
+     * Addresses as they were written on the message, display names included, such as
+     * {@code The Sender <sender@example.com>}.
      *
-     * @param addresses the addresses to read, possibly {@code null} when the message carries none
-     * @return their string forms, empty when there are none
+     * @param addresses the addresses to read; {@code null} if the message has none of this kind
+     * @return the addresses; empty if there are none
      */
     private static List<String> addresses(final Address[] addresses)
     {
@@ -333,12 +305,8 @@ public class CaughtMailService implements MailService
     }
 
     /**
-     * The plain text and HTML bodies of a message, whatever shape it was assembled in.
-     *
-     * <p>A message may be a lone body, a {@code multipart/alternative} of both, or either of those wrapped in a
-     * {@code multipart/related} carrying inline parts — so this walks whatever it is given rather than assuming
-     * one of them. Attachments are passed over: what they were is visible in the headers, and their bytes are not
-     * what anybody reads a caught message to check.</p>
+     * The plain text and HTML bodies of a message. It reads every part of every multipart, however nested, and
+     * skips the parts whose disposition is {@code attachment}. Attachments are not filed.
      *
      * @since 0.1.0
      */
@@ -349,7 +317,8 @@ public class CaughtMailService implements MailService
         private String html;
 
         /**
-         * Reads whatever bodies a part holds, descending into multiparts.
+         * Reads the bodies a part holds, descending into multiparts. A later body of the same type replaces an
+         * earlier one.
          *
          * @param part the message, or one part of it
          * @throws MessagingException if the part cannot be read

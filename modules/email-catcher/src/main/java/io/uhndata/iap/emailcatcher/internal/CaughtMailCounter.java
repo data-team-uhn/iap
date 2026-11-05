@@ -29,19 +29,12 @@ import io.uhndata.iap.metrics.api.MetricsException;
 import io.uhndata.iap.metrics.api.MetricsManager;
 
 /**
- * How much mail the catcher has caught, as a metric that rolls over nightly.
+ * How many messages the catcher has filed, as the {@value #METRIC_NAME} metric. It rolls over nightly, so the
+ * previous day's count stays readable beside the running total.
  *
  * <p>
- * The count answers a question the listing cannot: whether anything was sent at all during a run. Rolling over
- * nightly is what makes that readable — a demo or a test environment is exercised in bursts, so a running total
- * that only ever grows says nothing about whether today's run sent what it should have, while the period's own
- * figure sits beside it.
- * </p>
- *
- * <p>
- * <strong>A counter that cannot be defined is not a reason to stop catching mail.</strong> Catching is what the
- * catcher is switched on for; counting is a convenience on top. So a metrics store that refuses the definition
- * leaves a counter that quietly counts nothing, reported once when it is defined rather than on every message.
+ * If the metric cannot be defined, mail is still caught. The failure is reported once, and the counter counts
+ * nothing.
  * </p>
  *
  * @version $Id$
@@ -49,7 +42,7 @@ import io.uhndata.iap.metrics.api.MetricsManager;
  */
 final class CaughtMailCounter
 {
-    /** The metric counting the messages filed instead of sent. */
+    /** The name of the metric. */
     static final String METRIC_NAME = "caughtMail";
 
     /** Nightly at midnight, as a Quartz cron expression. */
@@ -57,7 +50,7 @@ final class CaughtMailCounter
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CaughtMailCounter.class);
 
-    /** The counter, or {@code null} when it could not be defined. */
+    /** The metric; {@code null} if it could not be defined. */
     private final Metric metric;
 
     private CaughtMailCounter(@Nullable final Metric metric)
@@ -66,12 +59,12 @@ final class CaughtMailCounter
     }
 
     /**
-     * Defines the counter. This is idempotent: an existing metric keeps its count and only its metadata is brought
-     * up to date, so switching the catcher off and on again does not lose what it had counted.
+     * Defines the metric. A metric that already exists keeps its count, so switching the catcher off and on again
+     * loses nothing.
      *
-     * @param metrics the metrics service to define the counter in
-     * @param homePath where caught messages are filed, named in the description
-     * @return a counter, which counts nothing if the metric could not be defined
+     * @param metrics the metrics service to define the metric in
+     * @param homePath the path caught messages are filed under, which the metric's description names
+     * @return the counter; one that counts nothing if the metric could not be defined
      */
     @NotNull
     static CaughtMailCounter define(@NotNull final MetricsManager metrics, @NotNull final String homePath)
@@ -82,24 +75,20 @@ final class CaughtMailCounter
                 .withDescription("Messages the email catcher filed under " + homePath + " instead of sending them.")
                 .withCategory("Email")
                 .withDefaultOrder(10)
-                // The catcher is a development facility, and how much of it has been exercised is not a fact
-                // about the service that the people using the platform have any business reading
                 .withAccessLevel(Metric.AccessLevel.ADMIN)
                 .withRolloverSchedule(NIGHTLY_SCHEDULE)
                 .create());
         } catch (final MetricsException e) {
             LOGGER.error("The caught mail counter could not be defined, so mail will be caught uncounted: {}",
                 e.getMessage(), e);
-            // Recorded as well as logged: nothing else reports this, and a counter that silently stopped counting
-            // is the kind of fault only noticed once somebody needs the number
             ErrorLogger.logError(e, ErrorContext.of(CaughtMailCounter.class, "define").with("metric", METRIC_NAME));
             return new CaughtMailCounter(null);
         }
     }
 
     /**
-     * Records one more caught message. Increments swallow their own failures, so counting can never turn a caught
-     * message into a lost one.
+     * Adds one caught message to the count. The metrics service logs a failure to save the count, rather than
+     * throwing it.
      */
     void count()
     {

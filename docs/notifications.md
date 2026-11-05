@@ -225,20 +225,19 @@ service, keyed by the `SLING_COMMONS_CRYPTO_PASSWORD` environment variable.
 **Module:** `modules/email-catcher` · **Bundle:** `iap-email-catcher` (start-order 27)
 
 A development, test or demo instance has no mail server, and pointing one at a real relay
-to see what the platform writes is both awkward and a way to mail real people by accident.
-So the platform carries an **email catcher**: a `MailService` that files each message under
-`/CaughtMail` instead of delivering it.
+can mail real people by accident. The **email catcher** is a `MailService` that files each
+message under `/CaughtMail` instead of sending it.
 
-Nothing has to be configured to use it. Once switched on it registers at
-`service.ranking:Integer=1000`, above Sling's own mail service, which registers without a
-configuration and so ranks at zero — so every `@Reference MailService`, the test endpoint
-and `EmailUtils` included, is handed the catcher without knowing it. The real service still
-starts and stays reachable for anything that deliberately asks for it.
+While on, it registers at `service.ranking:Integer=1000`. Sling's `SimpleMailService` is
+configured without a ranking, so it ranks at zero, and it keeps running. A reference
+already bound to Sling's service moves to the catcher only if it is dynamic and greedy.
+Both references in `email-notifications` are, so the email delivery and the test endpoint
+send through the catcher without knowing it.
 
 A caught message is a `mail:CaughtMessage` under a `mail:CaughtMailHomepage`, written by
-the `iap-email-catcher` service user, which may write there and nowhere else. Filing
-happens on the way out of `sendMessage`; a failure is logged loudly and returned as a
-failed future, because nothing consumes the future a mail service reports into.
+the `iap-email-catcher` service user, which may write there and nowhere else. The message
+is filed before `sendMessage` returns. A failure is logged, and the returned future fails
+with it.
 
 ### Reading it over HTTP
 
@@ -246,8 +245,7 @@ failed future, because nothing consumes the future a mail service reports into.
 GET /CaughtMail.messages.json
 ```
 
-Bound to the homepage resource type, and answers with what has been caught, newest
-first:
+Bound to the homepage resource type, it answers with every caught message, newest first:
 
 ```json
 {
@@ -267,16 +265,14 @@ first:
 }
 ```
 
-Addresses are kept as they were written, display names and all, and `to`, `cc` and `bcc`
-stay apart — whether an address was visible to the others is usually the point of
-looking. Attachments are not stored: what they were is in the headers, and their bytes
-are not what anybody reads a caught message to check.
+Addresses are kept as the message wrote them, display names included. `to`, `cc` and
+`bcc` stay apart, so a reader can see which addresses the other recipients saw. A missing
+subject or body is an empty string. Attachments are not stored.
 
-`/CaughtMail` is readable by `iap-administrators` alone. What was caught is whatever the
-platform would have mailed, password-reset links included, so a test reads it with
-administrator credentials.
+`/CaughtMail` is readable by `iap-administrators` alone, since a caught message may hold
+private information. A test reads it with administrator credentials.
 
-The one fact anybody may have, signed in or not, is whether mail is being caught at all:
+Anyone, signed in or not, may ask whether mail is being caught:
 
 ```
 GET /libs/iap/mail-catcher.catching.json
@@ -285,57 +281,51 @@ GET /libs/iap/mail-catcher.catching.json
 
 It answers on a `mail:CatcherStatus` node that the module's repoinit creates at
 `/libs/iap/mail-catcher`, with an `everyone` read grant of its own. `/libs` is exempt
-from `sling.auth.requirements`, so it answers before sign-in, where somebody waiting
-for a password reset is standing. It reads the service registry, so it says what is in
-force rather than what the configuration asks for.
+from `sling.auth.requirements`, so it answers before sign-in too. The answer is whether
+the catcher's mail service is registered, not what its setting asks for.
 
-**It ships everywhere and is off everywhere until somebody turns it on.** The setting is
-a plain `enabled` boolean that defaults to false, so the bundle publishes no mail service
-until it is switched on. Three ways to do that, and they are the same setting:
+**It ships everywhere and is off until somebody turns it on.** The setting is a plain
+`enabled` boolean that defaults to false. Three ways change it, and all three write the
+same setting:
 
 - **On the administration dashboard**, with the switch on the *Caught mail* widget. It
-  asks first in both directions, since switching off on a test instance mails whatever
-  addresses its data holds, then writes the setting through `ConfigurationAdmin`:
-  `POST /CaughtMail.catching.json` with `enabled=true` or `enabled=false`, allowed to
-  `iap-administrators` and the repository superuser.
+  asks for confirmation in both directions, since switching off on a test instance mails
+  whatever addresses its data holds. It then writes the setting through
+  `ConfigurationAdmin`: `POST /CaughtMail.catching.json` with `enabled=true` or
+  `enabled=false`, allowed to `iap-administrators` and the repository superuser.
 - **In the Felix console**, under Configuration → *IAP Email Catcher*. Tick the box and
-  mail starts being filed; untick it and real sending comes back. Neither needs a
-  restart, because the consumers bind dynamically and the registration follows the
-  setting.
-- **In a feature**, which is how the `test_tar` and `demo_tar` aggregates get it without
-  anybody clicking anything: `dev/email-catcher-enabled.json` sets `enabled` to true. The
-  production aggregates do not include it.
+  mail starts being filed; untick it and real sending comes back. The instance needs no
+  restart: the catcher's component restarts, and registers or withdraws its mail service.
+- **In a feature**, which is how the `test_tar` and `demo_tar` aggregates catch mail from
+  the start: `dev/email-catcher-enabled.json` sets `enabled` to true. The production
+  aggregates do not include it.
 
 A restart reapplies what the deployment ships. The test and demo aggregates come back
-catching however they were left, while a production aggregate carries no configuration
-for the catcher, so a change made there survives.
+catching however they were left. A production aggregate carries no configuration for the
+catcher, so a change made there survives.
 
-That is deliberately not the same as leaving the bundle out of production. One set of
-artifacts is built rather than two, the difference between environments is a
-configuration a deployment can read back, and catching mail on some new instance is a
-configuration rather than a rebuild — which is exactly what somebody debugging a staging
-environment would want.
+Shipping the bundle everywhere means one set of artifacts, not two. The difference
+between environments is a configuration that a deployment can read back, and catching
+mail on a new instance needs no rebuild.
 
 **While mail is being caught, every page says so**, the sign-in page included, in a red
 banner across the top. `CatchingBanner` is an `iap/coreUI/frameTop` extension with
-`ext:visibleBeforeLogin`, and reads `catching.json` above when the page loads. The
-dashboard switch tells it at once through an `iap:mail-catching-changed` window event;
-another tab catches up on its next page load.
+`ext:visibleBeforeLogin`, and reads `catching.json` when the page loads. The dashboard
+switch fires an `iap:mail-catching-changed` window event, and the banner reads the status
+again. Another tab updates on its next page load.
 
 ### Reading it in the administration console
 
-`.messages.json` above is for a test to assert on. A person gets **Caught mail** in the
-administration console: a dashboard summary with the switch, a table of what has been
-filed at `/admin/mail`, and a page per message.
+People read the caught mail in the administration console, as **Caught mail**: a dashboard
+summary with the switch, a table of the caught messages at `/admin/mail`, and a page per
+message.
 
 The table is the [shared entity grid](frontend-development.md#shared-components), which
-pages, sorts, searches and filters through
-`/CaughtMail.paginate.json` — so the module serves no listing of its own. That works
+pages, sorts, searches and filters through `/CaughtMail.paginate.json`. That works
 because `mail:CaughtMailHomepage` extends `data:EntityHomepage` and declares
-`childNodeType = mail:CaughtMessage`, which is what tells the pagination servlet what it
-is listing.
+`childNodeType = mail:CaughtMessage`, which tells the pagination servlet what it lists.
 
-The one thing the grid cannot answer is whether mail is being caught **right now**:
+The dashboard summary and the table's page read whether mail is being caught from here:
 
 ```
 GET /CaughtMail.adminSummary.json
@@ -345,21 +335,16 @@ GET /CaughtMail.adminSummary.json
   }
 ```
 
-`enabled` is the presence of a registered `MailService` carrying the catcher's own
-`iap.mail.catcher` service property — not a reading of the configuration. The
-configuration says what somebody asked for; the registry says what is in force, and those
-differ while a component is settling or if something outranks the catcher in turn. The
-count travels with it because the two are useless apart: a count alone cannot tell
-"nothing has been sent" from "everything sent was delivered by mail".
+`enabled` is whether a `MailService` with the catcher's `iap.mail.catcher` service
+property is registered, not what the setting asks for. The two differ while the catcher
+restarts. The count comes with it, because a count alone cannot tell "nothing has been
+sent" from "everything sent was delivered".
 
-A message's own page shows the addresses one per line — a comma is legal inside a display
-name, so a joined list is ambiguous exactly where somebody is checking the addressing —
-and draws the HTML body **in an iframe with an empty `sandbox` attribute**, which blocks
-scripts, forms, navigation and same-origin access at once. These bodies come from the
-platform's own templates today, but a caught message is whatever was handed to the mail
-service, and this page renders it inside an administrator's session. It costs the page
-nothing: what is being checked is how the message reads, and a link in it is worth seeing
-rather than following. The plain text and the HTML source sit beside the rendering.
+A message's own page shows the addresses one per line, since a display name may contain a
+comma. It draws the HTML body **in an iframe with an empty `sandbox` attribute**, which
+blocks scripts, forms, navigation and same-origin access. A caught message is whatever was
+handed to the mail service, and the page runs in an administrator's session. The plain
+text and the HTML source are in tabs beside the rendering.
 
 ## Stored notifications
 

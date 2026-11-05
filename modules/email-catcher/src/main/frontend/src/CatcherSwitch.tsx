@@ -34,10 +34,10 @@ const WARNINGS = {
 };
 
 /**
- * The switch that turns mail catching on and off, and the confirmation in front of it.
+ * The switch that turns mail catching on and off, with a confirmation dialog.
  *
- * @param enabled whether mail is being caught right now
- * @param onChanged called once the setting has been written, so the caller can read the state back
+ * @param enabled whether mail is being caught
+ * @param onChanged called once the setting has been written
  */
 export default function CatcherSwitch(
   { enabled, onChanged }: { enabled: boolean; onChanged: () => void },
@@ -54,8 +54,7 @@ export default function CatcherSwitch(
       onChanged();
       setAsking(false);
     } catch {
-      // Left open, carrying the failure. Closing here would look exactly like it had worked, on the
-      // one control in the product whose two states are "mail goes out" and "mail does not".
+      // The dialog stays open and shows the failure
     } finally {
       setBusy(false);
     }

@@ -20,7 +20,7 @@ import { addressLabel, subjectLabel } from "@iap/email-catcher/caughtMailGrid";
 import { CAUGHT_MESSAGE_TYPE } from "@iap/email-catcher/caughtMailModel";
 import { getEntityTypeConfig } from "@iap/frontend-commons/entityGrid/registry";
 
-// Importing the module registered the configuration as a side effect
+// Importing the module registered the grid configuration
 const config = getEntityTypeConfig(CAUGHT_MESSAGE_TYPE);
 
 /** The column value getters only use the cell value, so they can be probed directly. */
@@ -38,7 +38,6 @@ describe("subjectLabel", () => {
   });
 
   it("says a message has no subject rather than leaving the identifying cell blank", () => {
-    // A blank cell in the column rows are recognised by reads as a broken grid
     expect(subjectLabel(undefined)).toBe("(no subject)");
     expect(subjectLabel("")).toBe("(no subject)");
   });
@@ -66,7 +65,6 @@ describe("addressLabel", () => {
 describe("the registered caught-message grid configuration", () => {
   it("lists the messages from the catcher's own folder, newest first", () => {
     expect(config?.homepage).toBe("/CaughtMail");
-    // What was just sent is what somebody came to look at
     expect(config?.defaultSort).toEqual({ field: "caughtAt", sort: "desc" });
   });
 
@@ -80,8 +78,6 @@ describe("the registered caught-message grid configuration", () => {
   });
 
   it("does not pretend the address lists can be ordered", () => {
-    // Ordering by a multivalued property has no meaningful semantics; filtering it does have one,
-    // and is how somebody asks what was sent to a given person
     expect(columnOf("to")?.sortable).toBe(false);
     expect(columnOf("from")?.sortable).toBe(false);
     expect(columnOf("to")?.filterable).not.toBe(false);
@@ -96,7 +92,6 @@ describe("the registered caught-message grid configuration", () => {
 
   it("turns the timestamp into a date the grid can order and format", () => {
     expect(valueGetterOf("caughtAt")("2026-08-20T18:30:00.000+00:00")).toBeInstanceOf(Date);
-    // A message somehow written without one must not become an Invalid Date
     expect(valueGetterOf("caughtAt")(undefined)).toBeNull();
   });
 

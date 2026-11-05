@@ -40,20 +40,7 @@ import org.osgi.service.component.annotations.Component;
 import io.uhndata.iap.utils.DateUtils;
 
 /**
- * Serves what has been caught, newest first, as {@code /CaughtMail.messages.json}.
- *
- * <p>
- * Its reason for existing is that a caught message should be readable by something other than a person with a
- * repository browser open: an integration test asserting that a workflow emailed the right person needs one
- * request and one stable shape, not a walk over storage. Ordering is by {@code caughtAt} descending, because what
- * a test or a developer wants is almost always the message that was just sent.
- * </p>
- *
- * <p>
- * A plain read of the nodes would nearly do, and deliberately is not used: it would leak the storage layout into
- * every caller, and the node names are UUIDs carrying no order at all, so each caller would have to sort for
- * itself and they would not all do it the same way.
- * </p>
+ * Serves every caught message, newest first by {@code caughtAt}, at {@code /CaughtMail.messages.json}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -68,25 +55,23 @@ public class CaughtMailServlet extends SlingJakartaSafeMethodsServlet
 {
     private static final long serialVersionUID = 5541051484949339022L;
 
-    /** The properties copied out as lists, in the order a reader expects to see them. */
+    /** The multivalued properties, each written as an array, empty if the message has no value. */
     private static final List<String> ADDRESS_LISTS = List.of("from", "replyTo", "to", "cc", "bcc", "headers");
 
     @Override
-    // The caught mail is content, a listing rather than a command's answer
+    // The caught mail is content, not a command's answer
     @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
         final List<Resource> caught = new ArrayList<>();
-        // Only the messages: the access control policy protecting this folder is a child node of it too, and a
-        // reader counting children would be told one message had been sent before anything was
+        // Only the messages: the folder's access control policy is a child node too
         request.getResource().getChildren().forEach(child -> {
             if (CaughtMailService.MESSAGE_TYPE.equals(child.getValueMap().get("jcr:primaryType", String.class))) {
                 caught.add(child);
             }
         });
-        // Newest first: reversed rather than a descending comparator on a nullable key, so a message somehow
-        // written without a date sorts last instead of throwing
+        // Newest first. A message without a date sorts last.
         caught.sort(Comparator.comparing(CaughtMailServlet::caughtAt).reversed());
 
         final JsonArrayBuilder messages = Json.createArrayBuilder();
@@ -100,16 +85,16 @@ public class CaughtMailServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * One caught message, as the shape a caller can rely on.
+     * One caught message as JSON. A missing subject or body is an empty string, and a missing {@code caughtAt} is
+     * left out.
      *
-     * @param message the node holding it
+     * @param message the {@code mail:CaughtMessage} resource
      * @return the message's JSON
      */
     private static JsonObjectBuilder describe(final Resource message)
     {
         final ValueMap properties = message.getValueMap();
         final JsonObjectBuilder json = Json.createObjectBuilder()
-            // The path, so that a caller which wants everything about one message can ask for it directly
             .add("path", message.getPath())
             .add("subject", properties.get("subject", ""))
             .add("textBody", properties.get("textBody", ""))
@@ -129,10 +114,10 @@ public class CaughtMailServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * When a message was caught, or the epoch when it somehow says nothing.
+     * When a message was caught, to sort by.
      *
-     * @param message the node holding it
-     * @return the moment to sort by
+     * @param message the {@code mail:CaughtMessage} resource
+     * @return its {@code caughtAt}; the epoch if it has none
      */
     private static Calendar caughtAt(final Resource message)
     {

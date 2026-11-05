@@ -22,10 +22,11 @@ import { readJson } from "@iap/frontend-commons/requestFailure";
 
 import { CATCHING_CHANGED_EVENT, CATCHING_PATH } from "./caughtMailModel";
 
-// Check whether mail is being caught.
+// Whether mail is being caught. False until the server says otherwise, and false if it cannot be
+// asked. It asks again whenever catching is switched on or off in this page.
 //
-// A plain fetch, not useAuthenticatedFetch. This runs before sign-in, and that helper always offers
-// to sign in, which is the wrong behavior for a guest.
+// A plain fetch, not useAuthenticatedFetch: this runs before sign-in too, and a guest must not be
+// asked to sign in.
 export default function useCatching(): boolean {
   const [ catching, setCatching ] = useState(false);
 
@@ -38,7 +39,7 @@ export default function useCatching(): boolean {
         }
       })
       .catch(() => {
-        // Deliberately nothing: the warning is not critical enough to deface the entire app when it can't be loaded.
+        // Nothing to report: without an answer, no warning shows
       });
   }, []);
 

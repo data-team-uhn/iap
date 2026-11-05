@@ -48,7 +48,7 @@ class CaughtMailStatusReporterTest
         this.reporter = new CaughtMailStatusReporter();
     }
 
-    /** Binds the catcher's mail service, which is what "the catcher is on" means to this reporter. */
+    /** Binds the catcher's mail service, as OSGi does while the catcher is on. */
     private void switchedOn() throws Exception
     {
         final Field reference = CaughtMailStatusReporter.class.getDeclaredField("catcher");
@@ -68,10 +68,6 @@ class CaughtMailStatusReporterTest
         assertEquals(Set.of("problems", "email"), this.reporter.getTags());
     }
 
-    /**
-     * The whole point: the catcher is on deliberately, but nothing the platform sends is arriving, and that is
-     * not something an administrator should have to infer from an empty inbox.
-     */
     @Test
     void warnsWhileMailIsBeingCaught() throws Exception
     {
@@ -85,7 +81,6 @@ class CaughtMailStatusReporterTest
         assertTrue(report.getText().contains(CaughtMailService.CAUGHT_MAIL_PATH));
     }
 
-    /** Where the messages went is an internal path, and an unprivileged report has no business naming it. */
     @Test
     void keepsTheFolderOutOfAnUnprivilegedWarning() throws Exception
     {
@@ -95,16 +90,10 @@ class CaughtMailStatusReporterTest
 
         assertNotNull(report);
         assertEquals(StatusReport.Status.WARNING, report.getStatus());
-        // Still says that mail is not being delivered, which is the part that matters either way
         assertTrue(report.getText().contains("not delivered"));
         assertFalse(report.getText().contains(CaughtMailService.CAUGHT_MAIL_PATH));
     }
 
-    /**
-     * Debug rather than nothing: an ordinary report is not padded with a line about a development facility being
-     * off, but somebody asking where the mail went gets an answer instead of a silence that reads the same as the
-     * bundle not being installed.
-     */
     @Test
     void saysOnlyInDebugThatTheCatcherIsOff()
     {

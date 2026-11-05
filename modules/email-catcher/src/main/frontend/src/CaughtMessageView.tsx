@@ -28,7 +28,7 @@ import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { type CaughtMessage, messageNameFromRoute } from "./caughtMailModel";
 import { useCaughtMessage } from "./useCaughtMail";
 
-/** A timestamp as a reader wants it, or the raw value if it is not one we can parse. */
+/** A timestamp in the reader's locale; the raw value if it cannot be parsed, or a dash if absent. */
 function moment(value: string | undefined): string {
   if (value === undefined) {
     return "—";
@@ -37,9 +37,7 @@ function moment(value: string | undefined): string {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
 }
 
-// One labelled fact about the message. Addresses are kept one per line rather than joined: a comma
-// is a legal character inside a display name, so a joined list is ambiguous exactly where somebody
-// is checking whether the addressing came out right.
+// One labelled fact about the message.
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Box>
@@ -49,8 +47,8 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-// An address list, or nothing at all when the message carried none — an empty "Bcc" heading would
-// suggest the message had a blind copy that failed to render.
+// An address list, one address per line, since a display name may contain a comma. Renders nothing
+// if the list is empty.
 function Addresses({ label, values }: { label: string; values: string[] }) {
   if (values.length === 0) {
     return null;
@@ -62,8 +60,8 @@ function Addresses({ label, values }: { label: string; values: string[] }) {
   );
 }
 
-// Text shown exactly as it was stored: a plain text body, or the HTML behind the rendering. Scrolls
-// inside its own box, so a long message cannot push the rest of the page out of reach.
+// Text exactly as it was stored, such as a plain text body or the HTML source, in a box with its own
+// scroll bars.
 function Preformatted({ text }: { text: string }) {
   return (
     <Box
@@ -88,14 +86,11 @@ function Preformatted({ text }: { text: string }) {
 }
 
 /**
- * The HTML body as a recipient's mail client would draw it.
+ * The HTML body as a mail client would draw it.
  *
- * <strong>In a sandbox with nothing allowed.</strong> These bodies come from the platform's own
- * templates today, but a caught message is whatever was handed to the mail service, and a viewer
- * that executes it would be running that inside an administrator's session. An empty `sandbox`
- * blocks scripts, forms, navigation and same-origin access at once, which costs this page nothing:
- * what is being checked is how the message reads, and a link in it is worth seeing rather than
- * following.
+ * The iframe has an empty `sandbox`, which blocks scripts, forms, navigation and same-origin access.
+ * A caught message is whatever was handed to the mail service, and this page runs in an
+ * administrator's session.
  */
 function Rendered({ html }: { html: string }) {
   return (
@@ -110,8 +105,7 @@ function Rendered({ html }: { html: string }) {
         border: 1,
         borderColor: "divider",
         borderRadius: 1,
-        // Mail is written for a white background and mostly says so nowhere, so a dark theme would
-        // otherwise show black text on a dark canvas
+        // Mail is written for a white background, and often does not set one
         bgcolor: "common.white",
       }}
     />
@@ -124,10 +118,8 @@ interface BodyView {
   content: ReactNode;
 }
 
-// The ways this particular message can be read, in the order somebody wants them: as it would look,
-// then as it was written. A message carries a plain text body, an HTML one, or both — and each way
-// of reading it carries the body it draws, so that no rendering has to cope with a body that is not
-// there.
+// The views of a message's bodies: the rendered HTML, the plain text, and the HTML source. A view
+// is listed only if the message has its body.
 function viewsOf(message: CaughtMessage): BodyView[] {
   const { htmlBody, textBody } = message;
   const views: BodyView[] = [];
@@ -144,21 +136,18 @@ function viewsOf(message: CaughtMessage): BodyView[] {
 }
 
 /**
- * The administration console page for one caught message, at {@code /admin/mail/<name>}: who it was
- * addressed to, what it said, and the headers it carried.
+ * The administration console page for one caught message, at `/admin/mail/<name>`: its addresses,
+ * its bodies and its other headers.
  */
 function CaughtMessageView() {
   const { pathname } = useLocation();
-  // Derived at render, never stored: the React Compiler lint rejects a setState reached
-  // synchronously from an effect, and a route that names no message is not a fetch to make
   const name = messageNameFromRoute(pathname);
 
   const { message, loadError, settled, reload } = useCaughtMessage(name);
   const [ view, setView ] = useState("rendered");
 
   if (name === null) {
-    // Not a LoadError: nothing failed to load and retrying cannot help, because the address itself
-    // names no single message
+    // Not a LoadError, since nothing failed and a retry cannot help
     return (
       <AdminScreen title="Caught message">
         <Typography variant="placeholder">
@@ -169,9 +158,8 @@ function CaughtMessageView() {
   }
 
   const views = message === null ? [] : viewsOf(message);
-  // The chosen view is kept across messages, so that reading several in a row does not mean picking
-  // "HTML source" again each time — but a message that has no such body falls back to what it does
-  // have rather than showing an empty panel
+  // The chosen view is kept from one message to the next. A message without that body shows its
+  // first view instead.
   const shownView = views.find(candidate => candidate.id === view) ?? views.at(0);
 
   return (
