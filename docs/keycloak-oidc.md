@@ -17,13 +17,15 @@ the handler activating, the only symptom is Oak logging `No IDP found with name 
 login attempt (and a login loop), far from the actual cause; see
 [Troubleshooting](#troubleshooting-no-idp-found-with-name-keycloak).
 
-Almost everything is configuration; the only Java is the logout handling (see [Sign-out flow](#sign-out-flow)) in the `iap-oidc-support` module. Keycloak sign-in is **opt-in** — its features are not in the default aggregates and are loaded only when asked (see [Enabling Keycloak sign-in](#enabling-keycloak-sign-in)). The pieces:
+Almost everything is configuration. The only Java is the logout handling in the
+`iap-oidc-support` module (see [Sign-out flow](#sign-out-flow)). Keycloak sign-in is
+**opt-in** (see [Enabling Keycloak sign-in](#enabling-keycloak-sign-in)). The pieces:
 
-| Concern                                                                                                                                                               | Where                                                                                                           |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Bundles + all OSGi config (connection, handler, claim mapping, crypto, Oak sync, external login module, logout) **and** the `/oidc-login` trigger node (repoinit)     | [oidc/support feature.json](../modules/authentication/oidc/support/src/main/features/feature.json)              |
-| `ExternalPrincipalConfiguration` added to the security provider's required services                                                                                   | [oak/oak_base.json](../packaging/slingfeature/src/main/features/oak/oak_base.json)                              |
-| "Institutional account" sign-in button (targets `/oidc-login`, renders login's generic `RedirectSignIn`) — shown by default whenever the Keycloak features are loaded | [Keycloak.json](../modules/keycloak/src/main/resources/SLING-INF/content/Extensions/SignInMethod/Keycloak.json) |
+| Concern                                                                                                                                                           | Where                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Bundles + all OSGi config (connection, handler, claim mapping, crypto, Oak sync, external login module, logout) **and** the `/oidc-login` trigger node (repoinit) | [oidc/support feature.json](../modules/authentication/oidc/support/src/main/features/feature.json)              |
+| `ExternalPrincipalConfiguration` added to the security provider's required services                                                                               | [oak/oak_base.json](../packaging/slingfeature/src/main/features/oak/oak_base.json)                              |
+| The "Institutional account" sign-in method: a button leading to `/oidc-login`, drawn by the login module's `RedirectSignIn`                                       | [Keycloak.json](../modules/keycloak/src/main/resources/SLING-INF/content/Extensions/SignInMethod/Keycloak.json) |
 
 ## Sign-in flow
 
@@ -121,17 +123,21 @@ logout-confirmation page instead of returning to IAP.
 
 ## Enabling Keycloak sign-in
 
-Keycloak sign-in is **opt-in**: `iap-oidc-support` and `iap-keycloak` are not in the default
-aggregates, so a deployment that hasn't configured Keycloak — including the bare-platform smoke
-tests — has neither the OIDC plumbing nor the button, and shows only the local credentials form.
+Keycloak sign-in comes from two features, `iap-oidc-support` and `iap-keycloak`. They
+are not in the `core_*` aggregates that `start.py` and Docker launch, so an instance
+shows only the local credentials form unless asked for them:
 
-- **Docker:** set `KEYCLOAK_ENABLED=true` in the container's environment. `docker_entry.sh` then adds
-  both features to the launcher (the same additive `-f` mechanism used by `SMTPS_ENABLED`).
+- **Docker:** set `KEYCLOAK_ENABLED=true` in the container's environment, and
+  `docker_entry.sh` adds both features to the launcher.
 - **Dev (`start.sh`/`start.py`):** pass `--keycloak`.
 
-Loading the features is the whole switch — the "Institutional account" button is then shown by
-default, and does not exist otherwise. Set the [runtime environment
-variables](#runtime-environment-variables) as well — the OIDC handler will not come up without them.
+The `test_tar` and `demo_tar` aggregates include both features. The integration tests
+that run against them see the Keycloak button.
+
+The "Institutional account" sign-in method is enabled by default. It is ordered before
+the local credentials form, so loading the features makes Keycloak the primary way to
+sign in. Set the [runtime environment variables](#runtime-environment-variables) as
+well, since the OIDC handler needs them.
 
 ## Runtime environment variables
 
@@ -253,8 +259,12 @@ changes every principal name and invalidates existing ACLs.
 
 The external login module registers as `SUFFICIENT` (Oak default), so a local username/password
 login it can't handle falls through to Oak's `LoginModuleImpl`. The login page keeps the local
-credentials form behind the "Use a local account instead" link. To disable local login entirely,
-remove the form's sign-in method (`Extensions/SignInMethod/CredentialsForm.json`).
+credentials form behind the "Use a local account instead" link.
+
+To stop offering the form, set `ext:defaultDisabled` to `true` on
+`/Extensions/SignInMethod/CredentialsForm`. This only hides the form. Sling's form
+authentication handler still accepts a local username and password posted to
+`/j_security_check`.
 
 ## Verification
 
@@ -263,10 +273,9 @@ remove the form's sign-in method (`Extensions/SignInMethod/CredentialsForm.json`
 2. Set the six env vars and start IAP (`mvn clean install` then `./start.sh --keycloak`).
 3. In Keycloak's token inspector (or decode the ID token), confirm the `groups` claim is a flat
    list containing the role **before** wiring anything else — this is the most common failure point.
-4. Load the Keycloak features (`./start.sh --keycloak`, or `KEYCLOAK_ENABLED=true` in Docker — see
-   [Enabling Keycloak sign-in](#enabling-keycloak-sign-in)), then visit `/` unauthenticated → you get
-   the branded `/login` page. Click "Continue with institutional credentials" → Keycloak → sign in →
-   you land back on the app.
+4. Visit `/` signed out. You get the branded `/login` page, with "Continue with
+   institutional credentials" as its main button. Click it and sign in at Keycloak. You
+   land on the home page.
 5. Confirm the session is app-wide: open `/system/sling/info.sessionInfo.json` — `userID` should be
    the synced Keycloak user, not `anonymous`. A `sling.oidcauth` cookie at path `/` should be present.
 6. Confirm provisioning: the user authorizable appears under `/home/users/oidc` with a
