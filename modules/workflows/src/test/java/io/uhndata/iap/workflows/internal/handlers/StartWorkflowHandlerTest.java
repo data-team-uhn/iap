@@ -130,6 +130,18 @@ class StartWorkflowHandlerTest
     }
 
     @Test
+    void namesTheWorkflowItStartedByItsTitleForTheHistory() throws Exception
+    {
+        reference(HOST, LINK, VERSION);
+        final WorkflowTaskContext starting = Mockito.spy(context(LINK, HOST));
+
+        this.handler.execute(starting);
+
+        Mockito.verify(starting).recordRole(Mockito.argThat(resource -> HOST.equals(resource.getPath())),
+            Mockito.eq("started Time off request"));
+    }
+
+    @Test
     void cancelsAnEarlierActiveInstanceWhenAskedTo() throws Exception
     {
         reference(HOST, LINK, VERSION);

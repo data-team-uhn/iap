@@ -100,6 +100,20 @@ class SaveDiagramHandlerTest
     }
 
     @Test
+    void namesTheVersionsDiagramAsEditedForTheHistory() throws WorkflowException, PersistenceException
+    {
+        AuthoringFixture.createVersion(this.context, DRAFT, "1.0", "draft", Map.of());
+        final WorkflowTaskContext saving =
+            Mockito.spy(this.save(DRAFT, AuthoringFixture.upload(REPLACEMENT, "application/xml")));
+
+        this.handler.execute(saving);
+
+        Mockito.verify(saving).recordRole(
+            Mockito.argThat(resource -> AuthoringFixture.path(DRAFT).equals(resource.getPath())),
+            Mockito.eq("diagram edited"));
+    }
+
+    @Test
     void storesTheDiagramOnWhatAnEarlierStepCreated() throws WorkflowException, PersistenceException, IOException
     {
         // After a step that created a version in the same run, the diagram goes onto that version
