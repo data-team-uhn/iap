@@ -86,14 +86,14 @@ class QueryCountHealthCheckTest
     @Test
     void allComparatorsWork() throws Exception
     {
-        // The query always returns 1 row; each comparison should hold
+        // The query returns 1 row each time, and each comparison holds
         assertEquals(Result.Status.OK, executeSingleCheck("<", 2, 1).getStatus());
         assertEquals(Result.Status.OK, executeSingleCheck("<=", 1, 1).getStatus());
         assertEquals(Result.Status.OK, executeSingleCheck("=", 1, 1).getStatus());
         assertEquals(Result.Status.OK, executeSingleCheck(">=", 1, 1).getStatus());
         assertEquals(Result.Status.OK, executeSingleCheck(">", 0, 1).getStatus());
         assertEquals(Result.Status.OK, executeSingleCheck("!=", 0, 1).getStatus());
-        // ... and each comparison should also fail when it doesn't hold
+        // Each comparison that does not hold fails
         assertEquals(Result.Status.CRITICAL, executeSingleCheck("<", 1, 1).getStatus());
         assertEquals(Result.Status.CRITICAL, executeSingleCheck("<=", 0, 1).getStatus());
         assertEquals(Result.Status.CRITICAL, executeSingleCheck("=", 2, 1).getStatus());
@@ -179,11 +179,11 @@ class QueryCountHealthCheckTest
      * Runs the health check with a single configured count check against a query returning the given number of
      * rows.
      *
-     * @param comparator the comparison operator to configure
-     * @param compareAgainst the expected count to configure
-     * @param actualRows the number of rows the query will return
-     * @return the health check result
-     * @throws RepositoryException never, this is just mock setup
+     * @param comparator the comparator to configure, such as {@code >=}
+     * @param compareAgainst the number to compare the row count with
+     * @param actualRows the number of rows the query returns
+     * @return the result of the whole health check
+     * @throws RepositoryException never, since only mocks are set up
      */
     private Result executeSingleCheck(final String comparator, final long compareAgainst, final int actualRows)
         throws RepositoryException
@@ -229,8 +229,8 @@ class QueryCountHealthCheckTest
     /**
      * Makes the mocked query return the given number of rows.
      *
-     * @param rows how many rows the query should return
-     * @throws RepositoryException never, this is just mock setup
+     * @param rows how many rows the query returns
+     * @throws RepositoryException never, since only mocks are set up
      */
     private void answer(final int rows) throws RepositoryException
     {

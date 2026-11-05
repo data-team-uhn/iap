@@ -36,10 +36,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Check that all the required services are present. The list of services to check is defined as nodes in the
- * repository, under {@code /libs/iap/healthcheck/requiredServices/}, with the {@code serviceClass} property holding
- * the fully qualified name of a service, and an optional {@code osgiFilter} property holding a valid OSGi service
- * filter. Other modules should provide the actual required services to check for.
+ * Checks that the OSGi services IAP needs are registered. Each child of {@code /libs/iap/healthcheck/requiredServices}
+ * names one service. Its {@code serviceClass} holds the fully qualified name the service is registered under, and its
+ * optional {@code osgiFilter} holds an OSGi filter the service must also match. A module adds the services it needs
+ * as children of that node, in its own initial content.
  *
  * @version $Id$
  * @since 0.1.0
@@ -48,13 +48,16 @@ import org.slf4j.LoggerFactory;
     HealthCheck.NAME + "=IAP services active" }, immediate = true)
 public class ServicesPresentHealthCheck implements HealthCheck
 {
-    /** JCR node where all the configurations are stored. */
+    /** The node whose children name the required services. */
     public static final String CONFIGURATION_PATH = "/libs/iap/healthcheck/requiredServices";
 
-    /** The name of the configuration node property holding the fully qualified name of the service to check. */
+    /**
+     * The property holding the fully qualified name a required service is registered under, such as
+     * {@code org.apache.sling.api.resource.ResourceResolverFactory}.
+     */
     public static final String SERVICE_PROPERTY = "serviceClass";
 
-    /** The name of the configuration node property holding an optional OSGi service filter to check with. */
+    /** The optional property holding an OSGi filter a required service must also match. */
     public static final String FILTER_PROPERTY = "osgiFilter";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ServicesPresentHealthCheck.class);
@@ -103,13 +106,13 @@ public class ServicesPresentHealthCheck implements HealthCheck
     }
 
     /**
-     * Runs one configured check: at least one service implementation matching the configured class and optional
-     * filter must be registered.
+     * Checks one required service, and adds to the result whether it is registered.
      *
-     * @param requiredService the configuration resource describing the check
-     * @param result the result log to report into
-     * @return {@code true} if the service is present
-     * @throws InvalidSyntaxException if the configured OSGi filter is invalid
+     * @param requiredService a child of {@link #CONFIGURATION_PATH}
+     * @param result the log this check's outcome is added to
+     * @return {@code true} if a service with that name, matching the filter if there is one, is registered;
+     *         {@code false} if none is, or if the configuration names no service
+     * @throws InvalidSyntaxException if the configured filter is not a valid OSGi filter
      */
     private boolean checkService(final Resource requiredService, final FormattingResultLog result)
         throws InvalidSyntaxException
@@ -117,8 +120,7 @@ public class ServicesPresentHealthCheck implements HealthCheck
         final String serviceClass = requiredService.getValueMap().get(SERVICE_PROPERTY, "");
         final String osgiFilter = requiredService.getValueMap().get(FILTER_PROPERTY, "");
         if (serviceClass.isBlank()) {
-            // Passing an empty class name to getAllServiceReferences would match every registered service,
-            // silently passing the check, so treat a blank configuration as an error instead
+            // Unlike a blank filter, a blank class name cannot become null: a null class name matches every service
             result.healthCheckError("Missing service class in configuration '{}'", requiredService.getName());
             return false;
         }
