@@ -26,23 +26,20 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * What a caller knows about a failure beyond the failure itself: which code was running, what it was trying to do,
- * what it was working on, and on whose behalf.
+ * What a caller knows about a failure besides the failure itself: which code was running, what it was doing, what it
+ * was working on, and for whom.
  *
  * <p>
- * The distinction that matters here is between the parts that identify the <em>fault</em> and the parts that identify
- * one <em>incident</em> of it. The {@link #getComponent() component} and the {@link #getOperation() operation} are
- * chosen in code, so they can safely take part in deciding whether two failures are the same one; the
- * {@link #getSubject() subject}, the {@link #getActor() actor} and the {@link #getDetails() details} vary with the
- * data flowing through the instance, so they are recorded as a sample of what a failure has been seen to happen to,
- * and never as part of its identity. That is what keeps the number of recorded errors bounded by how the instance is
- * built rather than by how much data it handles.
+ * The {@link #getComponent() component} and the {@link #getOperation() operation} are chosen in code, and they decide
+ * whether two failures are the same fault. The {@link #getSubject() subject}, the {@link #getActor() actor} and the
+ * {@link #getDetails() details} vary with the data. They are kept only as a sample of what the fault happened to.
+ * The number of recorded errors then grows with the ways the instance can fail, not with the data it handles.
  * </p>
  *
  * <p>
- * Instances are immutable and are built by copying: {@code ErrorContext.of(Something.class, "doTheThing")
- * .about(path).with("attempt", 3)}. Every argument may be {@code null}, in which case it is quietly left out —
- * describing a failure must never itself need a null check at a site that is already failing.
+ * A context is immutable, and each method returns a copy:
+ * {@code ErrorContext.of(Something.class, "doTheThing").about(path).with("attempt", 3)}. Every argument may be
+ * {@code null}, and a {@code null} is left out, so a failure site needs no null checks.
  * </p>
  *
  * @version $Id$
@@ -50,41 +47,38 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class ErrorContext
 {
-    /** A caller that knows nothing beyond the failure itself. */
+    /** A context that says nothing beyond the failure itself. */
     public static final ErrorContext NO_CONTEXT = new ErrorContext(null, null, null, null, Map.of());
 
-    /**
-     * How many details are kept. A detail is a hint for whoever reads the record, not a data feed, and one that
-     * scrolls past a screen is no more useful than none.
-     */
+    /** How many details a context keeps. */
     private static final int MAX_DETAILS = 20;
 
-    /** How long a single detail may be. Long enough for a path or a short identifier, short enough to read. */
+    /** How many characters of a detail are kept. */
     private static final int MAX_LENGTH = 500;
 
-    /** Which code was running, a class name. */
+    /** The fully qualified name of the class that was running. */
     private final String component;
 
-    /** What that code was trying to do, a label chosen in code. */
+    /** What that code was doing, a label chosen in code. */
     private final String operation;
 
-    /** The path of what was being worked on. */
+    /** The path of the content being worked on. */
     private final String subject;
 
-    /** The user the work was being done for. */
+    /** The username of the user the work was done for. */
     private final String actor;
 
-    /** Anything else worth knowing, already rendered to text, in the order the caller supplied it. */
+    /** The other details, as text, in the order they were added. */
     private final Map<String, String> details;
 
     /**
-     * Full constructor, private because instances are built by copying from {@link #NO_CONTEXT} or from a factory.
+     * Builds a context. Callers start from {@link #NO_CONTEXT} or from {@code of}, and add to it by copying.
      *
-     * @param component which code was running
-     * @param operation what it was trying to do
-     * @param subject the path of what it was working on
-     * @param actor the user it was working for
-     * @param details anything else worth knowing, already rendered and already bounded
+     * @param component the fully qualified name of the class that was running, or {@code null}
+     * @param operation a label chosen in code, or {@code null}
+     * @param subject the path of the content being worked on, or {@code null}
+     * @param actor the username of the user the work was done for, or {@code null}
+     * @param details the other details, already rendered as text and already bounded
      */
     private ErrorContext(final String component, final String operation, final String subject, final String actor,
         final Map<String, String> details)
@@ -99,9 +93,10 @@ public final class ErrorContext
     /**
      * A context naming the code that failed and what it was doing.
      *
-     * @param component the class that was running, {@code null} to let it be inferred from the stack trace
-     * @param operation what it was trying to do, a short label chosen in code such as {@code computeTags}; must not
-     *            be derived from content, since it takes part in deciding whether two failures are the same one
+     * @param component the class that was running; {@code null} to leave it out, and for a thrown failure the class
+     *            is then taken from the stack trace
+     * @param operation a short label chosen in code, such as {@code computeTags}, or {@code null} to leave it out. It
+     *            decides whether two failures are the same fault, so it must never come from content
      * @return a new context
      */
     @NotNull
@@ -111,12 +106,11 @@ public final class ErrorContext
     }
 
     /**
-     * A context naming the code that failed and what it was doing, for a caller that has the class name rather than
-     * the class itself.
+     * A context naming the code that failed, by class name, and what it was doing.
      *
-     * @param component the name of the class that was running, {@code null} to let it be inferred from the stack
-     *            trace
-     * @param operation what it was trying to do, a short label chosen in code
+     * @param component the fully qualified name of the class that was running; {@code null} to leave it out, and for
+     *            a thrown failure the class is then taken from the stack trace
+     * @param operation a short label chosen in code, such as {@code computeTags}, or {@code null} to leave it out
      * @return a new context
      */
     @NotNull
@@ -126,10 +120,10 @@ public final class ErrorContext
     }
 
     /**
-     * A copy of this context that also names what was being worked on.
+     * A copy of this context that names the content being worked on.
      *
-     * @param subjectPath the path of the content the failure was about, ignored when {@code null} or blank
-     * @return a new context, or this one when there is nothing to add
+     * @param subjectPath the path of that content; ignored if {@code null} or blank
+     * @return a new context, or this one if there is nothing to add
      */
     @NotNull
     public ErrorContext about(@Nullable final String subjectPath)
@@ -140,10 +134,10 @@ public final class ErrorContext
     }
 
     /**
-     * A copy of this context that also names what was being worked on.
+     * A copy of this context that names the content being worked on, by its path.
      *
-     * @param subjectResource the content the failure was about, ignored when {@code null}
-     * @return a new context, or this one when there is nothing to add
+     * @param subjectResource that content; ignored if {@code null}
+     * @return a new context, or this one if there is nothing to add
      */
     @NotNull
     public ErrorContext about(@Nullable final Resource subjectResource)
@@ -152,11 +146,11 @@ public final class ErrorContext
     }
 
     /**
-     * A copy of this context that also names who the work was being done for. Absent for anything running outside a
-     * request: a commit hook, a scheduled task, an asynchronous listener.
+     * A copy of this context that names the user the work was done for. Work outside a request, such as a commit hook
+     * or a scheduled task, has no such user.
      *
-     * @param actorId the user the failing work was being done for, ignored when {@code null} or blank
-     * @return a new context, or this one when there is nothing to add
+     * @param actorId the username of that user; ignored if {@code null} or blank
+     * @return a new context, or this one if there is nothing to add
      */
     @NotNull
     public ErrorContext actingFor(@Nullable final String actorId)
@@ -167,13 +161,12 @@ public final class ErrorContext
     }
 
     /**
-     * A copy of this context carrying one more detail. The value is rendered to text immediately, in the caller's
-     * own frame: recording happens later and on another thread, so nothing here may hold on to a caller's object,
-     * and a half-built object at a failure site is exactly where {@code toString()} is likely to throw.
+     * A copy of this context with one more detail. The value is rendered to text at once, because the recording
+     * happens later, on another thread. A context keeps up to 20 details, of up to 500 characters each.
      *
-     * @param key what the detail is called, ignored when {@code null} or blank
-     * @param value the detail itself, ignored when {@code null}
-     * @return a new context, or this one when there is nothing to add
+     * @param key the name of the detail, such as {@code attempt}; ignored if {@code null} or blank
+     * @param value the detail, rendered with {@code String.valueOf}; ignored if {@code null}
+     * @return a new context; this one if there is nothing to add, or if it already holds 20 details under other names
      */
     @NotNull
     public ErrorContext with(@Nullable final String key, @Nullable final Object value)
@@ -188,10 +181,10 @@ public final class ErrorContext
     }
 
     /**
-     * Which code was running when the failure happened. For a plugin, the plugin's own class rather than the
-     * framework that called it, since that is what has to be fixed.
+     * Which code was running when the failure happened. For a plugin, this is the plugin's class, not the framework
+     * that called it.
      *
-     * @return a class name, or {@code null} when the caller left it to be inferred
+     * @return a fully qualified class name, or {@code null} if the caller did not name one
      */
     @Nullable
     public String getComponent()
@@ -200,9 +193,9 @@ public final class ErrorContext
     }
 
     /**
-     * What that code was trying to do.
+     * What that code was doing.
      *
-     * @return a short label, or {@code null} when the caller did not say
+     * @return a short label chosen in code, or {@code null} if the caller did not name one
      */
     @Nullable
     public String getOperation()
@@ -211,9 +204,9 @@ public final class ErrorContext
     }
 
     /**
-     * The path of the content the failure was about.
+     * The content being worked on.
      *
-     * @return a path, or {@code null} when the caller did not say
+     * @return a path, or {@code null} if the caller did not name one
      */
     @Nullable
     public String getSubject()
@@ -222,9 +215,9 @@ public final class ErrorContext
     }
 
     /**
-     * The user the failing work was being done for.
+     * The user the work was done for.
      *
-     * @return a user id, or {@code null} when there was no user, which is the normal case outside a request
+     * @return a username, or {@code null} if the caller did not name one, as outside a request
      */
     @Nullable
     public String getActor()
@@ -233,9 +226,10 @@ public final class ErrorContext
     }
 
     /**
-     * Everything else the caller thought worth knowing, already rendered to text.
+     * The other details the caller gave.
      *
-     * @return the details in the order they were added, a read-only map
+     * @return a read-only map from each detail's name to its text, in the order they were added; empty if there are
+     *         none
      */
     @NotNull
     public Map<String, String> getDetails()
@@ -251,12 +245,11 @@ public final class ErrorContext
     }
 
     /**
-     * Renders one detail, defending against the object that cannot describe itself. A failure site is exactly where
-     * a half-built object is likely to be, so a throwing {@code toString()} is a real possibility and must not
-     * become the second failure.
+     * Renders one detail as text. A value whose {@code toString()} throws is rendered as
+     * {@code <toString failed: the exception's class name>}, since a half-built object at a failure site may throw.
      *
-     * @param value the detail to render, never {@code null}
-     * @return the rendered value, truncated when very long, never {@code null}
+     * @param value the detail to render, not {@code null}
+     * @return the text, cut after {@link #MAX_LENGTH} characters and then ending in an ellipsis
      */
     private static String render(final Object value)
     {
@@ -270,10 +263,10 @@ public final class ErrorContext
     }
 
     /**
-     * Normalizes a caller-supplied string, treating blank as absent so that callers need no null checks.
+     * Strips a caller's string, and treats a blank one as absent.
      *
-     * @param value the string to normalize, may be {@code null}
-     * @return the trimmed string, or {@code null} when there was nothing there
+     * @param value the string to strip, or {@code null}
+     * @return the stripped string, or {@code null} if it was {@code null} or blank
      */
     private static String trim(final String value)
     {

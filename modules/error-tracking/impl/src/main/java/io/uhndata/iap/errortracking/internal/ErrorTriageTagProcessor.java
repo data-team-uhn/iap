@@ -34,21 +34,18 @@ import io.uhndata.iap.tags.spi.TagContext;
 import io.uhndata.iap.tags.spi.TagProcessor;
 
 /**
- * Derives a recorded error's triage markers from the decisions taken about it.
+ * Computes a recorded error's triage tags from the decisions taken about it.
  *
  * <p>
- * The markers are computed rather than placed by hand, which is what makes an error un-acknowledge itself. Deciding
- * about an error adds a child recording the decision, and that changes the error node, so this runs and marks it
- * dealt with; recording another occurrence increments its count past what the decision was taken at, so this runs
- * again and marks it as needing attention. The status report follows along without anything having to watch a clock
- * or run on a schedule.
+ * A new decision changes the error node, and this marks the error {@value LoggedError#ACKNOWLEDGED_TAG}, with the
+ * decision's resolution. A later occurrence takes the error's count past the count the decision was taken at, and
+ * this marks it {@value LoggedError#UNACKNOWLEDGED_TAG} again. No clock and no schedule is involved.
  * </p>
  *
  * <p>
- * Deliberately incapable of failing: it reads three numbers and a string, and it is the one processor guaranteed to
- * run over the nodes error recording itself writes. A processor that threw here would be recorded as an error, and
- * recording it would run it again. That rules out the immutable collection factories for anything whose contents are
- * read from the repository, since they throw on a duplicate.
+ * It must not throw. It runs on every node that error recording writes, and if it threw, the tags module's editor
+ * would leave the error's tags as they were. For the same reason, a set built from repository values never uses
+ * {@code Set.of}, which throws on a duplicate.
  * </p>
  *
  * @version $Id$
@@ -63,13 +60,13 @@ public class ErrorTriageTagProcessor implements TagProcessor
     /** The property naming a node's type. */
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
-    /** The property holding how much had happened when a decision was taken. */
+    /** The property holding the error's count when a decision was taken. */
     private static final String DECIDED_AT = "acknowledgedOccurrences";
 
-    /** The property holding when a decision was taken, autocreated by the repository. */
+    /** The property holding when a decision was taken, autocreated by Oak. */
     private static final String CREATED_PROPERTY = "jcr:created";
 
-    /** The node types this processor has anything to say about. */
+    /** The node types this processor computes tags for. */
     private static final Set<String> RECORDED_ERRORS = Set.of("err:LoggedFailure", "err:LoggedProblem");
 
     @Override
@@ -88,9 +85,8 @@ public class ErrorTriageTagProcessor implements TagProcessor
     public Set<String> computeTags(final TagContext context)
     {
         final NodeState error = context.getNode();
-        // Every commit in the repository reaches here, so leave at once unless this is one of ours. The null check
-        // is not redundant: an immutable set throws rather than answering false, and a node with no primary type at
-        // all is something an editor does see
+        // Every node any commit changes reaches here, so anything else leaves at once. Set.of().contains(null)
+        // throws, and an editor does see nodes with no primary type
         final String type = string(error, PRIMARY_TYPE);
         if (type == null || !RECORDED_ERRORS.contains(type)) {
             return Set.of();
@@ -100,24 +96,18 @@ public class ErrorTriageTagProcessor implements TagProcessor
             return Set.of(LoggedError.UNACKNOWLEDGED_TAG);
         }
         final String resolution = string(latest, "resolution");
-        // A union rather than a two-element Set.of: `acknowledged` is itself one of the shipped triage tags, and a
-        // decision resolved that way would otherwise throw on the duplicate. The tag editor swallows what a
-        // processor throws, so the error would keep the markers it already had — silently staying unacknowledged
-        // however often somebody acknowledged it
+        // Not Set.of: a resolution of `acknowledged` duplicates the first tag
         return resolution == null ? Set.of(LoggedError.ACKNOWLEDGED_TAG)
             : Stream.of(LoggedError.ACKNOWLEDGED_TAG, resolution).collect(Collectors.toUnmodifiableSet());
     }
 
     /**
-     * The most recent decision taken about a recorded error: the one taken at the highest occurrence count, and among
-     * those the one taken last. Deliberately the same rule as
-     * {@link io.uhndata.iap.errortracking.models.Acknowledgement#MOST_RECENT_FIRST}, which is what the report reads —
-     * two rules disagreeing would have the markers name one decision while the report named another. The count comes
-     * first because it is what a decision is measured against, and because two decisions taken in the same second
-     * still order by it.
+     * The most recent decision taken about a recorded error: the one taken at the highest count, and among those, the
+     * last one created. It must agree with
+     * {@link io.uhndata.iap.errortracking.models.Acknowledgement#MOST_RECENT_FIRST}, which the status report uses.
      *
-     * @param error the node recording the error
-     * @return the decision, or {@code null} when nobody has taken one
+     * @param error the node that records the error
+     * @return the decision, or {@code null} if nobody has taken one
      */
     private static NodeState latestDecision(final NodeState error)
     {
@@ -130,11 +120,11 @@ public class ErrorTriageTagProcessor implements TagProcessor
     }
 
     /**
-     * Reads a string property, tolerating its absence and its being of the wrong kind.
+     * Reads a single-valued property as a string.
      *
      * @param node the node to read from
-     * @param property the property to read
-     * @return the value, or {@code null} when there is no single string there
+     * @param property the name of the property
+     * @return the value, or {@code null} if the property is missing or multi-valued
      */
     private static String string(final NodeState node, final String property)
     {
@@ -143,11 +133,11 @@ public class ErrorTriageTagProcessor implements TagProcessor
     }
 
     /**
-     * Reads a numeric property, tolerating its absence and its being of the wrong kind.
+     * Reads a single-valued property as a number. A date reads as milliseconds since the epoch.
      *
      * @param node the node to read from
-     * @param property the property to read
-     * @param fallback what to answer when there is no usable number there
+     * @param property the name of the property
+     * @param fallback the value to return if the property is missing, multi-valued, or not a number
      * @return the value, or the fallback
      */
     private static long number(final NodeState node, final String property, final long fallback)
@@ -159,8 +149,7 @@ public class ErrorTriageTagProcessor implements TagProcessor
         try {
             return value.getValue(Type.LONG);
         } catch (final RuntimeException e) {
-            // A property of the wrong type. Nothing here may throw, and treating it as absent errs towards saying
-            // the error still needs attention, which is the safe direction
+            // Read as absent, which leaves the error needing attention
             return fallback;
         }
     }

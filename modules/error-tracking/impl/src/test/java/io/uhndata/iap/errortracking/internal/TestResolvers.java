@@ -27,9 +27,9 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 
 /**
- * Wires the components under test to the test's own repository. The mock service resolvers do not share the
- * repository the test populates, and the SCR metadata that would let the mock OSGi runtime inject the factory is
- * only generated when the bundle is packaged, so both are done by hand here.
+ * Wires the components under test to the test's own repository, by hand. Sling-mock's service resolvers do not see
+ * the repository the test fills. The SCR metadata that would let osgi-mock inject the factory exists only once the
+ * bundle is packaged.
  *
  * @version $Id$
  * @since 0.1.0
@@ -57,9 +57,7 @@ public final class TestResolvers
     }
 
     /**
-     * Sets one of a component's fields directly. Same reason as {@link #inject}: without the packaged bundle's SCR
-     * metadata there is no runtime to configure a component through, and a production class should not grow a setter
-     * only tests would ever call.
+     * Sets one of a component's fields directly.
      *
      * @param component the component under test
      * @param name the field to set
@@ -75,8 +73,7 @@ public final class TestResolvers
     }
 
     /**
-     * Reads one of a component's fields directly, for a test that has to reach a collaborator the component made for
-     * itself. The counterpart of {@link #set}, and there for the same reason.
+     * Reads one of a component's fields directly, such as a collaborator the component made for itself.
      *
      * @param component the component under test
      * @param name the field to read
@@ -101,8 +98,7 @@ public final class TestResolvers
      */
     public static ResourceResolverFactory factory(final ResourceResolver resolver)
     {
-        // Closing is suppressed: the components under test close every resolver they open, and the test context
-        // owns this one
+        // Not closed: the components close every resolver they open, and the test context owns this one
         final ResourceResolver shared = resolver == null ? null : new ResourceResolverWrapper(resolver)
         {
             @Override

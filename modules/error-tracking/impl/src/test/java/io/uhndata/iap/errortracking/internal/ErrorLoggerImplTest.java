@@ -58,9 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Unit tests for {@link ErrorLoggerImpl}.
  *
  * <p>
- * The writer runs on the calling thread and the clock is a field the test moves by hand, so that every assertion is
- * deterministic: the component is asynchronous in production for reasons that have nothing to do with what is being
- * asserted here, and a test that waited on a real one would only be slow and flaky.
+ * Most tests run the writer on the calling thread, against a clock the test moves by hand.
  * </p>
  *
  * @version $Id$
@@ -69,14 +67,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class ErrorLoggerImplTest
 {
-    /** The message most of these failures carry; what it says never matters, only that it is the same one. */
+    /** The message most of these failures carry. */
     private static final String BOOM = "boom";
 
     private final SlingContext context = new SlingContext();
 
     private ErrorLoggerImpl logger;
 
-    /** Volatile because a running component reads it from its own writer thread, and must see it move. */
+    /** The test's clock. Volatile, since a running component's writer thread reads it. */
     private volatile long now = 1_000_000L;
 
     @BeforeEach
@@ -152,8 +150,6 @@ class ErrorLoggerImplTest
     @Test
     void recordsAComponentWhoseNameIsLongerThanALabelMayBe()
     {
-        // Several classes in this build are already past sixty characters, and the component is the most useful
-        // field of the record: a label-length limit here would drop it for exactly the classes that say the most
         final String longest = "io.uhndata.iap.slacknotifications.internal.SlackNotificationConfiguration";
         assertTrue(longest.length() > 64, "the case this is about no longer exists");
 
@@ -192,8 +188,6 @@ class ErrorLoggerImplTest
     @Test
     void theSameLineWithDifferentMessagesIsOneFault()
     {
-        // The message is not part of what identifies a fault: broken code naming two different paths is one thing
-        // to fix, not two, and keeping them apart is what would let one systematic failure fill the container
         for (final String path : List.of("/first", "/second", "/third")) {
             this.logger.logError(new IllegalStateException("Cannot read " + path));
             passTheWriteWindow();
@@ -228,8 +222,7 @@ class ErrorLoggerImplTest
     @Test
     void differentPluginsFailingThroughTheSameFrameworkAreTwoFaults()
     {
-        // This is why the component takes part in the fingerprint at all: a framework calling into plugins produces
-        // the identical frame list whichever plugin is the broken one
+        // One throwable, so the frames are identical, as when a framework calls into either plugin
         final Throwable error = new IllegalStateException(BOOM);
 
         this.logger.logError(error, ErrorContext.of("some.FirstProcessor", "computeTags"));
@@ -241,8 +234,6 @@ class ErrorLoggerImplTest
     @Test
     void aProblemPhraseThatQuotesSomethingIsStillRecorded()
     {
-        // Dropping this would be a silent failure in the one component that exists to prevent them. So the stable
-        // head of the phrase names the fault, and the phrase itself is kept the way a throwable's message is
         this.logger.logProblem("unknown comparator: 'sameDay'", ErrorContext.of("some.Thing", "evaluate"));
 
         final ValueMap recorded = onlyError();
@@ -254,8 +245,6 @@ class ErrorLoggerImplTest
     @Test
     void aProblemPhraseThatQuotesSomethingIsNotAllowedToDecideIdentity()
     {
-        // One record naming the fault, with the phrases as a bounded sample — never one record per quoted value, in
-        // a store that never deletes anything
         this.logger.logProblem("unknown comparator: 'sameDay'", ErrorContext.of("some.Thing", "evaluate"));
         passTheWriteWindow();
         this.logger.logProblem("unknown comparator: 'sameWeek'", ErrorContext.of("some.Thing", "evaluate"));
@@ -279,7 +268,7 @@ class ErrorLoggerImplTest
     @Test
     void aPhraseWhoseHeadSaysNothingIsRecordedUnderTheSameName()
     {
-        // "-42 " passes for label characters without being anything a reader could act on
+        // "-42 " is made of label characters, but has no letter
         this.logger.logProblem("-42 /Conditions/broken", ErrorContext.of("some.Thing", "evaluate"));
 
         assertEquals("unspecified problem", onlyError().get("problem", String.class));
@@ -298,7 +287,6 @@ class ErrorLoggerImplTest
     @Test
     void aLabelThatLooksLikeContentIsNotAllowedToDecideIdentity()
     {
-        // A path passed as an operation would otherwise mint a record per path, in a store that never deletes
         final Throwable error = new IllegalStateException(BOOM);
 
         this.logger.logError(error, ErrorContext.of("some.Thing", "/Submissions/1"));
@@ -320,7 +308,7 @@ class ErrorLoggerImplTest
 
         final List<String> subjects = List.of(onlyError().get("subjects", new String[0]));
         assertEquals(20, subjects.size());
-        // Most recent first, so the sample says what is going wrong now rather than what went wrong first
+        // Most recent first
         assertEquals("/Submissions/24", subjects.get(0));
         assertEquals(25L, onlyError().get("occurrences", 0L));
     }
@@ -337,16 +325,12 @@ class ErrorLoggerImplTest
         batching.logError(new IllegalArgumentException("second"));
 
         assertEquals(2, errors().size());
-        // Two faults, and at most one commit each — never one commit per occurrence, which is what recording from
-        // inside a loop used to cost
         assertTrue(counting.commits <= 2, "committed " + counting.commits + " times");
     }
 
     @Test
     void queuesOneWritePerBurstRatherThanOnePerOccurrence() throws ReflectiveOperationException
     {
-        // The tally is bounded, the executor's queue is not: one task per occurrence lets a failing loop pile up
-        // hundreds of thousands of no-op tasks behind the single write they are all waiting for
         final List<Runnable> pending = new ArrayList<>();
         final ErrorLoggerImpl deferred = build(this.context.resourceResolver());
         TestResolvers.set(deferred, "writer", (Executor) pending::add);
@@ -365,7 +349,6 @@ class ErrorLoggerImplTest
     @Test
     void printsTheStackTraceOnceRatherThanPerOccurrence() throws ReflectiveOperationException
     {
-        // Printing a cause chain builds up to 64 KB of string, and only the occurrence that starts a tally keeps one
         final AtomicInteger printed = new AtomicInteger();
         final Throwable counting = new IllegalStateException(BOOM)
         {
@@ -380,7 +363,7 @@ class ErrorLoggerImplTest
         };
         final ErrorLoggerImpl deferred = build(this.context.resourceResolver());
         TestResolvers.set(deferred, "writer", (Executor) runnable -> {
-            // Written by hand below, so that the whole burst is one tally
+            // Nothing runs the writer until the test flushes, so the whole burst is one tally
         });
 
         for (int i = 0; i < 5; i++) {
@@ -397,9 +380,6 @@ class ErrorLoggerImplTest
     @Test
     void writesTheTailOfABurstWithoutWaitingForAnotherFailure() throws Exception
     {
-        // due() deliberately holds back a fault written within the window, so the last occurrences of a burst are
-        // due only once it is over — and nothing arrives then to notice. Without a clock of its own the writer would
-        // leave one occurrence and a stale date in the repository for as long as the instance kept running
         final AtomicInteger commits = new AtomicInteger();
         final CountDownLatch written = new CountDownLatch(2);
         final ErrorLoggerImpl running = new ErrorLoggerImpl();
@@ -425,10 +405,8 @@ class ErrorLoggerImplTest
         final ScheduledExecutorService writer = (ScheduledExecutorService) TestResolvers.get(running, "ownWriter");
         try {
             final Throwable error = new IllegalStateException(BOOM);
-            // Each occurrence is handed over before the next step is taken, because a burst and the clock both move
-            // faster than a freshly started writer thread: raced, the two occurrences become one tally written once,
-            // and then no tick can find anything left to write. Which of the two happened decided whether this test
-            // passed, and it is the far likelier one that fails it
+            // Waits for the writer after each occurrence. Otherwise both can join one tally, written once, and the
+            // timer then finds nothing to write
             running.logError(error);
             awaitTheWriter(writer);
             assertEquals(1, commits.get(), "the first occurrence of the burst was never written");
@@ -437,8 +415,7 @@ class ErrorLoggerImplTest
             awaitTheWriter(writer);
             assertEquals(1, commits.get(), "the tail went out inside the window instead of being held back");
 
-            // Nothing else fails from here on, and nothing is queued: only the writer's own clock can notice that
-            // the second occurrence is now due
+            // Nothing is queued now, so only the writer's timer can write the second occurrence
             passTheWriteWindow();
 
             assertTrue(written.await(5, TimeUnit.SECONDS), "the tail of the burst was never written");
@@ -451,8 +428,6 @@ class ErrorLoggerImplTest
     @Test
     void stoppingWritesOutEvenWhatWasNotDueYet() throws ReflectiveOperationException
     {
-        // The window bounds how often a fault is written while the instance runs; on the way out there is no loop
-        // left to bound, and holding anything back would simply lose it
         final ErrorLoggerImpl running = new ErrorLoggerImpl();
         TestResolvers.inject(running, this.context.resourceResolver());
         running.activate();
@@ -474,7 +449,7 @@ class ErrorLoggerImplTest
         this.logger.logError(error);
         this.logger.logError(error);
 
-        // The later occurrences are tallied all the same, they just wait for the window
+        // The later occurrences wait for the interval
         assertEquals(1L, onlyError().get("occurrences", 0L));
 
         passTheWriteWindow();
@@ -498,8 +473,7 @@ class ErrorLoggerImplTest
     @Test
     void aFaultRecordedWhileAnEarlierBatchIsFailingIsFoldedInRatherThanLost() throws Exception
     {
-        // The one case that needs two threads: the tally has to arrive between the batch being taken out and the
-        // failed batch being put back
+        // Two threads: the second occurrence arrives after the batch is taken out and before it is put back
         final CountDownLatch writing = new CountDownLatch(1);
         final CountDownLatch tallied = new CountDownLatch(1);
         final ErrorLoggerImpl racing = build(new ResourceResolverWrapper(this.context.resourceResolver())
@@ -522,8 +496,8 @@ class ErrorLoggerImplTest
                 // The test context owns this resolver
             }
         });
-        // The real writer is a single thread, so a write the other thread asks for waits its turn. Run there, it would
-        // block in the commit above until the latches time out
+        // A write the other thread asks for waits for the test to run it, as on the real writer's one thread. Run on
+        // the other thread, it would block in the commit above
         final Thread testThread = Thread.currentThread();
         final List<Runnable> waiting = new ArrayList<>();
         TestResolvers.set(racing, "writer", (Executor) task -> {
@@ -550,15 +524,14 @@ class ErrorLoggerImplTest
         other.join(5_000);
         waiting.forEach(Runnable::run);
 
-        // Both occurrences survive the failed write, and go out together once the repository can be written to
+        // The repository can be written to again
         TestResolvers.set(racing, "records",
             new RecordWriter(TestResolvers.factory(this.context.resourceResolver())));
         passTheWriteWindow();
         racing.flush();
 
-        // Both subjects came through, which is what "nothing was lost" means here. The count is not asserted
-        // exactly: the mock repository does not roll a failed commit back, so the abandoned attempts left their
-        // own marks, which a real repository would have discarded
+        // The count is not asserted exactly: the mock repository does not roll back a failed commit, so the failed
+        // attempts left their own counts
         assertEquals(Set.of("/first", "/second"), Set.of(onlyError().get("subjects", new String[0])));
         assertTrue(onlyError().get("occurrences", 0L) >= 2L);
     }
@@ -572,7 +545,7 @@ class ErrorLoggerImplTest
         failing.logError(new IllegalStateException(BOOM));
         assertTrue(errors().isEmpty());
 
-        // Once the repository can be written to again, the tally that could not be written goes out
+        // The repository can be written to again
         TestResolvers.set(failing, "records",
             new RecordWriter(TestResolvers.factory(this.context.resourceResolver())));
         passTheWriteWindow();
@@ -588,8 +561,7 @@ class ErrorLoggerImplTest
         counting.failCommits = true;
         final ErrorLoggerImpl failing = build(counting);
 
-        // Four faults in quick succession, but the writer gives up after the third failure: a repository that
-        // cannot be written to at all must not turn every recorded error into a failed commit and a stack trace
+        // Four faults, but the writer pauses after the third failed write
         for (int i = 0; i < 4; i++) {
             failing.logError(new IllegalStateException(BOOM), ErrorContext.of("some.Thing", "attempt" + i));
             passTheWriteWindow();
@@ -597,7 +569,7 @@ class ErrorLoggerImplTest
         assertEquals(ErrorLoggerImpl.FAILURES_BEFORE_PAUSE, counting.commits,
             "kept trying " + counting.commits + " times");
 
-        // It does come back, though, so a repository that is fixed starts being written to again on its own
+        // After the pause, it writes again
         this.now += ErrorLoggerImpl.PAUSE_MS;
         failing.logError(new IllegalStateException(BOOM), ErrorContext.of("some.Thing", "afterThePause"));
 
@@ -607,8 +579,7 @@ class ErrorLoggerImplTest
     @Test
     void aWriteThatFailsOutrightLeavesTheWriterRunning() throws ReflectiveOperationException
     {
-        // Not a failed commit — those are handled — but the writing itself raising something. On a scheduled task
-        // that escapes once, the tail of every later burst would go unwritten
+        // Not a failed commit, but the writing itself throwing
         final ErrorLoggerImpl brokenOnce = build(this.context.resourceResolver());
         final AtomicInteger ticks = new AtomicInteger();
         TestResolvers.set(brokenOnce, "clock", (LongSupplier) () -> {
@@ -622,8 +593,7 @@ class ErrorLoggerImplTest
         assertDoesNotThrow(() -> brokenOnce.logError(new IllegalStateException(BOOM)));
         assertTrue(errors().isEmpty());
 
-        // The next recording is written as if nothing had happened, and takes the tally that could not be written
-        // out with it: what the writer could not do it did not lose
+        // The next recording writes both tallies
         brokenOnce.logError(new IllegalStateException("after"));
         assertEquals(2, errors().size());
     }
@@ -681,7 +651,6 @@ class ErrorLoggerImplTest
             unreachable.logError(new IllegalStateException(BOOM), ErrorContext.of("some.Thing", "operation" + i));
         }
 
-        // Being unable to keep up must not be one more silent failure
         assertTrue(unreachable.getDroppedCount() > 0);
     }
 
@@ -690,7 +659,6 @@ class ErrorLoggerImplTest
     @Test
     void doesNotRecordAFailureRaisedWhileRecording() throws ReflectiveOperationException
     {
-        // A commit hook failing on the very node being written would otherwise feed itself forever
         final ErrorLoggerImpl recursive = build(this.context.resourceResolver());
         final ResourceResolver reentrant = new ResourceResolverWrapper(this.context.resourceResolver())
         {
@@ -740,7 +708,7 @@ class ErrorLoggerImplTest
         try {
             ErrorLogger.logError(new IllegalStateException(BOOM));
         } finally {
-            // Stopping writes out whatever was still waiting, so nothing recorded on the way down is lost
+            // Stopping writes out what was waiting
             running.deactivate();
         }
         assertEquals(1, errors().size());
@@ -752,7 +720,6 @@ class ErrorLoggerImplTest
     @Test
     void survivesAFailureItCannotEvenDescribe()
     {
-        // Nothing about recording may raise a second failure, including asking the throwable about itself
         final Throwable unprintable = new IllegalStateException(BOOM)
         {
             private static final long serialVersionUID = 1L;
@@ -775,9 +742,7 @@ class ErrorLoggerImplTest
         TestResolvers.inject(running, this.context.resourceResolver());
         running.activate();
         TestResolvers.set(running, "shutdownWait", 0L);
-        // awaitTermination(0) returns true, and reports nothing, when the executor has already terminated. The
-        // drain that deactivate() queues takes microseconds, so whether it had finished decided whether giving up
-        // was reached at all. The assertion passed either way; only coverage noticed.
+        // Hold the writer's thread, so that stopping has to give up waiting for it
         final CountDownLatch holding = new CountDownLatch(1);
         final CountDownLatch release = new CountDownLatch(1);
         final ScheduledExecutorService writer =
@@ -806,13 +771,8 @@ class ErrorLoggerImplTest
         TestResolvers.inject(running, this.context.resourceResolver());
         running.activate();
         TestResolvers.set(running, "shutdownWait", 2_000L);
-        // Hold the writer's one thread, so that stopping has to wait for it. Queuing a tally instead does not:
-        // draining it takes microseconds, and an executor with nothing left to do returns from awaitTermination
-        // without consulting the interrupt flag, leaving the path below unreached. The assertion passes either
-        // way, so only coverage notices.
-        //
-        // execute() only queues, so wait for the task to be running before interrupting. Without that, an
-        // executor that has not picked it up yet terminates at once and the same path goes uncovered.
+        // Hold the writer's thread, so that stopping has to wait for it. The task must be running before the
+        // interrupt, or the executor terminates at once
         final CountDownLatch holding = new CountDownLatch(1);
         final CountDownLatch occupied = new CountDownLatch(1);
         final ScheduledExecutorService writer =
@@ -833,8 +793,7 @@ class ErrorLoggerImplTest
 
             assertTrue(Thread.interrupted(), "the interrupt was swallowed rather than restored");
         } finally {
-            // Let the thread go, whatever happened above: it is a daemon, but a test that leaves it parked for five
-            // seconds slows down every one after it
+            // Release the thread, which would otherwise stay parked for five seconds
             occupied.countDown();
         }
     }
@@ -852,7 +811,7 @@ class ErrorLoggerImplTest
      *
      * @param resolver the repository to record into, {@code null} for one that cannot be reached
      * @return a configured component
-     * @throws ReflectiveOperationException if the component's shape has changed
+     * @throws ReflectiveOperationException if a field the test sets does not exist
      */
     private ErrorLoggerImpl build(final ResourceResolver resolver) throws ReflectiveOperationException
     {
@@ -872,9 +831,8 @@ class ErrorLoggerImplTest
     }
 
     /**
-     * Waits for the writer to catch up with everything it has already been handed, so that a test driving a running
-     * component can tell what it has done from what it has not got to yet. The writer is one thread, so a task of the
-     * test's own reaching it means every task queued before it has finished.
+     * Waits until the writer has run every task queued so far. The writer is one thread, so once a task of the
+     * test's own has run, every task queued before it has finished.
      *
      * @param writer the writer the component made for itself
      * @throws Exception if the writer does not get through its queue in time
@@ -882,7 +840,7 @@ class ErrorLoggerImplTest
     private static void awaitTheWriter(final ScheduledExecutorService writer) throws Exception
     {
         writer.submit(() -> {
-            // Being run at all is this task's whole purpose
+            // Nothing to do
         }).get(5, TimeUnit.SECONDS);
     }
 

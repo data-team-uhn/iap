@@ -24,9 +24,8 @@ import {
   resolutionLabel,
 } from "@iap/error-tracking/errorTrackingApi";
 
-// A real Response rather than an object literal: the session-aware fetch reads `response.url` to
-// tell a real answer from Sling's redirect to the login page, and a hand-rolled stand-in without
-// one throws from inside the hook.
+// A real Response, not an object literal. readJson reads `response.url` to tell an answer from
+// Sling's redirect to the login page, and throws on a stand-in without one.
 const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status,
   headers: { "Content-Type": "application/json" },
@@ -42,8 +41,6 @@ describe("errorNameFromRoute", () => {
   });
 
   it("names nothing for the browse page itself", () => {
-    // The browse page and one error are different screens; reading the former as an error would
-    // send a request for a node that cannot exist
     expect(errorNameFromRoute("/admin/errors")).toBeNull();
     expect(errorNameFromRoute("/admin/errors/")).toBeNull();
   });
@@ -73,7 +70,7 @@ describe("resolutionLabel", () => {
   });
 
   it("falls back to the raw name for a marker it does not know", () => {
-    // A deployment may add a triage tag of its own; showing its name beats showing nothing
+    // A triage tag a deployment added
     expect(resolutionLabel("escalated")).toBe("escalated");
   });
 });
@@ -173,8 +170,6 @@ describe("fetchLoggedError", () => {
   });
 
   it("tolerates an error missing the properties its node type says are mandatory", async () => {
-    // A model that throws on malformed content would make the screen that exists to show what went
-    // wrong the next thing that goes wrong
     const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, {
       "sling:resourceType": "err/LoggedFailure",
     })));
@@ -200,8 +195,6 @@ describe("fetchLoggedError", () => {
   });
 
   it("breaks a tie between decisions taken at the same count by when they were taken", async () => {
-    // Two decisions can share an occurrence count — nothing happened in between — and a count
-    // cannot order them, so the date does
     const at = (name: string, created: string) => ({
       "@name": name,
       "sling:resourceType": "err/Acknowledgement",
@@ -246,9 +239,6 @@ describe("acknowledgeError", () => {
   });
 
   it("names the selector AND an extension, or the request would not reach the servlet", async () => {
-    // `.acknowledge` on its own would leave Sling reading `acknowledge` as the extension, so there
-    // would be no selector to match and the default POST servlet would write a `resolution`
-    // property onto the error instead of recording a decision
     const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, { status: "ok" })));
     await acknowledgeError(fetchMock, "abc", "known-issue");
 
@@ -263,7 +253,6 @@ describe("acknowledgeError", () => {
     expect(fetchMock.mock.calls[0][1]?.body).toBe("resolution=wont-fix&note=by+design");
 
     await acknowledgeError(fetchMock, "abc", "wont-fix", "   ");
-    // A note of nothing but spaces is no note: sending it would store an empty explanation
     expect(fetchMock.mock.calls[1][1]?.body).toBe("resolution=wont-fix");
   });
 
@@ -310,7 +299,6 @@ describe("acknowledgeError", () => {
   });
 
   it("explains a refusal that came with no readable body", async () => {
-    // An unreadable body is never taken as success; only the status decides that
     const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(new Response("<html>", { status: 500 })));
     const outcome = await acknowledgeError(fetchMock, "abc", "acknowledged");
 

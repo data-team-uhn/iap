@@ -45,31 +45,18 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 
 /**
- * Default implementation of {@link ErrorLoggerService}, storing one node per distinct fault under
- * {@value ErrorLoggerService#LOGGED_ERRORS_PATH}.
+ * Records errors under {@value ErrorLoggerService#LOGGED_ERRORS_PATH}, one node per distinct fault.
  *
  * <p>
- * Recording does no repository work on the calling thread. The failure is fingerprinted, folded into an in-memory
- * tally and left there; a single background thread writes the accumulated tallies out shortly afterwards, prompted
- * both by the recording and by a timer of its own. That is a requirement rather than an optimization, for three
- * reasons, in descending order of severity:
+ * Recording does no repository work on the calling thread. The failure is fingerprinted and added to a tally in
+ * memory. One writer thread writes the tallies out, when a recording asks it to and on a timer of its own. With one
+ * writer, two threads recording the same fault cannot race to create or update its node.
  * </p>
  *
- * <ul>
- * <li>The callers most worth having are commit hooks, and a commit hook runs <em>inside</em> a commit. Oak's segment
- * store guards commits with a single non-reentrant permit, so a session opened and committed from within a commit
- * hook would block forever on a permit its own thread already holds, wedging every write in the instance.</li>
- * <li>A failing loop would otherwise cost one login and one commit per occurrence. Collapsing the copies bounds the
- * <em>storage</em>, not the writing; only tallying does that.</li>
- * <li>A single writer removes the read-modify-write race between threads recording the same fault at once, which
- * used to lose occurrences and could fail one of two threads creating the same node.</li>
- * </ul>
- *
  * <p>
- * The tally is bounded, and so is the rate at which any one fault is written. Neither is a retention policy: nothing
- * recorded is ever discarded, and the tally is keyed by fingerprint, so it is bounded by the same thing the stored
- * records are — the number of ways this build can fail. Should even that overflow, the count of what could not be
- * kept up with is reported rather than quietly forgotten.
+ * The tally holds at most {@value #MAX_PENDING} distinct faults, and each fault is written at most once per
+ * {@value #WRITE_INTERVAL_MS} milliseconds. A recording that does not fit in the tally is dropped, and
+ * {@link #getDroppedCount()} counts it.
  * </p>
  *
  * @version $Id$
@@ -78,16 +65,16 @@ import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 @Component(immediate = true, service = ErrorLoggerService.class)
 public class ErrorLoggerImpl implements ErrorLoggerService
 {
-    /** How many distinct faults may be waiting to be written. A diagnostic must not be able to exhaust the heap. */
+    /** How many distinct faults may be waiting to be written. */
     static final int MAX_PENDING = 1000;
 
-    /** How often the same fault is written. One failing in a tight loop costs one commit per window. */
+    /** How often, at most, one fault is written. A fault failing in a tight loop costs one commit per interval. */
     static final long WRITE_INTERVAL_MS = 60_000;
 
-    /** How many consecutive failed writes before the writer stops trying for a while. */
+    /** How many writes in a row may fail before the writer pauses. */
     static final int FAILURES_BEFORE_PAUSE = 3;
 
-    /** How long the writer waits after giving up, before trying again. */
+    /** How long the writer pauses. */
     static final long PAUSE_MS = 300_000;
 
     /** How long a shutdown waits for the last tallies to be written. */
@@ -96,27 +83,22 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     private static final Logger LOGGER = LoggerFactory.getLogger(ErrorLoggerImpl.class);
 
     /**
-     * The characters something may be made of to take part in a fingerprint. Anything else is a caller accidentally
-     * passing something data-derived, which would mint a record per distinct value; the value is still recorded, it
-     * just does not get to decide identity.
+     * The characters a component, an operation or the name of a problem may contain. A value with any other
+     * character probably comes from content, and would create a record per distinct value. The failure is still
+     * recorded without that value. For a thrown failure, the component is then taken from the stack trace.
      */
     private static final String STABLE_CHARACTERS = "[A-Za-z0-9_.$ -]";
 
-    /** How long a label chosen in code plausibly is. */
+    /** How long an operation or the name of a problem may be. */
     private static final int MAX_LABEL_LENGTH = 64;
 
-    /** What an operation may look like: a short label, such as {@code computeTags}. */
+    /** What an operation may look like, such as {@code computeTags}. */
     private static final Pattern STABLE_LABEL = Pattern.compile(STABLE_CHARACTERS + "{1," + MAX_LABEL_LENGTH + "}");
 
-    /**
-     * What a component may look like. The same characters, but as long as a fully-qualified class name needs to be
-     * rather than as long as a label: several classes in this build are already past sixty characters, and a
-     * length limit there would drop the single most useful field of the record for exactly the classes whose names
-     * say the most.
-     */
+    /** What a component may look like: a fully qualified class name, which is often longer than a label. */
     private static final Pattern STABLE_COMPONENT = Pattern.compile(STABLE_CHARACTERS + "{1,255}");
 
-    /** What names a problem whose phrase has no stable part at all. */
+    /** The name of a problem whose phrase does not start with a usable name. */
     private static final String UNSTABLE_PROBLEM = "unspecified problem";
 
     /** The node type recording a fault something was thrown for. */
@@ -126,9 +108,8 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     private static final String PROBLEM_TYPE = "err:LoggedProblem";
 
     /**
-     * Whether this thread is already recording. Anything that fails while a record is being written — a commit hook
-     * throwing on the very node being written, most plausibly — is logged and dropped rather than tallied, which is
-     * what stops a fault that touches error tracking from feeding itself forever.
+     * Whether this thread is writing records. A failure raised meanwhile, such as a commit hook throwing on a node
+     * being written, is logged and not tallied, so that it cannot feed itself.
      */
     private static final ThreadLocal<Boolean> ALREADY_RECORDING = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
@@ -138,61 +119,54 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     /** The faults seen but not yet written, by fingerprint. */
     private final Map<String, PendingError> pending = new ConcurrentHashMap<>();
 
-    /** When each fault was last written, by fingerprint, so that a fault in a loop is not written continuously. */
+    /** When each fault was last written, in milliseconds since the epoch, by fingerprint. */
     private final Map<String, Long> lastWritten = new ConcurrentHashMap<>();
 
-    /** How many tallies had to be dropped because the pending map was full. */
+    /** How many recordings were dropped because the tally was full. */
     private final AtomicLong dropped = new AtomicLong();
 
-    /**
-     * How many consecutive attempts to write have failed. Only ever touched by the writer, but an atomic all the
-     * same: a test drives the writer from its own thread, and the single-threaded executor is an invariant worth
-     * stating rather than relying on.
-     */
+    /** How many writes in a row have failed. Atomic because tests run the writer on threads of their own. */
     private final AtomicInteger consecutiveFailures = new AtomicInteger();
 
-    /** When the writer may try again, after having given up. Volatile for the same reason, and 64 bits wide. */
+    /** When the writer may try again after pausing, in milliseconds since the epoch. Volatile for the same reason. */
     private volatile long pausedUntil;
 
     /**
-     * Whether a write is already queued. One task per burst rather than one per occurrence: the tally is bounded, but
-     * the executor's queue is not, and a fault in a tight loop would otherwise pile up hundreds of thousands of
-     * no-op tasks behind the one write they are all waiting for.
+     * Whether a write is already queued. A burst of recordings queues one write, not one per occurrence, since the
+     * executor's queue has no bound.
      */
     private final AtomicBoolean queued = new AtomicBoolean();
 
-    /** Where the writing happens. Replaced in tests by one that runs on the calling thread. */
+    /** Where the writing runs. A field so that a test can run it on the calling thread. */
     private Executor writer;
 
-    /** The executor to shut down on deactivation, {@code null} when the writer was supplied from outside. */
+    /** The executor this component made and shuts down as it stops; {@code null} while it is not running. */
     private ScheduledExecutorService ownWriter;
 
-    /** The clock. Replaced in tests, so that windows can be tested without waiting for them. */
+    /** The clock, in milliseconds since the epoch. A field so that a test can move it. */
     private LongSupplier clock = System::currentTimeMillis;
 
-    /** How long stopping waits for the last tallies. A field so that a test need not actually wait that long. */
+    /** How long stopping waits for the last tallies to be written. A field so that a test can shorten it. */
     private long shutdownWait = SHUTDOWN_WAIT_MS;
 
-    /** How often the same fault is written, and how often the writer looks for work. A field for the same reason. */
+    /** How often one fault may be written, and how often the writer looks for work. A field for the same reason. */
     private long writeInterval = WRITE_INTERVAL_MS;
 
-    /** Turns tallies into repository nodes. */
+    /** Writes the tallies into the repository. */
     private RecordWriter records;
 
     @Activate
     protected void activate()
     {
-        // A single thread, so that every write is serialized and no two of them can race for the same node
+        // One thread, so that no two writes race for the same node
         this.ownWriter = Executors.newSingleThreadScheduledExecutor(runnable -> {
             final Thread thread = new Thread(runnable, "iap-error-tracking");
             thread.setDaemon(true);
             return thread;
         });
         this.writer = this.ownWriter;
-        // A recording queues a write, but a fault written within the last window is deliberately held back, so the
-        // last occurrences of a burst are due only once it is over — and nothing arrives to notice that. Without a
-        // clock of its own, an instance that fails three times in a minute and then behaves would leave one
-        // occurrence and a stale date in the repository for as long as it kept running
+        // A fault written less than an interval ago is held back. The end of a burst therefore becomes due after the
+        // burst is over, when no recording arrives to queue a write, and only this timer writes it out
         this.ownWriter.scheduleWithFixedDelay(this::write, this.writeInterval, this.writeInterval,
             TimeUnit.MILLISECONDS);
         this.records = new RecordWriter(this.resolverFactory);
@@ -202,7 +176,7 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     @Deactivate
     protected void deactivate()
     {
-        // Stop taking new tallies before writing out the ones in hand, so that the last flush is the last word
+        // Stop taking recordings first, so that the last write holds everything recorded
         ErrorLogger.unsetService(this);
         if (this.ownWriter != null) {
             this.ownWriter.execute(this::drain);
@@ -236,9 +210,8 @@ public class ErrorLoggerImpl implements ErrorLoggerService
             final String component = stated != null ? stated : component(Fingerprint.inferComponent(error));
             final String operation = label(described.getOperation());
             tally(Fingerprint.of(error, component, operation),
-                // Printed inside the supplier, so that only the first occurrence of a fault pays for it: printing a
-                // deep cause chain builds up to 64 KB of string, and a fault in a tight loop reaches here per
-                // occurrence
+                // Printed only for the occurrence that starts a tally, since a fault in a tight loop arrives here
+                // for every occurrence
                 () -> new PendingError(EXCEPTION_TYPE, component, operation, error.getClass().getName(), null,
                     Fingerprint.print(error)),
                 error.getMessage(), described);
@@ -253,10 +226,8 @@ public class ErrorLoggerImpl implements ErrorLoggerService
         }
         final ErrorContext described = context == null ? ErrorContext.NO_CONTEXT : context;
         final String phrase = problem.strip();
-        // What decides identity still has to be stable, but a phrase that is not must be recorded all the same: the
-        // caller is reporting something wrong, and dropping it here would make the component whose whole purpose is
-        // to catch silent failures the one committing them. So the stable head names the fault and the phrase itself
-        // is kept as a message, exactly the way a throwable's message is left out of the identity but not the record
+        // A phrase that quotes a value is still recorded. Its leading words name the fault, and the whole phrase is
+        // kept as a message
         final String named = stableHead(phrase);
         submit(phrase, () -> {
             final String component = component(described.getComponent());
@@ -268,10 +239,10 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     }
 
     /**
-     * Runs the tallying, under the two guarantees this service owes its callers: it never throws, and it never
-     * records a failure raised while recording a failure.
+     * Runs the tallying, then queues a write. It never throws. A failure raised while this thread writes records is
+     * logged, not tallied.
      *
-     * @param subject what is being recorded, only ever used to say what could not be
+     * @param subject the throwable or the phrase being recorded, named in the log if it cannot be recorded
      * @param tallying the tallying to do
      */
     private void submit(final Object subject, final Runnable tallying)
@@ -286,33 +257,30 @@ public class ErrorLoggerImpl implements ErrorLoggerService
                 this.writer.execute(this::write);
             }
         } catch (final Throwable e) {
-            // The caller is already handling a failure; recording it must not raise a second one. Throwable rather
-            // than Exception because printing a deeply nested cause chain can run the stack out
+            // Throwable, since printing a deeply nested cause chain can overflow the stack
             LOGGER.error("Could not record {}: {}", subject, e.getMessage(), e);
         }
     }
 
     /**
-     * Folds one occurrence into the tally of its fault, starting one if this is the first time it has been seen.
+     * Adds one occurrence to the tally of its fault, and starts that tally if there is none.
      *
-     * @param fingerprint what names the fault
-     * @param start how to start tallying it, used only when this is the first occurrence
-     * @param message the message of this particular occurrence, may be {@code null}
-     * @param context what the caller said about this particular occurrence
+     * @param fingerprint the fingerprint naming the fault
+     * @param start makes the tally; called only if there is none yet
+     * @param message the message of this occurrence, or {@code null} if it has none
+     * @param context what the caller said about this occurrence
      */
     private void tally(final String fingerprint, final Supplier<PendingError> start, final String message,
         final ErrorContext context)
     {
         final long now = this.clock.getAsLong();
-        // Checked outside compute rather than inside it, since a ConcurrentHashMap may not be consulted from within
-        // its own mapping function. Concurrent recorders can therefore overshoot the bound slightly, which is a far
-        // better trade than serializing every failure site in the instance behind one lock
+        // Concurrent recorders can overshoot this bound slightly
         if (this.pending.size() >= MAX_PENDING && !this.pending.containsKey(fingerprint)) {
             this.dropped.incrementAndGet();
             return;
         }
-        // Tallying inside compute, and draining with remove, so that the two are serialized by the map itself: an
-        // occurrence either joins the batch being written or starts the next tally, and cannot fall between them
+        // compute here and remove in due() are atomic per key: an occurrence either joins the batch being written or
+        // starts the next tally
         this.pending.compute(fingerprint, (key, existing) -> {
             final PendingError tallied = existing == null ? start.get() : existing;
             tallied.record(message, context, now);
@@ -321,14 +289,12 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     }
 
     /**
-     * Writes out what is due, both when a recording asked for it and when the clock did, and keeps whatever that
-     * raises off the writer thread — a scheduled task that throws is never run again, which would leave the tail of
-     * every later burst unwritten.
+     * Writes out the tallies that are due, and catches whatever the writing throws. A scheduled task that throws is
+     * never run again.
      */
     private void write()
     {
-        // Cleared before the writing rather than after, so that an occurrence tallied while a write is in progress
-        // queues another one instead of being left to wait for the next tick
+        // Cleared first, so that an occurrence tallied during this write queues another one
         this.queued.set(false);
         try {
             flush();
@@ -338,8 +304,7 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     }
 
     /**
-     * Writes out every tally there is, whether or not its window has passed. For the way out only: the window keeps a
-     * fault failing in a loop from being written continuously, and on the way out there is no loop left to bound.
+     * Writes out every tally, due or not, as the component stops.
      */
     private void drain()
     {
@@ -352,8 +317,8 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     }
 
     /**
-     * Writes out every tally that is due, in one commit. Runs on the writer thread only, so it is the single writer
-     * the design relies on.
+     * Writes out every tally that is due, in one commit. Does nothing while the writer is paused. Runs only on the
+     * writer thread.
      */
     void flush()
     {
@@ -361,9 +326,9 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     }
 
     /**
-     * Writes out a batch of tallies, in one commit.
+     * Writes out a batch of tallies, in one commit. Does nothing while the writer is paused.
      *
-     * @param everything whether to write the tallies whose window has not passed yet as well
+     * @param everything {@code true} to write the tallies that are not due yet as well
      */
     private void flush(final boolean everything)
     {
@@ -389,13 +354,12 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     }
 
     /**
-     * Takes the tallies that are due out of the pending map. A fault written recently is left where it is: it will go
-     * out with the next batch after its window, which is what keeps a fault failing in a loop from being written
-     * continuously.
+     * Takes the tallies that are due out of the pending map. The tally of a fault written less than an interval ago
+     * stays, and goes out with the first batch after that interval.
      *
-     * @param now the current moment
-     * @param everything whether to take the tallies whose window has not passed yet as well
-     * @return the tallies to write, by fingerprint
+     * @param now the current time, in milliseconds since the epoch
+     * @param everything {@code true} to take the tallies that are not due yet as well
+     * @return the tallies to write, by fingerprint; empty if none is due
      */
     private Map<String, PendingError> due(final long now, final boolean everything)
     {
@@ -409,18 +373,16 @@ public class ErrorLoggerImpl implements ErrorLoggerService
                 }
             }
         }
-        // Only faults nothing is waiting to write can be forgotten here, and forgetting one only means it may be
-        // written a little sooner than its window would have allowed
+        // Forgets when a fault was written, once its interval has passed and none of its occurrences is waiting
         this.lastWritten.entrySet().removeIf(
             written -> now - written.getValue() >= WRITE_INTERVAL_MS && !this.pending.containsKey(written.getKey()));
         return batch;
     }
 
     /**
-     * Puts a batch that could not be written back into the tally, folded under whatever has been recorded since, so
-     * that a failure to write loses nothing but the moment it would have been written at.
+     * Puts a batch that could not be written back into the tally, under whatever has been recorded since.
      *
-     * @param batch the tallies that could not be written
+     * @param batch the tallies that could not be written, by fingerprint
      */
     private void keep(final Map<String, PendingError> batch)
     {
@@ -433,12 +395,11 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     }
 
     /**
-     * Notes that a write failed, and stops trying for a while once they keep failing. Without that, a repository
-     * that cannot be written to at all — a wrong ACL, a missing container, a read-only store — would turn every
-     * recorded error into a session, a failed commit and a stack trace in the log.
+     * Logs a failed write, and pauses the writer for {@value #PAUSE_MS} milliseconds once
+     * {@value #FAILURES_BEFORE_PAUSE} writes in a row have failed.
      *
-     * @param failure what went wrong
-     * @param now the current moment
+     * @param failure what the write threw
+     * @param now the current time, in milliseconds since the epoch
      */
     private void noteFailedWrite(final Throwable failure, final long now)
     {
@@ -459,12 +420,10 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     }
 
     /**
-     * Accepts a caller-supplied label only when it looks like something chosen in code. A label takes part in the
-     * fingerprint, so one derived from content — a path, an identifier, a rendered value — would mint a record per
-     * distinct value in a store that never deletes anything.
+     * Accepts an operation only if it looks like a label chosen in code.
      *
-     * @param value the label to check, may be {@code null}
-     * @return the label, or {@code null} when there was none or it cannot be trusted to be stable
+     * @param value the operation the caller named, or {@code null}
+     * @return the stripped label, or {@code null} if there was none or it does not look like a label
      */
     private static String label(final String value)
     {
@@ -472,10 +431,10 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     }
 
     /**
-     * Accepts a caller-supplied or guessed component only when it looks like a class name.
+     * Accepts a component only if it looks like a class name.
      *
-     * @param value the class name to check, may be {@code null}
-     * @return the class name, or {@code null} when there was none or it cannot be trusted to be stable
+     * @param value the class name the caller named or the stack trace gave, or {@code null}
+     * @return the stripped class name, or {@code null} if there was none or it does not look like a class name
      */
     private static String component(final String value)
     {
@@ -483,11 +442,11 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     }
 
     /**
-     * Accepts a value only when it is made of nothing but what may decide identity.
+     * Accepts a value only if it may take part in a fingerprint.
      *
-     * @param value the value to check, may be {@code null}
-     * @param shape what a value of this kind may look like
-     * @return the stripped value, or {@code null} when there was none or it cannot be trusted to be stable
+     * @param value the value to check, or {@code null}
+     * @param shape the pattern the whole stripped value must match
+     * @return the stripped value, or {@code null} if it was {@code null}, blank, or did not match
      */
     private static String stable(final String value, final Pattern shape)
     {
@@ -499,17 +458,15 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     }
 
     /**
-     * The part of a reported phrase that may name a fault: its leading run of label characters. A caller reporting
-     * {@code unknown comparator: 'sameDay'} is describing one fault rather than one per comparator, and stopping at
-     * the first character a label may not contain is what turns such a phrase into the constant the fingerprint
-     * needs. The phrase itself is kept as a message either way, so nothing the caller said is lost.
+     * The part of a reported phrase that names the fault: its leading run of the characters a label may contain, up
+     * to {@value #MAX_LABEL_LENGTH} of them. {@code unknown comparator: 'sameDay'} names the fault
+     * {@code unknown comparator}.
      *
-     * @param phrase what the caller reported, stripped and not blank
-     * @return a phrase stable enough to name the fault by
+     * @param phrase the reported phrase, stripped and not blank
+     * @return that leading run, stripped, or {@value #UNSTABLE_PROBLEM} if it is empty or has no letter
      */
     private static String stableHead(final String phrase)
     {
-        // lookingAt rather than matches: the same shape a whole label has to have, but only asked of the beginning
         final Matcher head = STABLE_LABEL.matcher(phrase);
         if (!head.lookingAt()) {
             return UNSTABLE_PROBLEM;

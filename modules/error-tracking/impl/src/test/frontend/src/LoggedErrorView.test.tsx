@@ -60,10 +60,8 @@ function answering(options: {
     if (url.includes("/Tags.search.json")) {
       return Promise.resolve(json({ tags: TRIAGE_DEFINITIONS, total: TRIAGE_DEFINITIONS.length }));
     }
-    // The session-aware fetch reads a 500 as a possibly-expired session and asks whether the
-    // session is still live before reporting anything, because Sling answers a write on an expired
-    // session with a 500. Left unanswered, a test meaning to exercise a server error instead
-    // exercises "not authenticated, and no sign-in is available".
+    // The session-aware fetch answers a 500 by asking whether the session is still there. Left
+    // unanswered, a test of a server error would instead see "not authenticated".
     if (url.includes("/system/sling/info.sessionInfo.json")) {
       return Promise.resolve(json({ userID: "admin" }));
     }
@@ -99,8 +97,6 @@ describe("LoggedErrorView", () => {
   });
 
   it("says so, and asks for nothing, when the address names no single error", async () => {
-    // Reached by navigating to the browse route or something deeper; rendering an empty error page
-    // would look like an error that has no details
     const fetchMock = answering();
     vi.stubGlobal("fetch", fetchMock);
     view("/admin/errors");
@@ -113,13 +109,10 @@ describe("LoggedErrorView", () => {
     vi.stubGlobal("fetch", answering());
     view();
 
-    // Headed by the throwable's simple name; the fully-qualified one is shown once, as a fact, so
-    // the heading is readable and the page does not say the same string twice. Queried by text
-    // rather than by heading role: the page title is a custom Typography variant, so what element
-    // it renders as is a theme decision rather than something this page states.
+    // The heading is queried by text, not by role: the page title is a Typography variant, and the
+    // theme decides which element it renders as
     expect(await screen.findByText("IllegalStateException")).toBeInTheDocument();
     expect(screen.getByText("java.lang.IllegalStateException")).toBeInTheDocument();
-    // Qualified here, unlike in the listing: this is the page where the full name belongs
     expect(screen.getByText("io.uhndata.iap.tags.internal.TagPropagationEditor")).toBeInTheDocument();
     expect(screen.getByText("computeTags")).toBeInTheDocument();
     expect(screen.getByText("7")).toBeInTheDocument();
@@ -129,7 +122,7 @@ describe("LoggedErrorView", () => {
     expect(screen.getByText(/attempt: 3/)).toBeInTheDocument();
     expect(screen.getByText(/at Foo\.bar/)).toBeInTheDocument();
     expect(screen.getByText("Something was thrown")).toBeInTheDocument();
-    // The triage marker, displayed per its /Tags definition
+    // The label of the triage tag's definition
     expect(await screen.findByText("Needs attention")).toBeInTheDocument();
   });
 
@@ -176,8 +169,7 @@ describe("LoggedErrorView", () => {
     view();
 
     await screen.findByText("unknown comparator");
-    // Four facts have no value here: the component and operation the caller did not name, and both
-    // timestamps. A dash says "nothing recorded" where a blank cell would look like a rendering bug
+    // The component, the operation and both timestamps
     expect(screen.getAllByText("—")).toHaveLength(4);
   });
 
@@ -187,7 +179,6 @@ describe("LoggedErrorView", () => {
     }));
     view();
 
-    // The heading cannot be blank: it is how the reader knows which error they are looking at
     expect(await screen.findAllByText("abc")).not.toHaveLength(0);
   });
 
@@ -210,7 +201,6 @@ describe("LoggedErrorView", () => {
   });
 
   it("reports a rejection that is not an Error at all", async () => {
-    // Whatever fetch failed with reaches the catch; a string would otherwise render as "undefined"
     vi.stubGlobal("fetch", vi.fn((url: string) => (url.includes("/Tags.search.json")
       ? Promise.resolve(json({ tags: TRIAGE_DEFINITIONS, total: 2 }))
       : Promise.reject("network is down"))));
@@ -220,7 +210,6 @@ describe("LoggedErrorView", () => {
   });
 
   it("drops a read that lands after the reader has moved to another error", async () => {
-    // Navigating error to error must not put the previous one's details under the new heading
     let releaseFirst!: (response: Response) => void;
     const fetchMock = vi.fn((url: string) => {
       if (url.includes("/Tags.search.json")) {
@@ -250,7 +239,7 @@ describe("LoggedErrorView", () => {
     await userEvent.click(screen.getByRole("button", { name: "go" }));
     expect(await screen.findByText("the second fault")).toBeInTheDocument();
 
-    // The first error's read only now comes back; it is no longer the one being waited for
+    // The first error's read comes back only now
     await act(async () => {
       releaseFirst(json(FAILURE));
       await new Promise(resolve => { setTimeout(resolve, 0); });
@@ -307,8 +296,7 @@ describe("LoggedErrorView", () => {
 
     expect(await screen.findByText("Decisions (2)")).toBeInTheDocument();
     expect(screen.getByText("waiting on the upstream fix")).toBeInTheDocument();
-    // Matched with the separator that follows the author, because "priya" also appears on its own
-    // as one of the actors the fault happened for — a different fact about the same person
+    // Matched with the separator after the author, because "priya" is also one of the actors
     expect(screen.getByText(/priya ·/)).toBeInTheDocument();
     expect(screen.getByText(/sam ·/)).toBeInTheDocument();
     // Newest first: the known-issue decision was taken after five occurrences
@@ -335,8 +323,6 @@ describe("LoggedErrorView", () => {
     expect(await screen.findByText("Decision recorded")).toBeInTheDocument();
     const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
     expect(post?.[0]).toBe("/LoggedErrors/abc.acknowledge.json");
-    // What is on screen is stale the moment the write commits: the triage markers come from the
-    // decisions, so patching them here would be guessing at the server's answer
     await waitFor(() => { expect(reads(fetchMock)).toHaveLength(2); });
   });
 
@@ -355,7 +341,6 @@ describe("LoggedErrorView", () => {
     await screen.findByText("Decision recorded");
     const post = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
     expect(post?.[1]?.body).toBe("resolution=known-issue&note=upstream+bug");
-    // Leaving it filled would invite it being sent again with the next, unrelated decision
     await waitFor(() => { expect(note).toHaveValue(""); });
   });
 
@@ -371,7 +356,6 @@ describe("LoggedErrorView", () => {
 
     expect(await screen.findByText("The decision was not recorded")).toBeInTheDocument();
     expect(screen.getByText("resolution must name one of the error-triage tags")).toBeInTheDocument();
-    // Nothing changed, so there is nothing to re-read
     expect(reads(fetchMock)).toHaveLength(1);
   });
 
@@ -385,14 +369,12 @@ describe("LoggedErrorView", () => {
     await userEvent.click(screen.getByRole("button", { name: "Record decision" }));
 
     const notice = await screen.findByRole("alert");
-    // toHaveTextContent, not getByText: the notice's message is a bare text node beside its title,
-    // so no single element holds just the message
+    // toHaveTextContent, not getByText: the message is a bare text node beside the title
     expect(notice).toHaveTextContent("Could not record the decision");
     expect(within(notice).getByRole("button", { name: /retry|try again/i })).toBeInTheDocument();
   });
 
   it("does not offer another attempt for a decision the error cannot carry", async () => {
-    // A refused resolution would be refused again; only a failure is worth repeating
     vi.stubGlobal("fetch", answering({
       acknowledge: { status: 400, body: { status: "error", error: "not a triage tag" } },
     }));

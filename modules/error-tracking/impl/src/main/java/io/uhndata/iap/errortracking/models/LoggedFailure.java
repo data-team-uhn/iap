@@ -24,13 +24,8 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A recorded error that something was thrown for: the class of the throwable and the stack trace of one occurrence,
- * on top of the {@link #getMessages() messages} and samples every recorded error carries.
- *
- * <p>
- * Named a failure rather than an exception because it is a record of one, not one itself — a distinction both the
- * style checks and a reader would otherwise have to guess at.
- * </p>
+ * A recorded error that something was thrown for. Besides what every recorded error has, it keeps the class of the
+ * throwable and the stack trace of one occurrence.
  *
  * @version $Id$
  * @since 0.1.0
@@ -42,19 +37,19 @@ public class LoggedFailure extends LoggedError
     /** The Sling resource type of a recorded error something was thrown for. */
     public static final String RESOURCE_TYPE = "err/LoggedFailure";
 
-    /** The class of what was thrown. */
+    /** The class name of the outermost throwable. */
     @ValueMapValue
     private String type;
 
-    /** The stack trace of one occurrence. */
+    /** The stack trace of the first recorded occurrence. */
     @ValueMapValue
     private String stackTrace;
 
     /**
-     * The class name of what was thrown, e.g. {@code java.lang.IllegalStateException}. Not to be confused with
-     * {@link #getType()}, which is this node's own Sling resource type.
+     * The class name of what was thrown, such as {@code java.lang.IllegalStateException}. {@link #getType()} is
+     * something else: this node's Sling resource type.
      *
-     * @return a class name, never {@code null} in a well-formed record
+     * @return a fully qualified class name; empty only in a malformed record
      */
     @NotNull
     public String getThrowableType()
@@ -70,10 +65,10 @@ public class LoggedFailure extends LoggedError
     }
 
     /**
-     * The stack trace of one occurrence, causes included, as it would be printed to a log file. An exemplar rather
-     * than the identity: every occurrence shares these frames by construction, but may carry a different message.
+     * The stack trace of the first recorded occurrence, causes included, as a log file prints it. Later occurrences
+     * may carry other messages.
      *
-     * @return a multi-line string, never {@code null} in a well-formed record
+     * @return the printed trace; empty only in a malformed record
      */
     @NotNull
     public String getStackTrace()

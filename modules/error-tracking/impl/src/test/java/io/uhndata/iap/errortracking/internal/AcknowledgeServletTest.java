@@ -88,7 +88,6 @@ class AcknowledgeServletTest
         assertNotNull(decision);
         assertEquals("known-issue", decision.getValueMap().get("resolution", String.class));
         assertEquals("fix on the way", decision.getValueMap().get("note", String.class));
-        // What the count has reached now is what a later occurrence is measured against
         assertEquals(7L, decision.getValueMap().get("acknowledgedOccurrences", 0L));
         assertTrue(response.getOutputAsString().contains("/LoggedErrors/abc/decision1"));
     }
@@ -101,7 +100,6 @@ class AcknowledgeServletTest
         post(error, Map.of("resolution", "known-issue"));
         post(error, Map.of("resolution", "wont-fix"));
 
-        // Nothing here is ever destroyed, the decisions included
         assertNotNull(this.context.resourceResolver().getResource("/LoggedErrors/abc/decision1"));
         assertNotNull(this.context.resourceResolver().getResource("/LoggedErrors/abc/decision2"));
     }
@@ -128,9 +126,6 @@ class AcknowledgeServletTest
     @Test
     void answersWithoutRepeatingAnythingTheRequestCarried() throws IOException
     {
-        // Nothing the caller sent comes back: it tells the caller nothing it does not already know, and an
-        // endpoint that repeats a request value is an endpoint for putting text of someone else's choosing
-        // in front of a browser
         final MockSlingJakartaHttpServletResponse rejected =
             post(error("abc", 1), Map.of("resolution", "<script>alert(1)</script>"));
         final MockSlingJakartaHttpServletResponse missing =
@@ -143,7 +138,6 @@ class AcknowledgeServletTest
     @Test
     void refusesToSayThatSomethingStillNeedsAttention() throws IOException
     {
-        // The marker for "nobody has dealt with this" is computed from the decisions, never itself decided
         final MockSlingJakartaHttpServletResponse response =
             post(error("abc", 1), Map.of("resolution", LoggedError.UNACKNOWLEDGED_TAG));
 

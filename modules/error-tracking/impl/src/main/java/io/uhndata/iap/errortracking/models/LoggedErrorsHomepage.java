@@ -29,7 +29,7 @@ import io.uhndata.iap.entities.models.EntityHomepage;
 import io.uhndata.iap.tags.spi.TagProcessor;
 
 /**
- * The {@code /LoggedErrors} container, holding every error the instance has recorded.
+ * The {@code /LoggedErrors} homepage, which holds every error the instance has recorded.
  *
  * @version $Id$
  * @since 0.1.0
@@ -38,15 +38,13 @@ import io.uhndata.iap.tags.spi.TagProcessor;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class LoggedErrorsHomepage extends EntityHomepage
 {
-    /** The Sling resource type of the container holding the recorded errors. */
+    /** The Sling resource type of the homepage of the recorded errors. */
     public static final String RESOURCE_TYPE = "err/LoggedErrorsHomepage";
 
     /**
-     * Every recorded error, most recently seen first. Reads the children directly, so it needs no query and
-     * therefore no index; deduplication is what keeps that affordable, since the count grows with distinct faults
-     * rather than with how often they happen.
+     * Every recorded error, most recently seen first. It reads the children directly, with no query.
      *
-     * @return the recorded errors, possibly empty, never {@code null}
+     * @return the recorded errors; empty if none was recorded
      */
     @NotNull
     public List<LoggedError> getErrors()
@@ -56,9 +54,9 @@ public class LoggedErrorsHomepage extends EntityHomepage
     }
 
     /**
-     * The recorded errors nobody has dealt with yet, or that have happened again since somebody did.
+     * The recorded errors nobody has acknowledged, or that happened again since somebody did.
      *
-     * @return the errors needing attention, most recently seen first, never {@code null}
+     * @return the errors needing attention, most recently seen first; empty if there are none
      */
     @NotNull
     public List<LoggedError> getUnacknowledgedErrors()
@@ -67,9 +65,9 @@ public class LoggedErrorsHomepage extends EntityHomepage
     }
 
     /**
-     * The recorded errors somebody has dealt with. Still kept, still listed, just no longer asking for attention.
+     * The recorded errors somebody has acknowledged, and that have not happened again since.
      *
-     * @return the errors already dealt with, most recently seen first, never {@code null}
+     * @return the acknowledged errors, most recently seen first; empty if there are none
      */
     @NotNull
     public List<LoggedError> getAcknowledgedErrors()
@@ -78,10 +76,10 @@ public class LoggedErrorsHomepage extends EntityHomepage
     }
 
     /**
-     * One recorded error, by the fingerprint naming it.
+     * One recorded error, by its fingerprint.
      *
-     * @param fingerprint the name of the node recording the error
-     * @return the recorded error, or {@code null} when no such error was recorded
+     * @param fingerprint the name of the node that records the error
+     * @return the recorded error, or {@code null} if no error has that fingerprint
      */
     @Nullable
     public LoggedError getError(@NotNull final String fingerprint)
@@ -90,9 +88,9 @@ public class LoggedErrorsHomepage extends EntityHomepage
     }
 
     /**
-     * How many times all the recorded errors have happened, in total.
+     * How many times all the recorded errors happened, in total.
      *
-     * @return a count, zero when nothing has been recorded
+     * @return the sum of their counts; zero if none was recorded
      */
     public long getTotalOccurrences()
     {
@@ -100,15 +98,11 @@ public class LoggedErrorsHomepage extends EntityHomepage
     }
 
     /**
-     * Whether anything recorded here is asking for attention.
+     * Whether any recorded error needs attention. The {@code unacknowledged} tag is aggregated, so the tags module
+     * copies it into this node's {@code aggregatedTags}, and this is one property read. {@code hasTag} would visit
+     * every recorded error.
      *
-     * <p>
-     * Answered from this node's own aggregated tags, which the {@code unacknowledged} marker is copied up into at
-     * commit time, so it costs one property read. Deliberately not a walk over the children, and deliberately not
-     * {@code hasTag}, which for an aggregated marker visits the whole subtree — here, every error ever recorded.
-     * </p>
-     *
-     * @return {@code true} when at least one recorded error has not been dealt with
+     * @return {@code true} if at least one recorded error needs attention
      */
     public boolean hasUnacknowledgedErrors()
     {

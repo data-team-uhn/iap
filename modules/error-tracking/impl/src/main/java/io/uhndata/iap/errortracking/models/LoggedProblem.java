@@ -24,9 +24,9 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A recorded error that nothing was thrown for: something the instance found wrong and could only shrug at, most
- * often a mis-authored definition. Where the code noticed is the {@link #getComponent() component} and the
- * {@link #getOperation() operation}; what it was looking at is in the {@link #getSubjects() subjects}.
+ * A recorded error that nothing was thrown for: something the instance found wrong, most often a mis-authored
+ * definition. The {@link #getComponent() component} and the {@link #getOperation() operation} say where it was
+ * noticed, and the {@link #getSubjects() subjects} what it was noticed on.
  *
  * @version $Id$
  * @since 0.1.0
@@ -38,14 +38,14 @@ public class LoggedProblem extends LoggedError
     /** The Sling resource type of a recorded error nothing was thrown for. */
     public static final String RESOURCE_TYPE = "err/LoggedProblem";
 
-    /** What is wrong. */
+    /** The name of the problem. */
     @ValueMapValue
     private String problem;
 
     /**
      * What is wrong, a short phrase chosen in code such as {@code unknown comparator}.
      *
-     * @return the phrase, never {@code null} in a well-formed record
+     * @return the phrase; empty only in a malformed record
      */
     @NotNull
     public String getProblem()

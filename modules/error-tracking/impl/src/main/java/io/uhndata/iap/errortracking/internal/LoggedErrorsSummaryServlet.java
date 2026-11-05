@@ -31,12 +31,11 @@ import io.uhndata.iap.utils.summary.AdminSummaryServlet;
 import io.uhndata.iap.utils.summary.SummaryUnavailableException;
 
 /**
- * Counts the recorded errors for the console widget: {@code GET /LoggedErrors.adminSummary.json} answers with how
- * many are asking for attention and how many have been recorded altogether.
+ * Counts the recorded errors for the administration dashboard, at {@code GET /LoggedErrors.adminSummary.json}: how
+ * many need attention, and how many have been recorded in all.
  *
  * <p>
- * The figures come from the homepage model, which reads the children directly. Both counts are exact and need no
- * index. The model also decides what counts as needing attention.
+ * The counts come from the homepage model, which reads the children directly, so they are exact.
  * </p>
  *
  * {@snippet lang=json :

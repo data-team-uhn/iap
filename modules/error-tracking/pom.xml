@@ -30,9 +30,8 @@
   <name>IAP - Error Tracking</name>
 
   <!--
-    Split in two so that the modules whose failures are worth recording can depend on the way in without depending on
-    the recording itself: the API bundle knows nothing about the repository, while the implementation depends on the
-    data model and on tags, both of which have failures of their own to report.
+    Two bundles. The API needs nothing but the Sling API, so any module may depend on it. The implementation depends
+    on the data model and on tags, and tags record their own errors through the API.
   -->
   <modules>
     <module>api</module>

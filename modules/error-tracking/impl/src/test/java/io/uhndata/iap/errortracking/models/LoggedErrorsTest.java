@@ -148,8 +148,6 @@ class LoggedErrorsTest
 
         final LoggedError bare = this.home.getError("bare");
 
-        // A record written by something that could not describe or date it sorts last rather than breaking the
-        // whole listing
         assertEquals("", ((LoggedFailure) bare).getThrowableType());
         assertEquals("", ((LoggedFailure) bare).getStackTrace());
         assertEquals(List.of(), ((LoggedFailure) bare).getMessages());
@@ -174,7 +172,6 @@ class LoggedErrorsTest
     @Test
     void aProblemKeepsThePhrasesItWasReportedWith()
     {
-        // Where a phrase too variable to name the fault by ends up, the same place a throwable's message does
         this.context.create().resource("/LoggedErrors/quoted", Map.of(
             "sling:resourceType", LoggedProblem.RESOURCE_TYPE,
             "sling:resourceSuperType", LoggedError.RESOURCE_TYPE,
@@ -242,9 +239,6 @@ class LoggedErrorsTest
     @Test
     void aMarkerPutThereBySomethingElseDoesNotCountAsHavingDealtWithIt()
     {
-        // The computed property is the union of what every processor of that phase contributed, not only the triage
-        // one. Reading "anything other than unacknowledged" as dealt with would silence the whole report the first
-        // time some other processor tagged an error for reasons of its own
         markers(thrown("abc", 1, 1000), "large", "from-import");
 
         assertFalse(this.home.getError("abc").isAcknowledged());
@@ -275,7 +269,7 @@ class LoggedErrorsTest
         final List<Acknowledgement> decisions = error.getAcknowledgements();
 
         assertEquals(2, decisions.size());
-        // Newest first, by how much had happened when each was taken
+        // Newest first
         assertEquals("wont-fix", decisions.get(0).getResolution());
         assertEquals("known-issue", decisions.get(1).getResolution());
         assertEquals("fix on the way", decisions.get(1).getNote());

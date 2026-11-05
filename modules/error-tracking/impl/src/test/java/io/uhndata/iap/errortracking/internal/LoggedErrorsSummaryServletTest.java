@@ -110,7 +110,6 @@ class LoggedErrorsSummaryServletTest
     {
         this.error("one", false);
 
-        // The children are read directly, so the count is exact
         assertFalse(this.summary().getJsonObject("total").containsKey("approximate"));
     }
 
@@ -119,7 +118,7 @@ class LoggedErrorsSummaryServletTest
     {
         final MockSlingJakartaHttpServletRequest request =
             new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
-        // A homepage that will not adapt, as happens when the session cannot read its properties
+        // A homepage that does not adapt to its model
         request.setResource(new ResourceWrapper(this.context.resourceResolver().getResource(HOME))
         {
             @Override

@@ -29,22 +29,19 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Turns a failure into the things a record is made of: the fingerprint naming it, and the stack trace describing it.
+ * Turns a failure into what its record is made of: the fingerprint that names it, and its stack trace.
  *
  * <p>
- * The fingerprint identifies the <em>fault</em> — the code path that broke, and what it was asked to do — rather than
- * the <em>incident</em>. It is computed from the classes of the throwable chain, the frames those throwables were
- * thrown at, and the component and operation the caller named. The throwable's message is deliberately left out, and
- * so is everything else that varies with the data: a message that quotes a path would otherwise mint a new permanent
- * record for every path, and since nothing is ever deleted, that turns a single broken code path into an unbounded
- * container. With the message out, the number of records is bounded by the number of ways the build can fail.
+ * The fingerprint identifies the fault, not one occurrence of it. It is a hash of the component and the operation the
+ * caller named, the classes of the throwable chain, and the frames each throwable was thrown from. The message is
+ * left out, with everything else that varies with the data. A message that quotes a path would otherwise create a
+ * record for every path, and records are never deleted.
  * </p>
  *
  * <p>
- * Frame class names are normalized before hashing, because the JVM numbers the classes it generates: the same lambda
- * is {@code $$Lambda$14} in one run and {@code $$Lambda$27} in the next, and a dynamic proxy or a reflective accessor
- * is numbered per instance. Left alone, those numbers would split one fault into as many records as the JVM felt like
- * making classes.
+ * The JVM numbers the classes it generates, so frame class names lose those numbers before hashing. The same lambda
+ * is {@code $$Lambda$14} in one run and {@code $$Lambda$27} in the next, and proxies and reflective accessors are
+ * numbered as the JVM creates them.
  * </p>
  *
  * @version $Id$
@@ -52,30 +49,27 @@ import java.util.regex.Pattern;
  */
 final class Fingerprint
 {
-    /**
-     * How deep into the cause chain to look. Well past anything worth distinguishing, and a bound on the work done at
-     * a failure site.
-     */
+    /** How many throwables of the cause chain take part. */
     private static final int MAX_CAUSES = 10;
 
     /**
-     * How many frames of each throwable take part. The frames near the throw identify the fault; the ones near the
-     * bottom are the container that called it, and are the same for everything.
+     * How many frames of each throwable take part, from the top. The frames near the top identify the fault, and
+     * those at the bottom belong to whatever started the thread.
      */
     private static final int MAX_FRAMES = 50;
 
-    /** How much stack trace is kept. A cyclic {@code StackOverflowError} chain runs to megabytes of repetition. */
+    /** How many characters of a stack trace are kept. */
     private static final int MAX_TRACE_LENGTH = 64 * 1024;
 
-    /** How a fault's identity is hashed into a node name. Required of every Java platform. */
+    /** The digest that turns a fault's identity into a node name. Every Java platform must provide it. */
     private static final String HASH_ALGORITHM = "SHA-256";
 
-    /** The prefix of the packages that are ours, used to guess which class is worth blaming. */
+    /** The package prefix of IAP's classes, one of which is taken as the component when the caller names none. */
     private static final String OWN_PACKAGE = "io.uhndata.iap.";
 
     /**
-     * The parts of a generated class name the JVM varies between runs and between instances: the hexadecimal
-     * identity in a lambda's class name, and the counters in {@code $$Lambda$14}, {@code $Proxy17} and
+     * The parts of a generated class name that the JVM varies between runs. They are the hexadecimal address in a
+     * hidden class's name, and the counters in {@code $$Lambda$14}, {@code $Proxy17} and
      * {@code GeneratedMethodAccessor42}.
      */
     private static final Pattern GENERATED_ID_PATTERN = Pattern.compile(
@@ -91,16 +85,16 @@ final class Fingerprint
      * The fingerprint of a thrown failure.
      *
      * @param error the throwable that was caught
-     * @param component which code was running, may be {@code null}
-     * @param operation what it was trying to do, may be {@code null}
+     * @param component the fully qualified name of the class that was running, or {@code null} if unknown
+     * @param operation the label of what it was doing, or {@code null} if unknown
      * @return a hexadecimal digest, usable as a JCR node name
      */
     static String of(final Throwable error, final String component, final String operation)
     {
         final StringBuilder identity = new StringBuilder();
         identity.append(component).append('\n').append(operation).append('\n');
-        // An IdentityHashMap-backed set rather than a HashSet: a throwable's equals() is its identity anyway, but a
-        // custom one that consults a broken field would throw here, at the worst possible moment
+        // By identity, since a throwable that overrides equals() may throw from it. It also stops a cause chain that
+        // loops back on itself
         final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         Throwable current = error;
         for (int depth = 0; current != null && depth < MAX_CAUSES && seen.add(current); depth++) {
@@ -112,12 +106,12 @@ final class Fingerprint
     }
 
     /**
-     * The fingerprint of something found wrong that nothing was thrown for. There are no frames to go on, so the
-     * whole identity is what the caller said: where it was noticed, doing what, and what was wrong.
+     * The fingerprint of a problem, which nothing was thrown for. With no frames, it is a hash of what the caller
+     * said: where the problem was noticed, doing what, and what is wrong.
      *
-     * @param problem what is wrong, a phrase chosen in code
-     * @param component which code noticed, may be {@code null}
-     * @param operation what it was doing, may be {@code null}
+     * @param problem the name of the problem, a phrase chosen in code
+     * @param component the fully qualified name of the class that noticed it, or {@code null} if unknown
+     * @param operation the label of what it was doing, or {@code null} if unknown
      * @return a hexadecimal digest, usable as a JCR node name
      */
     static String ofProblem(final String problem, final String component, final String operation)
@@ -126,10 +120,10 @@ final class Fingerprint
     }
 
     /**
-     * The stack trace of a throwable, causes included, as it would be printed to a log file.
+     * The stack trace of a throwable, causes included, as a log file prints it.
      *
      * @param error the throwable to print
-     * @return a multi-line string, truncated when enormous
+     * @return the trace, cut after {@value #MAX_TRACE_LENGTH} characters and then marked as cut
      */
     static String print(final Throwable error)
     {
@@ -143,12 +137,12 @@ final class Fingerprint
     }
 
     /**
-     * Guesses which of our classes to blame for a failure the caller did not name a component for: the topmost frame
-     * belonging to us. Deterministic given the trace, so a guessed component is as stable a part of the fingerprint
-     * as a stated one.
+     * The component of a failure whose caller named none: the class of the topmost frame in an IAP package. The same
+     * trace always gives the same class.
      *
      * @param error the throwable to inspect
-     * @return a class name, or {@code null} when no frame of the trace is ours
+     * @return a fully qualified class name, or {@code null} if no frame of the outermost throwable is in an IAP
+     *         package
      */
     static String inferComponent(final Throwable error)
     {
@@ -161,9 +155,9 @@ final class Fingerprint
     }
 
     /**
-     * Appends one throwable's frames to the identity being built.
+     * Appends one throwable's frames to an identity, one {@code class#method:line} per line.
      *
-     * @param identity the identity under construction
+     * @param identity the identity being built
      * @param error the throwable whose frames to append
      */
     private static void appendFrames(final StringBuilder identity, final Throwable error)
@@ -179,10 +173,9 @@ final class Fingerprint
     }
 
     /**
-     * Hashes an identity into a node name. A digest rather than the identity itself, so that "have I already recorded
-     * this?" is a lookup of one child by name, with no query and no index to maintain.
+     * Hashes an identity into a node name. Finding the record of a fault is then a lookup of one child by name.
      *
-     * @param identity everything that distinguishes this fault from another
+     * @param identity everything that tells this fault from another
      * @return a hexadecimal digest
      */
     private static String digest(final String identity)
@@ -191,12 +184,12 @@ final class Fingerprint
     }
 
     /**
-     * Hashes an identity with a named algorithm, falling back to a weaker name when the platform does not offer it.
-     * A record under a lesser name is worth a great deal more than no record at all, so this never fails.
+     * Hashes an identity with a named algorithm. If the platform lacks the algorithm, it falls back to the identity's
+     * {@code hashCode()}, so that the fault is still recorded.
      *
-     * @param identity everything that distinguishes this fault from another
-     * @param algorithm the digest algorithm to name it with
-     * @return a hexadecimal digest
+     * @param identity everything that tells this fault from another
+     * @param algorithm the name of a {@link MessageDigest} algorithm, such as {@code SHA-256}
+     * @return a hexadecimal digest, or eight hexadecimal digits from the fallback
      */
     static String digest(final String identity, final String algorithm)
     {
