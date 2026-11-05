@@ -108,12 +108,12 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
     >
       <Stack sx={{ gap: 0.25 }}>
         <Stack direction="row" sx={{ minWidth: 0, gap: 0.75, flexWrap: "wrap", alignItems: "baseline" }}>
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>{question.text}</Typography>
+          <Typography variant="body2" sx={{ fontWeight: "fontWeightBold" }}>{question.text}</Typography>
           <GroupChips groups={groups.get(question.path)} mine={myGroups} />
         </Stack>
         <Stack direction="row" sx={{ minWidth: 0, gap: 1, alignItems: "flex-start" }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", fontWeight: "fontWeightMedium" }}>
+            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
               {answerText(question, question.value)}
             </Typography>
             {evidence && shown.has("evidence") && (
