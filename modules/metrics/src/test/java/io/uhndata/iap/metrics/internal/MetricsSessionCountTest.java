@@ -40,9 +40,7 @@ import io.uhndata.iap.metrics.api.Metric;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Pins down how many repository sessions the listing paths open. Each session is a service login, so a listing that
- * opens one per property read costs a multiple of the metric count on every status poll or dashboard refresh; these
- * assertions are what keeps that from creeping back.
+ * How many repository sessions listing and reading the metrics open. Each session is a service login.
  *
  * @version $Id$
  * @since 0.1.0
@@ -133,7 +131,6 @@ class MetricsSessionCountTest
         final Metric metric = this.manager.getMetric("metric0").orElseThrow();
         assertEquals(1, this.sessions.get());
 
-        // A handle asked for by name stays live: it re-reads, which is what makes it safe to hold on to
         metric.getLabel();
         metric.getCurrentValue();
         assertEquals(3, this.sessions.get());
@@ -146,16 +143,14 @@ class MetricsSessionCountTest
 
         listed.increment(3);
 
-        // Nothing consolidates the increment into the counter here, so the request itself is the evidence that the
-        // write went to the repository rather than into the properties the handle reads from
+        // The mock repository has no atomic counter, so oak:increment stays as it was written
         assertEquals(3L, properties(listed.getName()).get("oak:increment", Long.class));
     }
 
     @Test
     void aListedMetricRollsOverAgainstLiveValuesRatherThanItsOwn() throws Exception
     {
-        // Listed while the counter reads 0, so a roll-over that trusted the listed values would set that as the new
-        // baseline and lose everything counted in between
+        // Listed while the count is 0, which then becomes 42
         final Metric listed = this.manager.getMetrics().get(0);
         setCounter(listed.getName(), 42);
 

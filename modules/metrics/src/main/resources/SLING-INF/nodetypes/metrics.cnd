@@ -20,7 +20,7 @@
 <oak = 'http://jackrabbit.apache.org/oak/ns/1.0'>
 
 //-----------------------------------------------------------------------------
-// Homepage node for the /Metrics root path.
+// The node that holds every metric, at /Metrics.
 [metric:Homepage] > data:Content, rep:AccessControllable
   - sling:resourceType (STRING) = "metric/Homepage" mandatory autocreated protected
 
@@ -28,61 +28,59 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // Contains the tracked metrics
+  // The metrics
   + * (metric:Metric) = metric:Metric
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A single tracked metric.
+// A metric: a named count, and the reporting periods that roll-overs close.
 //
-// The current count is kept in the protected oak:counter property, maintained
-// by the repository itself: committing an oak:increment value on a node with
-// the mix:atomicCounter mixin atomically adds it to oak:counter, without
-// concurrent updates conflicting or getting lost.
+// Oak keeps the count in the protected oak:counter property. Saving an
+// oak:increment value on a node that lists mix:atomicCounter in its
+// jcr:mixinTypes adds the value to oak:counter.
 //
-// Do NOT add mix:atomicCounter to the supertypes below, tempting as it looks:
-// the editor maintaining the counter reads the jcr:mixinTypes *property* and
-// looks for the literal name in it, so a supertype declaration does not enable
-// it -- and it makes matters worse, because isNodeType() then already answers
-// true, which turns addMixin() into a no-op, so nothing can ever write the
-// property. The counter would silently never count. The mixin has to be listed
-// in jcr:mixinTypes when the node is created, which is what MetricsManager does.
+// Do not declare mix:atomicCounter as a supertype below. Oak looks for its
+// name in the jcr:mixinTypes property, where a supertype is not listed. The
+// supertype also makes addMixin() do nothing, since the node is then already
+// of that type, and the count never changes. The mixin is listed when the
+// node is created instead.
 [metric:Metric] > data:Content
   - sling:resourceType (STRING) = "metric/Metric" mandatory autocreated protected
 
-  // Human-readable name for this metric
+  // The name of this metric as people read it, such as "Submitted proposals"
   - label (STRING) mandatory
 
-  // Optional description of what this metric counts
+  // What this metric counts
   - description (STRING)
 
-  // Optional category used to group related metrics in reports
+  // The category that groups related metrics in reports, such as "Submissions"
   - category (STRING)
 
-  // The order this metric appears in, among the metrics of its own category
+  // Where this metric is shown among the metrics of its category, lower first
   - defaultOrder (LONG) = "0" mandatory autocreated
 
-  // Who may see this metric: everyone, or only administrators
+  // Who may see this metric: everyone, or only the admin user
   - accessLevel (STRING) = 'public' mandatory autocreated < 'public', 'admin'
 
-  // Snapshot of the counter taken at the last roll-over, the base for delta computations
+  // The count at the last roll-over, where the current period started
   - previousValue (LONG) = '0' mandatory autocreated
 
-  // The amount accumulated during the last closed period, frozen at the last roll-over
+  // The amount counted in the last closed period
   - lastDelta (LONG)
 
-  // When the counter was last incremented
+  // When the count was last incremented
   - lastUpdated (DATE)
 
   // When the last roll-over happened
   - lastRollover (DATE)
 
-  // Quartz cron expression for automatic periodic roll-overs, e.g. '0 0 0 * * ?' for nightly
+  // When to roll over, as a Quartz cron expression, such as '0 0 0 * * ?' for
+  // every midnight; none if the metric is rolled over only on request
   - rolloverSchedule (STRING)
 
-  // Transient increment request, consumed by the repository when committed
+  // An amount to add to the count; Oak removes it as it saves the change
   - oak:increment (LONG)
 
   // Allow any other properties for extensibility

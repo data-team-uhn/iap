@@ -100,8 +100,7 @@ class MetricsStatusReporterTest
     @Test
     void groupsMetricsByCategory()
     {
-        // The manager hands them over in display order, uncategorized last; the reporter groups them without
-        // reordering, so an uncategorized metric stays at the end instead of being sorted to the front.
+        // In display order, as getMetrics() gives them
         final List<Metric> metrics = List.of(
             metric("Errors", "Problems", Metric.AccessLevel.PUBLIC, 3, 0, 0, null),
             metric("Submitted", "Submissions", Metric.AccessLevel.PUBLIC, 12, -2, 4, RESET_DATE),

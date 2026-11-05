@@ -95,7 +95,6 @@ class MetricRolloverSchedulerTest
         Mockito.verify(this.scheduler, Mockito.times(2)).schedule(Mockito.any(), Mockito.eq(this.options));
         Mockito.verify(this.options).name("iap-metrics-rollover-nightly");
         Mockito.verify(this.options).name("iap-metrics-rollover-noon");
-        // The jobs must not run concurrently with themselves, and only once per cluster
         Mockito.verify(this.options, Mockito.times(2)).canRunConcurrently(false);
         Mockito.verify(this.options, Mockito.times(2)).onLeaderOnly(true);
         Mockito.verify(this.scheduler, Mockito.never()).unschedule(Mockito.anyString());
@@ -137,7 +136,6 @@ class MetricRolloverSchedulerTest
         this.manager.createMetric("noon").withRolloverSchedule(NOON).create();
         this.rolloverScheduler.onChange(List.of());
 
-        // Only the new metric gets scheduled, the existing job is left alone
         Mockito.verify(this.scheduler, Mockito.times(2)).schedule(Mockito.any(), Mockito.eq(this.options));
         Mockito.verify(this.scheduler).EXPR(NOON);
         Mockito.verify(this.scheduler, Mockito.never()).unschedule(Mockito.anyString());
@@ -177,7 +175,6 @@ class MetricRolloverSchedulerTest
         this.manager.createMetric("periodic").withRolloverSchedule(NIGHTLY).create();
         this.rolloverScheduler.activate();
 
-        // Redefining the metric without a schedule removes the automatic roll-over
         this.manager.createMetric("periodic").create();
         this.rolloverScheduler.onChange(List.of());
 
@@ -224,7 +221,7 @@ class MetricRolloverSchedulerTest
         this.rolloverScheduler.onChange(List.of());
 
         Mockito.verify(this.scheduler, Mockito.times(2)).schedule(Mockito.any(), Mockito.any());
-        // Once successfully scheduled, further events don't reschedule it
+        // A job that started is not started again
         this.rolloverScheduler.onChange(List.of());
         Mockito.verify(this.scheduler, Mockito.times(2)).schedule(Mockito.any(), Mockito.any());
     }
@@ -295,7 +292,7 @@ class MetricRolloverSchedulerTest
         this.rolloverScheduler.activate();
         Mockito.verify(this.scheduler).schedule(job.capture(), Mockito.any());
 
-        // The repository becomes unreachable only after the job has been scheduled
+        // The service user can no longer log in once the job has started
         final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("repository unavailable"));

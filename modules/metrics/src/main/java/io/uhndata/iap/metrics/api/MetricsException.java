@@ -20,8 +20,8 @@ package io.uhndata.iap.metrics.api;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Signals that a metric could not be accessed or updated, usually because the repository is unavailable, the metric
- * node was tampered with, or too many concurrent changes conflicted.
+ * A metric could not be read, defined or changed. The metrics service user could not log in, a node is missing or is
+ * not a metric, or a change could not be saved.
  *
  * @version $Id$
  * @since 0.1.0
@@ -31,9 +31,9 @@ public class MetricsException extends RuntimeException
     private static final long serialVersionUID = -1806265778637173073L;
 
     /**
-     * Basic constructor.
+     * A failure with no exception behind it.
      *
-     * @param message a description of the failure
+     * @param message what failed, naming the metric if there is one
      */
     public MetricsException(@NotNull final String message)
     {
@@ -41,10 +41,10 @@ public class MetricsException extends RuntimeException
     }
 
     /**
-     * Constructor wrapping the original failure.
+     * A failure caused by another exception.
      *
-     * @param message a description of the failure
-     * @param cause the original failure
+     * @param message what failed, naming the metric if there is one
+     * @param cause the exception that caused it
      */
     public MetricsException(@NotNull final String message, @NotNull final Throwable cause)
     {

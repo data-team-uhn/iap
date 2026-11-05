@@ -36,10 +36,8 @@ import io.uhndata.iap.status.spi.StatusReport;
 import io.uhndata.iap.status.spi.StatusReporter;
 
 /**
- * Reports the current value of every metric, grouped by category, as an {@code INFO} status report. Reading the
- * metrics doesn't change them, so polling the status never influences the reported values; the per-period numbers
- * come from each metric's scheduled or manual {@link Metric#rollOver roll-overs}. Metrics restricted to
- * administrators are left out of unprivileged reports.
+ * Reports the metrics' counts, grouped by category, as one {@code INFO} status report. An unprivileged report leaves
+ * out the metrics with the {@code admin} access level.
  *
  * @version $Id$
  * @since 0.1.0
@@ -61,16 +59,14 @@ public class MetricsStatusReporter implements StatusReporter
     @Override
     public StatusReport report(final boolean unprivileged)
     {
-        // getMetrics() already returns them in display order, so grouping into a map that keeps insertion order
-        // reproduces it here: categories in the order they are met, uncategorized ones last, and each category's
-        // metrics in their own order. Sorting the keys instead would put the uncategorized group first.
+        // A map in insertion order keeps the display order of getMetrics(). Sorted keys would put the metrics with no
+        // category first.
         final Map<String, List<Metric>> categories = this.metricsManager.getMetrics().stream()
             .filter(metric -> !unprivileged || metric.getAccessLevel() == Metric.AccessLevel.PUBLIC)
             .collect(Collectors.groupingBy(
                 metric -> Objects.requireNonNullElse(metric.getCategory(), ""),
                 LinkedHashMap::new, Collectors.toList()));
         if (categories.isEmpty()) {
-            // No metrics to display, or none that may be displayed here, better say nothing than show an empty list
             return null;
         }
         final List<String> lines = new ArrayList<>();
@@ -93,12 +89,11 @@ public class MetricsStatusReporter implements StatusReporter
     }
 
     /**
-     * Display one metric: its label and current value, and when the metric was ever rolled over, also the running
-     * count of the current period and the count of the last closed period.
+     * One metric's line in the report: its label and count. For a metric that was rolled over, the line also has the
+     * amounts counted in the current period and in the last one.
      *
-     * @param metric the metric to display
-     * @return a display line, e.g.
-     *         {@code - Submitted proposals: 12 (+3 since 2026-07-20; previous period: +5)}
+     * @param metric the metric
+     * @return the line, such as {@code - Submitted proposals: 12 (+3 since 2026-07-20; previous period: +5)}
      */
     private String buildLine(final Metric metric)
     {

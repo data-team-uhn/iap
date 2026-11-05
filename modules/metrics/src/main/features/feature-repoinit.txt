@@ -16,17 +16,15 @@
 
 create path (metric:Homepage) /Metrics
 
-# The service user performing all the metric reads and updates.
-# Regular users don't get repository access to /Metrics, everything goes through the MetricsManager service,
-# which enforces the per-metric access level at the HTTP boundary.
+# The user that reads and writes the metrics. Nobody else is granted access to the metrics' nodes. People read the
+# metrics through /Metrics.json and the status report, which apply each metric's access level.
 create service user iap-metrics with path system/iap
 
 set ACL for iap-metrics
     allow jcr:read,jcr:write,jcr:nodeTypeManagement on /Metrics
 end
 
-# Everyone may see the homepage node itself, so that the metrics listing endpoint can serve them,
-# but not the individual metric nodes: those are filtered by their access level in the endpoint
+# Everyone may read /Metrics itself, so that /Metrics.json resolves, but not the metrics under it
 set ACL for everyone
     allow jcr:read on /Metrics restriction(rep:ntNames,metric:Homepage)
 end

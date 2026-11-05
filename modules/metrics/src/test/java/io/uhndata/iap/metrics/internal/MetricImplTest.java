@@ -140,15 +140,13 @@ class MetricImplTest
         createMetricNode(Map.of("jcr:primaryType", "metric:Metric"));
 
         this.metric.increment();
-        // In this test environment nothing consolidates the increment into the counter,
-        // so the requested increment remains visible as a simple property
+        // The mock repository has no atomic counter, so oak:increment stays as it was written
         assertEquals(1L, properties().get("oak:increment", Long.class));
         assertTrue(properties().containsKey("lastUpdated"));
 
         this.metric.increment(5);
         assertEquals(5L, properties().get("oak:increment", Long.class));
 
-        // Negative adjustments are allowed
         this.metric.increment(-2);
         assertEquals(-2L, properties().get("oak:increment", Long.class));
     }
@@ -171,7 +169,6 @@ class MetricImplTest
 
         this.metric.rollOver();
 
-        // The delta of the closed period is frozen, and the current value becomes the new baseline
         assertEquals(5L, properties().get("lastDelta", Long.class));
         assertEquals(7L, properties().get("previousValue", Long.class));
         assertTrue(properties().containsKey("lastRollover"));
@@ -254,7 +251,7 @@ class MetricImplTest
     @Test
     void failsWhenTheMetricNodeIsGone()
     {
-        // The /Metrics homepage exists, but the metric node itself was never created
+        // /Metrics exists, but the metric's node was never created
         assertThrows(MetricsException.class, () -> this.metric.getCurrentValue());
         assertThrows(MetricsException.class, () -> this.metric.rollOver());
     }
@@ -275,7 +272,7 @@ class MetricImplTest
         final Metric unreachable = new MetricImpl(broken, NAME);
 
         assertDoesNotThrow(() -> unreachable.increment());
-        // But explicit roll-overs and reads do propagate the failure
+        // Roll-overs and reads do throw
         assertThrows(MetricsException.class, unreachable::rollOver);
         assertThrows(MetricsException.class, unreachable::getCurrentValue);
     }
@@ -306,7 +303,6 @@ class MetricImplTest
 
         final Metric doomed = new MetricImpl(mockedFactory, NAME);
         assertThrows(MetricsException.class, doomed::rollOver);
-        // Three attempts were made before giving up
         Mockito.verify(conflicting, Mockito.times(3)).commit();
     }
 
