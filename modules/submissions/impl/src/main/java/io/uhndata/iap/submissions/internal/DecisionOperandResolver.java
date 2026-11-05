@@ -26,13 +26,17 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.submissions.models.Answer;
 
 /**
- * Resolves {@code decision} operands: what answers a question for a step that acts on a reading before anybody has
- * looked at it. That is the submitter's value, or failing it, what a reading suggested. A reading never writes into
- * an answer's value, so a workflow routing on whether a document is a proposal reads its pick through this. The
- * question is named the same way an {@code answer} operand names it.
+ * Resolves {@code decision} operands. A decision operand gives the answer to a question. If the submitter gave a
+ * value, it uses that value. If not, it uses the value that a reading suggested.
  *
- * <p>Only for such steps. A form's own conditions use {@code answer}, so nothing the submitter sees changes on a
- * suggestion they have not accepted.</p>
+ * <p>A reading never saves its result in the answer value. It only adds a suggestion. Some workflow steps must act
+ * before any person has checked the suggestion. For example, a step that checks if a document is a proposal. These
+ * steps use this operand to get the suggested value.</p>
+ *
+ * <p>Name the question the same way as in an {@code answer} operand.</p>
+ *
+ * <p>Use this only in workflow steps. Form conditions must use {@code answer}. This way, the form the submitter sees
+ * does not change because of a suggestion they did not accept.</p>
  *
  * @version $Id$
  * @since 0.1.0
