@@ -179,7 +179,7 @@ public class PaginatedJsonResponseTest
         Assertions.assertFalse(page.offer("/last", () -> row("/x")), "The page should have filled up");
         Assertions.assertTrue(page.isFull());
         final JsonObject result = finish(page, null);
-        // The extra result is not part of the reported total, it only proves the total is approximate
+        // The extra result only proves the total is approximate, and is not counted in it
         Assertions.assertEquals(lookahead, result.getInt(TOTAL));
         Assertions.assertTrue(result.getBoolean(APPROXIMATE));
     }
@@ -212,8 +212,6 @@ public class PaginatedJsonResponseTest
     @Test
     public void zeroLimitCountsPastASinglePage()
     {
-        // The count-only mode answers "how many are there?", which it cannot do if it stops at a default page's
-        // worth
         final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 0));
         offerAll(page, 500);
         final JsonObject result = finish(page, null);
@@ -225,8 +223,6 @@ public class PaginatedJsonResponseTest
     @Test
     public void aHugeOffsetDoesNotUnboundTheCounting()
     {
-        // The offset comes from the client as well as the limit, and MAX_COUNT is what bounds the reads it can ask
-        // for
         final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 100000000, 10));
         Assertions.assertEquals(PaginatedJsonResponse.MAX_COUNT + 1, page.getRemainingCapacity());
         int offered = 0;
@@ -244,8 +240,7 @@ public class PaginatedJsonResponseTest
     @Test
     public void anExtremeOffsetDoesNotOverflow()
     {
-        // An offset this large wraps the lookahead arithmetic unless it is bounded first. A negative lookahead
-        // reports every total as 0 and leaves no remaining capacity while the page still asks for more.
+        // Unclamped, this offset wraps the lookahead negative
         final PaginatedJsonResponse page =
             startPage(PaginatedJsonResponse.forPage(this.json, Long.MAX_VALUE, 10));
         Assertions.assertTrue(page.getRemainingCapacity() > 0);
@@ -279,9 +274,7 @@ public class PaginatedJsonResponseTest
     @Test
     public void anExtremeLimitDoesNotOverflow()
     {
-        // The lookahead is the page size times the lookahead depth, which wraps for a limit this large unless it is
-        // capped first. A lookahead of 1 fills the page on the first result and reports a total of 0. forRequest
-        // caps the limit, forPage trusts its caller.
+        // Uncapped, this limit wraps the lookahead to 1
         final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 1L << 57));
         Assertions.assertEquals(PaginatedJsonResponse.MAX_COUNT + 1, page.getRemainingCapacity());
         offerAll(page, 3);
@@ -319,7 +312,6 @@ public class PaginatedJsonResponseTest
         }
         final JsonObject result = finish(page, null);
         Assertions.assertEquals(List.of("/r1"), pathsOf(result));
-        // Exactly one of the two callbacks runs for every result
         Assertions.assertEquals(List.of("/r1"), this.serialized);
         Assertions.assertEquals(List.of("/r0", "/r2"), skipped);
         Assertions.assertEquals(3, result.getInt(TOTAL));
@@ -333,7 +325,6 @@ public class PaginatedJsonResponseTest
         page.offer(A, () -> row(A), () -> skipped.add(A));
         page.offer(A, () -> row(A), () -> skipped.add(A));
         finish(page, null);
-        // The caller had to read the result to have its key, so there is nothing left to skip
         Assertions.assertEquals(List.of(), skipped);
         Assertions.assertEquals(List.of(A), this.serialized);
     }
@@ -365,7 +356,6 @@ public class PaginatedJsonResponseTest
     {
         Mockito.when(this.request.getParameter("resourceSelectors")).thenReturn("deep");
         Assertions.assertEquals(".deep", PaginatedJsonResponse.getResourceSelectors(this.request));
-        // Path separators and whitespace would let a caller reach a different resource altogether
         Mockito.when(this.request.getParameter("resourceSelectors")).thenReturn("../..\t/other..deep");
         Assertions.assertEquals(".other.deep", PaginatedJsonResponse.getResourceSelectors(this.request));
     }

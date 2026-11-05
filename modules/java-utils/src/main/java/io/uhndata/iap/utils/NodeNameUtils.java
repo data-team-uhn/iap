@@ -28,22 +28,21 @@ import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Derives node names from human-given titles, the way the shipped content is named: camel-cased, and dodging
- * name collisions with a numeric suffix. It carries no policy about what a bad title means:
- * an unusable title simply yields an empty name, for the caller to turn into its own kind of refusal.
+ * Derives node names from titles people give: camel-cased, with a numeric suffix where the name is taken. A title
+ * with no letters or digits yields an empty name, and the caller decides what that means.
  *
  * @version $Id$
  * @since 0.1.0
  */
 public final class NodeNameUtils
 {
-    /** How many identically-named siblings get a readable counter before the names stop being worth reading. */
+    /** How many names {@link #findFreeName} tries, counting the natural one, before it draws random suffixes. */
     private static final int MAX_DUPLICATES = 100;
 
-    /** The low end of the random suffix used past that, chosen so every one of them has the same width. */
+    /** The smallest random suffix. Every random suffix has nine digits. */
     private static final int RANDOM_SUFFIX_MIN = 100_000_000;
 
-    /** One past the high end of the random suffix. */
+    /** One past the largest random suffix. */
     private static final int RANDOM_SUFFIX_MAX = 1_000_000_000;
 
     private NodeNameUtils()
@@ -51,11 +50,11 @@ public final class NodeNameUtils
     }
 
     /**
-     * Turns a human-given title into a JCR- and URL-friendly node name: {@code "My cool workflow"} becomes
-     * {@code myCoolWorkflow}.
+     * Turns a title into a node name made only of letters and digits: {@code "My cool workflow"} becomes
+     * {@code myCoolWorkflow}. Letters outside ASCII are kept, so {@code "Café menu"} becomes {@code caféMenu}.
      *
      * @param title the title to derive a name from
-     * @return a camel-cased name, empty when nothing usable remains, as when the title is all punctuation
+     * @return the camel-cased name; empty if the title has no letters or digits
      */
     @NotNull
     public static String camelCase(@NotNull final String title)
@@ -73,18 +72,16 @@ public final class NodeNameUtils
 
     /**
      * Finds a child name not yet taken under the given parent, appending a counter when the natural name already
-     * is: {@code myCoolWorkflow}, {@code myCoolWorkflow2}, {@code myCoolWorkflow3}...
+     * is: {@code myCoolWorkflow}, {@code myCoolWorkflow2}, {@code myCoolWorkflow3}, and so on.
      *
      * <p>
-     * Past {@value #MAX_DUPLICATES} siblings the counter stops being worth reading, so the suffix becomes a
-     * random number instead, retried until it lands on a free name. There is no failing case: every
-     * caller wants a name it may create a child under, and the only alternative to an ugly name is refusing to
-     * record something that did happen.
+     * Once the natural name and its counted variants up to {@value #MAX_DUPLICATES} are all taken, the suffix is a
+     * random nine-digit number. It is drawn again until the name is free, so a name is always found.
      * </p>
      *
      * @param parent the resource the new child would be created under
-     * @param base the natural name, e.g. derived by {@link #camelCase}
-     * @return a free name
+     * @param base the natural name, such as one {@link #camelCase} derives
+     * @return a name that no child of the parent has, as the parent's resolver sees it
      */
     @NotNull
     public static String findFreeName(@NotNull final Resource parent, @NotNull final String base)

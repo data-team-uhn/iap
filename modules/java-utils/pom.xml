@@ -80,9 +80,7 @@
       <artifactId>org.apache.sling.models.api</artifactId>
     </dependency>
     <dependency>
-      <!-- Needed at compile time here for @PostConstruct on the ConfigMetadata Sling Model; the
-           root pom's dependencyManagement default-scopes this to test (for the Sling Models mocks),
-           so that must be overridden back to compile here. -->
+      <!-- For @PostConstruct on ConfigMetadata. The root pom scopes it to test. -->
       <groupId>javax.annotation</groupId>
       <artifactId>javax.annotation-api</artifactId>
       <scope>compile</scope>
@@ -124,7 +122,7 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
     </dependency>
-    <!-- A real repository, for copying content with its node types, references and binaries -->
+    <!-- An Oak repository, for the tests that need node types, references and binaries -->
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock-oak</artifactId>
@@ -134,11 +132,11 @@
       <artifactId>mockito-core</artifactId>
     </dependency>
     <dependency>
-      <!-- JSON-P implementation, needed at runtime by the ErrorMetadata tests -->
+      <!-- A JSON-P implementation, for the tests that build JSON -->
       <groupId>org.eclipse.parsson</groupId>
       <artifactId>parsson</artifactId>
     </dependency>
-    <!-- Needed only so Mockito can resolve javax.servlet types referenced by the Sling request API when mocking -->
+    <!-- So that Mockito can mock a ResourceResolver, whose interface still names javax.servlet types -->
     <dependency>
       <groupId>javax.servlet</groupId>
       <artifactId>javax.servlet-api</artifactId>

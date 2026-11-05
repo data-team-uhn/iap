@@ -78,8 +78,6 @@ class NodeNameUtilsTest
         assertEquals("report3", NodeNameUtils.findFreeName(parent, "report"));
     }
 
-    // Past the counter the name stops being readable, but never stops being produced: refusing here would mean
-    // refusing to record something that did happen, over a name nobody reads
     @Test
     void fallsBackToARandomSuffixWhenEveryCountedVariantIsTaken()
     {
@@ -93,7 +91,7 @@ class NodeNameUtilsTest
         assertNull(parent.getChild(name));
     }
 
-    // The retry loop, forced: with every drawn suffix already taken but one, only retrying finds the free one
+    // The first two random suffixes drawn are taken, so only drawing again finds a free name
     @Test
     void drawsAgainWhenTheRandomSuffixIsAlsoTaken()
     {

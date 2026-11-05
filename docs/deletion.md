@@ -201,10 +201,8 @@ entry path the service returns, or query entries by node type.
 
 An entry also answers at **`/Archive/by-id/<uuid>`**, through the
 `PrefixTreeResourceProvider` mounted there. What comes back is the stored resource,
-with its stored path: the short form is an address, not an identity. A resource whose
-`getPath()` differed from the path of its node would break everything that adapts it
-to a `Node`. So `path` in the API is the stored path, and `shortPath` carries the
-address to link a reader to.
+with its stored path. So `path` in the API is the stored path, and `shortPath` carries
+the address to link a reader to.
 
 ### Identity is preserved
 

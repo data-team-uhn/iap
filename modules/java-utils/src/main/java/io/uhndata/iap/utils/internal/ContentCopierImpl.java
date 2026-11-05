@@ -45,8 +45,8 @@ import io.uhndata.iap.utils.copy.ContentCopier;
 import io.uhndata.iap.utils.copy.CopyParticipant;
 
 /**
- * The {@link ContentCopier}: a depth-first copy in document order, which sets references once every node they may
- * point at has been copied, and then lets each {@link CopyParticipant} adjust the result.
+ * The {@link ContentCopier}: a depth-first copy in document order. It sets references once every node they may
+ * point at has been copied, then lets each {@link CopyParticipant} adjust the result.
  *
  * @version $Id$
  * @since 0.1.0
@@ -54,7 +54,7 @@ import io.uhndata.iap.utils.copy.CopyParticipant;
 @Component(service = ContentCopier.class)
 public class ContentCopierImpl implements ContentCopier
 {
-    /** The modification stamps of mix:lastModified, which the copy gets its own of. */
+    /** The modification stamps of {@code mix:lastModified}. The copy gets its own when it is committed. */
     private static final Set<String> MODIFICATION_STAMPS = Set.of("jcr:lastModified", "jcr:lastModifiedBy");
 
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
@@ -133,7 +133,6 @@ public class ContentCopierImpl implements ContentCopier
                 if (skips(child)) {
                     continue;
                 }
-                // A child the copy was given on creation, such as an autocreated one, is filled in
                 final Node copy = to.hasNode(child.getName()) ? to.getNode(child.getName())
                     : to.addNode(child.getName(), child.getPrimaryNodeType().getName());
                 for (final NodeType mixin : child.getMixinNodeTypes()) {
@@ -198,8 +197,8 @@ public class ContentCopierImpl implements ContentCopier
         }
 
         /**
-         * Sets a reference on a copy, pointing at the copy of what the original pointed at, if it was copied, and
-         * leaving out the dropped values of a multi-valued one, as for any other property.
+         * Sets a reference on a copy. It points at the copy of what the original pointed at, if that was copied. A
+         * multi-valued one leaves out its dropped values, as any other property does.
          *
          * @param pending the reference found, the copy it goes on, and the values it leaves out
          * @throws RepositoryException when the reference cannot be written

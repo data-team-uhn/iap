@@ -31,24 +31,18 @@ import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Spreads a large, open-ended set of sibling nodes over a tree of buckets named after the first characters of each
- * node's own name, {@code <root>/<xx>/<yy>/<zz>/<name>}, the way Oak files version histories under
- * {@code /jcr:system}. Piling every node of a kind under one parent produces a node that repository browsers
- * cannot open and that the repository itself starts warning about; {@value #BUCKET_LEVELS} levels of
- * {@value #SEGMENT_LENGTH} characters keep every parent below 256 children until there are millions of nodes.
+ * Files a large, open-ended set of nodes under buckets named after the first characters of each node's name, as
+ * {@code <root>/<xx>/<yy>/<zz>/<name>}, so that no parent holds them all. With hexadecimal names, such as UUIDs, a
+ * bucket holds at most 256 buckets.
  *
- * <p>
- * Three properties of this layout are part of the contract, not implementation details:
- * </p>
  * <ul>
- * <li><b>Names must be uniformly distributed</b>, i.e. a UUID or a hash. Filing nodes under a name people chose,
- * or under a sequential identifier, piles them into a handful of buckets and rebuilds the very flat list this
- * exists to avoid.</li>
- * <li><b>{@link #bucketFor} saves each bucket as it is created</b>, so it must be called <em>before</em> its
- * caller has any other pending change: recovering from a lost race calls {@code refresh(false)}, which would
- * otherwise discard that work. Buckets are inert, so one left behind by an operation that goes on to fail costs
- * nothing. A caller writing inside a transaction it does not own uses {@link #pendingBucketFor} instead.</li>
- * <li><b>Buckets are never removed</b>, including when the last node in one goes away.</li>
+ * <li><b>Names must be evenly spread</b>, such as UUIDs or hashes. Names people chose, or sequential identifiers,
+ * crowd into a few buckets.</li>
+ * <li><b>{@link #bucketFor} saves the session after each bucket it creates</b>, and on a conflict it discards the
+ * session's pending changes. Call it before making any other change in the session. A caller writing inside a
+ * transaction it does not own uses {@link #pendingBucketFor} instead.</li>
+ * <li><b>Buckets are never removed</b>, even when the last node in one goes away. A bucket that {@link #bucketFor}
+ * saved stays even if the operation it was for fails.</li>
  * </ul>
  *
  * @version $Id$
@@ -56,7 +50,7 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class PrefixTree
 {
-    /** The number of bucket levels between the root and a node filed in the tree: {@value}. */
+    /** The number of bucket levels between the root and a filed node: {@value}. */
     public static final int BUCKET_LEVELS = 3;
 
     /** How many characters of a node's name each bucket level is named after: {@value}. */
@@ -66,33 +60,27 @@ public final class PrefixTree
     public static final int MINIMUM_NAME_LENGTH = BUCKET_LEVELS * SEGMENT_LENGTH;
 
     /**
-     * The segment under which a filed node can be addressed by name alone, as {@code <root>/by-id/<name>}:
-     * {@value}.
-     *
-     * <p>Beside the tree rather than over it, so that whatever serves these addresses never stands between the
-     * tree and the code that writes to it. It cannot collide with a bucket, and not by luck: a bucket is named
-     * after exactly {@link #SEGMENT_LENGTH} characters of the name it files, so any segment of a different length
-     * is one the tree can never produce.</p>
+     * The segment under which a filed node can be addressed by its name alone, as {@code <root>/by-id/<name>}:
+     * {@value}. It cannot collide with a bucket, whose name is always {@value #SEGMENT_LENGTH} characters long.
      */
     public static final String ADDRESS_SEGMENT = "by-id";
 
     private PrefixTree()
     {
-        // Prevent instantiation of a utility class
     }
 
     /**
-     * Find, creating them as needed, the buckets that a node belongs in. The node itself is not created: the
-     * caller adds it to the returned parent, under the same name, with whatever type and properties it needs.
+     * Finds the bucket a node belongs in, creating and saving any bucket missing on the way. The node itself is not
+     * created: the caller adds it to the returned bucket, under the same name.
      *
-     * @param root the top of the prefix tree, e.g. the parent that would otherwise hold every node directly
+     * @param root the top of the prefix tree, such as the parent that would otherwise hold every node directly
      * @param name the name of the node being filed, at least {@value #MINIMUM_NAME_LENGTH} uniformly
      *            distributed characters
      * @param bucketNodeType the primary type to create missing buckets with; the root's node type must allow it
      *            as a child, and so must the type itself, since buckets nest
-     * @return the node that the named node must be added to
+     * @return the bucket the named node must be added to
      * @throws IllegalArgumentException if the name is too short to file
-     * @throws RepositoryException if the buckets cannot be read or created
+     * @throws RepositoryException if the buckets cannot be read, created or saved
      */
     @NotNull
     public static Node bucketFor(@NotNull final Node root, @NotNull final String name,
@@ -107,17 +95,15 @@ public final class PrefixTree
     }
 
     /**
-     * Find, adding them as needed, the buckets that a node belongs in, and leave any new bucket among the
-     * caller's pending changes. Nothing is saved, so the buckets are committed or reverted together with whatever
-     * else the caller writes. Two transactions adding the same new bucket conflict, and the second to commit
-     * fails.
+     * Finds the bucket a node belongs in, adding any bucket missing on the way to the resolver's pending changes.
+     * Nothing is saved, so the buckets are committed or reverted with whatever else the caller writes.
      *
-     * @param root the top of the prefix tree, e.g. the parent that would otherwise hold every node directly
+     * @param root the top of the prefix tree, such as the parent that would otherwise hold every node directly
      * @param name the name of the node being filed, at least {@value #MINIMUM_NAME_LENGTH} uniformly
      *            distributed characters
      * @param bucketNodeType the primary type to create missing buckets with; the root's node type must allow it
      *            as a child, and so must the type itself, since buckets nest
-     * @return the resource that the named node must be added to
+     * @return the bucket the named node must be added to
      * @throws IllegalArgumentException if the name is too short to file
      * @throws PersistenceException if a missing bucket cannot be added
      */
@@ -137,8 +123,7 @@ public final class PrefixTree
     }
 
     /**
-     * The path a node filed in a prefix tree has, computed without touching the repository. Useful for looking a
-     * node up by name, and for queries and tests that would otherwise hardcode the layout.
+     * The path of a node filed in a prefix tree, computed without reading the repository.
      *
      * @param rootPath the absolute path of the top of the prefix tree
      * @param name the name of the node, at least {@value #MINIMUM_NAME_LENGTH} uniformly distributed characters
@@ -171,9 +156,8 @@ public final class PrefixTree
     }
 
     /**
-     * One bucket, created if this is the first node to land in it. A new bucket is saved on its own so that two
-     * sessions racing into the same bucket cannot lose a commit: the loser discards its own unsaved bucket and
-     * adopts the winner's.
+     * One bucket, created and saved if it does not exist yet. If saving it conflicts with another session's commit,
+     * the session's pending changes are discarded and the bucket is read again.
      */
     private static Node getOrCreateBucket(final Node parent, final String name, final String nodeType)
         throws RepositoryException
@@ -186,7 +170,6 @@ public final class PrefixTree
             parent.getSession().save();
             return bucket;
         } catch (final InvalidItemStateException | ItemExistsException e) {
-            // Somebody else got there first; drop our own attempt and take theirs
             parent.getSession().refresh(false);
             return parent.getNode(name);
         }

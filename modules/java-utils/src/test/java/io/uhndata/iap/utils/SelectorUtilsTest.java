@@ -116,7 +116,7 @@ public class SelectorUtilsTest
     {
         Assertions.assertEquals(SelectorUtils.UNLIMITED_DEPTH, SelectorUtils.parseDepth(".infinity.json").getAsInt());
         Assertions.assertEquals(SelectorUtils.UNLIMITED_DEPTH, SelectorUtils.parseDepth(".Infinity.json").getAsInt());
-        // Just like Sling, a negative number also means unlimited depth
+        // A negative number also means unlimited depth
         Assertions.assertEquals(SelectorUtils.UNLIMITED_DEPTH, SelectorUtils.parseDepth(".-1.json").getAsInt());
     }
 
@@ -313,7 +313,7 @@ public class SelectorUtilsTest
     @Test
     public void testARequestSelectorNeedsNoEscaping()
     {
-        // The whole point: the dots belong to the value, and in a query parameter nothing splits on them
+        // Nothing splits a request selector at its dots
         try {
             SelectorUtils.setRequestSelectors(List.of("dataOption:formSelectors=-dereference.simple.deep"));
 

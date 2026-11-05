@@ -65,11 +65,9 @@ public class DenyScriptsSlingPostProcessorTest
     public void testAdminIsAllowedToUploadScripts()
         throws Exception
     {
-        // Who the repository says is asking, not the spelling they typed: a login resolves case-insensitively,
-        // and the exemption belongs to the account rather than to a capitalisation of its name
+        // The canonical user id, from the session
         Mockito.when(this.session.getUserID()).thenReturn("admin");
 
-        // Even with a script modification present, the admin bypasses the check without inspecting the upload
         this.processor.process(this.request, List.of(mockModification()));
 
         Mockito.verify(this.resolver, Mockito.never()).getResource(Mockito.anyString());

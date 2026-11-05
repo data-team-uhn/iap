@@ -23,9 +23,8 @@ import javax.jcr.RepositoryException;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Lets a module keep its references working when content moves. A module that names nodes by their path, as a condition
- * can name a question, updates those names before the move. Reordering a node among its siblings changes no path, so
- * participants are not called for it.
+ * Lets a module that names nodes by their paths update those paths when content moves, before the move is made.
+ * Reordering a node among its siblings changes no path, so participants are not called for it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -33,11 +32,11 @@ import org.jetbrains.annotations.NotNull;
 public interface MoveParticipant
 {
     /**
-     * Called before a node's path changes, so that references to it and to what is under it can stop depending on where
-     * they are.
+     * Called before a node's path changes, by a move or a rename, to update the values that name it or a node under
+     * it by its path.
      *
-     * @param node the node about to move, still where it was
-     * @param newPath its path after the move, which tells, for example, whether it leaves the entity it was part of
+     * @param node the node about to move, still at its old path
+     * @param newPath the node's absolute path after the move
      * @throws RepositoryException when the preparation cannot be made
      */
     void beforeMove(@NotNull Node node, @NotNull String newPath) throws RepositoryException;

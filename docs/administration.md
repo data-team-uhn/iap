@@ -95,12 +95,13 @@ repository path the figure is about. The label links there when the widget passe
 Most tools need no servlet of their own: a `data:EntityHomepage` already answers
 `adminSummary.json` with one figure per homepage of its kind the reader can see, counted
 on their own session. A homepage that cannot be counted keeps its figure with a `null`
-value, and the summary fails only when none can be. A tool whose summary is more than a count of its entities
-registers its own servlet for the same selector on its own resource
-type, which Sling prefers over the generic one. It extends
+value, and the summary fails only when none can be. A tool whose summary is more than a
+count of its entities registers its own servlet for the same selector on its own
+resource type, which Sling prefers over the generic one. It extends
 [`AdminSummaryServlet`](../modules/java-utils/src/main/java/io/uhndata/iap/utils/summary/AdminSummaryServlet.java),
-which writes the answer, or an error status when the summary cannot be read, and builds
-each figure with `count`, `unknown` or `state`.
+and builds each figure with its `count`, `unknown` and `state` methods.
+`AdminSummaryServlet` writes the answer. If the summary cannot be read, it answers `500`
+with an error body.
 
 ## Contributing a tool
 

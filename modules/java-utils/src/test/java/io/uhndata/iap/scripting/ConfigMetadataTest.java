@@ -50,8 +50,6 @@ class ConfigMetadataTest
     @Test
     void adaptsAnyResourceToModel()
     {
-        // The model reads a fixed repository path, not the adapted-from resource, so it must adapt
-        // successfully even from a resource completely unrelated to /libs/iap/conf.
         final Resource resource = this.context.create().resource("/content/unrelated");
         assertNotNull(resource.adaptTo(ConfigMetadata.class));
     }
@@ -86,8 +84,6 @@ class ConfigMetadataTest
     @Test
     void excludesNamespacedProperties()
     {
-        // The sling: pair is what app:Configuration autocreates on every node in the tree, so it is present on
-        // real configuration and would otherwise be rendered as two meta tags on every page.
         this.context.create().resource("/libs/iap/conf/Version",
             Map.of("jcr:primaryType", "app:Configuration", "sling:resourceType", "app/Configuration",
                 "sling:resourceSuperType", "data/Content", "version", "1.0.0"));
