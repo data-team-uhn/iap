@@ -72,6 +72,29 @@ import { useCurrentUser } from "./useCurrentUser";
 type Node = Record<string, unknown>;
 
 const KINDS_KEY = "iap.review.kinds";
+const CONTENTS_OPEN_KEY = "iap.review.contentsOpen";
+const ISSUES_OPEN_KEY = "iap.review.issuesOpen";
+
+// Whether a side panel is open, remembered in the reviewer's browser; undefined until they choose
+function useStoredFlag(key: string): [ boolean | undefined, (open: boolean) => void ] {
+  const [ flag, setFlag ] = useState<boolean | undefined>(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored === null ? undefined : stored === "true";
+    } catch {
+      return undefined;
+    }
+  });
+  const store = useCallback((open: boolean) => {
+    setFlag(open);
+    try {
+      localStorage.setItem(key, String(open));
+    } catch {
+      // Remembered for this page only
+    }
+  }, [ key ]);
+  return [ flag, store ];
+}
 
 function storedKinds(): Set<NoteKind> {
   try {
@@ -169,8 +192,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ dialog, setDialog ] = useState<"letter" | "board">();
   // Whether the issues are shown beside the requirement; until the reviewer says, open beside a form and folded
   // beside a document, which needs the width
-  const [ issuesOpen, setIssuesOpen ] = useState<boolean>();
-  const [ railOpen, setRailOpen ] = useState(true);
+  const [ issuesOpen, setIssuesOpen ] = useStoredFlag(ISSUES_OPEN_KEY);
+  const [ railOpen = true, setRailOpen ] = useStoredFlag(CONTENTS_OPEN_KEY);
   const myName = usePersonName(me ?? "");
   const [ query, setQuery ] = useState("");
 
@@ -451,9 +474,10 @@ export default function ReviewScreen({ path }: { path: string }) {
                 </Tooltip>
               )}
               {/* Where the entry leads, once the pointer is on it */}
-              {requirement.name !== current?.name && (
-                <ChevronRightOutlined className="requirement-go" fontSize="small" sx={{ color: "primary.main", ml: 0.25 }} />
-              )}
+              <ChevronRightOutlined
+                className="requirement-go" fontSize="small"
+                sx={{ color: "primary.main", ml: 0.25, visibility: requirement.name === current?.name ? "hidden" : undefined }}
+              />
             </Stack>
           </ListItemButton>
         );

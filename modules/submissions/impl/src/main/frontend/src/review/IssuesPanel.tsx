@@ -74,7 +74,7 @@ export default function IssuesPanel({ issues, about, open, onToggle, onOpenIssue
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 1.5, pt: 1, pb: 0.5 }}>
         <Box sx={{ flex: 1 }}>
           <Typography variant="panelTitle">Issues ({issues.length})</Typography>
-          <Typography variant="description" sx={{ display: "block" }}>Your issues for the study team</Typography>
+          <Typography variant="caption" sx={{ display: "block" }}>Your issues for the study team</Typography>
         </Box>
         <Tooltip title="Fold away" placement="left">
           <IconButton size="small" aria-label="Fold the issues away" onClick={onToggle}>
