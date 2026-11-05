@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { memo, useEffect, useId, useRef, type ReactNode } from "react";
+import { memo, useContext, useEffect, useId, useRef, type ReactNode } from "react";
 
 import { Box, ButtonBase, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
@@ -38,6 +38,7 @@ import {
   type MarkNaming,
   type ViewerStatus,
 } from "./pdfViewerModel";
+import { PlainViewer } from "./plainViewer";
 import StepControls from "./StepControls";
 
 import type { MarkPlaces } from "./useMarkPlaces";
@@ -83,6 +84,7 @@ function MarkList(props: {
   // With none of them selected, as while a change is side by side, it says how many there are.
   const heading = selected === undefined ? countMarks(naming.values()) : describeAmong(selected.name, selected);
 
+  const plain = useContext(PlainViewer);
   return (
     <Box
       sx={{
@@ -91,7 +93,8 @@ function MarkList(props: {
         display: "flex",
         flexDirection: "column",
         minHeight: 0,
-        bgcolor: "background.default",
+        // A plain viewer's notes sit on the page itself, as its document does
+        bgcolor: plain ? "transparent" : "background.default",
         borderRadius: 1,
       }}
     >
