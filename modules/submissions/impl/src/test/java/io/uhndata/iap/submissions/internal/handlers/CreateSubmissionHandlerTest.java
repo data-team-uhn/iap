@@ -124,6 +124,17 @@ class CreateSubmissionHandlerTest
     }
 
     @Test
+    void namesTheSubmissionRaisedForTheHistory() throws WorkflowException, PersistenceException
+    {
+        final TaskContext raising = context(Map.of("title", "My day off", "schemaVersion", VERSION_PATH));
+
+        this.handler.execute(raising);
+
+        assertEquals(Map.of((String) raising.getVariable(WorkflowResult.CREATED_PATH_VARIABLE), "raised"),
+            raising.getRoles());
+    }
+
+    @Test
     void filesTheSubmissionUnderAUuidInThePrefixTree() throws WorkflowException, PersistenceException
     {
         final WorkflowTaskContext taskContext = context(Map.of(
@@ -289,7 +300,7 @@ class CreateSubmissionHandlerTest
      * @param payload the event payload
      * @return the assembled context
      */
-    private WorkflowTaskContext context(final Map<String, Object> payload)
+    private TaskContext context(final Map<String, Object> payload)
     {
         return context(payload, this.context.resourceResolver());
     }
@@ -301,7 +312,7 @@ class CreateSubmissionHandlerTest
      * @param resolver the session the handler works through
      * @return the assembled context
      */
-    private WorkflowTaskContext context(final Map<String, Object> payload, final ResourceResolver resolver)
+    private TaskContext context(final Map<String, Object> payload, final ResourceResolver resolver)
     {
         return new TaskContext(this.target, "demo-requester", new WorkflowEvent("create", payload))
             .performing(Mockito.mock(Activity.class))

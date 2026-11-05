@@ -65,7 +65,6 @@ import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -165,6 +164,16 @@ class AttachDocumentHandlerTest
         assertEquals("note.pdf", document.getValueMap().get("title", String.class));
         // A real REFERENCE, holding the requirement node's own identifier
         assertEquals(identifierOf(NOTE_PATH), document.getValueMap().get("fulfills", String.class));
+    }
+
+    @Test
+    void namesTheRequirementItAttachedADocumentToForTheHistory() throws Exception
+    {
+        final TaskContext attaching = context(payload(NOTE, upload("note.pdf", PDF)));
+
+        this.handler.execute(attaching);
+
+        assertEquals(Map.of(onlyDocument().getPath(), "attached a document to Doctor's note"), attaching.getRoles());
     }
 
     @Test
@@ -674,17 +683,17 @@ class AttachDocumentHandlerTest
         }
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload)
+    private TaskContext context(final Map<String, Object> payload)
     {
         return context(payload, REQUESTER);
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload, final String actor)
+    private TaskContext context(final Map<String, Object> payload, final String actor)
     {
         return context(payload, actor, this.context.resourceResolver());
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload, final String actor,
+    private TaskContext context(final Map<String, Object> payload, final String actor,
         final ResourceResolver resolver)
     {
         final Node asNode = this.node;

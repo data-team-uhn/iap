@@ -97,6 +97,7 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
         pointAt(submission, schemaVersion);
         draft(submission);
         context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, submission.getPath());
+        context.recordRole(submission, "raised");
     }
 
     /**
