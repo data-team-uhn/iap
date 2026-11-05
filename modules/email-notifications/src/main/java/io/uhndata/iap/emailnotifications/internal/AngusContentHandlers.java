@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.emailnotifications.internal;
 
+import java.util.Locale;
+
 import jakarta.activation.CommandInfo;
 import jakarta.activation.CommandMap;
 import jakarta.activation.DataContentHandler;
@@ -110,7 +112,7 @@ public class AngusContentHandlers extends CommandMap
     public DataContentHandler createDataContentHandler(final String mimeType)
     {
         // The type without its parameters, since a multipart type always carries a boundary
-        final String type = mimeType == null ? "" : mimeType.toLowerCase().split(";")[0].trim();
+        final String type = mimeType == null ? "" : mimeType.toLowerCase(Locale.ROOT).split(";")[0].trim();
         if (type.startsWith("multipart/")) {
             // One handler writes every multipart subtype, alternative and related included
             return new multipart_mixed();
