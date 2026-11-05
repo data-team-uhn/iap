@@ -108,6 +108,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         }}
         renderMarkDetails={renderMarkDetails}
         container={place}
+        plain
         onClose={onClose}
       />
     </>

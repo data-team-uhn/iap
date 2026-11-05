@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { memo, type ReactNode } from "react";
+import { memo, useContext, type ReactNode } from "react";
 
 import { Box, CircularProgress, LinearProgress } from "@mui/material";
 
@@ -29,6 +29,7 @@ import {
   START_CLASS,
 } from "./markLayer";
 import { isChangeKind, MARK_KINDS } from "./marksModel";
+import { PlainViewer } from "./plainViewer";
 
 import type { Theme } from "@mui/material/styles";
 
@@ -120,6 +121,7 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
   edgeToEdge: boolean;
   outlineSelected: boolean;
 }) {
+  const plain = useContext(PlainViewer);
   return (
     <Box
       ref={setFrame}
@@ -132,10 +134,10 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
         overflow: "auto",
         // Scrolling the document stops at its ends instead of scrolling what holds it.
         overscrollBehavior: "contain",
-        bgcolor: "background.default",
+        bgcolor: plain ? "background.paper" : "background.default",
         borderRadius: edgeToEdge ? { xs: 0, sm: 1 } : 1,
-        // Sheets on the canvas, apart from each other
-        "& .pdfViewer.removePageBorders .page": { my: 1.5, mx: "auto", boxShadow: 2 },
+        // Sheets on the canvas, apart from each other; on a plain viewer's white, a lighter shadow is enough
+        "& .pdfViewer.removePageBorders .page": { my: 1.5, mx: "auto", boxShadow: plain ? 1 : 2 },
         // Multiplied like a highlighter's ink, so marks tint the paper and leave the text as dark.
         "& .textLayer": { mixBlendMode: "multiply" },
         [`& .${MARK_CLASS}`]: { borderRadius: 0.5 },

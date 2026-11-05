@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { Box, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
@@ -44,6 +44,7 @@ import {
   PASSAGES,
   type MarkName,
 } from "./pdfViewerModel";
+import { PlainViewer } from "./plainViewer";
 import { countMinorChanges, getChangeInContext, getNearestShown, type RevisionChange } from "./revisionDiffModel";
 import StepControls from "./StepControls";
 import { getTextAnchor } from "./textAnchor";
@@ -93,6 +94,9 @@ export interface PdfViewerProps {
   compareWith?: { url: string; label?: string };
   // What this version is called above it when shown beside the older one, such as "Version 3".
   label?: string;
+  // PRETOTYPE: shown plain, in a page that already names the document: without the title row and its buttons, and
+  // on the page's own surface
+  plain?: boolean;
   // An element for the viewer to fill, with a button to pop it out into a dialog. The element needs a
   // height of its own. Without a container, the viewer opens in a dialog. Null, as a ref is before
   // React attaches it, shows nothing until the element is there.
@@ -106,7 +110,11 @@ export interface PdfViewerProps {
 // what changed, beside the older version or in this one alone.
 export default function PdfViewer(props: PdfViewerProps) {
   // Keyed so another document starts over with nothing left from the last one.
-  return <PdfViewerSession key={`${props.url}\n${props.page}`} {...props} />;
+  return (
+    <PlainViewer.Provider value={Boolean(props.plain)}>
+      <PdfViewerSession key={`${props.url}\n${props.page}`} {...props} />
+    </PlainViewer.Provider>
+  );
 }
 
 const NO_MARKS: Mark[] = [];
@@ -366,6 +374,7 @@ interface ViewerBodyProps {
 function ViewerBody(props: ViewerBodyProps) {
   const { titleId, title, marks, markName, places, pagesRead, selectedId, onSelect, openError, onRetry, view } = props;
   const { renderMarkDetails, selectedText, onAnnotate, comparison, placeButton, edgeToEdge, onClose } = props;
+  const plain = useContext(PlainViewer);
   const { changeIds } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   const { search, find, findAgain } = view;
@@ -540,12 +549,9 @@ function ViewerBody(props: ViewerBodyProps) {
       onKeyDown={onKeyDown}
       sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minHeight: 0 }}
     >
-      <ViewerTitle
-        titleId={titleId}
-        title={title}
-        placeButton={placeButton}
-        onClose={onClose}
-      />
+      {plain
+        ? <Typography id={titleId} sx={visuallyHidden}>{title}</Typography>
+        : <ViewerTitle titleId={titleId} title={title} placeButton={placeButton} onClose={onClose} />}
       {comparison === undefined
         ? null
         : (
