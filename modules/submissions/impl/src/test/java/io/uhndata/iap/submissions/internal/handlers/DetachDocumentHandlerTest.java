@@ -58,7 +58,6 @@ import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -150,6 +149,18 @@ class DetachDocumentHandlerTest
         assertEquals(List.of(documentPath), left.stream().map(Document::getPath).toList());
         assertFalse(left.get(0).isAttached());
         assertNull(left.get(0).getTitle());
+    }
+
+    @Test
+    void namesTheRequirementItRemovedTheDocumentFromForTheHistory() throws Exception
+    {
+        attach(NOTE, "wrong.pdf");
+        final TaskContext detaching = context(payload(NOTE), REQUESTER);
+
+        this.handler.execute(detaching);
+
+        assertEquals(Map.of(documents().get(0).getPath(), "removed the document from Doctor's note"),
+            detaching.getRoles());
     }
 
     @Test
@@ -346,7 +357,7 @@ class DetachDocumentHandlerTest
         }
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload, final String actor)
+    private TaskContext context(final Map<String, Object> payload, final String actor)
     {
         // jcr-mock answers nothing about versioning, so the request reads as checked out
         final Node checkedOut = Mockito.mock(Node.class);

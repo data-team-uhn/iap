@@ -101,6 +101,7 @@ public class RecordReviewHandler implements ServiceTaskHandler
         if (note != null) {
             commentOn(review, context.getActor(), note);
         }
+        context.recordRole(host, "reviewed as " + outcome);
     }
 
     /**

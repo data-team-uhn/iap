@@ -147,6 +147,16 @@ class RecordReviewHandlerTest
     }
 
     @Test
+    void namesTheOutcomeOfTheReviewForTheHistory() throws Exception
+    {
+        final TaskContext completing = approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED));
+
+        this.handler.execute(completing);
+
+        assertEquals(Map.of(this.target.getPath(), "reviewed as approved"), completing.getRoles());
+    }
+
+    @Test
     void pointsAtTheRequirementItDecides() throws Exception
     {
         this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED)));
@@ -333,7 +343,7 @@ class RecordReviewHandlerTest
      * @param payload what the completion carried
      * @return the context
      */
-    private WorkflowTaskContext approverCompleting(final String requirement, final Map<String, Object> payload)
+    private TaskContext approverCompleting(final String requirement, final Map<String, Object> payload)
     {
         final Node asNode = this.node;
         final Resource submission = new ResourceWrapper(this.target)

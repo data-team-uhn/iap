@@ -139,6 +139,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         final Resource stored = resolver.create(version, FILE_NODE, Map.of(PRIMARY_TYPE, "sub:File"));
         write(Objects.requireNonNull(stored.adaptTo(Node.class),
             "A freshly created file is always backed by a JCR node"), file, mimeType);
+        context.recordRole(document, "attached a document to " + requirement.getLabel());
     }
 
     /**
