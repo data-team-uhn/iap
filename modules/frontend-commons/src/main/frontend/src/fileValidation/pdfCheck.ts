@@ -17,7 +17,7 @@
  */
 
 import { stopOnAbort } from "./stopOnAbort";
-import { PdfWorkerFailure, loadPdfjs } from "../pdfViewer/pdfjsClient";
+import { PdfWorkerFailure, loadPdfjs } from "../pdfjsClient";
 
 import type { ContentCheck } from "./contentCheck";
 import type { PDFDocumentProxy } from "pdfjs-dist";

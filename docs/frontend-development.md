@@ -185,7 +185,6 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 | `useNotice` (`NoticeSnackbar.tsx`) | A notice an action raises over the screen. `NoticeProvider` is mounted once, at the top of the page |
 | `FormattedText` | Markdown from content, such as a definition's description |
 | `EntityDataGrid` (`entityGrid/`) | A server-paged, server-filtered table over an entity homepage |
-| `PdfViewer` (`pdfViewer/`) | A PDF opened at a page, with passages found and marked in it, or compared with an older version |
 
 `EntityDataGrid` reads a homepage's `.paginate.json`, and sends it the filtering and
 sorting the user picks.
@@ -209,7 +208,9 @@ registerEntityType("sch/Schema", {
 Paging, sorting and searching still apply to the schemas alone. On a small screen the
 list keeps one card per schema, and the card ends with the schema's versions.
 
-`PdfViewer` shows a PDF with PDF.js's own viewer, and finds and marks passages in it:
+`PdfViewer`, in its own module (`modules/documents/pdf-viewer`, imported as
+`@iap/documents-pdf-viewer/PdfViewer`), shows a PDF with PDF.js's own viewer, and finds and marks
+passages in it:
 
 ```tsx
 <PdfViewer
