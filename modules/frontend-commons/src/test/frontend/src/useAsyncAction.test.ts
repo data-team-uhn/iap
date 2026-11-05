@@ -20,7 +20,7 @@ import { act, renderHook } from "@testing-library/react";
 
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
-// An action whose fate the test decides, so that being in flight can be observed at all.
+// An action that finishes when the test says, so that the test can see it running.
 const pending = () => {
   const settle: { resolve?: () => void } = {};
   const promise = new Promise<void>(resolve => { settle.resolve = resolve; });
@@ -29,8 +29,8 @@ const pending = () => {
 
 const describing = (error: unknown) => String(error);
 
-// Hands the hook an action with a known outcome and waits for it to be done with it, inside act so
-// that the state updates it makes are batched the way React would have batched them.
+// Runs an action with a known outcome and waits for it to settle, inside `act`, so that React applies
+// the hook's state updates before the test looks.
 const settle = async (run: (action: () => Promise<unknown>) => void, outcome: Promise<unknown>) => {
   const action = () => outcome;
   await act(async () => {

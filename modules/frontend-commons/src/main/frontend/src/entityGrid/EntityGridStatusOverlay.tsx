@@ -18,8 +18,8 @@
 
 import { Button, Stack, Typography } from "@mui/material";
 
-// What the overlay covering an empty row area should say: the plain empty message, the
-// "nothing matched" message, or a fetch failure with a way to retry it.
+// What the overlay over an empty grid says: `message` when there is no error, or else `error`
+// with a Retry button that calls `onRetry`.
 declare module "@mui/x-data-grid" {
   interface NoRowsOverlayPropsOverrides {
     message?: string;
@@ -28,10 +28,8 @@ declare module "@mui/x-data-grid" {
   }
 }
 
-// The overlay shown over an empty row area. A failed fetch also empties the rows, so this is
-// where the error belongs too — inside the grid, with a Retry button, while the toolbar and
-// the rest of the controls stay usable around it (changing any request parameter also
-// recovers on its own).
+// The overlay over a grid with no rows: a message, or the failure that left the grid empty with a
+// Retry button. The toolbar and the other controls stay usable around it.
 export default function EntityGridStatusOverlay(props: { message?: string; error?: string; onRetry?: () => void }) {
   const { message, error, onRetry } = props;
   if (error) {

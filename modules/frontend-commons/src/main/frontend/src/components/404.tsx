@@ -32,8 +32,8 @@ if (container) {
       <StyledEngineProvider injectFirst>
         <ThemeProvider theme={appTheme} defaultMode="system">
           <CssBaseline enableColorScheme />
-          { /* The server looked the requested path up in the archive while it was rendering this page,
-               and left what a reader may know about it on the container. */ }
+          { /* The server fills these in when the requested path is in the archive, with what this
+               reader may know of its deletion. */ }
           <PageNotFound
             deletedAt={container.dataset.deletedAt}
             deletedBy={container.dataset.deletedBy}

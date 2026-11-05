@@ -43,8 +43,6 @@ describe("getActions", () => {
   });
 
   it("leaves out an extension that contributed no component at all", async () => {
-    // The loader drops an extension whose asset failed; one that simply has no render property is
-    // not an action, and is not rendered as an empty one
     mockedLoadExtensions.mockResolvedValue([ { "ext:name": "Nothing to render" },
       { "ext:render": First } ]);
 
@@ -54,7 +52,7 @@ describe("getActions", () => {
   it("fetches an extension point once, however many components ask for it", async () => {
     mockedLoadExtensions.mockResolvedValue([ { "ext:render": First } ]);
 
-    // Concurrently, then again once resolved: neither is a second fetch
+    // Twice at once, then again once loaded
     const [ first, second ] = await Promise.all([ getActions("ThingActions"), getActions("ThingActions") ]);
     const third = await getActions("ThingActions");
 
@@ -78,7 +76,7 @@ describe("getActions", () => {
     mockedLoadExtensions.mockResolvedValue([
       { "ext:render": First, "ext:places": [ "list" ] },
       { "ext:render": Second },
-      // A single value, which is how a property that is not multi-valued arrives
+      // A single value, as a property that is not multi-valued arrives
       { "ext:render": Third, "ext:places": "page" },
     ]);
 
@@ -95,7 +93,7 @@ describe("getActions", () => {
     await expect(getActions("ThingActions")).resolves.toEqual([]);
     expect(console.error).toHaveBeenCalled();
 
-    // The failure is not cached, so a later render can find the actions that were unreachable
+    // A rejection is not kept, so the next call asks again
     mockedLoadExtensions.mockResolvedValue([ { "ext:render": First } ]);
     await expect(getActions("ThingActions")).resolves.toEqual([First]);
 

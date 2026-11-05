@@ -34,17 +34,20 @@ import {
 import { type Breakpoint, type Theme, useTheme } from "@mui/material/styles";
 import { visuallyHidden } from "@mui/utils";
 
-// Compact keeps to one line, showing only the step underway and how far along it is.
+// How the steps are laid out. `compact` keeps to one line, with only the step underway and how far
+// along it is.
 export type StepProgressLayout = "horizontal" | "vertical" | "compact";
 
 interface StepProgressProps {
-  // Labels, in order.
+  // The steps' labels, in order.
   steps: readonly string[];
   // Index of the step underway. A value equal to `steps.length` means every step is done.
   activeStep: number;
   // Why the step underway stopped. It is drawn as failed, and the steps before it stay completed.
   // Ignored once every step is done.
   error?: string;
+  // One layout, or one per breakpoint, which applies from that breakpoint up. Below the smallest
+  // breakpoint given, the layout is `compact`. By default `compact`, and `horizontal` from `sm`.
   layout?: StepProgressLayout | Partial<Record<Breakpoint, StepProgressLayout>>;
   // Draw the step underway, and the pulse that leads to it, in the primary colour instead of the
   // secondary accent.
@@ -111,7 +114,8 @@ function useEndedStep(step: number): number | undefined {
   return ended;
 }
 
-// Fixed, so the label does not shift as the ring comes and goes.
+// The space for a step's icon. Its size is fixed, so the label does not shift as the ring comes and
+// goes.
 function IconSlot({ children }: { children: ReactNode }) {
   return (
     <Box
@@ -339,8 +343,8 @@ const rootSx = (disableAccent: boolean) => (theme: Theme) => {
   };
 };
 
-// Work moving through named steps. The step underway wears a faded ring. When a step ends, it takes
-// its check mark, a pulse runs on to the next one, and that one starts once the pulse lands.
+// Work moving through named steps. The step underway has a faded ring around it. When a step ends, it
+// takes its check mark, a pulse runs along to the next one, and that one starts once the pulse lands.
 function StepProgress({ steps, activeStep, error, layout = DEFAULT_LAYOUT, disableAccent = false }: StepProgressProps) {
   const resolved = useLayout(layout);
   const ended = useEndedStep(activeStep);

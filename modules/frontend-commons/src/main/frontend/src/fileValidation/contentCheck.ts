@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-/** What a look inside a file found: nothing wrong, or what is wrong, for a person to read. */
+/** What a check of a file's content found: `valid`, or an `error` for the person to read. */
 export type ContentCheck = { valid: true } | { valid: false; error: string };
 
-// Both Word checks refuse with this when the content is something else
+// The refusal of a .doc or .docx whose content is something else
 export const NOT_A_WORD_DOCUMENT = "It is not a Word document.";

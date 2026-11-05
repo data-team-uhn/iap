@@ -18,15 +18,17 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
-// Crumbs a page adds to the breadcrumb trail, after the ancestors its path already names: what the
-// path alone cannot say, such as the schema a version's page belongs to, under that schema's title.
+// A crumb a page adds to the breadcrumb trail, after the ancestors its path names. It says what the
+// path cannot, such as the schema a version's page belongs to, under the schema's title.
 export interface PageCrumb {
+  // The path the crumb links to
   path: string;
+  // The text of the crumb
   label: string;
 }
 
-// Kept on `window`, like the persona store, so the page and the trail share it whichever bundles they
-// were loaded from.
+// The `window` property that holds the crumbs, so that the page and the trail share them, whichever
+// bundles they come from.
 export const STORE_KEY = "__iapPageCrumbs";
 const CHANGE_EVENT = "iap:pagecrumbschange";
 
@@ -48,6 +50,7 @@ const subscribe = (onChange: () => void): (() => void) => {
 
 // For a page: adds these crumbs while it is shown, and takes them away when it goes.
 export function usePageCrumbs(crumbs: PageCrumb[]): void {
+  // Compared as JSON, so that a new array with the same crumbs on each render changes nothing
   const key = JSON.stringify(crumbs);
   useEffect(() => {
     setPageCrumbs(JSON.parse(key) as PageCrumb[]);

@@ -79,7 +79,7 @@ describe("toPropertyFilters", () => {
   });
 
   it("expands date conditions to local day boundaries on the server-side property", () => {
-    // Day boundaries in the user's own timezone, as full ISO instants
+    // The day's bounds in the user's own timezone, as ISO instants
     const start = new Date("2026-07-01T00:00:00").toISOString();
     const end = new Date("2026-07-02T00:00:00").toISOString();
     expect(filters({ field: "created", operator: "is", value: "2026-07-01" })).toEqual([
@@ -100,8 +100,7 @@ describe("toPropertyFilters", () => {
   });
 
   it("recovers the picked day from the Date object produced by the grid's date input", () => {
-    // The grid's date filter input parses the picked YYYY-MM-DD as UTC midnight; the condition
-    // must still cover that calendar day in the user's own timezone
+    // The grid's date input parses the picked YYYY-MM-DD as midnight UTC
     const start = new Date("2026-07-01T00:00:00").toISOString();
     const end = new Date("2026-07-02T00:00:00").toISOString();
     expect(filters({ field: "created", operator: "is", value: new Date("2026-07-01") })).toEqual([
@@ -138,14 +137,12 @@ describe("toPropertyFilters", () => {
       .toEqual([{ name: "title", comparator: "NOT ILIKE", value: "%card%" }]);
   });
 
-  // Somebody searching for "50%" means the character, not "anything"; the wildcards belong to the
-  // pattern this builds, not to what was typed into it.
   it("matches the pattern language's own characters literally when they were typed", () => {
     expect(filters({ field: "title", operator: "contains", value: "50%" }))
       .toEqual([{ name: "title", comparator: "ILIKE", value: "%50\\%%" }]);
     expect(filters({ field: "title", operator: "contains", value: "a_b" }))
       .toEqual([{ name: "title", comparator: "ILIKE", value: "%a\\_b%" }]);
-    // The escape character itself, escaped first so it does not consume the escapes added after it
+    // The escape character itself
     expect(filters({ field: "title", operator: "startsWith", value: "C:\\temp" }))
       .toEqual([{ name: "title", comparator: "ILIKE", value: "C:\\\\temp%" }]);
   });
@@ -179,7 +176,7 @@ describe("toPropertyFilters", () => {
 describe("withServerFilterOperators", () => {
   it("only offers the operators the servlet supports", () => {
     const [title, status, created, amount] = withServerFilterOperators(COLUMNS);
-    // The stock operator order is preserved, only the unsupported ones are dropped
+    // In the stock order, without the unsupported ones
     expect(title.filterOperators?.map(operator => operator.value)).toEqual(
       ["contains", "doesNotContain", "equals", "doesNotEqual", "startsWith", "endsWith",
         "isEmpty", "isNotEmpty", "isAnyOf"]);

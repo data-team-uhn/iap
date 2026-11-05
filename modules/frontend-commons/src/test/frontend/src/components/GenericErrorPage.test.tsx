@@ -24,10 +24,9 @@ vi.mock("@iap/frontend-commons/components/ErrorPage", () => ({
   ),
 }));
 
-// The entry point renders on import, so each test re-imports a fresh copy of the module against the
-// DOM it prepared. Only one test per file can actually render: a second one reuses this file's
-// React while the re-imported entry point brings its own, and the two then fight over the DOM. The
-// metadata-less case therefore lives in GenericErrorPage.withoutStatus.test.tsx.
+// The entry point renders on import, so each test imports a fresh copy of the module against the
+// DOM it prepared. Only one test per file can render it, so the page without status metadata is
+// tested in a file of its own.
 describe("generic error page entry point", () => {
   beforeEach(() => {
     vi.resetModules();

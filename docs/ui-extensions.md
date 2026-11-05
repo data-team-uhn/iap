@@ -62,8 +62,9 @@ middle, every region a point:
 
 Empty regions render nothing — no rail, no bar, no pull tab. Thresholds and widths are
 per-region in the theme's `iapShell` section
-(`modules/frontend-commons/src/main/frontend/src/appTheme.ts`); currently rails at
-200px collapsing at `md` (start) and `xl` (end), bars collapsing below 500px height.
+(`modules/frontend-commons/src/main/frontend/src/appTheme.ts`). The defaults are 200px
+rails, collapsing below `md` (start) and `xl` (end), and bars collapsing below a height
+of 500px.
 
 ### Routed views — `iap/coreUI/view` (node `Views`)
 
@@ -176,16 +177,16 @@ widget's content is wider than the widget itself, such as a table with many colu
 the content scrolls sideways inside the widget.
 
 The layout is the shared `WidgetDashboard`
-(`@iap/frontend-commons/components/WidgetDashboard`), parameterized by point. The
-administration console binds the same component to `iap/adminDashboard/entry`, so
-widgets behave identically on both — see [Administration](administration.md).
+(`@iap/frontend-commons/components/WidgetDashboard`), which takes the point as a prop.
+The administration console renders the same component for `iap/adminDashboard/entry`,
+so widgets are laid out the same way on both; see [Administration](administration.md).
 
-#### Widget groups
+### Widget groups
 
 Any dashboard can arrange its widgets into **widget groups**: runs of widgets under a
 muted title across the whole row, with no border or surface, that collapse and expand.
-A collapsed group's title shows how many widgets it holds — `Configuration (3)` — and
-its widgets are unmounted, so they stop fetching whatever they summarize.
+A collapsed group's title shows how many widgets it holds, as in `Configuration (3)`.
+Its widgets are unmounted, so they stop fetching whatever they summarize.
 
 A group is a data-only extension on the **same point as the widgets**, marked as a
 group:
@@ -207,7 +208,7 @@ deployment can relabel a group without touching the widgets that reference it.
 
 | Property | On | Meaning |
 |---|---|---|
-| `ext:isWidgetGroup` | group | `true` marks the extension as a group, not a widget. The marker is explicit because a widget with no `ext:renderURL` is still a widget |
+| `ext:isWidgetGroup` | group | `true` marks the extension as a group, not a widget. A widget with no `ext:renderURL` is still a widget |
 | `ext:name` | group | The title displayed |
 | `defaultOrder` | group | Order among the groups. Widgets keep their own `defaultOrder` within a group |
 | `ext:personas` | group | The personas the group, and so every widget in it, shows to; absent means all |
@@ -215,32 +216,28 @@ deployment can relabel a group without touching the widgets that reference it.
 
 The rules:
 
-- **Within a group, the usual layout applies**: the column count follows the group's
-  own widget count, so a group of two sits side by side exactly as a dashboard of two
-  would.
-- **Ungrouped widgets come last, under "Other"**. So does a widget naming a group that
-  does not exist (renamed, disabled, not installed): the reference is soft and a
-  widget is never lost to it.
-- **When no group has any widget to show, the "Other" title is left out** as well, so a
-  dashboard that defines no groups looks exactly as it did before groups existed. The
-  homepage dashboard is currently like this.
+- **Within a group, the usual layout applies.** The column count follows the group's
+  own widget count, so a group of two sits side by side, as a dashboard of two would.
+- **Ungrouped widgets come last, under "Other".** So does a widget naming a group that
+  does not exist because it was renamed, disabled or never installed.
+- **When no group has any widget to show, the "Other" title is left out** as well. A
+  dashboard that defines no groups shows its widgets with no title at all.
 - **A group appears only when at least one of its widgets is visible in the current
   persona.** `ext:personas` on a group node limits the group and everything in it: a
   widget shows only if both it and its group belong to the persona. A widget hidden
-  with its group is not moved to "Other", so the reason a widget is hidden may be on
-  its group rather than on the widget itself.
-- **Collapsed groups are remembered per viewer**, in the browser's `localStorage`
-  (`iap.widgetDashboard.<point>.collapsed`), so a dashboard looks the same when you
-  return to it from a tool. Storage is a convenience only: without it, every group
-  starts expanded.
+  with its group is not moved to "Other". The reason a widget is hidden may therefore
+  be on its group rather than on the widget itself.
+- **Collapsed groups are remembered in the browser's `localStorage`**
+  (`iap.widgetDashboard.<point>.collapsed`, where `<point>` is the point's node name). A
+  dashboard then looks the same when you return to it from a tool. Without storage,
+  every group starts expanded.
 - If two group nodes share a node name, the first in `defaultOrder` wins.
 
 Keep group nodes in a `Groups/` folder beside the point's widgets
 (`/Extensions/Admin/AdminDashboard/Groups/`). Membership is by `ext:pointId`, so the
-location does not matter to the query, and the folder keeps a group's node name from
-clashing with a widget's (a `Workflows` group beside the `Workflows` widget). Groups
-are flat: no group nests inside another. If that is ever needed, an optional parent
-reference on the group node is the natural extension.
+location does not matter to the query. The folder keeps a group's node name from
+clashing with a widget's, such as a `Workflows` group beside the `Workflows` widget.
+Groups are flat: no group nests inside another.
 
 ### Breadcrumb trail
 
@@ -333,17 +330,19 @@ it needs), and decides for itself whether it applies, rendering nothing when it 
 never learns which actions exist, so another module can add one without touching it.
 
 `getActions("<NodeName>")` from `@iap/frontend-commons/actionsManager` resolves a point's
-components, once per page load however many rows ask. A broken extension is skipped and an
-unreadable point yields no actions, so a failing action bar never takes the page down with it. The
-host renders the components in order with a props contract of its own, typically the thing acted
-on, a `reload`, and a way to `report` back.
+components. It reads the point once per page load, however many rows ask. A broken
+extension is skipped, and an unreadable point gives no actions. `ActionBar` renders the
+components in order, with the props the host passes it. Each host defines those props,
+typically the thing acted on, a `reload`, and a `removed` for an action that takes the
+thing away.
 
 Where the same actions are shown in more than one place, such as a list of things and
 each thing's own page, the host names its place: `getActions("<NodeName>", "<place>")`,
 or `ActionBar`'s `place`. An extension says where it belongs with `ext:places`
 (String[]). It is shown only in the places it names, and an extension naming none is
-shown everywhere. An action that belongs in one place says so in its content, not its
-code, so a deployment can move it.
+shown everywhere. A host that names no place shows only the extensions that name none.
+An action that belongs in one place says so in its content, not its code, so a
+deployment can move it.
 
 ## Tools
 

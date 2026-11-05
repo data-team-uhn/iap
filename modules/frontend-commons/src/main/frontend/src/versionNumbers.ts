@@ -16,12 +16,9 @@
  * limitations under the License.
  */
 
-// Numbering versions the way the server does (VersionNumbers, in java-utils), whatever is being
-// versioned: the next version is numbered one past the largest number a version's node name starts
-// with, and labelled after it unless whoever creates it asks for another label. Names are read rather
-// than labels, since a label is free text, as likely a year as a number; and the largest is taken
-// rather than the count, so that a version discarded from the middle leaves no number for a new one to
-// take again.
+// Numbering versions, whatever is being versioned. The next version is numbered one past the largest
+// number a version's node name starts with, and labelled after that number unless its creator asks
+// for another label. The server numbers versions in java-utils' VersionNumbers, and the two must agree.
 
 // A leading whole number, after an optional v: v3, 3.0, 3
 const NUMBERED = /^[vV]?(\d{1,9})/;

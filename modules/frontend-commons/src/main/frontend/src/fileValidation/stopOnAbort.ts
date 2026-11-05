@@ -17,8 +17,9 @@
  */
 
 /**
- * Waits for a promise, but rejects with the signal's reason as soon as it aborts. A step that does
- * not watch the signal, such as loading a library or a parse in a worker, still ends on time.
+ * Waits for a promise, but rejects with the signal's reason as soon as the signal aborts. The wait
+ * ends on time even for a step that does not watch the signal, such as loading a library or a parse
+ * in a worker. That step carries on unless something else stops it.
  *
  * @param promise what to wait for
  * @param signal stops the wait; without one, this is the promise itself

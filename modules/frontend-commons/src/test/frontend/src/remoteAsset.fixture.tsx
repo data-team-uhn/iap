@@ -16,9 +16,8 @@
  * limitations under the License.
  */
 
-// Stands in for a component published as a loadable asset, so that assetManager's tests can
-// exercise the real dynamic import rather than a mock of it. Not part of the application: it is
-// only ever reached by the URL the tests hand to loadAsset.
+// Stands in for a component published as an asset, so that assetManager's tests run the real
+// dynamic import. Only the tests load it, by its URL.
 
 export default function RemoteDefault({ label }: { label?: string }) {
   return <div data-testid="remote-default">{label ?? "default export"}</div>;

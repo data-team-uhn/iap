@@ -16,10 +16,8 @@
  * limitations under the License.
  */
 
-// Bridges the data grid's column filters to the pagination servlet's property filters. The
-// servlet only ANDs conditions together and supports a fixed comparator set, so only the
-// matching subset of the grid's stock operators is offered on each column, and the chosen
-// filters are translated into name/comparator/value triples.
+// Turns the data grid's column filters into the pagination servlet's property filters. Each column
+// offers only the grid's stock operators that the servlet's comparators can express.
 
 import {
   type GridFilterItem,
@@ -35,8 +33,8 @@ import { type EntityGridColumn, serverProperty } from "./registry";
 
 import type { PropertyFilter } from "./pagination";
 
-// The stock grid operators (per column type) that the servlet can honor. Operators needing OR
-// (isAnyOf, "not" on a day interval) expand into conditions sharing an OR group.
+// The stock grid operators the servlet can express, by column type. An operator that needs an OR,
+// such as isAnyOf, or "not" on a day, expands into conditions that share a group.
 const SUPPORTED_OPERATORS: Record<string, string[]> = {
   string: ["contains", "doesNotContain", "equals", "doesNotEqual", "startsWith", "endsWith",
     "isEmpty", "isNotEmpty", "isAnyOf"],
@@ -46,22 +44,19 @@ const SUPPORTED_OPERATORS: Record<string, string[]> = {
   singleSelect: ["is", "not", "isAnyOf"],
 };
 
-// Grid operators that stand on their own, without a value to compare against.
+// The grid operators that take no value, with the comparator each becomes.
 const VALUELESS_OPERATORS: Record<string, string> = {
   isEmpty: "IS NULL",
   isNotEmpty: "IS NOT NULL",
 };
 
-// Text typed by a user, placed into a LIKE pattern so that it matches itself: the pattern
-// language's own three characters are escaped, since somebody searching for "50%" or a Windows
-// path means those literally rather than as wildcards. Backslash goes first, or it would escape
-// the escapes added after it. The servlet quotes the value by doubling apostrophes and leaves
-// backslashes alone, so what is escaped here is what Oak's matcher sees.
+// Text typed by a user, escaped for a LIKE pattern so that it matches itself: "50%" or a Windows
+// path means those characters, not wildcards. The servlet binds the value into the query, so these
+// escapes reach Oak's LIKE as written.
 const likeLiteral = (value: string): string => value.replace(/[\\%_]/g, "\\$&");
 
-// How each value-carrying grid operator translates into a servlet filter: either a plain
-// comparator on the unchanged value, or a (possibly negated) case-insensitive LIKE with the
-// value placed into a wildcard pattern.
+// What each grid operator with a value becomes: a comparator on the value, or a case-insensitive
+// LIKE, possibly negated, with the value inside a wildcard pattern.
 const VALUED_OPERATORS: Record<string, (name: string, value: string) => PropertyFilter> = {
   "equals": (name, value) => ({ name, comparator: "=", value }),
   "is": (name, value) => ({ name, comparator: "=", value }),
@@ -79,10 +74,10 @@ const VALUED_OPERATORS: Record<string, (name: string, value: string) => Property
   "endsWith": (name, value) => ({ name, comparator: "ILIKE", value: `%${likeLiteral(value)}` }),
 };
 
-// The picked day as midnight in the user's own timezone. The grid's date filter input hands
-// over a Date object it built from the YYYY-MM-DD input value — which JavaScript parses as UTC
-// midnight — so the intended calendar day is recovered from the UTC fields; a plain YYYY-MM-DD
-// string (e.g. from a programmatic filter model) is parsed as local directly.
+// The picked day as midnight in the user's own timezone; undefined if it is not a day. The grid's
+// date input gives a Date it parsed from YYYY-MM-DD, and JavaScript parses that as midnight UTC.
+// The calendar day is therefore read from the UTC fields. A YYYY-MM-DD string, from a filter model
+// built in code, is read as local time directly.
 function pickedDay(value: unknown): Date | undefined {
   const day = value instanceof Date ? value : new Date(`${String(value)}T00:00:00`);
   if (Number.isNaN(day.getTime())) {
@@ -91,11 +86,9 @@ function pickedDay(value: unknown): Date | undefined {
   return value instanceof Date ? new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()) : day;
 }
 
-// Expands a day-granularity date condition into instant comparisons against the day's
-// boundaries, [start of day, start of next day) in the user's own timezone — stored dates are
-// full instants, so "is July 1st" must mean "within July 1st", not "equals its first
-// millisecond". This is why dates are filtered with day (not date-time) pickers. "not" means
-// outside the day interval, so its two comparisons are ORed through a shared group.
+// A condition on a day as comparisons with the day's bounds, from its start up to the start of the
+// next day, in the user's own timezone. Stored dates are instants, so "is July 1st" means "during
+// July 1st". "not" means before or after the day, so its two comparisons share a group.
 function dayFilters(operator: string, name: string, value: unknown, group: string): PropertyFilter[] {
   const start = pickedDay(value);
   if (start == undefined) {
@@ -127,18 +120,16 @@ function toFilterTriples(item: GridFilterItem, column: EntityGridColumn | undefi
     return [];
   }
   const name = serverProperty(column);
-  // `hasOwn` rather than `in`: the operator is a string from the grid's model, and `in` would also
-  // answer for everything Object.prototype carries, so an operator named "constructor" or
-  // "toString" would look supported and be translated into nonsense.
+  // Not `in`, which also finds what Object.prototype carries, such as an operator named "toString"
   if (Object.hasOwn(VALUELESS_OPERATORS, item.operator)) {
     return [{ name, comparator: VALUELESS_OPERATORS[item.operator], value: "" }];
   }
   if (item.operator === "isAnyOf") {
-    // "any of" is an OR over equality checks, expressed by sharing a group
+    // "is any of" is one equality per value, all in one group
     const values: unknown[] = Array.isArray(item.value) ? item.value : [];
     return values.map(value => ({ name, comparator: "=", value: String(value), group }));
   }
-  // An item without a value is one the user is still editing, not a condition yet
+  // A condition without a value is still being edited
   if (item.value == undefined || item.value === "") {
     return [];
   }
@@ -151,10 +142,10 @@ function toFilterTriples(item: GridFilterItem, column: EntityGridColumn | undefi
   return [];
 }
 
-// Translates the grid's column filters into servlet property filters. Unknown columns,
-// unsupported operators, and still-empty conditions are skipped; a condition may expand to more
-// than one property filter, either ANDed like everything else ("is <day>" becomes the day's two
-// boundary comparisons) or ORed through a shared group ("is any of", "not <day>").
+// The grid's column filters as servlet property filters, which the server ANDs. A condition on an
+// unknown or unfilterable column, with an unsupported operator, or without a value yet, is left
+// out. One condition can become several filters. "is <day>" becomes two comparisons, both required.
+// "is any of" and "not <day>" become a group of their own, which the server ORs.
 export function toPropertyFilters(model: GridFilterModel, columns: EntityGridColumn[]): PropertyFilter[] {
   return model.items
     .flatMap((item, index) =>
@@ -165,8 +156,7 @@ function stockOperators(type: EntityGridColumn["type"]) {
   if (type === "number") {
     return getGridNumericOperators();
   }
-  // Both date types filter with day pickers: conditions are expanded to day boundaries, so a
-  // time of day in the filter value would be meaningless (cells still display date + time)
+  // Both date types filter by the day, so they take the date operators, whose input picks a day
   if (type === "date" || type === "dateTime") {
     return getGridDateOperators();
   }
@@ -182,15 +172,14 @@ function serverFilterOperators(type: EntityGridColumn["type"]) {
   const supported = Object.hasOwn(SUPPORTED_OPERATORS, named) ? SUPPORTED_OPERATORS[named] : SUPPORTED_OPERATORS.string;
   return stockOperators(type)
     .filter(operator => supported.includes(operator.value))
-    // On choice columns, values picked in "is any of" show as chips in their options' own
-    // colors, matching how the grid's cells present them
+    // On a choice column, the values picked in "is any of" show as chips in their options' colors
     .map(operator => type === "singleSelect" && operator.value === "isAnyOf"
       ? { ...operator, InputComponent: ColoredChipsFilterInput }
       : operator);
 }
 
-// Narrows every column's filter operators down to the ones the servlet can honor, so the filter
-// panel never offers a condition that silently cannot be applied.
+// Narrows every column's filter operators to the ones the servlet can express, so that the filter
+// panel offers no condition that toPropertyFilters would leave out.
 export function withServerFilterOperators(columns: EntityGridColumn[]): EntityGridColumn[] {
   return columns.map(column => ({ ...column, filterOperators: serverFilterOperators(column.type) }));
 }

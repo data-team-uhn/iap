@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-// A date as the reader's locale writes it. The repository serializes dates as ISO 8601 strings; anything
-// that does not read as a date reads as nothing, rather than as "Invalid Date".
+// A date and time as the reader's locale writes them. The value is an ISO 8601 string, as the
+// repository serializes dates. A value that is not a date gives an empty string, not "Invalid Date".
 export function formatDate(value: unknown): string {
   const date = typeof value === "string" && value !== "" ? new Date(value) : undefined;
   return date === undefined || Number.isNaN(date.getTime()) ? "" : date.toLocaleString();

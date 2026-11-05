@@ -61,19 +61,19 @@ non-administrators cannot read it.
 
 ### Summary figures
 
-A widget should show a live summary of the tool's area — the archive tool counts what
-was archived in the last 24 hours, the last 7 days, and in total — rather than only a
-link into it.
+A widget should show a live summary of the tool's area, not only a link into it. The
+archive tool, for one, counts what was archived in the last 24 hours, the last 7 days,
+and in total.
 
 Figures go through
 [`WidgetStatList`](../modules/frontend-commons/src/main/frontend/src/components/WidgetStatList.tsx),
-so every tool's summary reads the same way: the value first, then what it is a figure
-for, with the values sharing one column so the labels line up however many digits their
-neighbours ran to. The widget names the resource to summarize and what to call it —
-`<WidgetStatList url="/Archive" name="archive" />` — and the list fetches
-`<url>.adminSummary.json` itself, waits behind a placeholder, and says the summary is
-not available to this reader when the request is refused. Nothing about a tool's figures
-is written in the widget.
+so every tool's summary reads the same way. Each figure shows its value, then what it is
+a figure for. The values share one column, so the labels line up however many digits the
+values have. The widget names the resource to summarize and what to call it, as in
+`<WidgetStatList url="/Archive" name="archive" />`. The list fetches
+`<url>.adminSummary.json` itself, and shows a placeholder while it waits. If the request
+fails, it says the summary is not available to this reader. The widget holds nothing
+about the tool's figures.
 
 The summary answers with a dictionary of figures, in the order they are displayed:
 
@@ -84,12 +84,12 @@ The summary answers with a dictionary of figures, in the order they are displaye
 }
 ```
 
-A numeric `value` is a count, a boolean one a state that is on or off, and `null` a
-count that could not be taken, shown as "?". `approximate`
-marks a count that stopped at a bound, `important` colours a count as a problem while it
-is `"nonzero"` or while it is `"zero"`, and `path` names the repository path the figure
-is about — which the widget turns into a link by passing a `hrefFor` that maps a path to
-a console route.
+A numeric `value` is a count. A boolean `value` is a state, shown as On or Off. A `null`
+value is a count that could not be taken, shown as "?". `approximate` marks a count that
+stopped at a bound, shown with a "+". `important` says which count is a problem, and
+colours it: `"nonzero"` any count above zero, `"zero"` a count of zero. `path` names the
+repository path the figure is about. The label links there when the widget passes a
+`hrefFor` that maps a path to a console route.
 
 Most tools need no servlet of their own: a `data:EntityHomepage` already answers
 `adminSummary.json` with one figure per homepage of its kind the reader can see, counted

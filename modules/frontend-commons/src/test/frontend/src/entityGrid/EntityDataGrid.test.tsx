@@ -23,10 +23,9 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import { registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 
-// Flushes React work left pending by promises that resolved outside an act() boundary (the
-// mocked fetch resolves in a microtask). Without this, a re-render triggered between two
-// awaited queries — like the empty-overlay label swap after a filtered refetch — stays
-// unflushed for as long as a findBy* polls, only to appear right as it gives up.
+// Flushes the React work that promises resolved outside act() left pending, since the mocked fetch
+// resolves in a microtask. Otherwise a render between two awaited queries can wait until a findBy*
+// gives up.
 const flushRender = () => act(() => Promise.resolve());
 
 const TEST_TYPE = "test/GridEntity";
@@ -53,7 +52,7 @@ registerEntityType(PLAIN_TYPE, {
   ],
 });
 
-// A status rendered as a component, which is what a tag chip or an action button is
+// A status rendered as a component, such as a tag chip or an action button
 const ELEMENT_TYPE = "test/ElementEntity";
 registerEntityType(ELEMENT_TYPE, {
   homepage: "/ElementEntities",
@@ -63,8 +62,8 @@ registerEntityType(ELEMENT_TYPE, {
   ],
 });
 
-// A type exercising every kind of column content the generic list card can face; the "nested"
-// column is also excluded from sorting
+// A type with every kind of column content the composed card handles. The "nested" column cannot
+// be sorted.
 const CARD_TYPE = "test/CardEntity";
 registerEntityType(CARD_TYPE, {
   homepage: "/CardEntities",
@@ -79,8 +78,7 @@ registerEntityType(CARD_TYPE, {
   ],
 });
 
-// A type bringing its own card renderer for the list mode; the card applies the column
-// selection to its own composition through the visible fields it receives
+// A type with its own card, which leaves out the status when that column is hidden
 const CUSTOM_CARD_TYPE = "test/CustomCardEntity";
 registerEntityType(CUSTOM_CARD_TYPE, {
   homepage: "/CustomCards",
@@ -119,7 +117,7 @@ registerEntityType(SLOTTED_TYPE, {
   ],
 });
 
-// A type with a choice column whose options carry display colors, like tag definitions do
+// A type with a choice column whose options carry colors
 const CHOICE_TYPE = "test/ChoiceEntity";
 registerEntityType(CHOICE_TYPE, {
   homepage: "/ChoiceEntities",
@@ -130,8 +128,7 @@ registerEntityType(CHOICE_TYPE, {
       headerName: "State",
       type: "singleSelect",
       valueOptions: [
-        // Filled, because the default soft styling is color-mix()/light-dark() CSS that
-        // jsdom cannot verify — chipStyle's own tests pin the soft recipes down
+        // Filled, since jsdom cannot compute the soft style's color-mix() and light-dark()
         { value: "open", label: "Open", color: "#1d6a3a", variant: "filled" },
         { value: "closed", label: "Closed" },
       ],
@@ -139,8 +136,7 @@ registerEntityType(CHOICE_TYPE, {
   ],
 });
 
-// A choice column declaring its options the other way MUI allows, as plain strings: there is no
-// label, color or variant to read off one, and the grid passes them along as declared
+// A choice column whose options are plain strings, with no label, color or variant
 const STRING_CHOICE_TYPE = "test/StringChoiceEntity";
 registerEntityType(STRING_CHOICE_TYPE, {
   homepage: "/StringChoiceEntities",
@@ -231,7 +227,7 @@ describe("EntityDataGrid", () => {
 
     render(<EntityDataGrid entityType={TREE_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
-    // Named with how many children it has, as its type words it, in the regular weight of the row
+    // The number of children, worded by countLabel, in the regular weight
     const count = await screen.findByText("(2 versions)", { exact: false });
     expect(count.closest(".MuiDataGrid-cell")).toHaveTextContent("Clinical study (2 versions)");
     expect(count).toHaveStyle({ fontWeight: 400 });
@@ -276,7 +272,7 @@ describe("EntityDataGrid", () => {
 
     expect(await screen.findByText("retired")).toBeInTheDocument();
     expect(screen.getByText("active")).toBeInTheDocument();
-    // Without a wording of its own, the bare number of children, beside what the tree names the entity
+    // Without a countLabel, the bare number of children
     expect(screen.getByText("(2)", { exact: false }).closest(".MuiDataGrid-cell"))
       .toHaveTextContent("/TreeEntities/study (2)");
   });
@@ -365,8 +361,6 @@ describe("EntityDataGrid", () => {
   });
 
   it("lists from the homepage it is given rather than the registered one", async () => {
-    // Several homepages may hold the same kind of entity — this location's workflows and the
-    // platform's own — and a grid listing one of the others is told which one
     const fetchMock = mockPage([{ "@path": "/Elsewhere/e1", title: "Borrowed entity", status: "draft" }]);
 
     render(
@@ -384,7 +378,7 @@ describe("EntityDataGrid", () => {
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
-    // The shared vocabulary for a status, rather than the developer-facing wording it replaced
+    // Worded by describeRequestFailure
     expect(await screen.findByText(/The server ran into a problem.*\(HTTP 503\)/)).toBeInTheDocument();
   });
 
@@ -420,15 +414,15 @@ describe("EntityDataGrid", () => {
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("Nothing to show");
 
-    // The search box is always visible, no trigger to expand it first.
-    // Set the value atomically: typing keystroke by keystroke races the debounced re-render
+    // The search box is always open.
+    // The value is set in one change, since typing races the grid's debounced render
     fireEvent.change(await screen.findByPlaceholderText("Search…"), { target: { value: "cardiac" } });
 
     await waitFor(() => {
       const lastUrl = new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0], "http://localhost");
-      // Terms are turned into prefix matches: the JCR full text search only matches whole words
+      // Each term becomes a prefix
       expect(lastUrl.searchParams.get("filter")).toBe("cardiac*");
-      // A new search always starts back on the first page
+      // A new search starts back on the first page
       expect(lastUrl.searchParams.get("offset")).toBe("0");
     });
 
@@ -461,12 +455,11 @@ describe("EntityDataGrid", () => {
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("Nothing to show");
 
-    // Open the filter panel; it starts with one condition on the first column (Title), using the
-    // first offered operator (contains). The trigger's badge hides while nothing is filtering.
+    // The filter panel starts with one condition, on the first column (Title) with its first
+    // operator (contains). The button's badge is hidden while nothing filters.
     const filterTrigger = screen.getAllByRole("button", { name: /filter/i })[0];
     expect(within(filterTrigger).getByText("0")).toHaveClass("MuiBadge-invisible");
     await user.click(filterTrigger);
-    // Set the value atomically: typing keystroke by keystroke races the debounced re-render
     fireEvent.change(await screen.findByPlaceholderText("Filter value"), { target: { value: "card" } });
 
     await waitFor(() => {
@@ -475,10 +468,10 @@ describe("EntityDataGrid", () => {
       expect(lastUrl.searchParams.getAll("fieldComparator")).toEqual(["ILIKE"]);
       expect(lastUrl.searchParams.getAll("fieldValue")).toEqual(["%card%"]);
     });
-    // An active column filter also counts as "searching" for the empty-state message
+    // A column filter, as well as a search, shows the message for no results
     await flushRender();
     expect(await screen.findByText("No results found")).toBeInTheDocument();
-    // The trigger now flags the active condition with a badge
+    // The button's badge counts the condition
     expect(within(filterTrigger).getByText("1")).toBeInTheDocument();
   });
 
@@ -489,12 +482,12 @@ describe("EntityDataGrid", () => {
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("Nothing to show");
 
-    // Open the filter panel and switch the condition to the date column ("is" is its default
-    // operator); the grid's date input turns the picked day into a Date object
+    // The condition moves to the date column, whose first operator is "is". The grid's date input
+    // turns the picked day into a Date.
     await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
     await user.click(await screen.findByRole("combobox", { name: "Column" }));
     await user.click(await screen.findByRole("option", { name: "Modified" }));
-    // Native date inputs are set programmatically; typing into them is unreliable in jsdom
+    // jsdom does not type reliably into a date input, so the value is set directly
     fireEvent.change(screen.getByLabelText("Value"), { target: { value: "2026-07-25" } });
 
     await waitFor(() => {
@@ -507,7 +500,7 @@ describe("EntityDataGrid", () => {
         new Date("2026-07-26T00:00:00").toISOString(),
       ]);
     });
-    // The trigger's badge counts the panel's single condition, not the expanded server triples
+    // The badge counts the one condition, not the two filters it became
     expect(within(screen.getAllByRole("button", { name: /filter/i })[0]).getByText("1")).toBeInTheDocument();
   });
 
@@ -518,7 +511,7 @@ describe("EntityDataGrid", () => {
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("First entity")).toBeInTheDocument();
-    // MUI X v9 header cells carry no accessible role in jsdom, so headers are checked by text
+    // MUI X header cells have no accessible role in jsdom, so the headers are found by their text
     expect(screen.getByText("Title")).toBeInTheDocument();
     expect(screen.queryByText("Status")).toBeNull();
     expect(screen.queryByText("draft")).toBeNull();
@@ -542,7 +535,7 @@ describe("EntityDataGrid", () => {
   });
 
   it("shows every column when the remembered selection is unreadable", async () => {
-    // Corrupted storage and valid-JSON-but-not-an-object both fall back to showing everything
+    // Text that is not JSON, and JSON that is not an object, both show every column
     window.localStorage.setItem(`iap.entityGrid.${TEST_TYPE}.columns`, "{corrupted");
     mockPage([{ "@path": "/GridEntities/e1", title: "First entity", status: "draft" }]);
     const { unmount } = render(
@@ -562,7 +555,7 @@ describe("EntityDataGrid", () => {
     render(<EntityDataGrid entityType={PLAIN_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("Nothing to show");
 
-    // No default sort: the first request is unsorted
+    // Without a default sort, the first request names none
     const firstUrl = new URL(fetchMock.mock.calls[0][0], "http://localhost");
     expect(firstUrl.searchParams.get("sortBy")).toBeNull();
     expect(firstUrl.searchParams.get("descending")).toBeNull();
@@ -577,9 +570,8 @@ describe("EntityDataGrid", () => {
 
   it("leaves rows unclickable for types that declare no row links", async () => {
     const user = userEvent.setup();
-    // The later rows exercise the row-id fallbacks: to the node name when the projection carries
-    // no path, and to the row's position when it carries neither -- two such rows must still be
-    // told apart, since the grid throws on duplicate ids and would take the widget down with it
+    // The later rows have no path, and the last two no name either, so that their ids come from the
+    // name and from their position
     mockPage([
       { "@path": "/PlainEntities/e1", title: "Plain entity" },
       { "@name": "e2", title: "Nameless entity" },
@@ -595,10 +587,10 @@ describe("EntityDataGrid", () => {
       </MemoryRouter>
     );
 
-    // Clicking a row must not navigate anywhere: the grid is still on screen afterwards
+    // The grid is still on screen after the click
     await user.click(await screen.findByText("Plain entity"));
     expect(screen.getByText("Plain entity")).toBeInTheDocument();
-    // Both identity-less rows rendered, rather than one of them colliding the grid into an error
+    // Both rows without a path or a name are shown, with no duplicate id to fail the grid
     expect(screen.getByText("Pathless entity")).toBeInTheDocument();
     expect(screen.getByText("Another pathless entity")).toBeInTheDocument();
   });
@@ -609,7 +601,6 @@ describe("EntityDataGrid", () => {
     registerEntityType(LINKLESS_TYPE, {
       homepage: "/GridEntities",
       columns: [{ field: "title", headerName: "Title" }],
-      // A link callback that can decline individual rows
       rowLink: () => undefined,
     });
     mockPage([{ "@path": "/GridEntities/e1", title: "Unlinked entity" }]);
@@ -648,12 +639,11 @@ describe("EntityDataGrid", () => {
       </MemoryRouter>
     );
 
-    // The generic card: first column as the title, the others as labeled rows
+    // The composed card: the first column as the title, the others as labeled rows
     expect(await screen.findByText("First entity")).toBeInTheDocument();
     expect(screen.getByText("Status")).toBeInTheDocument();
     expect(screen.getByText("draft")).toBeInTheDocument();
 
-    // Tapping the card navigates like clicking a row does
     await user.click(screen.getByText("First entity"));
     expect(await screen.findByText("Entity page")).toBeInTheDocument();
   });
@@ -674,18 +664,15 @@ describe("EntityDataGrid", () => {
     render(<EntityDataGrid entityType={CARD_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("Rich entity")).toBeInTheDocument();
-    // renderCell columns render through their own renderer
     expect(screen.getByText("special").tagName).toBe("EM");
-    // Plain numbers and booleans are stringified, dates from value getters are formatted
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText("true")).toBeInTheDocument();
-    // Timestamps display without seconds throughout the grids
     expect(screen.getByText(new Date("2026-07-02T10:00:00.000Z").toLocaleString(undefined, {
       year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric",
     }))).toBeInTheDocument();
-    // Nested objects have no generic rendering: the whole labeled row is skipped
+    // An object cannot be shown as text, so its labeled row is left out
     expect(screen.queryByText("Nested")).toBeNull();
-    // A column without a header falls back to its field name as the label
+    // A column without a header is labeled with its field
     expect(screen.getByText("extra")).toBeInTheDocument();
     expect(screen.getByText("loose end")).toBeInTheDocument();
   });
@@ -813,13 +800,11 @@ describe("EntityDataGrid", () => {
 
     render(<EntityDataGrid entityType={SLOTTED_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
-    // The title leads the card, with the badge beside it through the column's own renderer
     expect(await screen.findByText("Slotted entity")).toBeInTheDocument();
     expect(screen.getByText("open").tagName).toBe("EM");
-    // The caption columns join into one " • " line, compacted through their cardValue
     const day = new Date("2026-07-02T10:00:00.000Z").toLocaleDateString();
     expect(screen.getByText((_, element) => element?.textContent === `demo • ${day}`)).toBeInTheDocument();
-    // Unhinted columns stay labeled rows, omitted ones don't appear at all
+    // A column without a slot is a labeled row, and an omitted one is not shown
     expect(screen.getByText("Note")).toBeInTheDocument();
     expect(screen.getByText("a labeled row")).toBeInTheDocument();
     expect(screen.queryByText("secret")).toBeNull();
@@ -839,7 +824,7 @@ describe("EntityDataGrid", () => {
 
     render(<EntityDataGrid entityType={SLOTTED_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
-    // The hidden badge and caption columns leave the card; the remaining caption keeps its line
+    // The hidden badge and caption leave the card, and the other caption keeps its line
     expect(await screen.findByText("Slotted entity")).toBeInTheDocument();
     expect(screen.queryByText("open")).toBeNull();
     expect(screen.queryByText(/demo/)).toBeNull();
@@ -864,7 +849,7 @@ describe("EntityDataGrid", () => {
       expect(lastUrl.searchParams.get("descending")).toBeNull();
     });
 
-    // Picking the active column again flips the direction
+    // Picking the sorted column again reverses the order
     await user.click(within(toolbar).getByRole("button", { name: "Sort" }));
     await user.click(await screen.findByRole("menuitem", { name: /Modified/ }));
     await waitFor(() => {
@@ -872,7 +857,6 @@ describe("EntityDataGrid", () => {
       expect(lastUrl.searchParams.get("descending")).toBe("true");
     });
 
-    // The menu can also be dismissed without picking anything
     await user.click(within(toolbar).getByRole("button", { name: "Sort" }));
     await user.keyboard("{Escape}");
     await waitFor(() => {
@@ -886,7 +870,6 @@ describe("EntityDataGrid", () => {
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("Nothing to show");
 
-    // The column headers have their own sort buttons; the toolbar must not double up
     expect(within(screen.getByRole("toolbar")).queryByRole("button", { name: "Sort" })).toBeNull();
   });
 
@@ -895,7 +878,7 @@ describe("EntityDataGrid", () => {
       { "@path": `/GridEntities/e${index}`, "title": `Entity ${index}` }));
     const page = {
       rows, offset: 0, limit: 5, returnedrows: 5,
-      // A lower bound: the server counted 8 matches and stopped there
+      // The server counted 8 matches and stopped there
       totalrows: 8, totalIsApproximate: true,
     };
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
@@ -904,18 +887,13 @@ describe("EntityDataGrid", () => {
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("Entity 0");
 
-    // With an exact total this button could be disabled; the approximate flag keeps it live
     expect(screen.getByRole("button", { name: /next page/i })).toBeEnabled();
-    // The servlet's counted lower bound shows through the grid's own estimate wording
+    // The grid words the lower bound as an estimate
     expect(screen.getByText(/1–5 of around 8/)).toBeInTheDocument();
   });
 
-  // Sorting reorders the whole collection server-side, so where the reader was in the old order
-  // says nothing about where they want to be in the new one.
-  //
-  // The assertion is on the requests rather than on where the grid ends up: left to itself the grid
-  // reaches the first page anyway, but only after fetching page 2 of the new order and showing it,
-  // so the end state is the same either way and only the traffic tells the two apart.
+  // Left to itself, the grid also ends on the first page, after reading and showing page 2 in the
+  // new order. The test therefore counts the requests.
   it("returns to the first page when the sort order changes, in one request", async () => {
     const rows = Array.from({ length: 5 }, (unused, index) => (
       { "@path": `/GridEntities/e${index}`, "title": `Entity ${index}` }));
@@ -966,16 +944,11 @@ describe("EntityDataGrid", () => {
   });
 
   it("names its search box, so a reader is told what it searches", async () => {
-    // "Search…" is a placeholder, not a name. Without this the control announces itself identically
-    // wherever it appears, to a screen reader and to anything else that addresses the page by its
-    // accessible names.
     render(
       <EntityDataGrid entityType={TEST_TYPE} searchLabel="Search my submissions" disableVirtualization />,
       { wrapper: MemoryRouter },
     );
 
-    // A searchbox rather than a textbox: the quick filter control says so, and the role is what a reader
-    // and a locator both go by
     expect(await screen.findByRole("searchbox", { name: "Search my submissions" })).toBeInTheDocument();
   });
 
@@ -995,7 +968,7 @@ describe("EntityDataGrid", () => {
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
-    // The error is shown with its detail, but the grid and its controls stay on screen
+    // The grid and its controls stay on screen around the error
     expect(await screen.findByText(/Query parse error/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Search…")).toBeInTheDocument();
 
@@ -1019,7 +992,7 @@ describe("EntityDataGrid", () => {
     });
     unmount();
 
-    // Rejecting now must not touch the unmounted grid's state (React would warn loudly)
+    // React warns about a state update on the unmounted grid
     settlers[0](new Error("too late"));
     await flushRender();
   });
@@ -1038,13 +1011,13 @@ describe("EntityDataGrid", () => {
     } as unknown as Response);
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
-    // A second request while the first is still in flight: searching re-fetches
+    // A search sends a second request while the first is unanswered
     fireEvent.change(await screen.findByPlaceholderText("Search…"), { target: { value: "new" } });
     await waitFor(() => {
       expect(settlers.length).toBeGreaterThan(1);
     });
 
-    // The newer response lands first; the stale one afterwards must not clobber it
+    // The newer response arrives first, and the older one must not replace it
     settlers[settlers.length - 1](pageWith("Newest entity"));
     await flushRender();
     settlers[0](pageWith("Stale entity"));
@@ -1054,9 +1027,7 @@ describe("EntityDataGrid", () => {
     expect(screen.queryByText("Stale entity")).toBeNull();
   });
 
-  // The many sequential picker interactions make this the file's slowest test; under a
-  // coverage-instrumented full-suite run it can far exceed the default timeout, so it gets
-  // generous room
+  // The slowest test of the file, which a run with coverage can take far past the default timeout
   it("shows values picked in \"is any of\" as chips in their options' colors", { timeout: 60_000 }, async () => {
     const user = userEvent.setup();
     mockPage([]);
@@ -1064,35 +1035,31 @@ describe("EntityDataGrid", () => {
     render(<EntityDataGrid entityType={CHOICE_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("Nothing to show");
 
-    // Point the filter panel's condition at the choice column, with "is any of"
     await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
     await user.click(await screen.findByRole("combobox", { name: "Column" }));
     await user.click(await screen.findByRole("option", { name: "State" }));
     await user.click(screen.getByRole("combobox", { name: "Operator" }));
     await user.click(await screen.findByRole("option", { name: "is any of" }));
 
-    // Pick both options; the popup closes after each pick, so it is reopened in between
+    // The list closes after each pick, so it is opened again for the second
     await user.click(screen.getByRole("combobox", { name: "Value" }));
     await user.click(await screen.findByRole("option", { name: "Open" }));
     await user.click(screen.getByRole("combobox", { name: "Value" }));
     await user.click(await screen.findByRole("option", { name: "Closed" }));
 
-    // A colored option styles its chip per its color and variant; an option without a color
-    // stays stock outlined
+    // An option without a color keeps the stock outlined chip
     const open = screen.getByText("Open").closest(".MuiChip-root");
     expect(open).toHaveClass("MuiChip-filled");
     expect(open).toHaveStyle({ backgroundColor: "#1d6a3a", color: "#fff" });
     const closed = screen.getByText("Closed").closest(".MuiChip-root");
     expect(closed).toHaveClass("MuiChip-outlined");
 
-    // The input keeps the size the filter form asked for, so it lines up with the column and
-    // operator selects beside it rather than standing a size taller
+    // The input keeps the size the filter form gives it, the size of the selects beside it
     expect(screen.getByRole("combobox", { name: "Value" }).closest(".MuiInputBase-root"))
       .toHaveClass("MuiInputBase-sizeSmall");
   });
 
-  // A column may declare its choices as plain strings, and the grid passes an option along as it
-  // was declared: there is no label to read off it, and claiming there is leaves the chip blank.
+  // The grid passes an option as it was declared, so a plain string has no label to read
   it("labels the chips of a column whose options are plain strings", { timeout: 60_000 }, async () => {
     const user = userEvent.setup();
     mockPage([]);
@@ -1109,7 +1076,6 @@ describe("EntityDataGrid", () => {
     await user.click(screen.getByRole("combobox", { name: "Value" }));
     await user.click(await screen.findByRole("option", { name: "open" }));
 
-    // The chip carries the value as its label, the way MUI labels a plain-string option
     const chip = screen.getByText("open").closest(".MuiChip-root");
     expect(chip).toBeInTheDocument();
     expect(chip).toHaveTextContent("open");
@@ -1124,27 +1090,23 @@ describe("EntityDataGrid", () => {
     await screen.findByText("Nothing to show");
 
     await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
-    // Flush any panel render work left pending by the click, so the assertions below see the
-    // sheet even under a heavily loaded, coverage-instrumented run (see flushRender)
+    // Flushes the panel's render after the click, which a run with coverage can delay too long
     await flushRender();
 
-    // The panel is a fixed bottom sheet rather than a floating popper
     const panel = document.querySelector(".MuiDataGrid-panel");
     expect(panel).not.toBeNull();
     expect(panel).toHaveStyle({ position: "fixed" });
-    // The sheet announces itself with a header, and the condition card carries a labeled
-    // Remove button instead of the desktop layout's delete X
+    // A header, and a Remove button instead of the delete icon
     expect(await screen.findByText("Filters", {}, { timeout: 10_000 })).toBeInTheDocument();
     expect(await screen.findByRole("combobox", { name: "Column" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
 
-    // The header's own close button dismisses the sheet
     await user.click(screen.getByRole("button", { name: "Close" }));
     await waitFor(() => {
       expect(screen.queryByRole("combobox", { name: "Column" })).toBeNull();
     });
 
-    // Removing the only (still empty) condition also dismisses the sheet — stock behavior
+    // Removing the only condition closes the sheet too
     await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
     await user.click(await screen.findByRole("button", { name: "Remove" }));
     await waitFor(() => {
@@ -1161,7 +1123,6 @@ describe("EntityDataGrid", () => {
     await screen.findByText("Nothing to show");
 
     await user.click(screen.getByRole("button", { name: /columns/i }));
-    // Same flush-and-wide-timeout treatment as the filters sheet test above
     await flushRender();
 
     expect(await screen.findByText("Columns", {}, { timeout: 10_000 })).toBeInTheDocument();

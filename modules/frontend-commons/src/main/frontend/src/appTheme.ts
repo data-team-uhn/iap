@@ -20,19 +20,16 @@ import type { CSSProperties } from 'react';
 
 import { createTheme, lighten, type Breakpoint } from '@mui/material/styles';
 
-// Fallbacks matching the QuorumPath brand; deployments configure their own colours through
-// /libs/iap/conf/ThemeColor, which reaches the page as these meta tags
-// An explicitly empty content attribute should fall back to the default too, not just a missing
-// meta tag, so `||` (not `??`) is intentional here.
+// The brand colours. A deployment configures them in /libs/iap/conf/ThemeColor, which reaches the
+// page as these meta tags, and the fallbacks are QuorumPath's. An empty `content` falls back as well
+// as a missing tag, so this is `||`, not `??`.
 // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 const primaryColor = document.querySelector<HTMLMetaElement>('meta[name="primaryColor"]')?.content || "#192958";
 // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 const secondaryColor = document.querySelector<HTMLMetaElement>('meta[name="secondaryColor"]')?.content || "#A3213F";
 
-// The dimensions of the page shell (see PageLayout in the homepage module), read from the theme
-// so they are configured here, alongside the rest of the styling.
-// Each frame region is configured independently — e.g. a navigation-like start rail can stick
-// around on narrower screens than a nice-to-have end rail.
+// The sizes of the page shell's frame regions, kept in the theme with the rest of the styling. Each
+// region has its own settings, so the start rail can stay on narrower screens than the end rail.
 interface RailConfig {
   // The inline size (width) of the rail, in px.
   width: number;
@@ -60,19 +57,18 @@ declare module "@mui/material/styles" {
   interface ThemeOptions {
     iapShell?: Partial<IapShellConfig>;
   }
-  // Backgrounds besides `default` and `paper`: `muted` is a subtly tinted static surface for page
-  // regions that should read as "background, but set apart"; `tinted` is paper with some of the
-  // primary colour mixed in, for surfaces that carry the brand quietly (the frame bars, emphasised
-  // widgets); `tintedStrong` has more of it, for a tinted surface being pointed at.
+  // Backgrounds besides `default` and `paper`. `muted` is a translucent gray, for a region set apart
+  // from what surrounds it. `tinted` is paper with some of the primary colour mixed in, as the frame
+  // bars and an emphasised widget have. `tintedStrong` has more of the primary colour.
   interface TypeBackground {
     muted: string;
     tinted: string;
     tintedStrong: string;
   }
-  // The colours a comparison of two snapshots of content marks added or removed content with. `main` is for its
-  // markers, `line` for the background of a changed line, and `word` for the stronger shade of the words that changed
-  // within it. Moved content has only `main` and `line`. So has `hunk`, for the band that stands in for unchanged
-  // content left out.
+  // The colours a comparison of two snapshots of content marks added and removed content with. `main`
+  // is for the markers, `line` the background of a changed line, and `word` the stronger shade of the
+  // words that changed in it. Moved content has no `word`. Nor has `hunk`, the band that stands in for
+  // unchanged content left out.
   interface DiffColors {
     main: string;
     line: string;
@@ -88,10 +84,9 @@ declare module "@mui/material/styles" {
     condition?: { main: string; surface: string };
     diff?: { added: DiffColors; removed: DiffColors; moved: Omit<DiffColors, "word">; hunk: Omit<DiffColors, "word"> };
   }
-  // The custom text roles of the app (see the typography section below): `pageTitle` is the main
-  // title of a screen, `subheading` a muted heading introducing a run of content within it,
-  // `description` is secondary explanatory prose, and `placeholder` stands in where content is
-  // missing. `code` is an identifier or a path.
+  // The custom text roles. `pageTitle` is the main title of a screen, and `subheading` a muted heading
+  // that introduces a part of it. `description` is secondary prose that explains, and `placeholder`
+  // stands in for missing content. `code` is an identifier or a path.
   interface TypographyVariants {
     pageTitle: CSSProperties;
     subheading: CSSProperties;
@@ -118,23 +113,18 @@ declare module "@mui/material/Typography" {
   }
 }
 
-// The application theme, and the single home for styling. Colours, the light/dark colour schemes,
-// and component defaults all live here, so the rest of the app doesn't have to hand-roll its own
-// styles (and keep them in sync) to stay consistent. Prefer extending this theme over reaching for
-// ad-hoc `sx`/`styled` in components.
+// The application theme: the colours, the light and dark colour schemes, and the component defaults.
+// Extend it rather than styling a component with `sx` or `styled`, so that the app stays consistent.
 //
-// Light and dark are both first-class MUI colour schemes (CSS variables). The active scheme follows
-// the user's system preference by default (see the ThemeProvider `defaultMode="system"` at each
-// entry point) and can be switched at runtime via MUI's `useColorScheme()`.
-// Headings carry the brand's primary colour. Referencing the palette through its CSS variable
-// (rather than the raw colour) keeps them scheme-aware: the dark scheme's lightened primary
-// applies automatically when the scheme switches.
+// Light and dark are both MUI colour schemes, with CSS variables. A ThemeProvider given
+// `defaultMode="system"` follows the system preference, and `useColorScheme()` switches the scheme.
+
+// Headings carry the brand's primary colour. The CSS variable follows the colour scheme, where the raw
+// colour would not, so the dark scheme's lighter primary applies when the scheme switches.
 const headingColor = "var(--mui-palette-primary-main)";
 
-// The colour of de-emphasized text, referenced through its CSS variable for the same
-// scheme-awareness as the headings above. It is baked into the variants below rather than
-// restated as `color="textSecondary"` at every call site, so "how muted text looks" stays a
-// single theme decision.
+// The colour of muted text, as a CSS variable so that it follows the colour scheme. The variants
+// below carry it, so that no call site sets it.
 const mutedColor = "var(--mui-palette-text-secondary)";
 
 // Mixed from the scheme's own CSS variables, so the same definition serves both colour schemes.
@@ -142,14 +132,13 @@ const TINTED_SURFACE = "color-mix(in srgb, var(--mui-palette-primary-main) 16%, 
 const STRONGLY_TINTED_SURFACE =
   "color-mix(in srgb, var(--mui-palette-primary-main) 28%, var(--mui-palette-background-paper))";
 
-// A default theme, used only to read MUI's standard typography metrics when deriving the custom
-// variants below, so they don't hardcode (and drift from) the library's values.
+// MUI's default typography, which the custom variants below start from.
 const baseTypography = createTheme().typography;
 
 const appTheme = createTheme({
-  // A class-based selector (rather than the default `media`) is what lets `useColorScheme()`
-  // switch the scheme at runtime — MUI toggles a `light`/`dark` class on the root element. With
-  // `media` the scheme would only follow the OS preference and the toggle would do nothing.
+  // A class selector lets `useColorScheme()` switch the scheme at runtime, by setting a `light` or
+  // `dark` class on the root element. With the default `media` selector, the scheme follows only the
+  // system preference.
   cssVariables: {
     colorSchemeSelector: "class",
   },
@@ -160,34 +149,31 @@ const appTheme = createTheme({
     h4: { color: headingColor },
     h5: { color: headingColor },
     h6: { color: headingColor },
-    // The main title of a screen: h4-sized (the h1-h3 styles are outsized for an app page title)
-    // but bold, and rendered as a semantic <h1> (see the MuiTypography variant mapping below).
-    // Use it as `<Typography variant="pageTitle">` for the one top-level heading of any view.
+    // The one top-level heading of a screen, as `<Typography variant="pageTitle">`. It has h4's size
+    // in bold, and renders as an `<h1>`.
     pageTitle: {
       ...baseTypography.h4,
       fontWeight: baseTypography.fontWeightBold,
       color: headingColor,
     },
-    // A heading that organizes a screen rather than titling content, e.g. the title of a group of
-    // dashboard widgets. Rendered as a semantic <h2> (see the variant mapping below).
+    // A heading that divides a screen, such as the title of a group of dashboard widgets. It renders
+    // as an `<h2>`.
     subheading: {
       ...baseTypography.overline,
       color: mutedColor,
     },
-    // The small-print variants are always de-emphasized in this app — field labels, metadata
-    // lines, eyebrow headings — so the muted colour is part of the variant, not the call sites.
+    // Small print, such as field labels and metadata lines, is always muted.
     caption: { color: mutedColor },
     overline: { color: mutedColor },
-    // Secondary prose explaining what is on screen: the sentence under a section title, an item's
+    // Secondary prose about what is on screen: the sentence under a section title, an item's
     // description, a hint, an attribution line.
     description: {
       ...baseTypography.body2,
       color: mutedColor,
     },
-    // Muted text standing in where content would be: an empty list ("No reviews yet"), a missing
-    // value ("Not answered yet"), content the user is not allowed to see. Styled like
-    // `description` today, but a separate role on purpose: either can be retuned (say, italic
-    // placeholders) without dragging the other along.
+    // Muted text that stands in for missing content, such as an empty list ("No categories are
+    // defined yet.") or content the user may not see. It looks like `description`, but is a separate
+    // role, so either can change alone.
     placeholder: {
       ...baseTypography.body2,
       color: mutedColor,
@@ -198,16 +184,13 @@ const appTheme = createTheme({
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
       color: mutedColor,
     },
-    // No shouting buttons; set at the typography level (not as a MuiButton override) so
-    // anything else using the button type style — e.g. Typography variant="button" labels —
-    // matches the real buttons
+    // Button labels keep their own casing. This is set on the typography rather than on MuiButton,
+    // so that a `Typography variant="button"` matches the buttons.
     button: {
       textTransform: "none",
     },
   },
   iapShell: {
-    // The start rail hosts the more important (navigation-like) content, so it stays in the
-    // page flow on narrower screens than the auxiliary end rail.
     frameStart: { width: 200, collapseWidth: "md" },
     frameEnd: { width: 200, collapseWidth: "xl" },
     frameTop: { collapseHeight: 500 },
@@ -220,8 +203,8 @@ const appTheme = createTheme({
         secondary: { main: secondaryColor },
         // Shifted toward orange, so that errors do not read as the red brand secondary
         error: { main: "#C8471E" },
-        // A gray canvas, so that paper surfaces stand out against it. Muted is translucent, so it
-        // composes with whatever it overlaps
+        // A gray canvas, against which paper stands out. `muted` is translucent, so it shades
+        // whatever it lies on
         background: {
           default: "#ebedf0",
           paper: "#ffffff",
@@ -240,12 +223,10 @@ const appTheme = createTheme({
     },
     dark: {
       palette: {
-        // The brand primary is typically dark (tuned for light surfaces); lighten it so it stays
-        // legible on the dark scheme's dark surfaces.
+        // The brand colours are tuned for light surfaces, and are lightened to stay legible on dark ones
         primary: { main: lighten(primaryColor, 0.6) },
-        // Likewise, the brand secondary is too dark to stay legible on dark surfaces.
         secondary: { main: lighten(secondaryColor, 0.35) },
-        // Still a clear red, but lighter than the default so it holds up on dark surfaces
+        // A lighter red, legible on dark surfaces
         error: { main: "#EE5F55" },
         background: {
           default: "#101010",
@@ -265,8 +246,7 @@ const appTheme = createTheme({
     },
   },
   components: {
-    // Outlined by default across the app — a flatter, more intentional surface than the elevated
-    // default. Widgets and other cards inherit this automatically.
+    // Paper is outlined, not elevated
     MuiPaper: {
       defaultProps: {
         variant: "outlined",
@@ -278,8 +258,8 @@ const appTheme = createTheme({
         root: ({ theme }) => ({ backgroundColor: theme.vars.palette.background.paper }),
       },
     },
-    // Custom variants map to their proper document-outline element; the built-in variants keep
-    // their default mapping (Typography falls back to it per variant).
+    // The elements the custom variants render as. A variant missing here, such as `body1`, keeps
+    // MUI's own mapping.
     MuiTypography: {
       defaultProps: {
         variantMapping: {
@@ -291,8 +271,8 @@ const appTheme = createTheme({
         },
       },
     },
-    // Space Stack children with the CSS gap property instead of the default margin takeover,
-    // which overwrites children's own margins and misbehaves with flexWrap
+    // A Stack spaces its children with the CSS `gap`. The default sets margins on the children, which
+    // overrides their own margins and breaks with `flexWrap`.
     MuiStack: {
       defaultProps: {
         useFlexGap: true,
@@ -302,13 +282,12 @@ const appTheme = createTheme({
       defaultProps: {
         disableElevation: true,
         variant: "outlined",
-        // Nearly every button in the app wants to be small; the few that should stand out
-        // (like a page's main call to action) can ask for their size explicitly
+        // A button that should stand out, such as a page's main action, asks for its size
         size: "small",
         // The label stays beside the spinner
         loadingPosition: "start",
       },
-      // Button inherits its casing (and the rest of its font) from typography.button above
+      // The casing comes from `typography.button` above
     },
   },
 });

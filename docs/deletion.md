@@ -313,6 +313,6 @@ The lookup reads the archive through the `iap-deletion` service user's session:
   `deletedAt` and no link.
 - **Anybody else** gets the plain "not found" page.
 
-The client half is `PageNotFound`, in `frontend-commons`. It renders what the entry
-point read off the container, and knows nothing about deletion beyond those three
-attributes. A page carrying none of them is the plain "not found".
+The client half is `PageNotFound`, in `frontend-commons`. The `404` entry point passes
+it the three attributes off the page, and it knows nothing else about deletion. Without
+`data-deleted-at`, it shows the plain "not found" page.

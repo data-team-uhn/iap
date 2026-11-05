@@ -18,7 +18,7 @@
 
 import { useMediaQuery, useTheme } from "@mui/material";
 
-// Whether the screen is as narrow as a phone's, where layouts give up columns for width
+// Whether the screen is as narrow as a phone's, below the theme's `sm` breakpoint
 export function usePhone() {
   return useMediaQuery(useTheme().breakpoints.down("sm"));
 }
