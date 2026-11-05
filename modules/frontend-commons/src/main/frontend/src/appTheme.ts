@@ -18,7 +18,14 @@
 
 import type { CSSProperties } from 'react';
 
-import { createTheme, lighten, type Breakpoint } from '@mui/material/styles';
+import {
+  alpha,
+  createTheme,
+  lighten,
+  type Breakpoint,
+  type PaletteColor,
+  type PaletteColorOptions,
+} from '@mui/material/styles';
 
 // Fallbacks matching the QuorumPath brand; deployments configure their own colours through
 // /libs/iap/conf/ThemeColor, which reaches the page as these meta tags
@@ -78,15 +85,29 @@ declare module "@mui/material/styles" {
     line: string;
     word: string;
   }
+  // `assistant` colours whatever an AI assistant contributed. `annotation` colours what a person marked.
+  // `highlight` holds the marks both make over a document's content.
+  interface TypeHighlight {
+    assistant: string;
+    assistantCurrent: string;
+    annotation: string;
+    annotationCurrent: string;
+  }
   // The colours of content that applies only under a condition: `main` for its icon, `surface` behind the line
   // saying when it applies
   interface Palette {
     condition: { main: string; surface: string };
     diff: { added: DiffColors; removed: DiffColors; moved: Omit<DiffColors, "word">; hunk: Omit<DiffColors, "word"> };
+    assistant: PaletteColor;
+    annotation: PaletteColor;
+    highlight: TypeHighlight;
   }
   interface PaletteOptions {
     condition?: { main: string; surface: string };
     diff?: { added: DiffColors; removed: DiffColors; moved: Omit<DiffColors, "word">; hunk: Omit<DiffColors, "word"> };
+    assistant?: PaletteColorOptions;
+    annotation?: PaletteColorOptions;
+    highlight?: TypeHighlight;
   }
   // The custom text roles of the app (see the typography section below): `pageTitle` is the main
   // title of a screen, `subheading` a muted heading introducing a run of content within it,
@@ -105,6 +126,34 @@ declare module "@mui/material/styles" {
     description?: CSSProperties;
     placeholder?: CSSProperties;
     code?: CSSProperties;
+  }
+}
+
+declare module "@mui/material/Button" {
+  interface ButtonPropsColorOverrides {
+    assistant: true;
+    annotation: true;
+  }
+}
+
+declare module "@mui/material/Chip" {
+  interface ChipPropsColorOverrides {
+    assistant: true;
+    annotation: true;
+  }
+}
+
+declare module "@mui/material/IconButton" {
+  interface IconButtonPropsColorOverrides {
+    assistant: true;
+    annotation: true;
+  }
+}
+
+declare module "@mui/material/SvgIcon" {
+  interface SvgIconPropsColorOverrides {
+    assistant: true;
+    annotation: true;
   }
 }
 
@@ -141,6 +190,40 @@ const mutedColor = "var(--mui-palette-text-secondary)";
 const TINTED_SURFACE = "color-mix(in srgb, var(--mui-palette-primary-main) 16%, var(--mui-palette-background-paper))";
 const STRONGLY_TINTED_SURFACE =
   "color-mix(in srgb, var(--mui-palette-primary-main) 28%, var(--mui-palette-background-paper))";
+
+// Both accents are too pale to read as text or an icon on a light surface. The light scheme writes
+// with a darker shade and keeps the accent itself for fills.
+const LILAC = "#C58BBD";
+const SOFT_YELLOW = "#F6D96B";
+
+const ASSISTANT_LIGHT: PaletteColorOptions = { main: "#8A6184", light: LILAC, dark: "#6C4C68", contrastText: "#fff" };
+const ASSISTANT_DARK: PaletteColorOptions = {
+  main: LILAC,
+  light: lighten(LILAC, 0.3),
+  dark: "#8A6184",
+  contrastText: "rgba(0, 0, 0, 0.87)",
+};
+const ANNOTATION_LIGHT: PaletteColorOptions = {
+  main: "#866A00",
+  light: SOFT_YELLOW,
+  dark: "#5E4A00",
+  contrastText: "#fff",
+};
+const ANNOTATION_DARK: PaletteColorOptions = {
+  main: SOFT_YELLOW,
+  light: lighten(SOFT_YELLOW, 0.3),
+  dark: "#C9A93E",
+  contrastText: "rgba(0, 0, 0, 0.87)",
+};
+
+// Marks over a document's own content. That content stays light in both schemes, so the marks do not
+// change with the scheme. The current mark is the one in focus, such as the match a search moved to.
+const HIGHLIGHT = {
+  assistant: alpha(LILAC, 0.4),
+  assistantCurrent: alpha(LILAC, 0.65),
+  annotation: alpha(SOFT_YELLOW, 0.55),
+  annotationCurrent: alpha(SOFT_YELLOW, 0.85),
+};
 
 // A default theme, used only to read MUI's standard typography metrics when deriving the custom
 // variants below, so they don't hardcode (and drift from) the library's values.
@@ -220,6 +303,9 @@ const appTheme = createTheme({
         secondary: { main: secondaryColor },
         // Shifted toward orange, so that errors do not read as the red brand secondary
         error: { main: "#C8471E" },
+        assistant: ASSISTANT_LIGHT,
+        annotation: ANNOTATION_LIGHT,
+        highlight: HIGHLIGHT,
         // A gray canvas, so that paper surfaces stand out against it. Muted is translucent, so it
         // composes with whatever it overlaps
         background: {
@@ -247,6 +333,9 @@ const appTheme = createTheme({
         secondary: { main: lighten(secondaryColor, 0.35) },
         // Still a clear red, but lighter than the default so it holds up on dark surfaces
         error: { main: "#EE5F55" },
+        assistant: ASSISTANT_DARK,
+        annotation: ANNOTATION_DARK,
+        highlight: HIGHLIGHT,
         background: {
           default: "#101010",
           paper: "#1a1a1a",
@@ -265,6 +354,14 @@ const appTheme = createTheme({
     },
   },
   components: {
+    // A stylesheet loaded later may set a color-scheme on :root, as PDF.js's does. These rules outrank
+    // it, so native controls and light-dark() colours keep following the app's scheme.
+    MuiCssBaseline: {
+      styleOverrides: {
+        "html.light": { colorScheme: "light" },
+        "html.dark": { colorScheme: "dark" },
+      },
+    },
     // Outlined by default across the app — a flatter, more intentional surface than the elevated
     // default. Widgets and other cards inherit this automatically.
     MuiPaper: {
