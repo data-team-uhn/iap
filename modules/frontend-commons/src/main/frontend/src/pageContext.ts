@@ -27,6 +27,9 @@ export interface PageContext {
   details?: string;
   badges?: ReactNode;
   end?: ReactNode;
+  // Tools for the page, such as its search, shown at the bar's far end on wide screens; the page shows them
+  // itself on narrower ones
+  tools?: ReactNode;
 }
 
 // Kept on `window`, like the page crumbs, so the page and the bar share it whichever bundles they were loaded from.

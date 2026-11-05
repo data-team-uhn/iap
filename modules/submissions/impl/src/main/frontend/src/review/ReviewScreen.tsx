@@ -18,13 +18,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import {
   Box,
   Button,
   Chip,
-  ClickAwayListener,
-  InputAdornment,
   List,
   ListItemButton,
   ListItemText,
@@ -41,7 +38,7 @@ import {
 
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import { type PageContext, usePublishedPageContext } from "@iap/frontend-commons/pageContext";
+import { usePublishedPageContext } from "@iap/frontend-commons/pageContext";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import TagChip from "@iap/tags/TagChip";
 
@@ -65,6 +62,7 @@ import { writeComment } from "./reviewApi";
 import { isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, type NoteKind, type ReviewData,
   type ReviewGroup, type ReviewNote } from "./reviewData";
 import { documentText, searchAnswers, searchPages, type Hit } from "./searchSubmission";
+import SubmissionSearch from "./SubmissionSearch";
 import { useCurrentUser } from "./useCurrentUser";
 
 type Node = Record<string, unknown>;
@@ -209,16 +207,6 @@ export default function ReviewScreen({ path }: { path: string }) {
     return document ? notesAbout(data.notes, [ document.uuid, document.version ]).filter(note => note.passage) : [];
   }, [ data, whole, minePart ]);
 
-  // The submission's title and where it stands, in the app bar, in view however far the reviewer scrolls
-  const header = loaded?.submission;
-  const context: PageContext | undefined = useMemo(() => header && {
-    title: text(header.title),
-    short: text(header.identifier),
-    details: `${text(header.identifier)} · ${text(header.pi)}`,
-    badges: <><TagChip tags={header.tags} category="lifecycle" /><TagChip tags={header.tags} category="priority" /></>,
-    end: <Countdown due={header.reviewDue} pausedAt={header.reviewPausedAt} />,
-  }, [ header ]);
-  usePublishedPageContext(context);
 
   const actions: ReviewActions = useMemo(() => ({
     write: async fields => {
@@ -288,6 +276,32 @@ export default function ReviewScreen({ path }: { path: string }) {
     };
   }, [ terms, data, requirements, doFetch ]);
   const hits = searching && terms.length >= 3 && found?.terms === terms ? found.hits : undefined;
+
+  const search = (inBar: boolean) => (
+    <SubmissionSearch
+      query={query} hits={hits} inBar={inBar} onQuery={setQuery}
+      onOpen={() => setSearching(true)} onClose={() => setSearching(false)}
+      onPick={hit => {
+        setSearching(false);
+        go(hit.requirement, { question: hit.question, page: hit.page });
+        if (hit.question && !minePart(hit.question)) {
+          setWhole(true);
+        }
+      }}
+    />
+  );
+
+  // The submission's title and where it stands, in the app bar, in view however far the reviewer scrolls, with the
+  // search beside them on wide screens
+  const header = loaded?.submission;
+  usePublishedPageContext(header && {
+    title: text(header.title),
+    short: text(header.identifier),
+    details: `${text(header.identifier)} · ${text(header.pi)}`,
+    badges: <><TagChip tags={header.tags} category="lifecycle" /><TagChip tags={header.tags} category="priority" /></>,
+    end: <Countdown due={header.reviewDue} pausedAt={header.reviewPausedAt} />,
+    tools: search(true),
+  });
 
   // What an issue is about, as the study team would recognize it: the question or the document
   const about = (note: ReviewNote): string => {
@@ -373,44 +387,7 @@ export default function ReviewScreen({ path }: { path: string }) {
         <Countdown due={submission.reviewDue} pausedAt={submission.reviewPausedAt} />
       </Box>
       <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1, alignItems: { sm: "center" } }}>
-        <ClickAwayListener onClickAway={() => setSearching(false)}>
-          <Box sx={{ position: "relative", width: { xs: "100%", sm: 380 } }}>
-            <TextField
-              fullWidth size="small" value={query} placeholder="Search the answers and documents"
-              onChange={event => {
-                setQuery(event.target.value);
-                setSearching(true);
-              }}
-              onFocus={() => setSearching(true)}
-              slotProps={{
-                input: { startAdornment: <InputAdornment position="start"><SearchOutlined /></InputAdornment> },
-                htmlInput: { "aria-label": "Search the submission" },
-              }}
-            />
-            {hits && (
-              <Paper elevation={8} sx={{ position: "absolute", zIndex: "modal", left: 0, right: 0, mt: 0.5,
-                maxHeight: 420, overflowY: "auto" }}>
-                {hits.length === 0 && <Typography sx={{ p: 2 }} variant="body2">Nothing found yet</Typography>}
-                <List dense>
-                  {hits.map(hit => (
-                    <ListItemButton
-                      key={`${hit.requirement}-${hit.question ?? hit.page ?? ""}`}
-                      onClick={() => {
-                        setSearching(false);
-                        go(hit.requirement, { question: hit.question, page: hit.page });
-                        if (hit.question && !minePart(hit.question)) {
-                          setWhole(true);
-                        }
-                      }}
-                    >
-                      <ListItemText primary={hit.where} secondary={hit.snippet} />
-                    </ListItemButton>
-                  ))}
-                </List>
-              </Paper>
-            )}
-          </Box>
-        </ClickAwayListener>
+        <Box sx={{ display: { md: "none" } }}>{search(false)}</Box>
         {myGroups.includes("reb-reviewers") && (
           <Stack direction="row" spacing={1} sx={{ ml: { sm: "auto" } }}>
             <Button size="small" variant="outlined" onClick={() => setDialog("board")}>Escalate to the board</Button>
