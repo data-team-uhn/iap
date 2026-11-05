@@ -30,7 +30,7 @@ const SOON = 3;
 export default function Countdown({ due, pausedAt, variant = "body2" }: {
   due: unknown;
   pausedAt: unknown;
-  variant?: "body2" | "subtitle1";
+  variant?: "body2" | "subtitle1" | "caption";
 }) {
   const countdown = getCountdown(due, pausedAt);
   if (!countdown) {
@@ -43,8 +43,12 @@ export default function Countdown({ due, pausedAt, variant = "body2" }: {
   return (
     // On the text's baseline, so it lines up with text beside it; the icon centred on the text
     <Stack direction="row" sx={{ alignItems: "baseline", gap: 0.75, color }}>
-      <Icon fontSize="small" sx={{ alignSelf: "center" }} />
-      <Typography variant={variant} sx={{ color, fontWeight: overdue ? "fontWeightBold" : undefined, whiteSpace: "nowrap" }}>
+      <Icon fontSize="small" sx={{ alignSelf: "center", fontSize: variant === "caption" ? "1rem" : undefined }} />
+      <Typography
+        variant={variant}
+        sx={{ color, fontWeight: overdue ? "fontWeightBold" : variant === "caption" ? "fontWeightMedium" : undefined,
+          whiteSpace: "nowrap" }}
+      >
         {countdown.label}
       </Typography>
     </Stack>

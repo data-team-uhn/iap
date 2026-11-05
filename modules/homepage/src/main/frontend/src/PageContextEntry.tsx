@@ -42,7 +42,7 @@ function PageContextEntry() {
           {context.short}
         </Typography>
       )}
-      <Stack direction="row" sx={{ flex: "0 1 auto", minWidth: 0, alignItems: "baseline", gap: 2, ml: 2,
+      <Stack direction="row" sx={{ flex: "0 1 auto", minWidth: 0, alignItems: "center", gap: 2, ml: 2,
         display: { xs: "none", sm: "flex" } }}>
         <Box sx={{ minWidth: 0 }}>
           <Stack direction="row" sx={{ alignItems: "center", gap: 1, minWidth: 0 }}>
@@ -57,15 +57,17 @@ function PageContextEntry() {
             </Tooltip>
             <Box sx={{ display: { xs: "none", md: "flex" }, gap: 0.5, flexShrink: 0 }}>{context.badges}</Box>
           </Stack>
-          <Typography
-            variant="caption"
-            sx={{ display: "block", color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis",
-              whiteSpace: "nowrap" }}
-          >
-            {context.details}
-          </Typography>
+          <Stack direction="row" sx={{ alignItems: "baseline", gap: 1, minWidth: 0 }}>
+            <Typography
+              variant="caption"
+              sx={{ color: "text.secondary", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis",
+                whiteSpace: "nowrap" }}
+            >
+              {context.details}
+            </Typography>
+            {context.end && <Box sx={{ flexShrink: 0 }}>{context.end}</Box>}
+          </Stack>
         </Box>
-        {context.end && <Box sx={{ flexShrink: 0 }}>{context.end}</Box>}
       </Stack>
     </>
   );
