@@ -28,6 +28,7 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.internal.EngineFixture;
@@ -105,6 +106,18 @@ class RemoveTagHandlerTest
      * @param variables the execution's variables
      * @return the assembled context
      */
+    @Test
+    void namesTheChangeByTheTagForTheHistory() throws Exception
+    {
+        final WorkflowTaskContext untagging = Mockito.spy(context(Map.of("tag", "draft"), new HashMap<>()));
+
+        this.handler.execute(untagging);
+
+        Mockito.verify(untagging).recordRole(
+            Mockito.argThat(resource -> this.target.getPath().equals(resource.getPath())),
+            Mockito.eq("untagged as draft"));
+    }
+
     private WorkflowTaskContext context(final Map<String, Object> configuration,
         final Map<String, Object> variables)
     {

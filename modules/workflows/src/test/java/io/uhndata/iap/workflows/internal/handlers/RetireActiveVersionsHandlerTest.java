@@ -28,6 +28,7 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -87,6 +88,21 @@ class RetireActiveVersionsHandlerTest
         assertEquals(Set.of("draft"), this.tagsOf("2-0"));
         assertArrayEquals(new String[] { AuthoringFixture.path("1-0") },
             (String[]) variables.get(RetireActiveVersionsHandler.RETIRED_VERSIONS_VARIABLE));
+    }
+
+    @Test
+    void namesEachVersionItRetiredForTheHistory() throws WorkflowException, PersistenceException
+    {
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "active", Map.of());
+        AuthoringFixture.createVersion(this.context, "2-0", "2.0", "draft", Map.of());
+        final WorkflowTaskContext retiring = Mockito.spy(this.retireFor("2-0", new HashMap<>()));
+
+        this.handler.execute(retiring);
+
+        Mockito.verify(retiring).recordRole(
+            Mockito.argThat(resource -> AuthoringFixture.path("1-0").equals(resource.getPath())),
+            Mockito.eq("retired"));
+        Mockito.verify(retiring, Mockito.times(1)).recordRole(Mockito.any(), Mockito.anyString());
     }
 
     @Test
