@@ -548,7 +548,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                 </Tooltip>
               )}
             </Stack>
-            {narrow ? rail : <PanelBody follow={current?.name}>{rail}</PanelBody>}
+            {narrow ? rail : <PanelBody follow={current?.name} noScrollbar>{rail}</PanelBody>}
           </Paper>
         ) : (
           // Folded, it still says what it is
