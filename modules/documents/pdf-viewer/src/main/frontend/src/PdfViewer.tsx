@@ -42,6 +42,7 @@ import {
   getWidestHeadings,
   nameMarks,
   PASSAGES,
+  type DocumentSearch,
   type MarkName,
 } from "./pdfViewerModel";
 import { PlainViewer } from "./plainViewer";
@@ -97,6 +98,11 @@ export interface PdfViewerProps {
   // PRETOTYPE: shown plain, in a page that already names the document: without the title row and its buttons, and
   // on the page's own surface
   plain?: boolean;
+  // PRETOTYPE: searched from outside, by a search covering more than this document, instead of its own search
+  // field. A new query is looked for from the page shown; each new step goes to the next match, or the previous
+  // one. What the search finds is told back.
+  search?: { query: string; step: number; previous: boolean };
+  onSearch?: (search: DocumentSearch) => void;
   // An element for the viewer to fill, with a button to pop it out into a dialog. The element needs a
   // height of its own. Without a container, the viewer opens in a dialog. Null, as a ref is before
   // React attaches it, shows nothing until the element is there.
@@ -175,6 +181,26 @@ function PdfViewerSession(props: PdfViewerProps) {
       }
     },
   });
+  // PRETOTYPE: a search from outside, once the document is open
+  const outside = props.search;
+  const { onSearch } = props;
+  const opened = view.pageCount !== undefined;
+  const { find: findHere, findAgain: findHereAgain, search: foundHere } = view;
+  useEffect(() => {
+    if (opened && outside !== undefined) {
+      findHere(outside.query);
+    }
+  }, [ opened, outside?.query, findHere ]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stepped = useRef(outside?.step ?? 0);
+  useEffect(() => {
+    if (outside !== undefined && outside.step !== stepped.current) {
+      stepped.current = outside.step;
+      findHereAgain(outside.previous);
+    }
+  }, [ outside?.step, outside?.previous, findHereAgain ]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    onSearch?.(foundHere);
+  }, [ foundHere, onSearch ]);
   const olderView = usePdfView(comparing?.older.pdf, {
     page: undefined,
     marks: olderMarks,
@@ -323,6 +349,7 @@ function PdfViewerSession(props: PdfViewerProps) {
             ? undefined
             : { ...comparing, olderView: olderShownView, olderLabel: compareWith?.label, newerLabel: props.label }}
           placeButton={placeButton}
+          searchedOutside={outside !== undefined}
           edgeToEdge={inDialog}
           onClose={onClose}
         />
@@ -366,6 +393,8 @@ interface ViewerBodyProps {
   changeIds: Set<string>;
   // Moves the viewer between its container and the dialog, when it has a container.
   placeButton: ReactNode;
+  // PRETOTYPE: searched from outside, so without a search field of its own
+  searchedOutside: boolean;
   // In the dialog on a phone, the document spans the full screen width, past the dialog's padding.
   edgeToEdge: boolean;
   onClose: () => void;
@@ -375,7 +404,7 @@ function ViewerBody(props: ViewerBodyProps) {
   const { titleId, title, marks, markName, places, pagesRead, selectedId, onSelect, openError, onRetry, view } = props;
   const { renderMarkDetails, selectedText, onAnnotate, comparison, placeButton, edgeToEdge, onClose } = props;
   const plain = useContext(PlainViewer);
-  const { changeIds } = props;
+  const { changeIds, searchedOutside } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   const { search, find, findAgain } = view;
   const [body, setBody] = useState<HTMLElement | null>(null);
@@ -582,6 +611,7 @@ function ViewerBody(props: ViewerBodyProps) {
             pages={split ? undefined : <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}
             opened={pageCount !== undefined}
             search={search}
+            noSearchField={searchedOutside}
             onFind={find}
             onFindAgain={findAgain}
             onZoomIn={zoomIn}

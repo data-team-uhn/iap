@@ -22,6 +22,7 @@ import { Box } from "@mui/material";
 
 import type { Mark, TextAnchor } from "@iap/frontend-commons/pdfViewer/marksModel";
 import PdfViewer from "@iap/frontend-commons/pdfViewer/PdfViewer";
+import type { DocumentSearch } from "@iap/frontend-commons/pdfViewer/pdfViewerModel";
 
 import { toFileUrl } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
@@ -36,7 +37,7 @@ const DRAFT = "draft";
 // answers, what its pre-review raised, the reviewers' issues and discussion, and the reviewer's own notes.
 // Selecting a passage offers to write about it.
 export default function DocumentReview({ document, data, shown, selected, onSelect, page, actions, questionLabel,
-  onClose }: {
+  search, onSearch, onClose }: {
   document: ReviewedDocument;
   data: ReviewData;
   shown: Set<NoteKind>;
@@ -46,6 +47,9 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   actions: ReviewActions;
   // The question an extracted answer answers, and the answer as its options call it
   questionLabel: (question: string | undefined, extracted: string | undefined) => { text: string; answer?: string };
+  // The submission search, which finds in the document instead of its own search field
+  search: { query: string; step: number; previous: boolean };
+  onSearch: (search: DocumentSearch) => void;
   onClose: () => void;
 }) {
   const [ place, setPlace ] = useState<HTMLElement | null>(null);
@@ -118,6 +122,8 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         }}
         renderMarkDetails={renderMarkDetails}
         container={place}
+        search={search}
+        onSearch={onSearch}
         plain
         onClose={onClose}
       />

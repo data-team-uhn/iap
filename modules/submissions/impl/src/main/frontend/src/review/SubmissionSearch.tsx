@@ -16,63 +16,78 @@
  * limitations under the License.
  */
 
+import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
+import KeyboardArrowUpOutlined from "@mui/icons-material/KeyboardArrowUpOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
-import {
-  Box,
-  ClickAwayListener,
-  InputAdornment,
-  List,
-  ListItemButton,
-  ListItemText,
-  Paper,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Box, IconButton, InputAdornment, TextField, Tooltip, Typography } from "@mui/material";
 
-import type { Hit } from "./searchSubmission";
-
-// PRETOTYPE. Searching a whole submission, answers and documents, with what it finds listed under the field. In
-// the app bar it starts narrow, leaving room for the title beside it, and widens while it is used.
-export default function SubmissionSearch({ query, hits, inBar = false, onQuery, onOpen, onClose, onPick }: {
+// PRETOTYPE. Searching a whole submission, answers and documents, in place, as a browser finds in a page: the
+// occurrences are marked where they are, the contents count them in each part, and Enter or the arrows go to the
+// next one, or Shift+Enter to the previous, from one part to the next. In the app bar it starts narrow, leaving room
+// for the title beside it, and widens while it is used.
+export default function SubmissionSearch({ query, position, total, reading, inBar = false, onQuery, onStep }: {
   query: string;
-  hits: Hit[] | undefined;
+  // The occurrence the search is on, counted through the whole submission, and how many there are; no total while
+  // not searching
+  position?: number;
+  total?: number;
+  // Whether the documents are still being read
+  reading: boolean;
   inBar?: boolean;
   onQuery: (query: string) => void;
-  onOpen: () => void;
-  onClose: () => void;
-  onPick: (hit: Hit) => void;
+  onStep: (previous: boolean) => void;
 }) {
+  let said = "";
+  if (total !== undefined) {
+    if (total === 0) {
+      said = reading ? "Looking…" : "Not found";
+    } else {
+      said = position === undefined ? `${total} found` : `${position} of ${total}`;
+    }
+  }
   return (
-    <ClickAwayListener onClickAway={onClose}>
-      <Box sx={{ position: "relative", width: inBar ? { md: 280 } : { xs: "100%", sm: 380 },
-        transition: theme => theme.transitions.create("width"), "&:focus-within": inBar ? { width: { md: 420 } } : {} }}>
-        <TextField
-          fullWidth size="small" value={query} placeholder="Search this submission"
-          onChange={event => {
-            onQuery(event.target.value);
-            onOpen();
-          }}
-          onFocus={onOpen}
-          sx={inBar ? { "& .MuiInputBase-root": { bgcolor: "background.paper" } } : undefined}
-          slotProps={{
-            input: { startAdornment: <InputAdornment position="start"><SearchOutlined /></InputAdornment> },
-            htmlInput: { "aria-label": "Search the submission" },
-          }}
-        />
-        {hits && (
-          <Paper elevation={8} sx={{ position: "absolute", zIndex: "modal", left: 0, right: 0, mt: 0.5,
-            maxHeight: 420, overflowY: "auto" }}>
-            {hits.length === 0 && <Typography sx={{ p: 2 }} variant="body2">Nothing found yet</Typography>}
-            <List dense>
-              {hits.map(hit => (
-                <ListItemButton key={`${hit.requirement}-${hit.question ?? hit.page ?? ""}`} onClick={() => onPick(hit)}>
-                  <ListItemText primary={hit.where} secondary={hit.snippet} />
-                </ListItemButton>
-              ))}
-            </List>
-          </Paper>
-        )}
-      </Box>
-    </ClickAwayListener>
+    <Box sx={{ width: inBar ? { md: 300 } : { xs: "100%", sm: 380 },
+      transition: theme => theme.transitions.create("width"), "&:focus-within": inBar ? { width: { md: 440 } } : {} }}>
+      <TextField
+        fullWidth size="small" value={query} placeholder="Search this submission"
+        onChange={event => onQuery(event.target.value)}
+        onKeyDown={event => {
+          if (event.key === "Enter" || event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            onStep(event.key === "ArrowUp" || (event.key === "Enter" && event.shiftKey));
+          } else if (event.key === "Escape") {
+            onQuery("");
+          }
+        }}
+        sx={inBar ? { "& .MuiInputBase-root": { bgcolor: "background.paper" } } : undefined}
+        slotProps={{
+          input: {
+            startAdornment: <InputAdornment position="start"><SearchOutlined /></InputAdornment>,
+            endAdornment: total === undefined ? undefined : (
+              <InputAdornment position="end" sx={{ gap: 0.25 }}>
+                <Typography variant="caption" role="status" sx={{ color: "text.secondary", whiteSpace: "nowrap", mr: 0.5 }}>
+                  {said}
+                </Typography>
+                <Tooltip title="Previous (Shift+Enter)">
+                  <span>
+                    <IconButton size="small" aria-label="Previous" disabled={total === 0} onClick={() => onStep(true)}>
+                      <KeyboardArrowUpOutlined fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title="Next (Enter)">
+                  <span>
+                    <IconButton size="small" aria-label="Next" disabled={total === 0} onClick={() => onStep(false)}>
+                      <KeyboardArrowDownOutlined fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </InputAdornment>
+            ),
+          },
+          htmlInput: { "aria-label": "Search the submission" },
+        }}
+      />
+    </Box>
   );
 }
