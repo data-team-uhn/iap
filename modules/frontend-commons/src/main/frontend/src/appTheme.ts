@@ -84,7 +84,8 @@ declare module "@mui/material/styles" {
   }
   // `assistant` colours whatever an AI assistant contributed. `annotation` colours what a person marked.
   // PRETOTYPE: on a review, `evidence` colours what an extracted answer was read from, `issue` what a reviewer
-  // raises with the study team, and `discussion` what reviewers say to each other.
+  // raises with the study team, and `discussion` what reviewers say to each other. `draft` is neutral: a passage
+  // a note is being started on, before it is anything.
   // `highlight` holds the marks both make over a document's content, and those a comparison of two
   // versions of a document makes.
   interface TypeHighlight {
@@ -98,6 +99,8 @@ declare module "@mui/material/styles" {
     issueCurrent: string;
     discussion: string;
     discussionCurrent: string;
+    draft: string;
+    draftCurrent: string;
     search: string;
     searchCurrent: string;
     added: string;
@@ -117,6 +120,7 @@ declare module "@mui/material/styles" {
     evidence: PaletteColor;
     issue: PaletteColor;
     discussion: PaletteColor;
+    draft: PaletteColor;
     highlight: TypeHighlight;
   }
   interface PaletteOptions {
@@ -127,6 +131,7 @@ declare module "@mui/material/styles" {
     evidence?: PaletteColorOptions;
     issue?: PaletteColorOptions;
     discussion?: PaletteColorOptions;
+    draft?: PaletteColorOptions;
     highlight?: TypeHighlight;
   }
   // The custom text roles. `pageTitle` is the main title of a screen, and `subheading` a muted heading
@@ -157,6 +162,7 @@ declare module "@mui/material/Button" {
     evidence: true;
     issue: true;
     discussion: true;
+    draft: true;
   }
 }
 
@@ -167,6 +173,7 @@ declare module "@mui/material/Chip" {
     evidence: true;
     issue: true;
     discussion: true;
+    draft: true;
   }
 }
 
@@ -177,6 +184,7 @@ declare module "@mui/material/IconButton" {
     evidence: true;
     issue: true;
     discussion: true;
+    draft: true;
   }
 }
 
@@ -187,6 +195,7 @@ declare module "@mui/material/SvgIcon" {
     evidence: true;
     issue: true;
     discussion: true;
+    draft: true;
   }
 }
 
@@ -261,6 +270,8 @@ function accent(fill: string, text: string): { light: PaletteColorOptions; dark:
 const EVIDENCE = accent(LAVENDER, "#5A4A9E");
 const ISSUE = accent(CORAL, "#A8402F");
 const DISCUSSION = accent(SKY, "#2F5F96");
+const GREY = "#A3A8B0";
+const DRAFT = accent(GREY, "#5F6670");
 
 // What a comparison marks as added or removed, in the light scheme.
 const ADDED_LIGHT = { main: "#1a7f37", line: "#e6ffec", word: "#abf2bc" };
@@ -282,6 +293,8 @@ const HIGHLIGHT = {
   issueCurrent: alpha(CORAL, 0.6),
   discussion: alpha(SKY, 0.35),
   discussionCurrent: alpha(SKY, 0.6),
+  draft: alpha(GREY, 0.35),
+  draftCurrent: alpha(GREY, 0.6),
   search: alpha(COBALT, 0.2),
   searchCurrent: alpha(COBALT, 0.45),
   added: ADDED_FILL,
@@ -377,6 +390,7 @@ const appTheme = createTheme({
         evidence: EVIDENCE.light,
         issue: ISSUE.light,
         discussion: DISCUSSION.light,
+        draft: DRAFT.light,
         highlight: HIGHLIGHT,
         // A gray canvas, against which paper stands out. `muted` is translucent, so it shades
         // whatever it lies on
@@ -408,6 +422,7 @@ const appTheme = createTheme({
         evidence: EVIDENCE.dark,
         issue: ISSUE.dark,
         discussion: DISCUSSION.dark,
+        draft: DRAFT.dark,
         highlight: HIGHLIGHT,
         background: {
           default: "#101010",

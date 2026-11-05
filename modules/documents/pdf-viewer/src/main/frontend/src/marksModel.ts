@@ -29,7 +29,7 @@ import {
 // Whose mark a passage is, an AI assistant's or a person's, and what a comparison of two versions of a
 // document found.
 // PRETOTYPE: a review's evidence, issues and discussion are passages of their own kinds
-export const PASSAGE_KINDS = [ "assistant", "annotation", "evidence", "issue", "discussion" ] as const;
+export const PASSAGE_KINDS = [ "assistant", "annotation", "evidence", "issue", "discussion", "draft" ] as const;
 export const CHANGE_KINDS = [ "added", "removed" ] as const;
 export const MARK_KINDS = [ ...PASSAGE_KINDS, ...CHANGE_KINDS ] as const;
 
