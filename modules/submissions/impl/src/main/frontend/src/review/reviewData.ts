@@ -172,6 +172,8 @@ export function parseReview(submission: Node, schema: string, me: string): Revie
   const documents = new Map<string, ReviewedDocument>();
   const partOf = new Map<string, string>();
   const notes: ReviewNote[] = [];
+  // The AI pre-review comments this reviewer made into issues or dismissed, which they no longer need to see
+  const settled = new Set<string>();
   for (const node of Object.values(submission).filter(isNode)) {
     const type = node["sling:resourceType"];
     if (type === "sub/Answer") {
@@ -205,17 +207,22 @@ export function parseReview(submission: Node, schema: string, me: string): Revie
     } else if (type === "sub/Screening") {
       for (const assessment of childrenOf(node, "sub:Assessment")) {
         const topic = isNode(assessment.topic) ? text(assessment.topic.text) : undefined;
-        notes.push(...childrenOf(assessment, "sub:Comment").map(one => comment(one, "aiIssue", me, topic)));
+        const comments = childrenOf(assessment, "sub:Comment");
+        comments.filter(one => Array.isArray(one.dismissedBy) && one.dismissedBy.includes(me))
+          .forEach(one => settled.add(text(one["@path"])));
+        notes.push(...comments.map(one => comment(one, "aiIssue", me, topic)));
       }
     } else if (type === "sub/Review") {
-      notes.push(...childrenOf(node, "sub:Comment").map(one => comment(one, "issue", me)));
+      const comments = childrenOf(node, "sub:Comment");
+      comments.filter(one => one.author === me && text(one.from)).forEach(one => settled.add(text(one.from)));
+      notes.push(...comments.map(one => comment(one, "issue", me)));
     } else if (type === "sub/Discussion") {
       notes.push(...childrenOf(node, "sub:Comment").map(one => comment(one, "discussion", me)));
     } else if (type === "irv/Notes" && node.owner === me) {
       notes.push(...childrenOf(node, "sub:Comment").map(one => comment(one, "note", me)));
     }
   }
-  return { answers, documents, notes, partOf };
+  return { answers, documents, notes: notes.filter(note => !settled.has(note.id)), partOf };
 }
 
 // Which reviewer groups each question and document matters to, from the risks each approval lists
@@ -252,6 +259,22 @@ export function notesAbout(notes: ReviewNote[], uuids: string[]): ReviewNote[] {
 }
 
 // A short label for reviewer groups on a chip
+// An issue for the study team written from an AI pre-review note: about the same answers and documents, on the
+// same passage, as the reviewer worded it
+export function issueFrom(note: ReviewNote, text: string, severity?: string): Record<string, string | string[]> {
+  const passage = note.passage;
+  return {
+    kind: "issue", text, from: note.id, subjects: note.subjects, ...severity ? { severity } : {},
+    ...passage ? {
+      quote: passage.quote,
+      ...passage.source ? { source: passage.source } : {},
+      ...passage.prefix ? { prefix: passage.prefix } : {},
+      ...passage.suffix ? { suffix: passage.suffix } : {},
+      ...passage.page !== undefined ? { page: String(passage.page) } : {},
+    } : {},
+  };
+}
+
 export function groupShortName(label: string): string {
   return ({ "Research ethics": "REB", "Digital review": "Digital", "Department head": "Dept. head",
     "Research quality": "RQI", "Princess Margaret data": "CRDAC" } as Record<string, string>)[label] ?? label;

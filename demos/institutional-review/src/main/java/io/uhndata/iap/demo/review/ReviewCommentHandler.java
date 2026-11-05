@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.demo.review;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -45,7 +46,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * {@code subjects} the answers or documents it is about, by UUID, and {@code source}, {@code quote},
  * {@code prefix}, {@code suffix} and {@code page} the passage it points at, when it points at one. With
  * {@code replyTo} naming a comment, it is a reply to it instead; with {@code edit} naming one of the writer's own
- * comments, it changes that comment's text and severity; with {@code remove}, it removes it.
+ * comments, it changes that comment's text and severity; with {@code remove}, it removes it. An issue made from an
+ * AI pre-review comment names it as {@code from}; with {@code dismiss} naming one, the reviewer sets it aside, and
+ * it is recorded on the AI comment, in {@code dismissedBy}, since another reviewer may still want it.
  *
  * <p>The notes are kept apart from the review and the discussion, in an {@code irv:Notes} node per reviewer. They
  * are not hidden from the other reviewers by an access rule yet: the pages only show a reviewer their own.</p>
@@ -62,6 +65,8 @@ public class ReviewCommentHandler implements ServiceTaskHandler
 
     private static final String AUTHOR_PROPERTY = "author";
 
+    private static final String DISMISSED_PROPERTY = "dismissedBy";
+
     @Override
     public String getName()
     {
@@ -73,6 +78,11 @@ public class ReviewCommentHandler implements ServiceTaskHandler
     {
         final Resource submission = ExecutionHost.of(context);
         final String actor = context.getActor();
+        final String dismissed = Payloads.text(context.getEvent(), "dismiss");
+        if (dismissed != null) {
+            dismiss(within(submission, dismissed), actor);
+            return;
+        }
         final String removed = Payloads.text(context.getEvent(), "remove");
         if (removed != null) {
             submission.getResourceResolver().delete(ownComment(submission, removed, actor));
@@ -88,6 +98,17 @@ public class ReviewCommentHandler implements ServiceTaskHandler
                 Map.of(PRIMARY_TYPE, "sub:Reply", TEXT_PROPERTY, text, AUTHOR_PROPERTY, actor));
         } else {
             write(context, submission, actor, text);
+        }
+    }
+
+    private static void dismiss(final Resource comment, final String actor)
+    {
+        final ModifiableValueMap values = Objects.requireNonNull(comment.adaptTo(ModifiableValueMap.class),
+            "Writable");
+        final List<String> by = new ArrayList<>(Arrays.asList(values.get(DISMISSED_PROPERTY, new String[0])));
+        if (!by.contains(actor)) {
+            by.add(actor);
+            values.put(DISMISSED_PROPERTY, by.toArray(String[]::new));
         }
     }
 
@@ -111,6 +132,10 @@ public class ReviewCommentHandler implements ServiceTaskHandler
         final List<String> subjects = values(context, "subjects");
         if (!subjects.isEmpty()) {
             properties.put("subjects", subjects.toArray(String[]::new));
+        }
+        final String from = Payloads.text(context.getEvent(), "from");
+        if ("issue".equals(kind) && from != null) {
+            properties.put("from", within(submission, from).getPath());
         }
         final Resource comment = submission.getResourceResolver().create(holder, name("comment"), properties);
         final String severity = Payloads.text(context.getEvent(), "severity");
