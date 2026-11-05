@@ -3,13 +3,15 @@
 **Module:** `modules/metrics` · **Bundle:** `iap-metrics` ·
 **API:** `io.uhndata.iap.metrics.api` (`MetricsManager`, `Metric`)
 
-Named usage counters — proposals submitted, notification emails sent — kept in the
-repository, so counts survive restarts and are shared by every node of a cluster.
+Named counts of things that happen, such as research proposals submitted. They are
+kept in the repository, so a count survives a restart and every node of a cluster
+shares it.
 
 ## Recording
 
-Inject `MetricsManager`, define the metric once at activation (defining is idempotent),
-then hold the returned handle:
+Inject `MetricsManager`, define the metric at activation, and keep the `Metric` it
+returns. Defining a metric that already exists replaces its definition and keeps its
+count.
 
 ```java
 @Reference
@@ -19,23 +21,23 @@ this.metric = this.metricsManager.createMetric("submittedProposals")
     .withLabel("Submitted proposals")
     .withDescription("How many research proposals were submitted for review")
     .withCategory("Submissions")
-    .withDefaultOrder(10)                      // placement within the category; 0 if unset
+    .withDefaultOrder(10)                      // order within the category; 0 if unset
     .withAccessLevel(Metric.AccessLevel.ADMIN) // PUBLIC unless restricted
-    .withRolloverSchedule("0 0 0 * * ?")       // nightly; manual-only if unset
+    .withRolloverSchedule("0 0 0 * * ?")       // every midnight; on request if unset
     .create();
 
 // when the counted event happens
 this.metric.increment();
 ```
 
-The manager only defines (`createMetric(name)…create()`) and looks up (`getMetric`,
-`getMetrics`). Everything else is on the handle:
+The manager defines metrics (`createMetric(name)…create()`) and finds them
+(`getMetric`, `getMetrics`). The rest is on the metric:
 
 ```java
-long          getCurrentValue();     // ever-growing total
-long          getPreviousValue();    // the value at the last roll-over
+long          getCurrentValue();     // the count since the metric was created
+long          getPreviousValue();    // the count at the last roll-over
 long          getCurrentDelta();     // current − previous: this period so far
-long          getLastDelta();        // the period that was closed
+long          getLastDelta();        // the last closed period
 ZonedDateTime getLastUpdated();
 ZonedDateTime getLastRollover();
 String        getRolloverSchedule();
@@ -45,114 +47,113 @@ void          rollOver();
 
 ### Handles and staleness
 
-A handle asked for **by name** — from `create()` or `getMetric(name)` — reads the
-repository on every access, so it never goes stale and can be held for a component's
-lifetime.
+A metric from `create()` or `getMetric(name)` reads the repository on every call. It
+always reports current values, and a component can keep it for as long as it runs.
 
-A handle from **`getMetrics()`** reports the values read while listing, because a
-listing is a point-in-time view: reading each value separately would cost a repository
-session each, and rendering ten metrics would open seventy sessions instead of one.
+A metric from `getMetrics()` reports the values read for the listing, and reading them
+opens no session. Reading each value from the repository would cost a service login
+per value.
 
-Either kind *writes* correctly. A roll-over closes the period against the counter's
-current value, never against the value its handle happens to be reporting.
+Both kinds write to the repository. A roll-over closes the period against the count in
+the repository, never against the count a listed metric reports.
 
 ### Behaviours to count on
 
-- **`increment` never throws.** A failure to count is logged and swallowed, so recording
-  can never break the operation being counted. Everything else — `rollOver`, reads,
-  `create` — reports failure as an unchecked `MetricsException`.
-- **Increments may be negative**, to correct over-counting; incrementing by `0` does
+- **`increment` never throws.** A failure is logged and the amount goes uncounted, so
+  counting cannot break the operation it counts. `rollOver`, reads and `create` throw
+  an unchecked `MetricsException` instead.
+- **An increment may be negative**, to correct an over-count. Incrementing by `0` does
   nothing.
-- **Reading never rolls over.** Every accessor is a plain read with no side effects, so
-  any number of reports, dashboards and probes can look without influencing each other.
-- **Writes retry.** An update losing a race against a concurrent change is retried on a
-  fresh session up to `MAX_ATTEMPTS` (3) before raising `MetricsException`.
+- **A failed save is tried again.** A change that fails to save is tried again on a new
+  session, up to `MAX_ATTEMPTS` (3) attempts in all, before `MetricsException`.
 
 ## Storage
 
-Each metric is a `metric:Metric` under `/Metrics`, extending `data:Content` like every
-other definition-style type — so it carries the shared content properties, can be
-[tagged](tags.md), accepts whatever else a deployment adds, and is served by the
-standard [JSON serialization](json-serialization.md).
+Each metric is a `metric:Metric` node under `/Metrics`. The type extends
+`data:Content`, so a metric has the properties all content has, can be
+[tagged](tags.md), and takes any other property a deployment adds.
 
 | Property | Holds |
 |---|---|
-| `label` | **Mandatory.** Display name |
-| `description`, `category` | Descriptive metadata |
-| `defaultOrder` | LONG, default `0`, negatives allowed |
-| `accessLevel` | `public` (default) or `admin` — constrained by the node type |
-| `oak:counter` | The count itself |
-| `previousValue` | The counter at the last roll-over — the baseline for "this period" |
-| `lastDelta` | The amount accumulated in the period that was closed |
-| `lastRollover`, `lastUpdated` | When those happened |
-| `rolloverSchedule` | Quartz cron expression, if periods close automatically |
+| `label` | **Mandatory.** The name people read |
+| `description`, `category` | What the metric counts, and the group it is shown in |
+| `defaultOrder` | Its order within the category: a LONG, `0` by default, possibly negative |
+| `accessLevel` | `public` by default, or `admin`; the node type allows no other value |
+| `oak:counter` | The count |
+| `previousValue` | The count at the last roll-over, where the current period started |
+| `lastDelta` | The amount counted in the last closed period |
+| `lastRollover`, `lastUpdated` | When the metric was last rolled over, and last incremented |
+| `rolloverSchedule` | When periods close, as a Quartz cron expression; absent if only on request |
 
-The count is maintained by Oak's atomic counter support: committing an `oak:increment`
-value adds it to `oak:counter` atomically, so concurrent increments from different
-threads or cluster nodes all apply without conflicting or getting lost.
+Oak keeps the count. Saving an `oak:increment` value adds it to `oak:counter`, so
+increments made at the same time, on any node of a cluster, do not overwrite each
+other.
 
-**`mix:atomicCounter` is the one thing not inherited.** It only works when listed
-explicitly in a node's `jcr:mixinTypes`, so the manager sets it at creation rather than
-declaring it on the type.
+**The type does not declare `mix:atomicCounter`.** Oak counts only on a node that lists
+the mixin in its `jcr:mixinTypes`, so the manager lists it when it creates the node.
 
-Only the `iap-metrics` service user can reach the metric nodes. Everything else goes
-through the services above, which enforce `accessLevel` at the HTTP boundary.
+Only the `iap-metrics` service user is granted access to the metrics' nodes. People
+read the metrics through `/Metrics.json` and the status report, which apply each
+metric's `accessLevel`.
 
 ## Roll-overs
 
-`rollOver()` closes the current period: the amount accumulated so far is frozen as
-`lastDelta`, the current value becomes the new baseline, and the time is recorded. **The
-current value is never modified** — the counter keeps growing across roll-overs, and the
-period deltas always sum to it.
+`rollOver()` closes the current period. The amount counted in it becomes `lastDelta`,
+the count becomes `previousValue`, and the time becomes `lastRollover`. **The count
+itself never changes**, and the amounts of all the periods add up to it.
 
-Metrics declaring a `rolloverSchedule` are rolled over by `MetricRolloverScheduler`,
-which keeps one job per metric. The jobs are scheduled with `onLeaderOnly(true)` and
-`canRunConcurrently(false)`, so in a cluster each period is closed exactly once.
-Schedules are re-read whenever anything under `/Metrics` changes, so new metrics and
-edited expressions are picked up without a restart.
+`MetricRolloverScheduler` rolls over each metric that has a `rolloverSchedule`, with
+one job per metric. The jobs run with `onLeaderOnly(true)` and
+`canRunConcurrently(false)`, so in a cluster each period is closed once. The scheduler
+reads the schedules again whenever anything under `/Metrics` changes, so a new metric
+or a changed expression needs no restart.
 
-**The expression is not validated when the metric is defined.** An invalid one is
-refused by the scheduler, logged, and recorded through
-[error tracking](error-tracking.md) as a problem — it simply never fires. Cron fields
-are seconds, minutes, hours, day of month, month, day of week.
+**The expression is not checked when the metric is defined.** The scheduler refuses an
+invalid one. The refusal is logged and recorded through
+[error tracking](error-tracking.md) as a problem, and the metric is never rolled over
+on schedule. The scheduler tries the expression again at every later change under
+`/Metrics`. Cron fields are seconds, minutes, hours, day of month, month, day of week.
 
-Metrics without a schedule roll over only when `rollOver()` is called, which is the
-hook for a reporting job that wants to control its own period boundaries.
+A metric without a schedule rolls over only when `rollOver()` is called, so a reporting
+job can set its own period boundaries.
 
 ## Display order
 
-`getMetrics()` returns metrics in the order they should be shown, and everything
-listing them — the endpoint, the status report — follows that order rather than sorting
-again:
+`getMetrics()` returns the metrics in the order to show them. `/Metrics.json` and the
+status report keep that order:
 
-1. by **category**, alphabetically, **uncategorized last**;
+1. by **category** name, uppercase before lowercase, with **no category last**; a
+   blank category counts as none;
 2. by **`defaultOrder`** within the category, lower first;
-3. by **name**, so a listing is stable when the first two agree.
+3. by **name**.
 
-Category is compared first, so a low order never lifts a metric out of its group. Leave
-gaps when numbering — multiples of ten — so a metric can be slotted in later without
-renumbering.
+Leave gaps when numbering, such as multiples of ten, so a metric can go between two
+others later without renumbering.
 
 ## Reading over HTTP
 
-`GET /Metrics.json` returns `{ "metrics": [ … ] }` in display order, each entry holding
+`GET /Metrics.json` returns `{ "metrics": [ … ] }` in display order. Each entry holds
 `name`, `label`, `description`, `category`, `defaultOrder`, `accessLevel`,
-`currentValue`, `previousValue`, `currentDelta`, `lastDelta`, the
-`lastUpdated`/`lastRollover` dates, and `rolloverSchedule` when set.
+`currentValue`, `previousValue`, `currentDelta` and `lastDelta`, then the
+`lastUpdated`/`lastRollover` dates and the `rolloverSchedule` when they are set. A
+missing description or category is an empty string.
 
-The endpoint is deliberately reachable without authentication — the servlet registers
-`sling.auth.requirements=-/Metrics` — so dashboards can poll it. Metrics with the
-`admin` access level are listed only when the administrator is asking.
+The endpoint needs no login, so a monitoring tool can poll it: the servlet registers
+`sling.auth.requirements=-/Metrics`. A metric with the `admin` access level is listed
+only for the `admin` user.
 
-Metrics also appear in the [status reports](status.md): the **Metrics** reporter (tags
-`metrics`, `activity`) lists each as an `INFO` report, grouped by category in display
+The [status report](status.md) shows the metrics too. Its **Metrics** report (tags
+`metrics`, `activity`) is one `INFO` report that lists them by category, in display
 order:
 
 ```
 Submissions:
 - Submitted proposals: 12 (+3 since 2026-07-20; previous period: +5)
+
+Uncategorized:
+- Logins: 230
 ```
 
-The parenthesized part appears only for metrics rolled over at least once, admin-only
-metrics are left out of unprivileged reports, and generating a report never changes a
-counter.
+The part in parentheses appears only for a metric that was rolled over. The category
+headings appear only when there is more than one group. An unprivileged report leaves
+out the metrics with the `admin` access level.
