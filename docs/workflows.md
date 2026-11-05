@@ -747,7 +747,8 @@ POST /Submissions/proposal-42/wf:instances/review/approve_1
 The event then counts as Alice's. She is what the node's `performers` are checked against,
 and she is the one recorded: `createdBy` on anything created, `assignee` on a completed
 task, and the reader granted on a started instance. A handler's `getActor()` answers
-`alice` too.
+`alice` too, and its `getSender()` names the delegate. History records both: the delegate as
+the action's `createdBy`, and Alice as its `onBehalfOf`.
 
 Who may do this is a single group, the **delegates**, set by the `Delegates` property of the
 `io.uhndata.iap.workflows.internal.Delegation` configuration. It defaults to
@@ -780,6 +781,7 @@ Naming yourself is the same as naming nobody.
 // WorkflowTaskContext — what a handler is given
 Resource         getTarget();
 String           getActor();
+String           getSender();
 WorkflowEvent    getEvent();
 Activity         getActivity();
 Object           getVariable(String name);
@@ -1095,9 +1097,6 @@ each completed on its own.
   recognized.
 - **No `oak:index` definitions.** The console's listings and homepage discovery both
   query without one.
-- **The delegate is not yet recorded anywhere.** An event sent on someone's behalf records
-  only the person it was sent for; who actually sent it is lost until the engine writes
-  every event to the history store.
 - **Acting for someone cannot be previewed.** `getAvailableEvents` and
   `findApplicableWorkflow` answer for the asking user only, so a frontend cannot yet ask
   what a delegate could do for Alice.

@@ -45,7 +45,7 @@ final class DeliveryCauses
     /**
      * The cause of an event that a system workflow handled.
      *
-     * @param actor the user who sent the event
+     * @param actor who sent the event, and whom for
      * @param event the event
      * @param start the start event of the system workflow that caught it
      * @param startedInstance the path of the content workflow instance the delivery started, {@code null} if none
@@ -56,6 +56,7 @@ final class DeliveryCauses
     {
         final WorkflowVersion version = start.getWorkflowVersion();
         return RecordedAction.by(actor.id(), event.getName())
+            .onBehalfOf(actor.onBehalfOf())
             .event(event.getName())
             .workflow(startedInstance, version == null ? null : version.getIdentifier())
             .activity(start.getElementId(), start.getLabel());
@@ -64,7 +65,7 @@ final class DeliveryCauses
     /**
      * The cause of an event that completed a task of a running instance.
      *
-     * @param actor the user who sent the event
+     * @param actor who sent the event, and whom for
      * @param event the event, carrying the decision taken on the task if it offers a choice
      * @param task the task the event completed, as the event left it
      * @return the cause, to which the delivery adds what its steps did
@@ -76,6 +77,7 @@ final class DeliveryCauses
         final WorkflowInstance instance = Objects.requireNonNull(instanceTask.getWorkflowInstance(),
             "A task the engine resumes belongs to an instance");
         return RecordedAction.by(actor.id(), event.getName())
+            .onBehalfOf(actor.onBehalfOf())
             .event(event.getName())
             .workflow(instance.getPath(), instance.getWorkflowVersionIdentifier())
             .activity(instanceTask.getTaskDefinitionId(), instanceTask.getLabel())
