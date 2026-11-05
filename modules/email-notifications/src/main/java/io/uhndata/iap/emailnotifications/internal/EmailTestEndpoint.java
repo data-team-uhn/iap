@@ -44,19 +44,17 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.utils.UserIds;
 
 /**
- * Sends one fixed email to whoever asks, so that an administrator can tell whether the mail configuration of an
- * instance works without waiting for the platform to have a reason to write to somebody.
+ * Sends one fixed email, so that an administrator can check the mail configuration of an instance. It needs the
+ * {@code fromEmail}, {@code fromName}, {@code toEmail} and {@code toName} parameters, and takes {@code isHtml=true} to
+ * add an HTML body.
  *
  * <p>
- * Sending is asynchronous, so answering as soon as the message has been handed over would report only that it was
- * accepted — which is not the question this endpoint exists to answer. It therefore waits for the send to finish,
- * within a bounded budget, and says which of the three things happened. Whatever the caller is told, the outcome
- * reaches the log, since a send that outlives the wait would otherwise fail with nobody to hear it.
+ * It waits up to fifteen seconds for the send to finish. It answers {@code 200} if the message was sent, {@code 500}
+ * if it was not, and {@code 202} if it is still being sent. The outcome is logged in every case.
  * </p>
  *
  * <p>
- * Reserved to administrators: it sends mail to an arbitrary address, which is not something an instance should let
- * anyone else do.
+ * Only the {@code admin} user may use it, since it mails any address.
  * </p>
  *
  * @version $Id$
@@ -75,29 +73,18 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
     private static final String MESSAGE_TEXT = "Here is a test message from the Institutional Authorization Platform.";
 
     /**
-     * What the caller is told instead of what the mail server said. That text routinely names the relay, its port
-     * and the account the instance authenticates with, and this endpoint answers over the network.
+     * What the caller is told instead of what the mail server said. That text can name the relay, its port and the
+     * account the instance signs in with.
      */
     private static final String SEE_THE_LOG = "The reason is in the instance log.";
 
     private static final String STILL_SENDING = "The message is still being sent. " + SEE_THE_LOG;
 
-    // Dynamic and greedy, so that the highest-ranked mail service is the one used, whenever it turns up.
-    //
-    // The default — static and reluctant — binds whatever exists when this component activates and never looks
-    // again, so a service registered later with a higher service.ranking is ignored for the life of the
-    // component. Making it merely greedy is not enough either: a static reference can only change what it is
-    // bound to by restarting the component, and whether that happens in time is a startup race nobody should
-    // have to win. Dynamic rebinds in place, so substituting a mail service is a matter of ranking rather than
-    // of ordering — which is what a development instance filing mail instead of sending it depends on.
+    // Dynamic and greedy, so that a mail service registered later with a higher ranking replaces this one at once
     @Reference(policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY)
     private transient volatile MailService mailService;
 
-    /**
-     * How long to wait for a send to finish before answering that it is still going. A request thread is cheap
-     * here — this endpoint is administrator-only and driven by hand — but it must not be parked indefinitely by a
-     * relay that never answers. Not {@code final} so that tests can shorten it.
-     */
+    /** How long to wait for a send to finish before answering that it is still going. Not final, for the tests. */
     private long sendTimeoutMillis = TimeUnit.SECONDS.toMillis(15);
 
     @Override
@@ -147,12 +134,10 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * Makes sure a send's outcome reaches the log whether or not anybody is still waiting for it. This is the half
-     * that was missing: the future completes on a thread pool, so before it was attached every failure after the
-     * message had been assembled reached neither the response nor the log.
+     * Logs the outcome of a send when it finishes, whether or not the request is still waiting for it.
      *
      * @param sending the send to watch
-     * @return the same send, so the caller can also wait on it
+     * @return a future that completes as the send does, once the outcome is logged
      */
     private static CompletableFuture<Void> logTheOutcome(final CompletableFuture<Void> sending)
     {
@@ -166,13 +151,13 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * Waits for the send, within the budget, and tells the caller which of the three things happened. Nothing is
-     * logged here: {@link #logTheOutcome} has already done it, or will when the send finishes.
+     * Waits for the send, up to the time limit, and answers whether it was sent, failed or is still going. The
+     * outcome is logged by {@link #logTheOutcome}.
      *
      * @param sending the send to wait for
-     * @param response the HTTP response to set the status on
-     * @param out where to write the explanation
-     * @throws IOException if the explanation cannot be written
+     * @param response the HTTP response to write into
+     * @param out the writer of that response
+     * @throws IOException if the answer cannot be written
      */
     private void reportTheOutcome(final CompletableFuture<Void> sending,
         final SlingJakartaHttpServletResponse response, final Writer out) throws IOException
@@ -188,8 +173,8 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
             response.setStatus(HttpServletResponse.SC_ACCEPTED);
             out.write(STILL_SENDING);
         } catch (final InterruptedException e) {
-            // Restore the flag: this thread belongs to the container, which is entitled to see that it was asked
-            // to stop. The send itself carries on, and reports through logTheOutcome.
+            // The thread belongs to the container, which must see the interrupt. The send carries on, and its
+            // outcome is still logged.
             Thread.currentThread().interrupt();
             response.setStatus(HttpServletResponse.SC_ACCEPTED);
             out.write(STILL_SENDING);

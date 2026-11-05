@@ -24,9 +24,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A read-only email, ready to be sent. Emails are built from {@link EmailTemplate templates}: read a template, fill in
- * its variables with {@link EmailTemplate#getEmailBuilder(Map)}, set a recipient, and send it with
- * {@link EmailUtils#sendHtmlEmail} or {@link EmailUtils#sendTextEmail}.
+ * An email ready to be sent to one recipient. To make one, read an {@link EmailTemplate}, fill in its variables with
+ * {@link EmailTemplate#getEmailBuilder(Map)}, and set a recipient. {@link EmailUtils#sendEmail} sends it.
  *
  * @see EmailTemplate
  * @version $Id$
@@ -47,9 +46,9 @@ public class Email extends EmailTemplate
     private final Map<String, String> extraHeaders = new LinkedHashMap<>();
 
     /**
-     * Instantiated from a template by a {@link Builder}.
+     * Copies a template into a new email, for a {@link Builder}.
      *
-     * @param template the template this email is based on
+     * @param template the template to copy
      */
     protected Email(@NotNull final EmailTemplate template)
     {
@@ -57,9 +56,9 @@ public class Email extends EmailTemplate
     }
 
     /**
-     * The recipient email address, part of the {@code To} header together with {@link #getRecipientName()}.
+     * The recipient's address, which goes in the {@code To} header with {@link #getRecipientName()}.
      *
-     * @return a valid email address
+     * @return an email address, such as {@code alice@example.org}
      */
     @NotNull
     public String getRecipientAddress()
@@ -68,9 +67,9 @@ public class Email extends EmailTemplate
     }
 
     /**
-     * The recipient display name, part of the {@code To} header together with {@link #getRecipientAddress()}.
+     * The recipient's name, which goes in the {@code To} header with {@link #getRecipientAddress()}.
      *
-     * @return a display name, {@code null} when the address stands on its own
+     * @return a display name, or {@code null} if the email is addressed by the address alone
      */
     @Nullable
     public String getRecipientName()
@@ -81,7 +80,7 @@ public class Email extends EmailTemplate
     /**
      * The HTML body of the email.
      *
-     * @return a large string, {@code null} if the email has no HTML part
+     * @return the HTML, or {@code null} if the email has no HTML body
      */
     @Nullable
     public String getHtmlBody()
@@ -92,7 +91,7 @@ public class Email extends EmailTemplate
     /**
      * The plain text body of the email.
      *
-     * @return a large string, {@code null} if the email has no plain text part
+     * @return the text, or {@code null} if the email has no plain text body
      */
     @Nullable
     public String getTextBody()
@@ -101,9 +100,10 @@ public class Email extends EmailTemplate
     }
 
     /**
-     * The subject line, with its variables already substituted.
+     * The subject line.
      *
-     * @return a subject
+     * @return the subject with its variables filled in, or the template's own subject as written if the builder set
+     *         none
      */
     @Override
     @NotNull
@@ -113,9 +113,9 @@ public class Email extends EmailTemplate
     }
 
     /**
-     * Extra headers to set on the message, e.g. {@code Auto-Submitted}.
+     * Extra headers to set on the message, such as {@code Auto-Submitted}.
      *
-     * @return a map from header name to value, in the order they were added
+     * @return a copy of the map from header name to value, in the order they were added, empty if there are none
      */
     @NotNull
     public Map<String, String> getExtraHeaders()
@@ -124,7 +124,8 @@ public class Email extends EmailTemplate
     }
 
     /**
-     * A builder for {@link Email}, obtained from {@link EmailTemplate#getEmailBuilder(Map)}.
+     * Builds an {@link Email}. Obtained from {@link EmailTemplate#getEmailBuilder(Map)} or
+     * {@link EmailTemplate#getEmailBuilder()}.
      *
      * @version $Id$
      * @since 0.1.0
@@ -134,9 +135,9 @@ public class Email extends EmailTemplate
         private final Email instance;
 
         /**
-         * Instantiates a template into an email under construction.
+         * Starts an email from a template.
          *
-         * @param template the template to base the email on
+         * @param template the template to copy
          */
         protected Builder(@NotNull final EmailTemplate template)
         {
@@ -144,11 +145,11 @@ public class Email extends EmailTemplate
         }
 
         /**
-         * Set the body parts of this email. Already done when the builder came from
-         * {@link EmailTemplate#getEmailBuilder(Map)}. At least one part is required.
+         * Sets the bodies of this email. {@link EmailTemplate#getEmailBuilder(Map)} has already set them. The email
+         * cannot be built without at least one.
          *
-         * @param htmlBody the HTML part, {@code null} for none
-         * @param textBody the plain text part, {@code null} for none
+         * @param htmlBody the HTML body, or {@code null} for none
+         * @param textBody the plain text body, or {@code null} for none
          * @return this builder
          */
         @NotNull
@@ -160,10 +161,9 @@ public class Email extends EmailTemplate
         }
 
         /**
-         * Set the subject line of this email, overriding the template's. Already done when the builder came from
-         * {@link EmailTemplate#getEmailBuilder(Map)}.
+         * Sets the subject line of this email. {@link EmailTemplate#getEmailBuilder(Map)} has already set it.
          *
-         * @param subject a short string, {@code null} to keep the template's own subject
+         * @param subject the subject as sent, or {@code null} to send the template's own subject as written
          * @return this builder
          */
         @NotNull
@@ -174,10 +174,10 @@ public class Email extends EmailTemplate
         }
 
         /**
-         * Set the recipient of this email. The address is required.
+         * Sets the recipient of this email. The email cannot be built without one.
          *
-         * @param address a valid email address
-         * @param name an optional display name, {@code null} to address the recipient by address alone
+         * @param address an email address, such as {@code alice@example.org}
+         * @param name a display name, or {@code null} to address the recipient by the address alone
          * @return this builder
          */
         @NotNull
@@ -189,10 +189,10 @@ public class Email extends EmailTemplate
         }
 
         /**
-         * Add an extra header to set on the message.
+         * Adds a header to set on the message. It replaces an extra header of the same name.
          *
-         * @param name the header name
-         * @param value the header value
+         * @param name the header name, such as {@code Auto-Submitted}
+         * @param value the header value, such as {@code auto-generated}
          * @return this builder
          */
         @NotNull
@@ -203,16 +203,15 @@ public class Email extends EmailTemplate
         }
 
         /**
-         * Retrieve the built email. The builder should be discarded afterwards.
+         * Returns the built email. The builder must not be used afterwards, since it changes the same email.
          *
-         * @return an {@link Email}
+         * @return the email
          * @throws IllegalStateException if the email has no recipient address, or no body at all
          */
         @NotNull
         public Email build()
         {
             if (this.instance.toAddress == null) {
-                // The display name may be missing, the address may not
                 throw new IllegalStateException("The email has no recipient address");
             }
             if (this.instance.htmlBody == null && this.instance.textBody == null) {

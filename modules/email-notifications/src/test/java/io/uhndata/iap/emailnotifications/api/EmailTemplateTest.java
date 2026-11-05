@@ -96,7 +96,6 @@ class EmailTemplateTest
     @Test
     void anAttachmentAddedTwiceIsReplaced()
     {
-        // This is how a template overrides one of the shared attachments with its own
         final EmailTemplate template = minimal()
             .withInlineAttachment("logo.png", "image/png", new byte[] { 1 })
             .withInlineAttachment("logo.png", "image/svg+xml", new byte[] { 2, 3 })
@@ -127,8 +126,6 @@ class EmailTemplateTest
     @Test
     void escapesTheHtmlBodyAndOnlyTheHtmlBody()
     {
-        // The subject and the plain text part are read as text wherever they end up; the HTML part is not, and a
-        // value carrying an angle bracket would otherwise be markup in an email already on its way out
         final Email email = minimal()
             .withSubject("About ${title}")
             .withHtmlTemplate("<p>${title}</p>")
@@ -146,8 +143,6 @@ class EmailTemplateTest
     @Test
     void fillsInFromSomethingThatIsNotAString()
     {
-        // What a template engine buys over placeholder substitution: the caller hands over the thing it has, and
-        // how to read it stays in the template
         final Email email = minimal()
             .withTextTemplate("#foreach($a in $answers)- $a\n#end#if($urgent)Please hurry.#end")
             .build()
@@ -240,7 +235,7 @@ class EmailTemplateTest
 
         assertEquals("<header/><body/><footer/>", read.getHtmlTemplate());
         assertEquals("== body ==", read.getTextTemplate());
-        // Only the shared attachment the template asked for is included
+        // The template does not ask for unwanted.png
         assertEquals(List.of("shared.png"),
             read.getInlineAttachments().stream().map(InlineAttachment::getName).toList());
     }
@@ -270,11 +265,6 @@ class EmailTemplateTest
         assertEquals("own body ownFooter", read.getTextTemplate());
     }
 
-    /**
-     * The reason a body part is {@code null} rather than an empty string when the template does not carry one: a
-     * header and a footer are decoration around a body, and sending them with nothing between is exactly the "email
-     * with no body at all" that {@link EmailUtils#sendTextEmail} promises to refuse.
-     */
     @Test
     void aTemplateHasNoPartOfAKindItCarriesNoBodyFor() throws Exception
     {
@@ -294,7 +284,7 @@ class EmailTemplateTest
         assertEquals("<body/>", read.getHtmlTemplate());
         assertNull(read.getTextTemplate());
 
-        // And it survives into the email, which is what makes EmailUtils' refusal reachable
+        // The email has no plain text body either
         final Email email = read.getEmailBuilder(Map.of()).withRecipient("a@example.invalid", null).build();
         assertNull(email.getTextBody());
     }
@@ -306,13 +296,12 @@ class EmailTemplateTest
         final Node template = session.getRootNode().addNode("template", "nt:unstructured");
         template.setProperty(EmailTemplate.SENDER_ADDRESS_PROPERTY, "noreply@example.invalid");
         template.setProperty(EmailTemplate.SUBJECT_PROPERTY, "Hello");
-        // A child that is not a file and not a body template is simply ignored
+        // A child that is not a file is ignored
         template.addNode("someConfig", "nt:unstructured");
         session.save();
 
         final EmailTemplate read = EmailTemplate.builder(template, this.context.resourceResolver()).build();
 
-        // No body of either kind, so no part of either kind; the email built from it cannot be sent, and says so
         assertNull(read.getHtmlTemplate());
         assertNull(read.getTextTemplate());
         assertTrue(read.getInlineAttachments().isEmpty());
@@ -342,7 +331,7 @@ class EmailTemplateTest
     {
         final EmailTemplate template = minimal().withTextTemplate("${role}").build();
 
-        // Nothing is substituted, and the subject is the template's own
+        // The subject is the template's own, as written
         assertNull(template.getEmailBuilder().withBody(null, "set by hand")
             .withRecipient("a@example.invalid", null).build().getHtmlBody());
         assertEquals("Hello", template.getEmailBuilder().withBody(null, "x")

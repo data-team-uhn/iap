@@ -43,14 +43,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link EmailDelivery}.
- *
- * <p>
- * These assert on <strong>what was actually assembled</strong> rather than on the delivery having returned true.
- * That distinction matters: this path has form for reporting success where nothing was built, an endpoint
- * answering 200 for a message that was never assembled. So the subject line, the recipient and the rendered
- * body are captured off the builder and checked, interpolation and all.
- * </p>
+ * Tests for {@link EmailDelivery}. The message builder is a mock, and the tests read back the subject, the addresses
+ * and the bodies it was given.
  *
  * @version $Id$
  * @since 0.1.0
@@ -83,7 +77,7 @@ class EmailDeliveryTest
         this.submission = this.context.create().resource("/Submissions/one", "title", "A long weekend");
         this.requester = this.account("the-requester", "The Requester", "requester@example.com");
         this.mailService = Mockito.mock(MailService.class);
-        // RETURNS_SELF so the fluent chain works; what each call was given is what the assertions read back
+        // RETURNS_SELF, so that the builder's calls chain
         this.builder = Mockito.mock(MessageBuilder.class, Mockito.RETURNS_SELF);
         Mockito.when(this.builder.build()).thenReturn(Mockito.mock(MimeMessage.class));
         Mockito.when(this.mailService.getMessageBuilder()).thenReturn(this.builder);
@@ -153,7 +147,6 @@ class EmailDeliveryTest
         assertTrue(this.delivery.deliver(
             this.notification(NotificationContext.IMMEDIATE_URGENCY, TEMPLATE), this.requester));
 
-        // Interpolated from what the notification carries, not from anything the caller passed
         final ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
         Mockito.verify(this.builder).subject(subject.capture());
         assertEquals("Your request A long weekend was approved", subject.getValue());
@@ -198,8 +191,7 @@ class EmailDeliveryTest
         assertEquals("Approved for 3 days", subject.getValue());
     }
 
-    // The subject travels as the resource, so a template can read a property nobody thought to pass. Worth a test
-    // of its own because the engine is sandboxed: SecureUberspector decides what a template may call
+    // SecureUberspector has to allow the calls on the subject resource and its ValueMap
     @Test
     void letsWordingReadTheSubjectItself() throws Exception
     {
@@ -259,7 +251,6 @@ class EmailDeliveryTest
             this.requester));
     }
 
-    // A template holds one rendering per channel; carrying no email one is its author's choice
     @Test
     void declinesATemplateWithNoEmailRendering()
     {
@@ -272,7 +263,7 @@ class EmailDeliveryTest
         Mockito.verify(this.mailService, Mockito.never()).sendMessage(Mockito.any());
     }
 
-    // A template missing what it needs is the schema's problem, and saying so beats sending a broken message
+    // The email child has no sender address and no subject
     @Test
     void reportsATemplateItCannotRead()
     {

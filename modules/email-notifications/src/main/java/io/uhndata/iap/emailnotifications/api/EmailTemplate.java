@@ -43,19 +43,19 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The sender, subject and body of an email the platform sends, kept in the repository so that a deployment can reword
- * it without touching code. A template is turned into an actual {@link Email} by
- * {@link #getEmailBuilder(Map) filling in its variables} and setting a recipient.
+ * The sender, subject and body of an email the platform sends. A template stored in the repository lets a deployment
+ * reword an email without touching code. {@link #getEmailBuilder(Map) Filling in its variables} and setting a
+ * recipient turns it into an {@link Email}.
  *
  * <p>
- * The subject and both body parts are <a href="https://velocity.apache.org/engine/devel/user-guide.html">Apache
- * Velocity</a> templates. The values come from the template's own extra properties, overridden by whatever the caller
- * passes in.
+ * The subject and both bodies are <a href="https://velocity.apache.org/engine/devel/user-guide.html">Apache
+ * Velocity</a> templates. Their variables are the template's own extra properties, and the caller's values replace
+ * those of the same name.
  * </p>
  *
  * <p>
- * <strong>The HTML body escapes its values</strong>, to avoid injecting HTML. See {@link EmailUtils#render} and
- * {@link EmailUtils#renderHtml}.
+ * <strong>The HTML body escapes its values</strong>, and the subject and the plain text body do not. See
+ * {@link EmailUtils#render} and {@link EmailUtils#renderHtml}.
  * </p>
  *
  * @version $Id$
@@ -66,7 +66,10 @@ public class EmailTemplate
     /** The node type of a stored email template. */
     public static final String TEMPLATE_TYPE = "mail:Template";
 
-    /** The path holding the header, footer and attachments shared by every template. */
+    /**
+     * The folder holding the headers and footers shared by every template. Its {@code commonAttachments} child holds
+     * the shared attachments.
+     */
     public static final String COMMON_TEMPLATES_PATH = "/libs/iap/mailTemplates/";
 
     /** The name of the property holding the sender address. */
@@ -102,7 +105,10 @@ public class EmailTemplate
     /** The name of the child file holding the plain text footer appended to the body. */
     public static final String TEXT_BODY_FOOTER = "bodyTemplate.footer.txt";
 
-    /** The prefix of the property asking for one of the common attachments to be included. */
+    /**
+     * The prefix of a property that includes one of the shared attachments, such as
+     * {@code includeAttachment_logo.png}. Its value is ignored.
+     */
     public static final String INCLUDE_ATTACHMENT_PREFIX = "includeAttachment_";
 
     private String senderAddress;
@@ -126,11 +132,11 @@ public class EmailTemplate
     /** Only built through a {@link #builder() builder}, or copied into an {@link Email}. */
     protected EmailTemplate()
     {
-        // Built by the builder
+        // Filled in by the builder
     }
 
     /**
-     * Copy constructor, used when an {@link Email} is instantiated from a template.
+     * Copies another template, for an {@link Email} made from it.
      *
      * @param other the template to copy
      */
@@ -148,10 +154,9 @@ public class EmailTemplate
     }
 
     /**
-     * The email address the email is sent from, part of the {@code From} header together with
-     * {@link #getSenderName()}.
+     * The address the email is sent from, which goes in the {@code From} header with {@link #getSenderName()}.
      *
-     * @return an email address
+     * @return an email address, such as {@code noreply@example.org}
      */
     @NotNull
     public String getSenderAddress()
@@ -160,9 +165,9 @@ public class EmailTemplate
     }
 
     /**
-     * The name displayed as the sender, part of the {@code From} header together with {@link #getSenderAddress()}.
+     * The name shown as the sender, which goes in the {@code From} header with {@link #getSenderAddress()}.
      *
-     * @return a name, may be {@code null}
+     * @return a display name, or {@code null} if the template sets none
      */
     @Nullable
     public String getSenderName()
@@ -171,9 +176,9 @@ public class EmailTemplate
     }
 
     /**
-     * The email address to send replies to, defaulting to the sender address.
+     * The address replies go to.
      *
-     * @return an email address
+     * @return an email address, the sender address if the template sets none
      */
     @NotNull
     public String getReplyToAddress()
@@ -182,9 +187,9 @@ public class EmailTemplate
     }
 
     /**
-     * The name displayed as the reply-to destination, defaulting to the sender name.
+     * The name shown with the address replies go to.
      *
-     * @return a name, may be {@code null}
+     * @return a display name, the sender name if the template sets none, or {@code null} if it sets neither
      */
     @Nullable
     public String getReplyToName()
@@ -195,7 +200,7 @@ public class EmailTemplate
     /**
      * The subject line, which is itself a template.
      *
-     * @return a subject, before it is rendered
+     * @return the subject as written in the template, before its variables are filled in
      */
     @NotNull
     public String getSubject()
@@ -204,10 +209,10 @@ public class EmailTemplate
     }
 
     /**
-     * The variables available to the body templates and the subject, as configured on the template itself. Whatever
-     * a caller passes to {@link #getEmailBuilder(Map)} takes precedence over these.
+     * The variables the template sets for its subject and bodies. A value passed to {@link #getEmailBuilder(Map)}
+     * replaces the one of the same name.
      *
-     * @return a map from variable name to value
+     * @return a copy of the map from variable name to value, empty if the template sets none
      */
     @NotNull
     public Map<String, String> getExtraProperties()
@@ -216,9 +221,9 @@ public class EmailTemplate
     }
 
     /**
-     * The files sent along with the email and displayed inside it.
+     * The files sent with the email and shown inside it.
      *
-     * @return the attachments, an empty list if there are none
+     * @return a copy of the attachments, empty if there are none
      */
     @NotNull
     public List<InlineAttachment> getInlineAttachments()
@@ -227,9 +232,9 @@ public class EmailTemplate
     }
 
     /**
-     * The template for the HTML part of the body, header and footer included.
+     * The template of the HTML body. A template read from the repository has its header and footer included.
      *
-     * @return a large string, may be {@code null} if the email has no HTML part
+     * @return the Velocity template text, or {@code null} if the template has no HTML body
      */
     @Nullable
     public String getHtmlTemplate()
@@ -238,9 +243,9 @@ public class EmailTemplate
     }
 
     /**
-     * The template for the plain text part of the body, header and footer included.
+     * The template of the plain text body. A template read from the repository has its header and footer included.
      *
-     * @return a large string, may be {@code null} if the email has no plain text part
+     * @return the Velocity template text, or {@code null} if the template has no plain text body
      */
     @Nullable
     public String getTextTemplate()
@@ -249,13 +254,14 @@ public class EmailTemplate
     }
 
     /**
-     * Start instantiating this template into an actual email, with the body parts and the subject already filled in.
-     * A recipient still has to be {@link Email.Builder#withRecipient set} before the email can be built.
+     * Starts an email from this template, with the subject and both bodies filled in. The email still needs a
+     * {@link Email.Builder#withRecipient recipient} before it can be built.
      *
-     * @param variables the values the templates may refer to, taking precedence over the template's own extra
-     *            properties, may be {@code null} when the template's own properties are all there is
-     * @return an email builder based on this template
-     * @throws EmailTemplateException if the subject or either body does not parse, or refers to something neither the
+     * @param variables the values the subject and bodies may use, by variable name; each replaces the template's own
+     *            property of the same name. A value can be any object, such as a {@code Resource} or a {@code List}.
+     *            {@code null} to use only the template's own properties
+     * @return an email builder with the subject and bodies set
+     * @throws EmailTemplateException if the subject or either body does not parse, or uses a variable that neither the
      *             template nor the caller supplied
      */
     @NotNull
@@ -267,15 +273,16 @@ public class EmailTemplate
         }
         final Email.Builder builder = new Email.Builder(this);
         builder.withSubject(EmailUtils.render(this.subject, values));
-        // Only the HTML body escapes its values: it is the one part a mail client reads as markup
+        // Only the HTML body escapes its values, since it is the only part a mail client reads as markup
         return builder.withBody(EmailUtils.renderHtml(this.htmlTemplate, values),
             EmailUtils.render(this.textTemplate, values));
     }
 
     /**
-     * Start instantiating this template into an actual email, leaving the body parts to the caller.
+     * Starts an email from this template with no body, and the subject as written in the template. Nothing is
+     * filled in.
      *
-     * @return an email builder based on this template, with no body set
+     * @return an email builder with no body set
      */
     @NotNull
     public Email.Builder getEmailBuilder()
@@ -284,9 +291,9 @@ public class EmailTemplate
     }
 
     /**
-     * Start building a template from scratch.
+     * Starts building a template in code.
      *
-     * @return a new template builder
+     * @return an empty template builder
      */
     @NotNull
     public static Builder builder()
@@ -295,14 +302,19 @@ public class EmailTemplate
     }
 
     /**
-     * Start building a template from a stored one. If the stored template is fully configured it can be
-     * {@link Builder#build() built} straight away, but more properties or attachments may be added first.
+     * Starts building a template from one stored in the repository. The builder holds everything the stored template
+     * has, and may add properties or attachments before it {@link Builder#build() builds}.
+     *
+     * <p>
+     * The bodies are wrapped in the shared headers and footers under {@value #COMMON_TEMPLATES_PATH}, unless the
+     * template has its own. A header and footer alone do not make a body.
+     * </p>
      *
      * @param template a JCR node of type {@value #TEMPLATE_TYPE}
-     * @param resolver a resource resolver, needed for determining the media type of the attachments
-     * @return a template builder already set up with the stored data
+     * @param resolver reads the shared attachments and the media type of every attachment
+     * @return a template builder holding the stored template
      * @throws RepositoryException if reading the repository fails
-     * @throws IOException if reading the body templates or the attachments fails
+     * @throws IOException if reading a body, a header, a footer or an attachment fails
      */
     @NotNull
     public static Builder builder(@NotNull final Node template, @NotNull final ResourceResolver resolver)
@@ -312,7 +324,7 @@ public class EmailTemplate
     }
 
     /**
-     * A builder for {@link EmailTemplate}, obtained from {@link EmailTemplate#builder()} or
+     * Builds an {@link EmailTemplate}. Obtained from {@link EmailTemplate#builder()} or
      * {@link EmailTemplate#builder(Node, ResourceResolver)}.
      *
      * @version $Id$
@@ -337,9 +349,9 @@ public class EmailTemplate
         }
 
         /**
-         * Set the HTML body template. Optional; a template may have only a plain text body.
+         * Sets the template of the HTML body.
          *
-         * @param body a large string, {@code null} to leave the email without an HTML part
+         * @param body Velocity template text, or {@code null} for an email with no HTML body
          * @return this builder
          */
         @NotNull
@@ -350,9 +362,9 @@ public class EmailTemplate
         }
 
         /**
-         * Set the plain text body template. Optional; a template may have only an HTML body.
+         * Sets the template of the plain text body.
          *
-         * @param body a large string, {@code null} to leave the email without a plain text part
+         * @param body Velocity template text, or {@code null} for an email with no plain text body
          * @return this builder
          */
         @NotNull
@@ -363,9 +375,9 @@ public class EmailTemplate
         }
 
         /**
-         * Set the sender address. Mandatory.
+         * Sets the sender address. A template cannot be built without one.
          *
-         * @param address a valid email address
+         * @param address an email address, such as {@code noreply@example.org}
          * @return this builder
          */
         @NotNull
@@ -376,9 +388,9 @@ public class EmailTemplate
         }
 
         /**
-         * Set the sender display name. Optional.
+         * Sets the name shown as the sender.
          *
-         * @param name a display name, {@code null} to send from the address alone
+         * @param name a display name, or {@code null} to send from the address alone
          * @return this builder
          */
         @NotNull
@@ -389,9 +401,9 @@ public class EmailTemplate
         }
 
         /**
-         * Set the address replies should go to. Optional, defaults to the sender address.
+         * Sets the address replies go to.
          *
-         * @param address a valid email address, {@code null} to reply to the sender
+         * @param address an email address, or {@code null} or blank for replies to go to the sender address
          * @return this builder
          */
         @NotNull
@@ -402,9 +414,9 @@ public class EmailTemplate
         }
 
         /**
-         * Set the display name for the reply-to address. Optional, defaults to the sender name.
+         * Sets the name shown with the address replies go to.
          *
-         * @param name a display name, {@code null} to reuse the sender name
+         * @param name a display name, or {@code null} or blank to use the sender name
          * @return this builder
          */
         @NotNull
@@ -415,9 +427,9 @@ public class EmailTemplate
         }
 
         /**
-         * Set the subject line. Mandatory. It is itself a template.
+         * Sets the subject line. A template cannot be built without one.
          *
-         * @param subject a short string
+         * @param subject the subject as Velocity template text, such as {@code Your request ${subjectTitle}}
          * @return this builder
          */
         @NotNull
@@ -428,10 +440,10 @@ public class EmailTemplate
         }
 
         /**
-         * Add a variable available to the subject and the body templates.
+         * Adds a variable for the subject and the bodies.
          *
-         * @param name the name a template refers to it by
-         * @param value the value to substitute
+         * @param name the variable name, such as {@code role} for {@code ${role}}
+         * @param value the value to put in its place
          * @return this builder
          */
         @NotNull
@@ -442,12 +454,12 @@ public class EmailTemplate
         }
 
         /**
-         * Add a file to send along with the email and display inside it. An attachment already added under the same
-         * name is replaced, which is how a template overrides one of the common attachments.
+         * Adds a file to send with the email and show inside it. It replaces an attachment of the same name, which is
+         * how a stored template overrides a shared attachment.
          *
-         * @param name the name of the attachment, and the content ID the body references it by
-         * @param mimeType the media type of the content
-         * @param content the content itself, {@code null} for an empty attachment
+         * @param name the file name, which is also the content ID the HTML body uses, as in {@code cid:logo.png}
+         * @param mimeType the media type of the content, such as {@code image/png}
+         * @param content the bytes of the file, or {@code null} for an empty file
          * @return this builder
          */
         @NotNull
@@ -460,10 +472,10 @@ public class EmailTemplate
         }
 
         /**
-         * Retrieve the built template. The builder should be discarded afterwards.
+         * Returns the built template. The builder must not be used afterwards, since it changes the same template.
          *
-         * @return an {@link EmailTemplate}
-         * @throws IllegalStateException if the sender address or the subject are missing
+         * @return the template
+         * @throws IllegalStateException if the sender address or the subject is missing
          */
         @NotNull
         public EmailTemplate build()
@@ -499,10 +511,10 @@ public class EmailTemplate
         }
 
         /**
-         * Includes the shared attachments the template asked for, by setting an
-         * {@value EmailTemplate#INCLUDE_ATTACHMENT_PREFIX} property naming each of them.
+         * Adds each shared attachment that the template names with an
+         * {@value EmailTemplate#INCLUDE_ATTACHMENT_PREFIX} property.
          *
-         * @param resolver a resource resolver
+         * @param resolver reads the {@code commonAttachments} folder
          * @throws RepositoryException if reading the repository fails
          * @throws IOException if reading an attachment fails
          */
@@ -549,15 +561,11 @@ public class EmailTemplate
         }
 
         /**
-         * Wraps a stored body in its header and footer, or reports that the template has no such part at all. A
-         * header and a footer are wrapped <em>around</em> a body, so on their own they do not make one: a template
-         * carrying no {@code bodyTemplate} of a kind has no part of that kind, which is what lets
-         * {@link EmailUtils#sendTextEmail} refuse to send an HTML-only template as a plain text email with nothing
-         * in it but the shared decoration.
+         * Wraps a body in its header and footer.
          *
-         * @param parts the header, the body and the footer, in that order, the body {@code null} if the template
-         *            does not carry one
-         * @return the three joined together, or {@code null} if there is no body to wrap
+         * @param parts the header, the body and the footer, in that order; the body is {@code null} if the template
+         *            has none of this kind
+         * @return the three joined, or {@code null} if there is no body
          */
         private static String wrapBody(final String[] parts)
         {
@@ -599,11 +607,10 @@ public class EmailTemplate
         }
 
         /**
-         * The binary content of a file node. The caller must dispose of it, and close the stream it takes from it:
-         * a repository binary holds resources until it is told it is no longer needed.
+         * The content of a file node. The caller must close the stream it takes from it, and then dispose of it.
          *
          * @param file an {@code nt:file} node
-         * @return its content
+         * @return the {@code jcr:data} of its {@code jcr:content}
          * @throws RepositoryException if the node is not a readable file
          */
         private Binary getContent(final Node file) throws RepositoryException

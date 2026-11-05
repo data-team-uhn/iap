@@ -102,20 +102,31 @@ error.
 ## Email
 
 Emails are built from `mail:Template` nodes in the repository, so a deployment can
-reword what the platform says without touching code. Whether somebody *can* be
-emailed is a fact about their account — the address at `profile/email`, which the
-identity provider fills in at login — so nothing in a workflow ever carries an
-address, and people can change theirs without any definition noticing.
+reword what the platform says without touching code. A person's address is on their
+account, at `profile/email`. For somebody who signs in through an identity provider, it
+is copied from there at each sign-in. No workflow carries an address.
+
+`EmailDelivery` emails a notification as soon as it is offered one, if its urgency is
+`immediate`, the recipient has an address, and its template folder has an `email` child.
+That child is a `mail:Template`. Besides the notification's own variables, it can use
+four more:
+
+| Variable | Value |
+|---|---|
+| `subjectResource` | The resource the notification is about |
+| `subjectPath` | Its path |
+| `subjectTitle` | Its `title` property, or an empty string |
+| `event` | What happened, as the message name, such as `approved` |
 
 ### A template
 
 | Property | Meaning |
 |---|---|
 | `senderAddress` | **Required.** The `From` address |
-| `senderName` | Display name shown with it |
-| `replyToAddress`, `replyToName` | Where replies go, defaulting to the sender |
-| `subject` | **Required.** Itself a template |
-| *anything else* | A variable available to the subject and both bodies |
+| `senderName` | The display name shown with it |
+| `replyToAddress`, `replyToName` | Where replies go, the sender's if not set |
+| `subject` | **Required.** A template itself |
+| *any other single-valued property* | A variable for the subject and both bodies; `jcr:` and `sling:` properties are not |
 
 | Child file | Meaning |
 |---|---|
@@ -123,25 +134,26 @@ address, and people can change theirs without any definition noticing.
 | `bodyTemplate.txt` | The plain text body |
 | `bodyTemplate.header.html`, `bodyTemplate.footer.html` | Wrapped around the HTML body |
 | `bodyTemplate.header.txt`, `bodyTemplate.footer.txt` | Wrapped around the plain text body |
-| *any other file* | An inline attachment, referenced from the HTML as `cid:<file name>` |
+| *any other file* | An inline attachment, which the HTML shows as `cid:<file name>` |
 
-Both bodies are optional, but a template needs at least one.
+Either body may be left out, but an email cannot be built from a template with neither.
 
-Headers, footers and attachments shared by every email live under
-**`/libs/iap/mailTemplates/`** (`EmailTemplate.COMMON_TEMPLATES_PATH`). A template picks
-up the shared headers and footers automatically, overrides them by carrying its own, and
-asks for a shared attachment with an `includeAttachment_<file name>` property
-(`INCLUDE_ATTACHMENT_PREFIX`).
+Shared headers and footers live under **`/libs/iap/mailTemplates/`**
+(`EmailTemplate.COMMON_TEMPLATES_PATH`), and shared attachments in its
+`commonAttachments` folder. The platform ships none. A template uses the shared header
+and footer unless it has its own. It includes a shared attachment only if it has an
+`includeAttachment_<file name>` property (`INCLUDE_ATTACHMENT_PREFIX`), whatever its
+value.
 
-**A header and footer never make a body on their own.** A template with no
-`bodyTemplate.txt` has no plain text part at all, even where shared plain text headers
-and footers exist — and the same for HTML.
+**A header and footer alone do not make a body.** A template with no `bodyTemplate.txt`
+has no plain text body, even when a shared plain text header and footer exist. The same
+holds for HTML.
 
 ### Writing one
 
 The subject and both bodies are
 [Apache Velocity](https://velocity.apache.org/engine/devel/user-guide.html) templates, so
-a template can branch and loop rather than only substitute.
+a template can branch and loop as well as substitute.
 
 ```
 Dear ${name},
@@ -161,17 +173,17 @@ Nothing further is needed from you.
 
 Worth knowing when writing a template:
 
-- **A name nobody supplied fails the whole email.** Rendering it literally would mail
-  somebody `Dear ${name}`, which is worse than not sending. There are two ways to say
-  something is optional, and they mean different things: `#if($note)` for a name that may
-  not be there at all, `$!{note}` for one that is there but may be empty.
-- **Values are escaped in the HTML body and not in the plain text one.** A value carrying
-  `<` goes into the HTML as text rather than as a tag — the values are free text somebody
-  typed. Markup a template genuinely means to produce belongs in the template, where it is
-  not escaped.
-- **A template that does not parse sends nothing.** Failures raise
-  `EmailTemplateException`, whose message names the line and column — never the values,
-  which are somebody's answers.
+- **A variable that nobody supplied fails the whole email**, instead of mailing somebody
+  `Dear ${name}`. Write `#if($note)` around a variable that may be missing. A quiet
+  reference, `$!{note}`, is only for a variable supplied as `null`.
+- **Values are escaped in the HTML body, and not in the subject or the plain text
+  body.** A value holding `<` goes into the HTML as text, not as a tag. Markup
+  belongs in the template, which is not escaped.
+- **A template reaches nothing but its values.** `#include` and `#parse` find no
+  files, and Velocity's `SecureUberspector` refuses calls such as
+  `getClass().getClassLoader()`.
+- **A template that does not parse sends nothing.** The failure is an
+  `EmailTemplateException`, whose message names the line and column.
 
 ### Sending one
 
@@ -180,20 +192,23 @@ final EmailTemplate template = EmailTemplate.builder(templateNode, resolver).bui
 final Email email = template.getEmailBuilder(Map.of("name", "Alice", "submission", submission))
     .withRecipient("alice@example.invalid", "Alice")
     .build();
-EmailUtils.sendHtmlEmail(email, this.mailService);
+EmailUtils.sendEmail(email, this.mailService);
 ```
 
-`getEmailBuilder(variables)` fills in the subject and both bodies; what the caller passes
-overrides the template's own properties. **A value can be anything, not only a string** —
-the template decides how to read it, which is what lets the text of an email stay in the
-template while the caller just hands over the submission. `EmailTemplate.builder()`
-also takes no arguments, for a template assembled in code rather than read from a node.
+`getEmailBuilder(variables)` fills in the subject and both bodies. A value the caller
+passes replaces the template's property of the same name. **A value can be any object,
+not only a string**, such as the submission itself, and the template reads what it needs
+from it. `EmailTemplate.builder()` with no arguments builds a template in code.
 
-`sendTextEmail` sends only the plain text part. `sendHtmlEmail` sends the HTML one, the
-plain text part as a fallback for clients that cannot show it, and the inline
-attachments. Since either part may be missing, **each method requires the part it sends**:
-asking for the text form of an HTML-only template raises `IllegalArgumentException`
-rather than sending an email with no body.
+`sendEmail` sends an email as HTML if it has an HTML body, and as plain text otherwise.
+`sendHtmlEmail` sends the HTML body, the plain text body if there is one, and the inline
+attachments. `sendTextEmail` sends only the plain text body. **Each requires the body it
+sends**: asking for the plain text of an HTML-only email throws
+`IllegalArgumentException`.
+
+None of them waits for the email to go out. Sling's mail service sends it on a thread
+pool, and a send that fails is logged and recorded through
+[error tracking](error-tracking.md).
 
 ### Checking that mail works
 
@@ -201,24 +216,20 @@ rather than sending an email with no body.
 GET /content.emailtest.html?fromEmail=…&fromName=…&toEmail=…&toName=…[&isHtml=true]
 ```
 
-Sends one fixed message, so an administrator can tell whether an instance's SMTP
-configuration works without waiting for the platform to have a reason to write to
-somebody. **Restricted to `admin`**, since it mails an arbitrary address.
+Sends one fixed message, so an administrator can check an instance's SMTP
+configuration. **Only the `admin` user may use it**, since it mails any address.
 
-Sending is asynchronous, so the endpoint waits for it to finish before answering, for up
-to fifteen seconds. It reports `200` once the message has gone out, `500` if it was
-refused, and `202` if the send is still going when the wait runs out — a relay that never
-answers must not park the request thread indefinitely. The outcome reaches the instance
-log either way, which is the only place a send that outlives the wait can report to.
+The endpoint waits up to fifteen seconds for the send to finish. It answers `200` once
+the message has gone out, `500` if it failed, and `202` if it is still being sent. The
+outcome reaches the instance log in every case.
 
-A failure answers that it failed and nothing more: what the mail server said goes to the
-log, because that text routinely names the relay, its port and the account the instance
-authenticates with.
+An answer that the send failed does not say why. What the mail server said goes to the
+log, since it can name the relay, its port and the account the instance signs in with.
 
-SMTP settings come from the module's feature configuration —
-`emailnotifications.smtps.host`, `.port`, `.username`, `.password`,
-`.checkserveridentity`, `.from` — with the password decrypted through Sling's crypto
-service, keyed by the `SLING_COMMONS_CRYPTO_PASSWORD` environment variable.
+The SMTP settings are the module's feature variables: `emailnotifications.smtps.host`,
+`.port`, `.username`, `.password`, `.checkserveridentity` and `.from`. Sling's crypto
+service decrypts the password, with the `SLING_COMMONS_CRYPTO_PASSWORD` environment
+variable as its key.
 
 ## Catching mail in development
 

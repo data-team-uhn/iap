@@ -21,7 +21,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A file sent along with an email and displayed inside it, usually an image referenced from the HTML body as
+ * A file sent with an email and shown inside it, usually an image that the HTML body shows with
  * {@code src="cid:<name>"}.
  *
  * @version $Id$
@@ -36,11 +36,11 @@ public final class InlineAttachment
     private final byte[] content;
 
     /**
-     * Basic constructor.
+     * Constructor. The content is copied.
      *
-     * @param name the name of the attachment, which is how the body references it
-     * @param mimeType the media type of the content
-     * @param content the content itself, {@code null} for an empty attachment
+     * @param name the file name, which is also the content ID the HTML body uses, such as {@code logo.png}
+     * @param mimeType the media type of the content, such as {@code image/png}
+     * @param content the bytes of the file, or {@code null} for an empty file
      */
     public InlineAttachment(@NotNull final String name, @NotNull final String mimeType,
         @Nullable final byte[] content)
@@ -51,9 +51,9 @@ public final class InlineAttachment
     }
 
     /**
-     * The name of the attachment, and the content ID the body references it by.
+     * The file name of the attachment, which is also the content ID the HTML body uses.
      *
-     * @return a file name, e.g. {@code logo.png}
+     * @return a file name, such as {@code logo.png}
      */
     @NotNull
     public String getName()
@@ -64,7 +64,7 @@ public final class InlineAttachment
     /**
      * The media type of the content.
      *
-     * @return a MIME type, e.g. {@code image/png}
+     * @return a MIME type, such as {@code image/png}
      */
     @NotNull
     public String getMimeType()
@@ -75,7 +75,7 @@ public final class InlineAttachment
     /**
      * The content of the attachment.
      *
-     * @return the bytes to send, a copy that callers may modify freely
+     * @return a copy of the bytes to send, empty for an empty file
      */
     @NotNull
     public byte[] getContent()

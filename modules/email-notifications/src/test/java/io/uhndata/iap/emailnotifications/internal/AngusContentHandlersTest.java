@@ -64,8 +64,7 @@ class AngusContentHandlersTest
     @AfterEach
     void restoreTheDefaultCommandMap()
     {
-        // The command map is JVM-wide state, so a test that installs one has to put it back or the next test
-        // in this fork inherits it
+        // The default command map is JVM-wide, and the next test in this fork would inherit it
         CommandMap.setDefaultCommandMap(null);
     }
 
@@ -132,9 +131,8 @@ class AngusContentHandlersTest
     }
 
     /**
-     * The handlers exist to write messages, so this writes one of the shape this module actually sends: a
-     * multipart body with a plain text alternative and an HTML one. Three of the five handlers have to answer
-     * correctly for the bytes to come out right, which a lookup returning the wrong class would not manage.
+     * Writes a {@code multipart/alternative} message with a plain text and an HTML body, which takes three of the
+     * handlers.
      *
      * @throws Exception if building or writing the message fails
      */
@@ -162,9 +160,8 @@ class AngusContentHandlersTest
     }
 
     /**
-     * The list of handlers is maintained by hand, which is only safe while something notices when Angus changes
-     * its own. This reads the mailcap file out of the Angus jar and asks the map for every type named in it, so a
-     * handler added or renamed upstream fails the build instead of failing a send.
+     * Asks the map for every type in Angus Mail's own {@code META-INF/mailcap}, so that a handler Angus Mail adds or
+     * renames fails this test.
      *
      * @throws IOException if the mailcap file cannot be read
      */
@@ -177,7 +174,7 @@ class AngusContentHandlersTest
         for (final String entry : entries) {
             final String mimeType = entry.substring(0, entry.indexOf(';')).trim();
             final String expected = handlerClassIn(entry);
-            // `multipart/*` is a pattern rather than a type, so ask about a real member of it
+            // `multipart/*` is a pattern, so ask for one of its types
             final String asked = mimeType.endsWith("/*") ? mimeType.replace("/*", "/mixed") : mimeType;
 
             final DataContentHandler handler = this.handlers.createDataContentHandler(asked);
@@ -188,8 +185,7 @@ class AngusContentHandlersTest
     }
 
     /**
-     * The content-handler lines of every {@code META-INF/mailcap} on the classpath, commented-out ones excluded --
-     * upstream comments out its image handlers deliberately, and this map leaves them out to match.
+     * The content handler lines of every {@code META-INF/mailcap} on the classpath, without the commented-out ones.
      *
      * @return one string per entry
      * @throws IOException if a mailcap file cannot be read

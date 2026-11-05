@@ -39,8 +39,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class EmailTemplateRendererTest
 {
-    // The one everything shares: rendering keeps no state between calls, so there is nothing an instance of this
-    // test's own would isolate
     private final EmailTemplateRenderer renderer = EmailTemplateRenderer.get();
 
     private String text(final String template, final Map<String, ?> values)
@@ -56,21 +54,18 @@ class EmailTemplateRendererTest
     @Test
     void everythingSharesOneRenderer()
     {
-        // Configuring an engine is expensive and it is thread-safe once initialized, so one is built and kept
         assertSame(EmailTemplateRenderer.get(), EmailTemplateRenderer.get());
     }
 
     @Test
     void anAbsentTemplateRendersToNothing()
     {
-        // A template may legitimately have no HTML part, or no text part
         assertNull(text(null, Map.of()));
     }
 
     @Test
     void putsAValueWhereANameIs()
     {
-        // The syntax that placeholder substitution already used, so no stored template had to be rewritten
         assertEquals("Dear Alice, hello", text("Dear ${name}, hello", Map.of("name", "Alice")));
         assertEquals("Dear Alice", text("Dear $name", Map.of("name", "Alice")));
     }
@@ -78,7 +73,6 @@ class EmailTemplateRendererTest
     @Test
     void reachesIntoAValue()
     {
-        // The point of an engine over substitution: the caller passes a thing, not a pre-flattened string
         assertEquals("A proposal (approved)",
             text("$submission.title ($submission.status)",
                 Map.of("submission", Map.of("title", "A proposal", "status", "approved"))));
@@ -103,9 +97,6 @@ class EmailTemplateRendererTest
     @Test
     void doesNotWriteBackIntoTheValuesItWasGiven()
     {
-        // A VelocityContext writes through to the map it is handed, and #foreach puts its loop variable there. So an
-        // immutable map fails the render outright, and a mutable one comes back with the loop leftovers in it --
-        // both of which the caller would be entitled to find surprising, since it only asked for some text.
         final Map<String, Object> immutable = Map.of("answers", List.of("yes", "no"));
         assertEquals("[yes][no]", text("#foreach($a in $answers)[$a]#end", immutable));
 
@@ -117,7 +108,6 @@ class EmailTemplateRendererTest
     @Test
     void escapesValuesInAnHtmlBody()
     {
-        // Free text somebody typed, on its way into a part a mail client reads as markup
         assertEquals("<p>A &lt;b&gt;bold&lt;/b&gt; &amp; brave proposal</p>",
             html("<p>$title</p>", Map.of("title", "A <b>bold</b> & brave proposal")));
     }
@@ -132,7 +122,6 @@ class EmailTemplateRendererTest
     @Test
     void leavesTheTemplatesOwnMarkupAlone()
     {
-        // Markup a template means to produce is written in the template, where it is not a value and not escaped
         assertEquals("<p><strong>Alice</strong></p>",
             html("<p><strong>$name</strong></p>", Map.of("name", "Alice")));
     }
@@ -140,7 +129,6 @@ class EmailTemplateRendererTest
     @Test
     void doesNotEscapeAPlainTextBody()
     {
-        // The same value, in the part nothing renders as markup: entities there would be the bug
         assertEquals("A <b>bold</b> & brave proposal",
             text("$title", Map.of("title", "A <b>bold</b> & brave proposal")));
     }
@@ -148,18 +136,15 @@ class EmailTemplateRendererTest
     @Test
     void leavesAnAccentedNameAlone()
     {
-        // XML escaping rather than HTML entity escaping: an email is UTF-8, and Zo&euml; is worse output
         assertEquals("Dear Zoë", html("Dear $name", Map.of("name", "Zoë")));
     }
 
     @Test
     void refusesANameNobodySupplied()
     {
-        // Rendering it literally would mail somebody "Dear ${name}", which is worse than not sending
         final EmailTemplateException failure =
             assertThrows(EmailTemplateException.class, () -> text("Dear ${name}", Map.of()));
 
-        // The position in the template is what a template author needs to fix it
         assertTrue(failure.getMessage().contains("line 1"), failure.getMessage());
         assertTrue(failure.getMessage().contains("name"), failure.getMessage());
     }
@@ -167,8 +152,7 @@ class EmailTemplateRendererTest
     @Test
     void testsForSomethingGenuinelyOptional()
     {
-        // The way to write "if there is one": a quiet reference does NOT do it, because being unsupplied and being
-        // supplied as nothing are different states and quiet references are only for the second
+        // A quiet reference does not make a variable that nobody supplied optional
         assertEquals("Hello.", text("#if($note)Note: $note#{else}Hello.#end", Map.of()));
         assertThrows(EmailTemplateException.class, () -> text("Dear $!{name}", Map.of()));
     }
@@ -176,8 +160,7 @@ class EmailTemplateRendererTest
     @Test
     void aValueSuppliedAsNothingRendersAsNothing()
     {
-        // Distinct from a name nobody supplied, which is refused above: the caller said there is no note, which is
-        // an answer rather than an omission, and it has to survive being escaped on its way into an HTML body
+        // The HTML escaping writes nothing for it too
         final Map<String, Object> values = new HashMap<>();
         values.put("note", null);
 
@@ -194,8 +177,6 @@ class EmailTemplateRendererTest
     @Test
     void cannotReachTheFilesystem()
     {
-        // Templates are content a deployment can edit, so the only resource loader is the in-memory one and nothing
-        // was ever put in it
         assertThrows(EmailTemplateException.class, () -> text("#include('/etc/passwd')", Map.of()));
         assertThrows(EmailTemplateException.class, () -> text("#parse('/etc/passwd')", Map.of()));
     }
@@ -205,7 +186,6 @@ class EmailTemplateRendererTest
     {
         final Map<String, Object> values = Map.of("name", "Alice");
 
-        // SecureUberspector permits the class name and stops there, which is the line it draws
         assertEquals("java.lang.String", text("$name.getClass().getName()", values));
         assertThrows(EmailTemplateException.class, () -> text("$name.getClass().getClassLoader()", values));
         assertThrows(EmailTemplateException.class, () -> text("$name.class.classLoader", values));
