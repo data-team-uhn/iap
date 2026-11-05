@@ -52,10 +52,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link RemoteNodeServlet}, the token-authenticated endpoint a remote instance posts to.
- *
- * <p>The two things worth pinning down are that nothing is written without a token that verifies, and that a
- * name the peer chose cannot address anything outside {@code /remote}.</p>
+ * Tests for {@link RemoteNodeServlet}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -67,7 +64,7 @@ public class RemoteNodeServletTest
     /** A token string the mocked manager accepts. */
     private static final String VALID_TOKEN = "a.valid.token";
 
-    /** The node name the happy-path tests ask for, and the body asking for it. */
+    /** The node name a valid request asks for. */
     private static final String NAME = "abc123";
 
     private static final String VALID_BODY = "{\"path\": \"" + NAME + "\"}";
