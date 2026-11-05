@@ -9,6 +9,7 @@ channel.
 |---|---|---|
 | Chat webhook | `modules/slack-notifications` | Scheduled posts to a webhook, assembled from producers |
 | Email | `modules/email-notifications` | Emails built from templates kept in the repository |
+| In the application | `modules/notifications/stored` | Notifications kept for their recipients, shown under a bell in the app bar |
 
 More channels are expected. A channel is an ordinary module: it decides what triggers a
 delivery, what a message looks like in its medium, and how the platform's content
@@ -75,29 +76,33 @@ those modules. A producer for another channel would get the same reports for fre
 
 A workflow tells people what happened with a message event: a message intermediate throw
 event its process passes, or a message end event it stops at. The event carries what
-happened as its message name, who to tell, how urgent it is, and where its template
-lives, so adding a notification is adding a node and a template, never Java. Who to tell
-is written in the same vocabulary the workflow uses to say who may act: `@creator` is
-whoever raised the thing in question, `@entityCreator` whoever raised the entity it
-belongs to, and anything else is a person or a group, expanded into its members when the
-moment comes. The same name always means the same people in both places, because both are
-answered by the same service. The event's properties, and why nothing is sent before the
-workflow's changes are committed, are in
+happened as its message name, who to tell, how urgent it is, and its template. Adding a
+notification takes a node and a template, and no Java. Who to tell is written in the
+vocabulary the workflow uses to say who may act. `@creator` is whoever created the
+resource the notification is about, and `@entityCreator` whoever created the entity it
+belongs to. Any other name is a user or a group, and a group is expanded into its
+members when the notification is sent. A name means the same people in both places,
+because the same service answers both. The event's properties, and why nothing is sent
+before the workflow's changes are committed, are in
 [workflows](workflows.md#message-events-tell-people-what-happened).
 
-What happens next deliberately splits in two. The workflow states *what happened and who it
-concerns*; **how each person hears about it is decided per channel**, by whichever deliveries are
-installed — an email right away, a marker in the interface, or nothing at all for somebody who
-cannot be reached. A channel that cannot carry a notification simply declines it, and that is a
-normal answer: the workflow has already moved on either way.
+**The workflow says what happened and who it concerns. Each delivery decides how a
+person hears about it.** `NotificationService` (`modules/notifications/impl`) finds each
+person and their account, and offers the notification to every registered delivery for
+each of them. A delivery is an OSGi service implementing `NotificationDelivery`
+(`…notifications.spi`), and decides from the notification and the account whether to
+carry it. It can email the person at once, keep the notification in their list, or
+decline. Declining is a normal answer, and somebody every delivery declines is not told.
+A delivery that throws is logged and recorded, and the others are still offered the
+notification.
 
 ### Where the templates live
 
-Each notification's template is a folder under `/libs/iap/notificationTemplates/`, holding one
-rendering per channel. A `uiMessage` property on the folder is the one-sentence form a compact list can
-show; an `email` child carries the email rendering described below. A folder with no rendering for
-some channel simply says nothing through that channel — which is a choice its author made, not an
-error.
+A notification's template is a folder, kept under `/libs/iap/notificationTemplates/`. It
+holds one rendering per channel. Its `uiMessage` property is the sentence the stored
+notifications show, and its `email` child is the email described below. A folder with no
+`email` child sends no email, and that is not an error. Without a `uiMessage`, a stored
+notification says the subject's title and the event, such as `A long weekend: approved`.
 
 ## Email
 
@@ -359,37 +364,37 @@ text and the HTML source are in tabs beside the rendering.
 
 ## Stored notifications
 
-`iap-stored-notifications` (`modules/notifications/stored`) is the channel that keeps what the others
-only say once: every notification it accepts becomes a small record under
-`/Notifications/<recipient>`, and the interface shows each person theirs. It accepts every urgency, because storing is not interrupting —
-an urgent decision and a quiet aside both belong in the list of what happened while nobody was
-looking.
+`iap-stored-notifications` (`modules/notifications/stored`) keeps each notification for
+its recipient to read in the application. It stores a `notif:Notification` in the
+recipient's folder, `/Notifications/<user id>`. It accepts a notification of any
+urgency, if it has a message to store: the template's `uiMessage`, or else the subject's
+title and the event. It declines a notification with neither.
 
-Each record carries the rendered sentence (the template's `uiMessage`, or the subject's title and
-the event when there is none), a link to what it is about, who caused it, and whether it has been
-read. The sentence is rendered at the moment of delivery, deliberately: templates can be reworded and
-subjects can be deleted, but what somebody was told should read tomorrow the way it read today.
+Each record holds the message, the event, the path of the subject, who caused it, the
+urgency, and whether the recipient has marked it read. The message is rendered when the
+notification is stored. It reads the same after the template is reworded or the subject
+is deleted.
 
-Who may see a notification is the repository's answer, not filtering code: each recipient's folder
-is readable by that one account, and everything filed under it inherits the grant. A listing
-therefore runs on the reader's own session and simply cannot contain anybody else's notifications. The recipient may also mark theirs read —
-`POST <notification>.markRead.json` — and nobody else gets a writable view to do even that.
+The delivery grants each recipient's folder to that recipient alone, the first time it
+stores a notification for them. Everything in the folder inherits the grant. If the
+grant fails, the notification is not stored. A recipient marks a notification read with
+`POST <notification>.markRead.json`, on their own session. The servlet refuses anybody
+the notification does not name, an administrator included.
 
-The bell in the application bar is where they land: it counts the unread ones, lists the latest when
-opened — opening the list is what "reading" means, the same way glancing at a stack of letters takes
-them off the doormat — and each entry leads to the thing it reports on.
+**The bell in the app bar shows them.** Every minute it asks the server how many of the
+current user's notifications are unread. Opening it lists the ten newest, and marks the
+unread ones among them as read. An entry leads to what it is about. The listing asks for
+the caller's own notifications by name. Access control does not apply to an
+administrator, whose bell would otherwise list, and mark read, everybody's
+notifications.
 
 ## Future work
 
-- **A channel that collects rather than interrupts.** Both shipped deliveries act at once,
-  so a notification marked `batched` reaches the stored list and no further. A digest that
-  accepts it, gathers a day of them and mails one summary is the missing half of what
-  urgency already says.
-- **Settings that belong to the person, not the workflow.** A notification says what
-  happened and who it concerns; how loudly each of them hears about it should be theirs to
-  choose, including turning a channel off. The account handle on `Recipient` is where that
-  would be read from.
-- **Somewhere to see all of them.** The bell shows the latest few, and nothing lists the
-  rest — so a notification scrolls out of reach rather than being filed. A page over the
-  same listing would also give "mark these read" a home that is not "whatever the dropdown
-  happened to show".
+- **A channel that collects notifications instead of sending each at once.** Both
+  deliveries act at once, and a notification marked `batched` reaches only the stored
+  list. A digest would accept it, gather a day of them and email one summary.
+- **Settings that belong to the person, not the workflow.** Each person could choose how
+  they hear about a notification, and turn a channel off. A delivery would read the
+  settings from the account on `Recipient`.
+- **Somewhere to see all of them.** The bell shows the ten newest, and nothing lists the
+  others. A page over the same listing could also mark chosen notifications read.

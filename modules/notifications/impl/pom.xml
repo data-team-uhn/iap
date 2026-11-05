@@ -28,8 +28,8 @@
   <artifactId>iap-notifications-impl</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Notifications - Implementation</name>
-  <description>Tells people what a workflow says happened, offering each notification to every delivery
-    channel</description>
+  <description>Finds the people a notification concerns, and offers it to every delivery for each of
+    them</description>
 
   <dependencies>
     <dependency>

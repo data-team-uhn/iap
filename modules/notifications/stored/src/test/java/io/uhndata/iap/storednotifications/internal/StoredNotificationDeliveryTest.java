@@ -58,8 +58,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link StoredNotificationDelivery}: what gets written, what its recipient is granted, and how every
- * way of failing turns into a declined delivery rather than a broken workflow.
+ * Tests for {@link StoredNotificationDelivery}: what it stores, what it grants the recipient, and that each failure
+ * declines the delivery.
  *
  * @version $Id$
  * @since 0.1.0
@@ -69,7 +69,7 @@ class StoredNotificationDeliveryTest
 {
     private static final String TEMPLATE = "/libs/iap/notificationTemplates/approved";
 
-    // JCR-backed: the prefix-tree buckets are real nodes
+    // JCR-backed, because the delivery creates the folders and buckets as JCR nodes
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
     private final StoredNotificationDelivery delivery = new StoredNotificationDelivery();
@@ -133,7 +133,6 @@ class StoredNotificationDeliveryTest
             .getResource(StoredNotifications.HOMEPAGE_PATH + "/the-requester"));
     }
 
-    // The folder is granted the first time they are told anything, so a second notification adds no entry
     @Test
     void grantsTheFolderOnlyOnce()
     {
@@ -145,11 +144,10 @@ class StoredNotificationDeliveryTest
         assertEquals(1, this.granted.size());
     }
 
-    // No template at all: the subject can still say what it is about
     @Test
     void fallsBackToTheSubjectsTitleAndTheEvent()
     {
-        // Nobody raised it, a deadline say; storing it is still fine
+        // No template, and no actor
         assertTrue(this.delivery.deliver(
             NotificationContext.about(this.submission).becauseOf("approved").build(), this.requester));
 
@@ -159,7 +157,7 @@ class StoredNotificationDeliveryTest
         assertNull(stored.getValueMap().get("actor", String.class));
     }
 
-    // A named template that is missing, or one carrying no uiMessage, reads the same as none
+    // A template folder with no uiMessage, then a template folder that is missing
     @Test
     void fallsBackWhenTheWordingFolderSaysNothing()
     {
@@ -184,7 +182,6 @@ class StoredNotificationDeliveryTest
             this.storedNotification().getValueMap().get(StoredNotifications.MESSAGE_PROPERTY, String.class));
     }
 
-    // A template may say the empty thing, which is still nothing to list
     @Test
     void declinesABlankLine()
     {
@@ -193,7 +190,7 @@ class StoredNotificationDeliveryTest
         assertFalse(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
     }
 
-    // Nothing to say is a normal decline, not a failure
+    // No template, and a subject with no title
     @Test
     void declinesWhenThereIsNothingToList()
     {
@@ -215,8 +212,8 @@ class StoredNotificationDeliveryTest
         assertFalse(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
     }
 
-    // The write goes with the discarded session, which the mock repository cannot show: it has no transient
-    // space to discard
+    // The recipient has no account to grant to. JCR_MOCK has no transient space, so the test cannot check that
+    // the folder created before the grant is discarded.
     @Test
     void declinesWhenTheGrantFails()
     {
@@ -232,8 +229,7 @@ class StoredNotificationDeliveryTest
     @Test
     void declinesWithoutAUserStore() throws Exception
     {
-        // A session that stores content fine but cannot manage access control: the write succeeds and the grant
-        // is what fails, so the delivery is declined all the same
+        // The session is not a Jackrabbit one, so it cannot grant the recipient their folder
         final Session plain = Mockito.mock(Session.class);
         final ResourceResolver bare = new ResourceResolverWrapper(this.context.resourceResolver())
         {
@@ -257,7 +253,7 @@ class StoredNotificationDeliveryTest
         assertFalse(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
     }
 
-    // The repository may hand the list over as an applicable policy for a node that never had one
+    // A node that never had an access control list offers a new one as an applicable policy
     @Test
     void takesAnApplicablePolicyWhenNoneIsSetYet() throws Exception
     {
@@ -371,13 +367,8 @@ class StoredNotificationDeliveryTest
     }
 
     /**
-     * An access control manager that records the entry instead of applying it.
-     *
-     * <p>So these tests prove the grant was <em>requested</em>, with the right principal and privileges,
-     * and nothing about whether a repository accepts it. That half was measured separately, against a
-     * scratch Oak 2.6.0 on 2026-09-10: {@code setPolicy} succeeds on a {@code notif:Notification} even
-     * though the type declares no {@code rep:AccessControllable}, because Oak adds that mixin itself.
-     * A sling-mock context could not have answered it either way, since it runs as an administrator.</p>
+     * An access control manager that records each entry in {@link #granted} instead of applying it. The tests show
+     * which grant was asked for, and not that the repository enforces it.
      *
      * @return the recording manager
      */

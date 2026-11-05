@@ -20,14 +20,13 @@
 <notif = 'https://iap.uhndata.io/notifications/'>
 
 
-// The root of the stored notifications, /Notifications. Extending data:EntityHomepage is what gives it the
-// pagination servlet for free, which is the whole read side of this module: the interface lists somebody's
-// notifications by filtering on recipient=@me, on their own session, so the repository's access control - not any
-// code here - decides what a listing can contain.
+// The root of the stored notifications, /Notifications. It holds a folder for
+// each recipient, which only they may read. As a data:EntityHomepage, it lists
+// the notifications through the pagination servlet.
 [notif:Homepage] > data:EntityHomepage
   // Attributes:
 
-  // We can query the notifications
+  // We can query the homepage
   query
 
   // Properties:
@@ -46,13 +45,12 @@
   + * (sling:Folder)
   + * (nt:base) = nt:unstructured
 
-// One thing one person was told. Everything a listing shows is on the node itself - most importantly the
-// pre-rendered message - because the subject it reports on may change or be deleted later, and a notification is
-// a record of what was said, not a live view of what it was said about.
+// One thing one person was told. The message is rendered when it is stored, so
+// it reads the same after the template is reworded or the subject is deleted.
 [notif:Notification] > data:Content
   // Attributes:
 
-  // We can query notifications, e.g. counting somebody's unread ones
+  // We can query notifications, such as to count somebody's unread ones
   query
 
   // Properties:
@@ -60,26 +58,26 @@
   - sling:resourceType (STRING) = "notif/Notification" mandatory autocreated protected
   - sling:resourceSuperType (STRING) = "data/Content" mandatory autocreated protected
 
-  // Who this is for, as their repository user id; also the only account granted read on this node
+  // The user id of the person this is for, the only person granted read on it
   - recipient (STRING) mandatory
 
-  // The one-sentence form shown in a list, already rendered
+  // The sentence shown to the recipient, such as `Your request was approved`
   - message (STRING) mandatory
 
-  // What happened, as the event name the notification was raised with
+  // What happened, as the event name, such as `approved`
   - event (STRING)
 
-  // What it happened to, for a list entry to link to. A path rather than a reference: the target may well
-  // be gone by the time somebody follows it, and a path is what the deletion machinery can explain
+  // The path of the resource it is about, which the notification links to. A
+  // path, since the resource may be deleted while the notification stays.
   - subject (PATH)
 
-  // Who caused it, when somebody did
+  // The user id of the person who caused it, if somebody did
   - actor (STRING)
 
-  // How soon the workflow wanted the recipient to know; kept so a digest can tell what it may hold back
+  // How soon the recipient was to hear about it, such as `immediate` or `batched`
   - urgency (STRING)
 
-  // Whether the recipient has seen it; the recipient themselves may flip it, since it is their own reading state
+  // Whether the recipient has marked it read. The recipient may change it.
   - read (BOOLEAN) = 'false' mandatory autocreated
 
   // Allow any other properties for extensibility

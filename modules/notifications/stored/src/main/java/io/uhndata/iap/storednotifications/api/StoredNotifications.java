@@ -18,7 +18,7 @@
 package io.uhndata.iap.storednotifications.api;
 
 /**
- * Where the stored notifications live and what they are called, for everything that reads or writes them.
+ * The path, resource types and property names of the stored notifications.
  *
  * @version $Id$
  * @since 0.1.0
@@ -34,16 +34,16 @@ public final class StoredNotifications
     /** The resource type of one stored notification. */
     public static final String NOTIFICATION_RESOURCE_TYPE = "notif/Notification";
 
-    /** The property naming who a notification is for. */
+    /** The property holding the user id of the person a notification is for. */
     public static final String RECIPIENT_PROPERTY = "recipient";
 
-    /** The property carrying the rendered one-sentence form a list shows. */
+    /** The property holding the sentence shown to the recipient, rendered when the notification was stored. */
     public static final String MESSAGE_PROPERTY = "message";
 
-    /** The template property this channel renders, holding the one-sentence form before substitution. */
+    /** The property of a template folder holding that sentence, with {@code ${name}} placeholders. */
     public static final String UI_MESSAGE_PROPERTY = "uiMessage";
 
-    /** The property saying whether the recipient has seen it. */
+    /** The property saying whether the recipient has marked a notification read. */
     public static final String READ_PROPERTY = "read";
 
     private StoredNotifications()

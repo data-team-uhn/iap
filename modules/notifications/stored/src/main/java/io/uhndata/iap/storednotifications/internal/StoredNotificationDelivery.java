@@ -54,16 +54,17 @@ import io.uhndata.iap.storednotifications.api.StoredNotifications;
 import io.uhndata.iap.utils.PrefixTree;
 
 /**
- * The delivery that keeps notifications in the platform: each one becomes a {@code notif:Notification} under
- * {@code /Notifications}, readable by its one recipient, shown in the browser.
+ * Keeps each notification for its recipient to read in the application. It stores a {@code notif:Notification} in
+ * the recipient's folder, {@code /Notifications/<user id>}, which only they are granted read on.
  *
  * <p>
- * It accepts every notification that has a template, no matter the urgency.
+ * It accepts a notification of any urgency if it has a message to store. It declines one whose template folder has
+ * no {@code uiMessage} and whose subject has no title.
  * </p>
  *
  * <p>
- * The write happens on the delivery's own session, committed before this method returns. That is safe because
- * deliveries run in plain service code, never inside a commit hook.
+ * It writes as its own service user, and commits before it returns. A failure is logged and recorded, and the
+ * delivery is declined.
  * </p>
  *
  * @version $Id$
@@ -107,15 +108,15 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * Writes one notification into its recipient's prefix-tree bucket.
+     * Writes one notification into a prefix-tree bucket of its recipient's folder.
      *
      * @param resolver this delivery's own session
      * @param notification what happened
-     * @param recipient who it is for
-     * @param message the rendered notification message
-     * @return the created resource
-     * @throws RepositoryException when the bucket cannot be reached
-     * @throws PersistenceException when the notification cannot be written
+     * @param recipient the person it is for
+     * @param message the rendered message
+     * @return the created notification
+     * @throws RepositoryException if the folder or the bucket cannot be created, or the folder cannot be granted
+     * @throws PersistenceException if the notification cannot be written
      */
     private static Resource store(final ResourceResolver resolver, final NotificationContext notification,
         final Recipient recipient, final String message) throws RepositoryException, PersistenceException
@@ -142,9 +143,9 @@ public class StoredNotificationDelivery implements NotificationDelivery
      * The folder holding one recipient's notifications, created and granted to them on first use.
      *
      * @param resolver this delivery's own session
-     * @param userId whose folder to find
+     * @param userId the recipient's user id
      * @return the folder node
-     * @throws RepositoryException when the folder cannot be created or granted
+     * @throws RepositoryException if the folder cannot be created or granted
      */
     private static Node recipientHome(final ResourceResolver resolver, final String userId)
         throws RepositoryException
@@ -163,12 +164,14 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * Lets the one recipient read, and mark as read, everything under their folder.
+     * Lets the recipient read, and mark as read, everything in their folder. A grant that fails fails the delivery,
+     * since a notification its recipient cannot read is lost.
      *
      * @param resolver this delivery's own session
-     * @param path the recipient's folder
-     * @param userId who may read it, the notification recipient
-     * @throws RepositoryException when the entry cannot be written, which fails the whole delivery
+     * @param path the path of the recipient's folder
+     * @param userId the recipient's user id
+     * @throws RepositoryException if the session cannot manage access control, the recipient has no account, or the
+     *             entry cannot be written
      */
     private static void grantRead(final ResourceResolver resolver, final String path, final String userId)
         throws RepositoryException
@@ -183,7 +186,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
         }
         final AccessControlManager manager = session.getAccessControlManager();
         final AccessControlList acl = listFor(manager, path);
-        // Read to see them, modifyProperties to flip a read marker; inherited by everything below
+        // Read to see them, and modifyProperties to mark them read. Everything in the folder inherits it.
         acl.addAccessControlEntry(account.getPrincipal(), new Privilege[] {
             manager.privilegeFromName(Privilege.JCR_READ),
             manager.privilegeFromName(Privilege.JCR_MODIFY_PROPERTIES) });
@@ -191,12 +194,12 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * Get or create he resource's own access control list.
+     * The access control list of a node: the one it has, or else a new one that can be put on it.
      *
      * @param manager the repository's access control manager
-     * @param path the resource
-     * @return a modifiable list
-     * @throws RepositoryException when the repository will not hand one over
+     * @param path the path of the node
+     * @return a list to add entries to, then set on the node
+     * @throws RepositoryException if the node has no list and none can be put on it
      */
     private static AccessControlList listFor(final AccessControlManager manager, final String path)
         throws RepositoryException
@@ -217,11 +220,11 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * Render the message of this notification. Either the template's {@code uiMessage} with its placeholders filled in,
-     * or a plain statement composed of the title and event name when the template has no message template.
+     * Renders the message to store. It is the template folder's {@code uiMessage} with its placeholders filled in,
+     * or else the subject's title and the event name, such as {@code A long weekend: approved}.
      *
      * @param notification what happened
-     * @return the rendered message, or {@code null} when there is nothing to say
+     * @return the message, or {@code null} if there is no {@code uiMessage} and the subject has no title
      */
     private static String renderMessage(final NotificationContext notification)
     {
@@ -229,23 +232,22 @@ public class StoredNotificationDelivery implements NotificationDelivery
         final String template = messageTemplate(notification);
         if (template != null) {
             final StringSubstitutor substitutor = new StringSubstitutor(variables);
-            // The variables usually come from what somebody typed, and that is user-entered text, not a template:
-            // an outcome note containing ${...} should not be further interpolated as a variable.
-            // A placeholder without a value stays as written, so a typo shows up in the list rather than vanishing.
+            // A value is often text somebody typed, so a ${...} inside it is kept as typed.
+            // A placeholder with no value is kept as written.
             substitutor.setDisableSubstitutionInValues(true);
             return substitutor.replace(template);
         }
-        // Always present in the map, possibly empty: variables() fills it from the subject with a default
+        // variables() always sets subjectTitle, to an empty string if the subject has no title
         final String title = variables.get("subjectTitle");
         return title.isBlank() ? null : title + ": " + notification.getEvent();
     }
 
     /**
-     * The {@code uiMessage} the notification's template carries, when it names a template and that template
-     * has a message template.
+     * The {@code uiMessage} of the notification's template folder, read through the subject's session.
      *
      * @param notification what happened
-     * @return the raw message template, or {@code null}
+     * @return the message with its placeholders, or {@code null} if the notification names no template, the folder
+     *         is missing, or it has no {@code uiMessage}
      */
     private static String messageTemplate(final NotificationContext notification)
     {
@@ -258,11 +260,11 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * What a message may interpolate: whatever the notification carries, plus the few things every message can say
-     * about itself, the same set an email template gets.
+     * The values a message can use: the notification's own variables, and {@code subjectPath}, {@code subjectTitle}
+     * and {@code event}. These three replace a notification variable of the same name.
      *
      * @param notification what happened
-     * @return the variables, as the strings a message substitutes
+     * @return the values as strings, by variable name
      */
     private static Map<String, String> variables(final NotificationContext notification)
     {

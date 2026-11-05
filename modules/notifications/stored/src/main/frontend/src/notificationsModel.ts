@@ -16,13 +16,8 @@
  * limitations under the License.
  */
 
-// What a notification is, where they live, and how to read one out of a listing row. No React, no
-// fetch: everything here is a pure function of its arguments. The I/O that uses it is in
-// useNotifications.
-//
-// A listing asks for its own recipient by name, and is read on the caller's own session, which can
-// see nobody else's notification. Belt and braces on purpose: access control does not apply to an
-// administrative session, and an administrator asking for everyone's would mark them all read.
+// What a stored notification is, where they live, and how to read one out of a listing row. The
+// requests are in useNotifications.
 
 import { type EntityRow } from "@iap/frontend-commons/entityGrid/pagination";
 
@@ -36,25 +31,22 @@ export const RECIPIENT = "recipient";
 export const READ = "read";
 
 /**
- * How many the dropdown shows.
- *
- * It lives here rather than beside the markup because opening the list marks what it shows as read,
- * and there is no way back from that. The count that decides what is displayed and the count that
- * decides what is marked have to be the same one.
+ * How many notifications the dropdown shows. Opening it marks those it shows as read, so the markup
+ * and the marking both use this one count.
  */
 export const SHOWN = 10;
 
 /** One thing the current user was told. */
 export interface Notification {
-  /** The notification node itself, where the read marker is posted. */
+  /** The path of the notification, where the read marker is posted. */
   path: string;
   /** The rendered message to show. */
   message: string;
-  /** Whether it has been seen before. */
+  /** Whether the recipient has marked it read. */
   read: boolean;
-  /** What it is about, to link to; possibly gone by now, which the deletion machinery explains. */
+  /** The path of what it is about, to link to. It may have been deleted since. */
   subject?: string;
-  /** When it was raised, as a JCR ISO datetime. */
+  /** When it was stored, as an ISO 8601 date and time. */
   created?: string;
 }
 
@@ -68,7 +60,7 @@ export function parseNotification(row: EntityRow): Notification {
   return {
     path: String(row["@path"]),
     message: typeof row.message === "string" ? row.message : "",
-    // A single-valued boolean may round-trip as a bare boolean or as a string, so both are accepted
+    // Accepts the read marker as a boolean or as the string "true"
     read: row.read === true || row.read === "true",
     subject: typeof row.subject === "string" ? row.subject : undefined,
     created: typeof row["jcr:created"] === "string" ? row["jcr:created"] : undefined,

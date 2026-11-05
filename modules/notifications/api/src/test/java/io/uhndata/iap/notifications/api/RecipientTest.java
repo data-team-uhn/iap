@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
- * Tests for {@link Recipient}: identity plus the account, and nothing about any channel.
+ * Tests for {@link Recipient}.
  *
  * @version $Id$
  * @since 0.1.0

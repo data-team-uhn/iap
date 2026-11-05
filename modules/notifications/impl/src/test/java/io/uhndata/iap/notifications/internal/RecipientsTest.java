@@ -40,8 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link Recipients}: user ids in, people with their accounts out, nobody invented and nobody lost
- * silently.
+ * Tests for {@link Recipients}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -67,8 +66,6 @@ class RecipientsTest
         assertEquals("bob", found.get(1).userId());
     }
 
-    // An id the repository does not know is skipped with a warning, not an error: a group may well name an
-    // account that was removed since
     @Test
     void skipsAnUnknownAccount() throws Exception
     {
@@ -112,8 +109,6 @@ class RecipientsTest
         assertTrue(Recipients.of(resolver, List.of("broken")).isEmpty());
     }
 
-    // An account with no resource behind it cannot supply anything a delivery reads, so it is skipped rather
-    // than handed over half-formed
     @Test
     void skipsAPersonWhoseAccountHasNoResource() throws Exception
     {

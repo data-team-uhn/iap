@@ -41,8 +41,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link MarkReadServlet}. Both halves of "may they?" are exercised: what access control says, and
- * whether the notification is the caller's at all.
+ * Tests for {@link MarkReadServlet}: whether the caller's session may write the notification, and whether it is the
+ * caller's.
  *
  * @version $Id$
  * @since 0.1.0
@@ -68,7 +68,6 @@ class MarkReadServletTest
         assertEquals(Boolean.TRUE, notification.getValueMap().get(StoredNotifications.READ_PROPERTY, Boolean.class));
     }
 
-    // Reading twice is not an event
     @Test
     void markingItAgainIsFine() throws IOException
     {
@@ -81,8 +80,7 @@ class MarkReadServletTest
         assertEquals(Boolean.TRUE, notification.getValueMap().get(StoredNotifications.READ_PROPERTY, Boolean.class));
     }
 
-    // A session with no write on the node gets no writable view of it. The servlet carries that answer
-    // rather than second-guessing it
+    // A session that may not write the node gets no ModifiableValueMap
     @Test
     void refusesWhoeverTheRepositoryRefuses() throws IOException
     {
@@ -101,8 +99,6 @@ class MarkReadServletTest
         assertTrue(response.getOutputAsString().contains("error"));
     }
 
-    // The case access control cannot catch: this session may write the node and still has no business
-    // marking it, which is every administrator's session
     @Test
     void refusesSomebodyElsesNotificationTheyCanWrite() throws IOException
     {
@@ -116,7 +112,6 @@ class MarkReadServletTest
         assertEquals(Boolean.FALSE, notification.getValueMap().get(StoredNotifications.READ_PROPERTY, Boolean.class));
     }
 
-    // Nobody's to mark, which is what a notification with no recipient recorded on it would be
     @Test
     void refusesANotificationThatNamesNobody() throws IOException
     {
@@ -166,7 +161,7 @@ class MarkReadServletTest
             StoredNotifications.READ_PROPERTY, Boolean.FALSE);
     }
 
-    /** The mock resolver reports no user of its own, so who is asking is said here. */
+    /** A resolver for the given user. The mock resolver has no user of its own. */
     private ResourceResolver sessionOf(final String userId)
     {
         return new ResourceResolverWrapper(this.context.resourceResolver())

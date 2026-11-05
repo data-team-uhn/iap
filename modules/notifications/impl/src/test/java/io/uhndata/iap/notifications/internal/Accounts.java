@@ -26,15 +26,14 @@ import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 
 /**
- * Makes recipient accounts in the shape the platform reads: an address at {@code profile/email}, which is
- * where Keycloak's sync handler puts it.
+ * Creates user accounts and groups for the tests. An account can have an email address at {@code profile/email}.
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class Accounts
 {
-    /** Where an account's email address lives, as Keycloak's sync handler writes it. */
+    /** The account property holding an email address. */
     static final String EMAIL_PROPERTY = "profile/email";
 
     private Accounts()
@@ -43,11 +42,11 @@ final class Accounts
     }
 
     /**
-     * One user account.
+     * Creates a user account, with its user id as its password.
      *
      * @param context the test's Sling context, which must be JCR-backed
-     * @param userId the account to create
-     * @param address its email address, or {@code null} for an account carrying none
+     * @param userId the user id of the account to create
+     * @param address its email address, or {@code null} for none
      * @return the account
      * @throws Exception if it cannot be created
      */
@@ -64,11 +63,11 @@ final class Accounts
     }
 
     /**
-     * A group with the given members, each of which is created.
+     * Creates a group with the given members.
      *
-     * @param context the test's Sling context
-     * @param groupId the group to create
-     * @param members the accounts to put in it
+     * @param context the test's Sling context, which must be JCR-backed
+     * @param groupId the id of the group to create
+     * @param members the existing accounts to put in it
      * @return the group
      * @throws Exception if it cannot be created
      */
