@@ -19,8 +19,8 @@
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 
 // PRETOTYPE. What a page shows about itself in the app bar, which stays in view while the page scrolls: its
-// title, the details beside it, such as an identifier and a person, badges such as its status tags, and
-// something at the end, such as a countdown. A phone's bar has room for the short form only, such as an identifier.
+// title, the details under it, such as an identifier and a person, badges such as its status tags, and
+// something to end the details with, such as a countdown. A phone's bar has room for the short form only, such as an identifier.
 export interface PageContext {
   title: string;
   short?: string;

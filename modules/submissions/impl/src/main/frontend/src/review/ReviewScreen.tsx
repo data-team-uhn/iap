@@ -299,7 +299,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     short: text(header.identifier),
     details: `${text(header.identifier)} · ${text(header.pi)}`,
     badges: <><TagChip tags={header.tags} category="lifecycle" /><TagChip tags={header.tags} category="priority" /></>,
-    end: <Countdown due={header.reviewDue} pausedAt={header.reviewPausedAt} />,
+    end: <Countdown due={header.reviewDue} pausedAt={header.reviewPausedAt} variant="caption" />,
     tools: search(true),
   });
 
