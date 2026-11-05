@@ -34,6 +34,8 @@ final class CommitRecord extends DefaultEditor
 
     private final ChangeLog log;
 
+    private final EntityLocator entities;
+
     private final RecordWriter writer;
 
     /**
@@ -41,18 +43,33 @@ final class CommitRecord extends DefaultEditor
      *
      * @param description the action the commit was described as
      * @param log what the commit did to each entity, filled in by the walk
+     * @param entities finds the entity each named part belongs to
      * @param writer writes the record into the commit
      */
-    CommitRecord(final ActionDescription description, final ChangeLog log, final RecordWriter writer)
+    CommitRecord(final ActionDescription description, final ChangeLog log, final EntityLocator entities,
+        final RecordWriter writer)
     {
         this.description = description;
         this.log = log;
+        this.entities = entities;
         this.writer = writer;
     }
 
     @Override
     public void leave(final NodeState before, final NodeState after) throws CommitFailedException
     {
+        nameRoles(before, after);
         this.writer.write(this.description, this.log);
+    }
+
+    /**
+     * Gives each entity the part the code named for it. A named node is looked for as committed, else as it was, so
+     * that a part the commit removed still names its entity.
+     */
+    private void nameRoles(final NodeState before, final NodeState after)
+    {
+        this.description.effects().forEach(effect -> this.entities.find(after, effect.path())
+            .or(() -> this.entities.find(before, effect.path()))
+            .ifPresent(subject -> this.log.nameRole(subject, effect.role())));
     }
 }

@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.history.internal;
 
+import java.util.Optional;
+
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 import io.uhndata.iap.entities.nodetypes.NodeTypeRules;
@@ -53,5 +55,31 @@ final class EntityLocator
     {
         final Subject own = this.rules.isEntity(node) ? Subject.of(path, node) : null;
         return own == null ? enclosing : own;
+    }
+
+    /**
+     * The entity a node is part of, walking down to it from the root.
+     *
+     * @param root the repository root to look in
+     * @param path the node's absolute path
+     * @return the entity, or empty if the node does not exist under that root or is part of no entity
+     */
+    Optional<Subject> find(final NodeState root, final String path)
+    {
+        NodeState node = root;
+        Subject entity = null;
+        final StringBuilder walked = new StringBuilder();
+        for (final String segment : path.split("/")) {
+            if (segment.isEmpty()) {
+                continue;
+            }
+            node = node.getChildNode(segment);
+            if (!node.exists()) {
+                return Optional.empty();
+            }
+            walked.append('/').append(segment);
+            entity = entityAt(walked.toString(), node, entity);
+        }
+        return Optional.ofNullable(entity);
     }
 }

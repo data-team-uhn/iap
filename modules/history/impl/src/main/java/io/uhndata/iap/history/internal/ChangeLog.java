@@ -91,7 +91,21 @@ final class ChangeLog
     }
 
     /**
-     * Every entity the commit affected.
+     * Notes the part an entity played, as the code that changed it names it. The first part named is the one kept.
+     *
+     * @param subject the entity
+     * @param role the part it played
+     */
+    void nameRole(final Subject subject, final String role)
+    {
+        final EntityChanges changes = of(subject);
+        if (changes.role == null) {
+            changes.role = role;
+        }
+    }
+
+    /**
+     * Every entity the commit affected or the code named.
      *
      * @return their changes, in the order each entity was first met
      */
@@ -125,6 +139,8 @@ final class ChangeLog
 
         private boolean deleted;
 
+        private String role;
+
         private EntityChanges(final Subject subject)
         {
             this.subject = subject;
@@ -141,13 +157,15 @@ final class ChangeLog
         }
 
         /**
-         * The part the entity played, from what the commit did to it.
+         * The part the entity played: as the code named it, or else what the commit did to it.
          *
          * @return the role
          */
         String role()
         {
-            if (this.created && this.deleted) {
+            if (this.role != null) {
+                return this.role;
+            } else if (this.created && this.deleted) {
                 return "moved";
             } else if (this.created) {
                 return "created";
