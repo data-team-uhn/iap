@@ -62,7 +62,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     ...notes.map(note => ({ id: note.id, kind: kindInfo(adopting === note.id ? "issue" : note.kind).mark,
       quote: note.passage?.quote ?? "",
       page: note.passage?.page })),
-    ...draft ? [ { id: DRAFT, kind: "annotation" as const, anchor: draft } ] : [],
+    ...draft ? [ { id: DRAFT, kind: "draft" as const, anchor: draft } ] : [],
   ], [ notes, draft, adopting ]);
 
   const renderMarkDetails = useCallback((mark: Mark) => {
