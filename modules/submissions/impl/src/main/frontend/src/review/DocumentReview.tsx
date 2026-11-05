@@ -70,12 +70,12 @@ export default function DocumentReview({ document, data, shown, selected, onSele
       return (
         <Box sx={{ px: 1.5, pb: 1 }}>
           <Composer
-            kinds={WRITTEN} initialKind="issue"
+            kinds={WRITTEN} initialKind="issue" about={[ data.partOf.get(document.uuid) ?? "" ]}
             onCancel={() => setDraft(undefined)}
-            onSave={async (kind, text, severity) => {
+            onSave={async (kind, text, severity, topic) => {
               await actions.write({ kind, text, subjects: [ document.uuid ], source: document.version,
                 quote: draft.quote, prefix: draft.before, suffix: draft.after, page: String(draft.start.page),
-                ...severity ? { severity } : {} });
+                ...severity ? { severity } : {}, ...topic ? { topic } : {} });
               setDraft(undefined);
             }}
           />
@@ -93,16 +93,17 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         <NoteCard
           note={note} answerLabel={asked?.answer}
           onReply={text => actions.write({ replyTo: note.id, text })}
-          onEdit={(text, severity) => actions.write({ edit: note.id, text, ...severity ? { severity } : {} })}
+          onEdit={(text, severity, topic) => actions.write({ edit: note.id, text, ...severity ? { severity } : {},
+            ...topic !== undefined ? { topic } : {} })}
           onRemove={() => actions.write({ remove: note.id })}
-          onMakeIssue={(text, severity) => actions.write(issueFrom(note, text, severity))}
+          onMakeIssue={(text, severity, topic) => actions.write(issueFrom(note, text, severity, topic))}
           onDismiss={() => actions.write({ dismiss: note.id })}
           adopting={adopting === note.id}
           onAdopting={on => setAdopting(on ? note.id : undefined)}
         />
       </Box>
     );
-  }, [ notes, draft, actions, document, questionLabel, adopting ]);
+  }, [ notes, draft, actions, document, questionLabel, adopting, data.partOf ]);
 
   return (
     <>

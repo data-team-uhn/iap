@@ -158,9 +158,10 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
               <NoteCard
                 note={note} answerLabel={note.kind === "evidence" ? extracted : undefined}
                 onReply={text => actions.write({ replyTo: note.id, text })}
-                onEdit={(text, severity) => actions.write({ edit: note.id, text, ...severity ? { severity } : {} })}
+                onEdit={(text, severity, topic) => actions.write({ edit: note.id, text, ...severity ? { severity } : {},
+                  ...topic !== undefined ? { topic } : {} })}
                 onRemove={() => actions.write({ remove: note.id })}
-                onMakeIssue={(text, severity) => actions.write(issueFrom(note, text, severity))}
+                onMakeIssue={(text, severity, topic) => actions.write(issueFrom(note, text, severity, topic))}
                 onDismiss={() => actions.write({ dismiss: note.id })}
                 adopting={adopting === note.id}
                 onAdopting={on => setAdopting(on ? note.id : undefined)}
@@ -172,10 +173,11 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
             <Box sx={theme => ({ ...passageCard(theme, "draft"), px: 1.5, py: 1.25, outline: "2px solid",
               outlineColor: getSelectedOutline(theme, "draft"), outlineOffset: "-2px" })}>
               <Composer
-                kinds={WRITTEN} initialKind="issue"
+                kinds={WRITTEN} initialKind="issue" about={[ question.path ]}
                 onCancel={() => setWriting(false)}
-                onSave={async (kind, text, severity) => {
-                  await actions.write({ kind, text, subjects: [ answer.uuid ], ...severity ? { severity } : {} });
+                onSave={async (kind, text, severity, topic) => {
+                  await actions.write({ kind, text, subjects: [ answer.uuid ], ...severity ? { severity } : {},
+                    ...topic ? { topic } : {} });
                   setWriting(false);
                 }}
               />
