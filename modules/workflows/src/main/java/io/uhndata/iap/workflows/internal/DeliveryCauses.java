@@ -55,9 +55,7 @@ final class DeliveryCauses
         final String startedInstance)
     {
         final WorkflowVersion version = start.getWorkflowVersion();
-        return RecordedAction.by(actor.id(), event.getName())
-            .onBehalfOf(actor.onBehalfOf())
-            .event(event.getName())
+        return causedBy(actor, event)
             .workflow(startedInstance, version == null ? null : version.getIdentifier())
             .activity(start.getElementId(), start.getLabel());
     }
@@ -76,12 +74,24 @@ final class DeliveryCauses
             "A task the engine resumes is a task");
         final WorkflowInstance instance = Objects.requireNonNull(instanceTask.getWorkflowInstance(),
             "A task the engine resumes belongs to an instance");
-        return RecordedAction.by(actor.id(), event.getName())
-            .onBehalfOf(actor.onBehalfOf())
-            .event(event.getName())
+        return causedBy(actor, event)
             .workflow(instance.getPath(), instance.getWorkflowVersionIdentifier())
             .activity(instanceTask.getTaskDefinitionId(), instanceTask.getLabel())
             .task(task.getPath(), Payloads.text(event, TaskCompletion.OUTCOME_PARAMETER),
                 Payloads.text(event, TaskCompletion.OUTCOME_NOTE_PARAMETER));
+    }
+
+    /**
+     * What every cause begins with: who sent the event, whom for, and the event itself.
+     *
+     * @param actor who sent the event, and whom for
+     * @param event the event
+     * @return the start of the cause
+     */
+    private static RecordedAction.Builder causedBy(final Actor actor, final WorkflowEvent event)
+    {
+        return RecordedAction.by(actor.sender(), event.getName())
+            .onBehalfOf(actor.onBehalfOf())
+            .event(event.getName());
     }
 }

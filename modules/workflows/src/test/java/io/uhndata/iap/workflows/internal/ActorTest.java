@@ -44,6 +44,14 @@ class ActorTest
         final Actor actor = new Actor("admin", "alice");
 
         Assertions.assertEquals("alice", actor.effectiveUser(), "Acting for someone counts as them");
-        Assertions.assertEquals("admin", actor.id(), "The sender stays answerable");
+        Assertions.assertEquals("admin", actor.sender(), "The sender stays answerable");
+    }
+
+    @Test
+    void recordsNobodyElseWhenTheSenderNamesThemselves()
+    {
+        final Actor actor = new Actor("alice", "alice");
+
+        Assertions.assertNull(actor.onBehalfOf(), "Acting for oneself has one shape, whoever builds it");
     }
 }
