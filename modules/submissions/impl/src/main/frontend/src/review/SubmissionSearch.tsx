@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
 import KeyboardArrowUpOutlined from "@mui/icons-material/KeyboardArrowUpOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
@@ -63,24 +64,32 @@ export default function SubmissionSearch({ query, position, total, reading, inBa
         slotProps={{
           input: {
             startAdornment: <InputAdornment position="start"><SearchOutlined /></InputAdornment>,
-            endAdornment: total === undefined ? undefined : (
+            endAdornment: query === "" ? undefined : (
               <InputAdornment position="end" sx={{ gap: 0.25 }}>
-                <Typography variant="caption" role="status" sx={{ color: "text.secondary", whiteSpace: "nowrap", mr: 0.5 }}>
-                  {said}
-                </Typography>
+                {said && (
+                  <Typography variant="caption" role="status"
+                    sx={{ color: "text.secondary", whiteSpace: "nowrap", mr: 0.5 }}>
+                    {said}
+                  </Typography>
+                )}
                 <Tooltip title="Previous (Shift+Enter)">
                   <span>
-                    <IconButton size="small" aria-label="Previous" disabled={total === 0} onClick={() => onStep(true)}>
+                    <IconButton size="small" aria-label="Previous" disabled={!total} onClick={() => onStep(true)}>
                       <KeyboardArrowUpOutlined fontSize="small" />
                     </IconButton>
                   </span>
                 </Tooltip>
                 <Tooltip title="Next (Enter)">
                   <span>
-                    <IconButton size="small" aria-label="Next" disabled={total === 0} onClick={() => onStep(false)}>
+                    <IconButton size="small" aria-label="Next" disabled={!total} onClick={() => onStep(false)}>
                       <KeyboardArrowDownOutlined fontSize="small" />
                     </IconButton>
                   </span>
+                </Tooltip>
+                <Tooltip title="Clear (Esc)">
+                  <IconButton size="small" aria-label="Clear the search" onClick={() => onQuery("")}>
+                    <CloseOutlined fontSize="small" />
+                  </IconButton>
                 </Tooltip>
               </InputAdornment>
             ),
