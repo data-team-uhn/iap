@@ -248,7 +248,7 @@ class WorkflowEngineImplTest
             opened.add(session);
             return session;
         });
-        EngineFixture.inject(engine, "resolverFactory", factory);
+        EngineFixture.inject(engine, "sessions", new EngineSessions(factory));
         return engine;
     }
 
@@ -778,7 +778,7 @@ class WorkflowEngineImplTest
         Mockito.when(brokenFactory.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("no such service user"));
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
-        EngineFixture.inject(engine, "resolverFactory", brokenFactory);
+        EngineFixture.inject(engine, "sessions", new EngineSessions(brokenFactory));
         EngineFixture.inject(engine, "queries", EngineFixture.queries());
         final Resource target = EngineFixture.createTarget(this.context);
 
