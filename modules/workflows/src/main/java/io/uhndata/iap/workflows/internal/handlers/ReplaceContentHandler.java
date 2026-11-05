@@ -95,5 +95,6 @@ public class ReplaceContentHandler implements ServiceTaskHandler
             throw new PersistenceException("Cannot replace " + child + " in " + host.getPath() + ": "
                 + e.getMessage(), e);
         }
+        context.recordRole(host, "replaced " + child);
     }
 }

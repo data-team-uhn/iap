@@ -102,6 +102,17 @@ class RenameContentHandlerTest
     }
 
     @Test
+    void namesTheOldAndNewNamesForTheHistory() throws WorkflowException, PersistenceException
+    {
+        final WorkflowTaskContext renaming = task("/box/b", Map.of(NAME, "bee"), new HashMap<>());
+
+        this.handler.execute(renaming);
+
+        Mockito.verify(renaming).recordRole(Mockito.argThat(resource -> "/box/bee".equals(resource.getPath())),
+            Mockito.eq("renamed from b to bee"));
+    }
+
+    @Test
     void keepsToTheActivitysPattern() throws WorkflowException, PersistenceException, RepositoryException
     {
         Mockito.when(this.activity.get(ContentNames.NAME_PATTERN_PARAMETER, String.class)).thenReturn("^[a-z]+$");
@@ -167,10 +178,16 @@ class RenameContentHandlerTest
         throws WorkflowException, PersistenceException, RepositoryException
     {
         final Map<String, Object> variables = new HashMap<>();
-        final WorkflowTaskContext task = this.fixture.task("rename", this.activity, payload, variables);
-        Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource(path));
-        this.handler.execute(task);
+        this.handler.execute(task(path, payload, variables));
         this.fixture.session().save();
         return (String) variables.get(WorkflowResult.CREATED_PATH_VARIABLE);
+    }
+
+    private WorkflowTaskContext task(final String path, final Map<String, Object> payload,
+        final Map<String, Object> variables)
+    {
+        final WorkflowTaskContext task = this.fixture.task("rename", this.activity, payload, variables);
+        Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource(path));
+        return task;
     }
 }

@@ -120,6 +120,28 @@ class MoveContentHandlerTest
     }
 
     @Test
+    void namesWhereItMovedFromAndToForTheHistory() throws WorkflowException, PersistenceException
+    {
+        final WorkflowTaskContext moving = task("/shelf/loose", Map.of(PARENT, BOX), new HashMap<>());
+
+        this.handler.execute(moving);
+
+        Mockito.verify(moving).recordRole(Mockito.argThat(resource -> "/box/loose".equals(resource.getPath())),
+            Mockito.eq("moved from /shelf/loose to /box/loose"));
+    }
+
+    @Test
+    void namesAMoveWithinItsParentReorderedForTheHistory() throws WorkflowException, PersistenceException
+    {
+        final WorkflowTaskContext reordering = task("/box/c", Map.of(BEFORE, "a"), new HashMap<>());
+
+        this.handler.execute(reordering);
+
+        Mockito.verify(reordering).recordRole(Mockito.argThat(resource -> "/box/c".equals(resource.getPath())),
+            Mockito.eq("reordered"));
+    }
+
+    @Test
     void refusesWhereItCannotGo() throws RepositoryException
     {
         assertThrows(InvalidPayloadException.class, () -> move("/box/a", Map.of(PARENT, "/nowhere")));
@@ -177,11 +199,17 @@ class MoveContentHandlerTest
         throws WorkflowException, PersistenceException, RepositoryException
     {
         final Map<String, Object> variables = new HashMap<>();
-        final WorkflowTaskContext task = this.fixture.task("move", this.activity, payload, variables);
-        Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource(path));
-        this.handler.execute(task);
+        this.handler.execute(task(path, payload, variables));
         this.fixture.session().save();
         return (String) variables.get(WorkflowResult.CREATED_PATH_VARIABLE);
+    }
+
+    private WorkflowTaskContext task(final String path, final Map<String, Object> payload,
+        final Map<String, Object> variables)
+    {
+        final WorkflowTaskContext task = this.fixture.task("move", this.activity, payload, variables);
+        Mockito.when(task.getTarget()).thenReturn(this.context.resourceResolver().getResource(path));
+        return task;
     }
 
     private static void item(final Node parent, final String name) throws RepositoryException

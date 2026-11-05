@@ -99,6 +99,7 @@ public class CopyContentHandler implements ServiceTaskHandler
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot copy " + source.getPath() + " into " + host.getPath(), e);
         }
+        context.recordRole(host, "copied from " + source.getPath());
     }
 
     /**

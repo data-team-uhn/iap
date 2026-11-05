@@ -23,8 +23,11 @@ import javax.jcr.Node;
 
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+
 /**
- * The nodes behind the resources the content tasks act on, which are always stored in the repository.
+ * The nodes behind the resources the content tasks act on, which are always stored in the repository, and the
+ * resources in front of the nodes they write.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,5 +48,18 @@ final class Nodes
     static Node of(final Resource resource)
     {
         return Objects.requireNonNull(resource.adaptTo(Node.class), "Content is stored in a JCR repository");
+    }
+
+    /**
+     * The resource in front of a node a content task has just written.
+     *
+     * @param context the executing task's context
+     * @param path where the node now is
+     * @return its resource
+     */
+    static Resource written(final WorkflowTaskContext context, final String path)
+    {
+        return Objects.requireNonNull(context.getResourceResolver().getResource(path),
+            "What a task has just written can be read in the session that wrote it");
     }
 }

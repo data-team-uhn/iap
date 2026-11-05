@@ -96,8 +96,9 @@ public class MoveContentHandler implements ServiceTaskHandler
                 : NodeNameUtils.findFreeName(parent, target.getName());
             VersioningUtils.checkOut(node.getParent());
             VersioningUtils.checkOut(parentNode);
-            context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE,
-                this.mover.move(node, parentNode, name, before));
+            final String moved = this.mover.move(node, parentNode, name, before);
+            context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, moved);
+            context.recordRole(Nodes.written(context, moved), role(target.getPath(), moved));
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot move " + target.getPath() + ": " + e.getMessage(), e);
         }
@@ -152,5 +153,17 @@ public class MoveContentHandler implements ServiceTaskHandler
             .filter(candidate -> candidate.isResourceType(type))
             .findFirst()
             .map(Resource::getPath);
+    }
+
+    /**
+     * The part the moved resource played, for its history.
+     *
+     * @param from where it was
+     * @param to where it is now
+     * @return {@code reordered} when it stayed in place, else where it moved from and to
+     */
+    private static String role(final String from, final String to)
+    {
+        return from.equals(to) ? "reordered" : "moved from " + from + " to " + to;
     }
 }
