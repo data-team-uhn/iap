@@ -691,7 +691,7 @@ not the submitter is refused too.
 | Event | Handler | What it does |
 | --- | --- | --- |
 | `stopProcessing` | `StopProcessingHandler` | Stops a parse or a reading that is going |
-| `readAgain` | `ReadAgainHandler` | Runs the reading again over the documents already parsed |
+| `readAgain` | `ReadAgainHandler` | Runs the reading again over the documents already parsed, and only fills gaps |
 | `retryParse` | `ParseDocumentsHandler` | Sends every upload that was never parsed or whose parse failed, when the schema names a reading workflow |
 | `reviewExtraction` | `ReviewExtractionHandler` | Records that the quotes behind a suggestion do not support it |
 
@@ -752,10 +752,16 @@ stopped record depends on the Stop's own walk:
 Refused with a 409 while `extractionStatus` is `running` ("This request is already being
 read"). Otherwise it sets `running`, removes the claim, and queues the same job a parse
 queues (step 5), with the job property `readAgain=true`. The job is queued before this
-walk commits, so that property tells it to wait until it sees `running`. Questions
-already answered or suggested are not asked again. An intake step asks them again only
-on its first reading of a newer version; a classification already answered or picked is
-never asked again.
+walk commits, so that property tells it to wait until it sees `running`.
+
+Read again only fills gaps. A gap is a question the submitter left empty and that no run
+has found anything for yet. Every other question is skipped: one the submitter answered,
+and one with a suggestion, even if the submitter has not accepted it. So Read again on
+the same version never changes or adds to a suggestion that is already there.
+
+The one exception is a newer version. The first reading of it asks every question of an
+intake step again (see "A newer version"). After that, Read again on it only fills gaps
+too. A classification already answered or picked is never asked again.
 
 ### Retry a failed parse
 
