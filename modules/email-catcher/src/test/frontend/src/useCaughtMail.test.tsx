@@ -22,9 +22,8 @@ import { useCatcherStatus, useCaughtMessage } from "@iap/email-catcher/useCaught
 
 let urls: string[] = [];
 
-// Answers every request with the given body and status. Each answer carries the `url` it came back
-// from: the requests go through useAuthenticatedFetch, which reads it to tell an ordinary response
-// from the login page Sling redirects to when the session has expired.
+// Answers every request with the given body and status. Each Response carries its `url`, which
+// useAuthenticatedFetch reads to tell an answer from Sling's login page.
 const stubFetch = (body: unknown, status = 200) =>
   vi.stubGlobal("fetch", vi.fn((url: string) => {
     urls.push(url);
@@ -49,8 +48,6 @@ describe("useCatcherStatus", () => {
     expect(result.current.status).toEqual({ enabled: true, total: 3 });
   });
 
-  // A reader who reached the console may still not be allowed to read /CaughtMail, and the two
-  // callers word that differently — so the hook reports the absence and neither sentence
   it("reports a refusal as no status at all, having settled", async () => {
     stubFetch(null, 403);
     const { result } = renderHook(() => useCatcherStatus());
@@ -67,9 +64,6 @@ describe("useCatcherStatus", () => {
     expect(result.current.status).toBeNull();
   });
 
-  // A dashboard widget is unmounted whenever the reader navigates away, which routinely happens
-  // while its first read is still in flight; settling one into a gone component is a React warning
-  // and, on a slower page, a leak
   it("says nothing when the read fails after the reader has navigated away", async () => {
     let refuse: (error: Error) => void = () => { /* replaced by the stub below */ };
     vi.stubGlobal("fetch", vi.fn(() =>
@@ -99,9 +93,7 @@ describe("useCaughtMessage", () => {
     expect(result.current.loadError).toBeNull();
   });
 
-  // The wording itself is requestFailure's business; what matters here is that the hook hands the
-  // screen a sentence about the cause rather than the protocol, and never one about the attempt —
-  // the LoadError above it already says the message could not be read
+  // The sentence says the cause, not the attempt, which the page's LoadError title already says
   it("describes a refusal in the reader's terms, keeping the status to relay", async () => {
     stubFetch(null, 404);
     const { result } = renderHook(() => useCaughtMessage("abc"));
@@ -121,7 +113,6 @@ describe("useCaughtMessage", () => {
     expect(result.current.loadError).toBe("The server's response could not be read. Reload and try again.");
   });
 
-  // A route naming no single message is not a read to make, and not a failure either
   it("reads nothing, and reports nothing, when the route names no message", async () => {
     stubFetch({});
     const { result } = renderHook(() => useCaughtMessage(null));
@@ -141,8 +132,6 @@ describe("useCaughtMessage", () => {
     expect(urls).toEqual([ "/CaughtMail/abc.json", "/CaughtMail/abc.json" ]);
   });
 
-  // Navigating from one message to another must not leave the previous one on screen under the new
-  // one's heading
   it("drops the message it was showing when the route names a different one", async () => {
     stubFetch({ subject: "Approved" });
     const { result, rerender } = renderHook(({ name }) => useCaughtMessage(name),

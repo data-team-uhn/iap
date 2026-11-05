@@ -38,8 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link CaughtMessageBuilder}: that the message it builds says what the caller asked for, in every
- * shape the interface offers for asking.
+ * Tests for {@link CaughtMessageBuilder}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -88,7 +87,6 @@ class CaughtMessageBuilderTest
         assertEquals("<p>Hello</p>", message.getContent());
     }
 
-    // Least capable first, which is the order a client reads to find the best part it can show
     @Test
     void offersPlainTextBeforeHtmlWhenBothAreGiven() throws Exception
     {
@@ -101,15 +99,12 @@ class CaughtMessageBuilderTest
         assertEquals("<p>Rich</p>", parts.getBodyPart(1).getContent());
     }
 
-    // A message with nothing in it is still a message; it must not fail to build
     @Test
     void buildsAMessageWithNoBodyAtAll() throws Exception
     {
         assertEquals("", this.builder.from(ADDRESS).to(OTHER).build().getContent());
     }
 
-    // saveChanges settles the headers and stamps a Date among them, which is what the catcher records as the
-    // moment the message was handed over
     @Test
     void carriesTheMomentItWasBuilt() throws Exception
     {
@@ -134,7 +129,7 @@ class CaughtMessageBuilderTest
         assertEquals("reply@example.com", message.getReplyTo()[0].toString());
     }
 
-    // The same address, offered in each of the six shapes the interface takes it in
+    // The same address, in each of the six forms the interface takes
     @Test
     void takesRecipientsInEveryShapeOffered() throws Exception
     {
@@ -243,7 +238,7 @@ class CaughtMessageBuilderTest
         assertEquals("note.txt", parts.getBodyPart(1).getFileName());
     }
 
-    // An HTML body refers to an inline part by cid:<id>, which is what makes the content id load-bearing
+    // An HTML body refers to an inline part as cid:<id>
     @Test
     void givesAnInlinePartTheContentIdItsBodyRefersTo() throws Exception
     {
@@ -273,7 +268,6 @@ class CaughtMessageBuilderTest
         assertTrue(parts.getBodyPart(1).getHeader("Content-Disposition")[0].contains("logo.png"));
     }
 
-    // Both bodies plus an attachment: the alternative pair becomes one part of the related whole
     @Test
     void keepsBothBodiesTogetherInsideAnAttachedMessage() throws Exception
     {
@@ -305,8 +299,6 @@ class CaughtMessageBuilderTest
         assertEquals("<p>Rich</p>", related.getBodyPart(0).getContent());
     }
 
-    // UTF-8 is required of every JVM, so the caller never sees this; it is still the honest answer for a name
-    // that cannot be encoded, because the alternative is a message that silently loses its sender
     @Test
     void refusesAnAddressWhoseNameCannotBeEncoded()
     {
@@ -314,7 +306,6 @@ class CaughtMessageBuilderTest
             () -> CaughtMessageBuilder.address(ADDRESS, "Zoë", "no-such-charset"));
     }
 
-    // An attachment and nothing else: the body part is empty rather than absent, so the message stays well formed
     @Test
     void wrapsAnEmptyBodyWhenOnlyAnAttachmentIsGiven() throws Exception
     {
@@ -334,7 +325,6 @@ class CaughtMessageBuilderTest
         assertThrows(AddressException.class, () -> this.builder.to("not an address"));
     }
 
-    // The interface lets the header collection be left out altogether
     @Test
     void acceptsAPartWithNoHeadersOfItsOwn() throws Exception
     {
@@ -348,8 +338,6 @@ class CaughtMessageBuilderTest
         assertEquals(2, ((Multipart) message.getContent()).getCount());
     }
 
-    // Attaching only remembers, which is the point of holding the bytes rather than assembling a part: these
-    // methods cannot report a MIME failure, so they are arranged not to have one to report
     @Test
     void attachingOnlyRemembers()
     {
@@ -363,7 +351,6 @@ class CaughtMessageBuilderTest
     {
         final MimeMessage message = this.builder.from(ADDRESS, "Zoë").to(OTHER).text("x").build();
 
-        // Encoded per RFC 2047 rather than sent as raw bytes, and decoding gives back what was asked for
         assertEquals("Zoë", ((InternetAddress) message.getFrom()[0]).getPersonal());
     }
 

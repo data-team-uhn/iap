@@ -31,7 +31,6 @@ describe("messageRoute and messageNameFromRoute", () => {
 
   it("names nothing on the list page itself", () => {
     expect(messageNameFromRoute("/admin/mail")).toBeNull();
-    // A trailing slash is the same page, not a message with an empty name
     expect(messageNameFromRoute("/admin/mail/")).toBeNull();
   });
 
@@ -41,7 +40,7 @@ describe("messageRoute and messageNameFromRoute", () => {
   });
 
   it("names nothing when the address goes deeper than one message", () => {
-    // The route is registered as a splat, so it is reached with whatever follows
+    // The route is registered as /admin/mail/*, so it receives deeper paths too
     expect(messageNameFromRoute("/admin/mail/abc/attachments")).toBeNull();
   });
 
@@ -66,8 +65,6 @@ describe("parseCatcherStatus", () => {
   });
 
   it("treats an answer missing either half as the safe reading", () => {
-    // Claiming mail is being caught when the answer did not say so would send somebody looking for
-    // a message that was in fact delivered
     expect(parseCatcherStatus({})).toEqual({ enabled: false, total: 0 });
   });
 
@@ -112,7 +109,6 @@ describe("parseCaughtMessage", () => {
   });
 
   it("reads a single address serialized as a bare string", () => {
-    // A message to one recipient is the common case, and the serializer does not wrap it in a list
     expect(parseCaughtMessage({ to: "someone@uhn.ca" }, "abc").to).toEqual([ "someone@uhn.ca" ]);
   });
 
@@ -122,8 +118,6 @@ describe("parseCaughtMessage", () => {
   });
 
   it("leaves absent properties absent rather than inventing empty ones", () => {
-    // A message with no subject and no HTML body is a message, not a broken one, and the viewer
-    // shows different things for "empty" and "not there"
     const message = parseCaughtMessage({ textBody: "Hello." }, "abc");
 
     expect(message.subject).toBeUndefined();

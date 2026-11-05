@@ -35,18 +35,11 @@ import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
 
 /**
- * Answers whether mail is being caught, to anyone who asks, as
- * {@code /libs/iap/mail-catcher.catching.json}.
+ * Answers whether mail is being caught, to anyone, signed in or not, at
+ * {@code /libs/iap/mail-catcher.catching.json}, as {@code {"catching": true}}.
  *
  * <p>
- * This is the only part of the catcher open to everybody, and it is one boolean. Somebody waiting for a
- * password-reset mail has no session, and {@code /libs} answers before sign-in. What was caught stays
- * behind {@code /CaughtMail}, which administrators alone can read.
- * </p>
- *
- * <p>
- * The answer comes from the service registry, not the configuration. It says what is in force, not what
- * was asked for.
+ * The answer is whether the catcher's mail service is registered, not what its setting asks for.
  * </p>
  *
  * @version $Id$
@@ -63,8 +56,8 @@ public class CatcherStatusServlet extends SlingJakartaSafeMethodsServlet
     private static final long serialVersionUID = 5471821096339250312L;
 
     /**
-     * The catcher's own mail service, present only while it is switched on. Dynamic, so a switch is seen
-     * without restarting this component.
+     * The catcher's mail service; {@code null} while the catcher is off. Dynamic and greedy, so that a switch
+     * takes effect without restarting this component.
      */
     @Reference(target = "(" + CaughtMailService.CATCHER_PROPERTY + "=true)",
         cardinality = ReferenceCardinality.OPTIONAL,
@@ -73,7 +66,7 @@ public class CatcherStatusServlet extends SlingJakartaSafeMethodsServlet
     private transient volatile MailService catcher;
 
     @Override
-    // The catcher's state is content, read by the banner, not a command's answer
+    // The catcher's state is content, not a command's answer
     @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException

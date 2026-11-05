@@ -51,19 +51,18 @@ import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.UserIds;
 
 /**
- * Switches the email catcher on and off, as {@code POST /CaughtMail.catching.json} with
- * {@code enabled=true|false}.
+ * Switches the email catcher on and off, at {@code POST /CaughtMail.catching.json} with
+ * {@code enabled=true} or {@code enabled=false}.
  *
  * <p>
- * It writes the setting the Felix console offers, through {@link ConfigurationAdmin}. The component has
- * no {@code @Modified} method, so an update restarts it, and its mail service registration follows.
+ * It writes the catcher's setting through {@link ConfigurationAdmin}, as the Felix console does. The
+ * catcher has no {@code @Modified} method, so the update restarts it, and it registers or withdraws its
+ * mail service.
  * </p>
  *
  * <p>
- * Only administrators can resolve {@code /CaughtMail}, and the caller is checked again here, so the
- * guard does not rest on how the servlet is bound. The repository superuser passes without the group.
- * They bypass access control and can write this setting from the Felix console anyway. On a fresh
- * instance theirs is the only account.
+ * Only members of {@value #ADMINISTRATORS_GROUP} and the repository superuser may switch it. The
+ * servlet checks the caller itself, whatever access they have to {@code /CaughtMail}.
  * </p>
  *
  * @version $Id$
@@ -80,10 +79,10 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
     /** The group that may switch mail catching on and off. */
     static final String ADMINISTRATORS_GROUP = "iap-administrators";
 
-    /** The setting written, on the catcher's own component. */
+    /** The configuration PID of the catcher's component. */
     static final String CATCHER_PID = "io.uhndata.iap.emailcatcher.internal.CaughtMailService";
 
-    /** The property within it. */
+    /** The property in that configuration that switches the catcher on and off. */
     static final String ENABLED_PROPERTY = "enabled";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CatcherToggleServlet.class);
@@ -125,16 +124,16 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
         LOGGER.info("Mail catching was switched {} by {}", enabled ? "on" : "off",
             UserIds.canonical(request.getResourceResolver()));
         JsonResponses.write(response, 200, "ok", Json.createObjectBuilder()
-            // What was asked for. The component takes a moment to restart, and
-            // /libs/iap/mail-catcher.catching.json says what is in force.
+            // What was asked for. The catcher takes a moment to restart, and
+            // /libs/iap/mail-catcher.catching.json says when it has.
             .add("requested", enabled));
     }
 
     /**
-     * Write the setting, leaving every other property of the configuration alone.
+     * Writes the setting, and leaves the configuration's other properties as they are.
      *
-     * @param enabled whether mail should be caught
-     * @throws IOException when the configuration cannot be read or written
+     * @param enabled {@code true} to catch mail, {@code false} to send it
+     * @throws IOException if the configuration cannot be read or written
      */
     private void apply(final boolean enabled) throws IOException
     {
@@ -146,10 +145,11 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Whether the caller may do this.
+     * Whether the caller may switch the catcher.
      *
      * @param request the request being served
-     * @return {@code true} when the caller belongs to {@link #ADMINISTRATORS_GROUP}
+     * @return {@code true} if the caller is the repository superuser or a member of
+     *         {@value #ADMINISTRATORS_GROUP}
      */
     private boolean isAdministrator(final SlingJakartaHttpServletRequest request)
     {
@@ -166,8 +166,9 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
      * Whether the caller is the repository superuser.
      *
      * @param resolver the caller's own resolver
-     * @param caller the canonical user id
-     * @return {@code true} when the user store reports them an administrator
+     * @param caller the caller's canonical username
+     * @return {@code true} if Oak's user manager reports the caller as the administrator; {@code false} if not, or
+     *         if it cannot be asked
      */
     private static boolean isSuperuser(final ResourceResolver resolver, final String caller)
     {
@@ -179,7 +180,7 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
             final Authorizable authorizable = jackrabbit.getUserManager().getAuthorizable(caller);
             return authorizable instanceof User user && user.isAdmin();
         } catch (final RepositoryException e) {
-            // Not recorded as an error: the group check below asks the same question.
+            // Not recorded as an error: the group check still decides
             LOGGER.debug("Could not ask the user store about {}", caller, e);
             return false;
         }

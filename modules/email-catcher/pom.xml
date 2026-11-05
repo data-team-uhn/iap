@@ -28,7 +28,8 @@
   <artifactId>iap-email-catcher</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Email Catcher</name>
-  <description>A mail service that files what would have been sent into the repository instead of delivering it, so that email can be exercised without a mail server.</description>
+  <description>A mail service that files messages under /CaughtMail instead of sending them, so that email can be read back
+    on an instance with no mail server.</description>
 
   <build>
     <plugins>
