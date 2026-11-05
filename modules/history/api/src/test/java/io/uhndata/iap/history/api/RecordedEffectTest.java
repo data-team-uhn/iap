@@ -17,14 +17,7 @@
  */
 package io.uhndata.iap.history.api;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import javax.jcr.Node;
-import javax.jcr.nodetype.NodeType;
-
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -40,58 +33,16 @@ class RecordedEffectTest
     @Test
     void keepsWhatItWasTold()
     {
-        final RecordedEffect effect =
-            new RecordedEffect("uuid", "/content/study", "sub:Submission", "submitted", List.of("tags", "title"));
+        final RecordedEffect effect = new RecordedEffect("/Submissions/aStudy", "submitted");
 
-        assertEquals("uuid", effect.subject());
-        assertEquals("/content/study", effect.subjectPath());
-        assertEquals("sub:Submission", effect.subjectType());
+        assertEquals("/Submissions/aStudy", effect.path());
         assertEquals("submitted", effect.role());
-        assertEquals(List.of("tags", "title"), effect.changes());
     }
 
     @Test
-    void insistsOnEverythingThatMakesTheRecordLegible()
+    void insistsOnBothTheResourceAndThePartItPlayed()
     {
-        assertThrows(NullPointerException.class,
-            () -> new RecordedEffect(null, "/p", "t", "role", List.of()));
-        assertThrows(NullPointerException.class,
-            () -> new RecordedEffect("uuid", null, "t", "role", List.of()));
-        assertThrows(NullPointerException.class,
-            () -> new RecordedEffect("uuid", "/p", null, "role", List.of()));
-        assertThrows(NullPointerException.class,
-            () -> new RecordedEffect("uuid", "/p", "t", null, List.of()));
-        assertThrows(NullPointerException.class,
-            () -> new RecordedEffect("uuid", "/p", "t", "role", null));
-    }
-
-    @Test
-    void cannotHaveItsChangesAlteredAfterwards()
-    {
-        final List<String> changes = new ArrayList<>(List.of("tags"));
-        final RecordedEffect effect = new RecordedEffect("uuid", "/p", "t", "role", changes);
-        changes.add("title");
-
-        assertEquals(List.of("tags"), effect.changes(),
-            "A record already described must not change because the caller kept the list");
-    }
-
-    @Test
-    void readsTheSubjectOffTheNodeSoTheyCannotDisagree() throws Exception
-    {
-        final NodeType type = Mockito.mock(NodeType.class);
-        Mockito.when(type.getName()).thenReturn("sub:Submission");
-        final Node node = Mockito.mock(Node.class);
-        Mockito.when(node.getIdentifier()).thenReturn("uuid");
-        Mockito.when(node.getPath()).thenReturn("/Submissions/aStudy");
-        Mockito.when(node.getPrimaryNodeType()).thenReturn(type);
-
-        final RecordedEffect effect = RecordedEffect.on(node, "submitted", "tags");
-
-        assertEquals("uuid", effect.subject());
-        assertEquals("/Submissions/aStudy", effect.subjectPath());
-        assertEquals("sub:Submission", effect.subjectType());
-        assertEquals("submitted", effect.role());
-        assertEquals(List.of("tags"), effect.changes());
+        assertThrows(NullPointerException.class, () -> new RecordedEffect(null, "submitted"));
+        assertThrows(NullPointerException.class, () -> new RecordedEffect("/Submissions/aStudy", null));
     }
 }

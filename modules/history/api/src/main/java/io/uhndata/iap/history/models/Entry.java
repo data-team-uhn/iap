@@ -57,8 +57,14 @@ public class Entry extends Content
     /** The name of the property holding the part the resource played. */
     public static final String ROLE_PROPERTY = "role";
 
-    /** The name of the property holding the names of the JCR properties that changed. */
-    public static final String CHANGES_PROPERTY = "changes";
+    /** The name of the property holding the paths of the properties that changed, relative to the subject. */
+    public static final String CHANGED_PROPERTY = "changed";
+
+    /** The name of the property holding the paths of the branches added, relative to the subject. */
+    public static final String ADDED_PROPERTY = "added";
+
+    /** The name of the property holding the paths of the branches removed, relative to the subject. */
+    public static final String REMOVED_PROPERTY = "removed";
 
     /** The name of the property holding the {@code jcr:uuid} of the JCR version taken afterwards. */
     public static final String SNAPSHOT_PROPERTY = "snapshot";
@@ -75,8 +81,14 @@ public class Entry extends Content
     @ValueMapValue(name = ROLE_PROPERTY)
     private String role;
 
-    @ValueMapValue(name = CHANGES_PROPERTY)
-    private String[] changes;
+    @ValueMapValue(name = CHANGED_PROPERTY)
+    private String[] changed;
+
+    @ValueMapValue(name = ADDED_PROPERTY)
+    private String[] added;
+
+    @ValueMapValue(name = REMOVED_PROPERTY)
+    private String[] removed;
 
     @ValueMapValue(name = SNAPSHOT_PROPERTY)
     private String snapshot;
@@ -129,14 +141,38 @@ public class Entry extends Content
     }
 
     /**
-     * Which properties this action changed on this resource. The values are never recorded, only the names.
+     * Which properties this action changed in this resource. The values are never recorded, only where they are.
      *
-     * @return the names of the JCR properties, such as {@code tags}; empty if the action changed none
+     * @return the paths of the properties relative to the resource, such as {@code tags} or
+     *         {@code answers/startDate/value}; empty if the action changed none
      */
     @NotNull
-    public List<String> getChanges()
+    public List<String> getChanged()
     {
-        return this.changes == null ? List.of() : List.of(this.changes);
+        return listOf(this.changed);
+    }
+
+    /**
+     * Which parts this action added to this resource. A part added with parts of its own is named once.
+     *
+     * @return the paths of the topmost added nodes relative to the resource, such as {@code answers/reason}; empty
+     *         if the action added none
+     */
+    @NotNull
+    public List<String> getAdded()
+    {
+        return listOf(this.added);
+    }
+
+    /**
+     * Which parts this action removed from this resource. A part removed with parts of its own is named once.
+     *
+     * @return the paths the topmost removed nodes had relative to the resource; empty if the action removed none
+     */
+    @NotNull
+    public List<String> getRemoved()
+    {
+        return listOf(this.removed);
     }
 
     /**
@@ -176,5 +212,10 @@ public class Entry extends Content
     public List<Annotation> getAnnotations()
     {
         return this.getChildren(Annotation.RESOURCE_TYPE, Annotation.class);
+    }
+
+    private static List<String> listOf(final String[] values)
+    {
+        return values == null ? List.of() : List.of(values);
     }
 }

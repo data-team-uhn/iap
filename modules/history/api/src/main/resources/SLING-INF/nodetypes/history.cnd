@@ -181,8 +181,12 @@
   // a change rather than the change itself.
   - role (STRING) mandatory
 
-  // The names of the JCR properties that changed, never their values
-  - changes (STRING) multiple
+  // Where the action changed this resource, relative to it and never with
+  // the values: the properties that changed, and the topmost node of each
+  // branch added or removed
+  - changed (STRING) multiple
+  - added (STRING) multiple
+  - removed (STRING) multiple
 
   // The jcr:uuid of the JCR version holding this resource's content as it was
   // after the action

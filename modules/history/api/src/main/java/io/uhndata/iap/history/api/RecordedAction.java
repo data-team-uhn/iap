@@ -70,6 +70,8 @@ public final class RecordedAction
 
     private final List<RecordedEffect> effects;
 
+    private final boolean snapshotsFollow;
+
     private RecordedAction(final Builder builder)
     {
         this.requester = builder.requester;
@@ -87,6 +89,7 @@ public final class RecordedAction
         this.parentAction = builder.parentAction;
         this.occurredAt = builder.occurredAt;
         this.effects = List.copyOf(builder.effects);
+        this.snapshotsFollow = builder.snapshotsFollow;
     }
 
     /**
@@ -248,7 +251,7 @@ public final class RecordedAction
     /**
      * The action this one was performed as part of.
      *
-     * @return the path {@link HistoryRecorder#record} returned for that action, or {@code null} for an action that
+     * @return the path {@link HistoryRecorder#commit} returned for that action, or {@code null} for an action that
      *         is not part of another
      */
     @Nullable
@@ -270,14 +273,25 @@ public final class RecordedAction
     }
 
     /**
-     * What the action did to each resource it affected.
+     * What the code that acted said it did to the resources it affected. The commit records the rest.
      *
-     * @return one effect per affected resource, in the order they were added; empty if the action affected none
+     * @return the effects, in the order they were added; empty if the code named none
      */
     @NotNull
     public List<RecordedEffect> getEffects()
     {
         return this.effects;
+    }
+
+    /**
+     * Whether snapshots of what the action changed are taken after its commit.
+     *
+     * @return {@code true} if the action is complete only once {@link HistoryRecorder#completeSnapshots} is called,
+     *         {@code false} if it is complete when it is recorded
+     */
+    public boolean isAwaitingSnapshots()
+    {
+        return this.snapshotsFollow;
     }
 
     /**
@@ -318,6 +332,8 @@ public final class RecordedAction
         private String parentAction;
 
         private Calendar occurredAt;
+
+        private boolean snapshotsFollow;
 
         private Builder(final String requester, final String operation)
         {
@@ -435,7 +451,7 @@ public final class RecordedAction
         /**
          * Records that this action was performed as part of another.
          *
-         * @param actionPath the path {@link HistoryRecorder#record} returned for the other action; {@code null} if
+         * @param actionPath the path {@link HistoryRecorder#commit} returned for the other action; {@code null} if
          *            this action is not part of another
          * @return this builder
          */
@@ -460,15 +476,28 @@ public final class RecordedAction
         }
 
         /**
-         * Adds what the action did to one resource. Each resource may be named once per action.
+         * Adds what the action did to one resource. The first part named for a resource is the one recorded.
          *
-         * @param effect the resource, the part it played, and the properties that changed on it
+         * @param effect the resource and the part it played
          * @return this builder
          */
         @NotNull
         public Builder affecting(@NotNull final RecordedEffect effect)
         {
             this.effects.add(Objects.requireNonNull(effect));
+            return this;
+        }
+
+        /**
+         * Records that snapshots of what the action changed will be taken after its commit, so that the action reads
+         * as incomplete until {@link HistoryRecorder#completeSnapshots} says they were.
+         *
+         * @return this builder
+         */
+        @NotNull
+        public Builder snapshotsFollow()
+        {
+            this.snapshotsFollow = true;
             return this;
         }
 
