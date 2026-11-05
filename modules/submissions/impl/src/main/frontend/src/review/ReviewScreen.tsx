@@ -410,10 +410,12 @@ export default function ReviewScreen({ path }: { path: string }) {
             // Navigation, so it looks it: names in the link colour, a tint under the pointer, and the one being read
             // marked by a bar down its side
             sx={theme => ({
-              borderRadius: 1, py: 0.75, mb: 0.25, alignItems: "flex-start",
+              borderRadius: 0, py: 0.75, mb: 0.25, alignItems: "flex-start",
               borderInlineStart: "3px solid", borderColor: "transparent",
               "& .requirement-name": { color: "primary.main", fontWeight: "fontWeightMedium" },
               "&:hover": { bgcolor: theme.alpha(theme.palette.primary.main, 0.06) },
+              "& .requirement-go": { opacity: 0, transition: theme.transitions.create("opacity") },
+              "&:hover .requirement-go, &:focus-visible .requirement-go": { opacity: 1 },
               "&&.Mui-selected, &&.Mui-selected:hover": {
                 bgcolor: theme.alpha(theme.palette.primary.main, 0.1), borderColor: "primary.main",
               },
@@ -439,15 +441,20 @@ export default function ReviewScreen({ path }: { path: string }) {
               slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption", component: "div" } }}
               sx={{ my: 0.25 }}
             />
-            {count > 0 && (
-              <Tooltip title={countText(notesOf(requirement).filter(note => shown.has(note.kind)))} placement="right">
-                <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, ml: 1, mt: 0.25, color: "text.secondary",
-                  flexShrink: 0 }}>
-                  <ChatBubbleOutlineOutlined sx={{ fontSize: "0.9rem" }} />
-                  <Typography variant="caption">{count}</Typography>
-                </Stack>
-              </Tooltip>
-            )}
+            <Stack direction="row" sx={{ alignItems: "center", ml: 1, flexShrink: 0 }}>
+              {count > 0 && (
+                <Tooltip title={countText(notesOf(requirement).filter(note => shown.has(note.kind)))} placement="right">
+                  <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "text.secondary" }}>
+                    <ChatBubbleOutlineOutlined sx={{ fontSize: "0.9rem" }} />
+                    <Typography variant="caption">{count}</Typography>
+                  </Stack>
+                </Tooltip>
+              )}
+              {/* Where the entry leads, once the pointer is on it */}
+              {requirement.name !== current?.name && (
+                <ChevronRightOutlined className="requirement-go" fontSize="small" sx={{ color: "primary.main", ml: 0.25 }} />
+              )}
+            </Stack>
           </ListItemButton>
         );
       })}
@@ -474,7 +481,8 @@ export default function ReviewScreen({ path }: { path: string }) {
       </Stack>
       <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, alignItems: "flex-start" }}>
         {railOpen || narrow ? (
-          <Paper sx={{ p: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0, position: { md: "sticky" }, top: { md: 16 } }}>
+          <Paper sx={{ py: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0, position: { md: "sticky" }, top: { md: 16 },
+            overflow: "hidden" }}>
             <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, pt: 0.75, pb: 0.5 }}>
               <Typography variant="h6" component="h2" sx={{ flex: 1, color: "primary.main", fontSize: "1.05rem" }}>
                 Submission contents
