@@ -422,24 +422,27 @@ export default function ReviewScreen({ path }: { path: string }) {
         <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%" }}>
           {current && (
             <>
-              <Typography variant="h6" component="h2">{current.label}</Typography>
-              <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap", mt: 1, mb: 0.5 }}
-                role="group" aria-label="Which notes to show">
-                <Typography variant="caption" sx={{ color: "text.secondary", mr: 0.25 }}>Show</Typography>
-                {NOTE_KINDS.map(info => (
-                  <Chip
-                    key={info.kind}
-                    size="small"
-                    label={info.label}
-                    variant={shown.has(info.kind) ? "filled" : "outlined"}
-                    onClick={() => toggleKind(info.kind)}
-                    aria-pressed={shown.has(info.kind)}
-                    sx={theme => ({
-                      borderColor: theme.palette[info.mark].main,
-                      ...shown.has(info.kind) ? { bgcolor: theme.alpha(theme.palette[info.mark].light, 0.45) } : {},
-                    })}
-                  />
-                ))}
+              <Stack direction="row" sx={{ alignItems: "center", columnGap: 2, rowGap: 1, flexWrap: "wrap", mb: 0.5 }}>
+                <Typography variant="h6" component="h2" sx={{ mr: "auto" }}>{current.label}</Typography>
+                {/* Over the notes they filter: on the right, where a document lists its notes */}
+                <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap", justifyContent: "flex-end" }}
+                  role="group" aria-label="Which notes to show">
+                  <Typography variant="caption" sx={{ color: "text.secondary", mr: 0.25 }}>Show</Typography>
+                  {NOTE_KINDS.map(info => (
+                    <Chip
+                      key={info.kind}
+                      size="small"
+                      label={info.label}
+                      variant={shown.has(info.kind) ? "filled" : "outlined"}
+                      onClick={() => toggleKind(info.kind)}
+                      aria-pressed={shown.has(info.kind)}
+                      sx={theme => ({
+                        borderColor: theme.palette[info.mark].main,
+                        ...shown.has(info.kind) ? { bgcolor: theme.alpha(theme.palette[info.mark].light, 0.45) } : {},
+                      })}
+                    />
+                  ))}
+                </Stack>
               </Stack>
               {isFormRequirement(current) && (
                 <FormReview
