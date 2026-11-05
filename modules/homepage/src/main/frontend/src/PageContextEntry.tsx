@@ -22,8 +22,9 @@ import { visuallyHidden } from "@mui/utils";
 import { usePageContext } from "@iap/frontend-commons/pageContext";
 
 // PRETOTYPE. The current page's title and what goes with it, in the app bar after the logo, so it stays in view.
-// Registered on the `iap/appBar/entry` extension point, start section. The details go above the title, as what
-// identifies the page; what ends it, e.g. a countdown, after the title's chips. Shows nothing on pages that publish
+// Registered on the `iap/appBar/entry` extension point, start section. The details, the chips and what ends them,
+// e.g. a countdown, go above the title, which keeps its line to itself; when space runs out, the details are
+// cut short first, never the short form. Shows nothing on pages that publish
 // nothing. A long title is cut short, whole on hover.
 function PageContextEntry() {
   const context = usePageContext();
@@ -46,14 +47,23 @@ function PageContextEntry() {
       <Stack direction="row" sx={{ flex: "0 1 auto", minWidth: 0, alignItems: "center", gap: 2, ml: 2,
         display: { xs: "none", sm: "flex" } }}>
         <Box sx={{ minWidth: 0 }}>
-          <Stack direction="row" sx={{ alignItems: "baseline", gap: 1, minWidth: 0 }}>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis",
-                whiteSpace: "nowrap" }}
-            >
-              {context.details}
-            </Typography>
+          <Stack direction="row" sx={{ alignItems: "center", gap: 1, minWidth: 0 }}>
+            {context.short && (
+              <Typography variant="caption" sx={{ color: "text.secondary", whiteSpace: "nowrap", flexShrink: 0 }}>
+                {context.short}{context.details && " ·"}
+              </Typography>
+            )}
+            {context.details && (
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis",
+                  whiteSpace: "nowrap", ml: context.short ? -0.5 : 0 }}
+              >
+                {context.details}
+              </Typography>
+            )}
+            <Box sx={{ display: { xs: "none", md: "flex" }, gap: 0.5, flexShrink: 0 }}>{context.badges}</Box>
+            {context.end && <Box sx={{ flexShrink: 0, ml: 0.5 }}>{context.end}</Box>}
           </Stack>
           <Stack direction="row" sx={{ alignItems: "center", gap: 1, minWidth: 0 }}>
             <Tooltip title={context.title}>
@@ -65,8 +75,6 @@ function PageContextEntry() {
                 {context.title}
               </Typography>
             </Tooltip>
-            <Box sx={{ display: { xs: "none", md: "flex" }, gap: 0.5, flexShrink: 0 }}>{context.badges}</Box>
-            {context.end && <Box sx={{ flexShrink: 0, ml: 0.5 }}>{context.end}</Box>}
           </Stack>
         </Box>
       </Stack>
