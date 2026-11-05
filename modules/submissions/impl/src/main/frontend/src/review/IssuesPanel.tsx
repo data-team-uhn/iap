@@ -20,6 +20,7 @@ import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import ForwardToInboxOutlined from "@mui/icons-material/ForwardToInboxOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
+import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import { Badge, Box, Button, IconButton, List, ListItemButton, Paper, Stack, Tooltip, Typography } from "@mui/material";
 
 import TagChip from "@iap/tags/TagChip";
@@ -37,13 +38,15 @@ export default function IssuesPanel({ issues, about, open, onToggle, onOpenIssue
   open: boolean;
   onToggle: () => void;
   onOpenIssue: (note: ReviewNote) => void;
-  // The REB's letter and escalation, when the reviewer may send them
-  actions?: { letter: () => void; board: () => void };
+  // What the reviewer can do with their review: send their issues to the study team, approve (blocked, with the
+  // reason, while they have issues), and, for the REB, escalate to the board
+  actions?: { send: () => void; approve: () => void; approveBlocked?: string; board?: () => void };
 }) {
   const sorted = SEVERITIES.flatMap(severity => issues.filter(issue => (issue.severity ?? "medium") === severity));
   if (!open) {
     return (
-      <Paper sx={{ width: 48, py: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+      <Paper sx={{ width: 48, py: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+        bgcolor: "background.tinted", boxShadow: "none" }}>
         <Tooltip title="Show the issues" placement="left">
           <IconButton size="small" aria-label="Show the issues" onClick={onToggle}>
             <Badge badgeContent={issues.length} showZero
@@ -54,23 +57,36 @@ export default function IssuesPanel({ issues, about, open, onToggle, onOpenIssue
         </Tooltip>
         {actions && (
           <>
-            <Tooltip title="Letter of review" placement="left">
-              <IconButton size="small" aria-label="Letter of review" color="primary" onClick={actions.letter}>
+            <Tooltip title="Send your issues to the study team" placement="left">
+              <IconButton size="small" aria-label="Send your issues to the study team" color="primary"
+                onClick={actions.send}>
                 <ForwardToInboxOutlined />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Escalate to the board" placement="left">
-              <IconButton size="small" aria-label="Escalate to the board" onClick={actions.board}>
-                <GroupsOutlined />
-              </IconButton>
+            <Tooltip title={actions.approveBlocked ?? "Approve"} placement="left">
+              <span>
+                <IconButton size="small" aria-label="Approve" color="primary" disabled={Boolean(actions.approveBlocked)}
+                  onClick={actions.approve}>
+                  <TaskAltOutlined />
+                </IconButton>
+              </span>
             </Tooltip>
+            {actions.board && (
+              <Tooltip title="Escalate to the board" placement="left">
+                <IconButton size="small" aria-label="Escalate to the board" onClick={actions.board}>
+                  <GroupsOutlined />
+                </IconButton>
+              </Tooltip>
+            )}
           </>
         )}
       </Paper>
     );
   }
   return (
-    <Paper sx={{ width: 300, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 96px)" }}>
+    // Part of the frame, tinted like the contents on the other side of the page
+    <Paper sx={{ width: 300, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 96px)",
+      bgcolor: "background.tinted", boxShadow: "none" }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 1.5, pt: 1, pb: 0.5 }}>
         <Box sx={{ flex: 1 }}>
           <Typography variant="panelTitle">Issues ({issues.length})</Typography>
@@ -91,7 +107,8 @@ export default function IssuesPanel({ issues, about, open, onToggle, onOpenIssue
         <List dense disablePadding>
           {sorted.map(issue => (
             <ListItemButton key={issue.id} onClick={() => onOpenIssue(issue)}
-              sx={{ display: "block", px: 1.5, py: 0.75, borderTop: 1, borderColor: "divider" }}>
+              sx={theme => ({ display: "block", px: 1.5, py: 0.75, borderTop: 1, borderColor: "divider",
+                "&:hover": { bgcolor: theme.alpha(theme.palette.background.paper, 0.5) } })}>
               <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mb: 0.25 }}>
                 {issue.severity && <TagChip tags={[ issue.severity ]} category="severity" />}
                 <Typography variant="caption" sx={{ color: "text.secondary", minWidth: 0, overflow: "hidden",
@@ -114,12 +131,22 @@ export default function IssuesPanel({ issues, about, open, onToggle, onOpenIssue
       </Box>
       {actions && (
         <Stack spacing={1} sx={{ p: 1.5, borderTop: 1, borderColor: "divider" }}>
-          <Button variant="contained" size="small" startIcon={<ForwardToInboxOutlined />} onClick={actions.letter}>
-            Letter of review
+          <Button variant="outlined" size="small" startIcon={<ForwardToInboxOutlined />} onClick={actions.send}>
+            Send issues to the study team
           </Button>
-          <Button variant="outlined" size="small" startIcon={<GroupsOutlined />} onClick={actions.board}>
-            Escalate to the board
-          </Button>
+          <Tooltip title={actions.approveBlocked ?? ""}>
+            <span>
+              <Button variant="contained" size="small" fullWidth startIcon={<TaskAltOutlined />}
+                disabled={Boolean(actions.approveBlocked)} onClick={actions.approve}>
+                Approve
+              </Button>
+            </span>
+          </Tooltip>
+          {actions.board && (
+            <Button variant="text" size="small" startIcon={<GroupsOutlined />} onClick={actions.board}>
+              Escalate to the board
+            </Button>
+          )}
         </Stack>
       )}
     </Paper>

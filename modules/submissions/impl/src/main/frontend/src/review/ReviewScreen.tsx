@@ -51,6 +51,7 @@ import {
   type Requirement,
   type SubmissionForm,
   isDocumentRequirement,
+  isApprovalRequirement,
   isFormRequirement,
   isQuestion,
 } from "../submissionForm";
@@ -374,31 +375,42 @@ export default function ReviewScreen({ path }: { path: string }) {
     }
   };
 
-  // The REB's review task, which the letter completes
-  const rebTask = (): string | undefined => {
+  // The reviewer's own review task: the open one their groups perform
+  const myTask = (): string | undefined => {
     const instances = loaded?.submission["wf:instances"];
     for (const instance of Object.values(typeof instances === "object" && instances ? instances : {})) {
-      const task = typeof instance === "object" && instance ? (instance as Node).rebTask : undefined;
-      if (typeof task === "object" && task && [ "created", "active" ].includes(text((task as Node).status))) {
-        return text((task as Node)["@path"]);
+      for (const task of Object.values(typeof instance === "object" && instance ? instance as Node : {})) {
+        const node = typeof task === "object" && task ? task as Node : undefined;
+        const performers = Array.isArray(node?.performers) ? node.performers.map(String) : [];
+        if (node?.["jcr:primaryType"] === "wf:TaskInstance" && [ "created", "active" ].includes(text(node.status))
+          && performers.some(one => myGroups.includes(one))) {
+          return text(node["@path"]);
+        }
       }
     }
     return undefined;
   };
-  const sendLetter = async (letter: string) => {
-    const task = rebTask();
+  // Completes the reviewer's task with a decision, through the workflow
+  const decide = async (outcome: string, note?: string) => {
+    const task = myTask();
     if (!task) {
-      throw new Error("The REB's review is not waiting on a decision now.");
+      throw new Error("Your review is not waiting on a decision now.");
     }
     const body = new FormData();
-    body.append("outcome", "changes-requested");
-    body.append("outcomeNote", letter);
+    body.append("outcome", outcome);
+    if (note) {
+      body.append("outcomeNote", note);
+    }
     const response = await doFetch(`${task}.json`, { method: "POST", body });
     if (!response.ok) {
-      throw new Error(`The letter could not be sent (${response.status})`);
+      throw new Error(`That could not be done (${response.status})`);
     }
     load();
   };
+  const sendLetter = (letter: string) => decide("changes-requested", letter);
+  // The reviewer's group, as its approval calls it
+  const myGroupLabel = (loaded?.form.requirements ?? []).filter(isApprovalRequirement)
+    .find(one => myGroups.includes(one.approverGroup))?.label ?? "";
 
   if (error) {
     return <LoadError title="This submission could not be loaded" message={error} onRetry={retry} />;
@@ -409,6 +421,14 @@ export default function ReviewScreen({ path }: { path: string }) {
   const submission = loaded.submission;
   // The reviewer's own issues: what their panel lists, and what their letter and escalation are made of
   const myIssues = data.notes.filter(note => note.kind === "issue" && note.mine);
+  const waiting = myTask() !== undefined;
+  const reviewActions = {
+    send: () => setDialog("letter"),
+    approve: () => void decide("approved"),
+    approveBlocked: !waiting ? "Your review is not waiting on a decision now"
+      : myIssues.length > 0 ? `Send your ${myIssues.length === 1 ? "issue" : `${myIssues.length} issues`} first` : undefined,
+    board: myGroups.includes("reb-reviewers") ? () => setDialog("board") : undefined,
+  };
   const shownDocument = current ? data.documents.get(current.name) : undefined;
 
   const rail = narrow ? (
@@ -496,12 +516,14 @@ export default function ReviewScreen({ path }: { path: string }) {
       </Box>
       <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1, alignItems: { sm: "center" }, display: { md: "none" } }}>
         <Box>{search(false)}</Box>
-        {myGroups.includes("reb-reviewers") && (
-          <Stack direction="row" spacing={1} sx={{ ml: { sm: "auto" } }}>
-            <Button size="small" variant="outlined" onClick={() => setDialog("board")}>Escalate to the board</Button>
-            <Button size="small" variant="contained" onClick={() => setDialog("letter")}>Letter of review</Button>
-          </Stack>
-        )}
+        <Stack direction="row" spacing={1} sx={{ ml: { sm: "auto" }, flexWrap: "wrap" }}>
+          {reviewActions.board && (
+            <Button size="small" variant="text" onClick={reviewActions.board}>Escalate to the board</Button>
+          )}
+          <Button size="small" variant="outlined" onClick={reviewActions.send}>Send issues to the study team</Button>
+          <Button size="small" variant="contained" disabled={Boolean(reviewActions.approveBlocked)}
+            onClick={reviewActions.approve}>Approve</Button>
+        </Stack>
       </Stack>
       <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, alignItems: "flex-start" }}>
         {/* The page runs at least as far down as the contents beside it, so whichever requirement is being read,
@@ -591,7 +613,7 @@ export default function ReviewScreen({ path }: { path: string }) {
               open issueCount={myIssues.length}
               draft={draftLetter({ title: text(submission.title), identifier: text(submission.identifier),
                 pi: text(submission.pi), about, issues: myIssues,
-                reviewer: myName })}
+                reviewer: myName, group: myGroupLabel.toLowerCase() })}
               onSend={sendLetter} onClose={() => setDialog(undefined)}
             />
           )}
@@ -612,8 +634,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             open={issuesOpen ?? !(current && isDocumentRequirement(current))}
             onToggle={() => setIssuesOpen(!(issuesOpen ?? !(current && isDocumentRequirement(current))))}
             onOpenIssue={openIssue}
-            actions={myGroups.includes("reb-reviewers")
-              ? { letter: () => setDialog("letter"), board: () => setDialog("board") } : undefined}
+            actions={reviewActions}
           />
         </Box>
       </Stack>
