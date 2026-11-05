@@ -23,18 +23,17 @@ import java.nio.charset.Charset;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Sends HTTP requests to other services, e.g. a chat webhook or a document checking service.
+ * Sends HTTP requests to services outside IAP.
  *
  * <p>
- * Every request is made with a connection and a response timeout, so a service that accepts a connection and then
- * stops answering cannot hold up the caller forever. Reaching a service and being refused by it is not a failure as
- * far as this API is concerned: only a request that could not be made at all throws, while a service answering
- * {@code 400} comes back as an unsuccessful {@link HttpResponse}, which callers that care must check.
+ * A request that reaches the service returns its answer, whatever the status. A service answering {@code 400} comes
+ * back as an {@link HttpResponse} that is not {@link HttpResponse#isSuccessful successful}, and nothing throws. Only a
+ * request that could not be made, or got no answer in time, throws.
  * </p>
  *
  * <p>
- * An address can itself be a secret, since a chat webhook carries its authorization token in its path, so a failure
- * never quotes the address it was given, only the service it was trying to reach.
+ * An address can be a secret: a chat webhook carries its token in its path. The messages this module writes never
+ * quote an address. At most they name the scheme, host and port of the service.
  * </p>
  *
  * @version $Id$
@@ -43,28 +42,30 @@ import org.jetbrains.annotations.NotNull;
 public interface HttpRequests
 {
     /**
-     * Sends a POST request, with a UTF-8 encoded body.
+     * Sends a POST request with a body encoded in UTF-8.
      *
-     * @param url the address to post to
-     * @param body the body to send
-     * @param contentType the media type of the body, e.g. {@code application/json}
-     * @return what the service answered
-     * @throws IOException if the request could not be made, e.g. the address is not a valid http(s) URL, the
-     *     service is unreachable, or it stopped answering
+     * @param url the absolute {@code http} or {@code https} URL to post to
+     * @param body the body to send, as text
+     * @param contentType the media type of the body without parameters, such as {@code application/json}; the
+     *     request's {@code Content-Type} adds {@code ; charset=UTF-8} to it
+     * @return the status code and the body the service answered with, whatever the status
+     * @throws IOException if the URL or the content type is not valid, the service could not be reached or did not
+     *     start answering in time, or the thread was interrupted
      */
     @NotNull
     HttpResponse post(@NotNull String url, @NotNull String body, @NotNull String contentType) throws IOException;
 
     /**
-     * Sends a POST request, with a body encoded in the given charset.
+     * Sends a POST request with a body encoded in the given charset.
      *
-     * @param url the address to post to
-     * @param body the body to send
-     * @param contentType the media type of the body, e.g. {@code application/json}
+     * @param url the absolute {@code http} or {@code https} URL to post to
+     * @param body the body to send, as text
+     * @param contentType the media type of the body without parameters, such as {@code application/json}; the
+     *     request's {@code Content-Type} adds the charset to it, as in {@code application/json; charset=UTF-8}
      * @param charset the charset to encode the body with
-     * @return what the service answered
-     * @throws IOException if the request could not be made, e.g. the address is not a valid http(s) URL, the
-     *     service is unreachable, or it stopped answering
+     * @return the status code and the body the service answered with, whatever the status
+     * @throws IOException if the URL or the content type is not valid, the service could not be reached or did not
+     *     start answering in time, or the thread was interrupted
      */
     @NotNull
     HttpResponse post(@NotNull String url, @NotNull String body, @NotNull String contentType,

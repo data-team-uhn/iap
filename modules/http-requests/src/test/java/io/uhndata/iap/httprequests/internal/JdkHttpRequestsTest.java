@@ -41,14 +41,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link JdkHttpRequests}, driven against a real HTTP server listening on a local port.
+ * Unit tests for {@link JdkHttpRequests}, against the JDK's HTTP server on a local port.
  *
  * @version $Id$
  * @since 0.1.0
  */
 class JdkHttpRequestsTest
 {
-    /** Stands in for the token part of a webhook address, so that a leak into a message is recognizable. */
+    /** The token in a webhook address. A message that contains it has leaked it. */
     private static final String SECRET = "SUPER-SECRET-TOKEN";
 
     /** What the stand-in service answers with, and what it was asked. */
@@ -105,7 +105,7 @@ class JdkHttpRequestsTest
 
         this.requests.post(this.url, "café", "text/plain", latin1);
 
-        // The service read the bytes back as ISO-8859-1, so they were written as ISO-8859-1
+        // The stand-in service decodes the body with the charset its Content-Type names
         assertEquals(List.of("café"), this.recorder.bodies);
         assertEquals(List.of("text/plain; charset=ISO-8859-1"), this.recorder.contentTypes);
     }
@@ -118,7 +118,6 @@ class JdkHttpRequestsTest
 
         final HttpResponse response = this.requests.post(this.url, "nonsense", "application/json");
 
-        // Reaching a service and being told no is not a failure to make the request
         assertEquals(400, response.getStatusCode());
         assertEquals("invalid_payload", response.getBody());
         assertFalse(response.isSuccessful());
@@ -146,16 +145,14 @@ class JdkHttpRequestsTest
         final IOException failure = assertThrows(IOException.class,
             () -> interruptedRequests().post(this.url, "{}", "application/json"));
 
-        // The service that could not be reached is named, down to the port, since several can be in flight at once
+        // The message names the service down to its port
         assertTrue(failure.getMessage().contains("http://127.0.0.1:" + this.server.getAddress().getPort()));
-        // The thread stays interrupted, so whoever asked it to stop is not ignored
         assertTrue(Thread.interrupted());
     }
 
     @Test
     void aFailureNamesTheServiceButNotTheSecretInItsAddress()
     {
-        // A chat webhook address carries its authorization token, so an address must never reach a log in full
         final String webhook = "https://hooks.slack.com/services/T00000000/B00000000/" + SECRET;
 
         final IOException failure = assertThrows(IOException.class,
@@ -169,8 +166,6 @@ class JdkHttpRequestsTest
     @Test
     void aFailureNamesTheServiceButNotTheCredentialsInItsAddress()
     {
-        // Credentials in the user information of an address are a secret too, so naming the host is not enough,
-        // it has to be the host rather than the whole authority
         final String withCredentials = "https://iap:" + SECRET + "@files.example.com/upload";
 
         final IOException failure = assertThrows(IOException.class,
@@ -189,7 +184,7 @@ class JdkHttpRequestsTest
         final IOException failure =
             assertThrows(IOException.class, () -> this.requests.post(address, "{}", "text/plain"));
 
-        // What is wrong and where can be said without quoting the address it is wrong in: the index is the space
+        // The index is that of the space
         assertEquals("Cannot post to the given address: Illegal character in path at index " + address.indexOf(' '),
             failure.getMessage());
         assertMentionsNoSecret(failure);
@@ -209,7 +204,7 @@ class JdkHttpRequestsTest
     @Test
     void aContentTypeThatIsNotAValidHeaderIsAFailureToMakeTheRequest()
     {
-        // Refusing the header the platform refuses is also what keeps a content type from injecting one of its own
+        // The line break would add a header of its own
         final IOException failure = assertThrows(IOException.class,
             () -> this.requests.post(this.url, "{}", "text/plain\r\nX-Injected: yes"));
 
@@ -218,7 +213,7 @@ class JdkHttpRequestsTest
         assertTrue(this.recorder.bodies.isEmpty());
     }
 
-    /** A stand-in that is interrupted instead of answering, the one failure a real service cannot be made to have. */
+    /** Requests interrupted while they wait for an answer, which a real service cannot cause. */
     private static JdkHttpRequests interruptedRequests()
     {
         return new JdkHttpRequests()
@@ -234,7 +229,7 @@ class JdkHttpRequestsTest
     /** Checks that neither the failure nor anything it carries repeats the secret part of an address. */
     private void assertMentionsNoSecret(final IOException failure)
     {
-        // The cause is checked too: the platform quotes the address it rejected in its own message
+        // The cause is checked too, since the JDK's own messages can quote the address
         final String reported = failure.getMessage() + " " + failure.getCause();
         assertFalse(reported.contains(SECRET), "The secret reached a message: " + reported);
     }

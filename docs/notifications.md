@@ -12,8 +12,8 @@ channel.
 
 More channels are expected. A channel is an ordinary module: it decides what triggers a
 delivery, what a message looks like in its medium, and how the platform's content
-becomes one. Where a channel needs to reach a remote service it uses
-[`HttpRequests`](http-requests.md) rather than talking to the network itself.
+becomes one. A channel that calls a web service does so through
+[`HttpRequests`](http-requests.md).
 
 ## Chat webhooks
 
