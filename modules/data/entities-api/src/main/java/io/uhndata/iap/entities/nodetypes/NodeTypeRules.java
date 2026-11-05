@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.entities.internal;
+package io.uhndata.iap.entities.nodetypes;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,20 +32,21 @@ import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Answers the node type questions that decide what a change modifies, from the node type registry stored at
  * {@code /jcr:system/jcr:nodeTypes}. It caches the type hierarchy it reads, so one instance serves one commit.
  *
  * <p>Whether a change is part of a node's content follows its definition's {@code onParentVersion}. A version of
- * the node leaves out what is {@code IGNORE} and works out for itself what is {@code COMPUTE}, so neither is content.
+ * the node leaves out what is {@code IGNORE} or {@code COMPUTE}, so neither is content.
  * The definition is chosen as the repository chooses it. When several node types offer one, the change counts unless
  * none of them keeps it.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
-final class NodeTypeRules
+public final class NodeTypeRules
 {
     private static final String ENTITY_TYPE = "data:Entity";
 
@@ -53,6 +54,9 @@ final class NodeTypeRules
 
     /** The {@code onParentVersion} actions under which a version does not keep the value it finds. */
     private static final Set<String> UNVERSIONED_ON_PARENT_VERSION_ACTIONS = Set.of("IGNORE", "COMPUTE");
+
+    /** The {@code onParentVersion} action of a value worked out from elsewhere. */
+    private static final Set<String> COMPUTED_ON_PARENT_VERSION_ACTIONS = Set.of("COMPUTE");
 
     private static final String ON_PARENT_VERSION_PROPERTY = "jcr:onParentVersion";
 
@@ -87,7 +91,7 @@ final class NodeTypeRules
      *
      * @param root the repository root holding the node type registry
      */
-    NodeTypeRules(final NodeState root)
+    public NodeTypeRules(@NotNull final NodeState root)
     {
         this.registry = root.getChildNode("jcr:system").getChildNode("jcr:nodeTypes");
     }
@@ -98,7 +102,7 @@ final class NodeTypeRules
      * @param node the node to check
      * @return {@code true} if its primary type is {@code data:Entity} or a subtype of it
      */
-    boolean isEntity(final NodeState node)
+    public boolean isEntity(@NotNull final NodeState node)
     {
         return lineage(node.getName(PRIMARY_TYPE_PROPERTY)).contains(ENTITY_TYPE);
     }
@@ -109,29 +113,34 @@ final class NodeTypeRules
      * @param node the node to check
      * @return {@code true} if one of its types is {@code mix:lastModified} or a subtype of it
      */
-    boolean tracksModifications(final NodeState node)
+    public boolean tracksModifications(@NotNull final NodeState node)
     {
         return types(node).anyMatch(type -> lineage(type).contains(LAST_MODIFIED_MIXIN));
     }
 
     /**
-     * Whether a property is left out of its node's content. The repository looks for a named definition for the
-     * value's type, then for any type, then for residual definitions in the same order.
+     * Whether a property is left out of its node's content.
      *
      * @param node the node holding the property
      * @param property the property, as it was before the commit if the commit removes it
      * @return {@code true} if no definition that could apply to it keeps it in a version
      */
-    boolean isUnversionedProperty(final NodeState node, final PropertyState property)
+    public boolean isUnversionedProperty(@NotNull final NodeState node, @NotNull final PropertyState property)
     {
-        final String name = REGISTRY_NAMES.getOrDefault(property.getName(), property.getName());
-        final String exact = property.getType().toString();
-        final String any = (property.isArray() ? Type.UNDEFINEDS : Type.UNDEFINED).toString();
-        return noneVersioned(firstFound(List.of(
-            () -> definitions(node, NAMED_PROPERTIES, name, exact),
-            () -> definitions(node, NAMED_PROPERTIES, name, any),
-            () -> definitions(node, RESIDUAL_PROPERTIES, exact),
-            () -> definitions(node, RESIDUAL_PROPERTIES, any))));
+        return allDeclare(propertyDefinitions(node, property), UNVERSIONED_ON_PARENT_VERSION_ACTIONS);
+    }
+
+    /**
+     * Whether a property holds a value worked out from elsewhere, such as the tags a node derives from its
+     * surroundings.
+     *
+     * @param node the node holding the property
+     * @param property the property, as it was before the commit if the commit removes it
+     * @return {@code true} if every definition that could apply to it declares {@code COMPUTE}
+     */
+    public boolean isComputedProperty(@NotNull final NodeState node, @NotNull final PropertyState property)
+    {
+        return allDeclare(propertyDefinitions(node, property), COMPUTED_ON_PARENT_VERSION_ACTIONS);
     }
 
     /**
@@ -143,21 +152,41 @@ final class NodeTypeRules
      * @param child the child node, as it was before the commit if the commit removes it
      * @return {@code true} if no definition that could apply to it keeps it in a version
      */
-    boolean isUnversionedChild(final NodeState parent, final String name, final NodeState child)
+    public boolean isUnversionedChild(@NotNull final NodeState parent, @NotNull final String name,
+        @NotNull final NodeState child)
     {
         final Set<String> childTypes = lineage(child.getName(PRIMARY_TYPE_PROPERTY));
         final Predicate<NodeState> accepted =
             definition -> childTypes.containsAll(names(definition.getProperty(REQUIRED_PRIMARY_TYPES_PROPERTY)));
-        return noneVersioned(firstFound(List.of(
+        return allDeclare(firstFound(List.of(
             () -> definitionsUnder(parent, accepted, NAMED_CHILDREN, name),
-            () -> definitionsUnder(parent, accepted, RESIDUAL_CHILDREN))));
+            () -> definitionsUnder(parent, accepted, RESIDUAL_CHILDREN))), UNVERSIONED_ON_PARENT_VERSION_ACTIONS);
     }
 
-    private static boolean noneVersioned(final List<NodeState> definitions)
+    /**
+     * The definitions that could apply to a property. The repository looks for a named definition for the value's
+     * type, then for any type, then for residual definitions in the same order.
+     *
+     * @param node the node holding the property
+     * @param property the property
+     * @return the definitions of the first kind found; empty if the node's types declare none
+     */
+    private List<NodeState> propertyDefinitions(final NodeState node, final PropertyState property)
+    {
+        final String name = REGISTRY_NAMES.getOrDefault(property.getName(), property.getName());
+        final String exact = property.getType().toString();
+        final String any = (property.isArray() ? Type.UNDEFINEDS : Type.UNDEFINED).toString();
+        return firstFound(List.of(
+            () -> definitions(node, NAMED_PROPERTIES, name, exact),
+            () -> definitions(node, NAMED_PROPERTIES, name, any),
+            () -> definitions(node, RESIDUAL_PROPERTIES, exact),
+            () -> definitions(node, RESIDUAL_PROPERTIES, any)));
+    }
+
+    private static boolean allDeclare(final List<NodeState> definitions, final Set<String> actions)
     {
         return !definitions.isEmpty() && definitions.stream()
-            .allMatch(definition -> UNVERSIONED_ON_PARENT_VERSION_ACTIONS
-                .contains(definition.getString(ON_PARENT_VERSION_PROPERTY)));
+            .allMatch(definition -> actions.contains(definition.getString(ON_PARENT_VERSION_PROPERTY)));
     }
 
     /**

@@ -1,6 +1,7 @@
 # History
 
-**Module:** `modules/history` · **Bundle:** `iap-history-api` · **Packages:**
+**Module:** `modules/history` · **Bundles:** `iap-history-api` (the node types, models
+and API), `iap-history-impl` (the recorder and the commit editor) · **Packages:**
 `io.uhndata.iap.history.api` (`HistoryRecorder`, `RecordedAction`, `RecordedEffect`),
 `io.uhndata.iap.history.models`
 
@@ -9,10 +10,11 @@ each resource, and, where the process declares a milestone, what the content loo
 like afterwards. An authorization decision has to be defensible against this record
 months later.
 
-> **Status.** The store, its node types, their Sling Models and the recorder are built
-> and tested. **Nothing records yet**: the workflow engine does not call the recorder,
-> and has no phase after its commit for the snapshots to run in. Nothing serves the
-> history to a reader, and nothing writes read markers.
+> **Status.** The store, its node types, their Sling Models, the recorder and the commit
+> editor that writes the record are built and tested, and the workflow engine records
+> every delivery. **No snapshot is taken yet**: the engine has no phase after its commit
+> for them to run in. Nothing serves the history to a reader, and nothing writes read
+> markers.
 
 ## Two stores, one record
 
@@ -65,14 +67,15 @@ resource, and the `role` that resource played: which version was *retired* and w
 | `subject` | **Mandatory.** The `jcr:uuid` of the affected node |
 | `subjectPath`, `subjectType` | **Mandatory.** Its path and its primary node type, such as `sub:Submission`, at the time |
 | `role` | **Mandatory.** The part it played: `submitted`, `retired`, `activated` |
-| `changes` | The names of the JCR properties that changed |
+| `changed` | The properties that changed, by path relative to the subject |
+| `added`, `removed` | The topmost node of each branch added or removed, by path relative to the subject |
 | `snapshot` | The `jcr:uuid` of the JCR version taken after the action, if any |
 
 `jcr:createdBy` on an action is whoever wrote the record, often a service user. The
 person who requested the action is `createdBy`, which `Action.getRequestedBy()` reads.
 `role` is free-form: the workflow definitions own the vocabulary.
 
-**The record holds the names of the properties that changed, never their values.** A
+**The record holds where the subject changed, never the values.** A
 record carrying a value would have to be redacted when the content it describes is
 purged.
 
@@ -96,59 +99,82 @@ could take either, and the rule decides which.
 
 ## Recording
 
+**The workflow engine records every delivery**, so a workflow records without asking.
+Its cause is the event, who sent it, and what handled it: the system workflow's start
+event, or the task the event completed with its decision and note. A handler adds what
+its step meant through `WorkflowTaskContext.recordRole(resource, role)`.
+
 ```java
 // HistoryRecorder
-String record(Session session, RecordedAction action);       // the action's path
+String commit(Session session, RecordedAction action);       // saves; the action's path
 void   completeSnapshots(Session session, String actionPath,
-                         Map<String, String> snapshots);      // subject id -> version id
+                         Map<String, String> snapshots);    // subject id -> version id
 
 // RecordedAction.by(requester, operation), then any of
   .onBehalfOf(principal)  .workflow(instance, version)  .activity(id, label)
-  .task(instance, decision, note)  .event(name)  .component(name)  .partOf(identifier)
-  .affecting(effect)  .build()
-
-// RecordedEffect: reads the identifier, path and type off the node
-static RecordedEffect on(Node subject, String role, String... changes);
+  .task(instance, decision, note)  .event(name)  .component(name)  .partOf(path)
+  .affecting(new RecordedEffect(path, role))  .snapshotsFollow()  .build()
 ```
 
 An illustrative call, for activating a workflow version, which retires the one it
 replaces. Activation runs a system workflow, which has no instance to name:
 
 ```java
-final String action = this.recorder.record(session, RecordedAction
-    .by(UserIds.canonical(resolver), "activate")
-    .activity(activity.getElementId(), activity.getLabel())
-    .affecting(RecordedEffect.on(previous, "retired", "tags"))
-    .affecting(RecordedEffect.on(current, "activated", "tags"))
-    .build());
-session.save();
-
+final String actionPath = this.recorder.commit(session, RecordedAction
+        .by(UserIds.canonical(resolver), "activate")
+        .activity(activity.getElementId(), activity.getLabel())
+        .affecting(new RecordedEffect(previous.getPath(), "retired"))
+        .affecting(new RecordedEffect(current.getPath(), "activated"))
+        .snapshotsFollow()
+        .build());
 final Version snapshot = versionManager.checkin(current.getPath());
-
-this.recorder.completeSnapshots(session, action,
+this.recorder.completeSnapshots(session, actionPath,
     Map.of(current.getIdentifier(), snapshot.getIdentifier()));
 ```
 
-**The record shares the caller's transaction.** `record` leaves its nodes pending in the
-caller's session, and the caller commits them with the change. No committed change
-lacks its record, and no abandoned change leaves one.
+**The commit records itself.** `commit` puts the action on the session as its JCR user
+data for the one save it makes, and a commit editor reads it there and writes the action
+and its entries into the same commit. No committed change lacks its record, and no
+abandoned change leaves one. The user data is cleared after the save, whether it
+succeeds or not; it replaces any the session carried.
 [Error tracking](error-tracking.md) is the opposite: a failure must be recorded although
 the transaction it broke is rolled back, so its record is written apart from it.
 
+**Two sources fill an entry, each with what it knows.** The code that acts names the
+part each resource played, by purpose: `addTag` names it `tagged as submitted`,
+`removeTag` `untagged as draft`, and `retireActiveVersions` `retired`. The commit
+supplies what changed, from its own diff, so nothing depends on the code remembering:
+
+| The commit | The entry |
+| --- | --- |
+| changes a property inside an entity | its path, relative to the entity, in `changed` |
+| adds or removes a branch inside an entity | the branch's topmost node in `added` or `removed` |
+| creates, removes or moves an entity | the role `created`, `deleted` or `moved`, unless the code named one |
+| replaces an entity with another of the same name | two entries, `deleted` and `created` |
+| changes an entity the code did not name | the role `updated` |
+
+A change belongs to the nearest `data:Entity` at or above it, and a path the code names
+stands for its entity. A change outside every entity is no entry. Neither is a value
+declared `COMPUTE`, the modification stamps, the order of children, the engine's own
+state under `wf:instances`, which the action already names, or read markers. Tags are
+recorded, and so are the tags derived from them, since both are what the action did.
+
 **Snapshots come after the commit.** A JCR check-in refuses to run while its session has
-pending changes, and commits by itself. So the caller commits, takes the snapshots, and
-then calls `completeSnapshots`. Until then the action's `complete` is `false`, and an
-entry without a `snapshot` may not have got one yet. Once it is `true`, an entry without
-one never wanted one. An action left incomplete records a snapshot that was wanted and
-failed.
+pending changes, and commits by itself. So an action that calls `snapshotsFollow`
+commits, takes the snapshots, and then calls `completeSnapshots`. Until then its
+`complete` is `false`, and an entry without a `snapshot` may not have got one yet. An
+action without snapshots is complete when it is recorded. An action left incomplete
+records a snapshot that was wanted and failed.
 
 ### Who may write
 
-The writing happens in the caller's session, so the privilege has to be the caller's.
-The store's repoinit grants read and write on `/History` to the
+The record is written by the commit editor as the user whose session commits, and the
+repository checks those writes like any other. So recording needs write access to
+`/History`, and so does attaching snapshots. The store's repoinit grants it to the
 **`iap-history-writers`** group, and a module that records joins the group in its own
-repoinit. The store's own `iap-history` service user holds the same grants: the
-recorder creates buckets as it, and it is the user the history is read as.
+repoinit. Every change goes through the workflow engine, whose user holds that access
+already. The store's own `iap-history` service user can only read: it is the user the
+history is read as.
 
 **Nobody holding these grants can delete an action or an entry**: neither
 `jcr:removeNode` nor `jcr:removeChildNodes` is granted. They can change a property,
@@ -160,13 +186,9 @@ An action has a random name, and is filed in a prefix tree under
 `/History/<xx>/<yy>/<zz>/<action>` by
 [`PrefixTree`](../modules/java-utils/src/main/java/io/uhndata/iap/utils/PrefixTree.java).
 
-**A missing bucket is created in the store's own session**, and the caller's session
-is then refreshed with `refresh(true)` to see it. In the caller's session,
-`PrefixTree.bucketFor` would save or discard the caller's pending work, since it saves
-each bucket and calls `refresh(false)` after a race. `PrefixTree.pendingBucketFor`
-would make two callers adding the same new bucket conflict, and fail the second
-caller's change. A bucket left behind by a transaction that later fails is empty and
-harmless.
+The commit editor creates a missing bucket in the commit it records, so a commit that
+fails leaves none behind. Two commits adding the same new bucket conflict, and the
+second is retried like any other conflict.
 
 ## Reading
 
@@ -263,8 +285,8 @@ change. An incidental check-in costs a full copy and records nothing.
 
 ## What is still missing
 
-- **Nothing records.** The engine does not call the recorder, and has no phase after
-  its commit for the snapshots to run in.
+- **No snapshots.** The engine has no phase after its commit for them to run in, and no
+  step asks for one.
 - **Nothing serves the history.** The service that reads the store as `iap-history` and
   decides what each person may see of it is not written.
 - **Nothing writes read markers**, and no node type declares `hist:Watchable`.

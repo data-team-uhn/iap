@@ -91,6 +91,16 @@ class AddLinkHandlerTest
     }
 
     @Test
+    void namesTheLinkByItsTypeForTheHistory() throws WorkflowException, PersistenceException
+    {
+        final WorkflowTaskContext linking = context(Map.of("source", SOURCE));
+
+        this.handler.execute(linking);
+
+        Mockito.verify(linking).recordRole(this.host, "linked as copiedFrom");
+    }
+
+    @Test
     void labelsTheLinkAsTheActivitySays() throws WorkflowException, PersistenceException
     {
         Mockito.when(this.activity.get("linkLabel")).thenReturn("first draft");
@@ -103,12 +113,14 @@ class AddLinkHandlerTest
     @Test
     void linksNothingWhenTheEventNamesNothing() throws WorkflowException, PersistenceException
     {
-        this.handler.execute(context(Map.of()));
+        final WorkflowTaskContext unnamed = context(Map.of());
+        this.handler.execute(unnamed);
         // Blank, or something other than text, as for any entry an event gives
         this.handler.execute(context(Map.of("source", " ")));
         this.handler.execute(context(Map.of("source", 12)));
 
         Mockito.verifyNoInteractions(this.linkable);
+        Mockito.verify(unnamed, Mockito.never()).recordRole(Mockito.any(), Mockito.any());
     }
 
     @Test

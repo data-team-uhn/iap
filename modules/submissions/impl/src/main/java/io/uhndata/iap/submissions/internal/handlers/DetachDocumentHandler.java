@@ -90,5 +90,6 @@ public class DetachDocumentHandler implements ServiceTaskHandler
         }
         Objects.requireNonNull(document.adaptTo(ModifiableValueMap.class),
             "A document read through a writing resolver is always modifiable").remove("title");
+        context.recordRole(document, "removed the document from " + requirement.getLabel());
     }
 }

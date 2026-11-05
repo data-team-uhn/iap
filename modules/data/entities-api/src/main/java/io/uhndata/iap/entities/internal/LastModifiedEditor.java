@@ -30,6 +30,8 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateUtils;
 
+import io.uhndata.iap.entities.nodetypes.NodeTypeRules;
+
 /**
  * A commit editor keeping {@code jcr:lastModified} and {@code jcr:lastModifiedBy} current on every node whose type is
  * {@code mix:lastModified}, so that no writer has to remember to.

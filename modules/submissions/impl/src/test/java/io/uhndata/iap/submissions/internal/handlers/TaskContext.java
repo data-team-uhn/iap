@@ -44,6 +44,8 @@ final class TaskContext implements WorkflowTaskContext
 
     private final Map<String, Object> variables = new HashMap<>();
 
+    private final Map<String, String> roles = new HashMap<>();
+
     /** The session the handler works through, when it is not the target's own. */
     private ResourceResolver resolver;
 
@@ -171,6 +173,22 @@ final class TaskContext implements WorkflowTaskContext
     public void replaceWorkflow(final Resource host, final WorkflowVersion version)
     {
         throw new IllegalStateException("No workflow was expected to be started here");
+    }
+
+    @Override
+    public void recordRole(final Resource resource, final String role)
+    {
+        this.roles.put(resource.getPath(), role);
+    }
+
+    /**
+     * What the handler said each resource it acted on did, for the history.
+     *
+     * @return the roles named, by the path of the resource named
+     */
+    Map<String, String> getRoles()
+    {
+        return this.roles;
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.apache.sling.api.resource.Resource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.deletion.api.DeletionException;
@@ -104,6 +105,18 @@ class DeleteTaskHandlerTest
     }
 
     @Test
+    void namesTheTargetArchivedForTheHistoryWhileItIsStillThere() throws Exception
+    {
+        answer(DeletionResult.Status.ARCHIVED);
+
+        this.handler.execute(this.context);
+
+        final InOrder order = Mockito.inOrder(this.context, this.deletionService);
+        order.verify(this.context).recordRole(this.target, "archived");
+        order.verify(this.deletionService).deleteWithin(Mockito.eq(this.target), Mockito.any());
+    }
+
+    @Test
     void asksForWhatTheDeletionCheckedOutToBeCheckedInOnceTheDeliveryCommits() throws Exception
     {
         answer(DeletionResult.Status.ARCHIVED, List.of("/Schemas", "/Schemas/other"));
@@ -112,6 +125,17 @@ class DeleteTaskHandlerTest
 
         Mockito.verify(this.context).checkInAfterCommit("/Schemas");
         Mockito.verify(this.context).checkInAfterCommit("/Schemas/other");
+    }
+
+    @Test
+    void namesTheTargetPurgedForTheHistoryWhenRemovedForGood() throws Exception
+    {
+        Mockito.when(this.activity.get("permanent")).thenReturn(true);
+        answer(DeletionResult.Status.DELETED);
+
+        this.handler.execute(this.context);
+
+        Mockito.verify(this.context).recordRole(this.target, "purged");
     }
 
     @Test

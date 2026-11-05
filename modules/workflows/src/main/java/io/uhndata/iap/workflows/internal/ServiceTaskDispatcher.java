@@ -24,6 +24,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.history.api.RecordedAction;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -97,6 +98,27 @@ final class ServiceTaskDispatcher
     }
 
     /**
+     * Notes what a step of this delivery did to a resource, for its history.
+     *
+     * @param path the path of the resource
+     * @param role the part it played, named by its purpose
+     */
+    void recordRole(final String path, final String role)
+    {
+        this.consequences.recordRole(path, role);
+    }
+
+    /**
+     * Notes an instance a step of this delivery started, for its history.
+     *
+     * @param path the path of the instance
+     */
+    void noteStartedInstance(final String path)
+    {
+        this.consequences.noteStartedInstance(path);
+    }
+
+    /**
      * Asks for a node a step checked out to be checked back in once this delivery has committed.
      *
      * @param path the path of the versionable node
@@ -104,6 +126,32 @@ final class ServiceTaskDispatcher
     void checkInAfterCommit(final String path)
     {
         this.consequences.checkInAfterCommit(path);
+    }
+
+    /**
+     * This delivery as its history records it, when a system workflow handled its event.
+     *
+     * @param actor the user who sent the event
+     * @param event the event
+     * @param start the start event of the system workflow that caught it
+     * @return the action
+     */
+    RecordedAction recordedAsSystemWorkflow(final String actor, final WorkflowEvent event, final StartEvent start)
+    {
+        return this.consequences.recordedAsSystemWorkflow(actor, event, start);
+    }
+
+    /**
+     * This delivery as its history records it, when its event completed a task of a running instance.
+     *
+     * @param actor the user who sent the event
+     * @param event the event
+     * @param task the task the event completed, as the event left it
+     * @return the action
+     */
+    RecordedAction recordedAsTask(final String actor, final WorkflowEvent event, final Resource task)
+    {
+        return this.consequences.recordedAsTask(actor, event, task);
     }
 
     /**

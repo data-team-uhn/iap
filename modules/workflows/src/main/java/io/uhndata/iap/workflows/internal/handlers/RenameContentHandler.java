@@ -76,8 +76,9 @@ public class RenameContentHandler implements ServiceTaskHandler
             final Node parent = node.getParent();
             ContentNames.checkFree(parent, name);
             VersioningUtils.checkOut(parent);
-            context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE,
-                this.mover.move(node, parent, name, nextSibling(node)));
+            final String renamed = this.mover.move(node, parent, name, nextSibling(node));
+            context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, renamed);
+            context.recordRole(Nodes.written(context, renamed), "renamed from " + target.getName() + " to " + name);
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot rename " + target.getPath() + ": " + e.getMessage(), e);
         }

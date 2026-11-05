@@ -105,6 +105,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
             record(existing, target, answer.getKey(), answer.getValue());
         }
         checkShown(target, schemaVersion, answers);
+        context.recordRole(target, "answered");
     }
 
     /**

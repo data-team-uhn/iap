@@ -97,6 +97,17 @@ class CreateContentHandlerTest
     }
 
     @Test
+    void namesWhatItAddedByItsTypeForTheHistory() throws WorkflowException, PersistenceException
+    {
+        final WorkflowTaskContext adding = task(BOX, Map.of(TYPE, ITEM, NAME, "chosen"), new HashMap<>());
+
+        this.handler.execute(adding);
+
+        Mockito.verify(adding).recordRole(Mockito.argThat(resource -> "/box/chosen".equals(resource.getPath())),
+            Mockito.eq("added test:Item"));
+    }
+
+    @Test
     void isNamedAfterTheFirstFieldThatNamesIt() throws WorkflowException, PersistenceException, RepositoryException
     {
         create(BOX, Map.of(TYPE, ITEM, "patch", "{\"note\": \" - \", \"title\": \"Titled\", \"count\": 3}"));

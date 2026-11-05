@@ -44,6 +44,7 @@ import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Event;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
+import io.uhndata.iap.workflows.models.WorkflowInstance;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -80,6 +81,8 @@ class NotificationsAfterCommitTest
     {
         WorkflowFixture.setUp(this.context);
         this.context.create().resource("/Submissions/request", TYPE, "sub/Submission");
+        this.context.create().resource("/Submissions/request/wf:instances/process", TYPE,
+            WorkflowInstance.RESOURCE_TYPE);
         this.context.create().resource(TASK, TYPE, TaskInstance.RESOURCE_TYPE);
         ErrorLogger.setService(this.recorder);
     }

@@ -56,4 +56,10 @@ public class AddTagHandler extends AbstractTagHandler
             host.tag(tag, true);
         }
     }
+
+    @Override
+    protected String role(final String tag)
+    {
+        return "tagged as " + tag;
+    }
 }

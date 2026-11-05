@@ -26,6 +26,8 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.entities.nodetypes.NodeTypeRules;
+
 /**
  * Provides a {@link LastModifiedEditor} for every commit, stamping it with the time of the commit and the user whose
  * session made it.

@@ -98,6 +98,7 @@ public class RetireActiveVersionsHandler implements ServiceTaskHandler
                 "Retiring a version takes the tags service, as tagging it active did");
             tags.untag(ACTIVE_TAG, true);
             tags.tag(RETIRED_TAG, true);
+            context.recordRole(sibling, "retired");
             retired.add(sibling.getPath());
         }
         context.setVariable(RETIRED_VERSIONS_VARIABLE, retired.toArray(new String[0]));

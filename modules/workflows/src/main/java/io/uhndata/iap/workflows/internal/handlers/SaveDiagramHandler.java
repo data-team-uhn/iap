@@ -64,5 +64,6 @@ public class SaveDiagramHandler implements ServiceTaskHandler
         }
         VersioningUtils.checkOut(version);
         VersionEdits.storeDiagram(version, diagram, context.getResourceResolver());
+        context.recordRole(version, "diagram edited");
     }
 }

@@ -19,17 +19,16 @@ create path (hist:Log) /History
 # No person is granted read on this store, neither `everyone` nor the people whose work it describes.
 create service user iap-history
 
-# No jcr:removeNode or jcr:removeChildNodes anywhere below: nobody holding these grants can delete an action or an
-# entry. jcr:modifyProperties lets them change one, which attaching a snapshot afterwards needs.
-#
-# The store's own user. The recorder creates the prefix-tree buckets as this user, and it is the one user meant to read
-# the store, for the service that serves the history.
+# The store's own user, and the one user meant to read it, for the service that serves the history.
 set ACL for iap-history
-    allow   jcr:read,jcr:addChildNodes,jcr:modifyProperties,jcr:nodeTypeManagement    on /History
+    allow   jcr:read    on /History
 end
 
-# Whoever records an action writes it in their own session, so the privilege has to be theirs. A module that records
-# joins this group in its own repoinit.
+# An action is written by the commit it records, as the user who commits, so the privilege has to be theirs. A module
+# that records, or attaches snapshots, joins this group in its own repoinit.
+#
+# No jcr:removeNode or jcr:removeChildNodes: nobody holding these grants can delete an action or an entry.
+# jcr:modifyProperties lets them change one, which attaching a snapshot afterwards needs.
 create group iap-history-writers
 
 set ACL for iap-history-writers

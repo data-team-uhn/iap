@@ -61,7 +61,6 @@ import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -168,6 +167,16 @@ class SaveAnswersHandlerTest
         // A real REFERENCE, holding the question node's own identifier
         assertEquals(identifierOf(VERSION_PATH + "/" + START_DATE),
             answer.getValueMap().get("question", String.class));
+    }
+
+    @Test
+    void namesTheSubmissionAnsweredForTheHistory() throws Exception
+    {
+        final TaskContext answering = context(Map.of(START_DATE, "2026-10-06"));
+
+        this.handler.execute(answering);
+
+        assertEquals(Map.of(SUBMISSION_PATH, "answered"), answering.getRoles());
     }
 
     @Test
@@ -503,17 +512,17 @@ class SaveAnswersHandlerTest
             () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06"))));
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload)
+    private TaskContext context(final Map<String, Object> payload)
     {
         return context(payload, REQUESTER);
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload, final String actor)
+    private TaskContext context(final Map<String, Object> payload, final String actor)
     {
         return context(payload, actor, this.context.resourceResolver());
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload, final String actor,
+    private TaskContext context(final Map<String, Object> payload, final String actor,
         final ResourceResolver resolver)
     {
         final Node asNode = this.node;

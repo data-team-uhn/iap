@@ -92,6 +92,12 @@
       <artifactId>iap-notifications-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- Every delivery is recorded in the history by the commit that makes it -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-history-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-entities-api</artifactId>

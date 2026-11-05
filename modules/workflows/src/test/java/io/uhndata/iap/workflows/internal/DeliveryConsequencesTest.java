@@ -35,9 +35,13 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.models.FlowNode;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link DeliveryConsequences}: what a delivery leaves for after its commit.
+ * Unit tests for {@link DeliveryConsequences}: what a delivery leaves for its history and for after its commit.
  *
  * @version $Id$
  * @since 0.1.0
@@ -138,5 +142,23 @@ class DeliveryConsequencesTest
         this.consequences.completeAfterCommit(bare);
 
         Mockito.verify(this.versions, Mockito.never()).checkin(Mockito.anyString());
+    }
+
+    @Test
+    void namesTheFirstInstanceTheDeliveryStarted()
+    {
+        this.consequences.noteStartedInstance("/Requests/one/wf:instances/first");
+        this.consequences.noteStartedInstance("/Requests/one/wf:instances/second");
+
+        assertEquals("/Requests/one/wf:instances/first",
+            this.consequences.recordedAsSystemWorkflow("jdoe", EVENT, Mockito.mock(FlowNode.class))
+                .getWorkflowInstance());
+    }
+
+    @Test
+    void namesNoVersionForAStartEventStoredOutsideOne()
+    {
+        assertNull(this.consequences.recordedAsSystemWorkflow("jdoe", EVENT, Mockito.mock(FlowNode.class))
+            .getWorkflowVersion());
     }
 }

@@ -72,7 +72,9 @@ class EntryTest
             "subjectPath", "/Submissions/aStudy",
             "subjectType", "sub:Submission",
             "role", "submitted",
-            "changes", new String[] {"tags", "title"},
+            "changed", new String[] {"answers/days/value", "tags"},
+            "added", new String[] {"answers/reason"},
+            "removed", new String[] {"answers/note"},
             "snapshot", "55555555-5555-5555-5555-555555555555"));
         final Entry entry = resource.adaptTo(Entry.class);
 
@@ -80,7 +82,9 @@ class EntryTest
         assertEquals("/Submissions/aStudy", entry.getSubjectPath());
         assertEquals("sub:Submission", entry.getSubjectType());
         assertEquals("submitted", entry.getRole());
-        assertEquals(List.of("tags", "title"), entry.getChanges());
+        assertEquals(List.of("answers/days/value", "tags"), entry.getChanged());
+        assertEquals(List.of("answers/reason"), entry.getAdded());
+        assertEquals(List.of("answers/note"), entry.getRemoved());
         assertEquals("55555555-5555-5555-5555-555555555555", entry.getSnapshot());
     }
 
@@ -95,7 +99,9 @@ class EntryTest
         assertEquals("", entry.getSubjectPath());
         assertEquals("", entry.getSubjectType());
         assertEquals("", entry.getRole());
-        assertTrue(entry.getChanges().isEmpty());
+        assertTrue(entry.getChanged().isEmpty());
+        assertTrue(entry.getAdded().isEmpty());
+        assertTrue(entry.getRemoved().isEmpty());
         assertNull(entry.getSnapshot(), "No snapshot is the normal case, not a gap");
     }
 
