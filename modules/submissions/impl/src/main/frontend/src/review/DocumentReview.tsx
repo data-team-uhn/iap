@@ -61,16 +61,18 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   const renderMarkDetails = useCallback((mark: Mark) => {
     if (mark.id === DRAFT && draft) {
       return (
-        <Composer
-          kinds={WRITTEN} initialKind="issue"
-          onCancel={() => setDraft(undefined)}
-          onSave={async (kind, text, severity) => {
-            await actions.write({ kind, text, subjects: [ document.uuid ], source: document.version,
-              quote: draft.quote, prefix: draft.before, suffix: draft.after, page: String(draft.start.page),
-              ...severity ? { severity } : {} });
-            setDraft(undefined);
-          }}
-        />
+        <Box sx={{ px: 1.5, pb: 1 }}>
+          <Composer
+            kinds={WRITTEN} initialKind="issue"
+            onCancel={() => setDraft(undefined)}
+            onSave={async (kind, text, severity) => {
+              await actions.write({ kind, text, subjects: [ document.uuid ], source: document.version,
+                quote: draft.quote, prefix: draft.before, suffix: draft.after, page: String(draft.start.page),
+                ...severity ? { severity } : {} });
+              setDraft(undefined);
+            }}
+          />
+        </Box>
       );
     }
     const note = notes.find(one => one.id === mark.id);
@@ -79,7 +81,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     }
     const asked = note.kind === "evidence" ? questionLabel(note.question, note.extracted) : undefined;
     return (
-      <Box>
+      <Box sx={{ px: 1.5, pb: 1 }}>
         {asked && <Box sx={{ typography: "body2", color: "text.secondary", mb: 0.5 }}>{asked.text}</Box>}
         <NoteCard
           note={note} answerLabel={asked?.answer}
