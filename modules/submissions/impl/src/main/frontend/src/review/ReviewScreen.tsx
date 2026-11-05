@@ -56,6 +56,7 @@ import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, type ReviewActions } from "./FormReview";
+import IssuesPanel from "./IssuesPanel";
 import LetterDialog from "./LetterDialog";
 import { usePersonName } from "./people";
 import { draftLetter } from "./rebLetter";
@@ -156,6 +157,9 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ shown, setShown ] = useState(storedKinds);
   const [ mark, setMark ] = useState<{ id?: string; page?: number }>({});
   const [ dialog, setDialog ] = useState<"letter" | "board">();
+  // Whether the issues are shown beside the requirement; until the reviewer says, open beside a form and folded
+  // beside a document, which needs the width
+  const [ issuesOpen, setIssuesOpen ] = useState<boolean>();
   const myName = usePersonName(me ?? "");
   const [ query, setQuery ] = useState("");
 
@@ -315,6 +319,24 @@ export default function ReviewScreen({ path }: { path: string }) {
     return asked?.text ?? requirements.find(one => one.name === part)?.label ?? "";
   };
 
+  // Where an issue was raised: the passage it quotes, or the answer or document it is about
+  const openIssue = (note: ReviewNote) => {
+    const source = note.passage?.source;
+    const part = (source ? data?.partOf.get(source) : undefined)
+      ?? note.subjects.map(subject => data?.partOf.get(subject)).find(Boolean);
+    if (!part) {
+      return;
+    }
+    if (source || data?.documents.has(part)) {
+      go(part, { id: note.id, page: note.passage?.page });
+    } else {
+      if (!minePart(part)) {
+        setWhole(true);
+      }
+      go(part.split("/")[0], { question: part });
+    }
+  };
+
   // The REB's review task, which the letter completes
   const rebTask = (): string | undefined => {
     const instances = loaded?.submission["wf:instances"];
@@ -368,7 +390,7 @@ export default function ReviewScreen({ path }: { path: string }) {
         return (
           // The one being read says what it asks for under its name; the others on hover
           <Tooltip
-            key={requirement.name} placement="right"
+            key={requirement.name} placement="right" describeChild
             title={requirement.name === current?.name ? "" : requirement.description ?? ""}
           >
             <ListItemButton
@@ -398,8 +420,8 @@ export default function ReviewScreen({ path }: { path: string }) {
         <Typography variant="h6" aria-hidden sx={{ lineHeight: 1.3 }}>{text(submission.title)}</Typography>
         <Countdown due={submission.reviewDue} pausedAt={submission.reviewPausedAt} />
       </Box>
-      <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1, alignItems: { sm: "center" } }}>
-        <Box sx={{ display: { md: "none" } }}>{search(false)}</Box>
+      <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1, alignItems: { sm: "center" }, display: { md: "none" } }}>
+        <Box>{search(false)}</Box>
         {myGroups.includes("reb-reviewers") && (
           <Stack direction="row" spacing={1} sx={{ ml: { sm: "auto" } }}>
             <Button size="small" variant="outlined" onClick={() => setDialog("board")}>Escalate to the board</Button>
@@ -485,6 +507,16 @@ export default function ReviewScreen({ path }: { path: string }) {
             <Typography>Nothing here is for your group. Switch to the whole submission to see it all.</Typography>
           )}
         </Paper>
+        <Box sx={{ display: { xs: "none", md: "block" }, position: "sticky", top: 16, flexShrink: 0 }}>
+          <IssuesPanel
+            issues={data.notes.filter(note => note.kind === "issue")} about={about}
+            open={issuesOpen ?? !(current && isDocumentRequirement(current))}
+            onToggle={() => setIssuesOpen(!(issuesOpen ?? !(current && isDocumentRequirement(current))))}
+            onOpenIssue={openIssue}
+            actions={myGroups.includes("reb-reviewers")
+              ? { letter: () => setDialog("letter"), board: () => setDialog("board") } : undefined}
+          />
+        </Box>
       </Stack>
     </Stack>
   );
