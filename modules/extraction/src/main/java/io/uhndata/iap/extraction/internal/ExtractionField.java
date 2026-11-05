@@ -25,12 +25,12 @@ import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
 
 /**
- * One answer to be read out of a submitted document, as the schema asks for it.
+ * One schema question, ready to ask the model. It holds what the model needs: the question text, the prompt,
+ * and the allowed values. The model's answer is saved as an {@code Extraction}, not here.
  *
- * <p>A question is only worth putting to a model if the schema says how to ask it, so a question with no
- * extraction prompt is not an extraction field at all, unless a classification supplies the prompt.
- * {@link #isExtractable} decides that for a question, and it keeps questions meant for the submitter out of the
- * model's way.
+ * <p>Only questions with an extraction prompt are asked ({@link #isExtractable}). The others are for the
+ * submitter to answer. A classification is the one exception: its prompt comes from the requirement, not the
+ * question.</p>
  *
  * @param name the field's key, the question's path within its schema version
  * @param text the question as the submitter would see it
