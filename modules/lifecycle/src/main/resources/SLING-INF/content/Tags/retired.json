@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "tag:Definition",
   "label": "Retired",
-  "description": "No new submissions may be filed under this, nor new instances started from it. Everything below something retired is retired too, and existing submissions and running instances keep referencing it.",
+  "description": "No new submissions may be filed under this, nor new instances started from it.",
   "category": ["lifecycle"],
   "inheritable": true,
   "targetResourceTypes": ["cat/Category", "sch/Schema", "sch/SchemaVersion", "wf/WorkflowVersion"],
