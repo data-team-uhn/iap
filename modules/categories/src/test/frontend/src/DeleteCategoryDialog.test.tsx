@@ -31,7 +31,7 @@ const node: CategoryNode = {
   children: [],
 };
 
-// The sentence the deletion endpoint answers a refusal with, describing what stands in the way.
+// The deletion endpoint's reason for a refusal.
 const REFUSAL = "This item is referenced in 2 submissions (S-1, S-2).";
 
 const renderDialog = ({
@@ -75,12 +75,12 @@ describe("DeleteCategoryDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
-    // The endpoint's own account of what stands in the way, rather than a guess made here
+    // The endpoint's own reason
     expect(await screen.findByText(/referenced in 2 submissions \(S-1, S-2\)/)).toBeInTheDocument();
-    // Retiring is explained here in the same words the retirement dialog uses
+    // Retiring explained in the retirement dialog's words
     expect(screen.getByText(/Existing submissions stay in this category and keep working/))
       .toBeInTheDocument();
-    // The deletion is off the table now, and the dialog stays up to offer the alternative
+    // No more Delete, and the dialog stays open
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
 

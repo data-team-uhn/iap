@@ -23,7 +23,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { DeletionRefusedError, useCategoryTree } from "@iap/categories/useCategoryTree";
 import { ReLoginContext, SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 
-// Every request the stubbed fetch has served, for asserting on the wire protocol.
+// One request the stubbed fetch received.
 interface RecordedRequest {
   url: string;
   method: string;
@@ -32,13 +32,9 @@ interface RecordedRequest {
 
 let requests: RecordedRequest[] = [];
 
-// Stubs fetch to answer the tree GET with the given JSON and every POST with a success (or the
-// given status), recording all requests.
-// `location` is what the POST responses report as their Location header; null stands for a server
-// that reports none.
-// Every answer carries the `url` it came back from: the requests go through useAuthenticatedFetch,
-// which reads it to tell an ordinary response from the login page Sling redirects to when the
-// session has expired.
+// Stubs fetch to answer the tree GET with `treeJson` and every other request with `postStatus`,
+// recording each one. `location` is the Location header of those answers; null for none.
+// Every answer carries its `url`, which useAuthenticatedFetch reads to recognise the login page.
 const stubFetch = (
   treeJson: Record<string, unknown>,
   postStatus = 200,
@@ -104,13 +100,10 @@ describe("useCategoryTree", () => {
     expect(result.current.loadError).toBeUndefined();
   });
 
-  // The wording itself is requestFailure's business; what matters here is that the hook hands the
-  // UI a sentence about the cause rather than the protocol, and never one about "the change" when
-  // all it did was read
+  // The sentence comes from requestFailure, and a failed read must not speak of a change
   it("reports a load failure in the user's terms", async () => {
     vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
-      // The session is still there, which is what makes this 500 the server's own problem rather
-      // than a lapsed session to sign back in for
+      // A live session makes the 500 a server failure, not an expired session
       ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
       : { ok: false, status: 500, statusText: "Server Error", url }) as unknown as Response)));
     const result = await loadedHook();
@@ -133,7 +126,7 @@ describe("useCategoryTree", () => {
     const result = await loadedHook();
 
     expect(result.current.loadError).toContain("The server could not be reached");
-    // Chrome's phrasing for it, which means nothing to a user, does not reach the screen
+    // Chrome's own wording stays off the screen
     expect(result.current.loadError).not.toContain("Failed to fetch");
   });
 
@@ -215,8 +208,6 @@ describe("useCategoryTree", () => {
 
     await result.current.setRetired("/Categories/Retrospective", true);
 
-    // Patched rather than assigned: the property holds every tag the category carries, and the
-    // others must survive a retirement
     const post = lastPost();
     expect(post?.params.get("tags@Patch")).toBe("true");
     expect(post?.params.get("tags")).toBe("+retired");
@@ -237,8 +228,6 @@ describe("useCategoryTree", () => {
 
     await act(() => result.current.remove("/Categories/Retrospective"));
 
-    // A DELETE on the category itself, not a :operation=delete write: the endpoint is what knows
-    // the references, keeps the archive copy, and can say why it refused
     const sent = requests.filter(request => request.method === "DELETE");
     expect(sent).toHaveLength(1);
     expect(sent[0].url).toBe("/Categories/Retrospective");
@@ -290,8 +279,6 @@ describe("useCategoryTree", () => {
     stubFetch(treeJson, 409);
     const result = await loadedHook();
 
-    // A refusal with an unreadable body is still a refusal, not a server failure: the UI has to
-    // keep offering to retire instead
     await expect(result.current.remove("/Categories/Retrospective"))
       .rejects.toBeInstanceOf(DeletionRefusedError);
   });
@@ -304,10 +291,8 @@ describe("useCategoryTree", () => {
       .rejects.not.toBeInstanceOf(DeletionRefusedError);
   });
 
-  // Why these requests go through useAuthenticatedFetch: Sling answers a *write* with an expired
-  // session with a 500, so a session that lapsed while the manager was open would otherwise be
-  // described as "the server ran into a problem" and the change lost. The recovery itself is
-  // reLogin.test.tsx's business; what matters here is that a category write takes part in it.
+  // Sling answers a write made with an expired session with a 500. The recovery itself is tested
+  // with reLogin; this checks that a category write goes through it.
   it("recovers a write from a session that expired under it", async () => {
     let posts = 0;
     vi.stubGlobal("fetch", vi.fn((url: string, options?: RequestInit) => {
@@ -318,7 +303,7 @@ describe("useCategoryTree", () => {
         params: new URLSearchParams(options?.body as URLSearchParams | undefined),
       });
       if (url === SESSION_INFO_URL) {
-        // The session really is gone, which is what tells this 500 apart from a server failure
+        // The session is gone, so the 500 means an expired session
         return Promise.resolve({
           ok: true, status: 200, url,
           json: () => Promise.resolve({ userID: "anonymous" }),
@@ -329,7 +314,7 @@ describe("useCategoryTree", () => {
           ok: true, status: 200, url, json: () => Promise.resolve(treeJson),
         } as unknown as Response);
       }
-      // The first write is the one that ran into the expired session; the re-sent one succeeds
+      // The first write meets the expired session, and the re-sent one succeeds
       posts += 1;
       return Promise.resolve(posts === 1
         ? { ok: false, status: 500, url } as unknown as Response
@@ -348,7 +333,7 @@ describe("useCategoryTree", () => {
     await act(() => result.current.setRetired("/Categories/Retrospective", true));
 
     expect(signIn).toHaveBeenCalled();
-    // Re-sent rather than reported: two POSTs for the one change the user asked for
+    // Two POSTs for the one change: the write was sent again, not reported
     expect(requests.filter(request => request.method === "POST")).toHaveLength(2);
     expect(result.current.loadError).toBeUndefined();
   });

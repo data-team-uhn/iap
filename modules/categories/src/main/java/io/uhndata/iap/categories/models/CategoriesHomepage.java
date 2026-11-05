@@ -31,15 +31,12 @@ import io.uhndata.iap.autodoc.api.AutoDocumentable;
 import io.uhndata.iap.entities.models.EntityHomepage;
 
 /**
- * A Sling Model wrapping a {@code cat:CategoriesHomepage} node, the root container of the {@code /Categories} tree.
+ * The {@code /Categories} homepage, which holds the category tree.
  *
- * <p>The tree documents itself through the generic autodoc endpoints, {@code /Categories.doc.md} and
- * {@code /Categories.doc.json}: a flat catalogue of only the live leaf categories that submissions may currently
- * be filed under. A retired category is excluded together with its whole subtree, since
- * submissions may not be filed under any of its descendants either. The primary consumer is AI-assisted
- * categorization, which builds its prompt from the served descriptions; the heading and introduction can be
- * reworded without code through the {@code title} and {@code description} properties of the {@code doc:Documented}
- * mixin.</p>
+ * <p>It documents itself at {@code /Categories.doc.md} and {@code /Categories.doc.json}. The catalogue lists the
+ * categories a submission may be filed under now: the leaves that are not retired. A retired category takes its whole
+ * subtree out of the catalogue. The {@code title} and {@code description} properties hold the catalogue's heading
+ * and introduction.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -59,9 +56,9 @@ public class CategoriesHomepage extends EntityHomepage implements AutoDocumentab
     private String description;
 
     /**
-     * The top-level categories of the tree, in their stored order.
+     * The top-level categories, in their stored order.
      *
-     * @return a list of categories, empty if none
+     * @return the categories directly under the homepage; empty if there are none
      */
     @NotNull
     public List<Category> getCategories()
@@ -93,12 +90,11 @@ public class CategoriesHomepage extends EntityHomepage implements AutoDocumentab
     }
 
     /**
-     * Depth-first traversal of the category tree, collecting every live leaf category. A retired category prunes
-     * its whole subtree: the leaves under it inherit the retirement and would be skipped one by one anyway, so
-     * this stops the walk rather than deciding the outcome.
+     * Adds the live leaves among the given categories and their descendants, depth first. The walk stops at a
+     * retired category, since everything under it is retired too.
      *
-     * @param categories the categories to examine, together with their descendants
-     * @param leaves collects the live leaf categories
+     * @param categories the categories to walk, in display order
+     * @param leaves the list the live leaves are added to, in display order
      */
     private void collectLiveLeaves(final List<Category> categories, final List<Category> leaves)
     {

@@ -108,7 +108,6 @@ class CategoryTest
         Retirement.retire(this.context, "/Categories/Legacy");
         final Category category = child.adaptTo(Category.class);
 
-        // Retired, but not by its own doing: only the ancestor carrying the tag can take it off again
         assertTrue(category.isRetired());
         assertFalse(category.isRetiredHere());
     }
@@ -120,7 +119,7 @@ class CategoryTest
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE);
         final Category category = resource.adaptTo(Category.class);
 
-        // Nothing registers the Taggable view here, which is what a repository without the tags bundle looks like
+        // Nothing adapts the resource to Taggable
         assertFalse(category.isRetired());
         assertFalse(category.isRetiredHere());
     }

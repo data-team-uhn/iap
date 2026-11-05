@@ -54,7 +54,7 @@ const homepageJson = {
     "jcr:primaryType": "cat:Category",
     "label": "Paper submissions",
     "tags": ["retired"],
-    // The raw UUID string left when the dereference processor is disabled must not break parsing
+    // The raw `jcr:uuid` that a serialization without `dereference` leaves
     "schemaVersion": "uuid-raw",
   },
 };
@@ -79,7 +79,7 @@ describe("parseCategoryTree", () => {
   });
 
   it("reads a retirement inherited from an ancestor, and keeps it apart from an own one", () => {
-    // What the repository materializes onto every node below the category the tag was placed on
+    // What Oak copies onto every node below the one that carries the tag
     const tree = parseCategoryTree({
       "jcr:primaryType": "cat:CategoriesHomepage",
       "Legacy": {
@@ -96,7 +96,6 @@ describe("parseCategoryTree", () => {
 
     const child = tree[0].children[0];
     expect(child.retired).toBe(true);
-    // Not the child's to lift: only the ancestor carrying the tag can be unretired
     expect(child.retiredHere).toBe(false);
   });
 

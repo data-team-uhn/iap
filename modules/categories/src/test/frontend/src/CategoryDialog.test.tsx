@@ -47,9 +47,8 @@ const tree = parseCategoryTree({
   },
 });
 
-// Answers the schema listing that the schema version picker fetches. The answer carries the `url` it
-// came back from, which is what useAuthenticatedFetch reads to tell it apart from the login page an
-// expired session is redirected to.
+// Answers the schema listing that the schema version picker fetches. The answer carries its `url`,
+// which useAuthenticatedFetch reads to recognise the login page.
 const stubSchemasEndpoint = () =>
   vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
     ok: true,
@@ -241,7 +240,7 @@ describe("CategoryDialog", () => {
 
   it("keeps the dialog open and shows the problem when saving fails", async () => {
     stubSchemasEndpoint();
-    // Already worded for the reader by the time it gets here; see requestFailure
+    // Worded by requestFailure before it reaches the dialog
     const onSave = vi.fn().mockRejectedValue(new Error("You do not have permission to do this. (HTTP 403)"));
     const onClose = vi.fn();
     render(
@@ -283,8 +282,6 @@ describe("CategoryDialog", () => {
     expect(await screen.findByText("The changes could not be saved")).toBeInTheDocument();
   });
 
-  // Changing both the fields and the parent takes two writes, and the first one having worked is
-  // exactly what the user needs to be told - otherwise a half-applied edit reads as none at all
   it("admits the changes were saved when only the move failed", async () => {
     stubSchemasEndpoint();
     const onSave = vi.fn().mockRejectedValue(new SaveStepFailure("move", new Error("HTTP 403")));

@@ -22,10 +22,8 @@ import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionD
 
 import type { CategoryNode } from "./categoryModel";
 
-// What retiring does, in the words both paths to it use: the row action below, and the offer the
-// deletion dialog makes when a category has submissions. Retirement is the one category action
-// whose effect lands on submitters rather than on the administrator doing it, so it is spelled out
-// wherever it is offered.
+// What retiring does, in the words of both dialogs that offer it: this one, and the deletion
+// dialog after a refused deletion.
 export const RETIREMENT_EFFECT = "Existing submissions stay in this category and keep working as "
   + "before; only new submissions are prevented. Retiring can be undone at any time.";
 
@@ -36,12 +34,9 @@ interface RetireCategoryDialogProps {
   onRetire: (node: CategoryNode) => Promise<void>;
 }
 
-// The retirement confirmation. Retiring is reversible, so this asks less to guard the change than
-// to explain it: from the tree it is one small button among several, and its consequence is
-// invisible from here.
+// Asks before retiring a category, and says what retiring does.
 function RetireCategoryDialog({ node, onClose, onRetire }: RetireCategoryDialogProps) {
-  // Retirement is inherited, so retiring a branch closes everything under it as well. That is the
-  // part an administrator cannot see from the row they clicked, so it is the part worth naming.
+  // Retiring a category closes its subcategories too, so the sentence names them
   const subject = node.children.length > 0
     ? `"${node.label}" and its subcategories`
     : `"${node.label}"`;
