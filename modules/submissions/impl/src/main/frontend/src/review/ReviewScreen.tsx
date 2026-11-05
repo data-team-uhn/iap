@@ -369,7 +369,13 @@ export default function ReviewScreen({ path }: { path: string }) {
             key={requirement.name} selected={requirement.name === current?.name} onClick={() => go(requirement.name)}
             sx={{ borderRadius: 1, py: 0.25, opacity: mine(requirement) ? 1 : 0.55 }}
           >
-            <ListItemText primary={requirement.label} slotProps={{ primary: { variant: "body2" } }} sx={{ my: 0.25 }} />
+            {/* What the requirement asks for, under the one being read */}
+            <ListItemText
+              primary={requirement.label}
+              secondary={requirement.name === current?.name ? requirement.description : undefined}
+              slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption" } }}
+              sx={{ my: 0.25 }}
+            />
             {count > 0 && <Chip size="small" label={count} sx={{ ml: 1, height: 20 }} />}
           </ListItemButton>
         );
@@ -410,10 +416,7 @@ export default function ReviewScreen({ path }: { path: string }) {
         <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%" }}>
           {current && (
             <>
-              <Stack direction="row" sx={{ alignItems: "baseline", columnGap: 1.5, flexWrap: "wrap" }}>
-                <Typography variant="h6" component="h2">{current.label}</Typography>
-                {current.description && <Typography variant="description">{current.description}</Typography>}
-              </Stack>
+              <Typography variant="h6" component="h2">{current.label}</Typography>
               <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap", mt: 1, mb: 0.5 }}
                 role="group" aria-label="Which notes to show">
                 <Typography variant="caption" sx={{ color: "text.secondary", mr: 0.25 }}>Show</Typography>
