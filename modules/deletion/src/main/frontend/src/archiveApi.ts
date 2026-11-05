@@ -19,10 +19,8 @@
 // Calls the archive endpoints: listing the archive, describing one entry, and restoring or purging it.
 // Every call takes the fetch to use as its first argument, and components pass `useAuthenticatedFetch()`.
 
+import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { readJson } from "@iap/frontend-commons/requestFailure";
-
-/** The fetch to call the endpoints with, normally `useAuthenticatedFetch()` from `@iap/frontend-commons/reLogin`. */
-export type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
 /** One archive entry, as a listing row. */
 export interface ArchiveEntry {
