@@ -1,6 +1,7 @@
 # History
 
-**Module:** `modules/history` · **Bundle:** `iap-history-api` · **Packages:**
+**Module:** `modules/history` · **Bundles:** `iap-history-api` (the node types, models
+and API), `iap-history-impl` (the recorder) · **Packages:**
 `io.uhndata.iap.history.api` (`HistoryRecorder`, `RecordedAction`, `RecordedEffect`),
 `io.uhndata.iap.history.models`
 
