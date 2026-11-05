@@ -294,12 +294,24 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Whether the model's answers should be written. No gate means yes. A gate that does not hold, or that
-     * cannot be read, means write nothing: a document that is not a proposal must not leave other facts behind.
+     * Whether to save the model's answers. The gate is the step's {@code recordWhen}, written as
+     * {@code path=value}, for example {@code isProposal=yes}.
      *
-     * <p>The gate field is compared as it would be stored, matched to the question's options, and ignoring case.
-     * When this step did not ask it, the submitter's answer to it is compared, or failing that what an earlier
-     * reading suggested, such as the gate's own pick.</p>
+     * <ul>
+     * <li>No gate: save.</li>
+     * <li>The gate field holds the expected value: save.</li>
+     * <li>It holds something else, holds nothing, or the gate is badly written: save nothing. A document that is
+     * not a proposal must not leave answers behind.</li>
+     * </ul>
+     *
+     * <p>Where the gate field's value comes from:</p>
+     * <ul>
+     * <li>If this step asked the gate question, the model's new answer, matched to the question's options.</li>
+     * <li>If not, the submitter's answer, or if there is none, the suggestion from an earlier reading, such as
+     * the gate's own pick.</li>
+     * </ul>
+     *
+     * <p>Case is ignored.</p>
      */
     static boolean shouldRecord(final String gate, final Map<String, FieldResult> fields,
         final Submission submission, final ResourceResolver resolver)
