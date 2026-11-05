@@ -31,8 +31,16 @@ function PageContextEntry() {
   }
   return (
     <>
-      {/* A phone's bar has no room: the page repeats what matters, and the heading stays for those who listen */}
+      {/* A phone's bar has room for the short form only: the heading stays for those who listen */}
       <Typography component="h1" sx={{ ...visuallyHidden, display: { sm: "none" } }}>{context.title}</Typography>
+      {context.short && (
+        <Typography
+          variant="subtitle2" aria-hidden
+          sx={{ display: { sm: "none" }, ml: 1, fontWeight: "fontWeightBold", whiteSpace: "nowrap" }}
+        >
+          {context.short}
+        </Typography>
+      )}
       <Stack direction="row" sx={{ flex: "0 1 auto", minWidth: 0, alignItems: "center", gap: 2, ml: 2,
         display: { xs: "none", sm: "flex" } }}>
         <Box sx={{ minWidth: 0 }}>

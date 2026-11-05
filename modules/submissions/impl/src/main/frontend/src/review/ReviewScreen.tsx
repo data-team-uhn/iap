@@ -213,6 +213,7 @@ export default function ReviewScreen({ path }: { path: string }) {
   const header = loaded?.submission;
   const context: PageContext | undefined = useMemo(() => header && {
     title: text(header.title),
+    short: text(header.identifier),
     details: `${text(header.identifier)} · ${text(header.pi)}`,
     badges: <><TagChip tags={header.tags} category="lifecycle" /><TagChip tags={header.tags} category="priority" /></>,
     end: <Countdown due={header.reviewDue} pausedAt={header.reviewPausedAt} />,
@@ -364,8 +365,8 @@ export default function ReviewScreen({ path }: { path: string }) {
 
   return (
     <Stack spacing={1.5}>
-      {/* The app bar names the submission, but a phone's has no room for it, and a short screen folds the bar
-          away: those repeat the title and the time left */}
+      {/* The app bar names the submission, but a phone's has room for its identifier only, and a short screen folds
+          the bar away: those repeat the title and the time left */}
       <Box sx={theme => ({ display: { sm: "none" },
         [`@media (max-height: ${theme.iapShell?.frameTop?.collapseHeight ?? 500}px)`]: { display: "block" } })}>
         <Typography variant="h6" aria-hidden sx={{ lineHeight: 1.3 }}>{text(submission.title)}</Typography>
