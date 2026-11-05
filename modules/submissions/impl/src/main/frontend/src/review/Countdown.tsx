@@ -41,8 +41,9 @@ export default function Countdown({ due, pausedAt, variant = "body2" }: {
     : countdown.days <= SOON ? "warning.main" : "text.primary";
   const Icon = countdown.paused ? PauseCircleOutlined : overdue ? WarningAmberOutlined : HourglassBottomOutlined;
   return (
-    <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, color }}>
-      <Icon fontSize="small" />
+    // On the text's baseline, so it lines up with text beside it; the icon centred on the text
+    <Stack direction="row" sx={{ alignItems: "baseline", gap: 0.75, color }}>
+      <Icon fontSize="small" sx={{ alignSelf: "center" }} />
       <Typography variant={variant} sx={{ color, fontWeight: overdue ? "fontWeightBold" : undefined, whiteSpace: "nowrap" }}>
         {countdown.label}
       </Typography>
