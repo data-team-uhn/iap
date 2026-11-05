@@ -112,8 +112,8 @@ as guards on the events they wait for. Creating a submission refuses a version t
 none of them, so a schema imported by hand should tag its versions, as
 `tools/dev/test-data/DemoStudy.json` does.
 
-The `draft`, `active` and `retired` definitions ship with `modules/lifecycle`, since schemas,
-submissions and categories all use them. `active` applies to versions only.
+The `draft`, `active` and `retired` definitions ship with `modules/lifecycle`. `active`
+may be placed on a version only, not on a schema.
 
 ## Editing through workflows
 

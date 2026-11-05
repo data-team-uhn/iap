@@ -41,9 +41,9 @@ the `label`.
 
 Retiring a category closes it, and everything under it, to new submissions. The
 catalogue leaves it out. Retirement is the inheritable `retired` tag, not a property.
-The tags module copies an inheritable tag onto the whole subtree at commit time, so finding every
-retired category is a query. The tag's definition ships with `modules/lifecycle`
-(`content/Tags/retired.json`).
+The tags module copies an inheritable tag onto the whole subtree at commit time, so
+finding every retired category is a query. The tag's definition ships with
+`modules/lifecycle` (`content/Tags/retired.json`).
 
 The property the tag arrives in tells the two states apart, in Java
 (`hasTag`/`hasOwnTag`) and in the frontend (`inheritedTags`/`tags`):
