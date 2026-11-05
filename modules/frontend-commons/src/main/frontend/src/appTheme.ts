@@ -226,8 +226,9 @@ const LILAC = "#C58BBD";
 const SOFT_YELLOW = "#F6D96B";
 // The matches of a search are no one's mark, and take the brand's cobalt instead.
 const COBALT = "#255CAA";
-// PRETOTYPE: the review's own accents
-const TEAL = "#5BBFB0";
+// PRETOTYPE: the review's own accents. Extracted answers are the AI's too, so purple like the rest of what it
+// contributes, but a lighter, bluer lavender beside the assistant's pinker lilac, so the two stay apart.
+const LAVENDER = "#AFA0E6";
 const CORAL = "#F08A7E";
 const SKY = "#7FB2E5";
 
@@ -257,7 +258,7 @@ function accent(fill: string, text: string): { light: PaletteColorOptions; dark:
     dark: { main: fill, light: lighten(fill, 0.3), dark: text, contrastText: "rgba(0, 0, 0, 0.87)" },
   };
 }
-const EVIDENCE = accent(TEAL, "#1F6F65");
+const EVIDENCE = accent(LAVENDER, "#5A4A9E");
 const ISSUE = accent(CORAL, "#A8402F");
 const DISCUSSION = accent(SKY, "#2F5F96");
 
@@ -275,8 +276,8 @@ const HIGHLIGHT = {
   assistantCurrent: alpha(LILAC, 0.65),
   annotation: alpha(SOFT_YELLOW, 0.55),
   annotationCurrent: alpha(SOFT_YELLOW, 0.85),
-  evidence: alpha(TEAL, 0.35),
-  evidenceCurrent: alpha(TEAL, 0.6),
+  evidence: alpha(LAVENDER, 0.4),
+  evidenceCurrent: alpha(LAVENDER, 0.65),
   issue: alpha(CORAL, 0.35),
   issueCurrent: alpha(CORAL, 0.6),
   discussion: alpha(SKY, 0.35),
