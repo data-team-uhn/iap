@@ -104,9 +104,9 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
   return (
     <Box
       id={`question-${question.path}`}
-      sx={{ py: 1, borderBottom: 1, borderColor: "divider", scrollMarginTop: 96 }}
+      sx={{ py: 1.5, scrollMarginTop: 96 }}
     >
-      <Stack sx={{ gap: 0.25 }}>
+      <Stack sx={{ gap: 0.5 }}>
         <Stack direction="row" sx={{ minWidth: 0, gap: 0.75, flexWrap: "wrap", alignItems: "baseline" }}>
           <Typography variant="body2" sx={{ fontWeight: "fontWeightBold" }}>{question.text}</Typography>
           <GroupChips groups={groups.get(question.path)} mine={myGroups} />
@@ -233,7 +233,7 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
           );
         }
         return (
-          <Box key={item.name} sx={{ mt: 1.5 }}>
+          <Box key={item.name} sx={{ mt: 3 }}>
             <Typography variant="subheading" component={depth === 0 ? "h3" : "h4"}>{item.label}</Typography>
             <FormReview
               items={item.items} data={data} groups={groups} myGroups={myGroups} shown={shown}
