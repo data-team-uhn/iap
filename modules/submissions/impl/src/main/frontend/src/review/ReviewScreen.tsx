@@ -407,7 +407,7 @@ export default function ReviewScreen({ path }: { path: string }) {
           <ListItemButton
             key={requirement.name}
             selected={requirement.name === current?.name} onClick={() => go(requirement.name)}
-            sx={{ borderRadius: 1, py: 0.25, alignItems: "flex-start" }}
+            sx={{ borderRadius: 1, py: 0.75, mb: 0.25, alignItems: "flex-start" }}
           >
             <ListItemText
               primary={
@@ -464,8 +464,10 @@ export default function ReviewScreen({ path }: { path: string }) {
       <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, alignItems: "flex-start" }}>
         {railOpen || narrow ? (
           <Paper sx={{ p: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0, position: { md: "sticky" }, top: { md: 16 } }}>
-            <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, py: 0.5 }}>
-              <Typography variant="subtitle2" component="h2" sx={{ flex: 1 }}>Submission contents</Typography>
+            <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, pt: 0.75, pb: 0.5 }}>
+              <Typography variant="h6" component="h2" sx={{ flex: 1, color: "primary.main", fontSize: "1.05rem" }}>
+                Submission contents
+              </Typography>
               {!narrow && (
                 <Tooltip title="Fold away">
                   <IconButton size="small" aria-label="Fold the contents away" onClick={() => setRailOpen(false)}>
