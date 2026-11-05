@@ -27,6 +27,7 @@ import TagChip from "@iap/tags/TagChip";
 
 import { PersonName } from "./people";
 import { SEVERITIES, type ReviewNote } from "./reviewData";
+import { PanelBody } from "./sidePanel";
 
 // PRETOTYPE. The issues the reviewer raised for the study team on the submission, most serious first, beside whatever the
 // reviewer is reading: what the letter of review will hold. Each one leads to where it was raised. The letter and
@@ -85,7 +86,7 @@ export default function IssuesPanel({ issues, about, open, onToggle, onOpenIssue
   }
   return (
     // Part of the frame, tinted like the contents on the other side of the page
-    <Paper sx={{ width: 300, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 96px)",
+    <Paper sx={{ width: 300, display: "flex", flexDirection: "column", minHeight: 0,
       bgcolor: "background.tinted", boxShadow: "none" }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 1.5, pt: 1, pb: 0.5 }}>
         <Box sx={{ flex: 1 }}>
@@ -98,7 +99,7 @@ export default function IssuesPanel({ issues, about, open, onToggle, onOpenIssue
           </IconButton>
         </Tooltip>
       </Stack>
-      <Box sx={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+      <PanelBody>
         {sorted.length === 0 && (
           <Typography variant="body2" sx={{ px: 1.5, py: 1, color: "text.secondary" }}>
             No issues raised yet. Write one about an answer, or about a passage of a document.
@@ -128,7 +129,7 @@ export default function IssuesPanel({ issues, about, open, onToggle, onOpenIssue
             </ListItemButton>
           ))}
         </List>
-      </Box>
+      </PanelBody>
       {actions && (
         <Stack spacing={1} sx={{ p: 1.5, borderTop: 1, borderColor: "divider" }}>
           <Button variant="outlined" size="small" startIcon={<ForwardToInboxOutlined />} onClick={actions.send}>

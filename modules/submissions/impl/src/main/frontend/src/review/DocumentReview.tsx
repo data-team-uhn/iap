@@ -102,7 +102,8 @@ export default function DocumentReview({ document, data, shown, selected, onSele
 
   return (
     <>
-      <Box ref={setPlace} sx={{ height: { xs: "75vh", md: "calc(100vh - 220px)" }, minHeight: 420 }} />
+      {/* On a wide screen, the rest of the page's height, which matches the window's */}
+      <Box ref={setPlace} sx={{ height: { xs: "75vh", md: "auto" }, flex: { md: 1 }, minHeight: { xs: 420, md: 0 } }} />
       <PdfViewer
         url={toFileUrl(document.url)}
         page={page}
