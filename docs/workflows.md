@@ -263,6 +263,10 @@ later module adds is covered without the servlet learning about it. A POST carry
 Sling `:operation` is refused with a 400, since it would otherwise arrive as an empty
 event; remove such a resource with an HTTP `DELETE`.
 
+A `:onBehalfOf=<user id>` parameter sends the event for someone else; see
+[Acting on behalf of someone else](#acting-on-behalf-of-someone-else). Left blank, it is
+ignored.
+
 The types under workflow control are the `targetResourceType` of every system workflow
 version, active or not, plus `wf/TaskInstance`. `WorkflowEventServlet` is bound to
 exactly those, with any extension, and `WorkflowEventServletRegistrar` rebinds it
@@ -655,15 +659,18 @@ Everything goes through the engine's single entry point, whatever channel the ev
 arrived on:
 
 ```java
-@NotNull WorkflowResult receiveEvent(Resource target, WorkflowEvent event)
-    throws WorkflowException;
+@NotNull WorkflowResult receiveEvent(Resource target, WorkflowEvent event,
+    @Nullable String onBehalfOf) throws WorkflowException;
 ```
 
-Receiving an event answers four questions in order, each failure its own exception,
+The two-argument `receiveEvent(target, event)` is the same call with nobody else named.
+
+Receiving an event answers these questions in order, each failure its own exception,
 which the servlet maps to a status:
 
 | Question | Failure | Status |
 |---|---|---|
+| May the sender act for the user `:onBehalfOf` names, if it names one? | `NotAuthorizedException` | **403** |
 | Is anything waiting for this event here? | `NoApplicableWorkflowException` | **409** |
 | May this user fire it? | `NotAuthorizedException` | **403** |
 | Does the target's state allow it now? | `InvalidStateException` | **409** |
@@ -727,6 +734,49 @@ events, exactly one arc out of every node it passes. A definition that would hav
 wait is rejected as broken (**500**). Everything a run changes lands in one commit, so
 an event either fully happens or does not happen at all.
 
+### Acting on behalf of someone else
+
+A delegate can send an event for another user, for example to approve a request for someone
+who cannot get to it, by adding `:onBehalfOf=<user id>` to the `POST`:
+
+```
+POST /Submissions/proposal-42/wf:instances/review/approve_1
+  outcome=approved
+  :onBehalfOf=alice
+```
+
+The event then counts as Alice's. She is what the node's `performers` are checked against,
+and she is the one recorded: `createdBy` on anything created, `assignee` on a completed
+task, and the reader granted on a started instance. A handler's `getActor()` answers
+`alice` too, and its `getSender()` names the delegate. History records both: the delegate as
+the action's `createdBy`, and Alice as its `onBehalfOf`.
+
+Who may do this is a single group, the **delegates**, set by the `Delegates` property of the
+`io.uhndata.iap.workflows.internal.Delegation` configuration. It defaults to
+`iap-administrators`. Membership is resolved by the principals service, as for
+`performers`, so a Keycloak role works as well as a local group. The `admin` user may
+always act for others.
+
+The rules, each of which refuses with the same **403** so that a refusal does not reveal
+which one failed, or whether the user exists:
+
+- **The sender must be a delegate.** Anyone else naming another user is refused rather
+  than having the parameter ignored.
+- **The person named must be an ordinary, enabled user.** Not a group, a service user, a
+  disabled account or an administrator. The administrator passes every check, so acting
+  for them would turn any delegate into one.
+- **The person named must themselves be admitted.** Acting for someone never reaches a
+  node they could not reach on their own, even when the delegate could.
+
+The person named is recorded by their canonical id, so `:onBehalfOf=ALICE` records `alice`.
+Naming yourself is the same as naming nobody.
+
+A page learns whether to offer this from the `delegable` serialization processor, on by
+default for a submission's workflow instances and their tasks: it adds `@delegable` to
+each task, whether the reader may decide it for someone else. For now every task may be
+delegated, so the answer is whether the reader is a delegate. Like `@events`, it only
+says what to show: the engine still decides.
+
 ### Service tasks and the handler SPI
 
 ```java
@@ -738,6 +788,7 @@ an event either fully happens or does not happen at all.
 // WorkflowTaskContext — what a handler is given
 Resource         getTarget();
 String           getActor();
+String           getSender();
 WorkflowEvent    getEvent();
 Activity         getActivity();
 Object           getVariable(String name);
@@ -1053,3 +1104,14 @@ each completed on its own.
   recognized.
 - **No `oak:index` definitions.** The console's listings and homepage discovery both
   query without one.
+- **A refused attempt to act for someone is only a log line.** A refusal changes nothing, so
+  it is not history; the servlet logs it at WARN instead, naming the sender, the event, the
+  target and the person named, but not which rule refused it.
+- **Acting for someone cannot be previewed.** `getAvailableEvents` and
+  `findApplicableWorkflow` answer for the asking user only, so a frontend cannot yet ask
+  what a delegate could do for Alice.
+- **Delegation is all or nothing.** Delegates may act for any ordinary user, and there is
+  one delegates group. Narrower delegation, such as an assistant acting only for the people
+  they support, is not expressible yet.
+- **A Keycloak user must have signed in once** before anyone can act for them, since Oak
+  only learns of them at their first login.

@@ -28,10 +28,8 @@ import java.util.stream.StreamSupport;
 
 import jakarta.servlet.Servlet;
 
-import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.observation.ResourceChange;
 import org.apache.sling.api.resource.observation.ResourceChangeListener;
 import org.apache.sling.api.servlets.HttpConstants;
@@ -46,6 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.workflows.api.WorkflowEngine;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowDefinition;
@@ -76,8 +75,9 @@ public class WorkflowEventServletRegistrar implements ResourceChangeListener
     @Reference
     private WorkflowEngine engine;
 
+    /** Opens the engine's own session, which reads what types the system workflows handle. */
     @Reference
-    private ResourceResolverFactory resolverFactory;
+    private EngineSessions sessions;
 
     private ServiceRegistration<Servlet> registration;
 
@@ -140,8 +140,7 @@ public class WorkflowEventServletRegistrar implements ResourceChangeListener
     {
         final Set<String> found = new TreeSet<>();
         found.add(TaskInstance.RESOURCE_TYPE);
-        try (ResourceResolver resolver = this.resolverFactory.getServiceResourceResolver(
-            Map.of(ResourceResolverFactory.SUBSERVICE, WorkflowEngineImpl.SUBSERVICE_NAME))) {
+        try (ResourceResolver resolver = this.sessions.open()) {
             final Resource home = resolver.getResource(SystemWorkflowsHomepage.HOMEPAGE_PATH);
             if (home != null) {
                 // Read as resources, not as models. Sling Models withdraws its adapters while it restarts, and a
@@ -152,7 +151,7 @@ public class WorkflowEventServletRegistrar implements ResourceChangeListener
                     .filter(Objects::nonNull)
                     .forEach(found::add);
             }
-        } catch (final LoginException e) {
+        } catch (final WorkflowFailedException e) {
             LOGGER.error("The workflow engine's service user is not available, so only user tasks take events: {}",
                 e.getMessage(), e);
         }
