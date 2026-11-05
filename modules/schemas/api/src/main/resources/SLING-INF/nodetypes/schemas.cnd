@@ -295,6 +295,10 @@
   // requirement's condition decides whether it is asked for at all.
   - required (BOOLEAN) = true autocreated
 
+  // Whether uploads for this requirement are never parsed, so no reading
+  // uses them, e.g. a signed form nobody needs read. Defaults to false.
+  - skipParsing (BOOLEAN) = false autocreated
+
   // The media types the document may have, such as application/pdf; any
   // when there are none
   - acceptedFileTypes (STRING) multiple

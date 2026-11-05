@@ -19,7 +19,7 @@ version. Once a version is published, only its wording can change.
         │   │   └── arms         sch:Question         text, dataType, minAnswers, maxAnswers, …
         │   │       └── placebo  sch:AnswerOption     value, label
         │   └── cond:condition   (when this requirement applies)
-        ├── consent              sch:DocumentRequirement  required, acceptedFileTypes, template
+        ├── consent              sch:DocumentRequirement  required, skipParsing, acceptedFileTypes, template
         ├── protocol             sch:DocumentRequirement
         │   └── funding          sch:SectionRequirement   label, required, headings, locationPrompt
         └── reb                  sch:ApprovalRequirement  approverGroup
