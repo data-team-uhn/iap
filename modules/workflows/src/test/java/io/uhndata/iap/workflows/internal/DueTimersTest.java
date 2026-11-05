@@ -110,6 +110,7 @@ class DueTimersTest
 
         inject("scheduler", this.scheduler);
         inject("resolverFactory", factory);
+        inject("sessions", new EngineSessions(factory));
         inject("engine", this.engine);
         Mockito.when(this.scheduler.EXPR(Mockito.anyString())).thenReturn(this.options);
         ErrorLogger.setService(this.errors);
@@ -280,10 +281,11 @@ class DueTimersTest
         Mockito.when(refusing.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("no such service user"));
         inject("resolverFactory", refusing);
+        inject("sessions", new EngineSessions(refusing));
 
         assertDoesNotThrow(this.sweep::run);
         Mockito.verifyNoInteractions(this.engine);
-        Mockito.verify(this.errors).logError(Mockito.any(LoginException.class), Mockito.any());
+        Mockito.verify(this.errors).logError(Mockito.any(WorkflowFailedException.class), Mockito.any());
     }
 
     @Test
@@ -298,6 +300,7 @@ class DueTimersTest
             return this.resolver;
         });
         inject("resolverFactory", partial);
+        inject("sessions", new EngineSessions(partial));
 
         assertDoesNotThrow(this.sweep::run);
         Mockito.verifyNoInteractions(this.engine);

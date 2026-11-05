@@ -101,7 +101,7 @@ public class Performers
      * Looks a user up once, to be checked against any number of nodes.
      *
      * @param serviceResolver the engine's own session, used to look the user up
-     * @param actor the user who fired the event, as their repository user id
+     * @param actor the user the event counts as, as their repository user id
      * @return a check for this user
      * @throws WorkflowFailedException when the repository cannot say who the user is
      */

@@ -38,7 +38,7 @@ import io.uhndata.iap.workflows.api.WorkflowFailedException;
 public class EngineSessions
 {
     /** The subservice name under which the engine's service user is mapped. */
-    static final String SUBSERVICE_NAME = "workflows";
+    private static final String SUBSERVICE_NAME = "workflows";
 
     private final ResourceResolverFactory resolverFactory;
 
