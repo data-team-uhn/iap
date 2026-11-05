@@ -18,10 +18,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
+import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import {
   Box,
   Button,
   Chip,
+  IconButton,
   List,
   ListItemButton,
   ListItemText,
@@ -160,6 +163,7 @@ export default function ReviewScreen({ path }: { path: string }) {
   // Whether the issues are shown beside the requirement; until the reviewer says, open beside a form and folded
   // beside a document, which needs the width
   const [ issuesOpen, setIssuesOpen ] = useState<boolean>();
+  const [ railOpen, setRailOpen ] = useState(true);
   const myName = usePersonName(me ?? "");
   const [ query, setQuery ] = useState("");
 
@@ -432,17 +436,44 @@ export default function ReviewScreen({ path }: { path: string }) {
         )}
       </Stack>
       <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, alignItems: "flex-start" }}>
-        <Paper sx={{ p: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0, position: { md: "sticky" }, top: { md: 16 } }}>
-          <ToggleButtonGroup
-            exclusive fullWidth size="small" value={whole ? "all" : "mine"} sx={{ p: 0.5 }}
-            aria-label="Which parts of the submission to list"
-            onChange={(_event, next: string | null) => next && setWhole(next === "all")}
-          >
-            <ToggleButton value="mine">For my group</ToggleButton>
-            <ToggleButton value="all">Everything</ToggleButton>
-          </ToggleButtonGroup>
-          {rail}
-        </Paper>
+        {railOpen || narrow ? (
+          <Paper sx={{ p: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0, position: { md: "sticky" }, top: { md: 16 } }}>
+            <Stack direction="row" sx={{ alignItems: "center" }}>
+              <ToggleButtonGroup
+                exclusive fullWidth size="small" value={whole ? "all" : "mine"} sx={{ p: 0.5 }}
+                aria-label="Which parts of the submission to list"
+                onChange={(_event, next: string | null) => next && setWhole(next === "all")}
+              >
+                <ToggleButton value="mine">For my group</ToggleButton>
+                <ToggleButton value="all">Everything</ToggleButton>
+              </ToggleButtonGroup>
+              {!narrow && (
+                <Tooltip title="Fold away">
+                  <IconButton size="small" aria-label="Fold the requirements away" onClick={() => setRailOpen(false)}>
+                    <ChevronLeftOutlined />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Stack>
+            {rail}
+          </Paper>
+        ) : (
+          // Folded, it still says which requirement this is
+          <Paper sx={{ width: 48, py: 1, flexShrink: 0, position: "sticky", top: 16, display: "flex",
+            flexDirection: "column", alignItems: "center", gap: 1 }}>
+            <Tooltip title="Show the requirements" placement="right">
+              <IconButton size="small" aria-label="Show the requirements" onClick={() => setRailOpen(true)}>
+                <ChevronRightOutlined />
+              </IconButton>
+            </Tooltip>
+            <Typography
+              variant="caption"
+              sx={{ writingMode: "vertical-rl", transform: "rotate(180deg)", color: "text.secondary", whiteSpace: "nowrap" }}
+            >
+              {current?.label}
+            </Typography>
+          </Paper>
+        )}
         <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%" }}>
           {current && (
             <>
