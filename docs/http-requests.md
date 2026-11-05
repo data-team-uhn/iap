@@ -33,9 +33,9 @@ Three things to code against:
 - **Being refused is not a failure.** A service answering `400` comes back as a response
   that is not successful, and nothing throws. Only a request that could not be made, or
   got no answer in time, throws `IOException`. Check `isSuccessful()`.
-- **A request waits 10 seconds to connect, and 30 seconds from sending for the status
-  and headers.** The body has no time limit. A service that sends its headers and then
-  stops holds the request until it closes the connection.
+- **A request waits 10 seconds to connect, and 30 seconds from sending for the whole
+  response, body included.** A service that stops answering part way fails the request
+  with an `HttpTimeoutException`, which is an `IOException`.
 - **An address can be a secret**, such as a chat webhook's token. The module's messages
   name at most the scheme, host and port of the service. A caller that names the service
   in a message of its own should do the same, with `URI.getHost()`.
