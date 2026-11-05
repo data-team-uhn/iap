@@ -43,7 +43,6 @@ class HttpResponseTest
     @Test
     void aMissingBodyReadsAsAnEmptyOne()
     {
-        // Callers should never have to null-check a body they were handed
         assertEquals("", new HttpResponse(204, null).getBody());
     }
 
