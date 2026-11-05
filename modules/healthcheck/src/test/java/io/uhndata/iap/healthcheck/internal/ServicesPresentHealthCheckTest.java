@@ -99,7 +99,6 @@ class ServicesPresentHealthCheckTest
     @Test
     void reportsErrorOnBlankServiceClass() throws Exception
     {
-        // A blank service class would match every registered service, so it is a configuration error
         configure(configuration(" ", null));
 
         assertEquals(Result.Status.HEALTH_CHECK_ERROR, this.check.execute().getStatus());

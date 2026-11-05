@@ -28,7 +28,7 @@
   <artifactId>iap-healthcheck</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Healthcheck</name>
-  <description>Extra platform-specific healthchecks to plug into the Apache Felix HealthCheck system.</description>
+  <description>The Apache Felix health checks specific to IAP, and a status report that sums up the health checks</description>
 
   <build>
     <plugins>
@@ -37,7 +37,7 @@
         <artifactId>apache-rat-plugin</artifactId>
         <configuration>
           <inputExcludes combine.children="append">
-            <!-- One-line Mockito configuration file, cannot hold a license header -->
+            <!-- A one-line Mockito configuration file, which cannot hold a license header -->
             <exclude>src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker</exclude>
           </inputExcludes>
         </configuration>
@@ -103,12 +103,12 @@
     </dependency>
 
     <dependency>
-      <!-- Referenced by the org.apache.sling.api.resource.ResourceResolver interface mocked in tests -->
+      <!-- For HttpServletResponse's status codes. The ResourceResolver interface that the tests mock also uses it -->
       <groupId>jakarta.servlet</groupId>
       <artifactId>jakarta.servlet-api</artifactId>
     </dependency>
     <dependency>
-      <!-- Referenced by the deprecated methods of the same interface -->
+      <!-- Used by the deprecated methods of ResourceResolver -->
       <groupId>javax.servlet</groupId>
       <artifactId>javax.servlet-api</artifactId>
     </dependency>
