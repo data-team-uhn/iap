@@ -44,7 +44,7 @@ import java.util.regex.Pattern;
 final class QuoteVerifier
 {
     /** Anything shorter than this is too easy to match by accident to count as evidence. */
-    private static final int MIN_QUOTE_LENGTH = 6;
+    private static final int MIN_QUOTE_LENGTH = 3;
 
     /** How much of a quote has to be right. 0.85 allows a slip or two, not a made-up sentence. */
     private static final double MATCH_FLOOR = 0.85;

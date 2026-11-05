@@ -560,7 +560,7 @@ not seen took 47.4 s, against 3.8 s for a repeat.
 | The intake never sends a question without an `extractionPrompt` | `ExtractionField.isExtractable` | Questions meant only for people stay out of the model's way. The gate asks with the classification's own `prompt`. |
 | A field with no `value` is "not found", whatever `found_answer` says | `AnswerIntakeService.readField` | Nothing is written for it |
 | A quote must be really in the document | `QuoteVerifier` via `DocumentScan.locate` | Quotes that are not found are dropped, never stored |
-| Quotes shorter than 6 characters do not count | `MIN_QUOTE_LENGTH` = 6 | Too easy to match by chance |
+| Quotes shorter than 3 characters do not count | `MIN_QUOTE_LENGTH` = 3 | Too easy to match by chance |
 | A near-match must be at least 85% right | `MATCH_FLOOR` = 0.85 | Edit distance against the best-matching stretch |
 | Numbers and negations must agree exactly | `NEGATIONS` (not, no, never, without, none, nor, neither, cannot) | "was not approved" never matches "was approved" |
 | A quote may not join two documents sent together | `isAcrossParts` | Those words were never next to each other |

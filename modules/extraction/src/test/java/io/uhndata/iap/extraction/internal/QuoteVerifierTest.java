@@ -95,8 +95,9 @@ class QuoteVerifierTest
     @Test
     void refusesAQuoteTooShortToMeanAnything()
     {
-        assertFalse(isVerified("aim", TEXT), "three letters match almost any text");
+        assertFalse(isVerified("ai", TEXT), "two letters match almost any text, though these are there");
         assertFalse(isVerified("  ", TEXT));
+        assertTrue(isVerified("aim", TEXT), "three letters are enough");
     }
 
     @Test
