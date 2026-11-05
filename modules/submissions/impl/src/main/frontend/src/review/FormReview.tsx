@@ -168,7 +168,8 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
             </SideCard>
           ))}
           {writing && answer && (
-            <Box sx={{ px: 1.5, py: 1.25, borderRadius: 1, bgcolor: "background.muted" }}>
+            // On a draft's card, as a document shows a note being started
+            <Box sx={theme => ({ ...passageCard(theme, "draft"), px: 1.5, py: 1.25 })}>
               <Composer
                 kinds={WRITTEN} initialKind="issue"
                 onCancel={() => setWriting(false)}

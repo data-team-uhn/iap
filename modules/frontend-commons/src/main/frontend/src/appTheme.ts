@@ -233,7 +233,11 @@ const EVIDENCE = accent(LAVENDER, "#5A4A9E");
 const ISSUE = accent(CORAL, "#A8402F");
 const DISCUSSION = accent(SKY, "#2F5F96");
 const GREY = "#A3A8B0";
-const DRAFT = accent(GREY, "#5F6670");
+// A draft's card is tinted as lightly as a muted surface
+const DRAFT = {
+  light: { main: "#5F6670", light: "#D5D8DC", dark: "#474D55", contrastText: "#fff" },
+  dark: { main: "#9AA0A8", light: "#5A5F66", dark: "#5F6670", contrastText: "rgba(0, 0, 0, 0.87)" },
+};
 
 // What a comparison marks as added or removed, in the light scheme.
 const ADDED_LIGHT = { main: "#1a7f37", line: "#e6ffec", word: "#abf2bc" };
