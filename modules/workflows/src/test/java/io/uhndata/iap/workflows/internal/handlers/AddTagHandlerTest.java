@@ -29,6 +29,7 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -88,6 +89,18 @@ class AddTagHandlerTest
 
         assertEquals(Set.of("draft", "sensitive", "active"), WorkflowFixture.tags(this.target));
         assertEquals(List.of(), this.tagging.getReplacements());
+    }
+
+    @Test
+    void namesTheChangeByTheTagForTheHistory() throws Exception
+    {
+        final WorkflowTaskContext adding = Mockito.spy(context(Map.of("tag", "submitted"), new HashMap<>()));
+
+        this.handler.execute(adding);
+
+        Mockito.verify(adding).recordRole(
+            Mockito.argThat(resource -> this.target.getPath().equals(resource.getPath())),
+            Mockito.eq("tagged as submitted"));
     }
 
     @Test

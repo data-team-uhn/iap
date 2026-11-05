@@ -48,4 +48,10 @@ public class RemoveTagHandler extends AbstractTagHandler
     {
         host.untag(tag, true);
     }
+
+    @Override
+    protected String role(final String tag)
+    {
+        return "untagged as " + tag;
+    }
 }

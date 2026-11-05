@@ -20,6 +20,7 @@ package io.uhndata.iap.workflows.internal.handlers;
 import java.util.Objects;
 
 import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
 
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -48,10 +49,12 @@ abstract class AbstractTagHandler implements ServiceTaskHandler
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " does not configure which " + TAG_PARAMETER + " to change");
         }
-        final Taggable host = Objects.requireNonNull(ExecutionHost.of(context).adaptTo(Taggable.class),
+        final Resource hostResource = ExecutionHost.of(context);
+        final Taggable host = Objects.requireNonNull(hostResource.adaptTo(Taggable.class),
             "Any resource adapts to Taggable");
         try {
             change(context, host, (String) tag);
+            context.recordRole(hostResource, role((String) tag));
         } catch (final IllegalArgumentException e) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " cannot change the tag " + tag + " on " + host.getPath() + ": " + e.getMessage());
@@ -68,4 +71,12 @@ abstract class AbstractTagHandler implements ServiceTaskHandler
      */
     protected abstract void change(WorkflowTaskContext context, Taggable host, String tag)
         throws PersistenceException;
+
+    /**
+     * The part the resource played, for its history.
+     *
+     * @param tag the tag changed
+     * @return the change named by its purpose, such as {@code tagged as submitted}
+     */
+    protected abstract String role(String tag);
 }
