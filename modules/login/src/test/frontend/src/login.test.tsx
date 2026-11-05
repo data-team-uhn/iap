@@ -22,17 +22,16 @@ vi.mock("@iap/login/LoginPage", () => ({
   default: () => <div data-testid="login-page" />,
 }));
 
-// The entry point renders on import, so each test re-imports a fresh copy of the module
-// against the DOM it prepared.
+// The entry point renders when it is imported, so each test imports a fresh copy of it into
+// the page it prepared.
 describe("login entry point", () => {
   beforeEach(() => {
     vi.resetModules();
     document.body.innerHTML = "";
   });
 
-  // The in-test dynamic import pays the module graph's transform cost inside the test body,
-  // which under a coverage-instrumented run on a loaded machine can outlast the default 5s
-  // timeout, so both tests allow extra room.
+  // Each test imports the module itself, and transforms its whole module graph. With coverage
+  // on a busy machine, that can take longer than the default 5 s.
   it("renders the login page into its container", { timeout: 15_000 }, async () => {
     document.body.innerHTML = '<div id="main-login-container"></div>';
 

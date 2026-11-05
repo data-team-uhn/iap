@@ -19,10 +19,8 @@
 import LoginForm from "./LoginForm";
 import { loginRedirectPath } from "./loginRedirect";
 
-// The default sign-in method — Sling form authentication with locally-stored credentials —
-// registered on the `iap/login/signInMethod` extension point, and also rendered directly by
-// SignInMethods as the fallback when no method is registered. On success, navigates to the
-// validated return path.
+// The sign-in method for a local account: a username and password, checked by Sling's form
+// authentication. Once signed in, it goes to the page `loginRedirectPath` names.
 export default function CredentialsForm() {
   return <LoginForm onSuccess={() => window.location.assign(loginRedirectPath())} />;
 }

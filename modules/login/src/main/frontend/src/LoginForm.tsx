@@ -20,18 +20,17 @@ import { useState, type SyntheticEvent } from 'react';
 
 import { Alert, Button, Stack, TextField } from '@mui/material';
 
-// Sling's form authentication endpoint. With `j_validate`, it answers 200/403 instead of
-// redirecting, leaving navigation after a successful login to the caller.
+// Sling's form authentication endpoint. With `j_validate`, it answers 200 or 403 instead of
+// redirecting, and the page stays where it is.
 const LOGIN_URL = "/j_security_check";
 
 interface LoginFormProps {
-  // Called once the session is established; the caller decides where to navigate.
+  // Called once Sling has accepted the credentials and the session exists
   onSuccess: () => void;
 }
 
-// The credentials form, submitting to Sling's form authentication. This is the part of the
-// login page that will become one of several sign-in methods once authentication is
-// delegated to an external identity provider.
+// A username and password form, checked by Sling's form authentication. It does not leave the
+// page: on success it calls `onSuccess`, and on a refusal it says so and can be submitted again.
 export default function LoginForm({ onSuccess }: LoginFormProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -51,9 +50,8 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
           throw new Error(response.statusText);
         }
         setFailed(false);
-        // Not left busy for the caller to navigate away from: the re-login dialog keeps this form
-        // mounted, and can ask for credentials again as soon as the re-sent request runs into the
-        // session once more, which a form still disabled from the last submit could not answer.
+        // The form can stay on screen after a success and be asked to sign in again, so it must
+        // not stay disabled
         setBusy(false);
         onSuccess();
       })

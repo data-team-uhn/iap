@@ -54,7 +54,6 @@ describe("LoginForm", () => {
     const body = fetchMock.mock.calls[0][1]?.body as URLSearchParams;
     expect(body.get("j_username")).toBe("admin");
     expect(body.get("j_password")).toBe("secret");
-    // j_validate makes Sling answer with a status code instead of a redirect
     expect(body.get("j_validate")).toBe("true");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
