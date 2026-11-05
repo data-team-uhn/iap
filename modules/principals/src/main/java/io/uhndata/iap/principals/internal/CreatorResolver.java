@@ -28,12 +28,8 @@ import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.principals.spi.SpecialNameResolver;
 
 /**
- * Answers {@code @creator}: whoever raised the resource in question.
- *
- * <p>Asked of the content model, not of {@code jcr:createdBy}. That property names the engine's service user
- * for everything the engine writes, so {@link Content#getCreatedBy()} prefers the human the engine recorded and
- * falls back to it. A resource that is not content may still carry an explicit record, so its own
- * {@code createdBy} is the last resort.</p>
+ * Answers {@code @creator}: the user who created the resource in question, as {@link Content#getCreatedBy()} reads
+ * it. A resource that cannot be adapted to {@link Content} answers from its own {@code createdBy} property.
  *
  * @version $Id$
  * @since 0.1.0
@@ -57,10 +53,8 @@ public class CreatorResolver implements SpecialNameResolver
         final Content content = subject.adaptTo(Content.class);
         String creator = content == null ? null : content.getCreatedBy();
         if (creator == null) {
-            // Adaptation is not a type check, so a model with no answer falls through rather than ending it
             creator = subject.getValueMap().get("createdBy", String.class);
         }
-        // A resource nothing raised, a homepage say, is nobody's
         return creator == null || creator.isBlank() ? List.of() : List.of(creator);
     }
 }

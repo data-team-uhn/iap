@@ -50,8 +50,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link PrincipalServiceImpl}, with the user and principal stores mocked so that both ways the
- * repository stores a group can be exercised: a local node, and a dynamic principal.
+ * Tests for {@link PrincipalServiceImpl}. The user store and the principal store are mocked, to hold both a local
+ * group and a role an identity provider synchronises.
  *
  * @version $Id$
  * @since 0.1.0
@@ -85,7 +85,7 @@ class PrincipalServiceImplTest
 
     // ---------------------------------------------------------------------------------------------- resolve
 
-    // With nothing registered at all - the whiteboard never bound - literals still pass through
+    // No resolver was ever bound, so the service holds no list at all
     @Test
     void literalNamesPassThroughUntouched()
     {
@@ -114,7 +114,6 @@ class PrincipalServiceImplTest
         assertEquals(List.of(ALICE, "bob"), this.service.resolve(List.of(ALICE, "@several"), this.context));
     }
 
-    // A broken resolver loses its own name's answer, not the whole list's
     @Test
     void aBrokenResolverNamesNobody() throws Exception
     {
@@ -124,7 +123,6 @@ class PrincipalServiceImplTest
         assertEquals(List.of("bob"), this.service.resolve(List.of("@broken", "bob"), this.context));
     }
 
-    // Two resolvers claiming one name is a deployment mistake; one of them answers rather than the call failing
     @Test
     void twoResolversForOneNameDoNotCollide() throws Exception
     {
@@ -137,8 +135,7 @@ class PrincipalServiceImplTest
     @Test
     void aUserExpandsToThemselves() throws Exception
     {
-        // Built before the when(), never inside thenReturn: the helper stubs its own mock, and Mockito refuses
-        // stubbing nested in an unfinished stubbing
+        // Built before the when(): the helper stubs its own mock, and Mockito refuses a stubbing inside another
         final Authorizable alice = user(ALICE);
         when(this.users.getAuthorizable(ALICE)).thenReturn(alice);
         assertEquals(List.of(ALICE), this.service.expandToUsers(List.of(ALICE), this.resolver));
@@ -147,7 +144,7 @@ class PrincipalServiceImplTest
     @Test
     void aLocalGroupExpandsToItsPeople() throws Exception
     {
-        // getMembers is transitive, so the nested group shows up as its members, not as itself
+        // getMembers lists a nested group beside its members, and only the users count
         final Group team = group(user(ALICE), group(), user("bob"));
         when(this.users.getAuthorizable(TEAM)).thenReturn(team);
         assertEquals(List.of(ALICE, "bob"), this.service.expandToUsers(List.of(TEAM), this.resolver));
@@ -164,7 +161,7 @@ class PrincipalServiceImplTest
         when(this.principalManager.getPrincipal("kc-role")).thenReturn(dynamic);
         when(this.users.getAuthorizable(Mockito.any(Principal.class))).thenAnswer(call -> {
             final String name = call.getArgument(0, Principal.class).getName();
-            // One member the user store no longer knows, one that is itself a group: both contribute nobody
+            // One member the user store does not know, and one that is a group: neither counts
             return switch (name) {
                 case ALICE -> user(ALICE);
                 case TEAM -> group();
@@ -188,7 +185,6 @@ class PrincipalServiceImplTest
         assertTrue(this.service.expandToUsers(List.of("ghost"), this.resolver).isEmpty());
     }
 
-    // A name behind which the store fails loses its own answer, not the whole list's
     @Test
     void aFailingLookupLosesOnlyItsOwnName() throws Exception
     {
@@ -217,13 +213,12 @@ class PrincipalServiceImplTest
     @Test
     void everyoneIsNamedDirectly()
     {
-        // Neither answer needs the repository at all, which is why an unstubbed resolver does not fail here
+        // An unstubbed resolver: neither answer reads the repository
         final ResourceResolver bare = mock(ResourceResolver.class);
         assertTrue(this.service.isOneOf(ALICE, List.of(ALICE), bare));
         assertTrue(this.service.isOneOf(ALICE, List.of("everyone"), bare));
     }
 
-    // Asking about the session's own user reads the bound principals, which carry dynamic memberships too
     @Test
     void theSessionsOwnUserIsAnsweredFromItsBoundPrincipals() throws Exception
     {
@@ -277,7 +272,6 @@ class PrincipalServiceImplTest
         assertFalse(this.service.isOneOf(ALICE, List.of("bob", "ghost", "flat"), this.resolver));
     }
 
-    // Fail-closed: an account the repository does not know belongs to nothing
     @Test
     void anUnknownUserBelongsToNothing() throws Exception
     {
@@ -312,8 +306,6 @@ class PrincipalServiceImplTest
         assertEquals(List.of(ALICE, TEAM), this.service.principalsOf(this.resolver));
     }
 
-    // Without a repository there is nothing bound to anything, but answering nobody would widen every caller's
-    // question from "mine" to "everybody's"
     @Test
     void aResolverWithoutARepositoryStillActsAsItsOwnUser()
     {
