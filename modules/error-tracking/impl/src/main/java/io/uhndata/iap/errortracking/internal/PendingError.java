@@ -29,21 +29,13 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
  * One fault, tallied in memory until it is written to the repository.
  *
  * <p>
- * Everything that identifies the fault — the component, the operation, and either the throwable's class and trace or
- * the problem's phrase — is fixed when the fault is first seen, since by construction every later occurrence shares
- * it. Everything that varies between occurrences is accumulated instead: the count, when it was last seen, and a
- * bounded sample of the messages, subjects and actors involved.
+ * What identifies the fault is set when the tally starts: the component, the operation, and either the throwable's
+ * class and trace or the problem's name. What varies between occurrences accumulates: the count, the time of the
+ * latest occurrence, and samples of the messages, subjects and actors. A sample keeps the most recent values.
  * </p>
  *
  * <p>
- * The samples keep the most recent values rather than the first ones. The report they feed is a "what is going wrong
- * now" instrument, and a sample of the first twenty subjects would freeze on whatever happened to arrive in the first
- * minute of an outage, which is the least interesting window there is.
- * </p>
- *
- * <p>
- * Not thread-safe: instances are confined to the map guarding them, and are only ever read by the single thread that
- * writes them out.
+ * Not thread-safe. The pending map's {@code compute} and {@code remove} confine a tally to one thread at a time.
  * </p>
  *
  * @version $Id$
@@ -51,31 +43,31 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
  */
 final class PendingError
 {
-    /** How many distinct paths a fault is remembered as having happened to. */
+    /** How many distinct paths a sample keeps. */
     static final int MAX_SUBJECTS = 20;
 
-    /** How many distinct messages of one fault are remembered. */
+    /** How many distinct messages a sample keeps. */
     static final int MAX_MESSAGES = 5;
 
-    /** How many distinct users a fault is remembered as having happened to. */
+    /** How many distinct usernames a sample keeps. */
     static final int MAX_ACTORS = 10;
 
-    /** The node type recording this fault, {@code err:LoggedFailure} or {@code err:LoggedProblem}. */
+    /** The node type that records this fault, {@code err:LoggedFailure} or {@code err:LoggedProblem}. */
     private final String primaryType;
 
-    /** Which code was running, a class name; {@code null} when nothing named it and nothing could be guessed. */
+    /** The fully qualified name of the class that was running; {@code null} if neither caller nor trace named one. */
     private final String component;
 
-    /** What that code was trying to do; {@code null} when the caller did not say. */
+    /** The label of what that code was doing; {@code null} if the caller did not name one. */
     private final String operation;
 
-    /** The class of what was thrown, {@code null} for a problem nothing was thrown for. */
+    /** The class name of what was thrown; {@code null} for a problem. */
     private final String throwableType;
 
-    /** What was found wrong, {@code null} for a failure something was thrown for. */
+    /** The name of the problem; {@code null} for a thrown failure. */
     private final String problem;
 
-    /** The stack trace of the first occurrence seen, {@code null} for a problem. */
+    /** The stack trace of the occurrence that started the tally; {@code null} for a problem. */
     private final String stackTrace;
 
     /** The distinct messages seen, oldest first. */
@@ -84,27 +76,27 @@ final class PendingError
     /** The distinct paths the fault happened to, oldest first. */
     private final SequencedSet<String> subjects = new LinkedHashSet<>();
 
-    /** The distinct users the fault happened to, oldest first. */
+    /** The distinct usernames the fault happened on behalf of, oldest first. */
     private final SequencedSet<String> actors = new LinkedHashSet<>();
 
-    /** How many occurrences have been tallied but not yet written. */
+    /** How many occurrences have been tallied. */
     private long occurrences;
 
-    /** When the most recent of them happened. */
+    /** When the latest of them happened, in milliseconds since the epoch. */
     private long lastSeen;
 
-    /** Everything else the caller said about the most recent occurrence. */
+    /** The details given with the latest occurrence, one {@code key: value} per line, or {@code null} if none. */
     private String lastContext;
 
     /**
      * Starts tallying a fault.
      *
-     * @param primaryType the node type recording it
-     * @param component which code was running, may be {@code null}
-     * @param operation what it was trying to do, may be {@code null}
-     * @param throwableType the class of what was thrown, {@code null} for a problem
-     * @param problem what was found wrong, {@code null} for a thrown failure
-     * @param stackTrace the stack trace, {@code null} for a problem
+     * @param primaryType the node type that records it, {@code err:LoggedFailure} or {@code err:LoggedProblem}
+     * @param component the fully qualified name of the class that was running, or {@code null} if unknown
+     * @param operation the label of what it was doing, or {@code null} if unknown
+     * @param throwableType the class name of what was thrown, or {@code null} for a problem
+     * @param problem the name of the problem, or {@code null} for a thrown failure
+     * @param stackTrace the stack trace, or {@code null} for a problem
      */
     PendingError(final String primaryType, final String component, final String operation,
         final String throwableType, final String problem, final String stackTrace)
@@ -120,8 +112,8 @@ final class PendingError
     /**
      * Tallies one occurrence of this fault.
      *
-     * @param message the message of this particular occurrence, may be {@code null}
-     * @param context what the caller said about this particular occurrence, never {@code null}
+     * @param message the message of this occurrence, or {@code null} if it has none
+     * @param context what the caller said about this occurrence, not {@code null}
      * @param moment when it happened, in milliseconds since the epoch
      */
     void record(final String message, final ErrorContext context, final long moment)
@@ -135,10 +127,10 @@ final class PendingError
     }
 
     /**
-     * Takes over an older tally of the same fault, so that a batch that could not be written is not lost but folded
-     * back into whatever has accumulated since. This tally is the newer one, so its context and its samples win.
+     * Adds an older tally of the same fault to this one. This tally's details and sample values come first, and the
+     * older details are kept only if this tally has none.
      *
-     * @param older the tally to absorb, of the same fault
+     * @param older the older tally of the same fault
      */
     void absorb(final PendingError older)
     {
@@ -153,9 +145,9 @@ final class PendingError
     }
 
     /**
-     * The node type recording this fault.
+     * The node type that records this fault.
      *
-     * @return a JCR node type name
+     * @return {@code err:LoggedFailure} or {@code err:LoggedProblem}
      */
     String getPrimaryType()
     {
@@ -165,7 +157,7 @@ final class PendingError
     /**
      * Which code was running.
      *
-     * @return a class name, or {@code null}
+     * @return a fully qualified class name, or {@code null} if neither the caller nor the trace named one
      */
     String getComponent()
     {
@@ -173,9 +165,9 @@ final class PendingError
     }
 
     /**
-     * What that code was trying to do.
+     * What that code was doing.
      *
-     * @return a label, or {@code null}
+     * @return a label chosen in code, or {@code null} if the caller did not name one
      */
     String getOperation()
     {
@@ -185,7 +177,7 @@ final class PendingError
     /**
      * The class of what was thrown.
      *
-     * @return a class name, or {@code null} for a problem
+     * @return a fully qualified class name, or {@code null} for a problem
      */
     String getThrowableType()
     {
@@ -193,9 +185,9 @@ final class PendingError
     }
 
     /**
-     * What was found wrong.
+     * The name of the problem.
      *
-     * @return a phrase, or {@code null} for a thrown failure
+     * @return a phrase chosen in code, or {@code null} for a thrown failure
      */
     String getProblem()
     {
@@ -203,10 +195,9 @@ final class PendingError
     }
 
     /**
-     * The stack trace of the first occurrence seen. An exemplar rather than the identity: every occurrence shares
-     * these frames by construction, but may carry a different message.
+     * The stack trace of the occurrence that started the tally. Later occurrences may carry other messages.
      *
-     * @return a multi-line string, or {@code null} for a problem
+     * @return the printed trace, or {@code null} for a problem
      */
     String getStackTrace()
     {
@@ -214,9 +205,9 @@ final class PendingError
     }
 
     /**
-     * How many occurrences are waiting to be written.
+     * How many occurrences have been tallied.
      *
-     * @return a count, at least one for a fault that has been recorded at all
+     * @return a count, at least one once an occurrence has been tallied
      */
     long getOccurrences()
     {
@@ -224,7 +215,7 @@ final class PendingError
     }
 
     /**
-     * When the most recent occurrence happened.
+     * When the latest occurrence happened.
      *
      * @return milliseconds since the epoch
      */
@@ -234,9 +225,9 @@ final class PendingError
     }
 
     /**
-     * Everything else the caller said about the most recent occurrence.
+     * The details given with the latest occurrence.
      *
-     * @return one {@code key: value} per line, or {@code null} when the caller said nothing more
+     * @return one {@code key: value} per line, or {@code null} if that occurrence had no details
      */
     String getLastContext()
     {
@@ -246,7 +237,7 @@ final class PendingError
     /**
      * The distinct messages seen.
      *
-     * @return the sample, most recent first, never {@code null}
+     * @return the sample, most recent first; empty if no occurrence had a message
      */
     List<String> getMessages()
     {
@@ -256,7 +247,7 @@ final class PendingError
     /**
      * The distinct paths this fault happened to.
      *
-     * @return the sample, most recent first, never {@code null}
+     * @return the sample, most recent first; empty if no caller named a subject
      */
     List<String> getSubjects()
     {
@@ -264,9 +255,9 @@ final class PendingError
     }
 
     /**
-     * The distinct users this fault happened to.
+     * The distinct users this fault happened on behalf of.
      *
-     * @return the sample, most recent first, never {@code null}
+     * @return the usernames, most recent first; empty if no caller named a user
      */
     List<String> getActors()
     {
@@ -274,12 +265,11 @@ final class PendingError
     }
 
     /**
-     * Adds a value to a bounded sample, keeping the most recent ones. A value seen again moves to the front rather
-     * than being counted twice: the sample says what a fault has been seen to happen to, and repeating an entry
-     * would only crowd out the others.
+     * Adds a value to a sample, and drops the oldest values beyond its cap. A value already there moves to the most
+     * recent end.
      *
-     * @param into the sample to add to
-     * @param value the value to remember, ignored when {@code null}
+     * @param into the sample to add to, oldest first
+     * @param value the value to add; ignored if {@code null}
      * @param cap how many values the sample keeps
      */
     private static void remember(final SequencedSet<String> into, final String value, final int cap)
@@ -295,10 +285,10 @@ final class PendingError
     }
 
     /**
-     * Folds an older sample of the same fault underneath this one, so the newer values stay at the front.
+     * Adds an older sample of the same fault beneath a newer one, and drops the oldest values beyond its cap.
      *
      * @param into the newer sample, oldest first
-     * @param older the sample to fold in, oldest first
+     * @param older the older sample, oldest first
      * @param cap how many values the sample keeps
      */
     private static void absorbSample(final SequencedSet<String> into, final SequencedSet<String> older,
@@ -325,10 +315,10 @@ final class PendingError
     }
 
     /**
-     * Renders a context's extra details for storage.
+     * Renders a context's details for storage.
      *
-     * @param context what the caller said, never {@code null}
-     * @return one {@code key: value} per line, or {@code null} when there were no details
+     * @param context what the caller said, not {@code null}
+     * @return one {@code key: value} per line, or {@code null} if there are no details
      */
     private static String describe(final ErrorContext context)
     {

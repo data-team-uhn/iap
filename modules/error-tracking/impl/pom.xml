@@ -28,7 +28,7 @@
   <artifactId>iap-error-tracking-impl</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Error Tracking - Implementation</name>
-  <description>Keeps track of errors by recording them in the repository, and reports the ones nobody has dealt with yet</description>
+  <description>Records errors in the repository, and reports the ones nobody has dealt with yet</description>
 
   <build>
     <plugins>
@@ -72,7 +72,7 @@
       <artifactId>iap-status</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The platform's date format, which the report renders dates in -->
+    <!-- JSON responses, the admin summary servlet, and the platform's date format -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-java-utils</artifactId>
@@ -84,13 +84,13 @@
       <artifactId>iap-data-content-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- data:EntityHomepage, which is what makes /LoggedErrors.paginate.json work -->
+    <!-- data:EntityHomepage and its model, which /LoggedErrors builds on -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-entities-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The Taggable model and the TagProcessor SPI deriving the triage markers -->
+    <!-- The tag processor SPI that computes the triage markers, and the tag manager that lists the triage tags -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-tags-api</artifactId>
@@ -120,16 +120,16 @@
       <groupId>jakarta.servlet</groupId>
       <artifactId>jakarta.servlet-api</artifactId>
     </dependency>
-    <!-- Content.toJson() is part of the inherited model API, so this is no longer test-only -->
     <dependency>
       <groupId>jakarta.json</groupId>
       <artifactId>jakarta.json-api</artifactId>
     </dependency>
-    <!-- NodeState, the level a tag processor sees the repository at -->
+    <!-- PropertyState and Type, which the tag processor reads properties with -->
     <dependency>
       <groupId>org.apache.jackrabbit</groupId>
       <artifactId>oak-api</artifactId>
     </dependency>
+    <!-- NodeState, which the tag processor reads a node as -->
     <dependency>
       <groupId>org.apache.jackrabbit</groupId>
       <artifactId>oak-store-spi</artifactId>

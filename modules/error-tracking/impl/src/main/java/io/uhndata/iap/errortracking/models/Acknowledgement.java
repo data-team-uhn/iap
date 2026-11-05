@@ -29,13 +29,8 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * One decision somebody took about one recorded error: that it is understood, that a fix is coming, that it is being
- * left alone.
- *
- * <p>
- * Decisions are appended, never replaced, so what was decided and by whom stays on the record — which is the point of
- * keeping errors around in the first place. Deciding again about the same error simply adds another one of these.
- * </p>
+ * One decision somebody took about a recorded error, such as that it is a known issue. A new decision is added beside
+ * the earlier ones, which stay.
  *
  * @version $Id$
  * @since 0.1.0
@@ -48,8 +43,8 @@ public class Acknowledgement extends Content
     public static final String RESOURCE_TYPE = "err/Acknowledgement";
 
     /**
-     * Sorts decisions with the most recent first. By how much had happened when each was taken rather than by date:
-     * the count is what the decision is measured against, and two decisions in the same second still order.
+     * Sorts decisions most recent first: by the error's count when each was taken, then by when each was created. A
+     * count orders two decisions taken in the same second.
      */
     public static final Comparator<Acknowledgement> MOST_RECENT_FIRST =
         Comparator.comparingLong(Acknowledgement::getAcknowledgedOccurrences)
@@ -57,15 +52,15 @@ public class Acknowledgement extends Content
                 Comparator.nullsFirst(Comparator.naturalOrder()))
             .reversed();
 
-    /** What was decided. */
+    /** The name of the triage tag decided on. */
     @ValueMapValue
     private String resolution;
 
-    /** Why. */
+    /** Why, in the words of whoever decided. */
     @ValueMapValue
     private String note;
 
-    /** How much had happened when it was decided. */
+    /** The error's count when the decision was taken. */
     @ValueMapValue
     private Long acknowledgedOccurrences;
 
@@ -73,7 +68,7 @@ public class Acknowledgement extends Content
      * What was decided: the name of a tag in the {@value LoggedError#TRIAGE_CATEGORY} category, such as
      * {@code known-issue}.
      *
-     * @return a tag name, never {@code null} in a well-formed record
+     * @return a tag name; empty only in a malformed record
      */
     @NotNull
     public String getResolution()
@@ -82,9 +77,9 @@ public class Acknowledgement extends Content
     }
 
     /**
-     * Why it was decided, in the acknowledger's own words.
+     * Why it was decided, in the words of whoever decided.
      *
-     * @return the note, or {@code null} when none was left
+     * @return the note, or {@code null} if none was left
      */
     @Nullable
     public String getNote()
@@ -93,11 +88,10 @@ public class Acknowledgement extends Content
     }
 
     /**
-     * What the error's occurrence count had reached when this decision was taken. An error counts as dealt with only
-     * while it has not happened again since, so this is what makes a recurrence undo an acknowledgement without
-     * anything having to watch the clock.
+     * The error's occurrence count when this decision was taken. Once the error's count passes it, the error needs
+     * attention again.
      *
-     * @return a count, zero when the record does not say
+     * @return a count; zero if the record does not say
      */
     public long getAcknowledgedOccurrences()
     {

@@ -35,12 +35,11 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 
 /**
- * Writes tallied faults into the repository, one commit for a whole batch.
+ * Writes tallied faults into the repository, one commit per batch.
  *
  * <p>
- * A fault already recorded is updated in place — its count goes up, its samples take in whatever is new — so a loop
- * failing thousands of times leaves one node behind rather than thousands of copies of itself. Nothing here ever
- * deletes: the service user is not even granted the privilege.
+ * A fault already recorded is updated in place: its count goes up, and its samples take in the new values. A loop
+ * that fails a thousand times leaves one node. Nothing here deletes, and the service user may not.
  * </p>
  *
  * @version $Id$
@@ -48,35 +47,35 @@ import io.uhndata.iap.errortracking.api.ErrorLoggerService;
  */
 final class RecordWriter
 {
-    /** The name of the property counting how many times one fault was recorded. */
+    /** The property counting how many times a fault was recorded. */
     static final String OCCURRENCES_PROPERTY = "occurrences";
 
-    /** The name of the property holding when a fault was last recorded. */
+    /** The property holding when a fault was last recorded. */
     static final String LAST_OCCURRENCE = "lastOccurrence";
 
-    /** The subservice name mapped to the service user allowed to record errors. */
+    /** The service user that records errors, as a subservice name. */
     private static final Map<String, Object> SERVICE_USER =
         Map.of(ResourceResolverFactory.SUBSERVICE, "errortracking");
 
-    /** The property naming a node's type, which has to be set explicitly when creating through Sling. */
+    /** The property naming a node's type, which Sling needs when it creates a node. */
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
-    /** The property holding a bounded sample of the paths a fault happened to. */
+    /** The property holding a sample of the paths a fault happened to. */
     private static final String SUBJECTS_PROPERTY = "subjects";
 
-    /** The property holding a bounded sample of the users a fault happened to. */
+    /** The property holding a sample of the usernames a fault happened on behalf of. */
     private static final String ACTORS_PROPERTY = "actors";
 
-    /** The property holding a bounded sample of the messages one fault was seen with. */
+    /** The property holding a sample of the messages a fault was seen with. */
     private static final String MESSAGES_PROPERTY = "messages";
 
-    /** Opens the sessions that do the writing. */
+    /** Opens the sessions that write. */
     private final ResourceResolverFactory resolverFactory;
 
     /**
      * Basic constructor.
      *
-     * @param resolverFactory the factory to open recording sessions with
+     * @param resolverFactory the factory to open the service user's sessions with
      */
     RecordWriter(final ResourceResolverFactory resolverFactory)
     {
@@ -86,9 +85,10 @@ final class RecordWriter
     /**
      * Writes a batch of tallied faults, in one commit.
      *
-     * @param batch the faults to write, by fingerprint
-     * @throws LoginException if the recording service user is not available
-     * @throws PersistenceException if the container is missing, or the batch cannot be committed
+     * @param batch the tallies to write, by fingerprint
+     * @throws LoginException if the service user cannot log in
+     * @throws PersistenceException if {@value ErrorLoggerService#LOGGED_ERRORS_PATH} is missing, a recorded error
+     *             cannot be modified, or the batch cannot be committed
      */
     void write(final Map<String, PendingError> batch) throws LoginException, PersistenceException
     {
@@ -111,11 +111,11 @@ final class RecordWriter
     }
 
     /**
-     * Turns a newly seen fault into the properties of the node recording it. {@code sling:resourceType},
-     * {@code sling:resourceSuperType} and the creation date are left to the node type, which autocreates them.
+     * The properties of the node that records a new fault. The node type autocreates {@code sling:resourceType},
+     * {@code sling:resourceSuperType} and {@code jcr:created}.
      *
-     * @param pending the fault to describe
-     * @return the properties of a new node
+     * @param pending the tally of the fault
+     * @return the properties of the new node, leaving out every value that is {@code null} or empty
      */
     private static Map<String, Object> describe(final PendingError pending)
     {
@@ -136,11 +136,12 @@ final class RecordWriter
     }
 
     /**
-     * Notes that an already recorded fault happened again.
+     * Adds a tally to the node that already records its fault. The node's details are replaced only if the tally has
+     * some.
      *
-     * @param known the node recording the fault
-     * @param pending the occurrences to add to it
-     * @throws PersistenceException if the node cannot be modified by the recording session
+     * @param known the node that records the fault
+     * @param pending the tally to add
+     * @throws PersistenceException if the service user's session cannot modify the node
      */
     private static void update(final Resource known, final PendingError pending) throws PersistenceException
     {
@@ -159,12 +160,11 @@ final class RecordWriter
     }
 
     /**
-     * Folds newly seen sample values into the ones already stored, newest first, dropping the oldest once the sample
-     * is full.
+     * Puts new sample values before the stored ones, and drops the oldest beyond the cap.
      *
-     * @param values the properties of the node recording the fault
-     * @param property the sample to merge into
-     * @param fresh the newly seen values, most recent first
+     * @param values the properties of the node that records the fault
+     * @param property the name of the sample property
+     * @param fresh the new values, most recent first
      * @param cap how many values the sample keeps
      */
     private static void mergeSample(final ModifiableValueMap values, final String property, final List<String> fresh,
@@ -180,12 +180,11 @@ final class RecordWriter
     }
 
     /**
-     * Adds a property, leaving it out entirely when there is nothing to say — an absent property reads better than an
-     * empty one, and the node type allows both.
+     * Adds a property, unless its value is {@code null}.
      *
-     * @param properties the properties under construction
-     * @param name the property to set
-     * @param value its value, ignored when {@code null}
+     * @param properties the properties being built
+     * @param name the name of the property
+     * @param value its value; ignored if {@code null}
      */
     private static void put(final Map<String, Object> properties, final String name, final String value)
     {
@@ -195,11 +194,11 @@ final class RecordWriter
     }
 
     /**
-     * Adds a multi-valued property, leaving it out entirely when the sample is empty.
+     * Adds a multi-valued property, unless it has no values.
      *
-     * @param properties the properties under construction
-     * @param name the property to set
-     * @param values its values, ignored when empty
+     * @param properties the properties being built
+     * @param name the name of the property
+     * @param values its values; ignored if empty
      */
     private static void putAll(final Map<String, Object> properties, final String name, final List<String> values)
     {
@@ -209,10 +208,10 @@ final class RecordWriter
     }
 
     /**
-     * A JCR date for a moment in time.
+     * A JCR date for a moment.
      *
      * @param moment milliseconds since the epoch
-     * @return the same moment as a calendar
+     * @return the same moment as a calendar, in the JVM's time zone
      */
     private static Calendar at(final long moment)
     {

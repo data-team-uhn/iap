@@ -87,7 +87,6 @@ class ErrorContextTest
     @Test
     void everythingIsOptional()
     {
-        // Describing a failure must never need a null check at a site that is already failing
         final ErrorContext context = ErrorContext.of((Class<?>) null, null)
             .about((String) null).about((Resource) null).actingFor(null).with(null, "value").with("key", null);
 
@@ -143,7 +142,6 @@ class ErrorContextTest
     @Test
     void survivesADetailThatCannotDescribeItself()
     {
-        // A half-built object at a failure site is exactly where toString() is likely to throw
         final Object unprintable = new Object()
         {
             @Override

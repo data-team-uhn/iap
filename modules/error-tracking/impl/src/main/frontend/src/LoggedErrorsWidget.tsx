@@ -20,9 +20,8 @@ import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
 
 import { LOGGED_ERRORS_PATH } from "./errorTrackingApi";
 
-// The administration console widget summarizing what has been recorded: how much is asking for
-// attention, and how much there is altogether. The way into the triage view is the dashboard frame's
-// own header action, so this renders only the figures.
+// The administration dashboard widget that counts the recorded errors: how many need attention, and
+// how many there are in all. The dashboard frame's header action opens the triage page.
 function LoggedErrorsWidget() {
   return <WidgetStatList url={LOGGED_ERRORS_PATH} name="recorded errors" />;
 }

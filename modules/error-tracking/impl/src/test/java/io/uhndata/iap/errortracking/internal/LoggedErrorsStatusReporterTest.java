@@ -56,10 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class LoggedErrorsStatusReporterTest
 {
-    /**
-     * A moment inside any plausible recency window. Most of these fixtures are about what the report says rather
-     * than about when, but its level is a judgement about time, so "seen a moment ago" is the ordinary case here.
-     */
+    /** A moment inside any plausible window: a minute ago. */
     private static final long RECENTLY = System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(1);
 
     /** A moment outside the default window: a fault this instance is no longer getting wrong. */
@@ -99,7 +96,6 @@ class LoggedErrorsStatusReporterTest
     @Test
     void reportsAMissingContainerAsAProblemOfItsOwn() throws PersistenceException
     {
-        // Errors are being dropped on the floor, which is worth knowing before the failure that needed recording
         this.context.resourceResolver().delete(this.context.resourceResolver().getResource("/LoggedErrors"));
 
         final StatusReport report = this.reporter.report(false);
@@ -149,8 +145,6 @@ class LoggedErrorsStatusReporterTest
     @Test
     void staysAWarningForAFaultThatIsNotHappeningAnyMore()
     {
-        // Nothing recorded here is ever deleted, so a fault from last week that nobody dealt with must not keep the
-        // report red for the rest of the instance's life — and must not page whoever is monitoring it
         thrown("stale", 2, A_WHILE_AGO, null);
 
         final StatusReport report = this.reporter.report(false);
@@ -169,15 +163,12 @@ class LoggedErrorsStatusReporterTest
         final StatusReport report = this.reporter.report(false);
 
         assertEquals(StatusReport.Status.ERROR, report.getStatus());
-        // Which of them made it red: the rest are the reader's to work through at their leisure
         assertEquals("There are 2 errors logged, 1 still happening", report.getName());
     }
 
     @Test
     void doesNotTurnRedForSomethingItMerelyFoundWrong()
     {
-        // A condition naming a comparator that does not exist is somebody's to correct. However often it is hit, it
-        // says nothing about whether this instance is well
         problem("misauthored", "unknown comparator", RECENTLY);
 
         final StatusReport report = this.reporter.report(false);
@@ -195,15 +186,12 @@ class LoggedErrorsStatusReporterTest
         final StatusReport report = this.reporter.report(false);
 
         assertEquals(StatusReport.Status.ERROR, report.getStatus());
-        // And then the headline is about everything, since nothing is being left out of the judgement
         assertEquals("There is 1 error logged", report.getName());
     }
 
     @Test
     void speaksOfEverythingWhereNothingIsLeftOutOfTheJudgement()
     {
-        // With problems counted too, the headline can say plainly that nothing has been seen. It cannot when they
-        // are not: a problem hit a minute ago is not ongoing, and "none seen" would be a lie about it
         configure(60, true);
         problem("misauthored", "unknown comparator", A_WHILE_AGO);
 
@@ -216,7 +204,7 @@ class LoggedErrorsStatusReporterTest
     @Test
     void measuresBeingRecentAgainstTheConfiguredWindow()
     {
-        // The same error and the same report at two settings: nothing about the fault itself decides this
+        // The same error under two settings
         thrown("theOnlyOne", 1, A_WHILE_AGO, null);
 
         configure(5, false);
@@ -229,7 +217,6 @@ class LoggedErrorsStatusReporterTest
     @Test
     void treatsAWindowThatCannotSayWhatIsHappeningNowAsTheDefault()
     {
-        // Zero silences every ERROR this reporter can raise, which is not what configuring a quieter report means
         configure(0, false);
         thrown("live", 1, RECENTLY, null);
 
@@ -257,14 +244,12 @@ class LoggedErrorsStatusReporterTest
     @Test
     void alwaysSaysWhenSomethingHappened()
     {
-        // A one-off quoted with no date at all is precisely the case a reader most wants dated
         thrown("once", 1, RECENTLY, null);
 
         final String body = this.reporter.report(false).getText();
 
         assertTrue(body.contains("**1 occurrence**, first seen "));
-        // In the platform's own format, milliseconds included and a zero offset written out rather than shortened
-        // to Z, so that a date in a report reads the same as the same date in a serialized resource
+        // In the platform's format, with milliseconds and a numeric offset
         assertTrue(body.contains("last seen " + DateUtils.toString(at(RECENTLY))), body);
         assertTrue(DateUtils.toString(at(RECENTLY)).matches(".*\\.\\d{3}[+-]\\d{2}:\\d{2}"));
     }
@@ -272,7 +257,7 @@ class LoggedErrorsStatusReporterTest
     @Test
     void saysSomethingRatherThanTheWordNullAboutAnAbsurdDate()
     {
-        // A date no plausible occurrence carries, from a record written by something with a broken clock
+        // A year far beyond any real occurrence
         final Calendar absurd = Calendar.getInstance();
         absurd.set(Calendar.YEAR, 999999999);
         this.context.create().resource("/LoggedErrors/undatable", Map.of(
@@ -303,7 +288,6 @@ class LoggedErrorsStatusReporterTest
         final StatusReport report = this.reporter.report(true);
 
         final String body = report.getText();
-        // What broke is the instance's own code and is safe to show; what it was working on is not
         assertTrue(body.contains("`io.uhndata.iap.Something`"));
         assertTrue(body.contains("`doIt`"));
         assertFalse(body.contains("/Submissions/1"));
@@ -314,7 +298,6 @@ class LoggedErrorsStatusReporterTest
     @Test
     void anInstanceWhereEverythingHasBeenDealtWithIsNotReportedAsBroken()
     {
-        // Nothing is ever deleted, so without this the first error an instance ever hits would leave it red forever
         thrown("first", 3, RECENTLY, "known-issue");
 
         final StatusReport report = this.reporter.report(false);
@@ -354,7 +337,7 @@ class LoggedErrorsStatusReporterTest
         assertEquals(StatusReport.Status.ERROR, report.getStatus());
         assertEquals("There is 1 error logged, and 1 already acknowledged", report.getName());
         assertTrue(report.getText().contains("### Already acknowledged"));
-        // Nothing is silenced invisibly: the report names what silenced it
+        // The resolution of the decision
         assertTrue(report.getText().contains("_known-issue_"));
     }
 
@@ -417,7 +400,7 @@ class LoggedErrorsStatusReporterTest
     @Test
     void saysWhatItDoesNotKnowRatherThanNothing()
     {
-        // A record written before the component and the operation were established still has to read sensibly
+        // A record with no component and no operation
         this.context.create().resource("/LoggedErrors/bare", Map.of(
             "sling:resourceType", "err/LoggedFailure",
             "sling:resourceSuperType", "err/LoggedError",
@@ -427,7 +410,7 @@ class LoggedErrorsStatusReporterTest
 
         final String body = this.reporter.report(false).getText();
 
-        // An em dash rather than an empty cell, and no claim about a decision nobody recorded
+        // An em dash, not an empty cell, and no resolution for a decision nobody recorded
         assertTrue(body.contains("—"));
         assertFalse(body.contains("_null_"));
     }
@@ -437,8 +420,6 @@ class LoggedErrorsStatusReporterTest
     @Test
     void saysWhenFaultsArrivedFasterThanTheyCouldBeRecorded() throws ReflectiveOperationException
     {
-        // Nothing in the repository and yet something lost: the overflow is the only trace left, so a report that
-        // stayed quiet about it would be exactly the silent failure this module exists to prevent
         droppedSoFar(7);
 
         final StatusReport report = this.reporter.report(false);
@@ -474,14 +455,11 @@ class LoggedErrorsStatusReporterTest
     @Test
     void nothingAcknowledgesWhatWasNeverRecorded() throws ReflectiveOperationException
     {
-        // Acknowledging every error there is cannot silence an overflow: nobody ever saw what was dropped
         thrown("handled", 1, RECENTLY, "known-issue");
         droppedSoFar(2);
 
         final StatusReport report = this.reporter.report(false);
 
-        // Loud, but not red: what an overflow says is that faults once arrived faster than they could be written,
-        // and the count is cumulative, so red here would mean red until this instance is restarted
         assertEquals(StatusReport.Status.WARNING, report.getStatus());
         assertEquals("Nothing logged needs attention, and 2 could not be recorded at all, and 1 already acknowledged",
             report.getName());
@@ -490,7 +468,6 @@ class LoggedErrorsStatusReporterTest
     @Test
     void saysHowMuchWasLostEvenToAReaderWhoIsNotLoggedIn() throws ReflectiveOperationException
     {
-        // A count of what was dropped says nothing about what the instance was working on
         thrown("first", 1, RECENTLY, null);
         droppedSoFar(4);
 
@@ -500,8 +477,6 @@ class LoggedErrorsStatusReporterTest
     @Test
     void reportsWhatIsRecordedWithNoRecorderToAskAtAll()
     {
-        // The reference is left unset here, standing in for the window between the report starting and the recorder
-        // being injected: the errors already in the repository are still worth reporting
         thrown("first", 1, RECENTLY, null);
 
         assertEquals("There is 1 error logged", this.reporter.report(false).getName());
@@ -523,7 +498,6 @@ class LoggedErrorsStatusReporterTest
     @Test
     void doesNotLeakWhyItCouldNotReadToAReaderWhoIsNotLoggedIn() throws ReflectiveOperationException
     {
-        // A repository failure routinely quotes a path, and /system/status answers without authentication
         final LoggedErrorsStatusReporter broken = new LoggedErrorsStatusReporter();
         TestResolvers.inject(broken, null);
 
@@ -536,7 +510,7 @@ class LoggedErrorsStatusReporterTest
     // ---------------------------------------------------------------- helpers
 
     /**
-     * Configures the reporter, the way the framework would.
+     * Configures the reporter, as OSGi would.
      *
      * @param window how long a failure counts as still happening, in minutes
      * @param problemsAreUrgent whether something merely found wrong can make the report an error

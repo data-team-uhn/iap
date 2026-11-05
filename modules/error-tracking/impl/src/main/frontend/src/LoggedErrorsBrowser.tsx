@@ -24,27 +24,20 @@ import AdminScreen from "@iap/admin-console/AdminScreen";
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { PropertyFilter } from "@iap/frontend-commons/entityGrid/pagination";
 
-// Imported for its side effect: registers the presentation of err/LoggedError before the first
-// render, which is what lets the grid below be asked for by type name alone
+// Imported to register the grid of err/LoggedError, which the grid below names by type
 import "./errorGrid";
 import { LOGGED_ERROR_TYPE, TRIAGE_PROPERTY, UNACKNOWLEDGED } from "./errorTrackingApi";
 
 /**
- * The administration console page listing the recorded errors, at {@code /admin/errors}.
+ * The administration console page listing the recorded errors, at `/admin/errors`.
  *
- * Almost all of it is the shared entity grid, which the errors' homepage already answers for: it is
- * an data:EntityHomepage, so listing, filtering, sorting and paging come from the pagination servlet
- * with no server-side code of this feature's own.
- *
- * The one thing added on top is the "only what needs attention" switch. The grid's own column filter
- * can express the same condition, but finding it takes several clicks, and this is the question
- * somebody opening this page is nearly always asking.
+ * It is the shared entity grid, which pages, sorts, searches and filters through
+ * `/LoggedErrors.paginate.json`, with a switch that shows only the errors that need attention.
  */
 function LoggedErrorsBrowser() {
   const [ outstandingOnly, setOutstandingOnly ] = useState(false);
 
-  // A new array identity on every render would restart the grid's fetch effect on every keystroke
-  // elsewhere on the page, so the filter list is memoized on the one thing it depends on
+  // Memoized, since a new array on every render restarts the grid's fetch
   const filters = useMemo<PropertyFilter[]>(
     () => (outstandingOnly ? [ { name: TRIAGE_PROPERTY, value: UNACKNOWLEDGED } ] : []),
     [ outstandingOnly ],

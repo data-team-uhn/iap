@@ -112,8 +112,6 @@ class PendingErrorTest
     @Test
     void takesOverATallyThatCouldNotBeWritten()
     {
-        // A batch that fails to write is folded back under whatever has been recorded since, so a failure to write
-        // loses nothing but the moment it would have been written at
         final PendingError older = failure();
         older.record("older message", ErrorContext.NO_CONTEXT.about("/older").actingFor("bob"), 1000);
         older.record("older message", ErrorContext.NO_CONTEXT.about("/older"), 1500);

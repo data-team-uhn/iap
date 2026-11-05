@@ -20,20 +20,18 @@ package io.uhndata.iap.errortracking.api;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Records errors that a running instance could not deal with on its own, so that a system administrator can be told
- * about them long after the log file they were written to has rotated away.
+ * Records the errors a running instance could not deal with on its own, under {@value #LOGGED_ERRORS_PATH}. A system
+ * administrator finds them there after the log file has rotated away.
  *
  * <p>
- * Code holding an OSGi reference can use this service directly, but most callers should go through the static
- * {@link ErrorLogger} facade instead: it tolerates the service being absent, which is exactly what a diagnostic sink
- * should do, whereas a mandatory OSGi reference would stop a working component from starting because the thing that
- * records its failures is missing.
+ * Most callers go through the static {@link ErrorLogger} facade, which does nothing while this service is not
+ * running. A mandatory reference to the service would stop the caller from starting without it.
  * </p>
  *
  * <p>
- * Recording is asynchronous. An implementation folds the failure into an in-memory tally and returns; the repository
- * catches up shortly afterwards. That is not an optimization but a requirement: the most valuable callers are commit
- * hooks, and a repository write made from inside a commit cannot complete.
+ * No method throws, since the caller is already handling a failure. Recording is asynchronous: an implementation adds
+ * the failure to a tally in memory, returns, and writes to the repository later. Commit hooks record errors, and on
+ * Oak's segment store, a commit started from inside a commit hook waits forever for a lock its own thread holds.
  * </p>
  *
  * @version $Id$
@@ -45,43 +43,40 @@ public interface ErrorLoggerService
     String LOGGED_ERRORS_PATH = "/LoggedErrors";
 
     /**
-     * Records one error, under {@value #LOGGED_ERRORS_PATH}, with nothing said about the circumstances. Recording an
-     * error is a best-effort diagnostic: an implementation must never throw, since the caller is by definition
-     * already dealing with a failure, and must never be the reason a second one is raised.
+     * Records one error, with no context.
      *
-     * @param error the throwable to record, ignored when {@code null}
+     * @param error the throwable to record; ignored if {@code null}
      */
     void logError(@Nullable Throwable error);
 
     /**
-     * Records one error along with what the caller knows about the circumstances.
+     * Records one error with what the caller knows about it.
      *
-     * @param error the throwable to record, ignored when {@code null}
-     * @param context which code was running, what it was doing, and what it was doing it to; {@code null} is the
-     *            same as {@link ErrorContext#NO_CONTEXT}
+     * @param error the throwable to record; ignored if {@code null}
+     * @param context which code was running, what it was doing, and to what; {@code null} is the same as
+     *            {@link ErrorContext#NO_CONTEXT}
      */
     void logError(@Nullable Throwable error, @Nullable ErrorContext context);
 
     /**
-     * Records something the instance found wrong but did not throw over — most often a mis-authored definition, such
-     * as a condition naming a comparator that does not exist. There is no stack trace worth keeping for these: where
-     * the problem was noticed is the context's component and operation, and what it was noticed on is its subject.
+     * Records something the instance found wrong without anything being thrown, most often a mis-authored
+     * definition, such as a condition naming a comparator that does not exist. No stack trace is kept. The context's
+     * component and operation say where the problem was noticed, and its subject what it was noticed on.
      *
-     * @param problem what is wrong, a short phrase chosen in code such as {@code unknown comparator}; should not be
-     *            derived from content, since it takes part in deciding whether two problems are the same one. A
-     *            phrase that quotes something is recorded all the same, under its stable leading part, with the whole
-     *            phrase kept the way a throwable's message is. Ignored only when {@code null} or blank
+     * @param problem a short phrase chosen in code, such as {@code unknown comparator}; ignored if {@code null} or
+     *            blank. It decides whether two problems are the same fault, so it should not come from content. A
+     *            phrase that quotes a value, such as {@code unknown comparator: 'sameDay'}, is recorded under its
+     *            leading words, and kept whole as a message
      * @param context which code noticed, what it was doing, and what it was looking at; {@code null} is the same as
      *            {@link ErrorContext#NO_CONTEXT}
      */
     void logProblem(@Nullable String problem, @Nullable ErrorContext context);
 
     /**
-     * How many recordings had to be dropped because too many distinct faults were waiting to be written at once. Part
-     * of the service rather than an internal counter because being unable to keep up must not be one more silent
-     * failure: what reports the recorded errors reports this alongside them.
+     * How many recordings this service dropped since it started, because too many distinct faults were waiting to be
+     * written.
      *
-     * @return a count, zero in every healthy instance
+     * @return a count; zero unless the service fell behind
      */
     long getDroppedCount();
 }

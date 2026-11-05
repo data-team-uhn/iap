@@ -29,17 +29,17 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.tags.spi.TagProcessor;
 
 /**
- * One recorded error: a fault the instance ran into and could not deal with on its own.
+ * One recorded error: a fault the instance could not deal with on its own.
  *
  * <p>
- * Abstract, and deliberately without a {@code @Model} annotation of its own: a recording is either a
- * {@link LoggedFailure} or a {@link LoggedProblem}, and each of those registers itself as an adapter for this type,
- * so that {@code resource.adaptTo(LoggedError.class)} yields whichever one is really there.
+ * It is abstract, and has no {@code @Model} of its own. {@link LoggedFailure} and {@link LoggedProblem} each register
+ * as an adapter for this class, so {@code resource.adaptTo(LoggedError.class)} answers with whichever of the two the
+ * resource is.
  * </p>
  *
  * <p>
- * What is stored here identifies the fault, not any one occurrence of it. The counts and dates say how much of it
- * there has been, and the samples say what it has been seen to happen to — a sample, never an exhaustive list.
+ * A recorded error describes a fault, not one occurrence of it. Its count and dates say how often and when it
+ * happened, and its samples what it happened to.
  * </p>
  *
  * @version $Id$
@@ -50,27 +50,27 @@ public abstract class LoggedError extends Content
     /** The Sling resource type shared by every kind of recorded error. */
     public static final String RESOURCE_TYPE = "err/LoggedError";
 
-    /** Sorts recorded errors most recently seen first, which is the order somebody reading them wants. */
+    /** Sorts recorded errors most recently seen first. */
     public static final Comparator<LoggedError> MOST_RECENT_FIRST =
         Comparator.comparing(LoggedError::getLastOccurrence).reversed();
 
-    /** The tag category the triage markers belong to. */
+    /** The tag category of the triage tags. */
     public static final String TRIAGE_CATEGORY = "error-triage";
 
-    /** The tag marking an error nobody has dealt with yet, or one that has happened again since somebody did. */
+    /** The tag of an error nobody has acknowledged, or one that happened again since somebody did. */
     public static final String UNACKNOWLEDGED_TAG = "unacknowledged";
 
     /**
-     * The tag marking an error somebody has dealt with. Always present on an acknowledged error, alongside the tag
-     * naming what was decided — which may be this same one, since a plain {@code acknowledged} is a decision too.
+     * The tag of an acknowledged error. An acknowledged error carries it beside the tag naming the resolution, which
+     * may be this same tag.
      */
     public static final String ACKNOWLEDGED_TAG = "acknowledged";
 
-    /** Which code was running. */
+    /** The fully qualified name of the class that was running. */
     @ValueMapValue
     private String component;
 
-    /** What it was trying to do. */
+    /** The label of what it was doing. */
     @ValueMapValue
     private String operation;
 
@@ -90,19 +90,19 @@ public abstract class LoggedError extends Content
     @ValueMapValue
     private String[] subjects;
 
-    /** A sample of the users it happened on behalf of. */
+    /** A sample of the usernames it happened on behalf of. */
     @ValueMapValue
     private String[] actors;
 
-    /** Everything else known about the most recent occurrence. */
+    /** The details given with the most recent occurrence that had any. */
     @ValueMapValue
     private String lastContext;
 
     /**
-     * Which code was running when the fault happened. For a plugin, the plugin's own class rather than the framework
-     * that called it, since that is what has to be fixed.
+     * Which code was running when the fault happened. For a plugin, this is the plugin's class, not the framework that
+     * called it.
      *
-     * @return a class name, or {@code null} when nothing could be established
+     * @return a fully qualified class name, or {@code null} if neither the caller nor the stack trace named one
      */
     @Nullable
     public String getComponent()
@@ -113,7 +113,7 @@ public abstract class LoggedError extends Content
     /**
      * What that code was trying to do.
      *
-     * @return a short label chosen in code, or {@code null} when the caller did not say
+     * @return a short label chosen in code, or {@code null} if the caller did not name one
      */
     @Nullable
     public String getOperation()
@@ -122,18 +122,17 @@ public abstract class LoggedError extends Content
     }
 
     /**
-     * A one-line description of what broke, for a reader skimming a list of faults.
+     * What broke, in one line, for a list of faults.
      *
-     * @return the class of what was thrown, or what was found wrong, never {@code null}
+     * @return the class name of what was thrown, or the name of the problem; empty only in a malformed record
      */
     @NotNull
     public abstract String getSummary();
 
     /**
-     * How many times this fault has been recorded. At least one: a fault recorded by a session that could not count
-     * it is worth one occurrence rather than none.
+     * How many times this fault has been recorded.
      *
-     * @return a count, at least 1
+     * @return a count, at least 1 even if the record says less
      */
     public long getOccurrences()
     {
@@ -143,7 +142,7 @@ public abstract class LoggedError extends Content
     /**
      * When this fault was first recorded.
      *
-     * @return a date, never {@code null}
+     * @return the node's {@code jcr:created}, or the epoch if the record has no creation date
      */
     @NotNull
     public Calendar getFirstOccurrence()
@@ -153,10 +152,10 @@ public abstract class LoggedError extends Content
     }
 
     /**
-     * When this fault was last recorded. Falls back to when it was first seen, and then to the epoch, so that a
-     * record written by something that could not date it sorts last rather than breaking the whole listing.
+     * When this fault was last recorded.
      *
-     * @return a date, never {@code null}
+     * @return the date; when it was first recorded if the record does not say, or the epoch if it says neither, so
+     *         that such a record sorts last
      */
     @NotNull
     public Calendar getLastOccurrence()
@@ -169,12 +168,10 @@ public abstract class LoggedError extends Content
     }
 
     /**
-     * A sample of the distinct messages this fault was seen with, most recent first. Several, because what varies
-     * between occurrences is deliberately outside the fault's identity: the same broken code reporting two different
-     * paths is one fault seen twice, not two faults. For a thrown failure these are the throwable's messages; for a
-     * problem, the phrases the caller reported that were too variable to name the fault by.
+     * Up to five distinct messages this fault was seen with, most recent first. For a failure, these are the
+     * throwable's messages. For a problem, they are the reported phrases that differ from its name.
      *
-     * @return the sampled messages, possibly empty, never {@code null}
+     * @return the messages; empty if none was recorded
      */
     @NotNull
     public List<String> getMessages()
@@ -183,11 +180,9 @@ public abstract class LoggedError extends Content
     }
 
     /**
-     * A sample of the paths this fault happened to, most recent first. Only ever a sample, and deliberately without
-     * a count of what it left out: content that has to be found and repaired must carry its own marker, the way a
-     * node whose tags could not be computed does.
+     * Up to twenty distinct paths this fault happened to, most recent first. Nothing counts the paths left out.
      *
-     * @return the sampled paths, possibly empty, never {@code null}
+     * @return the paths; empty if no caller named a subject
      */
     @NotNull
     public List<String> getSubjects()
@@ -196,10 +191,9 @@ public abstract class LoggedError extends Content
     }
 
     /**
-     * A sample of the users this fault happened on behalf of, most recent first. Empty for anything running outside
-     * a request.
+     * Up to ten distinct users this fault happened on behalf of, most recent first.
      *
-     * @return the sampled users, possibly empty, never {@code null}
+     * @return the usernames; empty if no caller named a user, as outside a request
      */
     @NotNull
     public List<String> getActors()
@@ -208,9 +202,9 @@ public abstract class LoggedError extends Content
     }
 
     /**
-     * Everything else known about the most recent occurrence, one {@code key: value} per line.
+     * The details given with the most recent occurrence that had any, one {@code key: value} per line.
      *
-     * @return the details, or {@code null} when nothing more was said
+     * @return the details, or {@code null} if no occurrence had any
      */
     @Nullable
     public String getLastContext()
@@ -219,10 +213,9 @@ public abstract class LoggedError extends Content
     }
 
     /**
-     * The decisions somebody has taken about this fault, most recent first. Appended rather than replaced, so the
-     * whole history of what was decided about it is here.
+     * The decisions taken about this fault, in the order of {@link Acknowledgement#MOST_RECENT_FIRST}.
      *
-     * @return the decisions, most recent first, possibly empty, never {@code null}
+     * @return the decisions, most recent first; empty if nobody has taken one
      */
     @NotNull
     public List<Acknowledgement> getAcknowledgements()
@@ -234,7 +227,7 @@ public abstract class LoggedError extends Content
     /**
      * The most recent decision taken about this fault.
      *
-     * @return the latest decision, or {@code null} when nobody has taken one
+     * @return the latest decision, or {@code null} if nobody has taken one
      */
     @Nullable
     public Acknowledgement getLatestAcknowledgement()
@@ -243,27 +236,22 @@ public abstract class LoggedError extends Content
     }
 
     /**
-     * Whether somebody has dealt with this fault and it has not happened again since. Read from the triage tags
-     * rather than recomputed here, so that the answer is the same one a query over the repository would give.
+     * Whether somebody has acknowledged this fault, and it has not happened again since. It reads the tags computed
+     * from this error's own content, so a query over the repository gives the same answer.
      *
-     * @return {@code true} when this error needs no further attention for now
+     * @return {@code true} if the computed tags include {@value #ACKNOWLEDGED_TAG}; {@code false} if they do not, or
+     *         if they have not been computed yet
      */
     public boolean isAcknowledged()
     {
-        // Read from the property the computing phase owns rather than from the effective tags: these markers are
-        // always derived from the decisions below, never placed by hand, so this is both the precise question and
-        // one property read. Tested for positively, because that property is the union of what every processor of
-        // that phase contributed, not only the triage one: asking whether anything other than `unacknowledged` is
-        // there would read as acknowledged the moment some unrelated processor tagged an error for its own reasons.
-        // An error whose markers have not been computed yet reads as needing attention, which is by far the better
-        // way round to be wrong
+        // Asked for positively: other processors add their own tags to the same property
         return triageMarkers().contains(ACKNOWLEDGED_TAG);
     }
 
     /**
-     * The triage markers computed for this error.
+     * The tags computed from this error's own content, the triage tags among them.
      *
-     * @return the markers, possibly empty, never {@code null}
+     * @return the tag names; empty if none has been computed
      */
     @NotNull
     public List<String> getTriageMarkers()
@@ -272,9 +260,9 @@ public abstract class LoggedError extends Content
     }
 
     /**
-     * Reads the property the computing phase stores its results in.
+     * Reads the tags computed from this error's own content.
      *
-     * @return the markers, possibly empty, never {@code null}
+     * @return the tag names; empty if none has been computed
      */
     private List<String> triageMarkers()
     {
@@ -283,7 +271,7 @@ public abstract class LoggedError extends Content
     }
 
     /**
-     * The start of time, for a record with no usable date at all.
+     * The date for a record that has none.
      *
      * @return the epoch
      */

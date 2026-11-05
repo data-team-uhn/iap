@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ErrorTriageTagProcessorTest
 {
-    /** When a decision was taken, autocreated by the repository and used to order decisions taken at the same count. */
+    /** When a decision was taken, which orders decisions taken at the same count. */
     private static final String CREATED = "jcr:created";
 
     private final ErrorTriageTagProcessor processor = new ErrorTriageTagProcessor();
@@ -57,7 +57,6 @@ class ErrorTriageTagProcessorTest
     @Test
     void saysNothingAboutNodesThatAreNotRecordedErrors()
     {
-        // Every commit in the repository reaches this processor, so anything else must cost one property read
         assertTrue(this.processor.computeTags(context(node("sub:Submission", 1, null, 0))).isEmpty());
         assertTrue(this.processor.computeTags(context(EmptyNodeState.EMPTY_NODE)).isEmpty());
     }
@@ -86,8 +85,6 @@ class ErrorTriageTagProcessorTest
     @Test
     void happeningAgainUndoesTheDecision()
     {
-        // The whole reason the decision records a count: a fault that recurs after somebody decided it was fixed
-        // asks for attention again by itself, with nothing having to watch the clock
         assertEquals(Set.of(LoggedError.UNACKNOWLEDGED_TAG),
             this.processor.computeTags(context(node("err:LoggedFailure", 4, "known-issue", 3))));
     }
@@ -95,10 +92,7 @@ class ErrorTriageTagProcessorTest
     @Test
     void aPlainAcknowledgementIsATriageTagLikeAnyOther()
     {
-        // `acknowledged` is one of the shipped triage tags and the acknowledge servlet accepts it, so the markers of
-        // such a decision are one tag rather than two — a two-element immutable set would throw on the duplicate,
-        // the tag editor would swallow that, and the error would stay unacknowledged however often it was
-        // acknowledged
+        // `acknowledged` is itself a triage tag, so this decision's tags are one tag, not two
         assertEquals(Set.of(LoggedError.ACKNOWLEDGED_TAG),
             this.processor.computeTags(context(node("err:LoggedFailure", 3, LoggedError.ACKNOWLEDGED_TAG, 3))));
     }
@@ -117,9 +111,7 @@ class ErrorTriageTagProcessorTest
     @Test
     void twoDecisionsTakenAtTheSameCountAreOrderedByWhenTheyWereTaken()
     {
-        // Deciding again before the error recurs is ordinary — changing one's mind — and both decisions then carry
-        // the same count. The markers have to name the same decision the report names, and the report sorts these by
-        // jcr:created
+        // Two decisions at the same count, as when somebody changes their mind before the error recurs
         final NodeBuilder error = builder("err:LoggedFailure", 4);
         decide(error, "decision1", "known-issue", 4).setProperty(CREATED, "2026-08-10T12:00:00.000+00:00", Type.DATE);
         decide(error, "decision2", "wont-fix", 4).setProperty(CREATED, "2026-08-11T12:00:00.000+00:00", Type.DATE);
@@ -131,8 +123,7 @@ class ErrorTriageTagProcessorTest
     @Test
     void theLaterDecisionWinsWhicheverOrderTheChildrenAreIn()
     {
-        // The same pair the other way round: nothing about the answer may depend on the order the repository happens
-        // to hand the children over in
+        // The same pair, with the children in the other order
         final NodeBuilder error = builder("err:LoggedFailure", 4);
         decide(error, "decision1", "known-issue", 4).setProperty(CREATED, "2026-08-11T12:00:00.000+00:00", Type.DATE);
         decide(error, "decision2", "wont-fix", 4).setProperty(CREATED, "2026-08-10T12:00:00.000+00:00", Type.DATE);
@@ -177,8 +168,6 @@ class ErrorTriageTagProcessorTest
     @Test
     void survivesPropertiesOfTheWrongShape()
     {
-        // Nothing here may throw: this processor is the one guaranteed to run over the nodes error recording
-        // writes, so a failure in it would be recorded as an error, and recording it would run it again
         final NodeBuilder error = builder("err:LoggedFailure", 1);
         error.setProperty("occurrences", true);
         error.setProperty("jcr:primaryType", "err:LoggedFailure");
@@ -195,8 +184,7 @@ class ErrorTriageTagProcessorTest
         error.child("decision1").setProperty("jcr:primaryType", "err:Acknowledgement")
             .setProperty("resolution", "known-issue");
 
-        // A decision that does not say how much had happened counts as having been taken at zero, so anything
-        // recorded since puts the error back in front of somebody
+        // A decision without a count reads as taken at zero
         assertEquals(Set.of(LoggedError.UNACKNOWLEDGED_TAG),
             this.processor.computeTags(context(error.getNodeState())));
     }
