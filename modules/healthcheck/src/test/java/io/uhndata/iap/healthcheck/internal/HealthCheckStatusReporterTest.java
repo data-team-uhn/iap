@@ -81,14 +81,13 @@ class HealthCheckStatusReporterTest
     @Test
     void privilegedReportsNameTheFailedChecks()
     {
-        configure(check("Grumbling check", Result.Status.WARN));
+        configure(check("Grumbling check", Result.Status.WARN), check("Fine check", Result.Status.OK));
 
         final StatusReport report = this.reporter.report(false);
 
         assertTrue(report.getText().startsWith("There are 1 failed checks"));
         assertTrue(report.getText().contains("Grumbling check"));
-        // The successful checks are not listed
-        assertFalse(report.getText().contains("Fine check"));
+        assertFalse(report.getText().contains("Fine check"), "A passing check is not listed");
     }
 
     @Test
