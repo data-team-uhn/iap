@@ -26,7 +26,7 @@ import PdfViewer from "@iap/frontend-commons/pdfViewer/PdfViewer";
 import { toFileUrl } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
 import NoteCard from "./NoteCard";
-import { kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewedDocument } from "./reviewData";
+import { issueFrom, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewedDocument } from "./reviewData";
 
 import type { ReviewActions } from "./FormReview";
 
@@ -50,13 +50,16 @@ export default function DocumentReview({ document, data, shown, selected, onSele
 }) {
   const [ place, setPlace ] = useState<HTMLElement | null>(null);
   const [ draft, setDraft ] = useState<TextAnchor>();
+  // The AI pre-review note being made into an issue, coloured as one meanwhile
+  const [ adopting, setAdopting ] = useState<string>();
   const notes = useMemo(() => notesAbout(data.notes, [ document.uuid, document.version ])
     .filter(note => note.passage && shown.has(note.kind)), [ data.notes, document, shown ]);
   const marks: Mark[] = useMemo(() => [
-    ...notes.map(note => ({ id: note.id, kind: kindInfo(note.kind).mark, quote: note.passage?.quote ?? "",
+    ...notes.map(note => ({ id: note.id, kind: kindInfo(adopting === note.id ? "issue" : note.kind).mark,
+      quote: note.passage?.quote ?? "",
       page: note.passage?.page })),
     ...draft ? [ { id: DRAFT, kind: "annotation" as const, anchor: draft } ] : [],
-  ], [ notes, draft ]);
+  ], [ notes, draft, adopting ]);
 
   const renderMarkDetails = useCallback((mark: Mark) => {
     if (mark.id === DRAFT && draft) {
@@ -88,10 +91,14 @@ export default function DocumentReview({ document, data, shown, selected, onSele
           onReply={text => actions.write({ replyTo: note.id, text })}
           onEdit={(text, severity) => actions.write({ edit: note.id, text, ...severity ? { severity } : {} })}
           onRemove={() => actions.write({ remove: note.id })}
+          onMakeIssue={(text, severity) => actions.write(issueFrom(note, text, severity))}
+          onDismiss={() => actions.write({ dismiss: note.id })}
+          adopting={adopting === note.id}
+          onAdopting={on => setAdopting(on ? note.id : undefined)}
         />
       </Box>
     );
-  }, [ notes, draft, actions, document, questionLabel ]);
+  }, [ notes, draft, actions, document, questionLabel, adopting ]);
 
   return (
     <>

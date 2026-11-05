@@ -35,18 +35,28 @@ function when(created: string): string {
 
 // PRETOTYPE. One note as a card: what kind it is, who wrote it and when, and what it says; for an extracted
 // answer, what the AI read and how sure it is. Discussion and issues can be answered; the reviewer's own can be
-// changed or removed.
-export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove }: {
+// changed or removed. An AI pre-review note can be made into an issue, worded and rated as the reviewer sees fit,
+// or dismissed; whoever shows the card says whether it is being made into an issue, to colour it as one meanwhile.
+export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove, onMakeIssue, onDismiss, adopting,
+  onAdopting }: {
   note: ReviewNote;
   // The extracted answer as the question's options call it
   answerLabel?: string;
   onReply?: (text: string) => Promise<void>;
   onEdit?: (text: string, severity?: string) => Promise<void>;
   onRemove?: () => Promise<void>;
+  onMakeIssue?: (text: string, severity?: string) => Promise<void>;
+  onDismiss?: () => Promise<void>;
+  adopting?: boolean;
+  onAdopting?: (adopting: boolean) => void;
 }) {
   const info = kindInfo(note.kind);
   const [ replying, setReplying ] = useState(false);
   const [ editing, setEditing ] = useState(false);
+  const [ ownAdopting, setOwnAdopting ] = useState(false);
+  const isAdopting = adopting ?? ownAdopting;
+  const setAdopting = onAdopting ?? setOwnAdopting;
+  const canAdopt = onMakeIssue && note.kind === "aiIssue";
   const canAnswer = onReply && (note.kind === "discussion" || note.kind === "issue");
 
   if (editing && onEdit) {
@@ -57,6 +67,19 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove 
         onSave={async (_kind, text, severity) => {
           await onEdit(text, severity);
           setEditing(false);
+        }}
+      />
+    );
+  }
+  if (isAdopting && onMakeIssue) {
+    return (
+      <Composer
+        kinds={[ "issue" ]} initialText={note.suggestion ? `${note.text}\n\n${note.suggestion}` : note.text}
+        initialSeverity={note.severity} saveLabel="Add issue"
+        onCancel={() => setAdopting(false)}
+        onSave={async (_kind, text, severity) => {
+          await onMakeIssue(text, severity);
+          setAdopting(false);
         }}
       />
     );
@@ -111,6 +134,16 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove 
               <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{reply.text}</Typography>
             </Box>
           ))}
+        </Stack>
+      )}
+      {canAdopt && (
+        <Stack direction="row" sx={{ ml: -0.75, mt: 0.25 }}>
+          <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+            onClick={() => setAdopting(true)}>Make it an issue</Button>
+          {onDismiss && (
+            <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+              onClick={() => void onDismiss()}>Dismiss</Button>
+          )}
         </Stack>
       )}
       {canAnswer && !replying && (

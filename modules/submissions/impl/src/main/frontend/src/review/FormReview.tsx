@@ -26,7 +26,7 @@ import { Box, Chip, IconButton, Link, Stack, Tooltip, Typography } from "@mui/ma
 import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
 import NoteCard from "./NoteCard";
-import { groupShortName, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
+import { groupShortName, issueFrom, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
   type ReviewNote } from "./reviewData";
 
 export interface ReviewActions {
@@ -92,6 +92,8 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
   actions: ReviewActions;
 }) {
   const [ writing, setWriting ] = useState(false);
+  // The AI pre-review note being made into an issue, coloured as one meanwhile
+  const [ adopting, setAdopting ] = useState<string>();
   const answer = data.answers.get(question.path);
   const notes = answer ? notesAbout(data.notes, [ answer.uuid ]) : [];
   const evidence = notes.find(note => note.kind === "evidence");
@@ -154,13 +156,18 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
         <Stack spacing={1} sx={{ mt: 1 }}>
           {others.map(note => (
             <Box key={note.id} sx={theme => ({ px: 1.5, py: 1.25, borderRadius: 1, borderInlineStart: 3,
-              borderColor: theme.palette[kindInfo(note.kind).mark].main, bgcolor: "background.muted" })}
+              borderColor: theme.palette[kindInfo(adopting === note.id ? "issue" : note.kind).mark].main,
+              bgcolor: "background.muted" })}
             >
               <NoteCard
                 note={note}
                 onReply={text => actions.write({ replyTo: note.id, text })}
                 onEdit={(text, severity) => actions.write({ edit: note.id, text, ...severity ? { severity } : {} })}
                 onRemove={() => actions.write({ remove: note.id })}
+                onMakeIssue={(text, severity) => actions.write(issueFrom(note, text, severity))}
+                onDismiss={() => actions.write({ dismiss: note.id })}
+                adopting={adopting === note.id}
+                onAdopting={on => setAdopting(on ? note.id : undefined)}
               />
             </Box>
           ))}
