@@ -370,6 +370,8 @@ export default function ReviewScreen({ path }: { path: string }) {
     return <LoadingOverlay open message="Loading the submission" />;
   }
   const submission = loaded.submission;
+  // The reviewer's own issues: what their panel lists, and what their letter and escalation are made of
+  const myIssues = data.notes.filter(note => note.kind === "issue" && note.mine);
   const shownDocument = current ? data.documents.get(current.name) : undefined;
 
   const rail = narrow ? (
@@ -487,9 +489,9 @@ export default function ReviewScreen({ path }: { path: string }) {
           )}
           {dialog === "letter" && (
             <LetterDialog
-              open issueCount={data.notes.filter(note => note.kind === "issue").length}
+              open issueCount={myIssues.length}
               draft={draftLetter({ title: text(submission.title), identifier: text(submission.identifier),
-                pi: text(submission.pi), about, issues: data.notes.filter(note => note.kind === "issue"),
+                pi: text(submission.pi), about, issues: myIssues,
                 reviewer: myName })}
               onSend={sendLetter} onClose={() => setDialog(undefined)}
             />
@@ -499,7 +501,7 @@ export default function ReviewScreen({ path }: { path: string }) {
               open title={text(submission.title)} identifier={text(submission.identifier)} pi={text(submission.pi)}
               summary={data.answers.get("study/summary")?.values.at(0) ?? ""}
               parts={listed.map(one => ({ name: one.name, label: one.label }))}
-              issues={data.notes.filter(note => note.kind === "issue")} about={about}
+              issues={myIssues} about={about}
               onClose={() => setDialog(undefined)}
             />
           )}
@@ -509,7 +511,7 @@ export default function ReviewScreen({ path }: { path: string }) {
         </Paper>
         <Box sx={{ display: { xs: "none", md: "block" }, position: "sticky", top: 16, flexShrink: 0 }}>
           <IssuesPanel
-            issues={data.notes.filter(note => note.kind === "issue")} about={about}
+            issues={myIssues} about={about}
             open={issuesOpen ?? !(current && isDocumentRequirement(current))}
             onToggle={() => setIssuesOpen(!(issuesOpen ?? !(current && isDocumentRequirement(current))))}
             onOpenIssue={openIssue}

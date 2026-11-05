@@ -27,7 +27,7 @@ import TagChip from "@iap/tags/TagChip";
 import { PersonName } from "./people";
 import { SEVERITIES, type ReviewNote } from "./reviewData";
 
-// PRETOTYPE. Every issue raised for the study team on the submission, most serious first, beside whatever the
+// PRETOTYPE. The issues the reviewer raised for the study team on the submission, most serious first, beside whatever the
 // reviewer is reading: what the letter of review will hold. Each one leads to where it was raised. The letter and
 // the escalation, which are made of these issues, stay at the bottom, in view. Folded, it keeps the count and the
 // two actions.
@@ -73,7 +73,7 @@ export default function IssuesPanel({ issues, about, open, onToggle, onOpenIssue
     <Paper sx={{ width: 300, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 96px)" }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 1.5, pt: 1, pb: 0.5 }}>
         <Typography variant="subtitle2" sx={{ flex: 1 }}>
-          Issues for the study team ({issues.length})
+          Your issues for the study team ({issues.length})
         </Typography>
         <Tooltip title="Fold away" placement="left">
           <IconButton size="small" aria-label="Fold the issues away" onClick={onToggle}>
