@@ -30,6 +30,7 @@ import Composer, { WRITTEN } from "./Composer";
 import NoteCard from "./NoteCard";
 import { groupShortName, issueFrom, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
   type ReviewNote } from "./reviewData";
+import { Highlighted } from "./SearchHighlight";
 
 // How wide a question's notes are, beside it, as a document's are beside its pages; and how wide the form must be
 // for them to go there rather than under the question
@@ -120,13 +121,15 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
     >
       <Stack sx={{ gap: 0.5, minWidth: 0 }}>
         <Stack direction="row" sx={{ minWidth: 0, gap: 0.75, flexWrap: "wrap", alignItems: "baseline" }}>
-          <Typography variant="body2" sx={{ fontWeight: "fontWeightBold" }}>{question.text}</Typography>
+          <Typography variant="body2" sx={{ fontWeight: "fontWeightBold" }}>
+            <Highlighted text={question.text} question={question.path} field="question" />
+          </Typography>
           <GroupChips groups={groups.get(question.path)} mine={myGroups} />
         </Stack>
         <Stack direction="row" sx={{ minWidth: 0, gap: 1, alignItems: "flex-start" }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-              {answerText(question, question.value)}
+              <Highlighted text={answerText(question, question.value)} question={question.path} field="answer" />
             </Typography>
             {evidence && shown.has("evidence") && differs && (
               <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "warning.main", mt: 0.25 }}>

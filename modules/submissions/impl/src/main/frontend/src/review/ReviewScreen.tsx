@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import ChatBubbleOutlineOutlined from "@mui/icons-material/ChatBubbleOutlineOutlined";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
+import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import {
   Box,
   Button,
@@ -42,6 +43,7 @@ import {
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { usePublishedPageContext } from "@iap/frontend-commons/pageContext";
+import type { DocumentSearch } from "@iap/frontend-commons/pdfViewer/pdfViewerModel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import TagChip from "@iap/tags/TagChip";
 
@@ -66,7 +68,8 @@ import { draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, type NoteKind, type ReviewData,
   type ReviewGroup, type ReviewNote } from "./reviewData";
-import { documentText, searchAnswers, searchPages, type Hit } from "./searchSubmission";
+import { SearchContext } from "./SearchHighlight";
+import { documentText, formMatches, pageCounts } from "./searchSubmission";
 import { PANEL_HEIGHT, PanelBody, panelPlacement } from "./sidePanel";
 import SubmissionSearch from "./SubmissionSearch";
 import { useCurrentUser } from "./useCurrentUser";
@@ -141,7 +144,6 @@ interface Loaded {
   everyone: Set<string>;
 }
 
-type FormRequirementOf = Requirement & { items: FormItem[] };
 
 const text = (value: unknown): string => typeof value === "string" ? value : "";
 
@@ -165,10 +167,6 @@ async function readAll(doFetch: ReturnType<typeof useAuthenticatedFetch>, path: 
   return { submission, form: form as unknown as SubmissionForm, approvals, everyone };
 }
 
-
-function searchForm(requirement: FormRequirementOf, terms: string): Hit[] {
-  return searchAnswers(requirement.name, requirement.items, terms, question => answerTo(requirement.items, question));
-}
 
 // The answer to a question of a form, as its options call it
 function answerTo(items: FormItem[], question: string): string {
@@ -304,41 +302,121 @@ export default function ReviewScreen({ path }: { path: string }) {
     go(document, { id: note.id, page: note.passage?.page });
   };
 
-  // What the search found, for the terms it was asked; shown only while those are still the terms
-  const [ found, setFound ] = useState<{ terms: string; hits: Hit[] }>();
-  const [ searching, setSearching ] = useState(false);
-  const terms = query.trim();
+  // The submission search, found in place as a browser finds in a page: where its terms occur in each requirement,
+  // and the occurrence it is on. Forms are searched as they are typed, documents once their text is read.
+  const terms = query.trim().length >= 2 ? query.trim() : "";
+  const [ pageHits, setPageHits ] = useState<{ terms: string; counts: Map<string, number[]> }>();
   useEffect(() => {
-    if (terms.length < 3 || !data) {
+    if (!terms || !data) {
       return;
     }
     let current = true;
     const timer = setTimeout(() => {
-      const answered = requirements.filter(isFormRequirement).flatMap(one => searchForm(one, terms));
-      setFound({ terms, hits: answered });
       void Promise.all([ ...data.documents.entries() ].map(async ([ name, document ]) =>
-        searchPages(name, document.title, await documentText(doFetch, document.url), terms)))
-        .then(pages => current && setFound({ terms, hits: [ ...answered, ...pages.flat() ] }));
-    }, 250);
+        [ name, pageCounts(await documentText(doFetch, document.url), terms) ] as const))
+        .then(all => current && setPageHits({ terms, counts: new Map(all) }));
+    }, 200);
     return () => {
       current = false;
       clearTimeout(timer);
     };
-  }, [ terms, data, requirements, doFetch ]);
-  const hits = searching && terms.length >= 3 && found?.terms === terms ? found.hits : undefined;
+  }, [ terms, data, doFetch ]);
+  const formHits = useMemo(() => new Map(terms ? requirements.filter(isFormRequirement)
+    .map(one => [ one.name, formMatches(one.items, terms, question => answerTo(one.items, question)) ]) : []),
+  [ terms, requirements ]);
+  const documentHits = pageHits?.terms === terms ? pageHits.counts : undefined;
+  // How many times a requirement has the terms: undefined while not searching, or while its text is still read
+  const hitCount = (requirement: Requirement): number | undefined => !terms ? undefined
+    : isFormRequirement(requirement) ? formHits.get(requirement.name)?.length ?? 0
+      : documentHits?.get(requirement.name)?.reduce((sum, one) => sum + one, 0);
+  const [ formAt, setFormAt ] = useState<{ terms: string; requirement: string; index: number }>();
+  const [ documentStep, setDocumentStep ] = useState({ step: 0, previous: false });
+  const [ documentFound, setDocumentFound ] = useState<DocumentSearch>();
+  const activeHit = formAt?.terms === terms && formAt.requirement === current?.name
+    ? formHits.get(formAt.requirement)?.[formAt.index] : undefined;
+  const searchContext = useMemo(() => ({ terms, active: activeHit }), [ terms, activeHit ]);
+  // The occurrence the search is on, brought into view
+  useEffect(() => {
+    if (activeHit) {
+      document.querySelector("[data-search-current]")?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [ activeHit ]);
+
+  // Typing looks from where the reviewer is: the first question still in view on a form, the page shown on a
+  // document. It never takes them to another requirement; the counts in the contents say where else to look.
+  const typeQuery = (next: string) => {
+    setQuery(next);
+    const nextTerms = next.trim().length >= 2 ? next.trim() : "";
+    if (!nextTerms || !current || !isFormRequirement(current)) {
+      return;
+    }
+    const matches = formMatches(current.items, nextTerms, question => answerTo(current.items, question));
+    const asked = questions(current.items).map(question => question.path);
+    const top = (document.querySelector("header")?.getBoundingClientRect().bottom ?? 0) + 8;
+    const inView = asked.findIndex(question =>
+      (document.getElementById(`question-${question}`)?.getBoundingClientRect().bottom ?? 0) > top);
+    const from = matches.findIndex(match => asked.indexOf(match.question) >= Math.max(inView, 0));
+    setFormAt(matches.length > 0 ? { terms: nextTerms, requirement: current.name, index: Math.max(from, 0) }
+      : undefined);
+  };
+
+  const counts = requirements.map(one => hitCount(one) ?? 0);
+  const total = counts.reduce((sum, one) => sum + one, 0);
+  const at = current ? requirements.indexOf(current) : -1;
+  const here = at >= 0 ? counts[at] : 0;
+  const local = !current || here === 0 ? undefined
+    : isFormRequirement(current) ? (activeHit && formAt ? formAt.index + 1 : undefined)
+      : documentFound?.outcome === "found" && documentFound.current > 0 ? Math.min(documentFound.current, here)
+        : undefined;
+  const position = local === undefined ? undefined : counts.slice(0, at).reduce((sum, one) => sum + one, 0) + local;
+
+  // Into a requirement with occurrences, at its first one, or its last when going back
+  const enter = (requirement: Requirement, fromEnd: boolean) => {
+    const count = hitCount(requirement) ?? 0;
+    if (isFormRequirement(requirement)) {
+      go(requirement.name);
+      setFormAt({ terms, requirement: requirement.name, index: fromEnd ? count - 1 : 0 });
+      return;
+    }
+    const perPage = documentHits?.get(requirement.name) ?? [];
+    const page = (fromEnd ? perPage.findLastIndex(one => one > 0) : perPage.findIndex(one => one > 0)) + 1;
+    setDocumentFound(undefined);
+    go(requirement.name, { page: page > 0 ? page : undefined });
+  };
+  // The next occurrence, or the previous: in the requirement shown while it has more, then in the next one that has
+  // any, round to the first
+  const step = (previous: boolean) => {
+    if (!terms || !current || total === 0) {
+      return;
+    }
+    if (here > 0 && isFormRequirement(current)) {
+      const index = activeHit && formAt ? formAt.index + (previous ? -1 : 1) : (previous ? here - 1 : 0);
+      if (index >= 0 && index < here) {
+        setFormAt({ terms, requirement: current.name, index });
+        return;
+      }
+    } else if (here > 0 && documentFound?.outcome === "found"
+      && (previous ? documentFound.current > 1 : documentFound.current < documentFound.total)) {
+      setDocumentStep(last => ({ step: last.step + 1, previous }));
+      return;
+    }
+    for (let away = 1; away <= requirements.length; away++) {
+      const next = (at + (previous ? -away : away) + requirements.length * 2) % requirements.length;
+      if (counts[next] > 0) {
+        enter(requirements[next], previous);
+        return;
+      }
+    }
+  };
 
   const search = (inBar: boolean) => (
     <SubmissionSearch
-      query={query} hits={hits} inBar={inBar} onQuery={setQuery}
-      onOpen={() => setSearching(true)} onClose={() => setSearching(false)}
-      onPick={hit => {
-        setSearching(false);
-        go(hit.requirement, { question: hit.question, page: hit.page });
-      }}
+      query={query} inBar={inBar} onQuery={typeQuery} onStep={step}
+      position={position} total={terms ? total : undefined}
+      reading={Boolean(terms) && documentHits === undefined && (data?.documents.size ?? 0) > 0}
     />
   );
 
-  // The submission's title and where it stands, in the app bar, in view however far the reviewer scrolls, with the
   // search beside them on wide screens
   const header = loaded?.submission;
   usePublishedPageContext(header && {
@@ -441,7 +519,8 @@ export default function ReviewScreen({ path }: { path: string }) {
     >
       {listed.map(requirement => (
         <MenuItem key={requirement.name} value={requirement.name}>
-          {requirement.label} ({notesOf(requirement).filter(note => shown.has(note.kind)).length})
+          {requirement.label} ({terms ? `${hitCount(requirement) ?? "…"} found`
+            : notesOf(requirement).filter(note => shown.has(note.kind)).length})
         </MenuItem>
       ))}
     </TextField>
@@ -449,6 +528,8 @@ export default function ReviewScreen({ path }: { path: string }) {
     <List dense disablePadding aria-label="Requirements">
       {listed.map(requirement => {
         const count = notesOf(requirement).filter(note => shown.has(note.kind)).length;
+        // While searching, how many times it has the terms instead, and greyed out when none
+        const found = hitCount(requirement);
         return (
           <ListItemButton
             key={requirement.name}
@@ -459,6 +540,7 @@ export default function ReviewScreen({ path }: { path: string }) {
               borderRadius: 0, py: 0.75, mb: 0.25, alignItems: "flex-start",
               borderInlineStart: "3px solid", borderColor: "transparent",
               "& .requirement-name": { color: "primary.main", fontWeight: "fontWeightMedium" },
+              ...found === 0 ? { opacity: 0.5 } : {},
               "&:hover": { bgcolor: theme.alpha(theme.palette.background.paper, 0.5) },
               "& .requirement-go": { opacity: 0, transition: theme.transitions.create("opacity") },
               "&:hover .requirement-go, &:focus-visible .requirement-go": { opacity: 1 },
@@ -488,7 +570,15 @@ export default function ReviewScreen({ path }: { path: string }) {
               sx={{ my: 0.25 }}
             />
             <Stack direction="row" sx={{ alignItems: "center", ml: 1, flexShrink: 0 }}>
-              {count > 0 && (
+              {terms && found !== undefined && found > 0 && (
+                <Tooltip title={found === 1 ? "Found once" : `Found ${found} times`} placement="right">
+                  <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "text.secondary" }}>
+                    <SearchOutlined sx={{ fontSize: "0.9rem" }} />
+                    <Typography variant="caption">{found}</Typography>
+                  </Stack>
+                </Tooltip>
+              )}
+              {!terms && count > 0 && (
                 <Tooltip title={countText(notesOf(requirement).filter(note => shown.has(note.kind)))} placement="right">
                   <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "text.secondary" }}>
                     <ChatBubbleOutlineOutlined sx={{ fontSize: "0.9rem" }} />
@@ -600,10 +690,12 @@ export default function ReviewScreen({ path }: { path: string }) {
                 </Stack>
               </Stack>
               {isFormRequirement(current) && (
-                <FormReview
-                  items={current.items} data={data} groups={groups} myGroups={myGroups} shown={shown}
-                  onEvidence={openEvidence} actions={actions}
-                />
+                <SearchContext.Provider value={searchContext}>
+                  <FormReview
+                    items={current.items} data={data} groups={groups} myGroups={myGroups} shown={shown}
+                    onEvidence={openEvidence} actions={actions}
+                  />
+                </SearchContext.Provider>
               )}
               {isDocumentRequirement(current) && shownDocument && (
                 <Box sx={{ mt: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -612,6 +704,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                     document={shownDocument} data={data} shown={shown} selected={mark.id}
                     onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
                     actions={actions} questionLabel={questionLabel}
+                    search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}
                     onClose={() => go(listed.find(isFormRequirement)?.name ?? current.name)}
                   />
                 </Box>

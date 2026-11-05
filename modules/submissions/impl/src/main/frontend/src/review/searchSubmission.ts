@@ -21,16 +21,15 @@ import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import { type FormItem, isQuestion } from "../submissionForm";
 
-// PRETOTYPE. Searching a whole submission, answers and documents, in the browser. Documents are read with PDF.js,
-// page by page, once per page load; a real version would search the text the server already extracted.
+// PRETOTYPE. Searching a whole submission, answers and documents, in the browser, the way a browser finds in a
+// page: every occurrence counts. Documents are read with PDF.js, page by page, once per page load; a real version
+// would search the text the server already extracted.
 
-export interface Hit {
-  // The requirement it is in, and the question or page
-  requirement: string;
-  question?: string;
-  page?: number;
-  where: string;
-  snippet: string;
+// One occurrence in a form: in a question's text or its answer, and which one there it is
+export interface FormMatch {
+  question: string;
+  field: "question" | "answer";
+  nth: number;
 }
 
 const texts = new Map<string, Promise<string[]>>();
@@ -57,31 +56,35 @@ export function documentText(doFetch: AuthenticatedFetch, url: string): Promise<
   return read;
 }
 
-function around(text: string, at: number, length: number): string {
-  const start = Math.max(0, at - 50);
-  const end = Math.min(text.length, at + length + 70);
-  return `${start > 0 ? "…" : ""}${text.slice(start, end).replace(/\s+/g, " ")}${end < text.length ? "…" : ""}`;
+// Where the terms occur in a text, ignoring case: the start of each occurrence
+export function occurrences(text: string, terms: string): number[] {
+  const needle = terms.toLowerCase();
+  const haystack = text.toLowerCase();
+  const found: number[] = [];
+  if (needle === "") {
+    return found;
+  }
+  for (let at = haystack.indexOf(needle); at >= 0; at = haystack.indexOf(needle, at + needle.length)) {
+    found.push(at);
+  }
+  return found;
 }
 
-export function searchAnswers(requirement: string, items: FormItem[], terms: string, answer: (path: string) => string)
-  : Hit[] {
-  const needle = terms.toLowerCase();
+// Every occurrence in a form's questions and answers, in the order the form asks them
+export function formMatches(items: FormItem[], terms: string, answer: (path: string) => string): FormMatch[] {
   return items.flatMap(item => {
     if (!isQuestion(item)) {
-      return searchAnswers(requirement, item.items, terms, answer);
+      return formMatches(item.items, terms, answer);
     }
-    const said = `${item.text} ${answer(item.path)}`;
-    const at = said.toLowerCase().indexOf(needle);
-    return at < 0 ? []
-      : [ { requirement, question: item.path, where: item.text, snippet: around(said, at, needle.length) } ];
+    return [
+      ...occurrences(item.text, terms).map((_at, nth) => ({ question: item.path, field: "question" as const, nth })),
+      ...occurrences(answer(item.path), terms).map((_at, nth) => ({ question: item.path, field: "answer" as const,
+        nth })),
+    ];
   });
 }
 
-export function searchPages(requirement: string, title: string, pages: string[], terms: string): Hit[] {
-  const needle = terms.toLowerCase();
-  return pages.flatMap((page, index) => {
-    const at = page.toLowerCase().indexOf(needle);
-    return at < 0 ? [] : [ { requirement, page: index + 1, where: `${title}, page ${index + 1}`,
-      snippet: around(page, at, needle.length) } ];
-  });
+// How many occurrences each page of a document has
+export function pageCounts(pages: string[], terms: string): number[] {
+  return pages.map(page => occurrences(page.replace(/\s+/g, " "), terms).length);
 }
