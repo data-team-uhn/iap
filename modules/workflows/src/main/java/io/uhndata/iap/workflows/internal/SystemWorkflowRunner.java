@@ -74,7 +74,7 @@ final class SystemWorkflowRunner
      * @param target the resource the event is aimed at, backed by the engine's own session
      * @param event the incoming event
      * @param start the entry point to run from
-     * @param actor the user who fired the event
+     * @param actor who sent the event, and whom for
      * @param depth how many sent events deep this run is, 0 for the event that came in
      * @return the variables the run left behind
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is

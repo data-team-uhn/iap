@@ -228,9 +228,9 @@ class WorkflowEngineImplTest
     }
 
     @Test
-    void recordsWhomADelegateActedFor() throws Exception
+    void recordsWhomADelegateActedForAndWhoSentIt() throws Exception
     {
-        final Resource target = EngineFixture.createTarget(this.context);
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.ADMIN);
         EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
 
@@ -239,13 +239,16 @@ class WorkflowEngineImplTest
         final Resource created = this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow");
         assertNotNull(created);
         assertEquals(EngineFixture.REQUESTER, created.getValueMap().get("createdBy"));
+        final RecordedAction delivery = this.history.described().get(0);
+        assertEquals(EngineFixture.ADMIN, delivery.getRequestedBy());
+        assertEquals(EngineFixture.REQUESTER, delivery.getOnBehalfOf());
     }
 
     @Test
     void refusesADelegateActingForSomeoneTheStartEventDoesNotName() throws Exception
     {
         // The administrator would pass any start event, but the event counts as the requester's, and they do not
-        final Resource target = EngineFixture.createTarget(this.context);
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.ADMIN);
         EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context, "time-off-approvers");
 
@@ -264,11 +267,11 @@ class WorkflowEngineImplTest
 
         final WorkflowEngine engine = engine();
         assertThrows(NotAuthorizedException.class,
-            () -> engine.receiveEvent(target, CREATE, EngineFixture.REQUESTER));
+            () -> engine.receiveEvent(target, CREATE, EngineFixture.COLLEAGUE));
     }
 
     @Test
-    void asksItsDelegationPolicyWhoMayActForOthers() throws Exception
+    void letsAMemberOfItsDelegatesGroupActForOthers() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
         EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
@@ -276,8 +279,11 @@ class WorkflowEngineImplTest
         final WorkflowEngineImpl engine = engine();
         EngineFixture.inject(engine, "delegation", EngineFixture.delegation(EngineFixture.REQUESTERS));
 
-        assertEquals("/Workflows/myCoolWorkflow", engine.receiveEvent(target, CREATE, EngineFixture.REQUESTER)
+        assertEquals("/Workflows/myCoolWorkflow", engine.receiveEvent(target, CREATE, EngineFixture.COLLEAGUE)
             .getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+        final RecordedAction delivery = this.history.described().get(0);
+        assertEquals(EngineFixture.REQUESTER, delivery.getRequestedBy());
+        assertEquals(EngineFixture.COLLEAGUE, delivery.getOnBehalfOf());
     }
 
     @Test
@@ -299,7 +305,7 @@ class WorkflowEngineImplTest
     @Test
     void tellsTheHandlerWhoSentAnEventOnSomeoneElsesBehalf() throws Exception
     {
-        final Resource target = EngineFixture.createTarget(this.context);
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.ADMIN);
         EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         createNoopGraph(EngineFixture.REQUESTERS);
         final ActorRecordingHandler handler = new ActorRecordingHandler();
@@ -308,20 +314,6 @@ class WorkflowEngineImplTest
 
         assertEquals(EngineFixture.REQUESTER, handler.seen);
         assertEquals(EngineFixture.ADMIN, handler.sender);
-    }
-
-    @Test
-    void recordsWhoReallySentAnEventOnSomeoneElsesBehalf() throws Exception
-    {
-        final Resource target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
-        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
-
-        engine().receiveEvent(target, CREATE, EngineFixture.REQUESTER);
-
-        final RecordedAction delivery = this.history.described().get(0);
-        assertEquals(EngineFixture.ADMIN, delivery.getRequestedBy());
-        assertEquals(EngineFixture.REQUESTER, delivery.getOnBehalfOf());
     }
 
     @Test

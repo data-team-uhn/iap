@@ -76,7 +76,7 @@ final class PerformerCheck
      *
      * @param performers says who the names in a definition stand for
      * @param serviceResolver the engine's own session, used to look the actor up
-     * @param actor the user who fired the event, as their repository user id
+     * @param actor the user the event counts as, as their repository user id
      * @throws WorkflowFailedException when the repository cannot say who the actor is
      */
     PerformerCheck(final Performers performers, final ResourceResolver serviceResolver, final String actor)
@@ -139,7 +139,7 @@ final class PerformerCheck
      * @return {@code true} if the actor is among them
      * @throws WorkflowFailedException when the actor's group membership cannot be read
      */
-    boolean admits(final List<String> admitted, final Resource subject) throws WorkflowFailedException
+    private boolean admits(final List<String> admitted, final Resource subject) throws WorkflowFailedException
     {
         if (this.authorizable == null) {
             return false;
@@ -156,16 +156,6 @@ final class PerformerCheck
             this.memberships.put(resolved, member);
         }
         return member;
-    }
-
-    /**
-     * The actor, if they are a user rather than a group.
-     *
-     * @return the user, or {@code null} when the repository does not know them or they are a group
-     */
-    User user()
-    {
-        return this.authorizable instanceof User ? (User) this.authorizable : null;
     }
 
     /**

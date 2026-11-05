@@ -665,11 +665,12 @@ arrived on:
 
 The two-argument `receiveEvent(target, event)` is the same call with nobody else named.
 
-Receiving an event answers four questions in order, each failure its own exception,
+Receiving an event answers these questions in order, each failure its own exception,
 which the servlet maps to a status:
 
 | Question | Failure | Status |
 |---|---|---|
+| May the sender act for the user `:onBehalfOf` names, if it names one? | `NotAuthorizedException` | **403** |
 | Is anything waiting for this event here? | `NoApplicableWorkflowException` | **409** |
 | May this user fire it? | `NotAuthorizedException` | **403** |
 | Does the target's state allow it now? | `InvalidStateException` | **409** |
@@ -759,7 +760,7 @@ always act for others.
 The rules, each of which refuses with the same **403** so that a refusal does not reveal
 which one failed, or whether the user exists:
 
-- **The sender must be a delegate.** Anyone else sending `:onBehalfOf` is refused rather
+- **The sender must be a delegate.** Anyone else naming another user is refused rather
   than having the parameter ignored.
 - **The person named must be an ordinary, enabled user.** Not a group, a service user, a
   disabled account or an administrator. The administrator passes every check, so acting
@@ -769,6 +770,12 @@ which one failed, or whether the user exists:
 
 The person named is recorded by their canonical id, so `:onBehalfOf=ALICE` records `alice`.
 Naming yourself is the same as naming nobody.
+
+A page learns whether to offer this from the `delegable` serialization processor, on by
+default for a submission's workflow instances and their tasks: it adds `@delegable` to
+each task, whether the reader may decide it for someone else. For now every task may be
+delegated, so the answer is whether the reader is a delegate. Like `@events`, it only
+says what to show: the engine still decides.
 
 ### Service tasks and the handler SPI
 

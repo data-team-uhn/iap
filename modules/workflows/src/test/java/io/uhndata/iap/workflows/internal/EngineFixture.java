@@ -101,7 +101,10 @@ public final class EngineFixture
     /** An ordinary user belonging to {@link #REQUESTERS}. */
     static final String REQUESTER = "demo-requester";
 
-    /** The group {@link #REQUESTER} belongs to. */
+    /** Another ordinary user in {@link #REQUESTERS}, for someone to act on behalf of. */
+    static final String COLLEAGUE = "demo-colleague";
+
+    /** The group {@link #REQUESTER} and {@link #COLLEAGUE} belong to. */
     static final String REQUESTERS = "time-off-requesters";
 
     /** Every principal granted read since the last fixture was built, for the access tests to assert on. */
@@ -579,7 +582,7 @@ public final class EngineFixture
     }
 
     /**
-     * A session whose user store holds an administrator and one ordinary group member, and which accepts access
+     * A session whose user store holds an administrator and two ordinary group members, and which accepts access
      * control lists. The mock repository has neither, so both have to be supplied for anything that authorizes or
      * grants to be exercised at all.
      *
@@ -592,6 +595,7 @@ public final class EngineFixture
             // way to confuse Mockito
             final User admin = user(ADMIN, true);
             final User requester = user(REQUESTER, false);
+            final User colleague = user(COLLEAGUE, false);
             final User timer = user(TaskCompletion.TIMER_USER, false);
             Mockito.when(timer.memberOf()).thenAnswer(invocation -> List.<Group>of().iterator());
             final Group requesters = group();
@@ -599,11 +603,12 @@ public final class EngineFixture
             final UserManager userManager = Mockito.mock(UserManager.class);
             Mockito.when(userManager.getAuthorizable(ADMIN)).thenReturn(admin);
             Mockito.when(userManager.getAuthorizable(REQUESTER)).thenReturn(requester);
+            Mockito.when(userManager.getAuthorizable(COLLEAGUE)).thenReturn(colleague);
             Mockito.when(userManager.getAuthorizable(TaskCompletion.TIMER_USER)).thenReturn(timer);
             Mockito.when(userManager.getAuthorizable(REQUESTERS)).thenReturn(requesters);
-            // Membership is asked of the group, about the member, and only the ordinary user is in it
+            // Membership is asked of the group, about the member, and only the ordinary users are in it
             Mockito.when(requesters.isMember(Mockito.any())).thenAnswer(invocation ->
-                REQUESTER.equals(((Authorizable) invocation.getArgument(0)).getID()));
+                List.of(REQUESTER, COLLEAGUE).contains(((Authorizable) invocation.getArgument(0)).getID()));
             final JackrabbitSession session =
                 Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));
             Mockito.doReturn(userManager).when(session).getUserManager();

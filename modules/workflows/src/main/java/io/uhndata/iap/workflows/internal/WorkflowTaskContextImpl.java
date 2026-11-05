@@ -61,7 +61,7 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
      * @param event the triggering event
      * @param activity the activity being performed
      * @param variables the execution's shared, mutable variables
-     * @param actor the user the execution is acting for
+     * @param actor who sent the event, and whom for
      * @param dispatcher how the execution performs service tasks
      * @param depth how many sent events deep the execution is, 0 for an event that came in
      */
@@ -93,7 +93,7 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     @Override
     public String getSender()
     {
-        return this.actor.id();
+        return this.actor.sender();
     }
 
     @Override

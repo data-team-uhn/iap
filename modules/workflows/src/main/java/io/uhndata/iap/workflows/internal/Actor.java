@@ -17,25 +17,39 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.util.Objects;
+
 /**
  * Who is moving an execution: the user who sent the event, and whom they sent it for, if anyone else.
  *
- * @param id the canonical id of the user who sent the event, answerable for it
+ * @param sender the canonical id of the user who sent the event, answerable for it
  * @param onBehalfOf the canonical id of whom they acted for, or {@code null} when they acted for themselves
  * @version $Id$
  * @since 0.1.0
  */
-record Actor(String id, String onBehalfOf)
+record Actor(String sender, String onBehalfOf)
 {
+    /**
+     * Acting for yourself is acting for nobody else, so it has one shape: history must never show someone acting on
+     * their own behalf.
+     *
+     * @param sender the canonical id of the user who sent the event
+     * @param onBehalfOf the canonical id of whom they acted for, or {@code null}
+     */
+    Actor
+    {
+        onBehalfOf = Objects.equals(sender, onBehalfOf) ? null : onBehalfOf;
+    }
+
     /**
      * A user acting for themselves.
      *
-     * @param id the user's canonical id
+     * @param sender the user's canonical id
      * @return an actor acting for nobody else
      */
-    static Actor of(final String id)
+    static Actor of(final String sender)
     {
-        return new Actor(id, null);
+        return new Actor(sender, null);
     }
 
     /**
@@ -45,6 +59,6 @@ record Actor(String id, String onBehalfOf)
      */
     String effectiveUser()
     {
-        return this.onBehalfOf == null ? this.id : this.onBehalfOf;
+        return this.onBehalfOf == null ? this.sender : this.onBehalfOf;
     }
 }

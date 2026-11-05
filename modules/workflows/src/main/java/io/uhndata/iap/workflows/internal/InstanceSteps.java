@@ -52,7 +52,7 @@ final class InstanceSteps implements InstanceRunner.StepPerformer
      *
      * @param dispatcher the delivery's dispatcher
      * @param event the event being delivered
-     * @param actor the user the instance is being moved for
+     * @param actor who sent the event, and whom for
      */
     InstanceSteps(final ServiceTaskDispatcher dispatcher, final WorkflowEvent event, final Actor actor)
     {

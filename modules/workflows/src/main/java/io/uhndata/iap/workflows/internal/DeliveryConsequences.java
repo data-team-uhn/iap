@@ -125,7 +125,7 @@ final class DeliveryConsequences
     /**
      * The delivery as its history records it, when a system workflow handled its event.
      *
-     * @param actor the user who sent the event
+     * @param actor who sent the event, and whom for
      * @param event the event
      * @param start the start event of the system workflow that caught it
      * @return the action, with the instance the delivery started and what its steps said they did
@@ -138,7 +138,7 @@ final class DeliveryConsequences
     /**
      * The delivery as its history records it, when its event completed a task of a running instance.
      *
-     * @param actor the user who sent the event
+     * @param actor who sent the event, and whom for
      * @param event the event
      * @param task the task the event completed, as the event left it
      * @return the action, with what its steps said they did

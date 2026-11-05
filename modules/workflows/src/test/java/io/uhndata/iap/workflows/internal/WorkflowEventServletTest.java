@@ -39,6 +39,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
@@ -48,6 +50,7 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.TaskInstance;
@@ -149,6 +152,19 @@ class WorkflowEventServletTest
 
         Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture(), Mockito.eq("alice"));
         assertFalse(sent.getValue().getPayload().containsKey(WorkflowEventServlet.ON_BEHALF_OF_PARAMETER));
+    }
+
+    @Test
+    void passesOnWhomTheEventIsSentForWithoutSurroundingSpaces()
+        throws WorkflowException, IOException, ServletException
+    {
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+
+        this.servlet.doPost(request(Map.of(WorkflowEventServlet.ON_BEHALF_OF_PARAMETER, " alice ")),
+            new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), Mockito.any(), Mockito.eq("alice"));
     }
 
     @Test
@@ -376,6 +392,39 @@ class WorkflowEventServletTest
 
         assertEquals(403, response.getStatus());
         assertTrue(response.getOutputAsString().contains("not allowed"));
+    }
+
+    @Test
+    void recordsWhomAFailedEventWasSentFor() throws WorkflowException, IOException, ServletException
+    {
+        final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(errors);
+        try {
+            Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
+                .thenThrow(new WorkflowFailedException("the repository is down"));
+            final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+            this.servlet.doPost(request(Map.of(WorkflowEventServlet.ON_BEHALF_OF_PARAMETER, "alice\nforged")),
+                response);
+
+            assertEquals(500, response.getStatus());
+            Mockito.verify(errors).logError(Mockito.any(WorkflowFailedException.class),
+                Mockito.argThat(recorded -> "alice?forged".equals(recorded.getDetails().get("onBehalfOf"))));
+        } finally {
+            ErrorLogger.unsetService(errors);
+        }
+    }
+
+    @Test
+    void replacesWhatCouldForgeALogLine()
+    {
+        assertEquals("alice?forged?a?b?c?d", WorkflowEventServlet.loggable("alice\nforged\ra\u0085b\u2028c\u2029d"));
+    }
+
+    @Test
+    void logsOrdinaryTextAsItIs()
+    {
+        assertEquals("Alice Ng", WorkflowEventServlet.loggable("Alice Ng"));
     }
 
     @Test

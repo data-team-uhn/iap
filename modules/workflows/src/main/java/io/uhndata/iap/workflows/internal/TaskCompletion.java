@@ -117,7 +117,7 @@ public class TaskCompletion
      * @param resolver the engine's own session
      * @param taskResource the task the event is aimed at
      * @param event the incoming event
-     * @param actor the user who sent the event
+     * @param actor the user the event counts as
      * @param performer how the resumed instance handles any service task or message it meets
      * @throws WorkflowException when the event does not apply, the actor may not complete it, the outcome is missing
      *             or not one the task offers, or the definition cannot be run on from here

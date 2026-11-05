@@ -121,7 +121,7 @@ class WorkflowEventServletRegistrarTest
         Mockito.when(resolver.getResource(SystemWorkflowsHomepage.HOMEPAGE_PATH)).thenReturn(new WithoutModels(home));
         final ResourceResolverFactory restarting = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(restarting.getServiceResourceResolver(Mockito.anyMap())).thenReturn(resolver);
-        inject("resolverFactory", restarting);
+        inject("sessions", new EngineSessions(restarting));
 
         this.registrar.activate(this.context.bundleContext());
 
@@ -134,7 +134,7 @@ class WorkflowEventServletRegistrarTest
         final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("no such service user"));
-        inject("resolverFactory", broken);
+        inject("sessions", new EngineSessions(broken));
         this.registrar.activate(this.context.bundleContext());
 
         assertArrayEquals(new String[] { "wf/TaskInstance" }, boundTypes());
@@ -153,7 +153,7 @@ class WorkflowEventServletRegistrarTest
     private void activate() throws ReflectiveOperationException, Exception
     {
         this.context.resourceResolver().commit();
-        inject("resolverFactory", EngineFixture.serviceUsers(this.context, null));
+        inject("sessions", new EngineSessions(EngineFixture.serviceUsers(this.context, null)));
         this.registrar.activate(this.context.bundleContext());
     }
 

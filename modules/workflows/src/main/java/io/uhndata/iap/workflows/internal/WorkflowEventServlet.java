@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import jakarta.json.Json;
@@ -41,6 +42,7 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.utils.JsonResponses;
+import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
@@ -107,6 +109,9 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
 
     private static final Logger LOGGER = LoggerFactory.getLogger(WorkflowEventServlet.class);
 
+    /** Characters that end or break a line somewhere: ASCII and Unicode controls, and the Unicode line separators. */
+    private static final Pattern LINE_BREAKERS = Pattern.compile("[\\p{Cc}\\p{Zl}\\p{Zp}]");
+
     private final transient WorkflowEngine engine;
 
     /**
@@ -136,10 +141,11 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
                 "Sling operations are not accepted here: send a workflow event, or an HTTP DELETE to remove it");
             return;
         }
+        final String name = eventName(request);
+        final String onBehalfOf = onBehalfOf(request);
         try {
-            final String name = eventName(request);
             final WorkflowResult result = this.engine.receiveEvent(request.getResource(),
-                new WorkflowEvent(name, payload(request)), onBehalfOf(request));
+                new WorkflowEvent(name, payload(request)), onBehalfOf);
             final Object createdPath = result.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
             if (createdPath instanceof String) {
                 redirect(response, (String) createdPath);
@@ -151,12 +157,8 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
             // event, or something was and the target is not in a state that admits it
             JsonResponses.writeError(response, HttpServletResponse.SC_CONFLICT, reasonOf(e));
         } catch (final NotAuthorizedException e) {
-            final String onBehalfOf = onBehalfOf(request);
             if (onBehalfOf != null) {
-                // Control characters stripped, as the parameter is the caller's to write and could forge log lines
-                LOGGER.warn("Refused {} sending the {} event to {} on behalf of {}",
-                    request.getResourceResolver().getUserID(), eventName(request), request.getResource().getPath(),
-                    onBehalfOf.replaceAll("\\p{Cntrl}", "?"));
+                logRefusedDelegation(request, name, onBehalfOf);
             }
             JsonResponses.writeError(response, HttpServletResponse.SC_FORBIDDEN, reasonOf(e));
         } catch (final InvalidPayloadException e) {
@@ -165,12 +167,13 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
             // A broken definition or failed machinery: not the client's fault, and the one refusal here that
             // nobody outside can act on. Recorded as well as logged, because whoever has to fix it is the
             // deployer, and /LoggedErrors is where they look
-            LOGGER.error("Executing the {} event on {} failed: {}", eventName(request),
-                request.getResource().getPath(), e.getMessage(), e);
+            LOGGER.error("Executing the {} event on {} failed: {}", name, request.getResource().getPath(),
+                e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(getClass(), "receiveEvent")
                 .about(request.getResource())
-                .actingFor(request.getResourceResolver().getUserID())
-                .with("event", eventName(request)));
+                .actingFor(UserIds.canonical(request.getResourceResolver()))
+                .with("event", name)
+                .with("onBehalfOf", onBehalfOf == null ? null : loggable(onBehalfOf)));
             JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "The event could not be carried out; the reason is in the instance log");
         }
@@ -287,7 +290,8 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Whom the sender acts for, named by the {@code :onBehalfOf} parameter. Left blank, it names nobody.
+     * Whom the sender acts for, named by the {@code :onBehalfOf} parameter, without surrounding spaces. Left blank,
+     * it names nobody.
      *
      * @param request the incoming request
      * @return a user id, or {@code null} when the sender acts for themselves
@@ -295,7 +299,34 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     private String onBehalfOf(final SlingJakartaHttpServletRequest request)
     {
         final RequestParameter parameter = request.getRequestParameter(ON_BEHALF_OF_PARAMETER);
-        return parameter == null || StringUtils.isBlank(parameter.getString()) ? null : parameter.getString();
+        return parameter == null ? null : StringUtils.trimToNull(parameter.getString());
+    }
+
+    /**
+     * Logs a refused attempt to act for someone. A refusal changes nothing, so it is not history.
+     *
+     * @param request the incoming request
+     * @param name the event that was refused
+     * @param onBehalfOf whom the sender named
+     */
+    private static void logRefusedDelegation(final SlingJakartaHttpServletRequest request, final String name,
+        final String onBehalfOf)
+    {
+        LOGGER.warn("Refused {} sending the {} event to {} on behalf of {}",
+            UserIds.canonical(request.getResourceResolver()), loggable(name), request.getResource().getPath(),
+            loggable(onBehalfOf));
+    }
+
+    /**
+     * Text the caller wrote, made safe to put in a log line: control characters and line separators are replaced,
+     * since a caller could otherwise forge lines of their own.
+     *
+     * @param text what the caller sent
+     * @return the same text, with every character that could break a line replaced by {@code ?}
+     */
+    static String loggable(final String text)
+    {
+        return LINE_BREAKERS.matcher(text).replaceAll("?");
     }
 
     /**

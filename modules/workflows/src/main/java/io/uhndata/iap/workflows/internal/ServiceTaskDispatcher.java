@@ -89,7 +89,7 @@ final class ServiceTaskDispatcher
      * @param source the throwing event reached
      * @param target the resource the event is aimed at, backed by the engine's own session
      * @param cause the event being delivered
-     * @param actor the user the execution acts for
+     * @param actor who sent the event, and whom for
      * @param variables the execution's variables, which say what it created
      * @throws WorkflowDefinitionException when the event names an unknown subject
      */
@@ -133,7 +133,7 @@ final class ServiceTaskDispatcher
     /**
      * This delivery as its history records it, when a system workflow handled its event.
      *
-     * @param actor the user who sent the event
+     * @param actor who sent the event, and whom for
      * @param event the event
      * @param start the start event of the system workflow that caught it
      * @return the action
@@ -146,7 +146,7 @@ final class ServiceTaskDispatcher
     /**
      * This delivery as its history records it, when its event completed a task of a running instance.
      *
-     * @param actor the user who sent the event
+     * @param actor who sent the event, and whom for
      * @param event the event
      * @param task the task the event completed, as the event left it
      * @return the action
@@ -172,7 +172,7 @@ final class ServiceTaskDispatcher
      * @param target the resource the event is aimed at, backed by the engine's own session
      * @param event the incoming event
      * @param start the entry point to run from
-     * @param actor the user who fired the event
+     * @param actor who sent the event, and whom for
      * @param depth how many sent events deep this run is, 0 for the event that came in
      * @return the variables the run left behind
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
@@ -215,7 +215,7 @@ final class ServiceTaskDispatcher
      * How an instance performs the steps it meets during this delivery.
      *
      * @param event the event being delivered
-     * @param actor the user the instance is being moved for
+     * @param actor who sent the event, and whom for
      * @return a performer bound to this delivery
      */
     InstanceRunner.StepPerformer performer(final WorkflowEvent event, final Actor actor)
@@ -228,7 +228,7 @@ final class ServiceTaskDispatcher
      *
      * @param resolver the engine's own session
      * @param event the event being delivered
-     * @param actor the user the execution acts for
+     * @param actor who sent the event, and whom for
      * @return the runner
      */
     InstanceRunner createRunner(final ResourceResolver resolver, final WorkflowEvent event, final Actor actor)
@@ -242,7 +242,7 @@ final class ServiceTaskDispatcher
      *
      * @param target the resource the event is sent to, backed by the engine's own session
      * @param event the sent event
-     * @param actor the user the sending execution acts for
+     * @param actor who sent the event, and whom for
      * @param depth how many sent events deep this one is
      * @throws WorkflowException when the event is refused, the workflow fails, or events are sent too deep
      * @throws PersistenceException when the workflow's writes fail
@@ -268,7 +268,7 @@ final class ServiceTaskDispatcher
          *
          * @param target the resource the event is sent to, backed by the engine's own session
          * @param event the sent event
-         * @param actor the user the sending execution acts for
+         * @param actor who sent the event, and whom for
          * @param depth how many sent events deep this one is
          * @return the start event to run the waiting workflow from
          * @throws WorkflowException when the event is refused, or events are sent too deep

@@ -113,7 +113,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         // authenticated, so it is the authority on who is asking
         final ResourceResolver senderResolver = target.getResourceResolver();
         try (ResourceResolver serviceResolver = this.sessions.open()) {
-            final Actor actor = this.delegation.actor(serviceResolver, senderResolver, onBehalfOf);
+            final Actor actor = this.delegation.authorizeActor(serviceResolver, senderResolver, onBehalfOf);
             // Re-resolved through the engine's session. From here on the run is privileged: the caller's own
             // view of the target may be nothing but the bare node they were allowed to post to
             final Resource privilegedTarget = Objects.requireNonNull(serviceResolver.getResource(target.getPath()),
@@ -148,7 +148,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      *
      * @param task the task the event is aimed at, resolved through the engine's session
      * @param event the incoming event
-     * @param actor the user who sent the event
+     * @param actor who sent the event, and whom for
      * @return an empty result: ending a task creates nothing to send the caller to
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
      */
@@ -183,7 +183,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * @param target the resource the event is aimed at, backed by the engine's own session
      * @param event the incoming event
      * @param start the entry point to run from
-     * @param actor the user who fired the event
+     * @param actor who sent the event, and whom for
      * @return the variables the execution left behind
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
      */
@@ -214,7 +214,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      *
      * @param target the resource the event is aimed at, backed by the engine's own session
      * @param event the event
-     * @param actor the user firing it, or the user the sending execution acts for
+     * @param actor who sent the event, and whom for; for an event a service task sent, the sending execution's
      * @param depth how many sent events deep this is, 0 for an event that came in
      * @return the start event of the system workflow waiting for it
      * @throws WorkflowException when the event is refused, or events are sent too deep

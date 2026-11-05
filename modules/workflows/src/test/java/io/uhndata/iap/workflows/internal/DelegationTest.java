@@ -36,11 +36,13 @@ import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -62,6 +64,8 @@ class DelegationTest
 
     private static final String ALICE = "alice";
 
+    private static final String ADMIN = "admin";
+
     private final Delegation delegation = EngineFixture.delegation(DELEGATES);
 
     @Test
@@ -69,9 +73,9 @@ class DelegationTest
     {
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
 
-        final Actor actor = this.delegation.actor(resolver, sender(ALICE), null);
+        final Actor actor = this.delegation.authorizeActor(resolver, sender(ALICE), null);
 
-        assertEquals(ALICE, actor.id());
+        assertEquals(ALICE, actor.sender());
         assertNull(actor.onBehalfOf());
         // Nobody needs looking up when nobody else is named
         Mockito.verifyNoInteractions(resolver);
@@ -80,9 +84,9 @@ class DelegationTest
     @Test
     void letsADelegateActForAnOrdinaryUser() throws Exception
     {
-        final Actor actor = this.delegation.actor(repository(), sender(DELEGATE), ALICE);
+        final Actor actor = this.delegation.authorizeActor(repository(), sender(DELEGATE), ALICE);
 
-        assertEquals(DELEGATE, actor.id());
+        assertEquals(DELEGATE, actor.sender());
         assertEquals(ALICE, actor.onBehalfOf());
     }
 
@@ -90,68 +94,68 @@ class DelegationTest
     void recordsThePersonActedForByTheirCanonicalId() throws Exception
     {
         // A lookup resolves case-insensitively, but what gets recorded must match what their own logins record
-        assertEquals(ALICE, this.delegation.actor(repository(), sender(DELEGATE), "ALICE").onBehalfOf());
+        assertEquals(ALICE, this.delegation.authorizeActor(repository(), sender(DELEGATE), "ALICE").onBehalfOf());
     }
 
     @Test
     void letsTheAdministratorActForOthersWhateverTheDelegatesGroup() throws Exception
     {
-        assertEquals(ALICE,
-            EngineFixture.delegation("nobody-is-in-this").actor(repository(), sender("admin"), ALICE).onBehalfOf());
+        assertEquals(ALICE, EngineFixture.delegation("nobody-is-in-this")
+            .authorizeActor(repository(), sender(ADMIN), ALICE).onBehalfOf());
     }
 
     @Test
     void actsForNobodyElseWhenADelegateNamesThemselves() throws Exception
     {
-        assertNull(this.delegation.actor(repository(), sender(DELEGATE), DELEGATE).onBehalfOf());
+        assertNull(this.delegation.authorizeActor(repository(), sender(DELEGATE), DELEGATE).onBehalfOf());
+    }
+
+    @Test
+    void actsForNobodyElseWhenSomeoneOutsideTheDelegatesNamesThemselves() throws Exception
+    {
+        assertNull(this.delegation.authorizeActor(repository(), sender(ALICE), ALICE).onBehalfOf());
+    }
+
+    @Test
+    void actsForNobodyElseWhenTheAdministratorNamesThemselves() throws Exception
+    {
+        assertNull(this.delegation.authorizeActor(repository(), sender(ADMIN), ADMIN).onBehalfOf());
     }
 
     @Test
     void refusesASenderOutsideTheDelegatesGroup()
     {
-        assertThrows(NotAuthorizedException.class, () -> this.delegation.actor(repository(), sender("bob"), ALICE));
+        assertThrows(NotAuthorizedException.class,
+            () -> this.delegation.authorizeActor(repository(), sender("bob"), ALICE));
     }
 
     @Test
     void refusesAnUnauthenticatedSender()
     {
-        assertThrows(NotAuthorizedException.class, () -> this.delegation.actor(repository(), sender(null), ALICE));
+        assertThrows(NotAuthorizedException.class,
+            () -> this.delegation.authorizeActor(repository(), sender(null), ALICE));
     }
 
     @Test
-    void refusesToActForSomeoneTheRepositoryHasNeverHeardOf()
+    void refusesToActForAnyoneButAnOrdinaryEnabledUser()
     {
-        assertThrows(NotAuthorizedException.class,
-            () -> this.delegation.actor(repository(), sender(DELEGATE), "nobody"));
+        // Nobody by that name, a group, the administrator (who passes every check, so acting for them would make
+        // any delegate one), a service user, and a disabled account
+        assertAll(Stream.of("nobody", "time-off-approvers", ADMIN, "workflows", "departed")
+            .map(named -> (Executable) () -> assertThrows(NotAuthorizedException.class,
+                () -> this.delegation.authorizeActor(repository(), sender(DELEGATE), named), named)));
     }
 
     @Test
-    void refusesToActForAGroup()
+    void takesAChangedDelegatesGroupWithoutRestarting() throws Exception
     {
-        assertThrows(NotAuthorizedException.class,
-            () -> this.delegation.actor(repository(), sender(DELEGATE), "time-off-approvers"));
-    }
+        final DelegationConfiguration others = Mockito.mock(DelegationConfiguration.class);
+        Mockito.when(others.delegates()).thenReturn("time-off-approvers");
 
-    @Test
-    void refusesToActForAnAdministrator()
-    {
-        // The administrator passes every check, so acting for them would make any delegate one
-        assertThrows(NotAuthorizedException.class,
-            () -> this.delegation.actor(repository(), sender(DELEGATE), "admin"));
-    }
+        this.delegation.configure(others);
 
-    @Test
-    void refusesToActForAServiceUser()
-    {
         assertThrows(NotAuthorizedException.class,
-            () -> this.delegation.actor(repository(), sender(DELEGATE), "workflows"));
-    }
-
-    @Test
-    void refusesToActForADisabledAccount()
-    {
-        assertThrows(NotAuthorizedException.class,
-            () -> this.delegation.actor(repository(), sender(DELEGATE), "departed"));
+            () -> this.delegation.authorizeActor(repository(), sender(DELEGATE), ALICE));
     }
 
     @Test
@@ -161,7 +165,7 @@ class DelegationTest
         Mockito.when(broken.isDisabled()).thenThrow(new RepositoryException("the account is unreadable"));
 
         assertThrows(WorkflowFailedException.class,
-            () -> this.delegation.actor(repository(Map.of("broken", broken)), sender(DELEGATE), "broken"));
+            () -> this.delegation.authorizeActor(repository(Map.of("broken", broken)), sender(DELEGATE), "broken"));
     }
 
     @Test
@@ -171,51 +175,96 @@ class DelegationTest
         Mockito.when(broken.getID()).thenThrow(new RepositoryException("the id is unreadable"));
 
         assertThrows(WorkflowFailedException.class,
-            () -> this.delegation.actor(repository(Map.of("broken", broken)), sender(DELEGATE), "broken"));
+            () -> this.delegation.authorizeActor(repository(Map.of("broken", broken)), sender(DELEGATE), "broken"));
+    }
+
+    @Test
+    void failsWhenTheRepositoryCannotSayWhoItsUsersAre()
+    {
+        final ResourceResolver plain = Mockito.mock(ResourceResolver.class);
+        Mockito.when(plain.adaptTo(Session.class)).thenReturn(Mockito.mock(Session.class));
+
+        assertThrows(WorkflowFailedException.class,
+            () -> this.delegation.authorizeActor(plain, sender(DELEGATE), ALICE));
+    }
+
+    @Test
+    void failsWhenTheUserStoreCannotBeRead() throws Exception
+    {
+        final JackrabbitSession session = Mockito.mock(JackrabbitSession.class);
+        Mockito.when(session.getUserManager()).thenThrow(new RepositoryException("the user store is unreadable"));
+        final ResourceResolver unreadable = Mockito.mock(ResourceResolver.class);
+        Mockito.when(unreadable.adaptTo(Session.class)).thenReturn(session);
+
+        assertThrows(WorkflowFailedException.class,
+            () -> this.delegation.authorizeActor(unreadable, sender(DELEGATE), ALICE));
     }
 
     @Test
     void countsASessionBoundToTheDelegatesAsADelegate() throws Exception
     {
         // A Keycloak role arrives as a bound principal, with no group node to be a member of
-        assertTrue(this.delegation.isDelegate(session(DELEGATE, false, DELEGATES)));
+        assertTrue(this.delegation.isDelegate(boundTo(DELEGATE, DELEGATES), DELEGATE));
     }
 
     @Test
     void countsTheAdministratorAsADelegate() throws Exception
     {
-        assertTrue(this.delegation.isDelegate(session("admin", true)));
+        assertTrue(this.delegation.isDelegate(administratorSession(), ADMIN));
     }
 
     @Test
     void doesNotCountAnyoneElseAsADelegate() throws Exception
     {
-        assertFalse(this.delegation.isDelegate(session(ALICE, false, "time-off-approvers")));
+        assertFalse(this.delegation.isDelegate(boundTo(ALICE, "time-off-approvers"), ALICE));
     }
 
     @Test
-    void doesNotCountASessionWithNoUserStoreAsADelegate() throws Exception
+    void doesNotCountNobodySignedInAsADelegate() throws Exception
     {
-        final Session plain = Mockito.mock(Session.class);
-        Mockito.when(plain.getUserID()).thenReturn(ALICE);
+        final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
 
-        assertFalse(this.delegation.isDelegate(plain));
+        assertFalse(this.delegation.isDelegate(resolver, null));
+        Mockito.verifyNoInteractions(resolver);
     }
 
     /**
-     * A user's own session, as what they read is serialized through.
+     * A user's own session, bound to the given principals besides their own, as what they read is served through.
      *
      * @param id the user's id
-     * @param admin whether they are the administrator
      * @param bound the principals the session is bound to besides the user's own
-     * @return a stub session
+     * @return a resolver adapting to that session
      * @throws RepositoryException never, but the stubbed methods declare it
      */
-    private static JackrabbitSession session(final String id, final boolean admin, final String... bound)
-        throws RepositoryException
+    private static ResourceResolver boundTo(final String id, final String... bound) throws RepositoryException
     {
-        final User user = user(id);
-        Mockito.when(user.isAdmin()).thenReturn(admin);
+        return ownSession(user(id), bound);
+    }
+
+    /**
+     * The administrator's own session.
+     *
+     * @return a resolver adapting to that session
+     * @throws RepositoryException never, but the stubbed methods declare it
+     */
+    private static ResourceResolver administratorSession() throws RepositoryException
+    {
+        final User admin = user(ADMIN);
+        Mockito.when(admin.isAdmin()).thenReturn(true);
+        return ownSession(admin);
+    }
+
+    /**
+     * A user's own session, which can look its own user up.
+     *
+     * @param user the user
+     * @param bound the principals the session is bound to besides the user's own
+     * @return a resolver adapting to that session
+     * @throws RepositoryException never, but the stubbed methods declare it
+     */
+    private static ResourceResolver ownSession(final User user, final String... bound) throws RepositoryException
+    {
+        final String id = user.getID();
         final UserManager users = Mockito.mock(UserManager.class);
         Mockito.when(users.getAuthorizable(id)).thenReturn(user);
         // Built before stubbing: making the principals' own mocks inside a stubbing would interrupt it
@@ -224,7 +273,9 @@ class DelegationTest
         Mockito.when(session.getUserID()).thenReturn(id);
         Mockito.when(session.getUserManager()).thenReturn(users);
         Mockito.when(session.getBoundPrincipals()).thenReturn(principals);
-        return session;
+        final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
+        Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);
+        return resolver;
     }
 
     /**

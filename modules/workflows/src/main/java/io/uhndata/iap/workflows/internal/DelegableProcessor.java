@@ -27,18 +27,27 @@ import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonValue;
 
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
+import io.uhndata.iap.utils.UserIds;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstances;
 
 /**
- * Says, of each workflow task serialized, whether whoever is asking may decide it on behalf of someone else
- * ({@code @delegable}). Whether they may decide it themselves is the {@code events} processor's {@code @events}.
+ * Adds {@code @delegable} to each serialized workflow task: whether the reader may decide it on behalf of someone
+ * else. For now every task may be delegated, so the answer is whether the reader may act for others at all, worked
+ * out once per serialization.
  *
  * <p>Presentation, never authorization: the engine still refuses whoever may not complete a task, so nothing may rest
  * on the field being true.</p>
@@ -47,10 +56,12 @@ import io.uhndata.iap.workflows.models.WorkflowInstances;
  * @since 0.1.0
  */
 @Component(immediate = true)
-public class TaskPerformabilityProcessor implements ResourceJsonProcessor
+public class DelegableProcessor implements ResourceJsonProcessor
 {
     /** Whether the reader may decide the task on behalf of someone else. */
     static final String DELEGABLE_KEY = "@delegable";
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(DelegableProcessor.class);
 
     private static final String TASK_NODE_TYPE = "wf:TaskInstance";
 
@@ -58,19 +69,31 @@ public class TaskPerformabilityProcessor implements ResourceJsonProcessor
     private static final List<String> SERIALIZED_TREES = List.of(WorkflowInstances.RESOURCE_TYPE,
         WorkflowInstance.RESOURCE_TYPE, TaskInstance.RESOURCE_TYPE);
 
-    @Reference
-    private Delegation delegation;
+    private final Delegation delegation;
+
+    /** The reader's answer, for the serialization in progress; unset when it could not be worked out. */
+    private final ThreadLocal<Boolean> readerIsDelegate = new ThreadLocal<>();
+
+    /**
+     * Constructor.
+     *
+     * @param delegation says whether the reader may act for others
+     */
+    @Activate
+    public DelegableProcessor(@Reference final Delegation delegation)
+    {
+        this.delegation = delegation;
+    }
 
     @Override
     public String getName()
     {
-        return "taskPerformability";
+        return "delegable";
     }
 
     @Override
     public int getPriority()
     {
-        // After `deep` (10), which is what turns a task nested in an instance into JSON at all
         return 20;
     }
 
@@ -87,16 +110,36 @@ public class TaskPerformabilityProcessor implements ResourceJsonProcessor
     }
 
     @Override
+    public void start(@NotNull final Resource resource)
+    {
+        final ResourceResolver reader = resource.getResourceResolver();
+        try {
+            this.readerIsDelegate.set(this.delegation.isDelegate(reader, UserIds.canonical(reader)));
+        } catch (final WorkflowFailedException e) {
+            // Answering nothing offers no control, which is the safe direction
+            LOGGER.error("Could not tell whether {} may act for others: {}", reader.getUserID(), e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(getClass(), "start").about(resource));
+        }
+    }
+
+    @Override
     public void leave(@NotNull final Node node, @NotNull final JsonObjectBuilder json,
         @NotNull final Function<Node, JsonValue> serializeNode)
     {
+        final Boolean delegable = this.readerIsDelegate.get();
         try {
-            if (!node.isNodeType(TASK_NODE_TYPE)) {
-                return;
+            if (delegable != null && node.isNodeType(TASK_NODE_TYPE)) {
+                json.add(DELEGABLE_KEY, delegable);
             }
-            json.add(DELEGABLE_KEY, this.delegation.isDelegate(node.getSession()));
         } catch (final RepositoryException e) {
-            // Answering nothing offers no control, which is the safe direction
+            LOGGER.error("Could not tell whether {} is a task: {}", node, e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(getClass(), "leave"));
         }
+    }
+
+    @Override
+    public void end(@NotNull final Resource resource)
+    {
+        this.readerIsDelegate.remove();
     }
 }

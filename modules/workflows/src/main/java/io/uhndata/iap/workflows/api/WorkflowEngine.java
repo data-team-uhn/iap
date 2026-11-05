@@ -71,8 +71,10 @@ public interface WorkflowEngine
 
     /**
      * Receive one domain event, sent by the firing user on behalf of another. The event counts as the other user's:
-     * the definition must admit them, and they are recorded as the one who did it. Only members of the configured
-     * delegates group may act for others, and only for an ordinary, enabled user.
+     * the definition must admit them, and they are recorded as the creator of what it creates and the assignee of
+     * the task it completes, while the history names the firing user as the one who sent it. Members of the
+     * configured delegates group, and the administrator, may act for others, and only for an ordinary, enabled
+     * user.
      *
      * @param target the resource the event is about, e.g. the homepage a creation was requested under
      * @param event the event itself
