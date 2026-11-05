@@ -130,14 +130,18 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     public void startWorkflow(final Resource host, final WorkflowVersion version)
         throws WorkflowException, PersistenceException
     {
-        this.dispatcher.createRunner(getResourceResolver(), this.event, this.actor).startInstance(host, version);
+        this.dispatcher.noteStartedInstance(
+            this.dispatcher.createRunner(getResourceResolver(), this.event, this.actor).startInstance(host, version)
+                .getPath());
     }
 
     @Override
     public void replaceWorkflow(final Resource host, final WorkflowVersion version)
         throws WorkflowException, PersistenceException
     {
-        this.dispatcher.createRunner(getResourceResolver(), this.event, this.actor).replaceInstance(host, version);
+        this.dispatcher.noteStartedInstance(
+            this.dispatcher.createRunner(getResourceResolver(), this.event, this.actor).replaceInstance(host, version)
+                .getPath());
     }
 
     @Override

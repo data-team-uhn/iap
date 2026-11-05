@@ -109,6 +109,16 @@ final class ServiceTaskDispatcher
     }
 
     /**
+     * Notes an instance a step of this delivery started, for its history.
+     *
+     * @param path the path of the instance
+     */
+    void noteStartedInstance(final String path)
+    {
+        this.consequences.noteStartedInstance(path);
+    }
+
+    /**
      * Asks for a node a step checked out to be checked back in once this delivery has committed.
      *
      * @param path the path of the versionable node

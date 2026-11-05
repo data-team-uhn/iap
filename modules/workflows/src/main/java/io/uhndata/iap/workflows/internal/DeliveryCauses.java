@@ -48,14 +48,16 @@ final class DeliveryCauses
      * @param actor the user who sent the event
      * @param event the event
      * @param start the start event of the system workflow that caught it
+     * @param startedInstance the path of the content workflow instance the delivery started, {@code null} if none
      * @return the cause, to which the delivery adds what its steps did
      */
-    static RecordedAction.Builder ofSystemWorkflow(final String actor, final WorkflowEvent event, final FlowNode start)
+    static RecordedAction.Builder ofSystemWorkflow(final String actor, final WorkflowEvent event, final FlowNode start,
+        final String startedInstance)
     {
         final WorkflowVersion version = start.getWorkflowVersion();
         return RecordedAction.by(actor, event.getName())
             .event(event.getName())
-            .workflow(null, version == null ? null : version.getIdentifier())
+            .workflow(startedInstance, version == null ? null : version.getIdentifier())
             .activity(start.getElementId(), start.getLabel());
     }
 

@@ -769,6 +769,16 @@ class UserWorkflowTest
     }
 
     @Test
+    void namesTheInstanceASystemWorkflowStartedInItsHistory() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+
+        started();
+
+        assertEquals(HOST + "/wf:instances/timeOffRequest", this.history.described().get(0).getWorkflowInstance());
+    }
+
+    @Test
     void admitsWhoeverRaisedTheHostToATaskThatComesBackToThem() throws Exception
     {
         createProcess(PrincipalService.CREATOR_SPECIAL_NAME);
