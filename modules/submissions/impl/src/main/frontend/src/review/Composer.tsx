@@ -76,10 +76,14 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
               <Chip
                 key={one} size="small" label={single} role="radio" aria-checked={kind === one}
                 variant={kind === one ? "filled" : "outlined"} onClick={() => setKind(one)}
-                sx={theme => ({
-                  borderColor: theme.palette[mark].main,
-                  ...kind === one ? { bgcolor: theme.alpha(theme.palette[mark].light, 0.45) } : {},
-                })}
+                // The chosen one cannot be unchosen, so it does not answer the pointer
+                sx={theme => {
+                  const fill = theme.alpha(theme.palette[mark].light, 0.45);
+                  return {
+                    borderColor: theme.palette[mark].main,
+                    ...kind === one ? { bgcolor: fill, cursor: "default", "&:hover": { bgcolor: fill } } : {},
+                  };
+                }}
               />
             );
           })}
