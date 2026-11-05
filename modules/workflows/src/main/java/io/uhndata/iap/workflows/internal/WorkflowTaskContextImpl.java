@@ -95,6 +95,12 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     }
 
     @Override
+    public String getSender()
+    {
+        return this.actor.id();
+    }
+
+    @Override
     public WorkflowEvent getEvent()
     {
         return this.event;

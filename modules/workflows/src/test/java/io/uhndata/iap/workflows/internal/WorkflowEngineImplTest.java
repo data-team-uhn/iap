@@ -353,6 +353,34 @@ class WorkflowEngineImplTest
     }
 
     @Test
+    void tellsTheHandlerWhoSentAnEventOnSomeoneElsesBehalf() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        createNoopGraph(EngineFixture.REQUESTERS);
+        final ActorRecordingHandler handler = new ActorRecordingHandler();
+
+        engine(handler).receiveEvent(target, CREATE, EngineFixture.REQUESTER);
+
+        assertEquals(EngineFixture.REQUESTER, handler.seen);
+        assertEquals(EngineFixture.ADMIN, handler.sender);
+    }
+
+    @Test
+    void recordsWhoReallySentAnEventOnSomeoneElsesBehalf() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+
+        engine().receiveEvent(target, CREATE, EngineFixture.REQUESTER);
+
+        final RecordedAction delivery = this.history.described().get(0);
+        assertEquals(EngineFixture.ADMIN, delivery.getRequestedBy());
+        assertEquals(EngineFixture.REQUESTER, delivery.getOnBehalfOf());
+    }
+
+    @Test
     void describesEachDeliveryToItsHistoryWithWhatItsStepsSaidTheyDid() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
@@ -368,6 +396,7 @@ class WorkflowEngineImplTest
         assertEquals(1, this.history.described().size());
         final RecordedAction delivery = this.history.described().get(0);
         assertEquals(EngineFixture.REQUESTER, delivery.getRequestedBy());
+        assertNull(delivery.getOnBehalfOf());
         assertEquals(CREATE.getName(), delivery.getOperation());
         assertEquals(CREATE.getName(), delivery.getEvent());
         assertEquals("version-id", delivery.getWorkflowVersion());
@@ -1495,6 +1524,8 @@ class WorkflowEngineImplTest
     {
         private String seen;
 
+        private String sender;
+
         @Override
         public String getName()
         {
@@ -1505,6 +1536,7 @@ class WorkflowEngineImplTest
         public void execute(final WorkflowTaskContext taskContext)
         {
             this.seen = taskContext.getActor();
+            this.sender = taskContext.getSender();
         }
     }
 
