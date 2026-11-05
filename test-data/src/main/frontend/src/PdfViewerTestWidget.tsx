@@ -24,9 +24,9 @@ import {
   type Mark,
   type PassageKind,
   type TextAnchor,
-} from "@iap/frontend-commons/pdfViewer/marksModel";
-import PdfViewer, { type PdfViewerProps } from "@iap/frontend-commons/pdfViewer/PdfViewer";
-import { decodeAnchor, encodeAnchor, type EncodedAnchor } from "@iap/frontend-commons/pdfViewer/textAnchor";
+} from "@iap/documents-pdf-viewer/marksModel";
+import PdfViewer, { type PdfViewerProps } from "@iap/documents-pdf-viewer/PdfViewer";
+import { decodeAnchor, encodeAnchor, type EncodedAnchor } from "@iap/documents-pdf-viewer/textAnchor";
 
 // What the form said when Open was pressed.
 type Shown = Pick<PdfViewerProps, "url" | "page" | "title" | "compareWith"> & {

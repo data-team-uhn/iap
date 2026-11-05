@@ -183,7 +183,6 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 | `NoticeBanner`, `NoticeSnackbar` | Announcements and transient feedback |
 | `FormattedText` | Rendering the markdown a definition supplied |
 | `EntityDataGrid` (`entityGrid/`) | A server-paged, server-filtered table over an entity homepage |
-| `PdfViewer` (`pdfViewer/`) | A PDF opened at a page, with passages found and marked in it, or compared with an older version |
 
 `EntityDataGrid` is worth reaching for rather than assembling: it already speaks the
 [pagination endpoint's](ui-extensions.md) filtering and sorting parameters.
@@ -208,7 +207,9 @@ registerEntityType("sch/Schema", {
 Paging, sorting and searching still apply to the schemas alone. On a small screen the list keeps one
 card per schema, so the card describes its versions.
 
-`PdfViewer` shows a PDF with PDF.js's own viewer, and finds and marks passages in it:
+`PdfViewer`, in its own module (`modules/documents/pdf-viewer`, imported as
+`@iap/documents-pdf-viewer/PdfViewer`), shows a PDF with PDF.js's own viewer, and finds and marks
+passages in it:
 
 ```tsx
 <PdfViewer
