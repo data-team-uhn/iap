@@ -135,18 +135,21 @@ succeeds or not; it replaces any the session carried.
 [Error tracking](error-tracking.md) is the opposite: a failure must be recorded although
 the transaction it broke is rolled back, so its record is written apart from it.
 
-**The commit supplies each entry**, from its own diff, so nothing depends on the code
-remembering:
+**Two sources fill an entry, each with what it knows.** The code that acts names the
+part each resource played, by purpose: `addTag` names it `tagged as submitted`,
+`removeTag` `untagged as draft`, and `retireActiveVersions` `retired`. The commit
+supplies what changed, from its own diff, so nothing depends on the code remembering:
 
 | The commit | The entry |
 | --- | --- |
 | changes a property inside an entity | its path, relative to the entity, in `changed` |
 | adds or removes a branch inside an entity | the branch's topmost node in `added` or `removed` |
-| creates, removes or moves an entity | the role `created`, `deleted` or `moved` |
+| creates, removes or moves an entity | the role `created`, `deleted` or `moved`, unless the code named one |
 | replaces an entity with another of the same name | two entries, `deleted` and `created` |
-| changes an entity | the role `updated` |
+| changes an entity the code did not name | the role `updated` |
 
-A change belongs to the nearest `data:Entity` at or above it. A change outside every entity is no entry. Neither is a value
+A change belongs to the nearest `data:Entity` at or above it, and a path the code names
+stands for its entity. A change outside every entity is no entry. Neither is a value
 declared `COMPUTE`, the modification stamps, the order of children, the engine's own
 state under `wf:instances`, which the action already names, or read markers. Tags are
 recorded, and so are the tags derived from them, since both are what the action did.

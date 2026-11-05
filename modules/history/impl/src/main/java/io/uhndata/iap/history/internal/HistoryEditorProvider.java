@@ -60,6 +60,6 @@ public class HistoryEditorProvider implements EditorProvider
         final RecordWriter writer =
             new RecordWriter(builder, info.getUserId(), DateUtils.toString(ZonedDateTime.now()));
         return CompositeEditor.compose(List.of(new ChangeCollector(after, rules, entities, log),
-            new CommitRecord(described.get(), log, writer)));
+            new CommitRecord(described.get(), log, entities, writer)));
     }
 }

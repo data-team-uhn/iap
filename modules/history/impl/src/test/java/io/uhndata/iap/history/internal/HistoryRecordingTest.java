@@ -54,6 +54,7 @@ import org.junit.jupiter.api.Test;
 import io.uhndata.iap.entities.nodetypes.NodeTypeRules;
 import io.uhndata.iap.history.api.HistoryRecorder;
 import io.uhndata.iap.history.api.RecordedAction;
+import io.uhndata.iap.history.api.RecordedEffect;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -276,6 +277,27 @@ class HistoryRecordingTest
     }
 
     @Test
+    void namesTheEntityAPartBelongsTo() throws Exception
+    {
+        final String path = commit(RecordedAction.by(REQUESTER, "submit")
+            .affecting(new RecordedEffect(DAYS, "submitted"))
+            .build(), () -> this.session.getNode(DAYS).setProperty(VALUE, "5"));
+
+        assertEquals("submitted", this.session.getNode(path).getNode(this.requestId).getProperty(ROLE).getString());
+    }
+
+    @Test
+    void keepsTheFirstRoleNamedForAnEntity() throws Exception
+    {
+        final String path = commit(RecordedAction.by(REQUESTER, "submit")
+            .affecting(new RecordedEffect(DAYS, "submitted"))
+            .affecting(new RecordedEffect(REQUEST, "flagged"))
+            .build(), () -> this.session.getNode(DAYS).setProperty(VALUE, "5"));
+
+        assertEquals("submitted", this.session.getNode(path).getNode(this.requestId).getProperty(ROLE).getString());
+    }
+
+    @Test
     void recordsTagsAndTheirDerivedValuesAsChanges() throws Exception
     {
         final String path = commit(RecordedAction.by(REQUESTER, "submit").build(), () -> {
@@ -286,6 +308,41 @@ class HistoryRecordingTest
 
         assertEquals(List.of("aggregatedTags", "tags"),
             strings(this.session.getNode(path).getNode(this.requestId), CHANGED));
+    }
+
+    @Test
+    void recordsAnEntityTheCodeNamedThoughTheCommitLeftItAlone() throws Exception
+    {
+        final String other = this.session.getNode("/Requests").addNode("other", REQUEST_TYPE).getIdentifier();
+        this.session.save();
+        final String path = commit(RecordedAction.by(REQUESTER, "submit")
+            .affecting(new RecordedEffect("/Requests/other", "consulted"))
+            .build(), () -> this.session.getNode(DAYS).setProperty(VALUE, "5"));
+
+        final Node entry = this.session.getNode(path).getNode(other);
+        assertEquals("consulted", entry.getProperty(ROLE).getString());
+        assertFalse(entry.hasProperty(CHANGED));
+    }
+
+    @Test
+    void ignoresANameOutsideEveryEntity() throws Exception
+    {
+        final String path = commit(RecordedAction.by(REQUESTER, "submit")
+            .affecting(new RecordedEffect("/Requests", "ignored"))
+            .affecting(new RecordedEffect("/Requests/nowhere", "ignored"))
+            .build(), () -> this.session.getNode(DAYS).setProperty(VALUE, "5"));
+
+        assertEquals(List.of(REQUEST + " updated [answers/days/value]"), entriesOf(this.session.getNode(path)));
+    }
+
+    @Test
+    void namesAnEntityTheCommitRemovedFromWhereItWas() throws Exception
+    {
+        final String path = commit(RecordedAction.by(REQUESTER, "purge")
+            .affecting(new RecordedEffect(REQUEST, "purged"))
+            .build(), () -> this.session.getNode(REQUEST).remove());
+
+        assertEquals("purged", this.session.getNode(path).getNode(this.requestId).getProperty(ROLE).getString());
     }
 
     @Test
