@@ -52,10 +52,7 @@ import {
 } from "./archiveApi";
 import { describeOutcome, failureMessage } from "./archiveOutcome";
 
-/** Where the archive listing lives, for the way back and for after an entry stops existing. */
-
-
-/** What each refused restore means, in words an administrator can act on. */
+/** What each restore conflict means, in words an administrator can act on. */
 const CONFLICT_REASONS: Record<string, string> = {
   PARENT_MISSING: "the folder it was deleted from no longer exists",
   OCCUPIED: "something else is at that path now",
@@ -82,18 +79,13 @@ function Item({ path, conflict }: { path: string; conflict?: string }) {
   );
 }
 
-// One archive entry: what it holds, and — the reason this page exists — whether restoring or
-// purging it would actually work, asked before anybody commits to either.
+// One archive entry's page: what it holds, and whether a restore and a purge would succeed now.
 //
-// Registered as a view on `iap/coreUI/view` for /Archive/*, so the shell's router displays it at the
-// entry's own repository path. That path also covers the prefix-tree buckets, which are not entries;
-// the endpoint says so and the page reports it rather than rendering an empty entry.
+// A view on `iap/coreUI/view` for /admin/archive/*, which the application shell shows at
+// /admin/archive/<name>. A route that names no entry gets an error message.
 export function ArchiveEntryView() {
   const doFetch = useAuthenticatedFetch();
-  // The console route and the entry's repository path are different strings now that the archive is
-  // a page of the administration console: the browser is at /admin/archive/<entry>, while the
-  // endpoints answer on the entry itself. A route naming no entry -- which is what the prefix-tree
-  // buckets and the browse page look like -- yields null and is reported rather than fetched.
+  // Null for a route that names no entry
   const resourcePath = entryResourcePath(useLocation().pathname);
   const navigate = useNavigate();
 
@@ -107,8 +99,7 @@ export function ArchiveEntryView() {
 
   const latest = useRef(0);
 
-  // Derived rather than stored, because a route naming no entry is knowable at render time and
-  // setting state for it inside the effect is a cascading render the compiler rejects.
+  // Computed while rendering, since the React compiler rejects setting state inside the effect
   const routeError = resourcePath === null ? "That is not an archive entry." : null;
 
   useEffect(() => {
@@ -128,23 +119,22 @@ export function ArchiveEntryView() {
   }, [ doFetch, resourcePath, reloadKey ]);
 
   const act = (action: (f: AuthenticatedFetch, target: string) => Promise<ActionResponse>) => {
-    // The same action on the same entry, if there's a need to retry
+    // The same action on the same entry
     const retry = () => { act(action); };
     setBusy(true);
     action(doFetch, entry?.path ?? "")
       .then((response: ActionResponse) => {
         if (response.status === "restored" || response.status === "deleted") {
-          // The entry no longer exists, so there is nothing left for this page to show
+          // The entry no longer exists
           void navigate(ARCHIVE_ROUTE);
           return;
         }
         notify(describeOutcome(response, retry));
-        // The preflight said this would work, and it did not: something changed underneath, so
-        // re-read it rather than leaving a claim on screen that has just been disproved.
+        // Something changed since the page read the entry, so read it again
         setReloadKey(key => key + 1);
       })
       .catch(() => {
-        // Nothing reached the server, so nothing was decided: this is the outcome most worth another go
+        // The request got no answer, so nothing was decided and it can be sent again
         notify({ severity: "error", title: "The request could not be sent.", onRetry: retry });
       })
       .finally(() => { setBusy(false); });

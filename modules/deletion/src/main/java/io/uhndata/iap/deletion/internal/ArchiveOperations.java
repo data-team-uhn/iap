@@ -48,17 +48,16 @@ import io.uhndata.iap.utils.PrefixTree;
 import io.uhndata.iap.utils.VersioningUtils;
 
 /**
- * The execution phase of deletions: performs the actual moves and removals after a {@link CascadeResolver resolved}
- * {@link DeletionPlan} established that they are allowed. They go through the privileged service session, or, for a
- * deletion inside the caller's transaction, through the caller's own. Also owns the reverse operations, restoring and
- * purging archive entries.
+ * Makes the changes of a {@link DeletionPlan} that nothing forbids: archives or removes what it marks, and removes
+ * its links. It also restores and purges archive entries. The changes go through the session of the resolver it is
+ * bound to.
  *
  * <p>
- * Every {@code data:Entity} is versionable, and JCR refuses to change the children of a checked-in versionable
- * node, so before every move or removal the closest versionable ancestor is checked out; the ancestors <em>this
- * operation</em> checked out, and only those, are checked back in after saving. For a deletion left pending, that
- * is up to whoever saves. Items whose own definition sets the {@code IGNORE} on-parent-version action, like the
- * links container and its links, need no checkout at all.
+ * Every {@code data:Entity} is versionable, and Oak refuses to change the children of a checked-in versionable node.
+ * Before each move or removal, the closest versionable ancestor is checked out. After the save, the nodes this
+ * operation checked out are checked back in, and no others. A pending deletion leaves the check-in to whoever
+ * commits. A node whose definition sets the {@code IGNORE} on-parent-version action, such as a link, needs no
+ * check-out.
  * </p>
  *
  * @version $Id$
@@ -74,7 +73,7 @@ final class ArchiveOperations
 
     private final VersionManager versionManager;
 
-    /** The versionable ancestors checked out by this operation, to be checked back in after saving. */
+    /** The paths of the versionable ancestors this operation checked out, to check back in after the save. */
     private final Set<String> checkedOut = new LinkedHashSet<>();
 
     private ArchiveOperations(final ResourceResolver resolver, final Session session,
@@ -86,10 +85,10 @@ final class ArchiveOperations
     }
 
     /**
-     * Prepare to execute over a resolver.
+     * Operations that make their changes through a resolver.
      *
-     * @param resolver the resolver performing the changes, with write access to the archive
-     * @return an executor bound to the resolver's session
+     * @param resolver the resolver to make the changes through, with write access to the archive
+     * @return operations bound to the resolver's session
      * @throws RepositoryException if the session's version manager is unavailable
      */
     static ArchiveOperations forResolver(final ResourceResolver resolver)
@@ -103,16 +102,16 @@ final class ArchiveOperations
     }
 
     /**
-     * Move every subtree marked in the plan into a new archive entry, remove the marked links, and commit.
+     * Move every subtree the plan marks into a new archive entry, remove the plan's links, and commit.
      *
-     * @param plan a resolved plan whose execution was authorized
-     * @param userId the user requesting the deletion, recorded on the entry
-     * @return the path of the created archive entry, inside the {@link PrefixTree prefix tree} under the archive
-     * @throws RepositoryException if the changes cannot be applied
+     * @param plan a plan that nothing forbids
+     * @param userId the user id to record on the entry as having deleted the resources
+     * @return the path of the new archive entry, inside the {@link PrefixTree prefix tree} under the archive
+     * @throws RepositoryException if the changes cannot be made
      */
     String store(final DeletionPlan plan, final String userId) throws RepositoryException
     {
-        // Opening the buckets saves them, so it has to happen before this deletion has anything else pending
+        // PrefixTree.bucketFor saves the buckets it creates, so it has to run before anything else is pending
         final String entryName = UUID.randomUUID().toString();
         final Node bucket = PrefixTree.bucketFor(this.session.getNode(DeletionService.ARCHIVE_PATH),
             entryName, DeletionService.ARCHIVE_NODETYPE);
@@ -122,13 +121,13 @@ final class ArchiveOperations
     }
 
     /**
-     * Move every subtree marked in the plan into a new archive entry and remove the marked links, leaving it all
-     * pending in the session for its owner to commit.
+     * Move every subtree the plan marks into a new archive entry and remove the plan's links. Nothing is committed,
+     * the buckets of the archive included.
      *
-     * @param plan a resolved plan whose execution was authorized
-     * @param userId the user requesting the deletion, recorded on the entry
-     * @return the path the archive entry will have once committed
-     * @throws RepositoryException if the changes cannot be applied
+     * @param plan a plan that nothing forbids
+     * @param userId the user id to record on the entry as having deleted the resources
+     * @return the path the archive entry has once committed
+     * @throws RepositoryException if the changes cannot be made
      * @throws PersistenceException if a missing bucket of the archive cannot be added
      */
     String storePending(final DeletionPlan plan, final String userId)
@@ -144,10 +143,10 @@ final class ArchiveOperations
     }
 
     /**
-     * Permanently remove every subtree marked in the plan, along with the marked links, and commit.
+     * Remove every subtree the plan marks for good, remove the plan's links, and commit.
      *
-     * @param plan a resolved plan whose execution was authorized
-     * @throws RepositoryException if the changes cannot be applied
+     * @param plan a plan that nothing forbids
+     * @throws RepositoryException if the changes cannot be made
      */
     void deletePermanently(final DeletionPlan plan) throws RepositoryException
     {
@@ -156,11 +155,10 @@ final class ArchiveOperations
     }
 
     /**
-     * Permanently remove every subtree marked in the plan, along with the marked links, leaving the removals pending
-     * in the session for its owner to commit.
+     * Remove every subtree the plan marks for good, and remove the plan's links. Nothing is committed.
      *
-     * @param plan a resolved plan whose execution was authorized
-     * @throws RepositoryException if the changes cannot be applied
+     * @param plan a plan that nothing forbids
+     * @throws RepositoryException if the changes cannot be made
      */
     void deletePermanentlyPending(final DeletionPlan plan) throws RepositoryException
     {
@@ -175,7 +173,7 @@ final class ArchiveOperations
     /**
      * The versionable nodes this operation checked out and has not checked back in.
      *
-     * @return their paths, in the order they were checked out
+     * @return their paths, in the order they were checked out; empty if there are none
      */
     List<String> checkedOut()
     {
@@ -188,8 +186,7 @@ final class ArchiveOperations
         final Node entry = bucket.addNode(entryName, DeletionService.ENTRY_NODETYPE);
         entry.setProperty(DeletionService.DELETED_BY_PROPERTY, userId);
         entry.setProperty(DeletionService.REQUESTED_PATH_PROPERTY, plan.getRequestedPath());
-        // Links go first: removing a completed backlink pair navigates by path, so it must happen while
-        // everything is still in place
+        // Links go first: removing a link with its backlink finds the backlink by path, before anything moves
         this.removeLinks(plan);
         int index = 0;
         for (final String rootPath : plan.getRoots().keySet()) {
@@ -204,12 +201,12 @@ final class ArchiveOperations
     }
 
     /**
-     * Work out where each archived item would go and what stands in the way, without moving anything. Shared with
-     * {@link #restore} so that a preflight and the operation itself cannot disagree about what is restorable.
+     * Where each archived item would go back to, and what blocks it. Nothing moves. {@link #restore} asks through
+     * here too, so a preflight and the restore cannot disagree.
      *
-     * @param entry the archive entry to evaluate
-     * @param userSession the session of the user asking, whose rights decide the destinations
-     * @return the plan: the conflicts, and the items that would move
+     * @param entry the archive entry, in this operation's session
+     * @param userSession the session of the requesting user, whose rights decide where the items may go
+     * @return the conflicts, and the items that would move
      * @throws RepositoryException if the archive cannot be read
      */
     RestorePlan evaluateRestore(final Node entry, final Session userSession) throws RepositoryException
@@ -224,12 +221,13 @@ final class ArchiveOperations
     }
 
     /**
-     * Move the contents of an archive entry back to their recorded original locations, all or nothing.
+     * Move the contents of an archive entry back to their original paths, remove the entry, and commit. If any item
+     * cannot go back, nothing changes.
      *
-     * @param entry the entry node, in the service session
-     * @param userSession the requesting user's session, deciding whether they may recreate the resources
+     * @param entry the entry node, in this operation's session
+     * @param userSession the requesting user's session, whose rights decide where the items may go
      * @return the outcome
-     * @throws RepositoryException if the conflicts cannot be evaluated or the changes cannot be applied
+     * @throws RepositoryException if the archive cannot be read or the changes cannot be made
      */
     RestoreResult restore(final Node entry, final Session userSession) throws RepositoryException
     {
@@ -249,11 +247,10 @@ final class ArchiveOperations
     }
 
     /**
-     * Permanently remove an archive entry and everything in it. The caller is responsible for consulting the
-     * guards first.
+     * Remove an archive entry and everything in it for good, and commit. The guards are not asked here.
      *
-     * @param entry the entry node, in the service session
-     * @throws RepositoryException if the changes cannot be applied
+     * @param entry the entry node, in this operation's session
+     * @throws RepositoryException if the changes cannot be made
      */
     void purge(final Node entry) throws RepositoryException
     {
@@ -292,20 +289,18 @@ final class ArchiveOperations
             final Resource linkResource = this.resolver.getResource(linkNode.getPath());
             final Link link = linkResource == null ? null : Link.toLink(linkResource);
             if (link == null) {
-                // Not recognized by the links machinery, e.g. an ad-hoc reference property holder; take it out
-                // directly, there is no backlink bookkeeping to honor
+                // Not a link the links module knows, such as a plain node holding a reference: no backlink to remove
                 linkNode.remove();
             } else {
-                // Removal is model behavior, honoring the backlink bookkeeping
+                // Removes its backlink too
                 link.remove(true);
             }
         }
     }
 
     /**
-     * Check out the versionable ancestor whose history a removal or move-away of this node would touch, if any.
-     * Items ignored by versioning, like links, can be removed without touching anybody's version state. The node
-     * is never the repository root; the analysis phase refuses that outright.
+     * Check out the closest versionable ancestor of a node about to be removed or moved away, unless its definition
+     * leaves it out of its parent's versions. The node is never the repository root.
      */
     private void checkoutForRemoval(final Node node) throws RepositoryException
     {
@@ -332,12 +327,11 @@ final class ArchiveOperations
         try {
             this.session.save();
         } catch (final ReferentialIntegrityException e) {
-            // The analysis phase removes or blocks on every incoming hard reference it can find, so this should
-            // be unreachable; if the repository still objects, report it as a failure instead of a crash
+            // A hard reference the plan did not account for, such as one added since the plan was made
             throw new DeletionException("The deletion was blocked by references discovered at commit time", e);
         }
         for (final String path : this.checkedOut) {
-            // An ancestor checked out earlier may itself have been deleted by the same operation
+            // The same operation may have removed an ancestor it checked out
             if (this.session.nodeExists(path)) {
                 this.versionManager.checkin(path);
             }
@@ -352,10 +346,10 @@ final class ArchiveOperations
     }
 
     /**
-     * What restoring an archive entry would do: where each archived item would go, and what stands in the way.
+     * What restoring an archive entry would do: where each archived item would go, and what blocks it.
      *
-     * @param conflicts everything blocking the restore; empty means it would go through
-     * @param toRestore the original path each item would move back to, and the node that would move
+     * @param conflicts everything that blocks the restore; empty if it would succeed
+     * @param toRestore each original path, mapped to the archived node that would move back there
      * @version $Id$
      * @since 0.1.0
      */

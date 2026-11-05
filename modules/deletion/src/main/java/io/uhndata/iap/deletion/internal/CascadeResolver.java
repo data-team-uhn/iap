@@ -44,14 +44,14 @@ import io.uhndata.iap.links.models.Link;
 import io.uhndata.iap.links.models.LinkDefinition;
 
 /**
- * The analysis phase of a deletion: starting from the requested resource, resolve the complete set of impacted
- * subtrees by following containment, incoming references, and link deletion policies, while collecting vetoes and
- * permission failures along the way. Nothing is modified; all findings land in the {@link DeletionPlan}.
+ * Works out everything a deletion affects, starting from the requested resource. It follows children, incoming
+ * references, and the {@code onDelete} policy of incoming links. It asks the guards and checks the requesting user's
+ * permissions on the way. Nothing is changed: what it finds goes into the {@link DeletionPlan}.
  *
  * <p>
- * The traversal is cycle-safe: subtrees are scanned at most once, tracked by node identifier, and resources
- * already marked for deletion are never reprocessed, so even mutually referencing resources — e.g. a completed
- * backlink pair whose definitions both ask for a recursive deletion — resolve in one bounded pass.
+ * Each node is scanned at most once, by identifier, and a resource already marked for deletion is skipped. The walk
+ * ends even when resources reference each other, such as a link and its backlink whose definitions both say
+ * {@code RECURSIVE_DELETE}.
  * </p>
  *
  * @version $Id$
@@ -67,7 +67,7 @@ class CascadeResolver
     /** The node type of weak resource links. */
     private static final String WEAK_LINK_NODETYPE = "link:WeakLink";
 
-    /** The node type of external links, which reference their definition just like resource links do. */
+    /** The node type of external links, which reference their definition as resource links do. */
     private static final String EXTERNAL_LINK_NODETYPE = "link:ExternalLink";
 
     private final DeletionPlan plan;
@@ -84,16 +84,14 @@ class CascadeResolver
     }
 
     /**
-     * Resolve the complete impact of deleting a subtree.
+     * Work out everything deleting a node affects, and record it in the plan.
      *
      * @param start the node whose deletion was requested, in the service session
      * @throws RepositoryException if the repository cannot be read
      */
     void resolve(final Node start) throws RepositoryException
     {
-        // A guard that judges the operation rather than the resource is asked once, about what was actually
-        // requested: its answer does not vary by node, so asking per node would repeat it for every node of every
-        // impacted subtree.
+        // A guard that judges the whole deletion is asked once, about the requested resource
         checkVetoes(start, this.operationVetoes, this.plan.getMode(), this.plan.getUserSession(),
             this.plan.getVetoes());
         final Deque<Node> queue = new ArrayDeque<>();
@@ -111,9 +109,9 @@ class CascadeResolver
     }
 
     /**
-     * Scan one node and its descendants: ask the guards, check the requesting user's permission, and chase
-     * incoming references. Nodes already scanned, e.g. when a previously processed subtree gets swallowed by a
-     * larger one, are skipped wholesale.
+     * Scan one node and its descendants: ask the guards, check the requesting user's permission, and follow incoming
+     * references. A node scanned already is skipped with its descendants, such as one inside a subtree that a larger
+     * one has since swallowed.
      */
     private void scan(final Node node, final Deque<Node> queue) throws RepositoryException
     {
@@ -137,13 +135,13 @@ class CascadeResolver
     }
 
     /**
-     * Ask every guard about one node.
+     * Ask each guard about one node.
      *
      * @param node the node a deletion would remove
-     * @param vetoes the registered guards
-     * @param mode the kind of deletion examined
+     * @param vetoes the guards to ask
+     * @param mode the kind of deletion asked about
      * @param requester the session of the user who asked for the deletion
-     * @param results where objections are collected
+     * @param results the list to add each objection to
      * @throws RepositoryException if the node cannot be read
      */
     static void checkVetoes(final Node node, final List<DeletionVeto> vetoes, final DeletionMode mode,
@@ -157,14 +155,14 @@ class CascadeResolver
     }
 
     /**
-     * Ask every guard about a subtree, e.g. the contents of an archive entry about to be purged: the root is shown to
-     * all of them, its descendants only to those judging each resource separately.
+     * Ask the guards about a subtree, such as an archive entry to purge. Every guard is asked about the root. Only
+     * the guards that answer about each node are asked about its descendants.
      *
      * @param root the top of the subtree
      * @param vetoes the registered guards
-     * @param mode the kind of deletion examined
+     * @param mode the kind of deletion asked about
      * @param requester the session of the user who asked for the deletion
-     * @param results where objections are collected
+     * @param results the list to add each objection to
      * @throws RepositoryException if the subtree cannot be read
      */
     static void sweepVetoes(final Node root, final List<DeletionVeto> vetoes, final DeletionMode mode,
@@ -206,7 +204,7 @@ class CascadeResolver
             final String reason = veto.veto(node, mode, requester);
             return reason == null ? null : new Veto(veto.getName(), path, reason);
         } catch (final RepositoryException | RuntimeException e) {
-            // Fail closed: a guard that cannot decide keeps the data in place
+            // A guard that cannot decide counts as a veto
             LOGGER.warn("Deletion guard {} failed on {}: {}", veto.getName(), path, e.getMessage(), e);
             return new Veto(veto.getName(), path, "Could not verify that deleting this resource is allowed");
         }
@@ -232,8 +230,7 @@ class CascadeResolver
         final Node referrer = property.getParent();
         final String path = referrer.getPath();
         if (this.plan.isCovered(path)) {
-            // A reference between two deleted subtrees needs no handling: on an archival the identifiers, and
-            // with them the references, survive the move, and on a permanent deletion both ends disappear
+            // Both ends are deleted. A move keeps identifiers, so archiving keeps the reference intact.
             return;
         }
         if (referrer.isNodeType(LINK_NODETYPE) || referrer.isNodeType(EXTERNAL_LINK_NODETYPE)) {
@@ -247,16 +244,15 @@ class CascadeResolver
         final Deque<Node> queue) throws RepositoryException
     {
         if (isArchived(path)) {
-            // Links already sitting in the archive are left alone when archiving — the moved resources keep their
-            // identifiers, so those links stay intact — but a permanent deletion must remove the ones holding a
-            // hard reference, which would otherwise block the removal at commit time
+            // Archiving leaves an archived link alone, since the moved resource keeps its identifier. A permanent
+            // deletion removes an archived hard link, which Oak would otherwise refuse to commit.
             if (this.plan.getOptions().isPermanent() && property.getType() == PropertyType.REFERENCE) {
                 this.plan.getLinksToRemove().put(path, linkNode);
             }
             return;
         }
         if (Link.TYPE_PROPERTY.equals(property.getName())) {
-            // The deleted resource is the link's own definition, and a link never outlives its definition
+            // The deleted resource is the link's definition, and a link never outlives its definition
             this.plan.getLinksToRemove().put(path, linkNode);
             return;
         }
@@ -269,15 +265,13 @@ class CascadeResolver
     }
 
     /**
-     * The {@code onDelete} policy of a link, resolved through the service resolver rather than from the link node
-     * itself: the policy lives on the link's definition, which only the {@link Link} model can follow.
+     * The {@code onDelete} policy of a link, read off its definition through the {@link Link} model.
      */
     private InternalLinkDefinition.OnDelete resolvePolicy(final String path)
     {
         final Resource linkResource = this.plan.getServiceResolver().getResource(path);
         final Link link = linkResource == null ? null : Link.toLink(linkResource);
-        // Only a link referencing content can be caught by a deletion, so only an internal definition can carry
-        // a policy for one; anything else here is a link whose definition is missing or of the wrong kind
+        // Only an internal definition carries a policy. Anything else is a missing or broken definition.
         final LinkDefinition definition = link == null ? null : link.getDefinition();
         if (!(definition instanceof InternalLinkDefinition)) {
             LOGGER.warn("Cannot resolve the definition of link {}, defaulting to only removing the link", path);
@@ -289,8 +283,7 @@ class CascadeResolver
     private void handleRecursiveLink(final Node linkNode, final String path, final Deque<Node> queue)
         throws RepositoryException
     {
-        // Links are stored under <owner>/link:links/<link>, so the resource sharing the link's fate sits two
-        // levels up; a link node closer to the root than that is malformed
+        // A link is stored as <owner>/link:links/<link>, two levels below the resource that holds it
         if (linkNode.getDepth() < 2) {
             LOGGER.warn("Link {} has no owning resource, only removing the link", path);
             this.plan.getLinksToRemove().put(path, linkNode);
@@ -308,8 +301,7 @@ class CascadeResolver
     private void handleIgnoredLink(final Node linkNode, final String path) throws RepositoryException
     {
         if (!linkNode.isNodeType(WEAK_LINK_NODETYPE)) {
-            // Only a weak link may outlive its target as a broken reference; a hard one would block the deletion
-            // at commit time, so the illegal policy is downgraded to removing the link
+            // Only a weak link may outlive its target. Oak would refuse to commit the deletion under a hard one.
             LOGGER.warn("Hard link {} cannot ignore the deletion of its target, removing the link instead", path);
             this.plan.getLinksToRemove().put(path, linkNode);
         }
@@ -318,11 +310,9 @@ class CascadeResolver
     private void handlePlainReferrer(final Node referrer, final String path, final Deque<Node> queue)
     {
         if (isArchived(path)) {
-            // An archival preserves identifiers, so references held by archived resources stay intact and nothing
-            // needs to happen to them; a permanent deletion, though, would either break them or, when they are
-            // hard, be blocked by them at commit time. Deleting archived content as a side effect would quietly
-            // mutilate somebody's archive entry, so instead the archived referrer blocks the permanent deletion;
-            // it is counted, but never named, since regular users cannot see the archive
+            // Archiving keeps identifiers, so an archived resource's reference stays intact. A permanent deletion
+            // would break it, and must not delete archived content along with it. The archived referrer blocks the
+            // deletion instead, and is counted but never named.
             if (this.plan.getOptions().isPermanent()) {
                 this.plan.getArchivedReferrers().add(path);
             }

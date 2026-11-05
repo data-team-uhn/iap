@@ -28,8 +28,8 @@
   <artifactId>iap-deletion</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Deletion</name>
-  <description>Safe resource deletion: a reusable service resolving the full impact of a deletion, an archive where
-    deleted resources are kept until purged or restored, and a veto mechanism protecting critical resources.</description>
+  <description>Resource deletion: works out everything a deletion affects, keeps deleted resources in an archive until
+    they are restored or purged, and lets guards refuse a deletion.</description>
 
   <build>
     <plugins>
@@ -38,7 +38,7 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
           <systemPropertyVariables>
-            <!-- The in-memory Oak repository can take longer than the default 500ms to activate under load -->
+            <!-- The in-memory Oak can take longer than the default 500ms to start under load -->
             <sling.mock.resourceresolverfactoryactivator.timeout.ms>10000</sling.mock.resourceresolverfactoryactivator.timeout.ms>
           </systemPropertyVariables>
         </configuration>
@@ -68,7 +68,7 @@
   </build>
 
   <dependencies>
-    <!-- Nullability annotations for the exported API/SPI -->
+    <!-- Nullability annotations -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
@@ -160,20 +160,18 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock-oak</artifactId>
     </dependency>
-    <!-- A JSON-P implementation for the servlet tests; at runtime one is provided by the platform -->
+    <!-- A JSON-P implementation for the tests. The platform provides one at runtime. -->
     <dependency>
       <groupId>org.eclipse.parsson</groupId>
       <artifactId>parsson</artifactId>
     </dependency>
     <dependency>
-      <!-- Needed at compile time here for @PostConstruct on the DeletionMetadata Sling Model; the root pom's
-           dependencyManagement default-scopes this to test (for the Sling Models mocks), so that must be
-           overridden back to compile here. -->
+      <!-- For @PostConstruct on the DeletionMetadata model. The root pom scopes it to test. -->
       <groupId>javax.annotation</groupId>
       <artifactId>javax.annotation-api</artifactId>
       <scope>compile</scope>
     </dependency>
-    <!-- Needed by the mock requests built with the context's bundle context -->
+    <!-- For the mock requests the tests build with the context's bundle context -->
     <dependency>
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.framework</artifactId>

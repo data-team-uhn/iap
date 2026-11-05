@@ -36,14 +36,14 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The {@code delete} service task: deletes the event's target through the {@link DeletionService}, into the
- * archive unless the activity sets {@code permanent}. It never deletes recursively, since a workflow may only
- * delete the single entity it targets. Whatever the service would refuse, it refuses: content something else
- * refers to, or content a veto protects, is left alone and the event answered with a conflict. The archive
- * records the user the workflow acts for as having deleted it.
+ * The {@code delete} service task: deletes the event's target through the {@link DeletionService}. It archives the
+ * target unless the activity sets {@code permanent}. It never deletes recursively, since a workflow may delete only
+ * the entity it targets. Content that something references, or that a guard protects, stays, and the step fails
+ * with an {@link InvalidStateException}. The archive records the user the workflow acts for as having deleted it.
  *
- * <p>The deletion is made {@link DeletionService#deleteWithin within the delivery}: it commits with the delivery's
- * other changes, or is undone with them. The nodes it checks out are checked back in once the delivery commits.</p>
+ * <p>The deletion is made {@link DeletionService#deleteWithin within the delivery}: the engine commits it with the
+ * delivery's other changes, or reverts it with them. The nodes it checks out are checked back in after that
+ * commit.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -54,7 +54,7 @@ public class DeleteTaskHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "delete";
 
-    /** The activity property asking for the target to be removed for good rather than archived. */
+    /** The activity property that, when {@code true}, removes the target for good rather than archiving it. */
     private static final String PERMANENT_PARAMETER = "permanent";
 
     @Reference

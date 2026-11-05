@@ -14,15 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Where deleted resources are kept until restored or purged. Deliberately not
-# granted to anyone: regular users must not see deleted content, and queries
-# must not return it; administrators bypass access control.
+# Where deleted resources are kept until restored or purged. Granted to
+# nobody, so ordinary users cannot read it and their queries never return
+# archived content. Administrators bypass access control.
 create path (del:Archive) /Archive
 
-# The service user performing the impact analysis and all the changes: it
-# scans references regardless of who can see them, writes the archive, and
-# moves content in and out of it, anywhere in the tree. Security is enforced
-# beforehand against the requesting user's own session.
+# The deletion service's user. It finds the references to a resource
+# whoever can see them, and moves content in and out of the archive anywhere
+# in the tree. The service checks the requesting user's own permissions first.
 create service user iap-deletion
 
 set ACL for iap-deletion

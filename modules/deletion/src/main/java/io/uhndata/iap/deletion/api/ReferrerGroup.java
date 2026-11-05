@@ -22,9 +22,9 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The resources of one type that reference a resource whose deletion was examined, blocking a non-recursive
- * deletion. Only a few of the resources are named: when the group is large, {@link #getCount()} exceeds the number
- * of {@link #getNames() names}.
+ * The resources of one node type that block a deletion that is not recursive. Each references a resource to delete,
+ * directly or through a link. Only the first few are named, so {@link #getCount()} can exceed the number of
+ * {@link #getNames() names}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -42,10 +42,11 @@ public final class ReferrerGroup
     /**
      * Record a group of referrers.
      *
-     * @param nodeType the primary node type shared by the group
-     * @param label a human-readable label for the type, e.g. {@code submission}
-     * @param names display names for the first few members
-     * @param count the total number of members, at least the number of names
+     * @param nodeType the primary node type of every resource in the group, such as {@code sub:Submission}
+     * @param label the node type as a lowercase singular noun, such as {@code submission}
+     * @param names the display names of the first few resources: each one's {@code title}, or its node name if it
+     *            has none
+     * @param count how many resources the group holds, at least as many as there are names
      */
     public ReferrerGroup(@NotNull final String nodeType, @NotNull final String label,
         @NotNull final List<String> names, final long count)
@@ -57,9 +58,9 @@ public final class ReferrerGroup
     }
 
     /**
-     * The primary node type shared by the group.
+     * The primary node type of every resource in the group.
      *
-     * @return a node type name, e.g. {@code sub:Submission}
+     * @return a node type name, such as {@code sub:Submission}
      */
     @NotNull
     public String getNodeType()
@@ -68,9 +69,9 @@ public final class ReferrerGroup
     }
 
     /**
-     * A human-readable label for the type.
+     * The node type in words.
      *
-     * @return a lowercase singular noun, e.g. {@code submission}
+     * @return a lowercase singular noun, such as {@code submission} or {@code workflow version}
      */
     @NotNull
     public String getLabel()
@@ -79,9 +80,9 @@ public final class ReferrerGroup
     }
 
     /**
-     * Display names for the first few members of the group.
+     * The display names of the first few resources in the group.
      *
-     * @return an immutable list of names, possibly shorter than {@link #getCount()}
+     * @return an immutable list of names; fewer than {@link #getCount()} if the group is large
      */
     @NotNull
     public List<String> getNames()
@@ -90,7 +91,7 @@ public final class ReferrerGroup
     }
 
     /**
-     * The total number of members.
+     * How many resources the group holds.
      *
      * @return a positive number
      */

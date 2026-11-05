@@ -82,9 +82,7 @@ class DeletionPlanTest
     {
         final Node node = mock(Node.class);
         this.plan.markRoot("/content/form", node);
-        // A sibling whose name extends the first root's with a '-'. Since '-' (45) sorts below '/'
-        // (47), "/content/form-2" falls *between* "/content/form" and "/content/form/child", so it,
-        // and not the real ancestor, is the root closest to the path
+        // A sibling root that sorts between the real ancestor and the path
         this.plan.markRoot("/content/form-2", node);
         assertTrue(this.plan.isCovered("/content/form/child"));
     }

@@ -93,8 +93,7 @@ class ArchiveEntryRowTest
     @Test
     void childrenThatRecordNoOriginalPathAreNotCounted()
     {
-        // The entry's node type allows other children for extensibility; one of those says nothing
-        // a reader could restore, so it is not an item
+        // A child with no originalPath is not an archived item
         this.context.create().resource("/Archive/ab/mixed",
             Map.of("deletedBy", "alice", "requestedPath", "/content/x", "jcr:created", at(0)));
         this.context.create().resource("/Archive/ab/mixed/item0", Map.of("originalPath", "/content/x"));
@@ -110,8 +109,7 @@ class ArchiveEntryRowTest
     @Test
     void anEntryWithoutACreationDateIsStillListed()
     {
-        // Rather than dropping the row: an entry that cannot be dated can still be restored or purged,
-        // and hiding it would make it unreachable
+        // An undated entry is still listed, so that it can still be restored or purged
         this.context.create().resource("/Archive/ab/undated",
             Map.of("deletedBy", "alice", "requestedPath", "/content/x"));
 

@@ -18,12 +18,8 @@
 
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-// The client half of the deletion endpoint documented in docs/deletion.md: the shape of what it
-// answers, and one call that always resolves to that shape.
-//
-// The authenticated fetch is taken as an argument rather than reached for here, because the hook
-// producing it can only be called from a component — and keeping this module free of React is what
-// lets it be tested as a plain function.
+// Calls the deletion endpoint documented in docs/deletion.md, and describes what it answers.
+// The call takes the fetch to use as its first argument, and components pass `useAuthenticatedFetch()`.
 
 /** The machine-readable outcome word every deletion response carries. */
 export type DeletionStatus =
@@ -32,12 +28,12 @@ export type DeletionStatus =
   | "dryRun"      // nothing was changed, this is only what would happen
   | "referenced"  // refused: other resources point at this one
   | "vetoed"      // refused: a guard objected, and no option makes it proceed
-  | "denied"      // refused: the user may not delete everything this would touch
+  | "denied"      // refused: the user may not delete everything this would remove
   | "missing"     // there is nothing at that path
-  | "invalid"     // the path cannot be deleted at all, e.g. the archive itself
+  | "invalid"     // the path cannot be deleted at all, such as one in the archive
   | "failed";     // the server could not carry it out
 
-/** Resources pointing at the target, grouped by their type so they can be named in a sentence. */
+/** The resources of one node type that block the deletion by referencing the target. */
 export interface ReferrerGroup {
   type: string;
   label: string;
@@ -55,36 +51,35 @@ export interface Veto {
 export interface DeletionResponse {
   "status.code": number;
   status: DeletionStatus;
-  /** A sentence fit to show the user, present whenever there is something to explain. */
+  /** A sentence for the user; present when there is something to explain. */
   "status.message"?: string;
-  /** Dry runs only: whether the deletion would go through exactly as asked. */
+  /** After a dry run: whether nothing blocks the deletion. The user's permissions are not part of it. */
   executable?: boolean;
-  /** Where the resources were moved, on an archiving deletion. */
+  /** The path of the new archive entry, after an archiving deletion. */
   archiveEntry?: string;
-  /** Every subtree the deletion would remove, the requested one included. */
+  /** Every subtree the deletion removes, the requested one included. */
   items?: string[];
   removedLinks?: string[];
   referrers?: ReferrerGroup[];
-  /** Referring resources the user may not see, counted but never named. */
+  /** Blocking resources the user cannot read, counted but never named. */
   inaccessibleReferrers?: number;
   vetoes?: Veto[];
 }
 
 export interface DeletionRequest {
-  /** Delete the resources referring to this one as well, instead of refusing. */
+  /** Delete the resources that reference this one too, instead of refusing. */
   recursive?: boolean;
-  /** Skip the archive and destroy the resources. */
+  /** Skip the archive and remove the resources for good. */
   permanent?: boolean;
   /** Report what would happen and change nothing. */
   dryRun?: boolean;
 }
 
 /**
- * Ask the deletion endpoint to delete a resource, or — with `dryRun` — what deleting it would do.
+ * Ask the deletion endpoint to delete a resource, or, with `dryRun`, what deleting it would do.
  *
- * A refusal is an outcome, not an error: this resolves for every answer the endpoint gives, so
- * callers switch on `status` rather than catching. Only a network failure, or an expired session the
- * user declined to sign back in for, rejects.
+ * Resolves for every answer, refusals included, and the caller switches on `status`. Rejects only when
+ * the request gets no answer, or when the user declines to sign back in after their session expired.
  */
 export const requestDeletion = async (
   authenticatedFetch: AuthenticatedFetch,
@@ -104,14 +99,12 @@ export const requestDeletion = async (
 };
 
 /**
- * The endpoint answers JSON for everything it handles itself, but the container can still cut in
- * ahead of it — an HTML error page, a login redirect — so an unreadable body is reported as an
- * outcome of its own rather than crashing the caller. A body we cannot read is never taken as
- * success, even on a 2xx: at that point we genuinely do not know what happened.
+ * The endpoint's answer. Something else can answer instead, such as an HTML error page or a login
+ * redirect. The outcome is then `missing` for a 404, and `failed` otherwise, even for a 2xx.
  */
 const readResponse = async (response: Response): Promise<DeletionResponse> => {
   try {
-    // A body of `null` is valid JSON, so the parse can succeed and still yield nothing
+    // `null` is valid JSON, so the parse can succeed and still yield nothing
     const body = await response.json() as DeletionResponse | null;
     if (typeof body?.status === "string") {
       return body;
