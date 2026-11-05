@@ -36,7 +36,8 @@
 
   // The workflows running over this node. A container rather than loose children:
   // it keeps them out of the way of whatever else the host stores, gives one node
-  // to place an ACL on, and is the single place the IGNORE below has to be said.
+  // to place an ACL on, and one to leave out: versions skip it through the IGNORE
+  // below, and the history by its name.
   + wf:instances (wf:WorkflowInstances) = wf:WorkflowInstances AUTOCREATED IGNORE
 
 //-----------------------------------------------------------------------------

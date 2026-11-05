@@ -24,6 +24,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,8 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class RecordedActionTest
 {
-    private static final RecordedEffect EFFECT =
-        new RecordedEffect("uuid", "/content/study", "sub:Submission", "submitted", List.of("tags"));
+    private static final RecordedEffect EFFECT = new RecordedEffect("/content/study", "submitted");
 
     @Test
     void keepsWhatEveryActionMustSay()
@@ -118,6 +118,13 @@ class RecordedActionTest
     void canBeToldItHappenedWhenItIsRecorded()
     {
         assertNull(RecordedAction.by("reviewer1", "submit").occurredAt(null).build().getOccurredAt());
+    }
+
+    @Test
+    void isCompleteWhenRecordedUnlessToldSnapshotsFollow()
+    {
+        assertFalse(RecordedAction.by("reviewer1", "submit").build().isAwaitingSnapshots());
+        assertTrue(RecordedAction.by("reviewer1", "submit").snapshotsFollow().build().isAwaitingSnapshots());
     }
 
     @Test

@@ -29,21 +29,17 @@ import org.jetbrains.annotations.NotNull;
  * did to each resource it affected.
  *
  * <p>
- * The record shares the caller's transaction. {@link #record} leaves the new nodes pending in the session it is
- * given, and the caller commits them with the change itself. There is no committed change without its record, and no
- * record of a change that was rolled back.
+ * The record is written by the commit it describes: {@link #commit} saves the caller's change, and that save records
+ * the action with what it changed in each entity. There is no committed change without its record, and no record of a
+ * change that was rolled back. The record is written as the committing user, who therefore needs write access under
+ * {@code /History}; the store grants it to the {@code iap-history-writers} group.
  * </p>
  *
  * <p>
  * Snapshots come afterwards. A JCR check-in refuses to run while its session has pending changes, and commits by
- * itself, so a snapshot cannot be taken inside the caller's transaction. The sequence is {@link #record}, commit,
- * take the snapshots, then {@link #completeSnapshots}. Until that last call the action reads as incomplete, which
- * tells "no snapshot was wanted" from "one was wanted and has not been taken".
- * </p>
- *
- * <p>
- * Whoever calls this needs write access under {@code /History}, since the writing happens in their session. The store
- * grants that to the {@code iap-history-writers} group; a module that records joins it.
+ * itself, so a snapshot cannot be taken inside the caller's transaction. The sequence is {@link #commit}, take the
+ * snapshots, then {@link #completeSnapshots}. Until that last call an action that wants snapshots reads as
+ * incomplete, which tells "no snapshot was wanted" from "one was wanted and has not been taken".
  * </p>
  *
  * @version $Id$
@@ -52,18 +48,21 @@ import org.jetbrains.annotations.NotNull;
 public interface HistoryRecorder
 {
     /**
-     * Records an action and its effects, leaving them pending in the caller's session.
+     * Saves the changes a session holds, recording them as one action. A save that fails records nothing.
      *
-     * <p>The caller must commit. Nothing here saves the session.</p>
+     * <p>
+     * The action travels to the commit as the session's JCR user data, which it replaces for this save and clears
+     * afterwards.
+     * </p>
      *
-     * @param session the session the recorded change is being made in, still holding that change uncommitted
+     * @param session the session holding the change, uncommitted
      * @param action the action to record, built with {@link RecordedAction#by}
-     * @return the absolute path of the new {@code hist:Action} node, for {@link #completeSnapshots} and
+     * @return the absolute path of the recorded {@code hist:Action}, for {@link #completeSnapshots} and
      *         {@link RecordedAction.Builder#partOf}
-     * @throws RepositoryException if the record cannot be written, or if the action names the same resource twice
+     * @throws RepositoryException if the save fails, which leaves the change pending and records nothing
      */
     @NotNull
-    String record(@NotNull Session session, @NotNull RecordedAction action) throws RepositoryException;
+    String commit(@NotNull Session session, @NotNull RecordedAction action) throws RepositoryException;
 
     /**
      * Attaches the JCR versions taken of an action's resources, marks the action complete, and saves.
@@ -74,7 +73,7 @@ public interface HistoryRecorder
      * </p>
      *
      * @param session a session with write access to the record; any changes pending in it are saved too
-     * @param actionPath the path {@link #record} returned for the action
+     * @param actionPath the path of the action, as {@link #commit} returned it
      * @param snapshots for each resource a version was taken of, its {@code jcr:uuid} mapped to the {@code jcr:uuid}
      *            of that version; empty if the action took none
      * @throws RepositoryException if the record cannot be updated, including when a key names a resource this action

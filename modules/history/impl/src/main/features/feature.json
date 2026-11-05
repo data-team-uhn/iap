@@ -18,23 +18,17 @@
   "bundles": [
     {
       // Every history node type builds on data:Content, so this must start after iap-data-content-api
-      // (start-order 21). It must also start before the workflow engine (26), which is what will be
-      // writing the record: every data change goes through the engine, so that is where an action
-      // becomes known.
+      // (start-order 21). It must also start before the workflow engine (26), which describes what
+      // it commits: every data change goes through the engine, so that is where an action becomes
+      // known.
       "id": "${project.groupId}:iap-history-api:${project.version}",
       "start-order": "25"
     },
     {
+      // The record is kept per entity, so this starts after iap-data-entities-api (24)
       "id": "${project.groupId}:${project.artifactId}:${project.version}",
       "start-order": "25"
     }
   ],
-  "configurations": {
-    "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iaphistory": {
-      "user.mapping": [
-        "io.uhndata.iap.history-impl:history=[iap-history]"
-      ]
-    }
-  },
   "repoinit:TEXT|true": "@file"
 }
