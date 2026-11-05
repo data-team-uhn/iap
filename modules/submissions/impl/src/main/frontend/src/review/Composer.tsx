@@ -18,7 +18,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { Button, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup } from "@mui/material";
+import { Button, Chip, MenuItem, Stack, TextField } from "@mui/material";
 
 import { loadTagDefinitions, type TagDefinition } from "@iap/tags/tagDefinitions";
 
@@ -67,13 +67,23 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
 
   return (
     <Stack spacing={1} onClick={event => event.stopPropagation()}>
+      {/* Chips in the colours of the kinds, as the note filters are, the chosen one filled */}
       {kinds.length > 1 && (
-        <ToggleButtonGroup
-          exclusive size="small" value={kind} aria-label="What to write"
-          onChange={(_event, next: NoteKind | null) => next && setKind(next)}
-        >
-          {kinds.map(one => <ToggleButton key={one} value={one}>{kindInfo(one).single}</ToggleButton>)}
-        </ToggleButtonGroup>
+        <Stack direction="row" role="radiogroup" aria-label="What to write" sx={{ gap: 0.75, flexWrap: "wrap" }}>
+          {kinds.map(one => {
+            const { mark, single } = kindInfo(one);
+            return (
+              <Chip
+                key={one} size="small" label={single} role="radio" aria-checked={kind === one}
+                variant={kind === one ? "filled" : "outlined"} onClick={() => setKind(one)}
+                sx={theme => ({
+                  borderColor: theme.palette[mark].main,
+                  ...kind === one ? { bgcolor: theme.alpha(theme.palette[mark].light, 0.45) } : {},
+                })}
+              />
+            );
+          })}
+        </Stack>
       )}
       {kind === "issue" && (
         <TextField
