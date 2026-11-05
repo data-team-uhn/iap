@@ -110,9 +110,8 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
      * The extraction the submitter was looking at when they gave this verdict, or {@code null} when there is
      * none.
      *
-     * <p>Which run that is comes from the model, not from here: the form shows whichever is surest, so a rule
-     * of its own here could land the verdict on a different run from the one that was on screen - which would
-     * work, and be wrong, and say nothing about it.</p>
+     * <p>That is the newest run, the same one the form shows. The rule lives in the model, so the verdict cannot
+     * land on a different run from the one that was on screen.</p>
      */
     private static Extraction findExtraction(final Submission submission, final String path)
     {
@@ -122,9 +121,9 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
             if (question == null || !wanted.equals(question.getPath())) {
                 continue;
             }
-            final Extraction surest = answer.getSurestExtraction();
-            if (surest != null) {
-                return surest;
+            final Extraction latest = answer.getLatestExtraction();
+            if (latest != null) {
+                return latest;
             }
         }
         return null;

@@ -18,14 +18,10 @@
 package io.uhndata.iap.submissions.models;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
-import java.util.stream.IntStream;
 
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceUtil;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
@@ -92,7 +88,8 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * The most recent extraction run. Not the one a submitter is shown: that is {@link #getSurestExtraction()}.
+     * The newest extraction run. This is the run the submitter is shown, and the one the review step and the
+     * suggestion distance use, so they all mean the same run. Older runs are kept but never shown.
      *
      * @return the newest run; {@code null} if extraction has never run
      */
@@ -111,66 +108,6 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * Picks the one extraction run to show the submitter for this answer. An answer can have many runs, because
-     * the documents can be read many times.
-     *
-     * <p>The rules, in order:</p>
-     * <ol>
-     * <li>Skip old runs. A run is old when another run read a newer version of the same document. A new version
-     * that no run has read yet does not make a run old. If every run is old, none are skipped.</li>
-     * <li>From the runs that are left, pick the run with the highest confidence. A run with no confidence counts
-     * as zero.</li>
-     * <li>If two runs have the same confidence, pick the earlier one.</li>
-     * </ol>
-     *
-     * <p>The review step and the form both use this method, so they always pick the same run.</p>
-     *
-     * @return the surest run, or {@code null} if extraction has never run
-     */
-    @Nullable
-    public Extraction getSurestExtraction()
-    {
-        final List<Extraction> all = this.getExtractions();
-        final List<Map<String, Integer>> read = all.stream().map(Answer::getRevisionsRead).toList();
-        final List<Extraction> latest = IntStream.range(0, all.size())
-            .filter(i -> read.stream().noneMatch(other -> isNewer(other, read.get(i))))
-            .mapToObj(all::get)
-            .toList();
-        Extraction best = null;
-        // Two runs can each have read a newer revision of a different document; then neither wins on that
-        for (final Extraction extraction : latest.isEmpty() ? all : latest) {
-            if (best == null || getConfidence(extraction) > getConfidence(best)) {
-                best = extraction;
-            }
-        }
-        return best;
-    }
-
-    /** The revision numbers a run read, by the path of their document. */
-    private static Map<String, Integer> getRevisionsRead(final Extraction extraction)
-    {
-        final Map<String, Integer> read = new HashMap<>();
-        for (final DocumentVersion source : extraction.getSources()) {
-            read.merge(ResourceUtil.getParent(source.getPath()), source.getNumber(), Math::max);
-        }
-        return read;
-    }
-
-    /** Whether one run read a newer revision than another of some document both read. */
-    private static boolean isNewer(final Map<String, Integer> other, final Map<String, Integer> mine)
-    {
-        return other.entrySet().stream()
-            .anyMatch(entry -> entry.getValue() > mine.getOrDefault(entry.getKey(), Integer.MAX_VALUE));
-    }
-
-    /** How sure a run was, with a run that did not say counting as not sure at all. */
-    private static double getConfidence(final Extraction extraction)
-    {
-        final Double confidence = extraction.getConfidence();
-        return confidence == null ? 0.0 : confidence;
-    }
-
-    /**
      * What the extraction suggested, as the values this answer would hold if nobody touched it.
      *
      * <p>Not the model's reply as it came: a question that takes several values is asked for them as one
@@ -183,8 +120,8 @@ public class Answer extends EntityPart implements Referenceable
     @NotNull
     public List<String> getSuggestedValues()
     {
-        final Extraction surest = getSurestExtraction();
-        final String suggested = surest == null ? null : surest.getExtractedAnswer();
+        final Extraction latest = getLatestExtraction();
+        final String suggested = latest == null ? null : latest.getExtractedAnswer();
         if (suggested == null) {
             return List.of();
         }

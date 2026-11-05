@@ -633,8 +633,8 @@ skipped, and the others are still saved. A run that found nothing still names th
 versions it read, which is what tells a later reading those versions were read for the
 question.
 
-How the suggestion is read (`Answer.getSuggestedValues`, from the run
-`Answer.getSurestExtraction` picks):
+How the suggestion is read (`Answer.getSuggestedValues`, from the newest run,
+`Answer.getLatestExtraction`):
 
 - A single-value question keeps the reply as one value, trimmed.
 - A multi-value question splits the reply on commas.
@@ -673,10 +673,10 @@ read. Every question asked gets a run citing the new version, found or not, so t
 version is read once, and Read again on it only fills gaps.
 
 Nothing the newer version says changes an answer. Its run is a new suggestion beside the
-answer, and it is the one `Answer.getSurestExtraction` picks: a run is passed over when
-another run of the same answer read a newer version of one of its documents. Whether to
-show a suggestion that differs from the answer is the form's call. The gate (step 7) is
-left out: a classification already answered or picked is never asked again.
+answer, and as the newest run it is the one shown (`Answer.getLatestExtraction`). Older
+runs are kept but never shown, even when they were surer or the new run found nothing.
+Whether to show a suggestion that differs from the answer is the form's call. The gate
+(step 7) is left out: a classification already answered or picked is never asked again.
 
 ## What the submitter can do
 
@@ -765,11 +765,10 @@ Usually the daemon was down, not the document broken.
 
 Payload: `question` (the path inside the schema version, as the save endpoint uses), and
 `evidenceRejected` (`true`/`false`, as a boolean or a string). It finds the run the form
-showed, `Answer.getSurestExtraction()` (the highest confidence among runs not passed over
-for a newer version; on a tie, the earliest), and stores `evidenceRejected` as given. It
-says the quote does not back the suggestion: a report about the extraction, not about the
-answer, so it settles nothing. Accepting or changing a suggestion is not a review: it is a
-save of the answer (see "When the submitter acts on it").
+showed, the newest run (`Answer.getLatestExtraction()`), and stores `evidenceRejected`
+as given. It says the quote does not back the suggestion: a report about the extraction,
+not about the answer, so it settles nothing. Accepting or changing a suggestion is not a
+review: it is a save of the answer (see "When the submitter acts on it").
 
 A missing `question` gives a 400, and so does a question nothing was extracted for. A
 payload without `evidenceRejected` changes nothing.
@@ -910,7 +909,7 @@ with their descriptions (`OptionCatalog`).
 | `FinishReadingHandler` | handler `finishReading` | a reading workflow | `ExtractionStatus` |
 | `ReadAgainHandler` | handler `readAgain` | `readAgain` | `JobManager.addJob` |
 | `StopProcessingHandler` | handler `stopProcessing` | `stopProcessing` | `ReadingRuns.getFiles`, `.stop`, `JobManager.findJobs`, `.removeJobById`, `ParseControl.abandon`, `ParseService.discardStaging` |
-| `ReviewExtractionHandler` | handler `reviewExtraction` | `reviewExtraction` | `Answer.getSurestExtraction` |
+| `ReviewExtractionHandler` | handler `reviewExtraction` | `reviewExtraction` | `Answer.getLatestExtraction` |
 | `AnswerIntakeService` | component | classify, intake | `LLMClientFactory`, `Prompts`, `DocumentBudget`, `IntakePayload`, `ModelCall`, `ModelReplies`, `QuoteVerifier` |
 | `ParsedDocuments` | component | classify, intake | `DocumentText.readText`, `DocumentScan.of` |
 | `ReadingRuns` | component | job, classify, intake, stop | (thread registry) |

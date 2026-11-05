@@ -223,19 +223,19 @@ class ReviewExtractionHandlerTest
         assertThrows(PersistenceException.class, () -> this.handler.execute(readOnly));
     }
 
-    // If an answer holds several extractions, the verdict lands on the surest, the one getSurestExtraction picks
+    // The verdict lands on the newest run, the one the form shows, even when an older run was surer
     @Test
-    void reviewsTheSurestExtraction() throws Exception
+    void reviewsTheNewestExtraction() throws Exception
     {
-        final Resource better = this.context.create().resource(this.extraction.getParent().getPath() + "/e2",
+        final Resource newest = this.context.create().resource(this.extraction.getParent().getPath() + "/e2",
             Map.of(TYPE, "sub:Extraction", "sling:resourceType", "sub/Extraction",
-                "extractedAnswer", "reduce readmissions", "confidence", 0.9));
+                "extractedAnswer", "reduce readmissions", "confidence", 0.3));
 
         this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
             ReviewExtractionHandler.EVIDENCE_REJECTED, true)));
 
-        assertTrue(this.context.resourceResolver().getResource(better.getPath()).getValueMap()
+        assertTrue(this.context.resourceResolver().getResource(newest.getPath()).getValueMap()
             .get("evidenceRejected", Boolean.FALSE));
-        assertFalse(getRecorded().get("evidenceRejected", Boolean.FALSE), "the weaker attempt is left as it was");
+        assertFalse(getRecorded().get("evidenceRejected", Boolean.FALSE), "the older run is left as it was");
     }
 }

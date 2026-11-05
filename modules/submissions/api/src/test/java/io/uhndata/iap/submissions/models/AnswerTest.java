@@ -57,23 +57,13 @@ class AnswerTest
 {
     private static final String RESOURCE_TYPE = "sling:resourceType";
 
-    private static final String SUBMISSION_PATH = "/Submissions/submission";
-
-    private static final String PROTOCOL_V1 = "protocol-v1";
-
-    private static final String PROTOCOL_V2 = "protocol-v2";
-
-    private static final String CONSENT_V1 = "consent-v1";
-
-    private static final String CONSENT_V2 = "consent-v2";
-
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Answer.class, Question.class,
-            Extraction.class, AnswerOption.class, Document.class, DocumentVersion.class);
+            Extraction.class, AnswerOption.class);
     }
 
     @Test
@@ -128,80 +118,37 @@ class AnswerTest
         assertNull(answer.getValue());
         assertTrue(answer.getExtractions().isEmpty());
         assertNull(answer.getLatestExtraction());
-        assertNull(answer.getSurestExtraction());
     }
 
-    // The form shows the surest run and the review records a verdict on it, so both have to mean the same run
+    // Only the newest run counts: an older run is never shown, however sure it was
     @Test
-    void namesTheSurestRunAsTheOneToShow()
+    void showsTheNewestRunWhateverTheOlderRunsSaid()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission/surest",
+        final Resource resource = this.context.create().resource("/Submissions/submission/newest",
             RESOURCE_TYPE, Answer.RESOURCE_TYPE);
-        this.context.create().resource("/Submissions/submission/surest/extraction0", Map.of(
+        this.context.create().resource("/Submissions/submission/newest/extraction0", Map.of(
             RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "40", "confidence", 0.4));
-        this.context.create().resource("/Submissions/submission/surest/extraction1", Map.of(
+        this.context.create().resource("/Submissions/submission/newest/extraction1", Map.of(
             RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "42", "confidence", 0.9));
-        this.context.create().resource("/Submissions/submission/surest/extraction2", Map.of(
+        this.context.create().resource("/Submissions/submission/newest/extraction2", Map.of(
             RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "44", "confidence", 0.6));
         final Answer answer = resource.adaptTo(Answer.class);
 
-        assertEquals("42", answer.getSurestExtraction().getExtractedAnswer());
-        assertEquals("44", answer.getLatestExtraction().getExtractedAnswer(), "which is not the newest");
+        assertEquals("44", answer.getLatestExtraction().getExtractedAnswer());
+        assertEquals(List.of("44"), answer.getSuggestedValues());
     }
 
-    // A run that did not say how sure it was is not sure at all, and ties go to the earlier run so that two
-    // readers of this always name the same one
     @Test
-    void treatsARunThatSaidNothingAsNotSureAndKeepsTheFirstOfATie()
+    void suggestsNothingWhenTheNewestRunFoundNothing()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission/tied",
+        final Resource resource = this.context.create().resource("/Submissions/submission/emptied",
             RESOURCE_TYPE, Answer.RESOURCE_TYPE);
-        this.context.create().resource("/Submissions/submission/tied/extraction0", Map.of(
-            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "first", "confidence", 0.5));
-        this.context.create().resource("/Submissions/submission/tied/extraction1", Map.of(
-            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "second", "confidence", 0.5));
-        this.context.create().resource("/Submissions/submission/tied/extraction2", Map.of(
-            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "unsaid"));
-        final Answer answer = resource.adaptTo(Answer.class);
+        this.context.create().resource("/Submissions/submission/emptied/extraction0", Map.of(
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "42", "confidence", 0.9));
+        this.context.create().resource("/Submissions/submission/emptied/extraction1", Map.of(
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "confidence", 0.3));
 
-        assertEquals("first", answer.getSurestExtraction().getExtractedAnswer());
-    }
-
-    // Once a newer file is read, a surer reading of the replaced one is not what to show
-    @Test
-    void namesTheSurestRunOfTheNewestRevisionRead()
-        throws RepositoryException
-    {
-        this.registerRevisions();
-        final Resource resource = this.answerWithRuns("revised",
-            run("old", 0.9, PROTOCOL_V1), run("new", 0.5, PROTOCOL_V2), run("newer", 0.4, PROTOCOL_V2));
-
-        assertEquals("new", resource.adaptTo(Answer.class).getSurestExtraction().getExtractedAnswer());
-    }
-
-    // A third revision nobody has read yet does not hide what was read from the second
-    @Test
-    void keepsShowingTheLastRevisionReadUntilANewerOneIsRead()
-        throws RepositoryException
-    {
-        this.registerRevisions();
-        final Resource resource = this.answerWithRuns("unread",
-            run("first", 0.9, PROTOCOL_V1), run("second", 0.5, PROTOCOL_V2));
-
-        // The protocol has a third revision, which no run cites
-        assertEquals("second", resource.adaptTo(Answer.class).getSurestExtraction().getExtractedAnswer());
-    }
-
-    // Two runs that each read a newer revision of a different document both stay in the running
-    @Test
-    void comparesRunsThatEachReadSomethingNewerOnConfidenceAlone()
-        throws RepositoryException
-    {
-        this.registerRevisions();
-        final Resource resource = this.answerWithRuns("crossed",
-            run("protocol", 0.4, PROTOCOL_V2, CONSENT_V1), run("consent", 0.7, PROTOCOL_V1, CONSENT_V2));
-
-        assertEquals("consent", resource.adaptTo(Answer.class).getSurestExtraction().getExtractedAnswer());
+        assertEquals(List.of(), resource.adaptTo(Answer.class).getSuggestedValues());
     }
 
     @Test
@@ -406,45 +353,5 @@ class AnswerTest
     private Answer readAnswer(final Answer answer)
     {
         return this.context.resourceResolver().getResource(answer.getPath()).adaptTo(Answer.class);
-    }
-
-    /** An extraction run's properties: what it read, how sure it was, and which revisions it read. */
-    private static Map<String, Object> run(final String answer, final double confidence, final String... sources)
-    {
-        return Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", answer, "confidence", confidence,
-            "sources", sources);
-    }
-
-    @SafeVarargs
-    private Resource answerWithRuns(final String name, final Map<String, Object>... runs)
-    {
-        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + name,
-            RESOURCE_TYPE, Answer.RESOURCE_TYPE);
-        for (int i = 0; i < runs.length; ++i) {
-            this.context.create().resource(answer.getPath() + "/extraction" + i, runs[i]);
-        }
-        return answer;
-    }
-
-    /**
-     * A protocol with three revisions and a consent form with two, each revision referenceable by an identifier
-     * named after it.
-     */
-    private void registerRevisions()
-        throws RepositoryException
-    {
-        final Session session = Mockito.mock(Session.class);
-        for (final String document : List.of("protocol", "consent")) {
-            final String path = SUBMISSION_PATH + "/" + document;
-            this.context.create().resource(path, RESOURCE_TYPE, Document.RESOURCE_TYPE);
-            for (int number = 1; number <= ("protocol".equals(document) ? 3 : 2); ++number) {
-                final String version = path + "/v" + number;
-                this.context.create().resource(version, RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
-                final Node node = Mockito.mock(Node.class);
-                Mockito.when(node.getPath()).thenReturn(version);
-                Mockito.when(session.getNodeByIdentifier(document + "-v" + number)).thenReturn(node);
-            }
-        }
-        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
     }
 }

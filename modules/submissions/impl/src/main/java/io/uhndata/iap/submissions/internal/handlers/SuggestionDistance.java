@@ -56,7 +56,7 @@ final class SuggestionDistance
     static void record(final Resource answer, final String[] values)
     {
         final Answer model = values.length == 0 ? null : answer.adaptTo(Answer.class);
-        final Extraction shown = model == null ? null : model.getSurestExtraction();
+        final Extraction shown = model == null ? null : model.getLatestExtraction();
         if (shown == null || shown.isActedOn() || shown.getExtractedAnswer() == null) {
             return;
         }
