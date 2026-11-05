@@ -31,28 +31,26 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.links.internal.LinkOperations;
 
 /**
- * The abstract base shared by all the links kept in a resource's {@code link:links} container: a typed, optionally
- * labeled connection from the resource holding it to a target. The target is either another resource in the
- * repository ({@link InternalLink}) or something outside it, recorded as a value ({@link ExternalLink}). Like the
- * other abstract bases in the data model, this class is deliberately not itself a registered Sling Model: each
- * subtype declares {@code adapters = Link.class} on its own {@code @Model}, so {@code resource.adaptTo(Link.class)}
- * dispatches to the actual concrete subtype.
+ * A link kept in a resource's {@code link:links} container: a typed connection, with an optional label, from the
+ * resource holding it to a target. The target of an {@link InternalLink} is content in the repository. The target of
+ * an {@link ExternalLink} is something outside it, named by a recorded value.
+ *
+ * <p>This abstract class is not a Sling Model itself. Each kind lists {@code Link} among the adapters of its own
+ * {@code @Model}, so {@code resource.adaptTo(Link.class)} returns the model of the link's kind.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 public abstract class Link extends Content
 {
-    /** The name of the property referencing the {@code link:Definition} describing a link. */
+    /** The property that references the link's {@code link:Definition}. */
     public static final String TYPE_PROPERTY = "type";
 
-    /** The name of the property holding a link's optional extra label. */
+    /** The property that holds the link's own label, which is optional. */
     public static final String LABEL_PROPERTY = "label";
 
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{([^}]+)\\}");
 
-    // The internal service the write behavior delegates to; the models only hand it their own wrapped resource,
-    // which keeps the resource itself out of the public API
     @OSGiService
     protected LinkOperations operations;
 
@@ -63,13 +61,12 @@ public abstract class Link extends Content
     private String label;
 
     /**
-     * Adapt a resource to the concrete link model matching its kind, or nothing if it isn't a link. This picks the
-     * model deterministically from the node's own type, so it also works on freshly created, still uncommitted
-     * nodes, where the autocreated {@code sling:resourceType} driving the generic {@code adaptTo(Link.class)}
-     * dispatch is not materialized yet.
+     * The model of a link node's kind: an {@link InternalLink} for a {@code link:Link} or {@code link:WeakLink}, and
+     * an {@link ExternalLink} for a {@code link:ExternalLink}. It recognizes the kind by the resource type, or by the
+     * primary type.
      *
-     * @param resource a resource
-     * @return the link, or {@code null} if the resource is not a link node
+     * @param resource any resource
+     * @return the link; {@code null} if the resource is not a link node
      */
     @Nullable
     public static Link toLink(@NotNull final Resource resource)
@@ -92,22 +89,20 @@ public abstract class Link extends Content
     }
 
     /**
-     * The definition of this link's type. Left to the concrete kinds, which each narrow it to the kind of
-     * definition they can only have been created from.
+     * The definition of this link's type. Each kind returns its own kind of definition.
      *
-     * @return a link definition, or {@code null} if it cannot be resolved
+     * @return the definition; {@code null} if this session cannot read it
      */
     @Nullable
     public abstract LinkDefinition getDefinition();
 
     /**
-     * The definition of this link's type, as a specific kind of definition. Subclasses narrow
-     * {@link #getDefinition()} through this, since a link of a given kind can only have been created from a
-     * definition of the matching kind.
+     * The definition of this link's type, read as the given model. The links API creates an internal link only from
+     * an internal definition, and an external link only from an external one.
      *
      * @param <T> the definition type
-     * @param definitionType the definition model class to resolve as
-     * @return a link definition, or {@code null} if it cannot be resolved or is of another kind
+     * @param definitionType the model class to read the definition as
+     * @return the definition; {@code null} if this session cannot read it
      */
     @Nullable
     protected <T extends LinkDefinition> T getDefinition(@NotNull final Class<T> definitionType)
@@ -116,9 +111,9 @@ public abstract class Link extends Content
     }
 
     /**
-     * The optional extra label associated with this link.
+     * The link's own label.
      *
-     * @return a label, or {@code null} if none is set
+     * @return the label; {@code null} if none is set
      */
     @Nullable
     public String getLabel()
@@ -127,12 +122,11 @@ public abstract class Link extends Content
     }
 
     /**
-     * Delete this link, in memory: committing the removal is the caller's responsibility, through the same
-     * resolver this link was read with.
+     * Deletes this link, in the session it was read with. The caller commits the deletion.
      *
-     * @param removeBacklink whether the reverse link, if any, should be deleted too; the reverse is only deleted
-     *            when this link's own session may write to the linked resource
-     * @return {@code true} if the link was deleted
+     * @param removeBacklink whether to delete the reverse link too, if this session can read it
+     * @return {@code true} if the link was deleted; {@code false} if the deletion failed, or the links service is
+     *         not available
      */
     public boolean remove(final boolean removeBacklink)
     {
@@ -140,9 +134,9 @@ public abstract class Link extends Content
     }
 
     /**
-     * The content that this link belongs to, i.e. the owner of the {@code link:links} container holding it.
+     * The content holding this link: the owner of its {@code link:links} container.
      *
-     * @return a content model, or {@code null} if the structure is unexpected
+     * @return the content; {@code null} for a link node too close to the root to have an owner
      */
     @Nullable
     public Content getSource()
@@ -153,11 +147,10 @@ public abstract class Link extends Content
     }
 
     /**
-     * A display label for the link target, rendered through the definition's
-     * {@link LinkDefinition#getTargetLabelTemplate() label template} when one is set, or the target's natural
-     * label otherwise.
+     * A label for the target, from the definition's {@link LinkDefinition#getTargetLabelTemplate() target label
+     * template}. Without a template, it is the target's node name, or an external link's value.
      *
-     * @return a display label
+     * @return the label
      */
     @NotNull
     public String getTargetLabel()
@@ -183,8 +176,7 @@ public abstract class Link extends Content
             return ownLabel == null ? "" : ownLabel;
         }
         if ("typeLabel".equals(name)) {
-            // A template only reaches this point when it was read from the definition, so the
-            // definition is resolvable in this session
+            // The template came from the definition, so this session can read the definition
             return Objects.requireNonNull(this.getDefinition()).getLabel();
         }
         if ("sourceName".equals(name)) {
@@ -195,18 +187,18 @@ public abstract class Link extends Content
     }
 
     /**
-     * The label used for the target when the definition sets no template.
+     * The label of the target when the definition sets no template.
      *
-     * @return a display label
+     * @return the label
      */
     @NotNull
     protected abstract String getDefaultTargetLabel();
 
     /**
-     * Resolve a target-specific template placeholder, e.g. {@code name} or {@code value}.
+     * The value of a template placeholder about the target, such as {@code name} or {@code value}.
      *
-     * @param name the placeholder name, without the surrounding braces
-     * @return the replacement, an empty string for placeholders this kind of target cannot fill
+     * @param name the placeholder, without its braces
+     * @return the value; empty if this kind of link has no such value
      */
     @NotNull
     protected abstract String resolveTargetPlaceholder(@NotNull String name);

@@ -30,17 +30,14 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.links.internal.LinkOperations;
 
 /**
- * The links-aware view of a piece of content, and the entry point for working with its links: view any content
- * model as this one, {@code content.as(Linkable.class)}, then list, add, or remove links. Writes are made in
- * memory through the resolver this model was read with and are the caller's to commit, with two exceptions:
- * creating a missing {@code link:links} container is committed immediately through the links service user (it may
- * require checking out a versionable resource the caller cannot), and the automatic backlink completion commits
- * its own work.
+ * The links of a piece of content. Read any content model as this one, {@code content.as(Linkable.class)}, to list,
+ * add or remove its links. Any content adapts to it, whether or not it carries the {@code link:Linkable} mixin.
  *
  * <p>
- * The view adapts any content; the {@code link:Linkable} mixin only exists so that node types (or individual
- * nodes) can declare the links container once instead of re-declaring the child node — content whose type allows
- * the container some other way holds links just as well.
+ * Writes go into the session this model was read with, and the caller commits them. Two writes commit on their own,
+ * as the {@code iap-links} service user. A missing {@code link:links} container is created and committed at once,
+ * since adding it may mean checking out a versionable resource the caller cannot. A reverse link the caller may not
+ * add is added after the caller commits.
  * </p>
  *
  * @version $Id$
@@ -49,15 +46,13 @@ import io.uhndata.iap.links.internal.LinkOperations;
 @Model(adaptables = Resource.class, defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class Linkable extends Content
 {
-    // The internal service the behavior delegates to; the model only hands it its own wrapped resource, which
-    // keeps the resource itself out of the public API
     @OSGiService
     private LinkOperations operations;
 
     /**
-     * Retrieve all the links held by this content, internal and external ones alike.
+     * All the links this content holds, internal and external.
      *
-     * @return a list of links, empty if there are none
+     * @return the links; empty if there are none, or the links service is not available
      */
     @NotNull
     public List<Link> getLinks()
@@ -66,10 +61,10 @@ public class Linkable extends Content
     }
 
     /**
-     * Retrieve the links held by this content that are of a desired type.
+     * The links of one type that this content holds.
      *
-     * @param type the name or path of the link definition to filter by
-     * @return a list of links, empty if there are none of this type
+     * @param type the name or path of the link definition, such as {@code copiedFrom}
+     * @return the links; empty if there are none of this type, or the links service is not available
      */
     @NotNull
     public List<Link> getLinks(@NotNull final String type)
@@ -78,9 +73,9 @@ public class Linkable extends Content
     }
 
     /**
-     * Retrieve all the links pointing at this content.
+     * The links that other content holds to this content.
      *
-     * @return a list of links held by other content, empty if none point here
+     * @return the links; empty if none point here, or the links service is not available
      */
     @NotNull
     public List<InternalLink> getBacklinks()
@@ -89,18 +84,20 @@ public class Linkable extends Content
     }
 
     /**
-     * Create a new link from this content to another piece of content, in memory: committing it is the caller's
-     * responsibility, through the resolver this model was read with. If an identical link already exists, it is
-     * returned instead of a duplicate. If the link's definition declares a backlink and this session may write to
-     * the destination, the reverse link is created in the same session, so that the pair lands in one commit;
-     * otherwise the reverse is completed automatically after the commit.
+     * Adds a link from this content to other content, in the session this model was read with. The caller commits
+     * it. An existing link of the same type to the same content comes back instead of a duplicate. Its label must
+     * match, unless {@code label} is {@code null}.
      *
-     * @param destination the content the link points to; must be referenceable
-     * @param type the name or path of the link definition to use
-     * @param label an optional extra label for the new link, may be {@code null}
-     * @return the created (or existing identical) link
-     * @throws IllegalArgumentException if the definition is unknown, external, or backlink-only, or if an end
-     *             doesn't satisfy the definition's type requirements
+     * <p>When the definition names a backlink and this session may add nodes under the destination, the reverse
+     * goes into the same session. The pair then lands in one commit. Otherwise the reverse is added after the
+     * commit.</p>
+     *
+     * @param destination the content to link to; it must be referenceable
+     * @param type the name or path of the link definition, such as {@code copiedFrom}
+     * @param label the link's own label; {@code null} or empty for none
+     * @return the new link, or the existing one
+     * @throws IllegalArgumentException if the definition is unknown, external or backlink-only, if either end is
+     *             not of a required type, or if the destination is not referenceable
      * @throws IllegalStateException if the links service is not available
      */
     @NotNull
@@ -111,16 +108,16 @@ public class Linkable extends Content
     }
 
     /**
-     * Record a new external link on this content, in memory: committing it is the caller's responsibility,
-     * through the resolver this model was read with. If an identical link already exists, it is returned instead
-     * of a duplicate.
+     * Adds an external link to this content, in the session this model was read with. The caller commits it. An
+     * existing link of the same type with the same value comes back instead of a duplicate. Its label must match,
+     * unless {@code label} is {@code null}.
      *
-     * @param type the name or path of the link definition to use
-     * @param value the recorded value identifying the external target
-     * @param label an optional extra label for the new link, may be {@code null}
-     * @return the created (or existing identical) link
-     * @throws IllegalArgumentException if the definition is unknown or not external, if this content doesn't
-     *             satisfy the definition's type requirements, or if the value doesn't match the definition's
+     * @param type the name or path of the link definition
+     * @param value the value naming the target, such as an identifier in another system
+     * @param label the link's own label; {@code null} or empty for none
+     * @return the new link, or the existing one
+     * @throws IllegalArgumentException if the definition is unknown or not external, if this content is not of a
+     *             required type, or if the value is blank or does not match the definition's
      *             {@link ExternalLinkDefinition#getValuePattern() value pattern}
      * @throws IllegalStateException if the links service is not available
      */
@@ -132,14 +129,13 @@ public class Linkable extends Content
     }
 
     /**
-     * Delete all the links of this content matching the given criteria, in memory: committing the removals is
-     * the caller's responsibility, through the resolver this model was read with.
+     * Deletes this content's links of one type, to the given content and with the given label, in the session
+     * this model was read with. The caller commits the deletions.
      *
-     * @param destination the linked content, or {@code null} to match links to any target, external links
-     *            included
-     * @param type the name or path of the link definition to match
-     * @param label the label to match, {@code null} to match any label
-     * @return the number of deleted links
+     * @param destination the linked content; {@code null} to match any target, external links included
+     * @param type the name or path of the link definition
+     * @param label the label to match; {@code null} for any label, empty for links without one
+     * @return the number of links deleted; 0 if the links service is not available
      */
     public int removeLinks(@Nullable final Content destination, @NotNull final String type,
         @Nullable final String label)

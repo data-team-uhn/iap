@@ -201,8 +201,7 @@ class LinkManagerImplTest
         assertEquals("/LinkTypes/simple", this.manager.getDefinition("/LinkTypes/simple").getPath());
         assertNull(this.manager.getDefinition("missing"));
         assertNull(this.manager.getDefinition(null));
-        // Paths outside /LinkTypes never resolve: the lookup runs with the manager's own service
-        // user, so it must not be usable as an arbitrary repository read
+        // Only a path under /LinkTypes names a definition
         assertNull(this.manager.getDefinition("/Things/a"));
         assertNull(this.manager.getDefinition("/LinkTypes"));
     }
@@ -306,7 +305,7 @@ class LinkManagerImplTest
         assertEquals(THING_B_ID, link.get("reference"));
         assertEquals("see also", link.get("label"));
         assertEquals("link:Link", link.get(PRIMARY_TYPE));
-        // The write is not committed; that is the caller's decision
+        // The caller commits
         assertTrue(this.context.resourceResolver().hasChanges());
     }
 
@@ -508,7 +507,7 @@ class LinkManagerImplTest
         assertEquals(REFERENCED_BY_ID, reverses.get(0).getValueMap().get("type", String.class));
         assertEquals(THING_A_ID, reverses.get(0).getValueMap().get("reference", String.class));
         assertEquals("pair", reverses.get(0).getValueMap().get("label", String.class));
-        // And crucially, no third link ping-ponged back onto the original resource
+        // And no third link back onto the original resource
         assertNotNull(link);
         assertEquals(1, this.children(thing.getChild(CONTAINER)).size());
     }
@@ -729,8 +728,6 @@ class LinkManagerImplTest
     void recordsAVocabularyItCouldNotRead()
         throws ReflectiveOperationException
     {
-        // An empty vocabulary makes every link type read as undefined, so a misconfigured service user and a link
-        // type nobody declared are the same story to a caller. Only the record tells them apart
         this.createDefinitions();
         this.injectFactory(new TestResolverFactory(null,
             this.context.getService(ResourceResolverFactory.class)));
@@ -749,8 +746,6 @@ class LinkManagerImplTest
     void recordsBacklinksItCouldNotList()
         throws RepositoryException
     {
-        // The empty list this returns is exactly what a resource nothing points at returns, which is the one
-        // failure a reader of a backlink listing has no way to notice
         this.createDefinitions();
         final Resource thing = this.createThings();
         final Session session = this.mockSession();
@@ -768,8 +763,8 @@ class LinkManagerImplTest
     }
 
     /**
-     * Publishes a recorder to the static facade, so that a test can see what was recorded. Withdrawn in a
-     * {@code finally} by every test that calls it: the facade is process-global.
+     * Publishes a recorder to the static facade, so that a test can see what was recorded. The facade is
+     * process-global, so every test that calls this withdraws it in a {@code finally}.
      *
      * @return the recorder, to verify against
      */

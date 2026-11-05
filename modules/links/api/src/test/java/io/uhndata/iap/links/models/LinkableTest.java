@@ -34,8 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for the {@link Linkable} guards; the actual link operations are covered through
- * {@code LinkManagerImplTest}, with the backing service registered.
+ * Unit tests for {@link Linkable} without the links service. {@code LinkManagerImplTest} covers the operations.
  *
  * @version $Id$
  * @since 0.1.0
@@ -53,7 +52,7 @@ class LinkableTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Linkable.class);
-        // No LinkOperations service is registered in this context, e.g. a read-only rendering context
+        // No LinkOperations service is registered
         this.linkable = this.context.create()
             .resource("/Things/a", Map.of("jcr:uuid", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
             .adaptTo(Linkable.class);
@@ -65,7 +64,6 @@ class LinkableTest
     @Test
     void anyContentIsViewableAsLinkable()
     {
-        // The link:Linkable mixin is a declaration aid, not an adaptation gate: any content adapts
         final Resource plain = this.context.create().resource("/Things/plain");
         assertNotNull(plain.adaptTo(Linkable.class));
         assertNotNull(this.destination.as(Linkable.class));

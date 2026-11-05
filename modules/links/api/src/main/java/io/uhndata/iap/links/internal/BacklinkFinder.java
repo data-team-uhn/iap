@@ -32,9 +32,7 @@ import io.uhndata.iap.links.models.InternalLink;
 import io.uhndata.iap.links.models.Link;
 
 /**
- * Finds the links pointing at a piece of content, by walking the JCR references held against it. This is the one
- * place raw reference properties are iterated: a link is stored as a reference from the linking resource, so the
- * only way to ask "what points here" is to go through the repository rather than through the content tree.
+ * Finds the links that point at a piece of content, through the JCR references to its node.
  *
  * @version $Id$
  * @since 0.1.0
@@ -47,11 +45,11 @@ final class BacklinkFinder
     }
 
     /**
-     * The links held by other resources that point at the given one.
+     * The links that other content holds to the given content.
      *
      * @param session the session to read the references through
-     * @param resource the linked resource
-     * @return the links pointing at it, empty if there are none
+     * @param resource the linked content
+     * @return the links; empty if none point at it
      * @throws RepositoryException if the references cannot be read
      */
     static List<InternalLink> find(final Session session, final Resource resource)
@@ -59,7 +57,7 @@ final class BacklinkFinder
     {
         final List<InternalLink> result = new ArrayList<>();
         final Node node = session.getNode(resource.getPath());
-        // Hard and weak references are separate indexes in JCR, and a link type may use either
+        // getReferences returns only hard references, and a link type may be weak
         collect(node.getReferences(InternalLink.REFERENCE_PROPERTY), resource, result);
         collect(node.getWeakReferences(InternalLink.REFERENCE_PROPERTY), resource, result);
         return result;
