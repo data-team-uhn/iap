@@ -69,8 +69,8 @@ import LetterDialog from "./LetterDialog";
 import { usePersonName } from "./people";
 import { draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
-import { isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics, type NoteKind, type ReviewData,
-  type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
+import { groupShortName, isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics, type NoteKind,
+  type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import { SearchContext } from "./SearchHighlight";
 import { documentText, formMatches, pageCounts } from "./searchSubmission";
 import { PANEL_HEIGHT, PanelBody, panelPlacement } from "./sidePanel";
@@ -684,8 +684,13 @@ export default function ReviewScreen({ path }: { path: string }) {
               onChange={(_event, value: string | null) => value && setFocused(value === "focused")}
               sx={{ px: 1.5, pb: 1, "& .MuiToggleButton-root": { py: 0.25, textTransform: "none" } }}
             >
-              <ToggleButton value="focused">Focused</ToggleButton>
-              <ToggleButton value="all">All</ToggleButton>
+              <Tooltip describeChild title={myGroupLabel ? `Only what the ${groupShortName(myGroupLabel)} review covers`
+                : "Only what your review covers"}>
+                <ToggleButton value="focused">Focused</ToggleButton>
+              </Tooltip>
+              <Tooltip describeChild title="The whole submission, including the parts that concern other reviewer groups">
+                <ToggleButton value="all">All</ToggleButton>
+              </Tooltip>
             </ToggleButtonGroup>
             {narrow ? rail : <PanelBody follow={current?.name} noScrollbar>{rail}</PanelBody>}
           </Paper>
