@@ -31,8 +31,6 @@ import {
   MenuItem,
   Paper,
   Stack,
-  ToggleButton,
-  ToggleButtonGroup,
   Tooltip,
   TextField,
   Typography,
@@ -58,7 +56,7 @@ import {
 import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
-import FormReview, { answerText, type ReviewActions } from "./FormReview";
+import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
 import IssuesPanel from "./IssuesPanel";
 import LetterDialog from "./LetterDialog";
 import { usePersonName } from "./people";
@@ -144,9 +142,10 @@ function answerTo(items: FormItem[], question: string): string {
   return asked ? answerText(asked, asked.value) : "";
 }
 
-// PRETOTYPE. A submission as its reviewer works through it: their requirements down the side, in the schema's
-// order, the one they are on in the middle, compact for a form and whole for a document, with everything
-// written about it, of the kinds they choose to see. Everything else is one switch away.
+// PRETOTYPE. A submission as its reviewer works through it: its contents down the side, in the schema's order,
+// each saying which reviewer groups it concerns, the reviewer's own stand out; the requirement they are on in the
+// middle, compact for a form and whole for a document, with everything written about it, of the kinds they
+// choose to see; their issues on the other side.
 export default function ReviewScreen({ path }: { path: string }) {
   const doFetch = useAuthenticatedFetch();
   const me = useCurrentUser();
@@ -156,7 +155,6 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ loaded, setLoaded ] = useState<Loaded>();
   const [ error, setError ] = useState<string>();
   const [ selected, setSelected ] = useState<string>();
-  const [ whole, setWhole ] = useState(false);
   const [ shown, setShown ] = useState(storedKinds);
   const [ mark, setMark ] = useState<{ id?: string; page?: number }>({});
   const [ dialog, setDialog ] = useState<"letter" | "board">();
@@ -199,8 +197,18 @@ export default function ReviewScreen({ path }: { path: string }) {
   const mine = useCallback((requirement: Requirement) => isFormRequirement(requirement)
     ? questions(requirement.items).some(question => minePart(question.path))
     : minePart(requirement.name), [ minePart ]);
-  const listed = requirements.filter(requirement => whole || mine(requirement));
-  const current = requirements.find(one => one.name === selected) ?? listed.at(0);
+  const listed = requirements;
+  // The first requirement concerning the reviewer, until they choose another
+  const current = requirements.find(one => one.name === selected) ?? requirements.find(mine) ?? requirements.at(0);
+
+  // The reviewer groups a requirement concerns: those any of its questions, or the document, matters to
+  const groupsOf = (requirement: Requirement): ReviewGroup[] | undefined => {
+    const parts = isFormRequirement(requirement) ? questions(requirement.items).map(question => question.path)
+      : [ requirement.name ];
+    const found = new Map<string, ReviewGroup>();
+    parts.forEach(part => groups.get(part)?.forEach(group => found.set(group.name, group)));
+    return found.size > 0 ? [ ...found.values() ] : undefined;
+  };
 
   const notesOf = useCallback((requirement: Requirement): ReviewNote[] => {
     if (!data) {
@@ -208,13 +216,12 @@ export default function ReviewScreen({ path }: { path: string }) {
     }
     if (isFormRequirement(requirement)) {
       const uuids = questions(requirement.items)
-        .filter(question => whole || minePart(question.path))
         .map(question => data.answers.get(question.path)?.uuid).filter((one): one is string => Boolean(one));
       return notesAbout(data.notes, uuids);
     }
     const document = data.documents.get(requirement.name);
     return document ? notesAbout(data.notes, [ document.uuid, document.version ]).filter(note => note.passage) : [];
-  }, [ data, whole, minePart ]);
+  }, [ data ]);
 
 
   const actions: ReviewActions = useMemo(() => ({
@@ -293,9 +300,6 @@ export default function ReviewScreen({ path }: { path: string }) {
       onPick={hit => {
         setSearching(false);
         go(hit.requirement, { question: hit.question, page: hit.page });
-        if (hit.question && !minePart(hit.question)) {
-          setWhole(true);
-        }
       }}
     />
   );
@@ -334,9 +338,6 @@ export default function ReviewScreen({ path }: { path: string }) {
     if (source || data?.documents.has(part)) {
       go(part, { id: note.id, page: note.passage?.page });
     } else {
-      if (!minePart(part)) {
-        setWhole(true);
-      }
       go(part.split("/")[0], { question: part });
     }
   };
@@ -401,12 +402,17 @@ export default function ReviewScreen({ path }: { path: string }) {
           >
             <ListItemButton
               selected={requirement.name === current?.name} onClick={() => go(requirement.name)}
-              sx={{ borderRadius: 1, py: 0.25, opacity: mine(requirement) ? 1 : 0.55 }}
+              sx={{ borderRadius: 1, py: 0.25, alignItems: "flex-start" }}
             >
               <ListItemText
                 primary={requirement.label}
-                secondary={requirement.name === current?.name ? requirement.description : undefined}
-                slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption" } }}
+                secondary={<>
+                  {requirement.name === current?.name && requirement.description}
+                  <Box component="span" sx={{ display: "block", mt: 0.25 }}>
+                    <GroupChips groups={groupsOf(requirement)} mine={myGroups} />
+                  </Box>
+                </>}
+                slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption", component: "div" } }}
                 sx={{ my: 0.25 }}
               />
               {count > 0 && <Chip size="small" label={count} sx={{ ml: 1, height: 20 }} />}
@@ -438,18 +444,11 @@ export default function ReviewScreen({ path }: { path: string }) {
       <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, alignItems: "flex-start" }}>
         {railOpen || narrow ? (
           <Paper sx={{ p: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0, position: { md: "sticky" }, top: { md: 16 } }}>
-            <Stack direction="row" sx={{ alignItems: "center" }}>
-              <ToggleButtonGroup
-                exclusive fullWidth size="small" value={whole ? "all" : "mine"} sx={{ p: 0.5 }}
-                aria-label="Which parts of the submission to list"
-                onChange={(_event, next: string | null) => next && setWhole(next === "all")}
-              >
-                <ToggleButton value="mine">For my group</ToggleButton>
-                <ToggleButton value="all">Everything</ToggleButton>
-              </ToggleButtonGroup>
+            <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, py: 0.5 }}>
+              <Typography variant="subtitle2" component="h2" sx={{ flex: 1 }}>Submission contents</Typography>
               {!narrow && (
                 <Tooltip title="Fold away">
-                  <IconButton size="small" aria-label="Fold the requirements away" onClick={() => setRailOpen(false)}>
+                  <IconButton size="small" aria-label="Fold the contents away" onClick={() => setRailOpen(false)}>
                     <ChevronLeftOutlined />
                   </IconButton>
                 </Tooltip>
@@ -458,11 +457,11 @@ export default function ReviewScreen({ path }: { path: string }) {
             {rail}
           </Paper>
         ) : (
-          // Folded, it still says which requirement this is
+          // Folded, it still says what it is
           <Paper sx={{ width: 48, py: 1, flexShrink: 0, position: "sticky", top: 16, display: "flex",
             flexDirection: "column", alignItems: "center", gap: 1 }}>
-            <Tooltip title="Show the requirements" placement="right">
-              <IconButton size="small" aria-label="Show the requirements" onClick={() => setRailOpen(true)}>
+            <Tooltip title="Show the contents" placement="right">
+              <IconButton size="small" aria-label="Show the submission contents" onClick={() => setRailOpen(true)}>
                 <ChevronRightOutlined />
               </IconButton>
             </Tooltip>
@@ -470,7 +469,7 @@ export default function ReviewScreen({ path }: { path: string }) {
               variant="caption"
               sx={{ writingMode: "vertical-rl", transform: "rotate(180deg)", color: "text.secondary", whiteSpace: "nowrap" }}
             >
-              {current?.label}
+              Submission contents
             </Typography>
           </Paper>
         )}
@@ -501,8 +500,8 @@ export default function ReviewScreen({ path }: { path: string }) {
               </Stack>
               {isFormRequirement(current) && (
                 <FormReview
-                  items={current.items} data={data} groups={groups} myGroups={myGroups} isMine={minePart}
-                  whole={whole} shown={shown} onEvidence={openEvidence} actions={actions}
+                  items={current.items} data={data} groups={groups} myGroups={myGroups} shown={shown}
+                  onEvidence={openEvidence} actions={actions}
                 />
               )}
               {isDocumentRequirement(current) && shownDocument && (
@@ -536,9 +535,7 @@ export default function ReviewScreen({ path }: { path: string }) {
               onClose={() => setDialog(undefined)}
             />
           )}
-          {!current && (
-            <Typography>Nothing here is for your group. Switch to the whole submission to see it all.</Typography>
-          )}
+
         </Paper>
         <Box sx={{ display: { xs: "none", md: "block" }, position: "sticky", top: 16, flexShrink: 0 }}>
           <IssuesPanel
