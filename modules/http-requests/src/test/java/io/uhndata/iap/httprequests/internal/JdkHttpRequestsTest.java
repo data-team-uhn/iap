@@ -21,11 +21,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.http.HttpRequest;
+import java.net.http.HttpTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +42,7 @@ import io.uhndata.iap.httprequests.api.HttpResponse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -69,6 +74,9 @@ class JdkHttpRequestsTest
 
     private HttpServer server;
 
+    /** Released when a test ends, so that a stalled answer does not outlive it. */
+    private final CountDownLatch stalled = new CountDownLatch(1);
+
     private String url;
 
     @BeforeEach
@@ -83,6 +91,7 @@ class JdkHttpRequestsTest
     @AfterEach
     void stopTheService()
     {
+        this.stalled.countDown();
         this.server.stop(0);
     }
 
@@ -137,6 +146,16 @@ class JdkHttpRequestsTest
         this.server.stop(0);
 
         assertThrows(IOException.class, () -> this.requests.post(this.url, "{}", "application/json"));
+    }
+
+    @Test
+    void aServiceThatStopsPartWayThroughItsAnswerTimesOut()
+    {
+        this.server.createContext("/stall", this::stall);
+        final JdkHttpRequests impatient = new JdkHttpRequests(Duration.ofMillis(500));
+
+        assertTimeout(Duration.ofSeconds(5), () -> assertThrows(HttpTimeoutException.class,
+            () -> impatient.post(this.url.replace("/hook", "/stall"), "{}", "application/json")));
     }
 
     @Test
@@ -232,6 +251,20 @@ class JdkHttpRequestsTest
         // The cause is checked too, since the JDK's own messages can quote the address
         final String reported = failure.getMessage() + " " + failure.getCause();
         assertFalse(reported.contains(SECRET), "The secret reached a message: " + reported);
+    }
+
+    /** Sends the headers and the first byte of a longer body, then waits until the test is over. */
+    private void stall(final HttpExchange exchange) throws IOException
+    {
+        exchange.sendResponseHeaders(200, 10);
+        exchange.getResponseBody().write('o');
+        exchange.getResponseBody().flush();
+        try {
+            this.stalled.await(10, TimeUnit.SECONDS);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        exchange.close();
     }
 
     private void answer(final HttpExchange exchange) throws IOException

@@ -24,9 +24,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.osgi.service.component.annotations.Component;
 
@@ -45,13 +50,28 @@ public class JdkHttpRequests implements HttpRequests
     /** How long to wait for a service to accept the connection. */
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
 
-    /**
-     * How long to wait for the status and headers of the response, counted from sending, connecting included. The
-     * JDK's {@code HttpClient} does not apply it to the body.
-     */
+    /** How long to wait for the whole response, body included, counted from sending, connecting included. */
     private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(30);
 
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+
+    private final Duration responseTimeout;
+
+    /** Constructor with the default response timeout. */
+    public JdkHttpRequests()
+    {
+        this(RESPONSE_TIMEOUT);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param responseTimeout how long to wait for the whole response, counted from sending
+     */
+    JdkHttpRequests(final Duration responseTimeout)
+    {
+        this.responseTimeout = responseTimeout;
+    }
 
     @Override
     public HttpResponse post(final String url, final String body, final String contentType) throws IOException
@@ -90,7 +110,6 @@ public class JdkHttpRequests implements HttpRequests
     {
         try {
             return HttpRequest.newBuilder(URI.create(url))
-                .timeout(RESPONSE_TIMEOUT)
                 .header("Content-Type", contentType + "; charset=" + charset.name())
                 .POST(BodyPublishers.ofString(body, charset))
                 .build();
@@ -132,16 +151,29 @@ public class JdkHttpRequests implements HttpRequests
     }
 
     /**
-     * Sends the request and waits for the response. Protected so that a test can simulate an interruption.
+     * Sends the request and waits for the whole response. The JDK's own request timeout stops at the headers, so the
+     * wait is bounded here, and an exchange still running when it ends is cancelled. Protected so that a test can
+     * simulate an interruption.
      *
      * @param request the request to send
      * @return the response, with its body as text
-     * @throws IOException if the request could not be made or got no answer in time
+     * @throws IOException if the request could not be made or got no whole answer in time
      * @throws InterruptedException if the calling thread was interrupted while waiting for the response
      */
     protected java.net.http.HttpResponse<String> send(final HttpRequest request)
         throws IOException, InterruptedException
     {
-        return this.client.send(request, BodyHandlers.ofString());
+        final CompletableFuture<java.net.http.HttpResponse<String>> exchange =
+            this.client.sendAsync(request, BodyHandlers.ofString());
+        try {
+            return exchange.get(this.responseTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (final TimeoutException e) {
+            throw new HttpTimeoutException("No whole response from " + describe(request.uri()) + " within "
+                + this.responseTimeout.toMillis() + " ms");
+        } catch (final ExecutionException e) {
+            throw new IOException("Could not post to " + describe(request.uri()), e.getCause());
+        } finally {
+            exchange.cancel(true);
+        }
     }
 }
