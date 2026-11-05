@@ -16,43 +16,41 @@
  * limitations under the License.
  */
 
-// The pure, testable model behind the category manager: parsing the category tree out of the
-// repository's JSON serialization, and the tree computations the UI needs (parent picking,
-// descendant checks, duplicate label detection). No React, no fetch.
+// The category tree as the administrative UI works with it: parsed out of the JSON of /Categories,
+// with the computations on it that the UI needs. Nothing here renders or fetches.
 
-// The raw JSON serialization of a repository node: an open string-keyed record where child nodes
-// appear as nested records.
+// The JSON serialization of a repository node, with each child node as a nested record.
 export type JcrNode = Record<string, unknown>;
 
-// The schema version a category is bound to, as inlined in the category's serialization by the
-// default `dereference` JSON processor.
+// The schema version a category is bound to, as the default `dereference` JSON processor inlines it
+// in the category's JSON.
 export interface SchemaVersionRef {
-  // The identifier stored in the category's `schemaVersion` REFERENCE property.
+  // The `jcr:uuid` of the schema version, which the category's `schemaVersion` property stores.
   uuid?: string;
-  // The path of the schema version node, e.g. `/Schemas/basic/1.0`.
+  // The path of the schema version, such as `/Schemas/basic/v1`.
   path?: string;
-  // The name of the schema this version belongs to, derived from the path.
+  // The node name of the schema this version belongs to, taken from the path.
   schemaName?: string;
-  // The version label, e.g. "1.0".
+  // The version label, such as "1.0".
   version?: string;
 }
 
 // One category in the tree, with its children.
 export interface CategoryNode {
-  // The technical name, the last segment of the path.
+  // The node name, the last segment of the path.
   name: string;
-  // The absolute repository path.
+  // The absolute path.
   path: string;
-  // The human-readable name displayed to submitters; falls back to the technical name.
+  // The name submitters see; the node name if the category has no label.
   label: string;
-  // The prompt-ready description of what belongs in this category.
+  // What belongs in this category.
   description?: string;
-  // Whether the category is retired: no new submissions may be filed under it or its children.
+  // Whether the category is closed to new submissions, by its own retirement or an ancestor's.
   retired: boolean;
-  // Whether the retirement is the category's own, rather than inherited from an ancestor. Only the
-  // category carrying it can have it lifted, so this is what decides whether unretiring is offered.
+  // Whether the category carries the retirement itself, rather than through an ancestor. Only that
+  // category can have it lifted.
   retiredHere: boolean;
-  // The schema version bound to this (leaf) category, if any.
+  // The schema version bound to this category, if any.
   schemaVersion?: SchemaVersionRef;
   // The subcategories, in their stored order.
   children: CategoryNode[];
@@ -60,9 +58,8 @@ export interface CategoryNode {
 
 const CATEGORY_PRIMARY_TYPE = "cat:Category";
 
-// The tag that closes a category to new submissions. It is defined as inheritable, so the repository
-// materializes it onto every node below the one it was placed on, into a separate property: what a
-// category carries itself and what it is covered by are told apart by which property they arrive in.
+// The tag that closes a category to new submissions. A category's own tags are in `tags`. The tag is
+// inheritable, and the tags module copies it into `inheritedTags` on every node below its carrier.
 const RETIRED_TAG = "retired";
 
 const OWN_TAGS = "tags";
@@ -79,9 +76,8 @@ const hasTag = (node: JcrNode, property: string, tag: string): boolean => {
 };
 
 const parseSchemaVersion = (value: unknown): SchemaVersionRef | undefined => {
-  // With the default `dereference` processor active, a REFERENCE property serializes as the
-  // referenced node itself; anything else (e.g. a raw UUID string when dereferencing is off, or
-  // an unresolvable reference) is ignored.
+  // The `dereference` processor serializes a REFERENCE as the node it points at. Anything else,
+  // such as the raw `jcr:uuid` when dereferencing is off, is ignored.
   if (typeof value !== "object" || value === null) {
     return undefined;
   }
@@ -117,8 +113,9 @@ const parseCategoryChildren = (node: JcrNode, path: string): CategoryNode[] =>
     .filter(([, value]) => isCategory(value))
     .map(([name, value]) => parseCategory(name, value as JcrNode, path));
 
-// Parses the category tree out of the deep JSON serialization of the /Categories homepage.
-// Children appear in the JSON in their stored (admin-arranged) order, which is preserved.
+// Parses the category tree out of the deep JSON of the /Categories homepage. The children keep the
+// order the JSON lists them in, which is their stored order. The exception is a node name that looks
+// like an integer: JavaScript lists such keys first, in numeric order.
 export const parseCategoryTree = (homepage: JcrNode, path = "/Categories"): CategoryNode[] =>
   parseCategoryChildren(homepage, path);
 
@@ -132,9 +129,9 @@ export interface FlattenedCategory {
   depth: number;
 }
 
-// Flattens the tree depth-first, so the entries read like the tree; the depth drives indentation.
-// When `excludePath` is given, that category and its whole subtree are left out (e.g. a category
-// cannot become its own parent).
+// Flattens the tree depth first, so the entries read in tree order, and the depth sets the
+// indentation. `excludePath`, when given, leaves out that category and its whole subtree, so that a
+// category cannot be moved under itself.
 export const flattenTree = (roots: CategoryNode[], excludePath?: string): FlattenedCategory[] => {
   const result: FlattenedCategory[] = [];
   const visit = (nodes: CategoryNode[], depth: number) => {
@@ -158,12 +155,12 @@ export interface ParentOption {
   depth: number;
 }
 
-// Flattens the tree into the list of possible parents for a category.
+// The tree as the list of possible parents for a category, leaving out `excludePath` and its subtree.
 export const flattenForParentPicker = (roots: CategoryNode[], excludePath?: string): ParentOption[] =>
   flattenTree(roots, excludePath)
     .map(({ node, depth }) => ({ path: node.path, label: node.label, depth }));
 
-// Finds the node with the given path anywhere in the tree, or undefined.
+// The category with the given path anywhere in the tree; undefined if there is none.
 export const findNode = (roots: CategoryNode[], path: string): CategoryNode | undefined => {
   for (const node of roots) {
     if (node.path === path) {
@@ -177,13 +174,13 @@ export const findNode = (roots: CategoryNode[], path: string): CategoryNode | un
   return undefined;
 };
 
-// The children of the given parent path: the roots themselves for the tree root, otherwise the
-// children of the matching node (empty if the parent cannot be found).
+// The children of the given parent: the top-level categories for the tree's root, and empty if the
+// parent is not in the tree.
 export const childrenOf = (roots: CategoryNode[], parentPath: string, rootPath = "/Categories"): CategoryNode[] =>
   parentPath === rootPath ? roots : findNode(roots, parentPath)?.children ?? [];
 
-// Whether another category with the same label (case-insensitive) already exists among the
-// prospective siblings; `exceptPath` skips the category being edited itself.
+// Whether another of the siblings has the same label, ignoring case and surrounding spaces.
+// `exceptPath` is the category being edited, which is not compared with itself.
 export const hasDuplicateLabel = (siblings: CategoryNode[], label: string, exceptPath?: string): boolean => {
   const normalized = label.trim().toLowerCase();
   return siblings.some(sibling => sibling.path !== exceptPath

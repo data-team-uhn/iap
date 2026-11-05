@@ -34,10 +34,9 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.tags.models.Taggable;
 
 /**
- * A Sling Model wrapping a {@code cat:Category} node, one submission category in the {@code /Categories} tree.
- * Categories nest by path; a category with no subcategories is a leaf that submissions may be filed under. Leaf
- * categories appear as entries in the tree's self-served documentation (see {@link CategoriesHomepage}), hence
- * the {@link DocumentedItem} implementation.
+ * One submission category in the {@code /Categories} tree. A category with no subcategories is a leaf, and
+ * submissions are filed under leaves. The live leaves are the entries of the catalogue that
+ * {@link CategoriesHomepage} serves.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,7 +48,7 @@ public class Category extends Entity implements DocumentedItem
     /** The {@code sling:resourceType} of a {@code cat:Category} node. */
     public static final String RESOURCE_TYPE = "cat/Category";
 
-    /** The inheritable tag marking a category as closed to new submissions, defined by this module under /Tags. */
+    /** The inheritable tag that closes a category, and everything under it, to new submissions. */
     public static final String RETIRED_TAG = "retired";
 
     @ValueMapValue
@@ -62,9 +61,9 @@ public class Category extends Entity implements DocumentedItem
     private String schemaVersion;
 
     /**
-     * The human-readable name displayed to submitters.
+     * The name submitters see.
      *
-     * @return a label
+     * @return the label
      */
     @NotNull
     public String getLabel()
@@ -73,10 +72,9 @@ public class Category extends Entity implements DocumentedItem
     }
 
     /**
-     * The prompt-ready description of what belongs in this category, used both as guidance for submitters and as
-     * input for AI-assisted categorization.
+     * What belongs in this category, written as prose for whoever chooses a category.
      *
-     * @return a description, or {@code null} if not set
+     * @return plain text, which may span several lines; {@code null} if none is set
      */
     @Override
     @Nullable
@@ -86,11 +84,11 @@ public class Category extends Entity implements DocumentedItem
     }
 
     /**
-     * Whether this category is retired: no new submissions may be filed under it, and existing submissions keep
-     * referencing it. Retirement is the inheritable {@code retired} tag, so a category under a retired ancestor is
-     * itself retired without having been marked.
+     * Whether this category is closed to new submissions. The {@code retired} tag is inheritable, so a category
+     * under a retired ancestor is retired too.
      *
-     * @return {@code true} if this category is retired, whether in its own right or under a retired ancestor
+     * @return {@code true} if this category or an ancestor carries the tag; {@code false} if neither does, or if
+     *         the content cannot be read as {@code Taggable}
      */
     public boolean isRetired()
     {
@@ -99,10 +97,10 @@ public class Category extends Entity implements DocumentedItem
     }
 
     /**
-     * Whether this category was retired in its own right, rather than by an ancestor. Only the category carrying the
-     * tag can have it taken off again, so this is what an administrative UI offers to unretire.
+     * Whether this category carries the {@code retired} tag itself, not only through an ancestor. Only the category
+     * carrying the tag can have it taken off.
      *
-     * @return {@code true} if the {@code retired} tag is placed on this category itself
+     * @return {@code true} if the tag is placed on this category itself
      */
     public boolean isRetiredHere()
     {
@@ -111,11 +109,9 @@ public class Category extends Entity implements DocumentedItem
     }
 
     /**
-     * The schema version governing submissions filed under this category; the schema version in turn references the
-     * workflow they follow. Only leaf categories are expected to carry a schema version, and categories without one
-     * fall back to a default behavior.
+     * The schema version that submissions filed under this category follow. Only leaves are expected to carry one.
      *
-     * @return a schema version, or {@code null} if not set or unresolvable
+     * @return the schema version; {@code null} if none is set, or if the reference cannot be resolved
      */
     @Nullable
     public SchemaVersion getSchemaVersion()
@@ -126,7 +122,7 @@ public class Category extends Entity implements DocumentedItem
     /**
      * The subcategories of this category, in their stored order.
      *
-     * @return a list of categories, empty if none
+     * @return the categories directly under this one; empty for a leaf
      */
     @NotNull
     public List<Category> getSubcategories()
@@ -135,8 +131,7 @@ public class Category extends Entity implements DocumentedItem
     }
 
     /**
-     * Whether this category is a leaf, i.e. has no subcategories. Only leaf categories may be assigned to
-     * submissions.
+     * Whether this category is a leaf, which submissions can be filed under.
      *
      * @return {@code true} if this category has no subcategories
      */
@@ -153,12 +148,11 @@ public class Category extends Entity implements DocumentedItem
     }
 
     /**
-     * Renders like the default, but without the technical node name after the label: the labels are what the
-     * catalogue's readers (and the categorization prompt) work with, and machine consumers get the exact
-     * identifiers from the JSON serialization instead. The heading is level 2 rather than the default's 3, since
-     * the flat catalogue has no section headings in between. Details are not rendered, as categories declare none.
+     * This category as Markdown: a level 2 heading with the label, then the description. The heading leaves out the
+     * node name, which the JSON form carries. The catalogue has no category sections, so its entries sit one level
+     * below its title.
      *
-     * @return a Markdown fragment with a level 2 heading
+     * @return the Markdown fragment
      */
     @Override
     @NotNull
@@ -167,17 +161,17 @@ public class Category extends Entity implements DocumentedItem
         final StringBuilder out = new StringBuilder("## " + getDocumentationLabel() + '\n');
         final String text = getDescription();
         if (text != null) {
-            // Turn raw line breaks into Markdown hard line breaks, same as the default rendering
+            // Two spaces before a line break keep it in Markdown
             out.append('\n').append(text.replaceAll("\n", "  \n")).append('\n');
         }
         return out.toString();
     }
 
     /**
-     * Adds the {@code path} and {@code id} of the category to the base serialization: the catalogue's consumers
-     * reference the chosen category through one of these, since node names are only unique among siblings.
+     * The JSON form of this category, still open for more fields. A node name is unique only among its siblings, so
+     * the form adds the category's path and {@code jcr:uuid} to the base fields.
      *
-     * @return a JSON object builder holding this category's data, still open for more fields
+     * @return a builder holding the base fields, the {@code path}, and the {@code jcr:uuid} as {@code id}
      */
     @Override
     @NotNull

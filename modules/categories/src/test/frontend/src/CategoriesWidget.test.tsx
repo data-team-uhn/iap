@@ -39,16 +39,14 @@ const treeJson = {
   },
 };
 
-// The widget reads the tree through useAuthenticatedFetch, so every answer carries the `url` it came
-// back from: that is how the login page an expired session is redirected to is recognised.
+// Every answer carries its `url`, which useAuthenticatedFetch reads to recognise the login page.
 const stubFetch = () =>
   vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
     ok: true, status: 200, statusText: "OK", url,
     json: () => Promise.resolve(treeJson),
   } as unknown as Response)));
 
-// A server that answers everything with the same failure, while reporting the session as live: what
-// makes the failure the server's own rather than a lapsed session to be recovered from.
+// A server that answers everything with the same failure, and reports a live session.
 const stubFailingFetch = (status: number, statusText: string) =>
   vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
     ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
@@ -64,9 +62,9 @@ describe("CategoriesWidget", () => {
     expect(await screen.findByText("Retrospective studies")).toBeInTheDocument();
     expect(screen.getByText("Paper submissions")).toBeInTheDocument();
     expect(screen.getByText("Retired")).toBeInTheDocument();
-    // Collapsed by default, so subcategories are not visible yet
+    // Top-level categories start collapsed
     expect(screen.queryByText("Retrospective Data Studies")).not.toBeInTheDocument();
-    // Condensed: labels only, no descriptions
+    // Labels only
     expect(screen.queryByText("Existing data or specimens only.")).not.toBeInTheDocument();
   });
 

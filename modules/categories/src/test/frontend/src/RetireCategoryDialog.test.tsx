@@ -45,14 +45,13 @@ describe("RetireCategoryDialog", () => {
 
     expect(screen.getByRole("heading", { name: "Retire Paper submissions?" })).toBeInTheDocument();
     expect(screen.getByText(/no longer be available for new submissions/)).toBeInTheDocument();
-    // The reassuring half: what retiring does not do
+    // What retiring leaves alone
     expect(screen.getByText(/Existing submissions stay in this category and keep working/))
       .toBeInTheDocument();
     expect(screen.getByText(/can be undone at any time/)).toBeInTheDocument();
   });
 
   it("says that retiring a branch closes everything under it", () => {
-    // The consequence an administrator cannot see from the row they clicked: retirement is inherited
     const posters = { ...node, name: "Posters", path: "/Categories/Paper/Posters" };
     renderDialog({ target: { ...node, children: [posters] } });
 

@@ -45,8 +45,7 @@ interface DialogState {
 
 const parentPathOf = (path: string): string => path.slice(0, path.lastIndexOf("/")) || CATEGORIES_ROOT;
 
-// Runs one write of a save, marking any failure with the step it belongs to so the dialog can say
-// which of them did not happen.
+// Runs one write of a save, and marks a failure with the step it belongs to.
 const attempt = async (step: SaveStep, write: () => Promise<unknown>): Promise<void> => {
   try {
     await write();
@@ -55,9 +54,8 @@ const attempt = async (step: SaveStep, write: () => Promise<unknown>): Promise<v
   }
 };
 
-// The "Submission categories" administrative tool: displays the category tree and lets
-// administrators add, edit, rearrange, retire and delete categories, and bind leaf categories to
-// the schema version their submissions must follow.
+// The "Submission categories" administration screen. Administrators add, edit, rearrange, retire
+// and delete categories there, and bind each leaf to the schema version its submissions follow.
 function CategoryManager() {
   const {
     tree, loading, loadError, reload,
@@ -68,9 +66,9 @@ function CategoryManager() {
   const [ retireTarget, setRetireTarget ] = useState<CategoryNode>();
   const notify = useNotice();
 
-  // The row actions that act the moment they are clicked have no dialog of their own to report
-  // back in, so they report over the tree instead - naming what did not happen, and offering the
-  // attempt again. A retry that fails in turn raises its own notice.
+  // Runs a row action that acts as soon as it is clicked. It has no dialog to report in, so a
+  // failure raises a notice over the tree, titled with what did not happen and offering a retry. A
+  // retry that fails raises a notice of its own.
   const run = (title: string, action: () => Promise<void>): void => {
     action().catch((error: unknown) => notify({
       title,
@@ -83,10 +81,8 @@ function CategoryManager() {
     onEdit: node => setDialog({ mode: "edit", node, parentPath: parentPathOf(node.path) }),
     onAddChild: node => setDialog({ mode: "create", parentPath: node.path }),
     onDelete: node => setDeleteTarget(node),
-    // Retiring is confirmed, because its effect lands on submitters rather than here; unretiring is
-    // that confirmation's undo, so asking again for it would be noise.
-    // Only the category carrying the retirement can have it lifted; one retired by an ancestor has
-    // nothing of its own to take off, and the tree does not offer the action there.
+    // Retiring asks for confirmation, and unretiring acts at once. The tree disables the action on a
+    // category retired only through an ancestor.
     onToggleRetired: node => {
       if (node.retiredHere) {
         run(`${node.label} could not be unretired`, () => setRetired(node.path, false));
@@ -94,21 +90,18 @@ function CategoryManager() {
         setRetireTarget(node);
       }
     },
-    // "Moved up" and "moved down" among siblings, as against the edit dialog's "moved to" another
-    // parent: the UI offers both as moving a category, so a report has to say which one it means
+    // The title names the direction, since the edit dialog also moves a category, to another parent
     onReorder: (node, order, direction) => {
       run(`${node.label} could not be moved ${direction}`, () => reorder(node.path, order));
     },
   };
 
-  // Create saves the new category (deriving its fields' types on the server), then, since the
-  // creation POST already targets the right parent, nothing more; edit updates in place and then
-  // moves the category if a different parent was picked.
+  // Creating writes the category under its parent in one request. Editing updates the fields in
+  // place, then moves the category if another parent was picked.
   //
-  // A parent that is about to stop being a leaf gives up its schema version first, before anything
-  // else is written. That order is what keeps every way this can fail recoverable: a parent that
-  // lost its binding is still a leaf, so the picker still offers to restore it, whereas a parent
-  // that kept one while gaining a child is a non-leaf the picker refuses to show at all.
+  // A parent about to gain its first child gives up its schema version before anything else is
+  // written. If a later step fails, the parent is still a leaf, and the picker still offers to bind
+  // it again. A parent that gained a child and kept its binding would not show the picker at all.
   const save = async ({ fields, parentPath, unbindParent }: CategorySubmission): Promise<void> => {
     if (!dialog) {
       return;
@@ -142,8 +135,8 @@ function CategoryManager() {
       disablePanel
     >
       <LoadingOverlay open={loading} />
-      { /* Reported above the tree rather than in place of it: reloading follows every write too,
-           so this doubles as the "your view is out of date" report over a still-readable tree. */ }
+      { /* Shown above the tree, not instead of it: the reload after a write can fail too, and the
+           earlier tree stays readable. */ }
       { loadError && <CategoryLoadError message={loadError} onRetry={reload} sx={{ mb: 2 }} /> }
       { !loading && tree.length === 0 && !loadError
         && (

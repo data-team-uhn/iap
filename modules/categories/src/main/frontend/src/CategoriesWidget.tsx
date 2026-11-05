@@ -27,10 +27,9 @@ import { useCategoryTree } from "./useCategoryTree";
 
 import type { CategoryNode } from "./categoryModel";
 
-// One category of the summary tree: its label (and retired state), a chevron to collapse its
-// subtree. Leaves keep an invisible chevron so all labels
-// align. Top-level categories start collapsed, keeping the widget compact; the deeper levels
-// start open, so expanding a top-level category reveals its whole subtree in one click.
+// One category of the summary tree: its label, whether it is retired, and a chevron that collapses
+// its subtree. A leaf keeps an invisible chevron, so the labels line up. Top-level categories start
+// collapsed and deeper ones open, so one click on a top-level category shows its whole subtree.
 function CategoryItem({ node, depth }: { node: CategoryNode; depth: number }) {
   const [ open, setOpen ] = useState(depth > 0);
   const hasChildren = node.children.length > 0;
@@ -69,9 +68,8 @@ function CategoryBranch({ nodes, depth }: { nodes: CategoryNode[]; depth: number
   );
 }
 
-// The administration console widget summarizing the categories: the whole tree, condensed to
-// labels only, read-only but collapsible. It reuses the same fetch-and-parse plumbing as the full
-// management UI, which itself is behind the widget frame's "Manage" action (see the extension node).
+// The administration dashboard widget for the categories: the whole tree, labels only, which can
+// be collapsed but not edited. The widget frame's "Manage" action opens the category manager.
 function CategoriesWidget() {
   const { tree, loading, loadError, reload } = useCategoryTree();
 

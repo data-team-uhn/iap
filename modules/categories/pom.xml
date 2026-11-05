@@ -28,8 +28,8 @@
   <artifactId>iap-categories</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Categories</name>
-  <description>Configurable submission categories, each binding the schema version (and through it the workflow)
-    that submissions filed under it must follow, along with the administrative UI for managing them.</description>
+  <description>The tree of categories submitters choose from, whose leaves name the schema version that submissions
+    filed under them follow, and the administrative UI that manages it.</description>
 
   <build>
     <plugins>
@@ -79,7 +79,7 @@
       <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- Nullability annotations, required by the implemented autodoc API -->
+    <!-- Nullability annotations -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>

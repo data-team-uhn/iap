@@ -36,14 +36,14 @@ interface DeleteCategoryDialogProps {
   onRetire: (node: CategoryNode) => Promise<void>;
 }
 
-// The delete confirmation dialog. When the server refuses the deletion - something references the
-// category, or a deletion guard objected - the dialog states the reason it gave and switches to
-// offering to retire the category instead.
+// Asks before deleting a category. If the server refuses, because something references the
+// category or a deletion guard objected, the dialog shows the server's reason and offers to retire
+// the category instead.
 function DeleteCategoryDialog({ node, onClose, onDelete, onRetire }: DeleteCategoryDialogProps) {
   const [ refusal, setRefusal ] = useState<string>();
 
-  // A refused deletion is not a failure to report but a fork in the dialog: the deletion comes off
-  // the table and the retirement it suggested takes its place.
+  // A refused deletion turns the dialog into the offer to retire, rather than being reported as a
+  // failure.
   const takeRefusalAsAnOffer = (error: unknown): boolean => {
     if (error instanceof DeletionRefusedError) {
       setRefusal(error.message);
@@ -58,7 +58,7 @@ function DeleteCategoryDialog({ node, onClose, onDelete, onRetire }: DeleteCateg
       confirmLabel={refusal ? "Retire instead" : "Delete"}
       confirmColor={refusal ? "warning" : "error"}
       onConfirm={refusal ? () => onRetire(node) : () => onDelete(node)}
-      // Only a deletion can be refused this way; a failed retirement is reported, not reinterpreted
+      // Only a deletion can be refused, and a failed retirement is reported as a failure
       interceptFailure={refusal ? undefined : takeRefusalAsAnOffer}
       onClose={onClose}
     >
