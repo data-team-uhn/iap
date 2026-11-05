@@ -120,8 +120,8 @@ since a workflow may only delete the single entity it targets. Referenced or vet
 is answered with a 409 carrying the service's explanation. Discarding a schema is one such workflow: its only step
 is `delete`.
 
-The service writes through its own session and commits there, so the deletion is not undone if a later step
-fails. `delete` belongs at the end of a workflow.
+The step deletes with `deleteWithin`, on the engine's session, so the deletion commits with the rest of the
+delivery or is undone with it. The nodes it checks out are checked back in once the delivery has committed.
 
 ## Vetoes
 
