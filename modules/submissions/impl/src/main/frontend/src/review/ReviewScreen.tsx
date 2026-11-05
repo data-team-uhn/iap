@@ -35,6 +35,8 @@ import {
   Stack,
   Tooltip,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
   useMediaQuery,
   useTheme,
@@ -80,6 +82,18 @@ type Node = Record<string, unknown>;
 const KINDS_KEY = "iap.review.kinds";
 const CONTENTS_OPEN_KEY = "iap.review.contentsOpen";
 const ISSUES_OPEN_KEY = "iap.review.issuesOpen";
+const FOCUSED_KEY = "iap.review.focused";
+
+// A form's items with only the questions kept, and the sections still holding any
+function prune(items: FormItem[], keep: (path: string) => boolean): FormItem[] {
+  return items.flatMap((item): FormItem[] => {
+    if (isQuestion(item)) {
+      return keep(item.path) ? [ item ] : [];
+    }
+    const inner = prune(item.items, keep);
+    return inner.length > 0 ? [ { ...item, items: inner } ] : [];
+  });
+}
 
 // The kinds of notes shown, remembered in the reviewer's browser
 function storeKinds(kinds: Set<NoteKind>): Set<NoteKind> {
@@ -205,6 +219,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   // beside a document, which needs the width
   const [ issuesOpen, setIssuesOpen ] = useStoredFlag(ISSUES_OPEN_KEY);
   const [ railOpen = true, setRailOpen ] = useStoredFlag(CONTENTS_OPEN_KEY);
+  // Whether the reviewer sees only what concerns them, as they start, or the whole submission
+  const [ focused = true, setFocused ] = useStoredFlag(FOCUSED_KEY);
   const myName = usePersonName(me ?? "");
   const [ query, setQuery ] = useState("");
 
@@ -248,9 +264,13 @@ export default function ReviewScreen({ path }: { path: string }) {
   const mine = useCallback((requirement: Requirement) => isFormRequirement(requirement)
     ? questions(requirement.items).some(question => minePart(question.path))
     : minePart(requirement.name), [ minePart ]);
-  const listed = requirements;
+  // Focused, each form keeps only the questions concerning the reviewer, and the contents only the requirements
+  // that keep any, or the document concerning them; and the one being read, however they got there
+  const trimmed = useMemo(() => focused ? requirements.map(one => isFormRequirement(one)
+    ? { ...one, items: prune(one.items, minePart) } : one) : requirements, [ focused, requirements, minePart ]);
   // The first requirement concerning the reviewer, until they choose another
-  const current = requirements.find(one => one.name === selected) ?? requirements.find(mine) ?? requirements.at(0);
+  const current = trimmed.find(one => one.name === selected) ?? trimmed.find(mine) ?? trimmed.at(0);
+  const listed = focused ? trimmed.filter(one => one === current || mine(one)) : trimmed;
 
   // The reviewer groups a requirement concerns: those any of its questions, or the document, matters to
   const groupsOf = (requirement: Requirement): ReviewGroup[] | undefined => {
@@ -340,9 +360,9 @@ export default function ReviewScreen({ path }: { path: string }) {
       clearTimeout(timer);
     };
   }, [ terms, data, doFetch ]);
-  const formHits = useMemo(() => new Map(terms ? requirements.filter(isFormRequirement)
+  const formHits = useMemo(() => new Map(terms ? listed.filter(isFormRequirement)
     .map(one => [ one.name, formMatches(one.items, terms, question => answerTo(one.items, question)) ]) : []),
-  [ terms, requirements ]);
+  [ terms, listed ]);
   const documentHits = pageHits?.terms === terms ? pageHits.counts : undefined;
   // How many times a requirement has the terms: undefined while not searching, or while its text is still read
   const hitCount = (requirement: Requirement): number | undefined => !terms ? undefined
@@ -379,9 +399,9 @@ export default function ReviewScreen({ path }: { path: string }) {
       : undefined);
   };
 
-  const counts = requirements.map(one => hitCount(one) ?? 0);
+  const counts = listed.map(one => hitCount(one) ?? 0);
   const total = counts.reduce((sum, one) => sum + one, 0);
-  const at = current ? requirements.indexOf(current) : -1;
+  const at = current ? listed.indexOf(current) : -1;
   const here = at >= 0 ? counts[at] : 0;
   const local = !current || here === 0 ? undefined
     : isFormRequirement(current) ? (activeHit && formAt ? formAt.index + 1 : undefined)
@@ -419,10 +439,10 @@ export default function ReviewScreen({ path }: { path: string }) {
       setDocumentStep(last => ({ step: last.step + 1, previous }));
       return;
     }
-    for (let away = 1; away <= requirements.length; away++) {
-      const next = (at + (previous ? -away : away) + requirements.length * 2) % requirements.length;
+    for (let away = 1; away <= listed.length; away++) {
+      const next = (at + (previous ? -away : away) + listed.length * 2) % listed.length;
       if (counts[next] > 0) {
-        enter(requirements[next], previous);
+        enter(listed[next], previous);
         return;
       }
     }
@@ -581,9 +601,11 @@ export default function ReviewScreen({ path }: { path: string }) {
               }
               secondary={<>
                 {requirement.name === current?.name && requirement.description}
-                <Box component="span" sx={{ display: "block", mt: 0.25 }}>
-                  <GroupChips groups={groupsOf(requirement)} mine={myGroups} />
-                </Box>
+                {!focused && (
+                  <Box component="span" sx={{ display: "block", mt: 0.25 }}>
+                    <GroupChips groups={groupsOf(requirement)} mine={myGroups} />
+                  </Box>
+                )}
               </>}
               slotProps={{ primary: { variant: "body2" }, secondary: { variant: "caption", component: "div" } }}
               sx={{ my: 0.25 }}
@@ -657,6 +679,14 @@ export default function ReviewScreen({ path }: { path: string }) {
                 </Tooltip>
               )}
             </Stack>
+            <ToggleButtonGroup
+              exclusive fullWidth size="small" value={focused ? "focused" : "all"} aria-label="What to show"
+              onChange={(_event, value: string | null) => value && setFocused(value === "focused")}
+              sx={{ px: 1.5, pb: 1, "& .MuiToggleButton-root": { py: 0.25, textTransform: "none" } }}
+            >
+              <ToggleButton value="focused">Focused</ToggleButton>
+              <ToggleButton value="all">All</ToggleButton>
+            </ToggleButtonGroup>
             {narrow ? rail : <PanelBody follow={current?.name} noScrollbar>{rail}</PanelBody>}
           </Paper>
         ) : (

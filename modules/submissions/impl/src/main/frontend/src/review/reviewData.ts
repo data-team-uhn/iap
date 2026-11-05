@@ -274,11 +274,10 @@ export function parseGroups(approvals: Node[], schema: string): Map<string, Revi
   return groups;
 }
 
-// Whether a question or document is the reviewer's to look at: one of their groups asked for it, or nobody in
-// particular did, as with the title or the PI, which every reviewer reads
+// Whether a question or document is the reviewer's to look at: one of their groups' risks draws on it. What every
+// reviewer reads, such as the title or the PI, the schema says apart, as a requirement for everyone.
 export function isMine(part: string, groups: Map<string, ReviewGroup[]>, myGroups: string[]): boolean {
-  const asking = groups.get(part);
-  return !asking || asking.some(one => myGroups.includes(one.group));
+  return groups.get(part)?.some(one => myGroups.includes(one.group)) ?? false;
 }
 
 // The notes about an answer or document, whether they point at it or quote it
