@@ -131,7 +131,7 @@ public class DueTimers implements Runnable
     @Override
     public void run()
     {
-        try (ResourceResolver resolver = login(WorkflowEngineImpl.SUBSERVICE_NAME);
+        try (ResourceResolver resolver = login(EngineSessions.SUBSERVICE_NAME);
             ResourceResolver timer = login(TIMER_SUBSERVICE)) {
             for (final String path : overdue(resolver)) {
                 fire(resolver, timer, path);

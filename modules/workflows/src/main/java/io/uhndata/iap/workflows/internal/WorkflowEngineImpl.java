@@ -21,11 +21,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
@@ -35,7 +33,6 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
@@ -65,9 +62,6 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 @Component(service = WorkflowEngine.class)
 public class WorkflowEngineImpl implements WorkflowEngine
 {
-    /** The subservice name under which the engine's service user is mapped. */
-    static final String SUBSERVICE_NAME = "workflows";
-
     /**
      * How many nodes one delivery may pass through, counted across all its branches, before the definition is
      * declared broken. Far above anything a real workflow needs, so a definition whose arcs form a cycle fails fast
@@ -81,8 +75,9 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /** How many events deep workflows may send events to each other before the definitions are declared broken. */
     private static final int MAX_SENT_EVENTS_DEPTH = 10;
 
+    /** Opens the engine's own session, in which every delivery runs. */
     @Reference
-    private ResourceResolverFactory resolverFactory;
+    private EngineSessions sessions;
 
     /** Evaluates every guard, on a start event and on a gateway's arcs alike. */
     @Reference
@@ -116,7 +111,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         // case-insensitively and the resolver reports the spelling that was typed: @creator compares against what
         // is recorded here, and would otherwise refuse the person who raised the request
         final String actor = UserIds.canonical(target.getResourceResolver());
-        try (ResourceResolver serviceResolver = serviceResolver()) {
+        try (ResourceResolver serviceResolver = this.sessions.open()) {
             // Re-resolved through the engine's session. From here on the run is privileged: the caller's own
             // view of the target may be nothing but the bare node they were allowed to post to
             final Resource privilegedTarget = Objects.requireNonNull(serviceResolver.getResource(target.getPath()),
@@ -131,29 +126,13 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Override
     public Set<String> getAvailableEvents(final Resource target) throws WorkflowException
     {
-        return this.queries.availableEvents(target, this::serviceResolver);
+        return this.queries.availableEvents(target, this.sessions::open);
     }
 
     @Override
     public WorkflowVersion findApplicableWorkflow(final Resource target, final String event) throws WorkflowException
     {
-        return this.queries.applicableWorkflow(target, event, this::serviceResolver);
-    }
-
-    /**
-     * Opens the engine's own session.
-     *
-     * @return a service resource resolver, to be closed by the caller
-     * @throws WorkflowFailedException when the service user is not available
-     */
-    private ResourceResolver serviceResolver() throws WorkflowFailedException
-    {
-        try {
-            return this.resolverFactory
-                .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME));
-        } catch (final LoginException e) {
-            throw new WorkflowFailedException("The workflow engine's service user is not available", e);
-        }
+        return this.queries.applicableWorkflow(target, event, this.sessions::open);
     }
 
     /**

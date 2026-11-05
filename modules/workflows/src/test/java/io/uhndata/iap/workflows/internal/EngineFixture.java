@@ -495,7 +495,7 @@ public final class EngineFixture
         final ServiceTaskDispatchers dispatchers = new ServiceTaskDispatchers(routing(), runners(), notifications);
         inject(dispatchers, "handlers", handlers);
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
-        inject(engine, "resolverFactory", resolverFactory);
+        inject(engine, "sessions", new EngineSessions(resolverFactory));
         inject(engine, "dispatchers", dispatchers);
         inject(engine, "recorder", recorder);
         inject(engine, "conditionEvaluator", conditions());
