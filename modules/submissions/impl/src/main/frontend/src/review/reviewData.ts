@@ -39,7 +39,7 @@ export interface NoteKindInfo {
 export const NOTE_KINDS: NoteKindInfo[] = [
   { kind: "evidence", label: "Extracted answers", single: "Extracted answer", mark: "evidence" },
   { kind: "aiIssue", label: "AI pre-review", single: "AI pre-review", mark: "assistant" },
-  { kind: "issue", label: "Issues for the study team", single: "Issue", mark: "issue" },
+  { kind: "issue", label: "Issues", single: "Issue", mark: "issue" },
   { kind: "discussion", label: "Reviewer discussion", single: "Discussion", mark: "discussion" },
   { kind: "note", label: "My notes", single: "My note", mark: "annotation" },
 ];

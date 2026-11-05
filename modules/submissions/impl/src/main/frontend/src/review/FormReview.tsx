@@ -21,7 +21,7 @@ import { useState, type ReactNode } from "react";
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
-import { Box, ButtonBase, Chip, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, ButtonBase, Chip, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 
 import { cutShort, getSelectedOutline, passageCard, passageLayer, passageTint } from "@iap/frontend-commons/pdfViewer/passageStyles";
 
@@ -131,11 +131,16 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
             <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
               <Highlighted text={answerText(question, question.value)} question={question.path} field="answer" />
             </Typography>
-            {evidence && shown.has("evidence") && differs && (
-              <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "warning.main", mt: 0.25 }}>
+            {/* Whether or not extracted answers are shown, one the protocol contradicts is said, leading to where */}
+            {evidence && differs && (
+              <Link
+                component="button" variant="caption" underline="hover" onClick={() => onEvidence(evidence)}
+                sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "warning.main", mt: 0.25,
+                  textAlign: "start" }}
+              >
                 <ErrorOutlineOutlined sx={{ fontSize: "1rem" }} />
-                <Typography variant="caption" sx={{ color: "warning.main" }}>The protocol says {extracted}</Typography>
-              </Stack>
+                The protocol says {extracted}{evidence.passage?.page ? `, page ${evidence.passage.page}` : ""}
+              </Link>
             )}
           </Box>
           {!writing && (
