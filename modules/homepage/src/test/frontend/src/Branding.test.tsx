@@ -23,7 +23,7 @@ import { MemoryRouter } from "react-router";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import Branding from "@iap/homepage/Branding";
 
-// The app name and logo come from the page metadata; provide them the way the server does
+// The application's name and logo, as the server gives them to the page in <meta> tags
 beforeAll(() => {
   const metas = { title: "Test App", logoLight: "/light.svg", logoDark: "/dark.svg" };
   for (const [name, content] of Object.entries(metas)) {

@@ -21,15 +21,13 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 import { IconButton, Tooltip } from "@mui/material";
 import { useColorScheme } from "@mui/material/styles";
 
-// A small control that switches the UI between the light and dark colour schemes, registered on
-// the `iap/appBar/entry` extension point (end section) so it is always reachable. The scheme
-// initially follows the system preference (see the ThemeProvider `defaultMode="system"` at the
-// entry point); once toggled, the explicit choice is persisted by MUI on subsequent visits.
+// A button that switches the UI between the light and dark colour schemes. MUI keeps the choice
+// in the browser for later visits.
 function DarkModeToggle() {
   const { mode, systemMode, setMode } = useColorScheme();
 
-  // Until the scheme system has initialized, neither the icon nor the effect of a click is
-  // knowable, so render nothing for that first instant.
+  // MUI gives no mode until it has set up the colour scheme, and the button shows nothing until
+  // then
   if (!mode) {
     return null;
   }

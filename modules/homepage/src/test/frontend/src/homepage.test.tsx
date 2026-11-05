@@ -36,9 +36,7 @@ function renderMain(initialEntries: string[]) {
   );
 }
 
-// Builds a view extension as returned by getRoutes: the parsed ext:Extension JSON with the
-// render asset already resolved to a component. Whether that resolution happened eagerly
-// or lazily (see extensionManager.tsx) is transparent to Main, so it isn't exercised here.
+// A view as getRoutes gives it, whose component shows "<name> view"
 const view = (name: string, targetURL: string) => ({
   "ext:name": name,
   "ext:targetURL": targetURL,
@@ -64,7 +62,6 @@ describe("Main routing", () => {
 
     renderMain(["/unknown"]);
 
-    // Give the effect a chance to resolve the (non-matching) views
     await vi.waitFor(() => expect(mockedGetRoutes).toHaveBeenCalled());
     expect(screen.queryByText("Dashboard view")).not.toBeInTheDocument();
   });

@@ -31,7 +31,8 @@ Sling turns a request into a resource, then into a script:
 
 1. **Path → resource.** The path is looked up in the repository. Nothing there means
    nothing to serve, which is why a client-side route with no resource behind it 404s
-   on a refresh — see [the note on routed views](ui-extensions.md#routed-views).
+   on a refresh — see
+   [the note on routed views](ui-extensions.md#routed-views--iapcoreuiview-node-views).
 2. **Resource → resource type.** Every content node autocreates a `sling:resourceType`
    from its node type — `tag/Homepage`, `sub/Submission`, `app/Homepage`.
 3. **Resource type → script.** The type names a folder under `/libs`, and the script

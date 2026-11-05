@@ -21,10 +21,7 @@ import { Link as RouterLink } from "react-router";
 
 import Logo from "@iap/frontend-commons/components/Logo";
 
-// The application's identity in the app bar: the logo, linking back to the homepage. The logo
-// is a self-titling wordmark, so deliberately no separate application name is displayed next to
-// it. On narrow screens the wordmark shrinks.
-// Registered on the `iap/appBar/entry` extension point, start section.
+// The application's logo, linking to the landing page
 function Branding() {
   return (
     <Link component={RouterLink} to="/" underline="none" color="inherit">

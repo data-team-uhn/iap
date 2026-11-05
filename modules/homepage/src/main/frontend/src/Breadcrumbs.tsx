@@ -24,24 +24,20 @@ import { matchPath, Link as RouterLink, useLocation } from "react-router";
 import { useAddedCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { getRoutes } from "@iap/frontend-commons/routes";
 
-// A view as returned by getRoutes(): the parsed JSON of one `ext:Extension` registered on the
-// `iap/coreUI/view` extension point.
+// An extension on the `iap/coreUI/view` point, as getRoutes() gives it
 type View = Record<string, unknown>;
 
-// The strict ancestor paths of a URL, nearest-to-root first: "/admin/categories" -> ["/admin"].
-// The root itself is never a crumb - "home" is reached through the logo - and neither is the
-// current page, whose own title is the page heading.
+// The paths of a URL's ancestors, from the top down, without the root and the URL itself:
+// "/admin/schemas/study" gives ["/admin", "/admin/schemas"]
 const ancestorPaths = (pathname: string): string[] => {
   const segments = pathname.replace(/\/+$/, "").split("/").filter(Boolean);
   return segments.slice(0, -1).map((_, index) => "/" + segments.slice(0, index + 1).join("/"));
 };
 
-// The breadcrumb trail, registered on the `iap/coreUI/pageTop` extension point so it appears
-// above the main content of every page. Each ancestor of the current URL that corresponds to a
-// registered view becomes a link named after that view (`ext:name`), followed by whatever crumbs the
-// page itself adds (see pageCrumbs); on a top-level page with none, nothing is rendered at all. The trail is as access-controlled
-// as the views themselves: a view the user cannot read is never served, so it simply doesn't
-// appear in their trail either.
+// The breadcrumb trail: a link to each ancestor of the current URL that a view's `ext:targetURL`
+// matches. A crumb is named by the view's `ext:name`, or by the path if it has none. The crumbs
+// the page adds with usePageCrumbs follow. A user is not served the views they cannot read, and
+// so gets no crumb for them. Nothing is rendered when there is no crumb.
 function Breadcrumbs() {
   const [ views, setViews ] = useState<View[]>([]);
   const { pathname } = useLocation();
@@ -53,14 +49,11 @@ function Breadcrumbs() {
       .catch((err: unknown) => console.error("Something went wrong loading the views", err));
   }, []);
 
-  // Match each ancestor against the views' target URLs with the router's own semantics, so a
-  // parameterized view like /Submissions/:id still names the right crumb.
+  // The router matches each ancestor, so a target with a parameter, such as `:id`, names a crumb
+  // too.
   //
-  // A splat target never names one. It matches any number of segments, so /Submissions/* claims
-  // every path under /Submissions, and a submission filed in a prefix tree gets four crumbs called
-  // "Submission" for buckets that are not pages. Excluding splats loses nothing: a splat view that
-  // does cover a real page sits beside that page's own exact registration, as /admin/archive/* does
-  // beside /admin/archive.
+  // A target with a splat names none. /Submissions/* matches every path under /Submissions. A
+  // submission filed in a prefix tree would get a "Submission" crumb for each folder above it.
   const crumbs = ancestorPaths(pathname)
     .map(path => {
       const view = views.find(candidate => {
@@ -77,10 +70,8 @@ function Breadcrumbs() {
   }
 
   return (
-    // The trail reads as a header strip: a hairline divider separates it from the content below.
-    // The horizontal inset is margin, not padding, so the divider only spans the content width
-    // (the shell-published content gutter keeps it aligned with the main content's edges)
-    // instead of running edge to edge.
+    // The inset is a margin, not a padding, so that the divider under the trail spans only the
+    // width of the content
     <MuiBreadcrumbs
       separator="/"
       sx={{ mx: "var(--iap-content-gutter)", pt: 2, pb: 1, borderBottom: 1, borderColor: "divider" }}

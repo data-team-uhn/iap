@@ -22,8 +22,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import DarkModeToggle from "@iap/homepage/DarkModeToggle";
 
-// jsdom has no matchMedia, which MUI's color scheme system consults for the system preference;
-// stub it out as "no preference" so the toggle can run outside a real browser.
+// jsdom has no matchMedia, which MUI asks for the system's colour scheme. This one matches no
+// query.
 beforeAll(() => {
   vi.stubGlobal("matchMedia", window.matchMedia ?? ((query: string) => ({
     matches: false,
@@ -37,9 +37,7 @@ beforeAll(() => {
   })));
 });
 
-// MUI persists the explicitly chosen mode; clear it so tests don't leak into each other.
-// (window.localStorage, not the bare global: outside a --localstorage-file'd Node the global
-// resolves to Node's own, undefined one instead of jsdom's.)
+// MUI keeps the chosen mode in localStorage, which would carry it into the next test
 afterEach(() => window.localStorage?.clear());
 
 const renderToggle = () => render(
@@ -70,7 +68,7 @@ describe("DarkModeToggle", () => {
       </ThemeProvider>
     );
 
-    // jsdom reports no colour-scheme preference, so the system scheme resolves to light
+    // The stubbed matchMedia does not match a dark preference, so the system scheme is light
     expect(await screen.findByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument();
   });
 });

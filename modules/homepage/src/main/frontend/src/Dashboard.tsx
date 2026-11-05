@@ -18,10 +18,7 @@
 
 import WidgetDashboard from "@iap/frontend-commons/components/WidgetDashboard";
 
-// The landing page, at `/`: a grid of widgets, each contributed by whichever module owns the
-// information it shows, so what greets a user is a matter of what a deployment installs and
-// enables rather than of code. The grid itself — the responsive columns, the titled widget frames
-// and their tuning properties — is the shared WidgetDashboard from frontend-commons.
+// The landing page: a dashboard of the widgets on the `iap/dashboard/widget` extension point
 function Dashboard() {
   return <WidgetDashboard point="DashboardWidget" />;
 }

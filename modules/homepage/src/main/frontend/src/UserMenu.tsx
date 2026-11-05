@@ -37,19 +37,19 @@ import { readJson } from "@iap/frontend-commons/requestFailure";
 
 import PersonaSwitcher from "./PersonaSwitcher";
 
-// Sling's user management endpoint, serving a user's properties
+// Sling's user manager, which serves a user's properties as JSON
 const userInfoUrl = (userId: string) => `/system/userManager/user/${encodeURIComponent(userId)}.json`;
-// Sling's logout endpoint; navigating to it ends the session
+// Sling's logout endpoint. Loading it ends the session.
 const LOGOUT_URL = "/system/sling/logout";
 
-// The user's displayable full name, from whichever conventional properties their profile carries.
+// The user's full name: their `displayName`, or else their first and last names, from
+// `firstname` or `givenName` and `lastname` or `familyName`. Empty if none is set.
 const fullNameOf = (user: Record<string, unknown>): string =>
   ((user.displayName as string | undefined) ?? "").trim()
   || [ user.firstname ?? user.givenName, user.lastname ?? user.familyName ]
     .filter(Boolean).join(" ").trim();
 
-// One or two initials identifying the user: the first letters of the first and last words of
-// their full name (falling back to their user name).
+// The first letters of a name's first and last words, in upper case. Empty for a blank name.
 const initialsOf = (name: string): string => {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) {
@@ -59,10 +59,9 @@ const initialsOf = (name: string): string => {
   return initials.toUpperCase();
 };
 
-// The current user's presence in the app bar: an avatar with their initials, opening a menu that
-// identifies the account (user name and, when the profile provides one, full name), lets them choose
-// the persona they act as when they have more than one, and offers to sign out. Registered on the
-// `iap/appBar/entry` extension point, end section.
+// The current user's avatar, with the initials of their full name, or of their username without
+// one. It opens a menu with the username, and the full name where it differs. The menu also has
+// the PersonaSwitcher and a link to sign out. Nothing is rendered until the user is known.
 function UserMenu() {
   const [ anchor, setAnchor ] = useState<HTMLElement | null>(null);
   const [ userName, setUserName ] = useState("");
@@ -82,7 +81,7 @@ function UserMenu() {
     fetch(userInfoUrl(userName))
       .then(response => response.ok ? readJson<Record<string, unknown>>(response) : Promise.reject(new Error(`Failed to load user info: ${response.status}`)))
       .then(json => setFullName(fullNameOf(json)))
-      // The full name is a nice-to-have; without it the menu just shows the user name
+      // Without the user's properties, the menu shows only the username
       .catch(() => setFullName(""));
   }, [ userName ]);
 
