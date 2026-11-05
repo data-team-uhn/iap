@@ -72,7 +72,7 @@ export default function IssuesPanel({ issues, about, open, onToggle, onOpenIssue
   return (
     <Paper sx={{ width: 300, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 96px)" }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 1.5, pt: 1, pb: 0.5 }}>
-        <Typography variant="subtitle2" sx={{ flex: 1 }}>
+        <Typography variant="panelTitle" sx={{ flex: 1 }}>
           Your issues for the study team ({issues.length})
         </Typography>
         <Tooltip title="Fold away" placement="left">

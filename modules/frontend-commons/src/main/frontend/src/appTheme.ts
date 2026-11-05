@@ -135,6 +135,7 @@ declare module "@mui/material/styles" {
   interface TypographyVariants {
     pageTitle: CSSProperties;
     subheading: CSSProperties;
+    panelTitle: CSSProperties;
     description: CSSProperties;
     placeholder: CSSProperties;
     code: CSSProperties;
@@ -142,6 +143,7 @@ declare module "@mui/material/styles" {
   interface TypographyVariantsOptions {
     pageTitle?: CSSProperties;
     subheading?: CSSProperties;
+    panelTitle?: CSSProperties;
     description?: CSSProperties;
     placeholder?: CSSProperties;
     code?: CSSProperties;
@@ -192,6 +194,7 @@ declare module "@mui/material/Typography" {
   interface TypographyPropsVariantOverrides {
     pageTitle: true;
     subheading: true;
+    panelTitle: true;
     description: true;
     placeholder: true;
     code: true;
@@ -318,6 +321,15 @@ const appTheme = createTheme({
       ...baseTypography.overline,
       color: mutedColor,
     },
+    // PRETOTYPE: the title of a panel beside the page, such as a submission's contents: shaped like a subheading,
+    // but in the heading colour and a little larger, since it names what the whole panel is
+    panelTitle: {
+      ...baseTypography.overline,
+      fontSize: "0.875rem",
+      fontWeight: baseTypography.fontWeightBold,
+      lineHeight: 1.5,
+      color: headingColor,
+    },
     // Small print, such as field labels and metadata lines, is always muted.
     caption: { color: mutedColor },
     overline: { color: mutedColor },
@@ -441,6 +453,7 @@ const appTheme = createTheme({
         variantMapping: {
           pageTitle: "h1",
           subheading: "h2",
+          panelTitle: "h2",
           description: "p",
           placeholder: "p",
           code: "code",
