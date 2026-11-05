@@ -56,7 +56,7 @@ public class CaughtMailServlet extends SlingJakartaSafeMethodsServlet
     private static final long serialVersionUID = 5541051484949339022L;
 
     /** The multivalued properties, each written as an array, empty if the message has no value. */
-    private static final List<String> ADDRESS_LISTS = List.of("from", "replyTo", "to", "cc", "bcc", "headers");
+    private static final List<String> MULTIVALUED_PROPERTIES = List.of("from", "replyTo", "to", "cc", "bcc", "headers");
 
     @Override
     // The caught mail is content, not a command's answer
@@ -103,7 +103,7 @@ public class CaughtMailServlet extends SlingJakartaSafeMethodsServlet
         if (when != null) {
             json.add("caughtAt", when);
         }
-        ADDRESS_LISTS.forEach(name -> {
+        MULTIVALUED_PROPERTIES.forEach(name -> {
             final JsonArrayBuilder values = Json.createArrayBuilder();
             for (final String value : properties.get(name, new String[0])) {
                 values.add(value);
