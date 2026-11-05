@@ -26,6 +26,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.servlets.SlingJakartaSafeMethodsServlet;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,7 +103,8 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
      * @return the figures in display order, each under a name unique within the summary, such as {@code total}
      * @throws SummaryUnavailableException if the summary cannot be read
      */
-    protected abstract JsonObjectBuilder summarize(SlingJakartaHttpServletRequest request)
+    @NotNull
+    protected abstract JsonObjectBuilder summarize(@NotNull SlingJakartaHttpServletRequest request)
         throws SummaryUnavailableException;
 
     /**
@@ -112,7 +114,8 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
      * @param value how many were counted
      * @return the figure
      */
-    protected static JsonObjectBuilder count(final String label, final long value)
+    @NotNull
+    protected static JsonObjectBuilder count(@NotNull final String label, final long value)
     {
         return count(label, value, false);
     }
@@ -125,7 +128,8 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
      * @param approximate whether counting stopped early, which makes {@code value} a lower bound
      * @return the figure
      */
-    protected static JsonObjectBuilder count(final String label, final long value, final boolean approximate)
+    @NotNull
+    protected static JsonObjectBuilder count(@NotNull final String label, final long value, final boolean approximate)
     {
         final JsonObjectBuilder figure = Json.createObjectBuilder().add("label", label).add("value", value);
         if (approximate) {
@@ -140,7 +144,8 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
      * @param label what the figure is a count of, as the widget shows it
      * @return the figure
      */
-    protected static JsonObjectBuilder unknown(final String label)
+    @NotNull
+    protected static JsonObjectBuilder unknown(@NotNull final String label)
     {
         return Json.createObjectBuilder().add("label", label).addNull("value");
     }
@@ -152,7 +157,8 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
      * @param value whether it is on
      * @return the figure
      */
-    protected static JsonObjectBuilder state(final String label, final boolean value)
+    @NotNull
+    protected static JsonObjectBuilder state(@NotNull final String label, final boolean value)
     {
         return Json.createObjectBuilder().add("label", label).add("value", value);
     }
