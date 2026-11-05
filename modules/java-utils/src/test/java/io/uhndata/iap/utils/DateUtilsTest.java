@@ -39,8 +39,7 @@ import org.junit.jupiter.api.Test;
  */
 public class DateUtilsTest
 {
-    // A fixed, non-UTC timezone with a stable January offset (-05:00), so that assertions on
-    // timezone-dependent parsing and formatting are deterministic regardless of the host's zone.
+    // The JVM's default zone during each test, whatever the host's. In January it is at -05:00.
     private static final TimeZone TEST_ZONE = TimeZone.getTimeZone("America/Toronto");
 
     private static final String ISO_PATTERN = "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}([+-]\\d{2}:\\d{2}|Z)";
@@ -112,7 +111,6 @@ public class DateUtilsTest
     @Test
     public void testParseDateReadsTheDayOfAWholeDateTime()
     {
-        // Neither the time nor the offset may move the day
         Assertions.assertEquals(LocalDate.of(2025, 1, 15),
             DateUtils.parseDate("2025-01-15T23:30:00.000+05:00"));
         Assertions.assertEquals(LocalDate.of(2025, 1, 15), DateUtils.parseDate("2025-01-15T10:30:00"));
@@ -228,7 +226,7 @@ public class DateUtilsTest
     @Test
     public void testToStringTemporalAccessorReturnsNullWhenNotFormattable()
     {
-        // A LocalDate has no time fields, so the datetime formatter cannot format it and returns null
+        // A LocalDate has no time and no offset to write
         Assertions.assertNull(DateUtils.toString(LocalDate.of(2025, 1, 15)));
     }
 

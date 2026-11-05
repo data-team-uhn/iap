@@ -36,7 +36,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Utility class for parsing the selectors suffix from a resource into a list of selectors or a map of selector options.
+ * Reads the selectors of a request: a list of selectors, the depth they ask for, or the options they give one
+ * processor. A selector is separated from the next by a dot. A backslash escapes a dot, or another backslash.
  *
  * @version $Id$
  * @since 0.1.0
@@ -46,43 +47,39 @@ public final class SelectorUtils
     /** The depth value that means "no limit": {@value}. */
     public static final int UNLIMITED_DEPTH = -1;
 
-    /** The selector requesting unlimited depth, the same keyword that Sling's default JSON renderer uses. */
+    /** The selector asking for unlimited depth. */
     private static final String INFINITY_SELECTOR = "infinity";
 
-    /**
-     * A selector specifying a depth: an integer, optionally negative. At most 9 digits are accepted, both because
-     * longer numbers wouldn't fit in an {@code int}, and because such a depth is unreachable in practice.
-     */
+    /** A selector asking for a depth: a whole number, possibly negative, of at most 9 digits so that it fits an int. */
     private static final Pattern DEPTH_SELECTOR = Pattern.compile("-?\\d{1,9}");
 
     /**
-     * Selectors supplied by the request outside its path, set for the duration of one request by
-     * {@code SelectorParameterFilter}.
+     * The selectors the current request gives outside its path, for as long as the request runs.
      *
      * <p>
-     * A thread-local rather than a parameter because <b>nothing that reads selectors has the request</b>, and the
-     * {@code resolutionPathInfo} cannot be modified after Sling resolved the request resource.
+     * A thread-local, because the code that reads selectors works from a resource and not from the request. Sling
+     * locks a resource's metadata once it is resolved. A {@code ResourceWrapper} carrying other metadata does not
+     * help either, since {@code adaptTo} on it adapts the resource it wraps.
      * </p>
      */
     private static final ThreadLocal<List<String>> REQUEST_SELECTORS = new ThreadLocal<>();
 
     private SelectorUtils()
     {
-        // Prevent instantiation of a utility class
     }
 
     /**
-     * Parse a selectors string into a list of selectors. This unescapes the URL-encoded string, and considers escaped
-     * dots and escaped backslashes.
+     * Splits the path info into selectors, after URL-decoding it. The extension is split off too, as the last of
+     * them: {@code .deep.json} gives {@code deep} and {@code json}.
      *
      * <p>
-     * The selectors the current request supplied outside its path, if any, are included as well; see
-     * {@link #setRequestSelectors}. They come last, so a depth or an option given that way overrides one in the
-     * path, which is what an explicit parameter should do.
+     * The selectors the current request gives outside its path, if any, follow them; see {@link #setRequestSelectors}.
+     * A depth or an option given that way therefore overrides one in the path.
      * </p>
      *
-     * @param resolutionPathInfo the resolution path info, as received from Sling, may be URL-encoded
-     * @return a list of selectors, dots not included
+     * @param resolutionPathInfo the part of the request path after the resource's path, such as
+     *     {@code .deep.json}, possibly URL-encoded; {@code null} or blank if there is none
+     * @return the selectors, unescaped and without the dots between them; empty if there are none
      */
     @NotNull
     public static List<String> parseSelectors(@Nullable final String resolutionPathInfo)
@@ -90,33 +87,15 @@ public final class SelectorUtils
         if (StringUtils.isBlank(resolutionPathInfo)) {
             return requestSelectors();
         }
-        // Parse the selectors string into individual selectors.
-        // Split by unescaped dots. A backslash escapes a dot, but two backslashes are just one escaped backslash.
-        // Match by:
-        // - no preceding backslash, i.e. start counting at the first backslash, which means either any character other
-        // than \, or the start of the string: ([^\]|^)
-        // - an even number of backslashes, i.e. any number of groups of two backslashes (\\)*
-        // - due to limitations of the lookbehind implementation in Java, instead of any number, we limit to at most 10
-        // pairs: (\\){0,10}
-        // - a literal dot \.
-        // Each backslash, except the \., is escaped twice, once as a special escape char inside a Java string, and
-        // once as a special escape char inside a RegExp. The one before the dot is escaped only once as a special
-        // char inside a Java string, since it must retain its escaping meaning in the RegExp.
+        // Split at each dot preceded by an even number of backslashes. A Java lookbehind needs a bounded length, so
+        // it counts at most 10 pairs.
         final List<String> fromPath = Arrays
             .asList(URLDecoder.decode(resolutionPathInfo, StandardCharsets.UTF_8)
                 .split("(?<=([^\\\\]|^)(\\\\\\\\){0,10})\\."))
             .stream()
-            // Also unescape escaped dots, if present
-            // No preceding backslash, negative lookbehind for \: (?<!\)
-            // As a regexp special character, each backslash must be escaped: (?<!\\)
-            // As a Java string literal, each backslash must be escaped again: (?<!\\\\)
-            // Escaped dot: odd number of \ followed by a dot, so (\\)*+\.
-            // As a regexp special character, each backslash must be escaped: (\\\\)*+\\.
-            // As a regexp special character, the dot must be escaped: (\\\\)*+\\\.
-            // As a Java string literal, each backslash must be escaped again: (\\\\\\\\)*+\\\\\\.
-            // Since we want to keep the backslashes in its selector, capture them in a group: ((\\\\\\\\)*+)
+            // Unescape a dot preceded by an odd number of backslashes, keeping the pairs before it
             .map(s -> s.replaceAll("(?<!\\\\)((\\\\\\\\)*+)\\\\\\.", "$1.")
-                // Finally, unescape escaped backslashes
+                // Then turn each pair of backslashes into one
                 .replace("\\\\", "\\"))
             .filter(StringUtils::isNotBlank)
             .collect(Collectors.toCollection(ArrayList::new));
@@ -125,15 +104,14 @@ public final class SelectorUtils
     }
 
     /**
-     * Parse the depth requested through the selectors, following the convention of Sling's default JSON renderer: a
-     * numeric selector, or {@code infinity}. The depth is the number of levels of descendants to include, so {@code 0}
-     * means just the resource itself, {@code 1} means the resource and its direct children, and so on, while
-     * {@code infinity} or any negative number means {@link #UNLIMITED_DEPTH unlimited} depth. Selectors that aren't
-     * numbers are ignored, and if more than one depth selector is present, the last one wins, so in
-     * {@code .3.deep.2.1b.json} the requested depth is {@code 2}.
+     * The depth the selectors ask for: how many levels of descendants to include. {@code 0} is the resource alone,
+     * {@code 1} adds its children, and so on. {@code infinity}, in any case, or a negative number means
+     * {@link #UNLIMITED_DEPTH unlimited}. Other selectors are ignored. Where several ask for a depth, the last one
+     * wins: {@code .3.deep.2.1b.json} asks for {@code 2}.
      *
-     * @param resolutionPathInfo the resolution path info, as received from Sling, may be URL-encoded
-     * @return the requested depth, or an empty result if no depth selector is present
+     * @param resolutionPathInfo the part of the request path after the resource's path, such as
+     *     {@code .deep.2.json}, possibly URL-encoded; {@code null} or blank if there is none
+     * @return the depth; empty if no selector asks for one
      */
     public static OptionalInt parseDepth(final String resolutionPathInfo)
     {
@@ -146,13 +124,15 @@ public final class SelectorUtils
     }
 
     /**
-     * Parse the options for a given prefix, for example from {@code .dataFilter:status=SUBMITTED} extracts the pair
-     * {@code (status, SUBMITTED)}. This returns all matching pairs, with multiple instances for the same key included
-     * if it is present more than once in the path info.
+     * The options the selectors give one processor: {@code .dataFilter:status=SUBMITTED} gives {@code dataFilter} the
+     * pair {@code (status, SUBMITTED)}. A key given several times appears once for each. The key ends at the first
+     * {@code =} not escaped with a backslash.
      *
-     * @param optionPrefix the option prefix to look for
-     * @param resolutionPathInfo the resolution path info, as received from Sling, may be URL-encoded
-     * @return a list of extracted pairs of key=value
+     * @param optionPrefix the name of the processor the options are for, such as {@code dataFilter}, with or without
+     *     the colon after it; blank to read no options
+     * @param resolutionPathInfo the part of the request path after the resource's path, possibly URL-encoded;
+     *     {@code null} or blank if there is none
+     * @return each option's key and value, in order; the value is empty for an option without {@code =}
      */
     @NotNull
     public static List<Pair<String, String>> parseOptions(@NotNull final String optionPrefix,
@@ -162,8 +142,6 @@ public final class SelectorUtils
             return Collections.emptyList();
         }
         final String prefix = Strings.CS.appendIfMissing(optionPrefix, ":");
-        // First parse the selectors string into a list of selectors
-        // Then parse the dataFilter selectors into key=value pairs
         return parseSelectors(resolutionPathInfo).stream()
             .filter(s -> Strings.CS.startsWith(s, prefix))
             .map(s -> StringUtils.substringAfter(s, prefix))
@@ -178,13 +156,14 @@ public final class SelectorUtils
     }
 
     /**
-     * Parse the options for a given prefix, for example from {@code .dataFilter:status=SUBMITTED} extracts the pair
-     * {@code (status, SUBMITTED)}. This returns only the last value for a given key, if multiple instances for the same
-     * key are present in the path info.
+     * The options the selectors give one processor, as {@link #parseOptions} reads them. For a key given several
+     * times, the last value wins.
      *
-     * @param optionPrefix the option prefix to look for
-     * @param resolutionPathInfo the resolution path info, as received from Sling, may be URL-encoded
-     * @return a map of the extracted key=value
+     * @param optionPrefix the name of the processor the options are for, such as {@code dataFilter}, with or without
+     *     the colon after it; blank to read no options
+     * @param resolutionPathInfo the part of the request path after the resource's path, possibly URL-encoded;
+     *     {@code null} or blank if there is none
+     * @return each option's key, mapped to its value
      */
     @NotNull
     public static Map<String, String> parseOptionsToMap(@NotNull final String optionPrefix,
@@ -197,10 +176,11 @@ public final class SelectorUtils
     }
 
     /**
-     * Record selectors that the current request supplied outside its path, so that every parse during this request
-     * includes them. The caller must {@link #clearRequestSelectors() clear} them when the request ends.
+     * Records the selectors the current request gives outside its path, such as in a query parameter. Every parse on
+     * this thread includes them until they are {@link #clearRequestSelectors() cleared}.
      *
-     * @param selectors the selectors, each one whole and unescaped; blank ones are ignored
+     * @param selectors the selectors, each one whole and with nothing escaped; blank ones are ignored, and
+     *     {@code null} records none
      */
     public static void setRequestSelectors(@Nullable final List<String> selectors)
     {
@@ -208,16 +188,19 @@ public final class SelectorUtils
             : selectors.stream().filter(StringUtils::isNotBlank).collect(Collectors.toList()));
     }
 
-    /** Forget the selectors recorded for this thread. Must be called when the request ends, or they leak. */
+    /**
+     * Forgets the selectors recorded for this thread. Call it when the request ends, or the next request served on
+     * the thread gets them.
+     */
     public static void clearRequestSelectors()
     {
         REQUEST_SELECTORS.remove();
     }
 
     /**
-     * The selectors the current request supplied outside its path, empty outside a request that supplied any.
+     * The selectors recorded for this thread.
      *
-     * @return the recorded selectors, never {@code null}
+     * @return the selectors; empty if none are recorded
      */
     @NotNull
     private static List<String> requestSelectors()

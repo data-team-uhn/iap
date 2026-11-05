@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link ContentCopierImpl}: content copied whatever its structure, with references pointed at the
- * copies, what the repository maintains left out, and the participants consulted.
+ * copies, protected properties and modification stamps left out, and the participants consulted.
  *
  * @version $Id$
  * @since 0.1.0

@@ -37,7 +37,8 @@ import io.uhndata.iap.utils.JsonResponses;
  *
  * <p>
  * A subclass computes the figures in {@link #summarize}, and registers itself on its own resource type with the
- * {@link #SUMMARY_SELECTOR} selector. This class writes the answer, or an error status when the summary cannot be read.
+ * {@value #SUMMARY_SELECTOR} selector. This class writes the answer. If the summary cannot be read, it answers
+ * {@code 500} with a {@link JsonResponses#writeError} body.
  * </p>
  *
  * @version $Id$
@@ -67,7 +68,7 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
             fail(request, response, e.getMessage(), e.getCause());
             return;
         } catch (final RuntimeException e) {
-            // A failure the subclass did not foresee still answers in the format the widget reads
+            // An unexpected failure gets the same answer, with a generic reason
             fail(request, response, UNREADABLE_MESSAGE, e);
             return;
         }
@@ -95,10 +96,10 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * The figures of the summary, in the order they are displayed, keyed by a name unique within it.
+     * The figures of the summary.
      *
      * @param request the request, whose resource is the one to summarize
-     * @return a JSON object builder holding the figures
+     * @return the figures in display order, each under a name unique within the summary, such as {@code total}
      * @throws SummaryUnavailableException if the summary cannot be read
      */
     protected abstract JsonObjectBuilder summarize(SlingJakartaHttpServletRequest request)
@@ -107,9 +108,9 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
     /**
      * An exact count.
      *
-     * @param label what the figure is a count of
+     * @param label what the figure is a count of, as the widget shows it, such as {@code Recorded in total}
      * @param value how many were counted
-     * @return a JSON object builder holding the figure
+     * @return the figure
      */
     protected static JsonObjectBuilder count(final String label, final long value)
     {
@@ -119,10 +120,10 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
     /**
      * A count that may have stopped at a bound.
      *
-     * @param label what the figure is a count of
+     * @param label what the figure is a count of, as the widget shows it
      * @param value how many were counted
-     * @param approximate whether counting stopped early, making {@code value} a lower bound
-     * @return a JSON object builder holding the figure
+     * @param approximate whether counting stopped early, which makes {@code value} a lower bound
+     * @return the figure
      */
     protected static JsonObjectBuilder count(final String label, final long value, final boolean approximate)
     {
@@ -134,11 +135,10 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * A count that could not be taken. The figure keeps its place in the summary, and the widget shows its value
-     * as unknown.
+     * A count that could not be taken. The figure keeps its place in the summary, with a {@code null} value.
      *
-     * @param label what the figure is a count of
-     * @return a JSON object builder holding the figure
+     * @param label what the figure is a count of, as the widget shows it
+     * @return the figure
      */
     protected static JsonObjectBuilder unknown(final String label)
     {
@@ -148,9 +148,9 @@ public abstract class AdminSummaryServlet extends SlingJakartaSafeMethodsServlet
     /**
      * A state that is on or off.
      *
-     * @param label what the state is
+     * @param label what the state is, as the widget shows it
      * @param value whether it is on
-     * @return a JSON object builder holding the figure
+     * @return the figure
      */
     protected static JsonObjectBuilder state(final String label, final boolean value)
     {

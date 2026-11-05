@@ -105,12 +105,11 @@ enabled per subtree by configuration rather than being on everywhere:
 }
 ```
 
-It is active for `/Submissions/by-id` and `/Archive/by-id`. Note it is mounted
-*beside* each tree rather than over it: a provider at `/Submissions` would be handed
-every create below it and could only refuse, which would stop submissions being
-raised. It resolves a single flat segment — no slashes or dots, at least
-`PrefixTree.MINIMUM_NAME_LENGTH` (12) characters — so it makes ids addressable, not
-arbitrary deep paths.
+It is active for `/Submissions/by-id` and `/Archive/by-id`. It is mounted *beside*
+each tree, not over it. Mounted at `/Submissions` in overlay mode, it would be handed
+every write below it and refuse it, and no submission could be created. It resolves a
+single segment, with no slash or dot and at least `PrefixTree.MINIMUM_NAME_LENGTH` (6)
+characters. It makes ids addressable, not deeper paths.
 
 A module wanting deep or varying URLs of its own — the `/Submissions/{id}/*` case —
 still needs a provider of its own over its own root, along the lines of the admin

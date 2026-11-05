@@ -39,17 +39,16 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link PrefixTreeResourceProvider}, over two different trees, since serving any of them from one
- * configuration-driven component is the point.
+ * Tests for {@link PrefixTreeResourceProvider}, over two trees.
  *
  * @version $Id$
  */
 class PrefixTreeResourceProviderTest
 {
-    /** A name long enough to be filed in the prefix tree, i.e. the UUID both trees name their nodes with. */
+    /** A UUID, which is long enough to file. */
     private static final String NAME = "3fa91c48-0000-4000-8000-000000000000";
 
-    /** Where each provider is mounted: beside its tree, never over it. */
+    /** Where each provider is mounted. */
     private static final String ARCHIVE_MOUNT = "/Archive/" + PrefixTree.ADDRESS_SEGMENT;
 
     private static final String SUBMISSIONS_MOUNT = "/Submissions/" + PrefixTree.ADDRESS_SEGMENT;
@@ -73,8 +72,7 @@ class PrefixTreeResourceProviderTest
         this.repository = mock(ResourceProvider.class);
         this.resourceContext = mock(ResourceContext.class);
         this.stored = mock(Resource.class);
-        // The two parent getters are declared with wildcards, which thenReturn cannot be given a concrete value
-        // for, so they are stubbed the untyped way
+        // thenReturn cannot take a concrete value for a getter declared with a wildcard
         doReturn(this.repository).when(this.context).getParentResourceProvider();
         doReturn(this.belowContext).when(this.context).getParentResolveContext();
     }
@@ -98,15 +96,12 @@ class PrefixTreeResourceProviderTest
         when(this.repository.getResource(any(), eq("/Archive/3f/a9/1c/" + NAME), any(), any()))
             .thenReturn(this.stored);
 
-        // The same resource the stored path resolves to, not a stand-in: the short form is an address, and the
-        // node keeps its own identity, path included
         assertSame(this.stored, this.resolve(this.mountedAt(ARCHIVE_MOUNT), ARCHIVE_MOUNT + "/" + NAME));
     }
 
     @Test
     void theSameComponentServesAnyTreeItIsMountedAt()
     {
-        // Nothing about it is specific to the archive; a second configuration is all another tree needs
         when(this.repository.getResource(any(), eq("/Submissions/3f/a9/1c/" + NAME), any(), any()))
             .thenReturn(this.stored);
 
@@ -116,17 +111,13 @@ class PrefixTreeResourceProviderTest
     @Test
     void theRealTreeIsLeftEntirelyToTheRepository()
     {
-        // The whole reason this mounts beside the tree rather than over it. A provider is picked by the longest
-        // provider.root matching the path, for writes as much as reads, so one mounted at /Archive would be handed
-        // every create under it and could only refuse — which is a 500 on filing anything, from a component that
-        // only ever meant to shorten a URL.
         when(this.repository.getResource(any(), any(), any(), any())).thenReturn(null);
         final PrefixTreeResourceProvider provider = this.mountedAt(ARCHIVE_MOUNT);
 
         assertNull(this.resolve(provider, "/Archive"));
         assertNull(this.resolve(provider, "/Archive/3f"));
         assertNull(this.resolve(provider, "/Archive/3f/a9/1c/" + NAME));
-        // Not merely unanswered: never even asked about, so nothing it does can affect a stored path
+        // Not even passed on to the provider below
         verify(this.repository, never()).getResource(any(), any(), any(), any());
     }
 
@@ -162,8 +153,7 @@ class PrefixTreeResourceProviderTest
     @Test
     void aPathWithAnExtensionIsDeclined()
     {
-        // Resolution offers `<root>/<name>.entry.json` before `<root>/<name>`, and a page script includes a
-        // relative `.html`. Answering those with the node is how a provider talks itself into a recursion.
+        // Sling tries `<root>/<name>.entry.json` before `<root>/<name>`
         when(this.repository.getResource(any(), any(), any(), any())).thenReturn(null);
         final PrefixTreeResourceProvider provider = this.mountedAt(ARCHIVE_MOUNT);
         assertNull(this.resolve(provider, ARCHIVE_MOUNT + "/" + NAME + ".entry.json"));
@@ -173,8 +163,6 @@ class PrefixTreeResourceProviderTest
     @Test
     void aProviderWithNoRootAnswersNothing()
     {
-        // The resolver does not mount a provider that declares no provider.root, so this only guards a
-        // configuration that could never have worked in the first place
         when(this.repository.getResource(any(), any(), any(), any())).thenReturn(null);
         final PrefixTreeResourceProvider provider = new PrefixTreeResourceProvider();
         provider.activate(Map.of());

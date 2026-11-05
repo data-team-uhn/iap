@@ -26,14 +26,13 @@ import javax.jcr.RepositoryException;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Copies content: a node's properties and descendants into another node, recursively, whatever their structure.
- * Each node keeps its name, type, mixins and position among its siblings, and binaries are copied with it.
- * References to nodes inside the copy are pointed at their copies, and references to anything outside are kept.
- * Protected properties and modification stamps belong to the repository and are never copied; what else is left
- * out, or adjusted once the copy is made, is contributed by the modules that know, as {@link CopyParticipant}s.
+ * Copies content: a node's properties and descendants into another node, whatever their structure. Each descendant
+ * keeps its name, type, mixins and order, and binaries are copied too. A reference to a node inside the copy points
+ * at that node's copy, and a reference to anything outside is kept. Protected properties, {@code jcr:lastModified}
+ * and {@code jcr:lastModifiedBy} are never copied. Each {@link CopyParticipant} can leave out more, or adjust the
+ * finished copy.
  *
- * <p>The copy is made in the session of the nodes given, and saved with it: in a workflow, as part of the engine's
- * single commit.</p>
+ * <p>The copy is made in the session of the nodes given, and left among its pending changes.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -41,18 +40,18 @@ import org.jetbrains.annotations.NotNull;
 public interface ContentCopier
 {
     /**
-     * Copies what a node holds into another node. The target keeps its own name, type and properties, except those
-     * the source also has, which the copy overwrites; children the target already has, such as autocreated ones,
-     * are filled in rather than duplicated.
+     * Copies what a node holds into another node. The target keeps its own name, type, mixins and properties, except
+     * the properties the source also has, which the copy overwrites. A child the target already has, such as an
+     * autocreated one, is filled in rather than duplicated.
      *
      * @param source the node copied
      * @param target the node receiving the copy
-     * @param skipped properties of the source node itself that are not copied, e.g. a label the target has its own
-     *            of; its descendants are copied whole
-     * @param dropped values left out of multi-valued properties of the source node itself, by property name, a
-     *            reference's by the identifier it holds; e.g. tags that say where the source stands rather than what
-     *            it holds
-     * @return the identifiers of the copied referenceable nodes, each original's mapped to its copy's
+     * @param skipped the names of the source's own properties that are not copied, such as a label the target has
+     *            its own of; it does not apply to the descendants
+     * @param dropped the values left out of the source's own multi-valued properties, by property name, such as tags
+     *            that say where the source stands; a reference's value is the {@code jcr:uuid} it holds
+     * @return the {@code jcr:uuid} of each copied referenceable node, mapped to its copy's; the source's identifier,
+     *         a {@code jcr:uuid} or not, maps to the target's
      * @throws RepositoryException when the source cannot be read or the copy cannot be written
      */
     @NotNull

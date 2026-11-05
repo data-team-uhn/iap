@@ -26,9 +26,9 @@ import javax.jcr.RepositoryException;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * What a module knows about copying the content it is responsible for: what is maintained rather than held, and so
- * not copied, and what has to be adjusted once a copy is made. A module registers one as an OSGi service, and
- * every {@link ContentCopier} consults it. Each method has a default that changes nothing.
+ * What a module knows about copying its own content: what is computed rather than held, and so not copied, and what
+ * to adjust once a copy is made. A module registers one as an OSGi service, and the {@link ContentCopier} consults
+ * every one. Each method has a default that changes nothing.
  *
  * @version $Id$
  * @since 0.1.0
@@ -36,8 +36,8 @@ import org.jetbrains.annotations.NotNull;
 public interface CopyParticipant
 {
     /**
-     * Whether a property is left out of copies, e.g. one computed from the content around it. One participant
-     * answering {@code true} is enough: the property is left out whatever all the others answer.
+     * Whether a property is left out of copies, such as one computed from the content around it. One participant
+     * answering {@code true} is enough, whatever the others answer.
      *
      * @param property a property of a node being copied
      * @return {@code true} to leave it out
@@ -49,8 +49,8 @@ public interface CopyParticipant
     }
 
     /**
-     * Whether a child node is left out of copies, with everything under it, e.g. a container the module maintains.
-     * One participant answering {@code true} is enough: the child is left out whatever all the others answer.
+     * Whether a child node is left out of copies, with everything under it, such as a container the module
+     * maintains. One participant answering {@code true} is enough, whatever the others answer.
      *
      * @param child a child of a node being copied
      * @return {@code true} to leave it out
@@ -62,11 +62,13 @@ public interface CopyParticipant
     }
 
     /**
-     * Adjusts a finished copy, e.g. pointing values that name copied nodes at their copies.
+     * Adjusts a finished copy, such as pointing values that name copied nodes at their copies. It runs once per
+     * copy, after every node and reference is in place.
      *
      * @param source the node copied
      * @param copy the node that received the copy
-     * @param identifiers the identifiers of the copied referenceable nodes, each original's mapped to its copy's
+     * @param identifiers the {@code jcr:uuid} of each copied referenceable node, mapped to its copy's; the source's
+     *     identifier, a {@code jcr:uuid} or not, maps to the copy's
      * @throws RepositoryException when the copy cannot be adjusted
      */
     default void afterCopy(@NotNull final Node source, @NotNull final Node copy,

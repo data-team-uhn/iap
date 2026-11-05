@@ -56,7 +56,6 @@ class VersionNumbersTest
         this.context.create().resource("/parent/V4", TYPE, VERSION);
         this.context.create().resource("/parent/2.0", TYPE, VERSION);
 
-        // The largest decides, so the numbers missing below it are never handed out again
         assertEquals(5, VersionNumbers.next(parent, VERSION));
     }
 

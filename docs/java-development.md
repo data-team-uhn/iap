@@ -292,8 +292,8 @@ is the normal case and has to behave sensibly.
 - `factory = true` on `@Designate` allows many configured instances of the same
   component — one per Slack notification, one per prefix tree.
 - `configurationPolicy = ConfigurationPolicy.REQUIRE` on `@Component` means the
-  component does not exist until configured. `PrefixTreeResourceProvider` uses this: a
-  generic provider with no root to mount at should not be running.
+  component does not exist until configured. `PrefixTreeResourceProvider` uses this: it
+  runs only where a configuration gives it a root to mount at.
 
 Write the `description` for an administrator reading it in the web console, not for
 the next developer. It is UI text.

@@ -63,8 +63,8 @@ otherwise.
 | `allowedResourceTypes` | all | Repeatable; the node types a `quick` search may return |
 
 The response is the standard paginated shape, produced by `PaginatedJsonResponse`
-(`iap-java-utils`) — the same helper behind the listing endpoints, so the envelope and
-every limit below are shared rather than search-specific:
+(`iap-java-utils`). The listing endpoints use it too, so the envelope and the limits
+below are the same there:
 
 ```json
 {
@@ -80,15 +80,14 @@ every limit below are shared rather than search-specific:
 
 Four behaviours worth coding against:
 
-- **`totalrows` is counted result by result**, because the repository does not report a
-  total. Counting stops `LOOKAHEAD_PAGES` (100) past the requested page, and
-  `totalIsApproximate` then says the real total is larger.
-- **No request reads more than `MAX_COUNT` (10 000) matches**, however large a page it
-  asks for and however far in it starts. `limit=0` counts up to that ceiling, which is
-  what makes it useful for "how many are there?"; a page starting near it comes back
-  short, and one starting past it comes back empty. `limit` is capped on its own, but
-  `offset` is a client parameter too, and without a ceiling one request asking for a far
-  enough page would walk the entire repository.
+- **`totalrows` is counted result by result**, because Oak's own count is exact only
+  for small results. Counting stops at the end of the batch of `LOOKAHEAD_PAGES` (100)
+  pages that holds the requested page, and `totalIsApproximate` then says the real
+  total is larger.
+- **No request counts more than `MAX_COUNT` (10 000) matches**, however large a page it
+  asks for and however far in it starts. `limit=0` counts up to that ceiling, and so
+  answers "how many are there?". A page starting near the ceiling comes back short, and
+  one starting past it comes back empty.
 - **A node reached several times is returned once** — which a join does routinely. For a
   statement with several selectors, the node returned is the one on the **first**
   selector. Raw results are *not* deduplicated: there the rows are what the client asked

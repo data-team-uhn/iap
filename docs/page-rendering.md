@@ -151,7 +151,8 @@ been HTML-escaped is not JSON.
 
 ### Other content types
 
-`ContentTypeSetter` also offers `${contentType.javascript}` and `${contentType.csv}`.
+`ContentTypeSetter` also offers `${contentType.javascript}`, `${contentType.csv}`,
+`${contentType.text}` and `${contentType.markdown}`.
 A type wanting `.csv` ships a `csv.GET.html`, and the same
 `<selector>.html` naming gives a variant rendering — `resolved.html` under
 `ext/Point`, requested as `.resolved` or included by another script.
@@ -200,14 +201,13 @@ to do:
 
 | Class | For |
 |---|---|
-| `ContentTypeSetter` | `${contentType.html}`, `.json`, `.javascript`, `.csv` — set the response content type |
-| `StatusCodeSetter` | `${statusCode.ok}`, `.created`, `.notFound`, … — set the response status |
-| `ConfigMetadata` | Deployment configuration under `/libs/iap/conf`, used by `header.html` for the page title and `<meta>` tags |
-| `ErrorMetadata` | The status code, reason phrase and whether JSON was requested, for the error handlers |
+| `ContentTypeSetter` | `${contentType.html}`, `.json`, `.javascript`, `.csv`, `.text`, `.markdown`: set the response content type |
+| `StatusCodeSetter` | `${statusCode.ok}`, `.created`, `.notFound`, …: set the response status |
+| `ConfigMetadata` | The configuration under `/libs/iap/conf`, which `header.html` uses for the page title and the `<meta>` tags |
+| `ErrorMetadata` | For the error handlers: the status code, the message or reason phrase, and the JSON body if JSON was asked for. It also sets the status on the response |
 
-`ConfigMetadata` is why branding is a deployment concern rather than a code one: the
-header renders whatever `app/Configuration` nodes the deployment supplies, with no
-script change.
+With `ConfigMetadata`, the header renders whatever `app/Configuration` nodes the
+deployment supplies. Branding a deployment needs no script change.
 
 More can be written when a script genuinely needs something these do not cover.
 A `Use` object is either a Sling Model adapted from the resource, a class implementing
@@ -228,9 +228,10 @@ answer is a servlet's job, and shaping stored content is a
 | `/libs/sling/servlet/errorhandler/404.html` | Not found — sets the status itself, then loads the 404 app |
 | `/apps/sling/servlet/errorhandler/default.html` | Everything else |
 
-The default handler branches on what the caller asked for: `ErrorMetadata.json` is true
-for a JSON request, and the response is then a JSON error body rather than a page. That
-is what keeps an API client from receiving HTML when something fails.
+The default handler branches on what the caller asked for. `ErrorMetadata.json` holds
+a JSON error body when the request's `Accept` header is exactly `application/json`, and
+the response is then that body rather than a page. An API client that asks for JSON
+gets no HTML when something fails.
 
 Note the search paths. Sling looks in `/apps` before `/libs`, so a script in `/apps`
 overrides the platform's equivalent in `/libs` — which is the hook a deployment uses to

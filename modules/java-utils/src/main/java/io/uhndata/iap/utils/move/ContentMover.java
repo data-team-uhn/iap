@@ -27,8 +27,7 @@ import org.jetbrains.annotations.Nullable;
  * Moves content: a node and everything under it, into a new parent or to another place among its siblings. Before a
  * node's path changes, each {@link MoveParticipant} can update whatever names the node by its path.
  *
- * <p>The move is made in the session of the nodes given, and saved with it: in a workflow, as part of the engine's
- * single commit.</p>
+ * <p>The move is made in the session of the nodes given, and left among its pending changes.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -36,7 +35,8 @@ import org.jetbrains.annotations.Nullable;
 public interface ContentMover
 {
     /**
-     * Moves a node into a parent, under a name, before one of the parent's children or else last.
+     * Moves a node into a parent, under a name, before one of the parent's children or else last. In a parent whose
+     * type keeps no order of its children, {@code before} is ignored.
      *
      * @param node the node moved
      * @param parent where it goes; its current parent to only change its place among its siblings

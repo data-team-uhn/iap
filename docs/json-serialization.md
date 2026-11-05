@@ -37,11 +37,10 @@ between the path and the extension.
 | `.<name>:<key>=<value>` | Pass an option to a processor |
 
 Selectors are separated by dots, so a value containing a dot cannot simply be written
-into the path. `SelectorUtils` (`iap-java-utils`) does the parsing — `parseSelectors`,
-`parseDepth`, `parseOptions` and `parseOptionsToMap` — and it does understand a
-backslash-escaped dot, but **do not rely on that in a URL**: an encoded backslash is
-treated as a dangerous character and rejected by default under the servlet
-specification, and support for it is being removed.
+into the path. `SelectorUtils` (`iap-java-utils`) does the parsing, with
+`parseSelectors`, `parseDepth`, `parseOptions` and `parseOptionsToMap`. It reads a
+backslash before a dot as an escape, but **do not rely on that in a URL**: by default,
+Jetty refuses a backslash in a path, literal or encoded.
 
 Use the query-parameter form instead. Selectors may be passed as repeated `selector`
 parameters, and for any value containing a literal dot that is the form to use:

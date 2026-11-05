@@ -41,9 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Unit tests for {@link SelectorParameterFilter}.
  *
  * <p>
- * The filter's whole effect is on what {@link SelectorUtils} parses while the chain runs, so that is what the chain
- * mock inspects. Each test also checks the recording is gone afterwards: it lives on a pooled thread, so a leak
- * would apply one request's selectors to whatever that thread served next.
+ * The chain mock checks what {@link SelectorUtils} parses while the chain runs.
  * </p>
  *
  * @version $Id$
@@ -75,7 +73,7 @@ class SelectorParameterFilterTest
     @AfterEach
     void tearDown()
     {
-        // Nothing should be left behind, but a failing test must not take its neighbours down with it
+        // So that a failing test leaves nothing behind for the next one
         SelectorUtils.clearRequestSelectors();
     }
 
@@ -143,8 +141,6 @@ class SelectorParameterFilterTest
     @Test
     void theSelectorThatCouldNotBeWrittenInThePathArrivesWhole() throws Exception
     {
-        // The case the parameter exists for: the dots belong to the value, and escaping them in a path needs a
-        // backslash, which Jetty refuses
         selectorParameters("dataOption:formSelectors=-dereference.simple.deep");
         Mockito.doAnswer(invocation -> {
             assertEquals(Map.of("formSelectors", "-dereference.simple.deep"),

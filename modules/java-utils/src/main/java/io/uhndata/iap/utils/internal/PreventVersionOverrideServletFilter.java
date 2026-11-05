@@ -39,8 +39,10 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
- * Check if a base version was passed in the request, and if it doesn't match the base version of the resource being
- * modified, abort the request.
+ * Refuses a {@code POST} or {@code PUT} whose {@code :baseVersion} parameter is not the path of the resource's
+ * current base version. The resource was then checked in again after the client read it. The filter records
+ * {@code 409} as the error's status code and throws. If the resource is not a node, or its base version cannot be
+ * read, the request goes ahead.
  *
  * @version $Id$
  * @since 0.1.0
