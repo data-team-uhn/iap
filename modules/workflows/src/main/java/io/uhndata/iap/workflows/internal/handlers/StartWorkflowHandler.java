@@ -32,6 +32,7 @@ import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.ExecutionHost;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -100,6 +101,21 @@ public class StartWorkflowHandler implements ServiceTaskHandler
         } else {
             context.startWorkflow(host, version);
         }
+        context.recordRole(host, "started " + titleOf(versionResource));
+    }
+
+    /**
+     * The name people know a workflow by.
+     *
+     * @param version a version of the workflow
+     * @return the title of the definition it is a version of
+     */
+    private static String titleOf(final Resource version)
+    {
+        final Resource definition = Objects.requireNonNull(version.getParent(),
+            "A workflow version is stored in its definition");
+        return Objects.requireNonNull(definition.adaptTo(WorkflowDefinition.class),
+            "Any resource adapts to a workflow definition").getTitle();
     }
 
     /**
