@@ -30,8 +30,8 @@ import org.jetbrains.annotations.NotNull;
  * </p>
  *
  * @param path the absolute path of the affected node; a part of an entity stands for the entity it belongs to
- * @param role a word for the part the resource played, in the vocabulary of the operation rather than of the storage,
- *            such as {@code retired}, {@code activated} or {@code submitted}
+ * @param role a short phrase for the part the resource played, in the vocabulary of the operation rather than of the
+ *            storage, such as {@code raised}, {@code retired} or {@code tagged as active}
  * @version $Id$
  * @since 0.1.0
  */

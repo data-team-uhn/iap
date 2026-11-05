@@ -296,7 +296,7 @@ public final class RecordedAction
 
     /**
      * Collects what an action carried beyond who requested it and what they requested. Every method may be skipped, and
-     * passing {@code null} to one is the same as skipping it.
+     * passing {@code null} to one that accepts it is the same as skipping it.
      *
      * @version $Id$
      * @since 0.1.0

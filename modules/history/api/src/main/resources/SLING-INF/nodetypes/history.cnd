@@ -154,8 +154,8 @@
 //-----------------------------------------------------------------------------
 // What one action did to one resource.
 //
-// Named after the subject's identifier, so the repository refuses a second
-// entry for the same resource in the same action.
+// Named after the subject's jcr:uuid, so an action holds at most one entry for
+// each resource.
 [hist:Entry] > data:Content
   // Attributes:
 
@@ -175,10 +175,9 @@
   - subjectPath (STRING) mandatory
   - subjectType (STRING) mandatory
 
-  // The part this resource played in the action, e.g. "submitted", "retired",
-  // "activated". Not constrained to a list of values: the workflow definitions
-  // own that vocabulary, and a constraint here would fail the commit recording
-  // a change rather than the change itself.
+  // The part this resource played in the action, e.g. "raised", "retired",
+  // "tagged as active". Free-form: the code that acted names it, or else it
+  // says what the commit did to the resource, such as "created".
   - role (STRING) mandatory
 
   // Where the action changed this resource, relative to it and never with

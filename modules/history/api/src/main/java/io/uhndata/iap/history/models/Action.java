@@ -62,7 +62,7 @@ public class Action extends Content
     /** The name of the property holding the path of the content workflow instance involved. */
     public static final String WORKFLOW_INSTANCE_PROPERTY = "workflowInstance";
 
-    /** The name of the property holding the identifier of the workflow version that handled the request. */
+    /** The name of the property holding the {@code jcr:uuid} of the workflow version that handled the request. */
     public static final String WORKFLOW_VERSION_PROPERTY = "workflowVersion";
 
     /** The name of the property holding the {@code elementId} of the workflow step that handled the request. */

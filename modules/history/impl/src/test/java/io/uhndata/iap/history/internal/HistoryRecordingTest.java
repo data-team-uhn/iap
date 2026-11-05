@@ -179,7 +179,6 @@ class HistoryRecordingTest
         final String path = commit(RecordedAction.by(REQUESTER, SAVE).build(),
             () -> this.session.getNode(DAYS).setProperty(VALUE, "5"));
 
-        // A commit editor writes below the type checks, so nothing else would notice a missing property
         final List<Node> written = new ArrayList<>();
         for (Node node = this.session.getNode(path); !"/".equals(node.getPath()); node = node.getParent()) {
             written.add(node);

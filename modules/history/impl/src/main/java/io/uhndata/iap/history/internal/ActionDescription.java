@@ -72,7 +72,7 @@ record ActionDescription(String name, Map<String, String> cause, String occurred
      *
      * @param name the name the action is filed under
      * @param cause the text the action carries about its cause
-     * @param occurredAt when the action happened, or {@code null}
+     * @param occurredAt when the action happened, or {@code null} if it happens as it is recorded
      * @param complete whether the action is complete as recorded
      * @param effects the parts the code named
      */
