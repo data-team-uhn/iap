@@ -413,11 +413,11 @@ export default function ReviewScreen({ path }: { path: string }) {
               borderRadius: 0, py: 0.75, mb: 0.25, alignItems: "flex-start",
               borderInlineStart: "3px solid", borderColor: "transparent",
               "& .requirement-name": { color: "primary.main", fontWeight: "fontWeightMedium" },
-              "&:hover": { bgcolor: theme.alpha(theme.palette.primary.main, 0.06) },
+              "&:hover": { bgcolor: theme.alpha(theme.palette.background.paper, 0.5) },
               "& .requirement-go": { opacity: 0, transition: theme.transitions.create("opacity") },
               "&:hover .requirement-go, &:focus-visible .requirement-go": { opacity: 1 },
               "&&.Mui-selected, &&.Mui-selected:hover": {
-                bgcolor: theme.alpha(theme.palette.primary.main, 0.1), borderColor: "primary.main",
+                bgcolor: "background.paper", borderColor: "primary.main",
               },
               "&.Mui-selected .requirement-name": { fontWeight: "fontWeightBold" },
             })}
@@ -481,8 +481,11 @@ export default function ReviewScreen({ path }: { path: string }) {
       </Stack>
       <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, alignItems: "flex-start" }}>
         {railOpen || narrow ? (
+          // Part of the frame, tinted like the app bar; the requirement being read is a tab of the white page beside it
           <Paper sx={{ py: 0.5, width: { xs: "100%", md: 240 }, flexShrink: 0, position: { md: "sticky" }, top: { md: 16 },
-            overflow: "hidden" }}>
+            overflow: "hidden", bgcolor: { md: "background.tinted" }, boxShadow: { md: "none" },
+            mr: { md: -1.5 }, borderTopRightRadius: { md: 0 }, borderBottomRightRadius: { md: 0 },
+            borderRight: { md: "none" } }}>
             <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, pt: 0.75, pb: 0.5 }}>
               <Typography variant="h6" component="h2" sx={{ flex: 1, color: "primary.main", fontSize: "1.05rem" }}>
                 Submission contents
@@ -514,7 +517,8 @@ export default function ReviewScreen({ path }: { path: string }) {
             </Typography>
           </Paper>
         )}
-        <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%" }}>
+        <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%",
+          ...railOpen && !narrow ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: "none" } : {} }}>
           {current && (
             <>
               <Stack direction="row" sx={{ alignItems: "center", columnGap: 2, rowGap: 1, flexWrap: "wrap", mb: 0.5 }}>
