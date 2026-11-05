@@ -23,15 +23,11 @@ import { Box, Toolbar } from "@mui/material";
 import { ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
-// The application bar: a toolbar row composed entirely of extensions registered on the
-// `iap/appBar/entry` extension point, so that any module can contribute controls (branding,
-// notifications, user menu, search, ...) without this component knowing about them. The bar
-// itself is a `frameTop` extension, so it stays pinned to the top of the screen.
+// The application bar: a row of the extensions on the `iap/appBar/entry` point.
 //
-// An entry declares where it sits through `ext:appBarSection` — `start`, `middle`, or `end`
-// (logical inline directions, so the whole row mirrors under a right-to-left locale) — and is
-// ordered within its section by `defaultOrder`. Entries render inline in the row; an entry
-// that needs more room (a search field, ...) can flex-grow itself.
+// An entry's `ext:appBarSection` puts it in the `start`, `middle` or `end` section of the row. An
+// entry without one is at the start, and an entry naming any other section is not shown. Within a
+// section, entries follow their `defaultOrder`. An entry that needs more room can grow itself.
 function AppBar() {
   const [ entries, setEntries ] = useState<Extension[]>([]);
 
@@ -50,12 +46,13 @@ function AppBar() {
       sx={{
         gap: 1,
         bgcolor: "background.tinted",
-        // The dense 48px bar suits narrow screens; from sm up, open to the standard 64px
+        // 48px high below `sm`, as a dense toolbar is, and 64px from `sm` up
         minHeight: { sm: 64 },
       }}
     >
       <ExtensionList extensions={section("start")} />
-      { /* The spacers keep the middle section centered and push the end section to the far edge */ }
+      { /* The spacers share the free space, so that the middle section is centered between the
+           other two, and the end section is at the far edge */ }
       <Box sx={{ flexGrow: 1 }} />
       <ExtensionList extensions={section("middle")} />
       <Box sx={{ flexGrow: 1 }} />

@@ -20,11 +20,7 @@ import { Link as RouterLink } from "react-router";
 
 import FooterContent from "@iap/frontend-commons/components/FooterContent";
 
-// The standard page footer of the app shell. The content (affiliation logo, `iap/footer/link`
-// extensions, version and credits) lives in the shared FooterContent, also rendered by the
-// login page; this wrapper contributes the in-shell placement: the tinted band, and client-side
-// routing for in-app links.
-// Registered on the `iap/coreUI/pageBottom` extension point, so it scrolls with the content.
+// The page footer: FooterContent on a tinted band, with its in-app links followed by the router
 function Footer() {
   return (
     <FooterContent

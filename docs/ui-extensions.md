@@ -35,8 +35,8 @@ Properties every point understands:
 
 ### Page shell
 
-`PageLayout` (homepage module) renders a stable screen frame around a scrolling
-middle, every region a point:
+`PageLayout` (homepage module) renders a frame that stays on the screen, around a
+middle that scrolls. Each region is an extension point:
 
 ```
 ┌──────────── frameTop ─────────────┐   Frame regions: always visible, pinned.
@@ -53,37 +53,38 @@ middle, every region a point:
 
 | Point id | Region | Behaviour |
 |---|---|---|
-| `iap/coreUI/frameTop` | Full-width bar, top | Pinned; collapses into a pull-tab drawer below its configured screen height |
+| `iap/coreUI/frameTop` | Full-width bar, top | Pinned. On a screen shorter than its configured height, a pull tab at the edge opens it in a drawer |
 | `iap/coreUI/frameBottom` | Full-width bar, bottom | Same |
-| `iap/coreUI/frameStart` | Side rail, start (left in LTR) | Fixed width, own scrollbar, spans between the bars; collapses into an edge pull-tab drawer below its configured width |
+| `iap/coreUI/frameStart` | Side rail, start (left in LTR) | Fixed width, its own scrollbar, between the bars. On a screen narrower than its configured width, a pull tab at the edge opens it in a drawer |
 | `iap/coreUI/frameEnd` | Side rail, end | Same |
-| `iap/coreUI/pageTop` | Above main content, between rails | Scrolls with the content |
-| `iap/coreUI/pageBottom` | Below main content, between rails | Scrolls with the content |
+| `iap/coreUI/pageTop` | Above the main content, between the rails | Scrolls with the content |
+| `iap/coreUI/pageBottom` | Below the main content, between the rails | Scrolls with the content |
 
-Empty regions render nothing — no rail, no bar, no pull tab. Thresholds and widths are
-per-region in the theme's `iapShell` section
+An empty region renders nothing: no rail, no bar and no pull tab. Thresholds and widths
+are per region, in the theme's `iapShell` section
 (`modules/frontend-commons/src/main/frontend/src/appTheme.ts`). The defaults are 200px
 rails, collapsing below `md` (start) and `xl` (end), and bars collapsing below a height
 of 500px.
 
 ### Routed views — `iap/coreUI/view` (node `Views`)
 
-`ext:targetURL` is the path the view owns, handed to the router as-is, so router
-patterns work: a parameter (`/Submissions/:id`) or a trailing splat
-(`/Submissions/:id/*`). The breadcrumb trail matches ancestors against the same
-patterns. Use `?lazy` so a view loads only when navigated to.
+`ext:targetURL` is the path the view shows, and the router reads it as a pattern. It
+can have a parameter, such as `:id`, or end in a splat, as `/Submissions/*` does. The
+breadcrumb trail matches ancestors against the same patterns, except those with a
+splat. Use `?lazy` so that a view loads only when it is first shown.
 
-**What a pattern does not do is make its URLs resolvable on the server.** Every view
-URL must be backed by a resource: client-side navigation works regardless, but a
-refresh or deep link asks Sling for the whole URL, and an unresolvable path 404s
-before the SPA loads. `/Submissions/123` resolves (the node serves the shell);
-`/Submissions/123/reviews/financial` does not, however the pattern is written.
+**A pattern does not make its URLs resolvable on the server.** Every view URL must be
+backed by a resource. Navigating inside the application works regardless, but a
+refresh or a deep link asks Sling for the whole URL, and an unresolvable path is a 404
+before the application loads. A submission's own path resolves, since its node serves
+the shell. A path below it, such as `<submission>/reviews/financial`, does not,
+whatever the pattern.
 
 Two ways to back a URL:
 
-- **A node** in the owning module's repoinit — `create path (app:Homepage) /content`.
-  It also carries the page's access control, so denying it to `everyone` makes a deep
-  link an honest 404. Fine for one virtual page; cannot cover varying paths.
+- **A node** in the owning module's repoinit, such as the admin console's
+  `create path (app:Homepage) /admin`. Its access control is the page's, so denying it
+  to `everyone` makes a deep link a 404. A node backs one fixed path, not varying ones.
 - **A `ResourceProvider`**, synthesizing them. `AdminViewResourceProvider`
   (`admin-console`) covers the whole `/admin` subtree in `overlay` mode: anything
   below the console not in the repository is answered with a synthetic resource
@@ -117,31 +118,30 @@ console's.
 
 ### App bar — `iap/appBar/entry` (node `AppBarEntry`)
 
-The app bar is itself a `frameTop` extension composed of entries on its own point.
-`ext:appBarSection` places an entry in `start`, `middle` (centered) or `end`;
-`defaultOrder` orders within the section.
+The app bar is a `frameTop` extension, and its entries are extensions on a point of its
+own. `ext:appBarSection` places an entry in the `start`, `middle` or `end` section; an
+entry without one is at the start. The `middle` section is centered between the other
+two. `defaultOrder` orders the entries within a section.
 
-Current entries: Branding (start); dark mode toggle, notifications bell,
-administration console button (admins only), user menu with the persona choice (end).
-`middle` is reserved for e.g. a future search bar.
+The entries are the logo (start), then at the end the Administration button for
+administrators, the dark mode toggle, the notifications bell, and the user menu with
+the persona choice. No entry uses `middle`.
 
-A high-visibility element like a maintenance banner registers directly on `frameTop`
-with `defaultOrder` below the app bar's 20 to sit above it. The
-`iap-commons.NoticeBanner` asset renders such a data-only extension: markdown message
-in `ext:data`, optional `ext:severity`.
+A banner, such as a maintenance notice, is an extension on `frameTop` itself, with a
+`defaultOrder` below the app bar's 20 to sit above it. The `iap-commons.NoticeBanner`
+asset renders such a data-only extension: the markdown message in `ext:data`, and an
+optional `ext:severity`.
 
-Adding `ext:visibleBeforeLogin: true` also shows it on the login page, which renders
-`frameTop` extensions carrying that opt-in and nothing else from the frame. Interim
-mechanism: once system tags can declare where an extension belongs, that is expected
-to take over. The conversion is contained — one client-side filter in the login
-module's `PreLoginExtensions`, plus the node type property.
+With `ext:visibleBeforeLogin: true`, it shows on the login page too. The login page
+shows the `frameTop` extensions that carry it, and nothing else of the frame.
 
 ### Footer links — `iap/footer/link` (node `FooterLink`)
 
-The footer is a `pageBottom` extension showing the institution's logo, links and the
-platform version. Its links are **data-only extensions**: no component, just
-`ext:name` (label) and `ext:targetURL` — a path navigates in-app, a full URL opens in
-a new tab. Hide a link whose page isn't ready with `ext:defaultDisabled: true`.
+The footer is a `pageBottom` extension. It shows the institution's logo, the links,
+the platform's name and version, and the DATA credit. Its links are **data-only
+extensions**, with the label in `ext:name` and the target in `ext:targetURL`. A URL
+with a scheme, such as `https:`, opens in a new tab, and any other target is an in-app
+path. Hide a link whose page is not ready with `ext:defaultDisabled: true`.
 
 ### Sign-in methods — `iap/login/signInMethod` (node `SignInMethod`)
 
@@ -164,7 +164,7 @@ be offered.
 
 ### Dashboard widgets — `iap/dashboard/widget` (node `DashboardWidget`)
 
-Tiled on the homepage dashboard in a responsive grid, each framed with a title
+Tiled on the landing page's dashboard in a responsive grid, each framed with a title
 (`ext:name`) and optional `ext:subtitle`. Frame tuning: `ext:widgetWidth`
 (`normal`/`wide`/`full`), `ext:widgetEmphasis`, `ext:widgetBorderless`,
 `ext:widgetHideHeader`, and `ext:actionLabel` (a header action button leading to
@@ -241,17 +241,18 @@ Groups are flat: no group nests inside another.
 
 ### Breadcrumb trail
 
-A `pageTop` extension (homepage module) linking the current URL's **ancestor** pages:
-each ancestor path matching a registered view's `ext:targetURL` becomes a link
-labelled with that view's `ext:name`. Top-level pages render nothing — home is the
-logo, and the current page's title is its heading, not a crumb.
+A `pageTop` extension (homepage module) linking the current URL's **ancestor** pages.
+Each ancestor that a view's `ext:targetURL` matches is a link, labelled with that
+view's `ext:name`. A target with a splat matches none. The root is not a crumb, since
+the logo links there, and nor is the current page, whose title is its heading. A
+top-level page therefore has no crumbs of its own.
 
 A page can add crumbs after those, for what its path alone cannot name:
 `usePageCrumbs([{ path, label }])` from `frontend-commons/pageCrumbs` adds them while
 the page is shown. A schema version's page, `/admin/schemas/<schema>/<version>`, adds
-its schema under the schema's title, since a view's `ext:name` is the same for every
-schema. Access control is
-inherited from the views: one a user cannot read never reaches them.
+its schema under the schema's title, since no view names a path below
+`/admin/schemas`. Access control comes from the views: a user is not served a view
+they cannot read, and gets no crumb for it.
 
 ## Personas
 

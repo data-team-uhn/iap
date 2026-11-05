@@ -28,9 +28,10 @@ shorter.
 
 The console's landing page is a dashboard of the extensions registered on this point,
 using the same layout and frame as the
-[homepage dashboard](ui-extensions.md#the-dashboard) — so all the
-[dashboard frame properties](ui-extensions.md#the-dashboard) apply. Beyond those, and
-the properties every point understands, it reads:
+[homepage dashboard](ui-extensions.md#dashboard-widgets--iapdashboardwidget-node-dashboardwidget)
+— so all the
+[dashboard frame properties](ui-extensions.md#dashboard-widgets--iapdashboardwidget-node-dashboardwidget)
+apply. Beyond those, and the properties every point understands, it reads:
 
 | Property | Meaning |
 |---|---|
@@ -164,7 +165,7 @@ directly on the page instead (for example the console's landing page, whose
 widgets are panels themselves).
 
 Wayfinding is the shell's
-[breadcrumb trail](ui-extensions.md#the-breadcrumb-trail) on `pageTop`, which the
+[breadcrumb trail](ui-extensions.md#breadcrumb-trail) on `pageTop`, which the
 heading lines up with. A page whose owner is not named by its path adds the owner as
 a crumb itself, with `usePageCrumbs`.
 

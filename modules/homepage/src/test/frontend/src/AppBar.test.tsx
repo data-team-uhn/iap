@@ -27,8 +27,7 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
-// Builds an app bar entry as returned by loadExtensions: the parsed ext:Extension JSON with the
-// render asset already resolved to a component that displays "<name> content".
+// An app bar entry as loadExtensions gives it, whose component shows "<name> content"
 const entry = (name: string, props: Record<string, unknown> = {}) => ({
   "ext:name": name,
   "ext:render": () => <span>{`${name} content`}</span>,
@@ -56,7 +55,7 @@ describe("AppBar", () => {
     const account = screen.getByText("Account content");
     expectBefore(brand, search);
     expectBefore(search, theme);
-    // Within a section, defaultOrder decides
+    // Within a section, the order loadExtensions gives
     expectBefore(account, theme);
     expect(mockedLoadExtensions).toHaveBeenCalledWith("AppBarEntry");
   });
@@ -77,7 +76,6 @@ describe("AppBar", () => {
 
     const { container } = render(<AppBar />);
 
-    // The toolbar frame itself still renders (an empty strip), just with no content
     expect(container.querySelector(".MuiToolbar-root")).not.toBeNull();
   });
 

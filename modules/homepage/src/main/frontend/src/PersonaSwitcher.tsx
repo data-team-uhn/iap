@@ -32,10 +32,9 @@ import {
   usePersona,
 } from "@iap/ui-extension/personas";
 
-// The personas the user may act as, as a section of the menu it is placed in, the active one checked:
-// "put on the reviewer hat". Nothing when there is only one to act as.
-//
-// Switching personas only changes what is displayed; it grants nothing.
+// A section of a menu that lists the personas the user may act as, with the active one checked.
+// `onChoose` is called once the user has chosen one. Nothing is rendered when there is only one
+// persona to act as.
 function PersonaSwitcher({ onChoose }: { onChoose?: () => void }) {
   const active = usePersona();
   const personas = availablePersonas();

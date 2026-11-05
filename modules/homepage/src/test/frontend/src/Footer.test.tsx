@@ -30,9 +30,8 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
-// The affiliation branding comes from <meta> tags in the page head, seeded per test and removed
-// afterwards (only the metas — the head also holds the styles emotion injected, which must
-// survive between renders).
+// Each test adds the <meta> tags it needs, and only those are removed afterwards. The head also
+// holds emotion's styles, which the next render needs.
 describe("Footer", () => {
   beforeEach(() => {
     mockedLoadExtensions.mockResolvedValue([]);
@@ -59,7 +58,7 @@ describe("Footer", () => {
         </MemoryRouter>
       </ThemeProvider>
     );
-    // Commit the footer-links state update before the test proceeds
+    // Lets the footer links' state update happen first
     await act(() => Promise.resolve());
     return result;
   };

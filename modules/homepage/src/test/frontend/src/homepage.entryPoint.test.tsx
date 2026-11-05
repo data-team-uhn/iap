@@ -24,9 +24,8 @@ vi.mock("@iap/frontend-commons/routes", () => ({
   getRoutes: vi.fn(() => Promise.resolve([])),
 }));
 
-// Only that the entry point mounts the router into the page container is of interest here; what
-// the router then renders is homepage.test.tsx's business, and mounting it for real would drag the
-// whole shell in. Standing in for the root keeps this to the mounting decision itself.
+// A stand-in for React's root, so that a test sees what the entry point mounts without rendering
+// the whole shell
 const { render: renderMock, createRootMock } = vi.hoisted(() => {
   const render = vi.fn();
   return { render, createRootMock: vi.fn(() => ({ render, unmount: vi.fn() })) };
@@ -37,8 +36,7 @@ vi.mock("react-dom/client", async importOriginal => ({
   createRoot: createRootMock,
 }));
 
-// Finds a component in the element tree handed to the root, by identity. Nothing is mounted for
-// real here, so what the entry point decided is only readable off the elements it built.
+// The first element of the given component in the tree handed to the root, which is never mounted
 const find = (node: ReactNode, component: unknown): ReactElement | undefined => {
   if (Array.isArray(node)) {
     return node.map(child => find(child as ReactNode, component)).find(Boolean);
@@ -51,7 +49,7 @@ const find = (node: ReactNode, component: unknown): ReactElement | undefined => 
     : find((node.props as { children?: ReactNode }).children, component);
 };
 
-// The entry point mounts on import, so each test re-imports a fresh copy against the DOM it
+// The entry point mounts on import, so each test imports a fresh copy against the DOM it
 // prepared.
 describe("homepage entry point", () => {
   beforeEach(() => {
@@ -71,9 +69,7 @@ describe("homepage entry point", () => {
     expect(renderMock).toHaveBeenCalled();
   });
 
-  // Every view talks to the repository, and some of them write to it, so the provider that signs a
-  // lapsed session back in belongs above the router: enclosing the views is what lets a request
-  // that ran into an expired session be re-sent instead of reported.
+  // Only a view inside the provider can offer a sign-in when the session has expired
   it("mounts the re-login provider around the router", async () => {
     document.body.innerHTML = '<div id="main-container"></div>';
 
@@ -81,16 +77,13 @@ describe("homepage entry point", () => {
       await import("@iap/homepage/homepage");
     });
 
-    // Both taken from the registry the entry point was just imported into: vi.resetModules() means a
-    // copy imported at the top of this file would be a different function, and these are matched by
-    // identity
+    // Imported after vi.resetModules(), so that they are the functions the entry point used. A copy
+    // imported at the top of the file would be another function.
     const { ReLoginProvider } = await import("@iap/login/ReLoginDialog");
     const { RouterProvider } = await import("react-router");
 
     const provider = find(renderMock.mock.calls[0][0] as ReactNode, ReLoginProvider);
     expect(provider).toBeDefined();
-    // Around the router, not beside it: a provider the views are not inside cannot offer them a
-    // sign-in
     expect(find(provider, RouterProvider)).toBeDefined();
   });
 

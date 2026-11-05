@@ -30,15 +30,13 @@ import { ReLoginProvider } from "@iap/login/ReLoginDialog";
 
 import PageLayout from "./PageLayout";
 
-// A view is the parsed JSON of one `ext:Extension` registered on the `iap/coreUI/view`
-// extension point, with its `asset:` properties already resolved. A view has an
-// `ext:targetURL` (the URL it is responsible for) and an `ext:render` (the
-// React component that displays it).
+// An extension on the `iap/coreUI/view` point, with its `asset:` properties loaded. Its
+// `ext:targetURL` is the path it shows, as a router pattern, and its `ext:render` the
+// component that shows it.
 type View = Record<string, unknown>;
 
-// The main content area: renders the registered view whose `ext:targetURL` matches the
-// current browser URL. Views are contributed by other modules through the
-// `iap/coreUI/view` extension point and retrieved via getRoutes().
+// The main content area: the view whose `ext:targetURL` matches the current URL. Nothing
+// is shown when none matches.
 function Main() {
   const [ views, setViews ] = useState<View[]>([]);
 
@@ -66,8 +64,8 @@ function Main() {
   );
 }
 
-// The page shell wraps the routed view from inside the router, so that shell extensions
-// (navigation entries, toolbars, ...) can use react-router links and location hooks.
+// The page shell is inside the router, so that its extensions can use the router's links and
+// location hooks.
 const router = createBrowserRouter([
   {
     path: "*",
@@ -75,8 +73,8 @@ const router = createBrowserRouter([
   },
 ]);
 
-// When loaded as the homepage entry script, mount the router; when imported (e.g. from
-// tests), only export the Main component.
+// Mounts the application into the page's `#main-container`. On a page without one, as in a
+// test, the module only exports Main.
 const container = document.querySelector('#main-container');
 if (container) {
   createRoot(container).render(
