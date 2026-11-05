@@ -98,7 +98,6 @@ describe("chipStyle", () => {
     it("leaves the filled variant alone, which never depended on either", () => {
       withoutAdaptiveColor();
 
-      expect(chipStyle(plain, "#55408f", "filled")).toEqual(chipStyle(plain, "#55408f", "filled"));
       expect(chipStyle(plain, "#55408f", "filled")?.backgroundColor).toBe("#55408f");
     });
   });
