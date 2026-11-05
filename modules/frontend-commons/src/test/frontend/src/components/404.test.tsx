@@ -25,15 +25,14 @@ vi.mock("@iap/frontend-commons/components/PageNotFound", () => ({
   ),
 }));
 
-// The entry point renders on import, so each test re-imports a fresh copy of the module
-// against the DOM it prepared.
+// The entry point renders on import, so each test imports a fresh copy of the module against the
+// DOM it prepared.
 describe("404 entry point", () => {
   beforeEach(() => {
     vi.resetModules();
     document.body.innerHTML = "";
   });
 
-  // The container carries what the server found out, so the page is right the first time it paints
   it("hands the page what the server left on its container", async () => {
     document.body.innerHTML = '<div id="main-404-container" data-deleted-at="2026-08-20T14:00:00Z" '
       + 'data-deleted-by="alice" data-entry-url="/admin/archive/abc"></div>';

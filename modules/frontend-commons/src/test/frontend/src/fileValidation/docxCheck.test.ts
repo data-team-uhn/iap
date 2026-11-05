@@ -39,7 +39,6 @@ describe("checkDocx", () => {
     expect(await getError(await createDocx())).toBeUndefined();
   });
 
-  // Some writers use ZIP64 for every archive, however small
   it("accepts a small ZIP64 .docx", async () => {
     expect(await getError(await createDocx(WORD_PARTS, true))).toBeUndefined();
   });

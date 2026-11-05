@@ -23,8 +23,9 @@ export type SerializedNode = Record<string, unknown>;
 export const isNode = (value: unknown): value is SerializedNode =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-// A node's children, in the order the `order` serialization gives, or else in the order of its keys. Key order is
-// not stored order: a JavaScript object lists the keys that look like whole numbers first, in numeric order
+// A node's children, in the order of its `@order`, which the `order` JSON processor adds, or else in
+// the order of its keys. Key order is not the stored order: a JavaScript object lists the keys that
+// look like whole numbers first, in numeric order.
 export function childrenOf(node: SerializedNode): SerializedNode[] {
   const order = node["@order"];
   return Array.isArray(order)
@@ -36,7 +37,8 @@ export function childrenOf(node: SerializedNode): SerializedNode[] {
 export const childrenOfType = (node: SerializedNode, resourceType: string): SerializedNode[] =>
   childrenOf(node).filter(child => child["sling:resourceType"] === resourceType);
 
-// The strings a property holds, as an array. This turns a single value and no value at all into arrays as well.
+// The strings a property holds, as an array: one string for a single value, and empty for no value.
+// A value that is not a string is left out.
 export function stringsOf(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter((entry): entry is string => typeof entry === "string");

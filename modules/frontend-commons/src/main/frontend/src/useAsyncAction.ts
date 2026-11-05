@@ -19,22 +19,17 @@
 import { useState } from "react";
 
 interface AsyncActionOptions<F> {
-  // Turns a rejection into whatever the caller displays for it: a sentence, a lead and a detail,
-  // anything. Returning undefined discards the rejection, which is how a caller either handles a
-  // particular one itself or has somewhere else that already reports it - and, being the only way
-  // a failure can go unmentioned, is worth a comment wherever it is used.
+  // Turns a rejection into what the caller displays for it, such as a sentence. Undefined discards
+  // the rejection, for one the caller handles itself or reports elsewhere. No other failure goes
+  // unmentioned, so a caller that returns undefined says why.
   onFailure: (error: unknown) => F | undefined;
-  // Called once the action has resolved, typically to close whatever asked for it.
+  // Called once the action has resolved, such as to close the dialog that started it.
   onSuccess?: () => void;
 }
 
-// Runs one asynchronous action and keeps the two things a UI needs to know about it: whether it is
-// still going, and what to say if it failed.
-//
-// The failure is whatever shape the caller renders, so the hook stays out of the wording business;
-// what it owns is the sequence that is easy to get subtly wrong - clear the last failure before
-// trying again, stop reporting as busy on both paths, and never mistake a failure in `onSuccess`
-// for a failure of the action itself.
+// Runs an asynchronous action, and keeps what a UI needs to know about it. `working` is true while the
+// action runs. `failure` is what `onFailure` made of the last rejection; undefined before the first
+// run, while a run is going, and after a success. `run` clears the last failure and starts the action.
 //
 // Sample usage:
 // const { working, failure, run } = useAsyncAction<string>({
@@ -52,9 +47,8 @@ export function useAsyncAction<F>({ onFailure, onSuccess }: AsyncActionOptions<F
   const run = (action: () => Promise<unknown>): void => {
     setWorking(true);
     setFailure(undefined);
-    // Two handlers rather than a catch, so that an exception from onSuccess is not reported as the
-    // action having failed. It surfaces as an unhandled rejection instead: a caller's bug, left
-    // looking like one.
+    // Two handlers, not a catch, so that an exception from onSuccess is not reported as the action
+    // failing. It becomes an unhandled rejection, which shows it as the caller's bug.
     void action().then(
       () => {
         setWorking(false);

@@ -45,7 +45,7 @@ interface UserInputAssistantProps {
   onClickAway?: (event: MouseEvent | TouchEvent) => void;
 }
 
-// The palette entry providing the accent color (border, arrow, avatar) for each variant
+// The palette color of each variant's border, arrow and avatar
 const accents = {
   "hint": "primary",
   "hint-secondary": "secondary",
@@ -55,38 +55,31 @@ const accents = {
   "error": "error",
 } as const;
 
-// Component that renders a hint/tooltip/suggested action to be
-// displayed to the user as they do data entry
-//
-// Example use case: Inform the user entering coma-separated values
-// in an input that they should press enter after each value instead
+// A card beside an input that suggests something to the user as they type, such as pressing Enter
+// after each value rather than typing commas. It sits to the right of the input in a window wider
+// than 750 pixels, and below it otherwise. Once dismissed, it stays hidden until it is mounted again.
 //
 // Required props:
-// title: The title of the hint
+// title: the card's title.
 //
 // Optional props:
-// anchorEl: the element this assistant is associated with, if absent, the message will
-//   not be displayed
-// variant: dictates the accent color and icon; one of:
-//   *  hint (primary color, lightbulb icon),
-//   *  hint-secondary (secondary color, lightbulb icon),
-//   *  success (success color, lightbulb icon),
-//   *  info (info color, lightbulb icon),
-//   *  warning (warning color, warning icon),
-//   *  error (error color, warning icon),
-// actionLabel: the label of the button that will trigger the action suggested by the
-//   assistant; if absent, no button is displayed
-// onAction: the function to perform the action suggested by the assistant; if absent,
-//   no button is displayed
-// onIgnore: if present, an 'Ignore for now' button is displayed, that disables the
-//   assistant for the current interaction with anchorEl and runs the callback function
-// onClickAway: function called when the user clicks away from the assistant element
-// children: message to display
+// anchorEl: the element the card points at; nothing is shown without it.
+// variant: the accent color and icon, `hint` by default:
+//   *  hint: the primary color, a lightbulb.
+//   *  hint-secondary: the secondary color, a lightbulb.
+//   *  success, info: their own color, a lightbulb.
+//   *  warning, error: their own color, a warning sign.
+// actionLabel: the label of the button for the suggested action; no button without it.
+// onAction: runs the suggested action; no button without it.
+// onIgnore: adds an "Ignore for now" button, which hides the card and calls it. Without it, the
+//   button says "Got it!" and only hides the card.
+// onClickAway: called on a click outside the card.
+// children: the message.
 //
 // Sample usage:
 //<UserInputAssistant
 //  anchorEl={input}
-//  variant={hint-secondary}
+//  variant="hint-secondary"
 //  title="Separator detected"
 //  actionLabel="Separate and add"
 //  onAction={separateAndAdd}
@@ -96,8 +89,7 @@ const accents = {
 //</UserInputAssistant>
 //
 
-// No-op fallback: MUI's ClickAwayListener requires an onClickAway handler, but this component's
-// own `onClickAway` prop is optional, since not every caller cares about click-away events.
+// ClickAwayListener requires a handler, and `onClickAway` is optional
 function noop() { /* intentionally empty */ }
 
 function UserInputAssistant(props: UserInputAssistantProps) {

@@ -21,23 +21,24 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import CloseIcon from "@mui/icons-material/Close";
 import { Alert, AlertTitle, Button, Grow, IconButton, Stack, type AlertColor } from "@mui/material";
 
-// How an action that acted immediately turned out. A notice is worth raising when the outcome is
-// not already visible on screen - which, for a failure, it rarely is.
+// The outcome of an action that acted at once, reported over the page. It suits an outcome the
+// screen does not already show.
 export interface Notice {
-  // What happened, in the fewest words that identify it: which thing, and what did not happen to it.
+  // What happened, in the fewest words that identify it: which thing, and what happened to it or
+  // did not.
   title: string;
-  // Why, when there is more to say than the title says.
+  // More to say, such as why; nothing under the title if undefined.
   message?: string;
-  // Defaults to an error, since that is what usually needs saying.
+  // An error by default.
   severity?: AlertColor;
-  // Offered as a button on the notice itself, for an outcome worth another attempt.
+  // Tries again, from a Retry button on the notice; no button if undefined.
   onRetry?: () => void;
 }
 
 // How many notices the page shows at once; past that, the oldest gives way.
 const MAX_SHOWN = 5;
 
-// How long a positive notice stays, in milliseconds.
+// How long a success or info notice stays, in milliseconds.
 const FADE_AFTER = 4000;
 
 interface ShownNotice extends Notice {
@@ -50,14 +51,8 @@ interface NoticeAlertProps {
   dismiss: (id: number) => void;
 }
 
-// How an immediate action reports an outcome it has nowhere else to put: briefly, over the screen
-// it happened on, without taking it over. A modal would be the wrong weight - a failed action
-// usually means nothing changed, and interrupting to say so is a poor trade - while a report at the
-// top of a long screen can land out of sight of the row that caused it.
-//
-// A failure or a warning stays until it is dismissed or retried: it carries something to read and,
-// often, something to click, so taking it away on a timer would be taking away the remedy. Only the
-// positive ones are allowed to fade.
+// One notice, over the screen it was raised on. An error or a warning stays until it is dismissed
+// or retried, since it may carry a remedy. A success or info notice goes after FADE_AFTER.
 function NoticeAlert({ notice, dismiss }: NoticeAlertProps) {
   const severity = notice.severity ?? "error";
   const transient = severity === "success" || severity === "info";
@@ -75,8 +70,7 @@ function NoticeAlert({ notice, dismiss }: NoticeAlertProps) {
     <Grow in>
       <Alert
         severity={severity}
-        // Both controls have to be given here: an Alert's own close button gives way to whatever
-        // `action` it is handed
+        // Both controls go in `action`: an Alert given an `action` drops its own close button
         action={
           <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
             { notice.onRetry
@@ -85,7 +79,7 @@ function NoticeAlert({ notice, dismiss }: NoticeAlertProps) {
                   color="inherit"
                   size="small"
                   onClick={() => {
-                    // Out of the way first: a second failure raises its own notice
+                    // Dismissed first, so a retry that fails shows its own notice
                     dismiss(id);
                     notice.onRetry?.();
                   }}
@@ -108,11 +102,11 @@ function NoticeAlert({ notice, dismiss }: NoticeAlertProps) {
 
 const NoticeContext = createContext<((notice: Notice) => void) | undefined>(undefined);
 
-// Shows the notices of everything beneath it, stacked in one corner of the page, so a screen raises a
-// notice without keeping or drawing one of its own. Mounted once, at the top of the page.
+// Shows the notices raised beneath it, stacked in a bottom corner of the page, the newest lowest.
+// Mount it once, at the top of the page.
 //
-// Each notice keeps its own lifetime, and the newest is nearest the edge. The same notice raised again
-// is one notice, brought up to date, rather than a second copy of it.
+// Each notice keeps its own lifetime. A notice with the same title and message as one already shown
+// replaces it, and becomes the newest.
 export function NoticeProvider({ children }: { children: ReactNode }) {
   const [ notices, setNotices ] = useState<ShownNotice[]>([]);
   const nextId = useRef(0);
@@ -150,7 +144,7 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// Raises a notice on the page.
+// Raises a notice on the page. Throws without a NoticeProvider above.
 export function useNotice(): (notice: Notice) => void {
   const raise = useContext(NoticeContext);
   if (!raise) {

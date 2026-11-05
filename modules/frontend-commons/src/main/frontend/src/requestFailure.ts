@@ -18,13 +18,13 @@
 
 import { isLoginRedirect, isNotAuthenticated, NotAuthenticatedError } from "./reLogin";
 
-// Thrown when the server answered, but not with success. The status is kept so the failure can be
-// described in the user's terms rather than the protocol's; the reason phrase is deliberately not,
-// since HTTP/2 drops it and it would render as a dangling blank.
+// The server answered, but not with success. The error keeps the status, and not the reason phrase,
+// which HTTP/2 drops.
 export class RequestError extends Error {
+  // The HTTP status code
   readonly status: number;
 
-  // Why the server refused, when it said
+  // The server's own sentence saying why it refused; undefined if it gave none
   readonly reason?: string;
 
   constructor(status: number, reason?: string) {
@@ -35,8 +35,8 @@ export class RequestError extends Error {
   }
 }
 
-// Whether the server refused and said why. Asking again the same way fails until something changes.
-// A server error may pass, and a failure without a reason counts as one that may be retried.
+// Whether the server refused and said why, with a status below 500. Asking again the same way fails
+// until something changes. A server error, or a failure without a reason, may pass on a retry.
 export const isRefusal = (error: unknown): boolean =>
   error instanceof RequestError && error.reason !== undefined && error.status < 500;
 
@@ -44,8 +44,8 @@ const UNREADABLE_RESPONSE = "The server's response could not be read. Reload and
 
 const SESSION_EXPIRED = "Your session has expired. Sign in again, then retry.";
 
-// Thrown when a response that should have carried data carried a page instead, such as a proxy's
-// page served as a success. The message is for the user, since some screens show it as it stands.
+// A response that should have carried data carried a page instead, such as a proxy's page served as
+// a success. The message is for the user, since some screens show it as it stands.
 export class UnreadableResponseError extends Error {
   constructor() {
     super(UNREADABLE_RESPONSE);
@@ -72,17 +72,12 @@ export async function readJson<T>(response: Response): Promise<T> {
   }
 }
 
-// What a rejection has to say for itself. Anything can be thrown, so the many places that end up
-// having to display one need this, and none of them need to care that it is not always an Error.
+// The message of a rejection, which need not be an Error.
 export const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-// Says why a request failed, in one sentence a user can act on: the technical detail they would
-// have to relay to a developer is kept, in parentheses, but does not lead.
-//
-// The sentence describes the cause only, never what was being attempted - the screen or dialog
-// asking for it already says that, and repeating it here would read as an echo. Failures that are
-// worth diagnosing are logged, so the original stays reachable in the browser console.
+// Why a request failed, in a sentence a user can act on. A status a developer may need comes last,
+// in parentheses. The sentence names the cause, never what was attempted, which the screen says.
 const describe = (error: unknown): string => {
   // fetch rejects with a TypeError when the request never completed: no server, no route, no DNS
   if (error instanceof TypeError) {
@@ -121,6 +116,7 @@ const describe = (error: unknown): string => {
   return `Something went wrong: ${messageOf(error)}`;
 };
 
+// Logs a failed request to the console, and says why it failed in a sentence for the user.
 export const describeRequestFailure = (error: unknown): string => {
   console.error("A request failed", error);
   return describe(error);

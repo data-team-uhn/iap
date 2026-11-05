@@ -16,10 +16,10 @@
  * limitations under the License.
  */
 
-// Escape a string to be safely usable inside a JQL string literal, as in
+// Escapes a value for a string literal in a JCR-SQL2 query, as in
 // query += " where n.property = '" + escapeJQL(userInput) + "'";
 //
-// @return an escaped string, with any non-string input also converted to a string
+// @return the value as a string, with each single quote doubled
 export function escapeJQL(input: unknown): string {
   return new String(input).replace(/'/g, "''");
 }

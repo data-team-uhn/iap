@@ -26,10 +26,10 @@ The second argument is optional, and so is each of its fields:
 
 | Option | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `accepted` | `string[]` | `[]` | The MIME types taken (`application/pdf`), compared as the server compares them. Empty takes any type |
+| `accepted` | `string[]` | `[]` | The MIME types accepted, such as `application/pdf`, compared ignoring case. Empty accepts any type |
 | `limits` | `UploadLimits` | `{}` | `maxFileSize` in bytes, `maxPdfPages`, and `maxUnzippedSize` in bytes. Each one left out keeps its default |
 | `signal` | `AbortSignal` | — | Stops the check: it then rejects with the signal's reason, and a PDF still being parsed is dropped |
-| `timeoutMs` | `number` | none | How long the check may take. Past it, the check stops and the file passes unchecked |
+| `timeoutMs` | `number` | — | How long the check may take, in milliseconds. Past it, the check stops and the file passes unchecked |
 
 It returns a `Promise<string | undefined>`: `undefined` when the file passes every
 check, and otherwise the reason it failed, written for the person to read. The reason
@@ -46,7 +46,7 @@ The module also exports:
 | `MAX_UNZIPPED_SIZE` | `512 * MEGABYTE` |
 | `MEGABYTE` | `1024 * 1024` |
 | `MIME_TYPE_BY_EXTENSION` | `.pdf`, `.docx` and `.doc`, each with its MIME type |
-| `PIPELINE_TYPES` | Its values, for a caller taking only what the document pipeline reads |
+| `PIPELINE_TYPES` | The MIME types of `MIME_TYPE_BY_EXTENSION`, for a caller accepting only what the document pipeline reads |
 | `getFileExtension(name)` | The last extension, lower case with the dot (`"v1.2.Final.DOCX"` → `".docx"`), or `undefined` for none (`"README"`, `"notes."`) |
 | `UploadCheckOptions`, `UploadLimits` | The types of the second argument and of its `limits` |
 
@@ -175,12 +175,12 @@ types may be UTF-8 or UTF-16, told apart by the byte order mark.
 | No `[Content_Types].xml`, or it names something else (an Excel file renamed `.docx`) | `It is not a Word document.` |
 | Not a zip, an unreadable directory, an entry named twice, or `[Content_Types].xml` unreadable or past 256 KB | `The document is damaged, or it is not a .docx file.` |
 
-**Everything is checked from the directory before anything is unzipped**, because a
+**The sizes are checked from the directory before anything is unzipped**, because a
 small zip can unzip to gigabytes and could hang the tab. **The directory's sizes can
-lie**, so the one entry the check does unzip is not trusted either: it is decompressed
-with the browser's `DecompressionStream`, stopping once it passes 256 KB, where a real
-one is a few KB. Two entries with one name count as damage because which of them is read
-is up to the reader, so this check and the parser could see different files.
+lie**, so the one entry the check unzips is capped too. It is decompressed with the
+browser's `DecompressionStream`, which stops once it passes 256 KB. A real one is a few
+KB. Two entries with one name count as damage. Which of them is read is up to the
+reader, so this check and the parser could see different files.
 
 > **When working on this:** `readZipDirectory` (`zipReader.ts`) finds the end record
 > (`PK 05 06`) by searching back from the end, since a trailing comment of up to 64 KB
@@ -204,16 +204,16 @@ and which the parser converts too. The check compares the first bytes with both.
 | Does not | `It is not a Word document.` |
 | The bytes cannot be read | `The document is damaged, or it is not a .doc file.` |
 
-This is a light check: any OLE file passes, so an old `.xls` renamed `.doc` gets through
-here and fails in the parser.
+This is a light check. Any OLE file passes, so an old `.xls` renamed `.doc` gets through
+here and is left to the parser.
 
 ## Limits
 
 | Limit | Default | Override | Why this default |
 | --- | --- | --- | --- |
-| File size | 50 MB (`MAX_FILE_SIZE`) | `limits.maxFileSize`, in bytes | Bigger uploads are slow enough to look broken, and the parser holds the file in memory |
-| PDF pages | 500 (`MAX_PDF_PAGES`) | `limits.maxPdfPages` | Longer parses take long enough that a person thinks they failed |
-| DOCX unzipped size | 512 MB (`MAX_UNZIPPED_SIZE`) | `limits.maxUnzippedSize`, in bytes | The parser's own limit, `IAP_MAX_EXPANDED_BYTES` |
+| File size | 50 MB (`MAX_FILE_SIZE`) | `limits.maxFileSize`, in bytes | The server's limit, `MAX_FILE_BYTES`. The parser holds the whole file in memory |
+| PDF pages | 500 (`MAX_PDF_PAGES`) | `limits.maxPdfPages` | The parser's default for `IAP_MAX_INPUT_PAGES` |
+| DOCX unzipped size | 512 MB (`MAX_UNZIPPED_SIZE`) | `limits.maxUnzippedSize`, in bytes | The parser's default for `IAP_MAX_EXPANDED_BYTES` |
 
 A megabyte here is `MEGABYTE`, 1024 × 1024 bytes. There is no page limit for `.docx` or
 `.doc`, whose page count is unknown until they are converted.
@@ -238,9 +238,9 @@ new Worker(new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url), { ty
 ```
 
 PDF.js does not watch a worker it is handed, and a worker whose script never loaded
-fires `error` only once. So `loadPdfjs()` listens from the moment it creates the worker,
-and hands every caller a `failed` promise that rejects with `PdfWorkerFailure` if that
-happened. Such a worker is kept rather than replaced, since a new one would load the
+fires `error` only once. `loadPdfjs()` listens from the moment it creates the worker. It
+hands every caller a `failed` promise that rejects with `PdfWorkerFailure` if the script
+never ran. Such a worker is kept rather than replaced, since a new one would load the
 same missing script. An error thrown later by a running worker is an `ErrorEvent`, and
 does not count: the worker still answers.
 
@@ -248,7 +248,7 @@ does not count: the worker still answers.
 `GlobalWorkerOptions.workerSrc`, so opening a file through `pdfjs-dist` directly fails
 on every PDF.
 
-A `.docx` needs no library, being read with the browser's own `DataView` and
+A `.docx` needs no library. It is read with the browser's own `DataView` and
 `DecompressionStream`.
 
 ## After the browser
@@ -257,8 +257,8 @@ This check is the first of several, and the others do not trust it.
 
 **The upload calls it first.** `DocumentUpload.tsx` runs `validateUpload` with the
 requirement's `acceptedFileTypes` before sending anything, and shows a refusal in place.
-It passes `timeoutMs` of `CHECK_TIMEOUT_MS` (30 seconds), so a check still running then
-is stopped and the file sent unchecked, since the server decides anyway.
+It passes `CHECK_TIMEOUT_MS` (30 seconds) as `timeoutMs`, so a check still running then
+is stopped and the file sent unchecked.
 
 **The server checks again.** `AttachDocumentHandler` (submissions) refuses what this
 module refuses on type and size, by the same rules:
@@ -279,6 +279,7 @@ every `/parse` request in `shared_docs.py`:
 | Check | Default | Setting | Refusal |
 | --- | --- | --- | --- |
 | Path is inside the shared volume | `/shared-docs` | `IAP_SHARED_DOCS` | `path must be under …` |
+| Name ends in `.pdf`, `.docx` or `.doc` | — | — | `path must end in one of .pdf, .docx, .doc; got …` |
 | File size | 64 MiB | `IAP_MAX_INPUT_BYTES` | `document is N bytes, over the …-byte limit` |
 | PDF opens, empty password allowed | — | — | `document could not be read as a PDF`, or `PDF is encrypted and did not open with an empty password` |
 | PDF has pages | — | — | `document has no pages` |
@@ -286,10 +287,8 @@ every `/parse` request in `shared_docs.py`:
 | DOCX opens as a zip | — | — | `document could not be read as a .docx` |
 | DOCX size once unzipped | 512 MiB | `IAP_MAX_EXPANDED_BYTES` | `document expands to N bytes, over the …-byte limit` |
 
-A numeric setting of 0 or less turns that limit off. The file type is checked later, in
-`parse_document.py`, during conversion. A type other than `.pdf`, `.docx` or `.doc`
-fails there, and the caller sees a conversion failure with a reference to the daemon
-log.
+A numeric setting of 0 or less turns that limit off. With `IAP_MAX_EXPANDED_BYTES` off,
+a `.docx` is not opened as a zip here either.
 
 **Any other upload has to check too.** A request that never went through a browser skips
 this module entirely, so a new upload endpoint needs its own size and type checks on the
@@ -310,8 +309,8 @@ Started with test data (`./start.sh --test`), the dashboard has a **File check**
 | **Unzip limit (MB)** | `maxUnzippedSize`, starting at 512 |
 
 Changing a setting checks the same file again, 300 ms after the last change, so one file
-can be tried against several settings; an empty limit, or 0, falls back to the default.
-Lowering a limit is the easy way to see a refusal without a huge file: a size limit of 1
+can be tried against several settings. An empty limit, or one of 0 or less, falls back
+to the default. Lowering a limit shows a refusal without a huge file: a size limit of 1
 against a 2 MB PDF, or an unzip limit of 0.01 against any real `.docx`. A check made
 stale by a change is stopped through its `signal`, and an answer that still arrives is
 ignored.
@@ -324,10 +323,10 @@ check, the zip reader and `pdfjsClient.ts` has a test file of its own.
 `FileValidationWidget.test.tsx` (`test-data`) covers the widget, which replaces
 `validateUpload`.
 
-`pdfCheck.test.ts` uses a fake PDF.js rather than the real one, told what to do with the
-next file by name: a page count, `"locked"`, `"damaged"` or `"endless"`. Like the real
-one, destroying a task never settles its promise, and a worker that failed stays failed.
-A switch makes PDF.js fail to load, as a missing chunk would. A `.docx` is a real zip,
-written byte by byte by `createZip` in `zip.fixture.ts`. A test can shape it exactly
-(lying sizes, ZIP64 records, a comment, an entry stored or named twice, UTF-16 content
-types) or damage a few bytes of a good one.
+`pdfCheck.test.ts` uses a fake PDF.js rather than the real one. A test tells it what to
+do with the next file it opens: report a page count, or act `"locked"`, `"damaged"` or
+`"endless"`. Like the real one, destroying a task never settles its promise, and a
+worker that failed stays failed. A switch makes PDF.js fail to load, as a missing chunk
+would. A `.docx` is a real zip, written byte by byte by `createZip` in `zip.fixture.ts`.
+A test can shape it exactly (lying sizes, ZIP64 records, a comment, an entry stored or
+named twice, UTF-16 content types) or damage a few bytes of a good one.

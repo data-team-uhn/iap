@@ -30,7 +30,7 @@ const jsonResponse = (status: number, body: unknown) => new Response(JSON.string
 const answering = (body: unknown, status = 200) =>
   vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(status, body));
 
-// A linked label is a router link, so the list needs a router around it whenever one is given.
+// A linked label is a router link, so the list is rendered inside a router.
 const list = (body: unknown, props: { name?: string; hrefFor?: (path: string) => string } = {}) => {
   answering(body);
   return render(
@@ -109,9 +109,8 @@ describe("WidgetStatList", () => {
   });
 
   it("colours a count marked on non-zero as a problem only while something is outstanding", async () => {
-    // jsdom does not resolve the theme's colours, so the three cases are compared against each
-    // other rather than against a colour. Marked-and-outstanding differs from both a marked zero
-    // and an ordinary count; those two agree.
+    // jsdom does not resolve the theme's colours, so the three cases are compared with each other.
+    // A marked count above zero differs from both a marked zero and an unmarked count, which agree.
     const outstanding = list({ needingAttention: { label: "Needing attention", value: 3, important: "nonzero" } });
     const marked = (await screen.findByText("3")).className;
     outstanding.unmount();
@@ -126,7 +125,6 @@ describe("WidgetStatList", () => {
   });
 
   it("colours a count marked on zero as a problem only while it is at zero", async () => {
-    // The opposite marking, for a figure whose absence is what warrants acting
     const none = list({ reviewers: { label: "Reviewers available", value: 0, important: "zero" } });
     const markedZero = (await screen.findByText("0")).className;
     none.unmount();
@@ -189,8 +187,6 @@ describe("WidgetStatList", () => {
   });
 
   it("lays every figure out in one grid, so labels line up however wide the values are", async () => {
-    // The point of the whole component: a four-digit count next to a one-digit one must not leave
-    // the two labels starting in different places
     const { container } = list({
       needingAttention: { label: "Needing attention", value: 3 },
       total: { label: "Recorded in total", value: 4123 },

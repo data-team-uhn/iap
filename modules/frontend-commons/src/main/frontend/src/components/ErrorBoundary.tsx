@@ -29,8 +29,8 @@ interface ErrorBoundaryState {
 }
 
 // Keeps a component that throws while rendering to its own part of the page: the fallback takes its
-// place, and the rest of the page goes on working. React logs the error itself, so there is no
-// componentDidCatch here.
+// place, and the rest of the page goes on working. The fallback stays until the boundary is mounted
+// again. React logs the error itself, so there is no componentDidCatch here.
 //
 // Sample usage:
 // <ErrorBoundary fallback={<Typography>This part cannot be shown.</Typography>}>

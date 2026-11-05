@@ -96,7 +96,7 @@ describe("fetchEntityPage", () => {
     });
 
     const url = new URL(fetchMock.mock.calls[0][0], "http://localhost");
-    // The server requires the group parameter, when present, to align with every filter name
+    // The servlet takes either no group or one for every filter
     expect(url.searchParams.getAll("fieldGroup")).toEqual(["", "st", "st"]);
   });
 
@@ -111,8 +111,6 @@ describe("fetchEntityPage", () => {
     expect(url.searchParams.getAll("fieldGroup")).toEqual([]);
   });
 
-  // The status is what the caller needs: describeRequestFailure turns it into the sentence a user
-  // reads, so the rejection carries the status rather than wording of its own.
   it("rejects with the status when the server refuses, without reading the body", async () => {
     const json = vi.fn().mockRejectedValue(new SyntaxError("Unexpected token '<'"));
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(

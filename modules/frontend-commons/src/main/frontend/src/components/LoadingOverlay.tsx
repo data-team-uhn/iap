@@ -22,15 +22,13 @@ import { alpha } from "@mui/material/styles";
 interface LoadingOverlayProps {
   // Whether the overlay is shown.
   open: boolean;
-  // Optional message shown under the spinner (e.g. "Saving changes").
+  // Shown above the spinner, such as "Saving changes".
   message?: string;
-  // Optional progress value 0-100. When given, the spinner is determinate and shows this value;
-  // otherwise it spins indeterminately.
+  // How far the work is, from 0 to 100, which the spinner then shows. Without it, the spinner turns.
   progress?: number;
 }
 
-// A loading overlay: a dimmed backdrop with a centered spinner, shown while a page or a
-// long-running action is working and the UI should not be interacted with.
+// A dimmed backdrop over the page, with a centered spinner, while a page loads or an action works.
 function LoadingOverlay({ open, message, progress }: LoadingOverlayProps) {
   const isDeterminate = typeof progress === "number";
 

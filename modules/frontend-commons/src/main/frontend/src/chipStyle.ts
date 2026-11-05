@@ -20,27 +20,22 @@ import { type Theme } from "@mui/material/styles";
 
 import { safeCssColor } from "./safeColor";
 
-// The tunables of the soft chip derivation, in one place: how much of the declared color
-// tints the background, how much of the text color goes into the border, and the lightness
-// bands the text is clamped into on light and dark surfaces.
+// The percentage of the declared color that tints a soft chip's background, and of the text color
+// that goes into its border.
 const SOFT_BACKGROUND_COLOR_SHARE = 10;
 const BORDER_TEXT_SHARE = 22;
-// The clamp works on OKLCH's perceptual lightness (a unitless 0-1 channel; mixing in
-// percentages would invalidate the whole color): HSL's lightness would let a "45% light"
-// yellow through that still reads blazing bright next to an equally-"light" purple, while
-// an OKLCH bound holds every hue to the same perceived lightness, and thus contrast. The
-// light-mode upper bound of 0.5 is what keeps every hue at AA contrast (4.5:1 for the small
-// chip label) against the tinted background — at 0.55, full-brightness greens and cyans
-// slip to about 3.8.
+// The lightness bands the text is clamped into, on light and on dark surfaces. They bound OKLCH's
+// perceptual lightness, which holds every hue to the same contrast. An HSL bound lets a yellow
+// through that reads far brighter than a purple of the same HSL lightness. The values are unitless,
+// from 0 to 1, since a percentage beside `l` makes the color invalid. The light upper bound of 0.5
+// keeps every hue at AA contrast, 4.5:1, against the tinted background.
 const LIGHT_TEXT_LIGHTNESS = "clamp(0.3, l, 0.5)";
 const DARK_TEXT_LIGHTNESS = "clamp(0.65, l, 0.85)";
 
-// The style of a colored chip (e.g. a tag), ready to spread into a Chip's sx or to use as
-// its inline style. The stock background-color transition is disabled on every styled chip:
-// when the color scheme flips, only the CSS variable inside a color-mix() background
-// changes, and Chrome then keeps the stale resolved color indefinitely instead of
-// transitioning to the new one. (The filled variant has no such variable, but keeps the
-// disabled transition for a uniform contract.)
+// The style of a colored chip, such as a tag, for a Chip's `sx` or its inline style. The background
+// color has no transition. When the color scheme changes, only the CSS variable inside a
+// `color-mix()` background changes, and Chrome keeps the old color instead of moving to the new one.
+// The filled variant has no such variable, and no transition either.
 export interface ChipStyle {
   backgroundColor: string;
   color: string;
@@ -48,8 +43,8 @@ export interface ChipStyle {
   transition: "none";
 }
 
-// Whether the browser can resolve the scheme-adaptive text recipe below.
-// An environment with no CSS.supports at all (jsdom, server rendering) is treated as capable.
+// Whether the browser can resolve the text color readableText builds. An environment without
+// `CSS.supports`, such as jsdom, counts as able.
 function supportsAdaptiveText(): boolean {
   if (typeof CSS === "undefined" || typeof CSS.supports !== "function") {
     return true;
@@ -58,9 +53,9 @@ function supportsAdaptiveText(): boolean {
     && CSS.supports("color", "oklch(from red 0.5 c h)");
 }
 
-// The declared color pulled into a lightness band readable on the active scheme: light-dark()
-// follows the color-scheme MUI sets per scheme, even in inline styles.
-// Where that cannot be resolved, the declared color stands in unchanged.
+// The declared color, clamped into a lightness band that is readable on the active color scheme.
+// `light-dark()` follows the `color-scheme` MUI sets for each scheme, in inline styles too. A browser
+// that cannot resolve it gets the declared color unchanged.
 function readableText(color: string): string {
   if (!supportsAdaptiveText()) {
     return color;
@@ -69,11 +64,10 @@ function readableText(color: string): string {
     + `oklch(from ${color} ${DARK_TEXT_LIGHTNESS} c h))`;
 }
 
-// The black-or-white text a fill needs to stay readable. MUI's palette helpers only parse the
-// legacy comma-separated rgb()/hsl() channels, and answer the modern space-separated notation --
-// which safeCssColor accepts just as happily -- with a NaN luminance that getContrastText silently
-// reads as "dark background", handing back white text for even a near-white fill. Normalizing the
-// separators first keeps the contrast decision honest for every notation a definition may use.
+// Black or white, whichever text color is readable on the fill. MUI's palette helpers parse only
+// comma-separated rgb() and hsl(). A space-separated color, which safeCssColor accepts, gets a NaN
+// luminance, and getContrastText answers white even for a near-white fill. So the separators become
+// commas first.
 function contrastText(theme: Theme, color: string): string {
   const open = color.indexOf("(");
   if (open < 0) {
@@ -83,23 +77,18 @@ function contrastText(theme: Theme, color: string): string {
   return theme.palette.getContrastText(`${color.slice(0, open)}(${channels})`);
 }
 
-// How a chip declaring a color should be styled, per its variant, or undefined for a plain
-// unstyled chip. The color comes from repository-editable content and is interpolated into
-// generated CSS, so it is whitelisted here (see safeCssColor); an unusable value counts as
-// not declared.
+// The style of a chip that declares a color, by variant; undefined if the color is missing or not
+// one safeCssColor accepts. The color comes from content people edit, and goes into generated CSS.
 //
-// The default "soft" variant derives everything from the one color as scheme-adaptive CSS —
-// deliberately with no JavaScript branching on the mode, which would not even work: under the
-// theme's CSS-variable color schemes, theme.palette.mode always reads "light". The background
-// is a tint of the color over the scheme's own paper, the text is the color clamped into a
-// readable lightness band (see readableText), and the border mixes the two, so same-hue chips
-// keep a crisp edge on any surface.
+// Any variant but "filled" and "outlined" is "soft". It derives everything from the one color, in
+// CSS that follows the color scheme. JavaScript cannot branch on the scheme here: with the theme's
+// CSS variables, `theme.palette.mode` always reads "light". The background is a tint of the color
+// over the scheme's paper. The text is the color clamped into a readable lightness. The border
+// mixes the two, so that the chip keeps an edge on a surface of the same hue.
 //
-// The "outlined" variant is quieter: no background at all, just the readably-clamped color as
-// the text and the border.
+// "outlined" has no background, and the clamped color as its text and border.
 //
-// The "filled" variant is the classic loud chip: the color as the fill, under a contrasting
-// black or white text.
+// "filled" has the color as its fill, under black or white text.
 export function chipStyle(theme: Theme, color?: string, variant?: string): ChipStyle | undefined {
   const safeColor = safeCssColor(color);
   if (!safeColor) {
@@ -121,8 +110,8 @@ export function chipStyle(theme: Theme, color?: string, variant?: string): ChipS
       transition: "none",
     };
   }
-  // Mixing over the CSS variable makes the tint follow the active scheme; only a theme
-  // without CSS variables (like the defaults created in tests) falls back to static paper
+  // The CSS variable makes the tint follow the color scheme. A theme without CSS variables, such as
+  // a test's default theme, has only the static paper color.
   const surface = theme.vars?.palette.background.paper ?? theme.palette.background.paper;
   const backgroundColor = `color-mix(in srgb, ${safeColor} ${SOFT_BACKGROUND_COLOR_SHARE}%, ${surface})`;
   const textColor = readableText(safeColor);

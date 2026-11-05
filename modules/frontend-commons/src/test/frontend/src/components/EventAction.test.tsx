@@ -24,7 +24,7 @@ import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar"
 
 afterEach(() => vi.unstubAllGlobals());
 
-// Answers every event as the engine would: completed, or refused with its reason
+// Answers every event as completed, or as refused with the given reason
 const serve = (refusal?: string) => {
   const fetch = vi.fn((url: string) => Promise.resolve({
     ok: !refusal, status: refusal ? 409 : 200, url, redirected: false,

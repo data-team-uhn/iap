@@ -16,13 +16,13 @@
  * limitations under the License.
  */
 
-// The color notations repository-editable content (e.g. tag definitions) may use: hex, rgb()
-// or hsl(). Being strict here both keeps palette helpers like getContrastText from choking on
-// garbage, and keeps a malicious value from smuggling arbitrary CSS into generated styles.
+// The color notations that content people edit, such as a tag definition, may use: hex, rgb() and
+// hsl(), with their alpha forms. Anything else could break MUI's palette helpers, such as
+// getContrastText, or carry other CSS into the generated styles.
 const SAFE_COLOR = /^(#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|(rgb|hsl)a?\([\d\s.,%/]*\))$/i;
 
-// The given color when it is safe to place into styles, undefined for anything else —
-// including named colors, which the shipped content avoids.
+// The color, if it is safe to place in styles; undefined otherwise, a named color such as "red"
+// included.
 export function safeCssColor(color: string | undefined): string | undefined {
   return color && SAFE_COLOR.test(color) ? color : undefined;
 }

@@ -16,14 +16,13 @@
  * limitations under the License.
  */
 
-// Which component draws each subject, decided by candidates that each recognize some subjects. A new
-// kind of subject is added by registering a candidate for it, and nothing that already exists has to
-// learn about it.
+// Picks the component that draws a subject. Each candidate recognizes some subjects, and the most
+// confident one wins. A new kind of subject needs only a new candidate.
 
 /**
- * How well a component suits a subject: the component, and a confidence between 0 and 100. The
- * highest confidence wins, so a candidate answering a narrow case outbids a general one without
- * either having to know about the other. Returning null means "not mine".
+ * How well a component suits a subject: the component, and a confidence between 0 and 100. A
+ * candidate for a narrow case outbids a general one by answering with a higher confidence. Null
+ * means the candidate does not recognize the subject.
  *
  * The component must be defined once, at module level. A candidate that creates a new one on each
  * call makes React remount it on every render, losing whatever it held.
@@ -31,26 +30,24 @@
 export type Candidate<Subject, Component> = (subject: Subject) => [Component, number] | null;
 
 export interface CandidateRegistry<Subject, Component> {
-  // Offers a candidate. Offering the same one again does nothing, so the same module evaluated twice
-  // leaves one registration and not several.
+  // Offers a candidate. Offering the same function again does nothing.
   register: (candidate: Candidate<Subject, Component>) => void;
-  // Forgets every candidate. Only for tests: registration is otherwise a one-way, load-time act.
+  // Forgets every candidate. Only for tests.
   clear: () => void;
-  // The component of the most confident candidate, the first registered winning a tie, or null when
-  // no candidate recognizes the subject. A candidate that throws is logged and passed over.
+  // The component of the most confident candidate, the first registered winning a tie; null if no
+  // candidate recognizes the subject. A candidate that throws is logged and passed over.
   get: (subject: Subject) => Component | null;
 }
 
 /**
  * Creates a registry keeping its candidates on `window`.
  *
- * A component may be contributed by a bundle built separately, which has its own copy of this
- * module. A module variable would give each copy a private registry, while `window` is what both
- * builds share.
+ * A component may come from a bundle built separately, with its own copy of this module. A module
+ * variable would give each copy a registry of its own, and `window` is what the bundles share.
  *
- * @param storeKey the name of the `window` property holding the candidates; every copy of the
- *     registry for one kind of subject must use the same name
- * @return a registry reading and writing the candidates under `storeKey`
+ * @param storeKey the name of the `window` property that holds the candidates; every registry for
+ *     one kind of subject must use the same name
+ * @return a registry that reads and writes the candidates under `storeKey`
  */
 export function createCandidateRegistry<Subject, Component>(storeKey: string): CandidateRegistry<Subject, Component> {
   const candidates = (): Candidate<Subject, Component>[] => {

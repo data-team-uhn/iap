@@ -24,38 +24,34 @@ import {
 
 import { chipStyle } from "../chipStyle";
 
-// A choice a column may offer for filtering. The optional color and variant carry over into
-// the filter panel: values picked in "is any of" show as chips styled like the grid's own
-// cells present them (e.g. tag definition colors) — everything derived from the one color,
-// per the variant (see chipStyle). Icons deliberately do not carry over: these chips sit
-// inside a dense input, where the label and color say enough.
+// A choice a column may offer for filtering. A value picked in "is any of" shows as a chip styled
+// from the choice's color and variant, as chipStyle reads them; a stock chip without a color.
 export interface ColoredValueOption {
   value: string;
   label: string;
+  // A CSS color, such as "#1d6a3a"
   color?: string;
+  // A chipStyle variant, such as "filled"
   variant?: string;
 }
 
-// What a picked value gives a chip to show. A column may declare its choices either as plain strings
-// or as objects, and a chip expects a proper object.
+// What a chip shows for a picked choice. A column may declare its choices as plain strings or as
+// objects, and the chip shows a string as its own label.
 function chipOption(option: unknown): { label: string; color?: string; variant?: string } {
   if (typeof option !== "object" || option === null) {
     return { label: String(option) };
   }
-  // Partial, not ColoredValueOption: the point of this function is that the option may not be
-  // one, so asserting every field is present would make the fallbacks below look pointless
+  // Partial, since the object may lack any of the fields
   const { label, value, color, variant } = option as Partial<ColoredValueOption>;
   return { label: label ?? String(value), color, variant };
 }
 
-// The stock "is any of" input for choice columns, with each picked value rendered as a chip
-// styled from its option's own color and variant (when it declares a usable color; see
-// chipStyle) instead of the stock outlined look.
+// The stock "is any of" input of a choice column, with each picked value as a chip styled from its
+// choice's color and variant. A choice without a usable color keeps the stock chip.
 function ColoredChipsFilterInput(props: GridFilterInputMultipleSingleSelectProps) {
   const theme = useTheme();
-  // Every level of slotProps is merged rather than set: passing an object here replaces whatever
-  // the filter form passed for the same slot, and what it passes is the sizing that keeps this
-  // input the same height as the column and operator selects beside it.
+  // Every level of slotProps is merged, not replaced: the filter form passes the sizing that keeps
+  // this input as tall as the column and operator selects beside it.
   const { slotProps, ...rest } = props;
   const rootProps = slotProps?.root;
   return (
@@ -67,15 +63,15 @@ function ColoredChipsFilterInput(props: GridFilterInputMultipleSingleSelectProps
           ...rootProps,
           slotProps: {
             ...rootProps?.slotProps,
-            // Restated because this replaces the stock input's own slotProps: the text field is
-            // the focus target for a newly added condition
+            // The stock input's own text field props, which this replaces: a new condition focuses
+            // the text field
             textField: { type: "text", inputRef: props.focusElementRef },
             chip: option => {
               const { label, color, variant } = chipOption(option);
               const style = chipStyle(theme, color, variant);
               return {
                 label,
-                // MUI's chip variant: a neutral filled base that our style fully repaints
+                // A filled chip, which the style paints over entirely
                 ...style && { variant: "filled" as const, style },
               };
             },

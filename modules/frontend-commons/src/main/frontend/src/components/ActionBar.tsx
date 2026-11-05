@@ -23,8 +23,9 @@ import { Stack } from "@mui/material";
 import { getActions, type ActionComponent } from "../actionsManager";
 import { useInActionsMenu } from "./ActionsMenu";
 
-// The actions contributed on one extension point for the place the page shows them in, rendered in order with the
-// props the page gives them. Each decides for itself whether it applies.
+// The actions contributed on one extension point, in their order, each given the other props. `point` is the node
+// name of the extension point. `place` names where the page shows the actions; without it, only the actions that
+// name no places are shown. Each action decides for itself whether it applies.
 function ActionBar({ point, place, ...props }: { point: string; place?: string } & Record<string, unknown>) {
   const [ actions, setActions ] = useState<ActionComponent[]>([]);
   const inMenu = useInActionsMenu();
@@ -42,7 +43,7 @@ function ActionBar({ point, place, ...props }: { point: string; place?: string }
   }, [ point, place ]);
 
   const shown = actions.map((Action, index) => <Fragment key={`action-${index}`}><Action {...props} /></Fragment>);
-  // A menu's lines have to be its own children
+  // In a menu, each action has to be a direct child of the menu
   return inMenu ? shown : (
     <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", flexWrap: "wrap" }}>
       {shown}

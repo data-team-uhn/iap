@@ -22,8 +22,9 @@ export class PdfWorkerFailure extends Error {}
 
 let shared: { worker: PDFWorker; failed: Promise<never> } | undefined;
 
-// PDF.js does not watch a worker it is handed, and the script fails only once, so the failure is
-// caught from the start and kept for every later caller.
+// A promise that rejects if the worker's script never ran. PDF.js does not watch a worker it is
+// handed. The error fires only once, so this listens from the start and keeps the failure for every
+// later caller.
 function watchStart(port: Worker): Promise<never> {
   const failed = new Promise<never>((_resolve, reject) => {
     port.addEventListener("error", event => {
@@ -34,7 +35,7 @@ function watchStart(port: Worker): Promise<never> {
       }
     });
   });
-  // The failure may come when nobody is waiting for it
+  // Keeps a failure that nobody is waiting for from being reported as an unhandled rejection
   failed.catch(() => undefined);
   return failed;
 }
@@ -44,8 +45,9 @@ function watchStart(port: Worker): Promise<never> {
 export async function loadPdfjs() {
   const pdfjs = await import("pdfjs-dist");
   if (shared === undefined) {
-    // The worker is bundled as a plain module rather than as the project's modern-module library:
-    // webpack 5.112 cannot render that for an entry none of whose exports are used, as a worker's are not
+    // The magic comment bundles the worker as a plain module, not as the project's modern-module
+    // library. Webpack 5.112 cannot render that library for an entry whose exports nobody uses, and
+    // nobody uses a worker's.
     const port = new Worker(/* webpackEntryOptions: { library: { type: "module" } } */
       new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url), { type: "module" });
     shared = { failed: watchStart(port), worker: pdfjs.PDFWorker.create({ port }) };

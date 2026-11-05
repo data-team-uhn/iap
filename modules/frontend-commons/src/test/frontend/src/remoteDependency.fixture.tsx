@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-// Stands in for an asset that another asset declares a dependency on. Evaluating it leaves a mark
-// on the global object, which is how the test tells that the dependency really was loaded.
+// Stands in for an asset that another asset depends on. Evaluating it sets a flag on the global
+// object, so that a test can tell it was loaded.
 
 (globalThis as { __remoteDependencyLoaded?: boolean }).__remoteDependencyLoaded = true;
 

@@ -30,22 +30,29 @@ import ConfirmActionDialog from "./ConfirmActionDialog";
 import { useNotice } from "./NoticeSnackbar";
 
 interface EventActionProps {
+  // The path of the node the event is sent to
   path: string;
+  // Called once the event is done, to read the node again
   reload: () => void | Promise<void>;
+  // Names the button, in its tooltip, and the confirm button
   label: string;
   // What the confirm button says while the event is sent, such as "Removing…"
   workingLabel?: string;
+  // The name of the workflow event, such as "retire"
   event: string;
+  // The confirmation dialog's title
   title: string;
+  // What the event does, shown in the confirmation dialog
   explanation: ReactNode;
-  // The notice raised once the event is done, if any
+  // The notice raised once the event is done; none if undefined
   done?: string;
+  // The confirm button's color
   color?: "primary" | "warning" | "error";
   icon: ReactNode;
 }
 
-// A workflow event sent to a node from an icon button. It asks for confirmation first, because the
-// event changes the node itself, not just what this page shows.
+// A workflow event sent to a node from an icon button, after a confirmation. A refusal leaves the
+// confirm button disabled.
 export function EventAction(props: EventActionProps) {
   const { path, reload, label, workingLabel, event, title, explanation, done, color } = props;
   const [ confirming, setConfirming ] = useState(false);
@@ -77,9 +84,9 @@ export function EventAction(props: EventActionProps) {
   );
 }
 
-// One action as an icon button, named by its tooltip, or as a named line in a menu. An action that stays on until
-// pressed again shows whether it is on through `pressed`. `onClick` is given the element that stands for the action:
-// the button, or what held the menu. An action that only goes somewhere is a link there, in a menu too.
+// One action, as an icon button named by its tooltip, or as a named line in an ActionsMenu. `pressed` shows whether
+// an action that toggles is on. `onClick` is given the element that stands for the action: the button, or the element
+// that held the menu. `to` is the in-app path of an action that only goes somewhere, which is then a link there.
 export function ActionIcon({ label, icon, onClick, pressed, color = "default", disabled, loading, ref, to }: {
   label: string;
   icon: ReactNode;

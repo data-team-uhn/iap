@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-// Numbers as people type them. Number() reads more than that: hexadecimal, binary and octal literals, and whole
-// numbers too large to hold exactly, which it rounds without a word
+// Numbers as people type them. Number() also reads hexadecimal, binary and octal literals, and
+// rounds a whole number too large to hold exactly without saying so.
 
 // Whether the text is a whole number, maybe signed, small enough to hold exactly
 export const isWholeNumber = (text: string): boolean => /^[-+]?\d+$/.test(text) && Number.isSafeInteger(Number(text));
 
-// Whether the text is a decimal number, maybe signed, with an optional point and exponent, and not too large to hold
+// Whether the text is a decimal number, maybe signed, with an optional point and exponent, and small
+// enough not to read as Infinity
 export const isDecimalNumber = (text: string): boolean =>
   /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(text) && Number.isFinite(Number(text));

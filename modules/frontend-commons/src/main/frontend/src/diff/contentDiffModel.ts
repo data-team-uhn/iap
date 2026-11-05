@@ -20,16 +20,17 @@ import { type ChangeObject, diffLines, diffWordsWithSpace } from "diff";
 
 import { isNode } from "../serializedNode";
 
-// What two snapshots of the same content differ in, as plain data for any page to show. No React, no fetch.
+// What two snapshots of the same content differ in, as data a page can show. No React, no fetch.
 
 export interface TextPart {
   text: string;
-  // Whether these are words that changed within their line. A line removed or added whole has none.
+  // Whether these are words that changed within their line; never set on a line removed or added whole
   changed: boolean;
 }
 
 export interface TextLine {
   change: "unchanged" | "removed" | "added";
+  // The line's text, in order, split where the changed words start and end
   parts: TextPart[];
 }
 
@@ -79,9 +80,12 @@ export function compareText(before: string, after: string): TextLine[] {
 }
 
 export interface FieldDifference {
+  // The property name
   field: string;
   change: "added" | "removed" | "changed";
+  // The value before; undefined for a field that was added
   before?: unknown;
+  // The value after; undefined for a field that was removed
   after?: unknown;
 }
 
@@ -96,8 +100,8 @@ const valueIn = (snapshot: Record<string, unknown> | undefined, field: string): 
   return isNode(value) ? undefined : value;
 };
 
-// The fields asked about that differ between two snapshots, in the order asked. Two lists are the same only with the
-// same items in the same order.
+// The fields asked about that differ between two snapshots, in the order asked. A missing snapshot
+// has no values. Two lists are the same only with the same items in the same order.
 export function compareFields(before: Record<string, unknown> | undefined, after: Record<string, unknown> | undefined,
   fields: string[]): FieldDifference[] {
   return fields.flatMap((field): FieldDifference[] => {

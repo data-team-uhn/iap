@@ -20,22 +20,15 @@ import { createTheme } from "@mui/material/styles";
 
 import { chipStyle } from "@iap/frontend-commons/chipStyle";
 
-// The derived values are plain strings, so the color-mix()/light-dark() recipes jsdom cannot
-// compute are still assertable exactly — which is why this pure function carries the styling
-// rules, and the chip components' own tests only check the wiring.
 const plain = createTheme();
 const withVars = createTheme({ cssVariables: true });
 
-// The clamp bounds are unitless on purpose (OKLCH's l channel is a 0-1 number; a
-// number/percentage mix makes the color invalid and browsers drop the whole declaration),
-// and perceptual on purpose (an HSL-lightness-clamped yellow still reads blazing bright).
 const READABLE_TEXT =
   "light-dark(oklch(from #55408f clamp(0.3, l, 0.5) c h), oklch(from #55408f clamp(0.65, l, 0.85) c h))";
 
 describe("chipStyle", () => {
   it("derives the soft look from the one color, adapting to the active scheme", () => {
     const paper = withVars.vars?.palette.background.paper ?? "";
-    // Tinting over the paper CSS variable is what makes the background follow the scheme
     expect(paper).toContain("var(");
     const background = `color-mix(in srgb, #55408f 10%, ${paper})`;
     expect(chipStyle(withVars, "#55408f")).toEqual({
@@ -47,7 +40,6 @@ describe("chipStyle", () => {
   });
 
   it("falls back to the static paper color on a theme without CSS variables", () => {
-    // Component tests use such themes; the real app theme always has the variables
     expect(chipStyle(plain, "#55408f")?.backgroundColor)
       .toBe(`color-mix(in srgb, #55408f 10%, ${plain.palette.background.paper})`);
   });
@@ -61,8 +53,6 @@ describe("chipStyle", () => {
   });
 
   it("reads the filled variant's contrast from the fill in any accepted notation", () => {
-    // MUI's palette helpers only parse comma-separated channels; a space-separated color would
-    // otherwise decompose to a NaN luminance, which always comes back as white text
     expect(chipStyle(plain, "hsl(55 100% 90%)", "filled")?.color).toBe(plain.palette.text.primary);
     expect(chipStyle(plain, "rgb(30 40 90 / 90%)", "filled")?.color).toBe(plain.palette.common.white);
   });
@@ -76,9 +66,6 @@ describe("chipStyle", () => {
     });
   });
 
-  // A browser missing either half of the adaptive recipe would drop the whole declaration, taking
-  // the chip's color with it — and for the outlined variant its border too, which is all it has.
-  // The declared color stands in instead: not scheme-aware, but still the tag's own hue.
   describe("on a browser without light-dark() or relative colors", () => {
     afterEach(() => vi.unstubAllGlobals());
 
@@ -103,7 +90,7 @@ describe("chipStyle", () => {
       const soft = chipStyle(plain, "#55408f");
 
       expect(soft?.color).toBe("#55408f");
-      // The tint is color-mix(), which every browser missing the above still resolves
+      // Browsers had color-mix() before either of the above
       expect(soft?.backgroundColor).toContain("color-mix(in srgb, #55408f");
       expect(soft?.border).toContain("color-mix(in srgb, #55408f");
     });
@@ -123,7 +110,6 @@ describe("chipStyle", () => {
   it("declines to style anything without a usable color", () => {
     expect(chipStyle(plain)).toBeUndefined();
     expect(chipStyle(plain, "not-a-color")).toBeUndefined();
-    // The color is interpolated into generated CSS, so a smuggling attempt must not pass
     expect(chipStyle(plain, "#fff;background:url(https://evil.example/x)")).toBeUndefined();
     expect(chipStyle(plain, "#fff;background:url(https://evil.example/x)", "filled")).toBeUndefined();
   });

@@ -46,17 +46,17 @@ import {
   ToolbarButton,
 } from "@mui/x-data-grid-pro";
 
-// The grid hands its sorting state to the toolbar through slotProps, so the sort menu — the
-// list mode's replacement for clickable column headers — lives with the other toolbar controls.
+// What the grid passes the toolbar for its sort menu, which stands in for the column headers in
+// list mode, and for its search box.
 declare module "@mui/x-data-grid" {
   interface ToolbarPropsOverrides {
-    // The columns offered for sorting, in column order
+    // The columns the menu offers, in column order
     sortableColumns?: { field: string; headerName?: string }[];
     sortModel?: GridSortModel;
     onSortModelChange?: (model: GridSortModel) => void;
-    // Only the list mode needs the menu; regular headers already sort on click
+    // Whether to show the sort menu, which only the list mode needs
     showSortMenu?: boolean;
-    // What this grid's search box is called, an ARIA label
+    // The accessible name of the search box; "Search" if absent
     searchLabel?: string;
   }
 }
@@ -69,18 +69,16 @@ interface EntityGridToolbarProps {
   searchLabel?: string;
 }
 
-// The grid's toolbar. User feedback (on a sibling product with the same audience) singled out
-// the search box as the most valuable tool and the hardest to find, so unlike the stock toolbar
-// this one keeps it always visible and prominent: leading the toolbar from its start edge,
-// visibly tinted and outlined in the primary color. The panel toggles (columns, filters) stay
-// compact at the trailing end, dropping to their own row when width runs out.
+// The grid's toolbar. The search box leads it, always open, tinted and outlined in the primary
+// colour. The sort menu and the columns and filters buttons sit at the far end, and drop to a row
+// of their own when there is no room.
 export default function EntityGridToolbar(props: EntityGridToolbarProps) {
   const { sortableColumns = [], sortModel = [], onSortModelChange, showSortMenu = false,
     searchLabel = "Search" } = props;
   const [sortAnchor, setSortAnchor] = useState<HTMLElement | null>(null);
   const currentSort = sortModel.at(0);
 
-  // Picking the already-active column flips its direction, like clicking a header does
+  // Picking the column already sorted on reverses the order
   const sortBy = (field: string) => {
     const direction = currentSort?.field === field && currentSort.sort === "asc" ? "desc" : "asc";
     onSortModelChange?.([{ field, sort: direction }]);
@@ -88,21 +86,14 @@ export default function EntityGridToolbar(props: EntityGridToolbarProps) {
   };
 
   return (
-    // flex none: the stock toolbar is locked to its 52px min-height (flex-basis 1px), so when
-    // the controls wrap to a second row they would paint over the grid rows below instead of
-    // getting their own space
+    // `flex: none`, or a second row of controls would be drawn over the grid's rows. The stock
+    // toolbar keeps its 52px min-height with a flex-basis of 1px.
     <Toolbar style={{ flexWrap: "wrap", flex: "none" }}>
-      {/* The sizing lives on the QuickFilter itself: it renders a wrapper div which is the
-          actual flex item in the toolbar, so styles on the text field could not affect the
-          layout — rendered as a Box so the sizing can respond to breakpoints and focus. The
-          trailing auto margin pushes everything after it to the far end, and minWidth 0 lets
-          the box shrink below its target — a flex item's implicit minimum would otherwise
-          force the whole grid that wide. On narrow screens the box claims a full row, so the
-          toolbar is always exactly two tidy rows: an in-between width would otherwise wrap
-          the toggles below it one by one. On wider screens the box rests compact and
-          stretches to its full target while focused or holding a query (clipping a typed
-          query on blur would read as losing it); the panel toggles stay end-anchored, so
-          only the gap between them and the box breathes. */}
+      {/* The QuickFilter renders the div that is the toolbar's flex item, so it is sized here
+          and not on the text field. The auto margin pushes the buttons to the far end.
+          `minWidth: 0` lets it shrink below the width of its content, which would otherwise
+          widen the whole grid. On a narrow screen it takes a row of its own, and the buttons go on
+          the next one. On a wider screen it widens while it has the focus or holds a search. */}
       <QuickFilter
         expanded
         render={(
