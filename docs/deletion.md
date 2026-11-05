@@ -40,6 +40,7 @@ once.
 ```java
 @NotNull DeletionImpact  analyze(Resource item, DeletionOptions options);   // dry run
 @NotNull DeletionResult  delete(Resource item, DeletionOptions options);
+@NotNull DeletionResult  deleteWithin(Resource item, DeletionOptions options); // left to commit
 @NotNull RestoreResult   restore(Resource archiveEntry);
 @NotNull DeletionResult  purge(Resource archiveEntry);
 
@@ -58,6 +59,8 @@ referrers and a human-readable summary.
 
 `DeletionResult.Status` is `ARCHIVED` (with the entry path), `DELETED`, `VETOED`,
 `REQUIRES_CONFIRMATION` (blocking referrers) or `DENIED` (missing permissions).
+After `deleteWithin`, `getCheckedOut()` lists the versionable nodes it checked out, for
+the caller to check back in once it has committed.
 **Business outcomes are return values, never exceptions**; `DeletionException`
 signals actual failures — repository errors, a missing service user.
 
@@ -69,7 +72,10 @@ than string literals.
 resource passed in: the requester needs `remove` on every node leaving the live tree,
 and `add_node` at the original locations for a restore. The scan and all writes are
 performed by the `iap-deletion` service user, which is what finds referrers hidden
-from the requester and writes the archive. Link removal is a platform side effect and
+from the requester and writes the archive. `deleteWithin` makes its writes through
+the resolver the item came from instead, which therefore needs write access to the
+archive, and commits nothing: the deletion lands or rolls back with the caller's other
+changes. Link removal is a platform side effect and
 does **not** require the requester to have write access to the resources holding the
 links, mirroring backlink completion.
 
