@@ -216,6 +216,19 @@ function mockPage(rows: Record<string, unknown>[]) {
   return fetchMock;
 }
 
+// Answers every request with the same five rows, as one page of a result with the given total
+function stubPage(total: { totalrows: number; totalIsApproximate: boolean }) {
+  const rows = Array.from({ length: 5 }, (unused, index) => (
+    { "@path": `/GridEntities/e${index}`, "title": `Entity ${index}` }));
+  const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve({
+    ok: true,
+    url: "",
+    json: () => Promise.resolve({ rows, offset: 0, limit: 5, returnedrows: 5, ...total }),
+  } as unknown as Response));
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
 describe("EntityDataGrid", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -873,23 +886,23 @@ describe("EntityDataGrid", () => {
     expect(within(screen.getByRole("toolbar")).queryByRole("button", { name: "Sort" })).toBeNull();
   });
 
-  it("keeps the next page reachable when the server's total is approximate", async () => {
-    const rows = Array.from({ length: 5 }, (unused, index) => (
-      { "@path": `/GridEntities/e${index}`, "title": `Entity ${index}` }));
-    const page = {
-      rows, offset: 0, limit: 5, returnedrows: 5,
-      // The server counted 8 matches and stopped there
-      totalrows: 8, totalIsApproximate: true,
-    };
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, url: "", json: () => Promise.resolve(page) } as unknown as Response)));
+  it("words an approximate total as an estimate", async () => {
+    stubPage({ totalrows: 8, totalIsApproximate: true });
+
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+    await screen.findByText("Entity 0");
+
+    expect(screen.getByText(/1–5 of around 8/)).toBeInTheDocument();
+  });
+
+  it("keeps the next page reachable when an approximate total fits on this page", async () => {
+    // An exact total of 5 would make this the last page
+    stubPage({ totalrows: 5, totalIsApproximate: true });
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("Entity 0");
 
     expect(screen.getByRole("button", { name: /next page/i })).toBeEnabled();
-    // The grid words the lower bound as an estimate
-    expect(screen.getByText(/1–5 of around 8/)).toBeInTheDocument();
   });
 
   // Left to itself, the grid also ends on the first page, after reading and showing page 2 in the
@@ -927,6 +940,34 @@ describe("EntityDataGrid", () => {
       return `${url.searchParams.get("offset")}/${url.searchParams.get("sortBy")}`;
     });
     expect(sorted).toEqual(["0/status"]);
+  });
+
+  it("returns to the first page when the sort menu changes the order, in one request", async () => {
+    fakeNarrowScreen();
+    const fetchMock = stubPage({ totalrows: 20, totalIsApproximate: false });
+    const user = userEvent.setup();
+
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+    await screen.findByText("Entity 0");
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => {
+      const url = new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0], "http://localhost");
+      expect(url.searchParams.get("offset")).toBe("5");
+    });
+
+    const before = fetchMock.mock.calls.length;
+    await user.click(within(screen.getByRole("toolbar")).getByRole("button", { name: "Sort" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Modified/ }));
+
+    await waitFor(() => {
+      const url = new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0], "http://localhost");
+      expect(url.searchParams.get("sortBy")).toBe("jcr:lastModified");
+    });
+    const sorted = fetchMock.mock.calls.slice(before).map(call => {
+      const url = new URL(call[0], "http://localhost");
+      return `${url.searchParams.get("offset")}/${url.searchParams.get("sortBy")}`;
+    });
+    expect(sorted).toEqual(["0/jcr:lastModified"]);
   });
 
   it("reads the page once when a caller adds a column of its own", async () => {
