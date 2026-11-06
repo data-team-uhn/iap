@@ -267,9 +267,9 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
           </Box>
           <Others others={props.others} doing={doing} />
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0, overflowY: "auto", px: { xs: 2, md: 4 }, py: 3 }}>
+        <Box sx={{ flex: 1, minWidth: 0, overflowY: "auto", px: { xs: 2, md: 4 }, py: 3, containerType: "inline-size" }}>
           {risk && (
-            <Stack spacing={2} sx={{ maxWidth: 820 }}>
+            <Stack spacing={2}>
               <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
                 <Typography variant="h6" component="h3" sx={{ flex: 1 }}>{risk.topic.label}</Typography>
                 <ConsideredButton risk={risk} doing={doing} />
@@ -408,8 +408,9 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
 }) {
   const nothing = !risk.assessment && risk.aiOpen.length === 0 && risk.aiSettled.length === 0
     && risk.mismatches.length === 0 && risk.issues.length === 0;
-  return (
-    <Stack spacing={dense ? 1 : 2}>
+  // What to go by: what the schema says to look at, the AI's read, and the answers the protocol contradicts
+  const context = (
+    <>
       {!dense && risk.topic.description && (
         <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", color: "text.secondary" }}>
           {risk.topic.description}
@@ -431,6 +432,11 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
           ))}
         </Section>
       )}
+    </>
+  );
+  // What to act on: the AI's concerns, open and settled, and the reviewer's issues
+  const work = (
+    <>
       {risk.aiOpen.length > 0 && (
         <Section title="Raised by the AI" dense={dense}>
           <Rows>
@@ -445,7 +451,7 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
         <Section title="Settled AI concerns" dense={dense}>
           <Rows>
             {bySeverity(risk.aiSettled).map(note => (
-              <Settled key={note.id} note={note} doing={doing} onShow={onShow} />
+              <Settled key={note.id} note={note} dense={dense} doing={doing} onShow={onShow} />
             ))}
           </Rows>
         </Section>
@@ -454,12 +460,29 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
         <Issues issues={risk.issues} dense={dense} about={about} doing={doing} onShow={onShow} />
         <AddIssue topic={risk.topic.path} doing={doing} />
       </Section>
-      {nothing && dense && (
-        <Typography variant="caption" sx={{ color: "text.secondary" }}>
-          Nothing raised here yet. {risk.topic.description?.split("\n")[0]}
-        </Typography>
-      )}
-    </Stack>
+    </>
+  );
+  if (dense) {
+    return (
+      <Stack spacing={1}>
+        {context}
+        {work}
+        {nothing && (
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            Nothing raised here yet. {risk.topic.description?.split("\n")[0]}
+          </Typography>
+        )}
+      </Stack>
+    );
+  }
+  // In full, side by side where the room allows, what to go by on a quiet surface beside what to act on; one above
+  // the other where it does not. Each column keeps to a readable width.
+  return (
+    <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 3, alignItems: "start",
+      "@container (min-width: 900px)": { gridTemplateColumns: "minmax(0, 5fr) minmax(0, 7fr)", columnGap: 4 } }}>
+      <Stack spacing={2} sx={{ bgcolor: "background.muted", borderRadius: 1, p: 2, maxWidth: 720 }}>{context}</Stack>
+      <Stack spacing={2} sx={{ maxWidth: 820 }}>{work}</Stack>
+    </Box>
   );
 }
 
@@ -590,8 +613,9 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
 }
 
 // An AI concern the reviewer settled, greyed: made into an issue, leading to it, or dismissed, which can be taken back
-function Settled({ note, doing, onShow }: {
+function Settled({ note, dense, doing, onShow }: {
   note: ReviewNote;
+  dense: boolean;
   doing: ReviewDoing;
   onShow: (note: ReviewNote) => void;
 }) {
@@ -607,7 +631,7 @@ function Settled({ note, doing, onShow }: {
           ? <Link component="button" variant="caption" onClick={() => void doing.undismiss(note)}>Undo</Link>
           : anchored(note) && <Link component="button" variant="caption" onClick={() => onShow(note)}>Show where</Link>}
       </Stack>
-      <Typography variant="body2" sx={{ ...cutShort(2), color: "text.secondary" }}>{note.text}</Typography>
+      <Typography variant="body2" sx={{ ...dense ? cutShort(2) : {}, color: "text.secondary" }}>{note.text}</Typography>
     </Box>
   );
 }
