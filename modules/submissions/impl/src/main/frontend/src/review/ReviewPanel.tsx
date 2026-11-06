@@ -99,7 +99,6 @@ interface ReviewProps {
   risks: RiskReview[];
   unfiled: ReviewNote[];
   issueCount: number;
-  aiSummary?: string;
   others: OthersRaised[];
   about: (note: ReviewNote) => string;
   waitingSince?: string;
@@ -128,9 +127,8 @@ function countsOf(risk: RiskReview): string {
 // without pointing at an answer or a passage; the AI's concerns made issues of or dismissed, and dismissals taken
 // back. It opens in an almost full screen dialog to read it whole. At the bottom, the decision.
 export default function ReviewPanel(props: ReviewProps & { open: boolean; onToggle: () => void }) {
-  const { risks, issueCount, aiSummary, doing, open, onToggle } = props;
+  const { risks, issueCount, doing, open, onToggle } = props;
   const [ expanded, setExpanded ] = useState<string>();
-  const [ summaryOpen, setSummaryOpen ] = useState(false);
   const [ lastConcern, setLastConcern ] = useState<string>();
   const [ whole, setWhole ] = useState(false);
   const concerns = risks.flatMap(risk => bySeverity(risk.aiOpen).filter(anchored)
@@ -168,17 +166,6 @@ export default function ReviewPanel(props: ReviewProps & { open: boolean; onTogg
       </Stack>
       <Box sx={{ px: 1.5, pb: 1 }}>
         <Progress risks={risks} />
-        {aiSummary && (
-          <Box sx={{ mt: 1 }}>
-            <AiBlock dense>
-              <Typography variant="body2" sx={summaryOpen ? undefined : cutShort(2)}>{aiSummary}</Typography>
-              <Link component="button" variant="caption" sx={{ alignSelf: "flex-start" }}
-                onClick={() => setSummaryOpen(!summaryOpen)}>
-                {summaryOpen ? "Less" : "More"}
-              </Link>
-            </AiBlock>
-          </Box>
-        )}
         {concerns.length > 0 && (
           <Button size="small" variant="outlined" fullWidth onClick={nextConcern} sx={{ mt: 1 }}>
             Next open AI concern ({concerns.length})
@@ -211,10 +198,11 @@ export default function ReviewPanel(props: ReviewProps & { open: boolean; onTogg
 // The review whole, almost full screen: the risks down the side, the one chosen read in full beside them, with what
 // its schema says to look at
 function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }) {
-  const { risks, aiSummary, doing, open, onClose } = props;
+  const { risks, doing, open, onClose } = props;
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down("sm"));
-  const [ chosen, setChosen ] = useState<string>();
+  // All the reviewer's issues to start with, the working view
+  const [ chosen, setChosen ] = useState<string>(ALL_ISSUES);
   const [ withConcerns, setWithConcerns ] = useState(false);
   const risk = risks.find(one => one.topic.path === chosen);
   // Showing where something was raised leaves the review for the page
@@ -231,7 +219,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
       <Stack direction="row" sx={{ alignItems: "center", gap: 2, px: 2.5, py: 1.5, borderBottom: 1,
         borderColor: "divider" }}>
         <Typography id="whole-review-title" variant="h6" component="h2">Your review</Typography>
-        <Box sx={{ flex: 1, maxWidth: 360 }}><Progress risks={risks} /></Box>
+        <Box sx={{ flex: 1, maxWidth: 560 }}><Progress risks={risks} more /></Box>
         <Box sx={{ flex: 1 }} />
         <IconButton aria-label="Close" onClick={onClose}><CloseOutlined /></IconButton>
       </Stack>
@@ -239,15 +227,8 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
         <Box sx={{ width: { md: 340 }, flexShrink: 0, overflowY: "auto", bgcolor: "background.tinted",
           maxHeight: { xs: 240, md: "none" } }}>
           <ButtonBase
-            onClick={() => setChosen(undefined)}
-            sx={{ display: "block", width: "100%", textAlign: "start", px: 2, py: 1,
-              bgcolor: chosen === undefined ? "background.paper" : undefined }}
-          >
-            <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>Overview</Typography>
-          </ButtonBase>
-          <ButtonBase
             onClick={() => setChosen(ALL_ISSUES)}
-            sx={{ display: "block", width: "100%", textAlign: "start", px: 2, py: 1, borderTop: 1, borderColor: "divider",
+            sx={{ display: "block", width: "100%", textAlign: "start", px: 2, py: 1,
               bgcolor: chosen === ALL_ISSUES ? "background.paper" : undefined }}
           >
             <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>
@@ -318,20 +299,6 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
               <Unfiled {...props} onShow={show} />
             </Stack>
           )}
-          {chosen === undefined && (
-            <Stack spacing={2} sx={{ maxWidth: 820 }}>
-              <Typography variant="h6" component="h3">Overview</Typography>
-              {aiSummary && (
-                <AiBlock><Typography variant="body1">{aiSummary}</Typography></AiBlock>
-              )}
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                {plural(risks.filter(one => !one.considered).length, "risk")} still to consider,{" "}
-                {plural(risks.reduce((sum, one) => sum + one.aiOpen.length, 0), "open AI concern")},{" "}
-                {plural(risks.reduce((sum, one) => sum + one.mismatches.length, 0), "answer", "answers")} the
-                protocol contradicts, and {plural(props.issueCount, "issue")} of yours. Choose a risk to go through it.
-              </Typography>
-            </Stack>
-          )}
         </Box>
       </Stack>
       <Decision waitingSince={props.waitingSince} decision={doing.decision} wide />
@@ -342,12 +309,18 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
 const UNFILED = "unfiled";
 const ALL_ISSUES = "all";
 
-function Progress({ risks }: { risks: RiskReview[] }) {
+// How far the review has gone: the risks considered, and, given room, what is left open across them
+function Progress({ risks, more = false }: { risks: RiskReview[]; more?: boolean }) {
   const considered = risks.filter(risk => risk.considered).length;
+  const concerns = risks.reduce((sum, one) => sum + one.aiOpen.length, 0);
+  // An answer two risks draw on counts once
+  const contradictions = new Set(risks.flatMap(one => one.mismatches.map(mismatch => mismatch.evidence.id))).size;
   return (
     <>
       <Typography variant="caption" sx={{ display: "block" }}>
         {considered} of {plural(risks.length, "risk")} considered
+        {more && concerns > 0 && ` · ${plural(concerns, "open AI concern")}`}
+        {more && contradictions > 0 && ` · ${plural(contradictions, "contradiction")}`}
       </Typography>
       <LinearProgress
         variant="determinate" value={risks.length ? considered / risks.length * 100 : 0}

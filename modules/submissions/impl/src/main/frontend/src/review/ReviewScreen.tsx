@@ -874,7 +874,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             </Paper>
             <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", ...panelPlacement, flexShrink: 0 }}>
               <ReviewPanel
-                risks={risks} unfiled={unfiled} issueCount={myIssues.length} aiSummary={data.aiSummary}
+                risks={risks} unfiled={unfiled} issueCount={myIssues.length}
                 others={othersRaised} about={about} waitingSince={waitingSince}
                 doing={{ ...doing, decision: reviewActions }}
                 open={issuesOpen ?? !(current && isDocumentRequirement(current))}
