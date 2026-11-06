@@ -37,18 +37,18 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
- * Makes a past state of a resource serialize as the thing it is a copy of, rather than as the repository's copy of it.
+ * Serializes a past state of a resource as the content it is a copy of, not as the JCR version's copy.
  *
  * <p>
- * Every node of a checked-in subtree is an {@code nt:frozenNode}, carrying the original's type and identifier under
- * {@code jcr:frozenPrimaryType} and {@code jcr:frozenUuid}. The {@code simple} processor drops both. This serves them
- * as {@code jcr:primaryType} and {@code jcr:uuid}, and leaves out the copy's own type and identifier and the
- * original's mixins.
+ * A JCR version keeps its copy of a subtree as {@code nt:frozenNode} nodes. Each one holds the original's type and
+ * {@code jcr:uuid} under {@code jcr:frozenPrimaryType} and {@code jcr:frozenUuid}, which the {@code simple} processor
+ * drops. This processor writes them as {@code jcr:primaryType} and {@code jcr:uuid}. It leaves out the copy's own type
+ * and {@code jcr:uuid}, and the original's mixins.
  * </p>
  *
  * <p>
- * Enabled by default when the resource requested is frozen, since nothing downstream could otherwise tell that what it
- * reads is old.
+ * The name of this processor is {@code frozen}. It is enabled by default when the requested resource is an
+ * {@code nt:frozenNode}.
  * </p>
  *
  * @version $Id$
@@ -57,17 +57,17 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 @Component(immediate = true, service = ResourceJsonProcessor.class)
 public class FrozenNodeProcessor implements ResourceJsonProcessor
 {
-    /** The type the repository gives its copies. */
+    /** The node type of a JCR version's copy of a node. */
     static final String FROZEN_NODE_TYPE = "nt:frozenNode";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FrozenNodeProcessor.class);
 
-    /** What the copy calls the original's own bookkeeping, and what a reader knows it as. */
+    /** The copy's name for each property of the original, mapped to the original's name. */
     private static final Map<String, String> RESTORED_NAMES = Map.of(
         "jcr:frozenPrimaryType", "jcr:primaryType",
         "jcr:frozenUuid", "jcr:uuid");
 
-    /** What a past state is served without. */
+    /** The properties of the copy left out of the JSON. */
     private static final Set<String> SUPPRESSED_PROPERTIES = Set.of("jcr:primaryType", "jcr:uuid",
         "jcr:frozenMixinTypes");
 
@@ -80,7 +80,7 @@ public class FrozenNodeProcessor implements ResourceJsonProcessor
     @Override
     public int getPriority()
     {
-        // After `simple` at 25, which drops both of the properties this puts back
+        // After `simple`, at 25, which drops the two properties this writes back
         return 30;
     }
 
@@ -103,7 +103,7 @@ public class FrozenNodeProcessor implements ResourceJsonProcessor
             if (SUPPRESSED_PROPERTIES.contains(actual)) {
                 return null;
             }
-            // `input` is ignored: `simple` drops these, and this puts them back
+            // Renames by the property's own name: under `simple`, `input` is already null for these two
             return RESTORED_NAMES.getOrDefault(actual, input);
         } catch (final RepositoryException e) {
             LOGGER.warn("Unexpected error while naming property {} of frozen node {}: {}", property, node,
@@ -114,8 +114,8 @@ public class FrozenNodeProcessor implements ResourceJsonProcessor
     }
 
     /**
-     * Whether this node is one of the repository's copies. A node that cannot be asked is treated as not frozen, so a
-     * serialization never fails over a question about the content it is serializing.
+     * Whether this node is a JCR version's copy of a node. A node whose type cannot be read counts as not frozen, and
+     * is serialized as it is stored.
      */
     private static boolean isFrozen(final Node node)
     {
