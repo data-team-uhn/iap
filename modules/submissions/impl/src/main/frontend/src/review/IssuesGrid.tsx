@@ -16,10 +16,13 @@
  * limitations under the License.
  */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
 import { Box, InputBase, Link, Stack } from "@mui/material";
-import { DataGridPro, type GridColDef, type GridRenderEditCellParams, useGridApiContext } from "@mui/x-data-grid-pro";
+import {
+  DataGridPro, GridCellModes, type GridCellModesModel, type GridCellParams, type GridColDef,
+  type GridRenderEditCellParams, useGridApiContext,
+} from "@mui/x-data-grid-pro";
 
 import EntityGridToolbar from "@iap/frontend-commons/entityGrid/EntityGridToolbar";
 import TagChip from "@iap/tags/TagChip";
@@ -63,6 +66,21 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     risk: risks.some(risk => risk.path === issue.topicPath) ? issue.topicPath ?? "" : "",
     about: about(issue), text: issue.text, issue,
   })), [ issues, concerns, risks, about ]);
+  // A single click starts changing a cell, as in a spreadsheet, and leaves any other cell being changed
+  const [ cellModes, setCellModes ] = useState<GridCellModesModel>({});
+  const startEditing = useCallback((params: GridCellParams, event: MouseEvent) => {
+    // A click inside the cell's own editor, such as in a list it opened, is not a click on the cell
+    if (!params.isEditable || !event.currentTarget.contains(event.target as Node)) {
+      return;
+    }
+    setCellModes(previous => {
+      const viewing: GridCellModesModel = {};
+      for (const [ row, fields ] of Object.entries(previous)) {
+        viewing[row] = Object.fromEntries(Object.keys(fields).map(field => [ field, { mode: GridCellModes.View } ]));
+      }
+      return { ...viewing, [params.id]: { ...viewing[params.id], [params.field]: { mode: GridCellModes.Edit } } };
+    });
+  }, []);
   const riskLabel = (path: string) => risks.find(risk => risk.path === path)?.label ?? "No risk";
 
   const columns: GridColDef<IssueRow>[] = [
@@ -115,6 +133,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       getRowHeight={() => "auto"}
       // The AI's concerns are greyed, and are not changed in place: they become issues first
       isCellEditable={({ row }: { row: IssueRow }) => !row.ai}
+      cellModesModel={cellModes} onCellModesModelChange={setCellModes} onCellClick={startEditing}
       getRowClassName={({ row }) => (row.ai ? "ai-concern" : "")}
       initialState={{ sorting: { sortModel: [ { field: "severity", sort: "asc" }, { field: "risk", sort: "asc" } ] },
         pinnedColumns: { right: [ "where" ] } }}
