@@ -90,9 +90,9 @@ Sling defines. Including a resource into itself trips Sling's recursion detectio
 (`RecursionTooDeepException`), and changing the selectors is the standard way around
 it; any unused selector name would do.
 
-The same shape appears wherever a type's natural rendering is not HTML:
+A type that does not render as HTML re-dispatches the same way.
 `ext/Extension/null.GET.html` re-dispatches to `.json` with `deep`, so an extension
-node fetched without an extension returns its full JSON.
+node fetched without a URL extension returns its JSON, children included.
 
 ## The shape of a page
 
@@ -211,8 +211,8 @@ deployment supplies. Branding a deployment needs no script change.
 
 More can be written when a script genuinely needs something these do not cover.
 A `Use` object is either a Sling Model adapted from the resource, a class implementing
-`org.apache.sling.scripting.api.Use`, or a JavaScript file beside the script —
-`ext/PointFinder/extensionQuery.js` is an example of the last. The
+`org.apache.sling.scripting.sightly.pojo.Use`, or a JavaScript file beside the script,
+such as `ext/PointFinder/extensionQuery.js`. The
 [HTL Use API](https://sling.apache.org/documentation/bundles/scripting/scripting-htl.html)
 documents all three; prefer a Sling Model, since it is testable and reusable outside
 scripting.

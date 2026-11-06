@@ -18,12 +18,12 @@
 
 import { type ComponentType } from "react";
 
-// An extension is the parsed JSON of one `ext:Extension`, with its `asset:` properties already
-// resolved; its exact shape depends on the extension point, so it is an open string-keyed record.
+// One `ext:Extension`, with its `asset:` properties loaded
 type Extension = Record<string, unknown>;
 
-// Renders each extension's `ext:render` component, in the order given, passing it the
-// extension itself so node properties (`ext:data`, ...) are readable at runtime.
+// Each extension's `ext:render` component, in the order given. A component gets its extension as the
+// `extension` prop, to read properties such as `ext:data`. An extension with no `ext:render` shows
+// nothing.
 function ExtensionList({ extensions }: { extensions: Extension[] }) {
   return (
     <>

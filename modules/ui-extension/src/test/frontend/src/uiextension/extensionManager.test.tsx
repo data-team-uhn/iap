@@ -23,10 +23,8 @@ import { render, screen } from "@testing-library/react";
 import { loadAsset } from "@iap/frontend-commons/assetManager";
 import { loadExtensions, visibleInPersona } from "@iap/ui-extension/extensionManager";
 
-// getURLParameters is left un-mocked (it's pure, no side effects) so the `?lazy`
-// detection is exercised for real; the network-touching loadAsset is mocked, as is LazyAsset,
-// whose own fetch-on-mount behaviour is assetManager's to verify -- here it only needs to record
-// what the extension manager wraps it around.
+// Only `loadAsset` and `LazyAsset` are replaced. The stand-in for `LazyAsset` shows the URL and props it
+// is given. `getURLParameters` is the real one, so `?lazy` is read as the page reads it.
 vi.mock("@iap/frontend-commons/assetManager", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@iap/frontend-commons/assetManager")>()),
   loadAsset: vi.fn(),
@@ -88,7 +86,7 @@ describe("loadExtensions", () => {
     const placeholder = screen.getByTestId("lazy-asset");
     expect(placeholder).toHaveAttribute("data-url", "asset:iap-x.Lazy.js?lazy");
     expect(placeholder).toHaveAttribute("data-props", JSON.stringify({ title: "A lazy view" }));
-    // Still nothing fetched: that only happens once LazyAsset itself mounts for real
+    // Only the real LazyAsset loads the asset
     expect(mockedLoadAsset).not.toHaveBeenCalled();
   });
 

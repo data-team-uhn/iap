@@ -14,10 +14,10 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-# Extension point finder
+# The extension point finder, which answers /uixp?uixp=<ext:pointId> with the path of that point
 create path (ext:PointFinder) /uixp
 
-# Allow all users to read from the extension point finder and one of the nodes
+# Everybody may use the finder
 set ACL for everyone
     allow   jcr:read    on /uixp
 end

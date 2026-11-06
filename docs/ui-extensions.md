@@ -1,35 +1,35 @@
 # UI extension points
 
 **Module:** `modules/ui-extension` · **Package:** `@iap/ui-extension`
-(`extensionManager`, `ExtensionList`, `ExtensionPoint`, `personas`) ·
-**Tools:** `tools/dev/extension-manager/`
+(`extensionManager`, `extensionLoader`, `ExtensionList`, `ExtensionPoint`,
+`personas`) · **Tools:** `tools/dev/extension-manager/`
 
-The interface is composed of **extensions** plugged into **extension points**. A
-feature contributes UI by shipping a React component plus a small JCR node
-registering it on a point; the consumer of that point renders whatever is registered,
-knowing nothing about the contributors.
+The interface is made of **extensions** plugged into **extension points**. A module
+adds to the interface by shipping a React component and a JCR node that registers it
+on a point. The page that shows the point renders whatever is registered there,
+without knowing which module contributed it.
 
 ## The mechanism
 
-- **Point:** an `ext:Point` node under `/apps/iap/ExtensionPoints/<Name>`, carrying the
-  `ext:pointId` extensions target.
-- **Extension:** an `ext:Extension` node (conventionally `/Extensions/<PointName>/`)
-  with a matching `ext:pointId`, an `ext:name`, and usually an `ext:renderURL`.
-- **Consumption:** `await loadExtensions("<NodeName>")` fetches a point's enabled
-  extensions and resolves `asset:` properties into loaded components; render with
-  `ExtensionList`. A broken extension is logged and omitted, never breaking the page.
-- The component receives the parsed extension node as its `extension` prop, so any
-  property (`ext:data`, …) is readable at runtime.
+- **Point:** an `ext:Point` node under `/apps/iap/ExtensionPoints/<Name>`. Its
+  `ext:pointId` is the identifier extensions name.
+- **Extension:** an `ext:Extension` node, usually under `/Extensions/<PointName>/`,
+  with the point's `ext:pointId`, an `ext:name`, and usually an `ext:renderURL`.
+- **Showing a point:** `await loadExtensions("<NodeName>")` fetches a point's enabled
+  extensions and loads the components their `asset:` properties name. `ExtensionList`
+  renders them. An extension whose assets fail to load is logged and left out.
+- The component gets the extension node as its `extension` prop, to read any of its
+  properties, such as `ext:data`.
 
-Properties every point understands:
+Properties of every extension:
 
 | Property | Type | Meaning |
 |---|---|---|
-| `ext:name` | String | Display name; some consumers show it, e.g. as a widget title |
-| `ext:renderURL` | String | `asset:<entry>.js`; append `?lazy` to defer loading until first render |
-| `defaultOrder` | Long | Order within the point, lower first, default 0 |
-| `ext:defaultDisabled` | Boolean | Skipped without being deleted |
-| `ext:personas` | String[] | Personas this belongs to; absent means all. So far only the dashboards act on it — a first proof of concept, not a limit on where filtering belongs; other points are expected to follow |
+| `ext:name` | String | The extension's name, which a point may show, such as a widget's title |
+| `ext:renderURL` | String | `asset:<entry>.js`. With `?lazy` appended, the asset loads only when first rendered |
+| `defaultOrder` | Long | The position within the point, lowest first, 0 by default |
+| `ext:defaultDisabled` | Boolean | `true` leaves the extension out, without deleting it |
+| `ext:personas` | String[] | The personas the extension is for; absent means all. The dashboards show an extension only to its personas, and other points ignore the property |
 
 ## Catalogue
 
@@ -89,14 +89,13 @@ Two ways to back a URL:
   (`admin-console`) covers the whole `/admin` subtree in `overlay` mode: anything
   below the console not in the repository is answered with a synthetic resource
   carrying the console's resource type, so the shell renders and the router decides
-  what the path means. Real content still wins, and the synthetic resource borrows
-  `/admin`'s readability since it has no ACL of its own — which is why an admin tool
-  needs no node for `/admin/<tool>`.
+  what the path means. Real content still wins. The synthetic resource has no ACL of
+  its own and is readable when `/admin` is, so an admin tool needs no node for
+  `/admin/<tool>`.
 
-A second, generic provider handles the narrower job of addressing an entity by id
-regardless of where it is filed. `PrefixTreeResourceProvider` (`java-utils`) resolves
-`<mount>/<name>` to the prefix-tree location the node actually occupies, and is
-enabled per subtree by configuration rather than being on everywhere:
+A second provider addresses an entity by its id, wherever it is filed.
+`PrefixTreeResourceProvider` (`java-utils`) resolves `<mount>/<name>` to the node's
+place in the prefix tree. A configuration turns it on for one subtree:
 
 ```json
 "io.uhndata.iap.utils.internal.PrefixTreeResourceProvider~submissions": {
@@ -111,9 +110,8 @@ every write below it and refuse it, and no submission could be created. It resol
 single segment, with no slash or dot and at least `PrefixTree.MINIMUM_NAME_LENGTH` (6)
 characters. It makes ids addressable, not deeper paths.
 
-A module wanting deep or varying URLs of its own — the `/Submissions/{id}/*` case —
-still needs a provider of its own over its own root, along the lines of the admin
-console's.
+A module with deeper or varying URLs, such as `/Submissions/<id>/*`, needs a provider
+of its own over its own root. `AdminViewResourceProvider` is one.
 
 ### App bar — `iap/appBar/entry` (node `AppBarEntry`)
 
@@ -164,12 +162,12 @@ Where local accounts should not be offered, disable the credentials form with
 ### Dashboard widgets — `iap/dashboard/widget` (node `DashboardWidget`)
 
 Tiled on the landing page's dashboard in a responsive grid, each framed with a title
-(`ext:name`) and optional `ext:subtitle`. Frame tuning: `ext:widgetWidth`
+(`ext:name`) and optional `ext:subtitle`. The frame is set by `ext:widgetWidth`
 (`normal`/`wide`/`full`), `ext:widgetEmphasis`, `ext:widgetBorderless`,
-`ext:widgetHideHeader`, and `ext:actionLabel` (a header action button leading to
-`ext:targetURL`, an in-app path — both must be set; the title then links there too).
-`ext:personas` restricts a widget, and `ext:widgetGroup` files it under a
-[widget group](#widget-groups).
+`ext:widgetHideHeader`, and `ext:actionLabel`. The last is a button in the header
+leading to `ext:targetURL`, an in-app path, and the title then links there too. It
+needs both properties. `ext:personas` restricts a widget, and `ext:widgetGroup` files
+it under a [widget group](#widget-groups).
 Each column gets an equal share of the dashboard's width, regardless of how wide a
 widget's content is, so the dashboard always fits on a phone's screen. When a
 widget's content is wider than the widget itself, such as a table with many columns,
@@ -255,32 +253,31 @@ they cannot read, and gets no crumb for it.
 
 ## Personas
 
-A user acts as one persona at a time — submitter, reviewer, administrator — chosen in
-the user menu. `ext:personas` names the personas an extension belongs to; **naming none
-means all**, so an extension that never considered personas keeps displaying where it
-did, and adding a persona to the platform changes nothing about existing extensions.
-Prefer naming nothing over naming every persona but one, or the extension silently
-disappears from the next persona added.
+A user acts as one persona at a time, chosen in the user menu: submitter, reviewer or
+administrator. `ext:personas` names the personas an extension is for, and **naming none
+means all**. An extension that names no persona is therefore shown to a persona added
+later. Prefer naming none over naming every persona but one, or the extension is hidden
+from the next persona added.
 
-A persona is **presentation only, never access control**: the repository authorizes
-every request independently, and a control hidden from a persona must never be the
-only thing preventing the action behind it.
+A persona is **presentation only, never access control**. The server authorizes every
+request, whatever the persona, and hiding a control from a persona must never be the
+only thing preventing its action.
 
 `personas.ts` exports `PERSONAS`, `availablePersonas`, `getActivePersona`,
-`setActivePersona`, `personaLabel`, `usePersona`, `subscribeToPersona`;
-`extensionManager` exports the `visibleInPersona` predicate alongside `getExtensions`
-and `loadExtensions`. `availablePersonas()` is the seam where the choice will be
-constrained by the user's roles once IAP has any.
+`setActivePersona`, `personaLabel`, `usePersona` and `subscribeToPersona`.
+`extensionManager` exports the `visibleInPersona` test, beside `getExtensions` and
+`loadExtensions`. `availablePersonas()` decides which personas a user may choose, and
+it offers every persona to every user.
 
 ## Adding an extension
 
 Three edits, all in the contributing module.
 
-1. **Component** — a `.tsx` under `src/main/frontend/src/`, receiving the parsed
-   extension node as its `extension` prop.
-2. **Entry point** — a line in the module's `assets.config`:
+1. **Component:** a `.tsx` under `src/main/frontend/src/`, which gets the extension
+   node as its `extension` prop.
+2. **Entry point:** a line in the module's `assets.config`, such as
    `['iap-mymodule.MyControl']: './src/MyControl.tsx'`.
-3. **Node** — JSON under Sling-Initial-Content, e.g.
+3. **Node:** JSON under Sling-Initial-Content, such as
    `SLING-INF/content/Extensions/AppBarEntry/MyControl.json`:
 
 ```json
@@ -297,13 +294,12 @@ Check that the `Extensions/` path is registered in the module's
 `<Sling-Initial-Content>` (pom.xml).
 
 **The asset name chain:** the `assets.config` key (`iap-mymodule.MyControl`) →
-referenced as `asset:iap-mymodule.MyControl.js` → resolved through
-`/libs/iap/resources/assets.json` (content-hashed) at runtime. If a component doesn't
-appear, check `assets.json` for the entry first — a missing one means the build didn't
-pick up the `assets.config` change.
+referenced as `asset:iap-mymodule.MyControl.js` → looked up at runtime in
+`/libs/iap/resources/assets.json`, which gives the file name with its content hash. If
+a component does not appear, look for its entry in `assets.json` first. A missing
+entry means the build did not pick up the `assets.config` change.
 
-**Against a running instance,** rebuild and hot-deploy, then post the node directly, since
-a bundle's initial content is not reliably re-run on redeploy:
+**Against a running instance,** rebuild and deploy the frontend, then post the node:
 
 ```bash
 cd aggregated-frontend && mvn clean install -PautoInstallBundle
@@ -314,9 +310,9 @@ cd aggregated-frontend && mvn clean install -PautoInstallBundle
 
 1. Ship an `ext:Point` node under `/apps/iap/ExtensionPoints/` with a unique
    `ext:pointId` and a descriptive `ext:pointName`.
-2. Consume it: `await loadExtensions("<NodeName>")`, render with `ExtensionList`.
-   Define any per-extension display properties your layout needs (as the app bar does
-   with `ext:appBarSection`) and document them here.
+2. Show it: `await loadExtensions("<NodeName>")`, and render with `ExtensionList`.
+   Define the properties your layout reads on each extension, such as the app bar's
+   `ext:appBarSection`, and document them here.
 3. For anything direction-sensitive, follow the naming rule: physical top/bottom
    vertically, logical start/end horizontally.
 
@@ -324,12 +320,13 @@ cd aggregated-frontend && mvn clean install -PautoInstallBundle
 
 ### Action points
 
-When a point collects the actions available on one kind of thing — a workflow version, a schema
-version, a submission — each extension is a component that renders its own button (and any dialog
-it needs), and decides for itself whether it applies, rendering nothing when it does not. The page
-never learns which actions exist, so another module can add one without touching it.
+A point can collect the actions available on one kind of thing, such as a schema or a
+workflow version. Each of its extensions is a component that renders its own button,
+and any dialog it needs. It decides for itself whether it applies, and renders nothing
+when it does not. The page never learns which actions exist, so another module can add
+one without touching it.
 
-`getActions("<NodeName>")` from `@iap/frontend-commons/actionsManager` resolves a point's
+`getActions("<NodeName>")` from `@iap/frontend-commons/actionsManager` loads a point's
 components. It reads the point once per page load, however many rows ask. A broken
 extension is skipped, and an unreadable point gives no actions. `ActionBar` renders the
 components in order, with the props the host passes it. Each host defines those props,

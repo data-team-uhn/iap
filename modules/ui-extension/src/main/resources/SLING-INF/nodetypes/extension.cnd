@@ -19,28 +19,23 @@
 
 //-----------------------------------------------------------------------------
 //
-// A User Interface Extension Point (UIXP) defines a place in the UI that accepts extensions
+// An extension point: a place in the interface that shows the extensions
+// registered on it. Points are kept under /apps/iap/ExtensionPoints/, and
+// docs/ui-extensions.md describes them.
 //
 //-----------------------------------------------------------------------------
 [ext:Point] > nt:base, sling:Resource, mix:referenceable
-
-  // Attributes
-
-  // We can use extension points in a query.
   query
 
-  // Properties
-
-  // Hardcode the resource type.
   - sling:resourceType (STRING) = "ext/Point" mandatory autocreated protected
-
-  // Hardcode the resource supertype
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
 
-  // The identifier of this UIXP, which will be referenced by UIX
+  // The identifier extensions name in their ext:pointId, such as
+  // "iap/coreUI/view"
   - ext:pointId (STRING) mandatory
 
-  // A more user-friendly name for this UIXP
+  // What the point is for, in a phrase for people, such as "Ways of signing in
+  // offered on the login page"
   - ext:pointName (STRING) mandatory
 
   // And any other properties
@@ -49,72 +44,59 @@
 
 //-----------------------------------------------------------------------------
 //
-// A User Interface Extension (UIX) defines content that can be automatically placed in a UIXP
+// An extension: something a module adds to the interface, shown by the
+// extension point it names.
 //
 //-----------------------------------------------------------------------------
 [ext:Extension] > nt:base, sling:Resource, mix:referenceable
-
-  // Attributes
-
-  // We can use extensions in a query.
   query
 
-  // Properties:
-
-  // Hardcode the resource type.
   - sling:resourceType (STRING) = "ext/Extension" mandatory autocreated protected
-
-  // Hardcode the resource supertype
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
 
-  // The ID of the extension point targeted by this extension
+  // The ext:pointId of the extension point that shows the extension
   - ext:pointId (STRING) mandatory
 
-  // The URL to the script that can render this extension
+  // The component that renders the extension, as an asset such as
+  // "asset:iap-commons.NoticeBanner.js". A "?lazy" suffix loads it only when
+  // it is first rendered.
   - ext:renderURL (STRING)
 
-  // The (optional) URL that this extension is targeting, for links and views
+  // Where the extension leads, such as a view's path or a link's target
   - ext:targetURL (STRING)
 
-  // Whether the target URL should be matched exactly for Views
   - ext:exactURLMatch (BOOLEAN)
 
-  // The name of the extension
+  // The extension's name, which a point may show, such as a widget's title
   - ext:name (STRING) mandatory
 
-  // Optional icon associated with this extension
+  // An icon for the extension
   - ext:icon (STRING)
 
-  // The order that this should appear in the list of extensions in the extension point
+  // The extension's position in its point, lowest first
   - defaultOrder (LONG) = "0" mandatory autocreated
 
-  // Whether this extension is disabled or not by default
+  // Whether the extension is left out of its point, without being deleted
   - ext:defaultDisabled (BOOLEAN) = "false" mandatory autocreated
 
-  // Optional short description of the extension's content
+  // A short description of the extension, such as a line under a sign-in
+  // button
   - ext:hint (STRING)
 
-  // Optional data (stored in the JCR node) to be passed to the rendered component
+  // Data for the component, such as the markdown message of a banner
   - ext:data (STRING)
 
-  // Whether this extension is also displayed on pages served before authentication (currently
-  // the login page, which renders opted-in frameTop extensions above its content). Opt-in, so
-  // that extensions assuming a session (e.g. the app bar) never leak onto pre-auth pages.
+  // Whether a frameTop extension is also shown on the login page, before
+  // sign-in. Absent means no, since most extensions need a session.
   - ext:visibleBeforeLogin (BOOLEAN)
 
-  // The personas this extension belongs to, e.g. "reviewer". A user acts as one persona at a time
-  // and only sees the extensions belonging to it, so that each persona's UI is designed around what
-  // that role does rather than around the rights the individual happens to hold.
-  //
-  // Absent means every persona, unlike ext:visibleBeforeLogin above: an extension that never
-  // considered personas keeps displaying exactly where it did before.
-  //
-  // This selects what is DISPLAYED and is never an access control; permissions are enforced by the
-  // repository, independently of which persona is active.
+  // The personas the extension is for, such as "reviewer". Absent means every
+  // persona. A point that filters by persona shows the extension only to
+  // these. A persona decides what is shown, and never controls access.
   - ext:personas (STRING) multiple
 
-  // The places an action is shown in, by the names the pages showing it give them, e.g. "versionList"
-  // for a list of versions rather than each version's own page. Absent means every place.
+  // The places an action is shown in, by the names the pages give them, such
+  // as "versionList" for a list of versions. Absent means every place.
   - ext:places (STRING) multiple
 
   // And any other properties
@@ -123,20 +105,12 @@
 
 //-----------------------------------------------------------------------------
 //
-// A UIXP Finder locates extension points based on their ID
+// The extension point finder, at /uixp. Asked for an ext:pointId in its uixp
+// parameter, it answers with the path of that point.
 //
 //-----------------------------------------------------------------------------
 [ext:PointFinder] > sling:Resource
-
-  // Attributes
-
-  // We can use extension points in a query.
   query
 
-  // Properties
-
-  // Hardcode the resource type.
   - sling:resourceType (STRING) = "ext/PointFinder" mandatory autocreated protected
-
-  // Hardcode the resource supertype: each UIXP is a resource.
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
