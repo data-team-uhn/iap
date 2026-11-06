@@ -44,6 +44,7 @@ import TagChip from "@iap/tags/TagChip";
 import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
 import { Thread } from "./NoteCard";
+import { pulse } from "./pulse";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
 
@@ -218,8 +219,12 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
   // An issue's thread, under it on its risk's page, or with those under no risk
   const showThread = (issue: ReviewNote) => {
     setChosen(risks.some(one => one.topic.path === issue.topicPath) ? issue.topicPath : UNFILED);
-    setTimeout(() => document.getElementById(`review-issue-${issue.id}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    setTimeout(() => {
+      const element = document.getElementById(`review-issue-${issue.id}`);
+      element?.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Once it has come into view
+      setTimeout(() => pulse(element), 350);
+    }, 100);
   };
   const show = (note: ReviewNote) => {
     onClose();
@@ -599,7 +604,7 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
   }
   const replies = issue.replies.length;
   return (
-    <Box id={`review-issue-${issue.id}`} sx={{ py: 1, scrollMarginTop: 16 }}>
+    <Box id={`review-issue-${issue.id}`} sx={{ py: 1, px: 1, mx: -1, borderRadius: 1, scrollMarginTop: 16 }}>
       <RowHead note={issue} about={about} tools={(
         <Box sx={{ display: "flex", mr: -0.75 }}>
           <Tooltip title="Change">
