@@ -19,9 +19,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import ChatBubbleOutlineOutlined from "@mui/icons-material/ChatBubbleOutlineOutlined";
-import CheckOutlined from "@mui/icons-material/CheckOutlined";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
+import CircleOutlined from "@mui/icons-material/CircleOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import {
   Box,
@@ -745,12 +746,12 @@ export default function ReviewScreen({ path }: { path: string }) {
                         variant={shown.has(info.kind) ? "filled" : "outlined"}
                         onClick={() => toggleKind(info.kind)}
                         aria-pressed={shown.has(info.kind)}
-                        icon={shown.has(info.kind) ? <CheckOutlined /> : undefined}
+                        icon={shown.has(info.kind) ? <CheckCircleOutlined /> : <CircleOutlined />}
                         // Shown, filled in its colour; hidden, plain grey, so it reads as off
                         sx={theme => shown.has(info.kind)
                           ? { borderColor: theme.palette[info.mark].main,
                             bgcolor: theme.alpha(theme.palette[info.mark].light, 0.45) }
-                          : { borderColor: "divider", color: "text.disabled" }}
+                          : { borderColor: "divider", color: "text.disabled", "& .MuiChip-icon": { color: "inherit" } }}
                       />
                     ))}
                   </Stack>

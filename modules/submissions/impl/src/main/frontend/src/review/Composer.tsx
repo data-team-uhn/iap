@@ -18,7 +18,8 @@
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 
-import CheckOutlined from "@mui/icons-material/CheckOutlined";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import CircleOutlined from "@mui/icons-material/CircleOutlined";
 import { Button, Chip, Divider, MenuItem, Stack, TextField } from "@mui/material";
 
 import { loadTagDefinitions, type TagDefinition } from "@iap/tags/tagDefinitions";
@@ -92,7 +93,7 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
             return (
               <Chip
                 key={one} size="small" label={single} role="radio" aria-checked={kind === one}
-                icon={kind === one ? <CheckOutlined /> : undefined}
+                icon={kind === one ? <CheckCircleOutlined /> : <CircleOutlined />}
                 variant={kind === one ? "filled" : "outlined"} onClick={() => setKind(one)}
                 // The chosen one cannot be unchosen, so it does not answer the pointer
                 sx={theme => {
