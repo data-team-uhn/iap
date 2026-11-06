@@ -218,8 +218,8 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
   return (
     <Dialog
       open={open} onClose={onClose} fullScreen={phone} maxWidth={false} aria-labelledby="whole-review-title"
-      slotProps={{ paper: { sx: { width: { sm: "calc(100% - 48px)" }, height: { sm: "calc(100% - 48px)" },
-        maxWidth: 1400, display: "flex", flexDirection: "column", bgcolor: "background.paper" } } }}
+      slotProps={{ paper: { sx: { width: { sm: "calc(100% - 32px)" }, height: { sm: "calc(100% - 32px)" },
+        maxWidth: "none", m: { sm: 2 }, display: "flex", flexDirection: "column", bgcolor: "background.paper" } } }}
     >
       <Stack direction="row" sx={{ alignItems: "center", gap: 2, px: 2.5, py: 1.5, borderBottom: 1,
         borderColor: "divider" }}>
