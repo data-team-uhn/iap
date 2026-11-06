@@ -261,6 +261,9 @@ export default function ReviewScreen({ path }: { path: string }) {
   }, [ loaded, myGroups, topics ]);
   const groups = useMemo(() => loaded ? parseGroups(loaded.approvals, schema) : new Map<string, ReviewGroup[]>(),
     [ loaded, schema ]);
+  // Focused, every question shown is the reviewer's, so only the other groups asking it are named on it
+  const othersGroups = useMemo(() => new Map([ ...groups ].map(([ part, asking ]) =>
+    [ part, asking.filter(one => !myGroups.includes(one.group)) ] as const)), [ groups, myGroups ]);
   const requirements = useMemo(() => (loaded?.form.requirements ?? []).filter(one =>
     isFormRequirement(one) || (isDocumentRequirement(one) && data?.documents.has(one.name))), [ loaded, data ]);
   const everyone = loaded?.everyone;
@@ -753,7 +756,8 @@ export default function ReviewScreen({ path }: { path: string }) {
                 {isFormRequirement(current) && (
                   <SearchContext.Provider value={searchContext}>
                     <FormReview
-                      items={current.items} data={data} groups={groups} myGroups={myGroups} shown={shown}
+                      items={current.items} data={data} groups={focused ? othersGroups : groups}
+                      myGroups={myGroups} shown={shown}
                       onEvidence={openEvidence} actions={actions}
                     />
                   </SearchContext.Provider>
