@@ -123,6 +123,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         }}
         renderMarkDetails={renderMarkDetails}
         container={place}
+        annotateLabel="Write about this"
         search={search}
         onSearch={onSearch}
         plain
