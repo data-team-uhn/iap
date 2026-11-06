@@ -317,9 +317,14 @@ def add_screening(admin, path, study, schema, answers, documents):
             add_comment(admin, f"{here}/comment{index}", comment, ASSISTANT, answers, documents)
 
 
+# The reviewer group each reviewer reviews for, kept on their review so other reviewers can say whose issues they read
+GROUPS = {"reb-reviewer": "reb-reviewers", "reb-reviewer-2": "reb-reviewers", "digital-reviewer": "digital-reviewers"}
+
+
 def open_review(admin, path, schema, reviewer, requirement):
     create(admin, f"{path}/review-{reviewer}", {
-        "jcr:primaryType": "sub:Review", "reviewer": reviewer, "requirement": schema[requirement],
+        "jcr:primaryType": "sub:Review", "reviewer": reviewer, "group": GROUPS[reviewer],
+        "requirement": schema[requirement],
         "requirement@TypeHint": "Reference", "tags": ["in-progress"], "tags@TypeHint": "String[]"})
 
 

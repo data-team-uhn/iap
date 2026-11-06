@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
+import { useContext, useState } from "react";
 
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
@@ -25,7 +25,7 @@ import { Box, Button, IconButton, Stack, Tooltip, Typography } from "@mui/materi
 import TagChip from "@iap/tags/TagChip";
 
 import Composer from "./Composer";
-import { PersonName } from "./people";
+import { GroupLabels, PersonName } from "./people";
 import { kindInfo, type ReviewNote } from "./reviewData";
 
 function when(created: string): string {
@@ -51,13 +51,14 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   onAdopting?: (adopting: boolean) => void;
 }) {
   const info = kindInfo(note.kind);
+  const labels = useContext(GroupLabels);
   const [ replying, setReplying ] = useState(false);
   const [ editing, setEditing ] = useState(false);
   const [ ownAdopting, setOwnAdopting ] = useState(false);
   const isAdopting = adopting ?? ownAdopting;
   const setAdopting = onAdopting ?? setOwnAdopting;
   const canAdopt = onMakeIssue && note.kind === "aiIssue";
-  const canAnswer = onReply && (note.kind === "discussion" || note.kind === "issue");
+  const canAnswer = onReply && (note.kind === "discussion" || note.kind === "issue" || note.kind === "otherIssue");
 
   if (editing && onEdit) {
     return (
@@ -90,6 +91,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
       <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap", mb: 0.5 }}>
         <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
           {info.single}
+          {note.kind === "otherIssue" && note.group && labels.has(note.group) && ` · ${labels.get(note.group)}`}
         </Typography>
         {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
         {note.topic && <Typography variant="caption" sx={{ color: "text.secondary" }}>{note.topic}</Typography>}

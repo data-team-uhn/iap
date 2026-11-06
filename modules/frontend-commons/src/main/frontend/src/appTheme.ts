@@ -84,7 +84,8 @@ declare module "@mui/material/styles" {
   }
   // `assistant` colours whatever an AI assistant contributed. `annotation` colours what a person marked.
   // PRETOTYPE: on a review, `evidence` colours what an extracted answer was read from, `issue` what a reviewer
-  // raises with the study team, and `discussion` what reviewers say to each other. `draft` is neutral: a passage
+  // raises with the study team, `otherIssue` what another reviewer raises, and `discussion` what reviewers say to
+  // each other. `draft` is neutral: a passage
   // a note is being started on, before it is anything.
   // `highlight` holds the marks both make over a document's content, and those a comparison of two
   // versions of a document makes. A `…Marker` colour is for strokes on a mark, such as its outline.
@@ -99,6 +100,8 @@ declare module "@mui/material/styles" {
     evidenceCurrent: string;
     issue: string;
     issueCurrent: string;
+    otherIssue: string;
+    otherIssueCurrent: string;
     discussion: string;
     discussionCurrent: string;
     draft: string;
@@ -121,6 +124,7 @@ declare module "@mui/material/styles" {
     annotation: PaletteColor;
     evidence: PaletteColor;
     issue: PaletteColor;
+    otherIssue: PaletteColor;
     discussion: PaletteColor;
     draft: PaletteColor;
     highlight: TypeHighlight;
@@ -132,6 +136,7 @@ declare module "@mui/material/styles" {
     annotation?: PaletteColorOptions;
     evidence?: PaletteColorOptions;
     issue?: PaletteColorOptions;
+    otherIssue?: PaletteColorOptions;
     discussion?: PaletteColorOptions;
     draft?: PaletteColorOptions;
     highlight?: TypeHighlight;
@@ -231,6 +236,9 @@ function accent(fill: string, text: string): { light: PaletteColorOptions; dark:
 }
 const EVIDENCE = accent(LAVENDER, "#5A4A9E");
 const ISSUE = accent(CORAL, "#A8402F");
+// Another reviewer's issue: the issue's coral, greyed, so it reads as an issue but not the reviewer's own
+const DUSTY_CORAL = "#D2ADA6";
+const OTHER_ISSUE = accent(DUSTY_CORAL, "#7A524B");
 const DISCUSSION = accent(SKY, "#2F5F96");
 const GREY = "#A3A8B0";
 // A draft's card is tinted as lightly as a muted surface
@@ -261,6 +269,8 @@ const HIGHLIGHT = {
   evidenceCurrent: alpha(LAVENDER, 0.65),
   issue: alpha(CORAL, 0.35),
   issueCurrent: alpha(CORAL, 0.6),
+  otherIssue: alpha(DUSTY_CORAL, 0.4),
+  otherIssueCurrent: alpha(DUSTY_CORAL, 0.7),
   discussion: alpha(SKY, 0.35),
   discussionCurrent: alpha(SKY, 0.6),
   draft: alpha(GREY, 0.35),
@@ -359,6 +369,7 @@ const appTheme = createTheme({
         annotation: ANNOTATION_LIGHT,
         evidence: EVIDENCE.light,
         issue: ISSUE.light,
+        otherIssue: OTHER_ISSUE.light,
         discussion: DISCUSSION.light,
         draft: DRAFT.light,
         highlight: HIGHLIGHT,
@@ -391,6 +402,7 @@ const appTheme = createTheme({
         annotation: ANNOTATION_DARK,
         evidence: EVIDENCE.dark,
         issue: ISSUE.dark,
+        otherIssue: OTHER_ISSUE.dark,
         discussion: DISCUSSION.dark,
         draft: DRAFT.dark,
         highlight: HIGHLIGHT,

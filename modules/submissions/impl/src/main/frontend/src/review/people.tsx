@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
+import { createContext, useEffect, useState } from "react";
 
 // PRETOTYPE. The names people go by, read once per person and page: comments record who wrote them by user name.
 const names = new Map<string, Promise<string>>();
@@ -51,3 +51,6 @@ export function usePersonName(user: string): string {
 export function PersonName({ user }: { user: string }) {
   return usePersonName(user);
 }
+
+// The reviewer groups by principal name, as their approvals call them for short, such as "REB"
+export const GroupLabels = createContext<Map<string, string>>(new Map());

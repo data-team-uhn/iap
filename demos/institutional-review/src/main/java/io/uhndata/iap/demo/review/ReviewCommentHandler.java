@@ -49,7 +49,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * comments, it changes that comment's text and severity; with {@code remove}, it removes it. An issue made from an
  * AI pre-review comment names it as {@code from}; with {@code dismiss} naming one, the reviewer sets it aside, and
  * it is recorded on the AI comment, in {@code dismissedBy}, since another reviewer may still want it. An issue is
- * filed under the risk {@code topic} names, by path, when it names one; editing it with an empty one unfiles it.
+ * filed under the risk {@code topic} names, by path, when it names one; editing it with an empty one unfiles it. The
+ * reviewer group the issues are raised for, {@code group}, is kept on the review.
  *
  * <p>The notes are kept apart from the review and the discussion, in an {@code irv:Notes} node per reviewer. They
  * are not hidden from the other reviewers by an access rule yet: the pages only show a reviewer their own.</p>
@@ -69,6 +70,8 @@ public class ReviewCommentHandler implements ServiceTaskHandler
     private static final String DISMISSED_PROPERTY = "dismissedBy";
 
     private static final String TOPIC_PROPERTY = "topic";
+
+    private static final String ISSUE_KIND = "issue";
 
     @Override
     public String getName()
@@ -150,6 +153,9 @@ public class ReviewCommentHandler implements ServiceTaskHandler
     {
         final String kind = Payloads.requireText(context.getEvent(), "kind", "Say what kind of comment this is");
         final Resource holder = holder(submission, kind, actor);
+        if (ISSUE_KIND.equals(kind)) {
+            keepGroup(context, holder);
+        }
         final Map<String, Object> properties = new HashMap<>(Map.of(PRIMARY_TYPE, "sub:Comment",
             TEXT_PROPERTY, text, AUTHOR_PROPERTY, actor));
         final List<String> subjects = values(context, "subjects");
@@ -157,16 +163,16 @@ public class ReviewCommentHandler implements ServiceTaskHandler
             properties.put("subjects", subjects.toArray(String[]::new));
         }
         final String from = Payloads.text(context.getEvent(), "from");
-        if ("issue".equals(kind) && from != null) {
+        if (ISSUE_KIND.equals(kind) && from != null) {
             properties.put("from", within(submission, from).getPath());
         }
         final String topic = Payloads.text(context.getEvent(), TOPIC_PROPERTY);
-        if ("issue".equals(kind) && topic != null) {
+        if (ISSUE_KIND.equals(kind) && topic != null) {
             properties.put(TOPIC_PROPERTY, topic(submission, topic));
         }
         final Resource comment = submission.getResourceResolver().create(holder, name("comment"), properties);
         final String severity = Payloads.text(context.getEvent(), "severity");
-        if ("issue".equals(kind) && severity != null) {
+        if (ISSUE_KIND.equals(kind) && severity != null) {
             Objects.requireNonNull(comment.adaptTo(Taggable.class), "Taggable").tag(severity, false);
         }
         passage(context, comment);
@@ -194,6 +200,18 @@ public class ReviewCommentHandler implements ServiceTaskHandler
         comment.getResourceResolver().create(comment, "context", passage);
     }
 
+    // The reviewer group a review is written for, as the page writing an issue says, kept on the review the first
+    // time: other reviewers cannot read who belongs to which group, but can read the review. A real version would
+    // work it out here from the reviewer's memberships.
+    private static void keepGroup(final WorkflowTaskContext context, final Resource review)
+    {
+        final String group = Payloads.text(context.getEvent(), "group");
+        final ModifiableValueMap values = Objects.requireNonNull(review.adaptTo(ModifiableValueMap.class), "Writable");
+        if (group != null && !values.containsKey("group")) {
+            values.put("group", group);
+        }
+    }
+
     // Where a comment of this kind goes, made the first time one is written
     private static Resource holder(final Resource submission, final String kind, final String actor)
         throws PersistenceException, WorkflowException
@@ -201,7 +219,7 @@ public class ReviewCommentHandler implements ServiceTaskHandler
         final String name;
         final Map<String, Object> properties = new HashMap<>();
         switch (kind) {
-            case "issue" -> {
+            case ISSUE_KIND -> {
                 for (final Resource child : submission.getChildren()) {
                     final var values = child.getValueMap();
                     if ("sub/Review".equals(child.getResourceType()) && actor.equals(values.get("reviewer"))
