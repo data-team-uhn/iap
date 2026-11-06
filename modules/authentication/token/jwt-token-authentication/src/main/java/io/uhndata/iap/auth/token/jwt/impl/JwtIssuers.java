@@ -21,9 +21,8 @@ import java.net.URI;
 import java.util.regex.Pattern;
 
 /**
- * What may serve as an instance's identity in the {@code iss} and {@code aud} claims: this instance's own, as
- * configured, and a peer's, as registered. Both sides are held to one rule so that neither accepts a value the
- * other would refuse.
+ * Decides what may serve as an instance's identity in the {@code iss} and {@code aud} claims. The same rule checks
+ * this instance's configured identity and each peer's registered issuer.
  *
  * @version $Id$
  * @since 0.1.0
@@ -32,7 +31,7 @@ final class JwtIssuers
 {
     private static final int MAX_LENGTH = 2048;
 
-    /** Disallow line breaks and other control characters. */
+    /** A control character, such as a line break. */
     private static final Pattern CONTROL_CHARACTER_PATTERN = Pattern.compile("\\p{Cntrl}");
 
     private JwtIssuers()
@@ -41,12 +40,13 @@ final class JwtIssuers
     }
 
     /**
-     * Whether a value could ever match a token's claim, which is compared exactly, with no normalization.
-     * Surrounding whitespace is refused rather than trimmed, since it would make a silent never-match. A value
-     * containing a colon must be an absolute URI, as RFC 7519 requires of a StringOrURI.
+     * Whether a value can serve as an identity. A token's claim is compared with it exactly, with no normalization,
+     * so surrounding whitespace is refused rather than trimmed. The value must not be blank, be longer than 2048
+     * characters, or hold a control character. A value with a colon must be an absolute URI, as RFC 7519 requires
+     * of a StringOrURI.
      *
-     * @param issuer the candidate identity
-     * @return whether it is usable
+     * @param issuer the candidate identity, or {@code null}
+     * @return {@code true} if it is usable, {@code false} if it is {@code null} or breaks a rule above
      */
     static boolean isUsable(final String issuer)
     {

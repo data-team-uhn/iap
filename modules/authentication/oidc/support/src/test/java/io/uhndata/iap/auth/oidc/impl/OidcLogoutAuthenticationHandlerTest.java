@@ -43,9 +43,7 @@ import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.httprequests.api.HttpResponse;
 
 /**
- * Tests for {@link OidcLogoutAuthenticationHandler}: on an OIDC session it expires the configured
- * cookie and steers the post-logout redirect; otherwise it stays out of the way, and it never takes
- * part in authentication.
+ * Tests for {@link OidcLogoutAuthenticationHandler}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -92,7 +90,7 @@ public class OidcLogoutAuthenticationHandlerTest
         Assertions.assertEquals(0, expired.getMaxAge());
         Assertions.assertEquals(true, expired.isHttpOnly());
         Assertions.assertEquals("Lax", expired.getAttribute("SameSite"));
-        // Http requests emit non-secure cookies
+        // The request is not secure, so neither is the cookie
         Assertions.assertEquals(false, expired.getSecure());
         Mockito.verify(request).setAttribute(RESOURCE_ATTR, LOGOUT_PATH);
     }
@@ -100,8 +98,6 @@ public class OidcLogoutAuthenticationHandlerTest
     @Test
     void expiredCookieIsSecureOverHttps()
     {
-        // The expiring cookie has to carry the same Secure flag as the one being replaced, or the
-        // browser keeps the original and the session survives the logout
         final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
         final HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
         Mockito.when(request.getCookies()).thenReturn(oidcCookies());
@@ -151,8 +147,6 @@ public class OidcLogoutAuthenticationHandlerTest
     }
 
     // --- Back-channel logout -------------------------------------------------------------------
-    // The provider is mocked and never contacted for real, so what is asserted is the
-    // request the handler would have made and what it does with each answer.
 
     @Test
     void backchannelLogoutPostsTheDecryptedTokenAndClearsItOnSuccess() throws Exception
@@ -167,18 +161,14 @@ public class OidcLogoutAuthenticationHandlerTest
             ArgumentMatchers.eq("application/x-www-form-urlencoded"));
         Assertions.assertEquals("client_id=iap-sling&client_secret=s3cr%2Bt&refresh_token=refresh-token",
             body.getValue());
-        // Revoked at the provider, so the stored copy is removed and the removal persisted
         Mockito.verify(f.user).removeProperty(TOKEN_PATH);
         Mockito.verify(f.session).save();
-        // Succeeded, so the abandonable redirect is not used
         Mockito.verify(f.request, Mockito.never()).setAttribute(RESOURCE_ATTR, LOGOUT_PATH);
     }
 
     @Test
     void secretAndTokenArePercentEncoded() throws Exception
     {
-        // A client secret is generated, so it can contain characters that would otherwise split the
-        // form body or be read as a space
         final Fixture f = new Fixture().withSecret("a+b&c d").withStoredToken(CIPHERTEXT, TOKEN).answering(200);
 
         f.logout();
@@ -191,7 +181,7 @@ public class OidcLogoutAuthenticationHandlerTest
     @Test
     void providerRefusalFallsBackToTheRedirectAndKeepsTheToken() throws Exception
     {
-        // What an already-revoked or rotated token looks like coming back from Keycloak
+        // Keycloak's answer to a revoked or rotated token
         final Fixture f = new Fixture().withStoredToken(CIPHERTEXT, TOKEN)
             .answering(400, "{\"error\":\"invalid_grant\"}");
 
@@ -226,8 +216,7 @@ public class OidcLogoutAuthenticationHandlerTest
     }
 
     // --- Reading the stored token --------------------------------------------------------------
-    // Each of these leaves nothing to present to the provider, so all of them must fall back rather
-    // than fail the logout.
+    // Each of these leaves no token to present to the provider.
 
     @Test
     void missingTokenPropertyFallsBackWithoutCallingTheProvider() throws Exception
@@ -267,8 +256,7 @@ public class OidcLogoutAuthenticationHandlerTest
     @Test
     void undecryptableTokenFallsBack() throws Exception
     {
-        // What a token encrypted under a previous IAP_OAUTH_ENCRYPTION_PASSWORD looks like: decrypt
-        // declares nothing, but throws
+        // A token encrypted under a previous IAP_OAUTH_ENCRYPTION_PASSWORD
         final Fixture f = new Fixture().withStoredToken(CIPHERTEXT, null);
         Mockito.when(f.cryptoService.decrypt(CIPHERTEXT)).thenThrow(new IllegalStateException("wrong key"));
 
@@ -280,9 +268,6 @@ public class OidcLogoutAuthenticationHandlerTest
     @Test
     void missingCryptoServiceStillExpiresTheCookieAndFallsBack() throws Exception
     {
-        // The reference is optional, so the component stays satisfied without iap-oauth's CryptoService --
-        // most often because IAP_OAUTH_ENCRYPTION_PASSWORD is unset. Expiring the cookie is the fix this
-        // class exists for, and must not be lost with the back-channel.
         final Fixture f = new Fixture().withStoredToken(CIPHERTEXT, TOKEN).withoutCryptoService();
 
         f.logout();
@@ -296,7 +281,6 @@ public class OidcLogoutAuthenticationHandlerTest
     @Test
     void requestWithoutAResolverFallsBack()
     {
-        // A local (non-OIDC) account reaches here whenever it carries the cookie name by coincidence
         final Fixture f = new Fixture().withoutResolver();
 
         f.logout();
@@ -326,7 +310,6 @@ public class OidcLogoutAuthenticationHandlerTest
 
         f.logout();
 
-        // The provider already accepted the logout, so it is not retried through the redirect
         Mockito.verify(f.request, Mockito.never()).setAttribute(RESOURCE_ATTR, LOGOUT_PATH);
     }
 
@@ -345,9 +328,8 @@ public class OidcLogoutAuthenticationHandlerTest
     }
 
     /**
-     * A logout request for a signed-in OIDC user, with every collaborator mocked. Built in the state the
-     * common case needs -- resolver, user and session present, back-channel configured -- so each test only
-     * states the one thing it is about.
+     * A logout request for a signed-in OIDC user, with every collaborator mocked. It starts with a resolver, a user
+     * and a session, and the back-channel configured. Each test changes only what it is about.
      */
     private static final class Fixture
     {
@@ -445,8 +427,8 @@ public class OidcLogoutAuthenticationHandlerTest
         }
 
         /**
-         * Activates the handler and injects its references. The bundle plugin only generates the DS metadata at
-         * packaging time, so the service is instantiated directly and its references are injected by hand.
+         * Activates the handler and injects its references by hand. The bundle plugin generates the DS metadata
+         * only at packaging time.
          */
         private void build()
         {

@@ -25,7 +25,7 @@ import org.jetbrains.annotations.Nullable;
 import org.osgi.annotation.versioning.ProviderType;
 
 /**
- * Service that can create and read tokens.
+ * Issues tokens that authenticate a user, and reads them back. A token can carry extra string attributes.
  *
  * @version $Id$
  * @since 0.1.0
@@ -36,19 +36,19 @@ public interface TokenManager
     /**
      * Create a new token.
      *
-     * @param user local username to associate with the token
-     * @param expiration date after which the token becomes invalid
-     * @param extraData data to store in the token, may be empty
-     * @return a new token, or {@code null} if this manager is not able to issue tokens
+     * @param user the username the token authenticates
+     * @param expiration the time after which the token is no longer valid
+     * @param extraData the attributes to store in the token, as names and values; empty for none
+     * @return a new token, or {@code null} if this manager cannot issue tokens
      */
     @Nullable
     IapToken create(@NotNull String user, @NotNull Calendar expiration, @NotNull Map<String, String> extraData);
 
     /**
-     * Parse a token's data from its identifier.
+     * Read a token back from its string form, and check that it is valid.
      *
-     * @param token a token string
-     * @return the parsed token data, or {@code null} if the input is {@code null} or invalid
+     * @param token the token string, as {@link IapToken#getToken()} returns it, or {@code null}
+     * @return the token, or {@code null} if the input is {@code null} or the token is not valid
      */
     @Nullable
     IapToken parse(@Nullable String token);

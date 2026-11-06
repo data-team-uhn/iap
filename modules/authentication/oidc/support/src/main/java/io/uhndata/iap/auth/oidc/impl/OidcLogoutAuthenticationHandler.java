@@ -50,26 +50,22 @@ import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.httprequests.api.HttpResponse;
 
 /**
- * Expires the OIDC session cookie on logout, and ends the provider's SSO session with it.
+ * Completes the logout of a user who signed in through the OIDC provider: expires the session cookie, and ends the
+ * provider's SSO session.
  *
  * <p>
  * The Apache Sling OAuth client's {@code OidcAuthenticationHandler} has an empty
- * {@code dropCredentials}, so navigating to {@code /system/sling/logout} tears down the Sling
- * session but leaves its {@code sling.oidcauth} cookie in place; the next request presents that
- * still-valid cookie and is silently signed back in. Sling invokes {@code dropCredentials} on every
- * authentication handler registered for the logout path, so this handler sits at {@code /} to expire
- * that cookie when the session was an OIDC one. It never takes part in authentication:
- * {@code extractCredentials} abstains and {@code requestCredentials} declines, leaving the login
- * gate to the form and OIDC handlers.
+ * {@code dropCredentials}. A logout therefore leaves its {@code sling.oidcauth} cookie in place,
+ * and the next request presenting that cookie is signed back in. Sling calls
+ * {@code dropCredentials} on every authentication handler whose path covers the logout request.
+ * This handler sits at {@code /} and expires the cookie. It takes no part in signing in:
+ * {@code extractCredentials} returns nothing and {@code requestCredentials} declines.
  * </p>
  *
  * <p>
- * Clearing the local session is only half of it: the provider's own SSO session outlives it, and
- * would sign the user straight back in on the next click. This ends that session back-channel,
- * presenting the user's stored refresh token to the provider directly. Only if that cannot be done
- * does it fall back to steering Sling's post-logout redirect to the {@link OidcEndSessionServlet},
- * which asks the browser to carry the logout instead -- a route the user can abandon at the
- * provider's confirmation screen, which is why it is the fallback rather than the default.
+ * The provider's SSO session outlives the local one, and would sign the user straight back in. The
+ * handler ends it back-channel, by posting the user's stored refresh token to the provider. When
+ * that fails, it sends the browser to the {@link OidcEndSessionServlet} instead.
  * </p>
  *
  * @version $Id$
@@ -78,7 +74,7 @@ import io.uhndata.iap.httprequests.api.HttpResponse;
 @Component(service = JakartaAuthenticationHandler.class,
     property = {
         JakartaAuthenticationHandler.PATH_PROPERTY + "=/",
-        // Never wins credential requests; the low ranking keeps it out of the login handlers' way.
+        // Ranked below the sign-in handlers at /, so Sling asks them first
         "service.ranking:Integer=-10000"
     })
 @Designate(ocd = OidcLogoutConfiguration.class)
@@ -92,12 +88,11 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
     private HttpRequests httpRequests;
 
     /**
-     * Targeted deliberately: iap-email-notifications registers a second CryptoService, and binding that one would
-     * decrypt with the wrong key. The token was encrypted by the OAuth client's own processor, which uses this one.
+     * The {@code iap-oauth} crypto service, the one the OAuth client encrypted the refresh token with. Another
+     * {@code CryptoService} in the same instance would decrypt with the wrong key.
      *
      * <p>
-     * Optional so that an absent iap-oauth crypto stack cannot leave this component unsatisfied, and greedy so that
-     * configuring the password rebinds it without restarting.
+     * Optional and dynamic: the cookie is still expired without it, and it binds when the service appears.
      * </p>
      */
     @Reference(cardinality = ReferenceCardinality.OPTIONAL,
@@ -127,18 +122,16 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
     }
 
     /**
-     * Reads the user's refresh token from their home node and decrypts it. Must be called while the request still
-     * carries the user's identity, and it is read from a login-time copy (and so is correct only while nothing
-     * refreshes it)
+     * Reads the user's refresh token from their home node and decrypts it. The request must still carry the user's
+     * identity. The token is the copy synced at sign-in, and is stale if anything has refreshed it since.
      *
      * <p>
-     * Never throws. Every reason the token might be unavailable (local login, unsynced property, unreadable
-     * ciphertext, no crypto service) only means the provider session cannot be ended this way, but logout must
-     * still proceed.
+     * Never throws. A missing token only means the provider session cannot be ended this way.
      * </p>
      *
      * @param request the logout request, still carrying the authenticated resolver
-     * @return the decrypted refresh token, or {@code null} if there is none to be had
+     * @return the decrypted refresh token, or {@code null} if there is no crypto service, no user, no stored token,
+     *     or the token cannot be read or decrypted
      */
     private String readRefreshToken(final HttpServletRequest request)
     {
@@ -157,7 +150,7 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
         try
         {
             final Value[] values = user.getProperty(this.refreshTokenPath);
-            // Absent entirely for a local account, or for an OIDC one synced before the property was mapped
+            // Absent for a local account, and for an OIDC one synced before the property was mapped
             if (values == null || values.length == 0)
             {
                 return null;
@@ -166,19 +159,16 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
         } catch (final RepositoryException e) {
             LOGGER.warn("Could not read the stored refresh token", e);
         } catch (final RuntimeException e) {
-            // decrypt() declares nothing, but throws when the ciphertext does not match this key -- which is what a
-            // token encrypted under a previous IAP_OAUTH_ENCRYPTION_PASSWORD looks like
+            // decrypt() declares nothing, but throws when the token was encrypted under another key, such as a
+            // previous IAP_OAUTH_ENCRYPTION_PASSWORD
             LOGGER.warn("Could not decrypt the stored refresh token", e);
         }
         return null;
     }
 
     /**
-     * Removes the stored refresh token, once the provider has accepted it and revoked it.
-     *
-     * <p>
-     * Never throws. Failing to clear it is not a reason to fail the logout that has already succeeded.
-     * </p>
+     * Removes the stored refresh token, once the provider has accepted it and revoked it. Never throws: the logout
+     * has already succeeded.
      *
      * @param request the logout request, still carrying the authenticated resolver
      */
@@ -208,15 +198,10 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
     }
 
     /**
-     * The user this request is authenticated as, or {@code null} if it is not authenticated as one.
-     *
-     * <p>
-     * Resolving against the request's own identity is what lets the token be addressed by a path relative to the
-     * user's home node, so its randomly-generated name never has to be located.
-     * </p>
+     * The user this request is authenticated as.
      *
      * @param request the request to take the identity from
-     * @return the user, or {@code null} when the request carries no usable resolver
+     * @return the user, or {@code null} when the request carries no resolver, or the resolver does not adapt to one
      */
     private static User currentUser(final HttpServletRequest request)
     {
@@ -229,18 +214,13 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
     }
 
     /**
-     * Ends the provider's SSO session server-to-server, by presenting the user's refresh token to the provider's
-     * logout endpoint. Unlike the browser redirect performed by {@link OidcEndSessionServlet}, this needs no
-     * confirmation from the user and cannot be abandoned by closing the tab, so the provider session is reliably
-     * gone by the time this returns.
+     * Ends the provider's SSO session server to server, by posting the user's refresh token to the provider's logout
+     * endpoint. The user is not asked to confirm. Never throws: a logout that cannot reach the provider must still
+     * end the local session.
      *
-     * <p>
-     * Never throws: a logout that cannot reach the provider must still expire the local session, so a failure is
-     * reported by the return value and the caller decides whether to fall back to the redirect.
-     * </p>
-     *
-     * @param refreshToken the user's decrypted refresh token
-     * @return {@code true} if the provider accepted the request and the SSO session is ended
+     * @param refreshToken the user's decrypted refresh token, or {@code null} if there is none
+     * @return {@code true} if the provider accepted the request, {@code false} if the endpoint, the client
+     *     credentials or the token is blank, the provider refused, or it could not be reached
      */
     boolean endProviderSession(final String refreshToken)
     {
@@ -259,26 +239,22 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
             {
                 return true;
             }
-            // The body carries the provider's reason (e.g. invalid_grant for an already-revoked or rotated token),
-            // which is what makes this diagnosable; it never echoes the token back.
             LOGGER.warn("The provider refused the back-channel logout with status {}: {}",
                 response.getStatusCode(), response.getBody());
         } catch (final IOException e) {
-            // Deliberately not logging the address: it is configuration, and the exception does not quote it either
             LOGGER.warn("Could not reach the provider to end its session", e);
         }
         return false;
     }
 
-    /** Form fields must be percent-encoded: a client secret in particular can carry {@code +} or {@code &}. */
+    /** Percent-encodes a form field. A client secret can contain {@code +} or {@code &}. */
     private static String encode(final String value)
     {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     /**
-     * A cookie that replaces the session cookie with an expired one. Shared with
-     * {@link OidcEndSessionServlet}, which expires the same cookie when it is reached directly.
+     * A cookie that replaces the session cookie with an expired one.
      *
      * @param name the session cookie's name
      * @param secure whether the request arrived over HTTPS, since a Secure cookie cannot be replaced by one without
@@ -286,9 +262,8 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
      */
     static Cookie expiredSessionCookie(final String name, final boolean secure)
     {
-        // The attributes have to match the ones the cookie was set with, or the browser treats this as a
-        // different cookie and keeps the original, even though logout appears to work. The cookie is HttpOnly,
-        // so only the server can clear it.
+        // The OAuth client sets the cookie with these attributes. Under another path the browser would keep the
+        // original.
         final Cookie expired = new Cookie(name, "");
         expired.setPath("/");
         expired.setMaxAge(0);
@@ -313,9 +288,8 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
     @Override
     public void dropCredentials(final HttpServletRequest request, final HttpServletResponse response)
     {
-        // Act only on OIDC sessions: the presence of the session cookie is the sole signal that this
-        // logout is for a user who signed in through the external provider. getCookies() is null when
-        // the request carries no cookies at all.
+        // Only the session cookie says the user signed in through the provider. getCookies() is null when the
+        // request carries no cookies.
         final Cookie[] cookies = request.getCookies();
         if (cookies == null)
         {
@@ -337,14 +311,13 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
 
         response.addCookie(expiredSessionCookie(this.cookieName, request.isSecure()));
 
-        // End the provider's session via the stored refresh token
-        // Note: failure is logged but not thrown, so we redirect if the backchannel fails
         boolean endedSession = endProviderSession(readRefreshToken(request));
         if (endedSession)
         {
-            // The provider has revoked it, clear our cached token
             clearRefreshToken(request);
         } else {
+            // Sling redirects after logout to the path in this attribute, and replaces a full URL with /. The
+            // servlet redirects the browser on to the provider.
             request.setAttribute("resource", OidcEndSessionConfiguration.POST_LOGOUT_URI);
         }
     }

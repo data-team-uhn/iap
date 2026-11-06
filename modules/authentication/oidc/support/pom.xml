@@ -28,10 +28,9 @@
   <artifactId>iap-oidc-support</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Keycloak / OIDC authentication</name>
-  <description>Delegates authentication to an external Keycloak instance (an OIDC provider) via the Apache
-    Sling OAuth client. That bundle ships an Oak ExternalIdentityProvider (OidcIdentityProvider),
-    so a user who signs in through Keycloak is provisioned into Oak by Oak's own DefaultSyncHandler
-    and their Keycloak realm roles become Oak group principals that content ACLs can reference.</description>
+  <description>Sign-in through an OpenID Connect provider such as Keycloak. The feature configures the Apache
+    Sling OAuth client, which provisions each user into Oak and turns their Keycloak realm roles into group
+    principals that ACLs can name. The bundle signs the user out of the provider as well as out of IAP.</description>
 
   <properties>
     <coverage.instructionRatio>0.85</coverage.instructionRatio>
@@ -101,14 +100,14 @@
       <artifactId>jcr</artifactId>
       <scope>provided</scope>
     </dependency>
-    <!-- Decrypts the stored refresh token; the OAuth client's processor encrypted it with the same service -->
+    <!-- Decrypts the refresh token the OAuth client stored -->
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.commons.crypto</artifactId>
       <scope>provided</scope>
     </dependency>
 
-    <!-- Never called, but ResourceResolver's signatures reference it and Mockito cannot mock it without -->
+    <!-- The tests mock ResourceResolver, whose deprecated methods take a javax.servlet request -->
     <dependency>
       <groupId>javax.servlet</groupId>
       <artifactId>javax.servlet-api</artifactId>

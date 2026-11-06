@@ -16,23 +16,21 @@
 
 // Keycloak / OIDC sign-in.
 //
-// Delegates authentication to an external Keycloak instance (an OIDC provider) via the Apache
-// Sling OAuth client. That bundle ships an Oak ExternalIdentityProvider (OidcIdentityProvider),
-// so a user who signs in through Keycloak is provisioned into Oak by Oak's own DefaultSyncHandler
-// and their Keycloak realm roles become Oak group principals that content ACLs can reference.
+// Signs users in through Keycloak with the Apache Sling OAuth client. Its OidcIdentityProvider
+// lets Oak's DefaultSyncHandler provision each user into Oak. Their Keycloak realm roles become
+// group principals that ACLs can name.
 //
-// There are three independent names wired across the configs below; keep them consistent:
-//   * connection name "keycloak" -- the OIDC provider connection (OidcConnectionImpl.name,
+// Three names tie the configurations below together. Each must be the same in every place listed:
+//   * connection name "keycloak": the OIDC provider connection (OidcConnectionImpl.name,
 //     OidcAuthenticationHandler.defaultConnectionName, SlingUserInfoProcessorImpl.connection,
 //     and the entry-point query parameter ?c=keycloak).
-//   * idp name "keycloak" -- the ExternalIdentityProvider the auth handler registers
-//     (OidcAuthenticationHandler.idp == ExternalLoginModuleFactory.idp.name == SlingLoginCookieManager.idpName).
-//   * sync handler name "keycloak" -- links the JAAS login module to the sync handler
-//     (ExternalLoginModuleFactory.sync.handlerName == DefaultSyncHandler.handler.name).
+//   * idp name "keycloak": the ExternalIdentityProvider the authentication handler registers
+//     (OidcAuthenticationHandler.idp, ExternalLoginModuleFactory.idp.name, SlingLoginCookieManager.idpName).
+//   * sync handler name "keycloak": links the JAAS login module to the sync handler
+//     (ExternalLoginModuleFactory.sync.handlerName, DefaultSyncHandler.handler.name).
 //
-// Bundle versions and the dependency set are taken verbatim from the module's published
-// main.slingosgifeature (org.apache.sling.auth.oauth-client 0.1.6), EXCEPT oak-auth-external:
-// the published feature pins an older 1.70.0, but IAP already ships a newer one via oak/oak_base.json.
+// The bundles are the ones the OAuth client's published main.slingosgifeature lists for 0.1.6,
+// except oak-auth-external, which oak/oak_base.json ships.
 //
 // Runtime environment variables (resolved by the configadmin interpolation plugin declared in
 // boot.json): FRONTEND_KEYCLOAK_REALM_URL, BACKEND_KEYCLOAK_REALM_URL, KEYCLOAK_CLIENT_ID,
@@ -53,10 +51,10 @@
         { "id":"${project.groupId}:${project.artifactId}:${project.version}", "start-order":"25" }
     ],
     "configurations":{
-        // Token encryption. A CryptoService must exist even with token storage off, since the
-        // UserInfo processor requires one. iap-email-notifications ships a second Jasypt stack
-        // ("~default") in the same instance, so this one pins its own parts by target filter --
-        // untargeted, they cross-bind and whichever loses reads an env var that is not set.
+        // Token encryption. The UserInfo processor and the authentication handler both require a
+        // CryptoService, even with token storage off. Another module can run its own Jasypt stack
+        // in the same instance, so this one names its own parts by target filter. Untargeted, the
+        // stacks cross-bind, and one of them reads an environment variable that is not set.
         "org.apache.sling.commons.crypto.jasypt.internal.JasyptRandomIvGeneratorRegistrar~iapoauth":{
             "algorithm":"DRBG"
         },
@@ -67,24 +65,21 @@
             "names":["iap-oauth"],
             "name":"IAP_OAUTH_ENCRYPTION_PASSWORD"
         },
-        // The oauth-client's own CryptoService consumers are untargeted 1..1 references with
-        // compiler-generated names ($000, $005, ...), so they cannot be pinned by target without
-        // hardcoding names that change on upgrade. The ranking is what steers them here instead of
-        // to "~default" -- which they would otherwise win by lower service.id, and which cannot
-        // activate without SLING_COMMONS_CRYPTO_PASSWORD, leaving the whole OIDC chain dead.
-        // iap-email-notifications pins its own consumer with cryptoService.target to stay put.
+        // The OAuth client's CryptoService references are untargeted, and their generated names
+        // ($000, $005, ...) can change on upgrade. The ranking makes them bind this service rather
+        // than another stack's.
         "org.apache.sling.commons.crypto.jasypt.internal.JasyptStandardPbeStringCryptoService~iapoauth":{
             "algorithm":"PBEWITHHMACSHA512ANDAES_256",
             "names":["iap-oauth"],
             "service.ranking:Integer":100,
-            // The generator registrars publish `algorithm`, but no `names`
+            // The generator registrars publish an algorithm, but no names
             "ivGenerator.target":"(algorithm=DRBG)",
             "saltGenerator.target":"(algorithm=DRBG)",
             "passwordProvider.target":"(names=iap-oauth)"
         },
 
         // --- OAuth client token store + login cookie ------------------------------------------
-        // Persist tokens in the signed-in user's JCR home. idpName must match the idp name above.
+        // The OAuth client keeps tokens in the signed-in user's home. idpName is the idp name above.
         "org.apache.sling.auth.oauth_client.impl.JcrUserHomeOAuthTokenStore":{
         },
         "org.apache.sling.auth.oauth_client.impl.SlingLoginCookieManager":{
@@ -92,14 +87,14 @@
         },
 
         // --- The Keycloak connection ----------------------------------------------------------
-        // baseUrl points at the realm root; the client derives the authorization/token/userinfo
-        // and JWKS endpoints from the realm's OIDC discovery document.
+        // Every endpoint is given here, under the realm root. The authorization endpoint and the
+        // issuer use the URL the browser reaches Keycloak by. The others use the URL IAP reaches it by.
         "org.apache.sling.auth.oauth_client.impl.OidcConnectionImpl~keycloak": {
             "name": "keycloak",
-            // frontend for the user:
+            // The browser's URL
             "authorizationEndpoint": "$[env:FRONTEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/auth",
             "issuer":                "$[env:FRONTEND_KEYCLOAK_REALM_URL]",
-            // backend for IAP<->Keycloak:
+            // IAP's URL
             "tokenEndpoint": "$[env:BACKEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/token",
             "jwkSetURL":     "$[env:BACKEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/certs",
             "userInfoUrl":   "$[env:BACKEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/userinfo",
@@ -109,29 +104,28 @@
         },
 
         // --- Claim -> user/group mapping ------------------------------------------------------
-        // groupsClaimName must match the Keycloak protocol mapper that projects realm roles into
-        // a flat top-level "groups" claim (see docs/keycloak-oidc.md). idpNameInPrincipals=false
-        // keeps group principals as the plain role name (e.g. "reader"), which is what the
-        // content ACLs are written against; flipping it later would invalidate every ACL.
+        // groupsClaimName names the flat top-level claim that a Keycloak protocol mapper fills
+        // with the realm roles (see docs/keycloak-oidc.md). With idpNameInPrincipals false, a
+        // group principal is the plain role name, such as "reader". Changing it renames every
+        // principal, and every ACL naming one stops matching.
         "org.apache.sling.auth.oauth_client.impl.SlingUserInfoProcessorImpl":{
             "connection":"keycloak",
             "groupsClaimName":"groups",
             "groupsInIdToken":true,
             "idpNameInPrincipals":false,
             "storeAccessToken":false,
-            // Use refresh token to log the user out afterwards
+            // The back-channel logout presents it to Keycloak
             "storeRefreshToken":true
         },
 
         // --- The Sling authentication handler -------------------------------------------------
-        // path "/" makes it eligible everywhere; idp is the ExternalIdentityProvider name it
-        // registers (matched by the external login module below). callbackUri must exactly match
-        // a Valid Redirect URI registered on the Keycloak client.
-        // path "/" lets extractCredentials validate the sling.oidcauth session cookie on every
-        // request (so an OIDC login is recognised app-wide), while the low service.ranking keeps
-        // the form handler ahead of this one for requestCredentials -- so unauthenticated users
-        // still get the /login gate. The more-specific "/oidc-login" holder wins requestCredentials
-        // for the sign-in button regardless of ranking, which is what starts the Keycloak flow.
+        // Covering "/", it reads the sling.oidcauth session cookie on any request the form handler
+        // finds no credentials in, so a Keycloak sign-in holds across the whole site. Its low
+        // service.ranking puts the form handler first at "/", so a signed-out user is sent to
+        // /login. "/oidc-login" is more specific than "/", so there this handler starts the
+        // Keycloak sign-in whatever its ranking. idp names the ExternalIdentityProvider it
+        // registers, which the external login module below uses. callbackUri must exactly match a
+        // Valid Redirect URI registered on the Keycloak client.
         "org.apache.sling.auth.oauth_client.impl.OidcAuthenticationHandler~keycloak":{
             "path":["/","/oidc-login"],
             "service.ranking:Integer":"-1000",
@@ -143,17 +137,18 @@
         },
 
         // --- Oak provisioning: sync handler ---------------------------------------------------
-        // Provisions the user on login. Dynamic membership stores the Keycloak roles as
-        // rep:externalPrincipalNames instead of creating a local group node per role; those
-        // principals are exposed by the ExternalPrincipalConfiguration registered below (and
-        // required in oak/oak_base.json's SecurityProviderRegistration). To fall back to full
-        // synchronisation (local group nodes), set user.dynamicMembership to false and drop the
-        // ExternalPrincipalConfiguration wiring. Synced users live under /home/users/oidc.
-        // NOTE: user.propertyMapping keys are Keycloak claim names; verify against a real token.
+        // Provisions the user on sign-in, under /home/users/oidc. Dynamic membership stores the
+        // Keycloak roles as rep:externalPrincipalNames, with no local group node per role. The
+        // ExternalPrincipalConfiguration below exposes them as principals. For full
+        // synchronisation, with local group nodes, set user.dynamicMembership to false and remove
+        // the ExternalPrincipalConfiguration wiring.
+        // Each user.propertyMapping entry is local=external. The profile entries name Keycloak
+        // claims: check them against a real token. refresh_token is not a claim: the OAuth
+        // client adds it, encrypted.
         "org.apache.jackrabbit.oak.spi.security.authentication.external.impl.DefaultSyncHandler~keycloak":{
             "handler.name":"keycloak",
             "user.dynamicMembership":true,
-            "user.expirationTime":"0", // Resync every login
+            "user.expirationTime":"0", // Resync on every sign-in
             "user.membershipExpTime":"1h",
             "user.membershipNestingDepth:Integer":"1",
             "user.pathPrefix":"oidc",
@@ -161,36 +156,34 @@
         },
 
         // --- Oak provisioning: external login module ------------------------------------------
-        // Registers the OidcIdentityProvider (idp.name) into the JAAS stack and binds it to the
-        // sync handler above (sync.handlerName == DefaultSyncHandler.handler.name). The factory
-        // defaults to jaas.controlFlag=SUFFICIENT / jaas.ranking=150, so a local username/password
-        // login that this IdP cannot handle simply falls through to Oak's LoginModuleImpl -- i.e.
-        // the existing form login keeps working as a fallback during the transition.
+        // Adds the OidcIdentityProvider (idp.name) to the JAAS stack and binds it to the sync
+        // handler above. The factory defaults to jaas.controlFlag=SUFFICIENT and
+        // jaas.ranking=150, so a local username and password that this provider cannot handle
+        // fall through to Oak's LoginModuleImpl.
         "org.apache.jackrabbit.oak.spi.security.authentication.external.impl.ExternalLoginModuleFactory~keycloak":{
             "idp.name":"keycloak",
             "sync.handlerName":"keycloak"
         },
 
         // --- Oak provisioning: external principal configuration -------------------------------
-        // Exposes the dynamic external role-principals (rep:externalPrincipalNames) to the
-        // principal manager so ACLs can reference them. Must also be listed in the
-        // SecurityProviderRegistration.requiredServicePids in oak/oak_base.json.
+        // Exposes the role principals in rep:externalPrincipalNames to the principal manager, so
+        // ACLs can name them. It is also listed in the SecurityProviderRegistration's
+        // requiredServicePids in oak/oak_base.json.
         "org.apache.jackrabbit.oak.spi.security.authentication.external.impl.principal.ExternalPrincipalConfiguration":{
         },
 
         // --- OIDC end-session servlet ---------------------------------------------------------
-        // After OidcLogoutAuthenticationHandler tears down the local session and steers the post-logout
-        // redirect here, this servlet bounces the browser to Keycloak's end_session endpoint (the
-        // front-channel URL, since the browser makes the call) so the provider's SSO session ends too.
+        // The fallback for when the back-channel logout fails: the servlet redirects the browser to
+        // Keycloak's end-session endpoint. The browser makes this call, so it uses the frontend URL.
         "io.uhndata.iap.auth.oidc.impl.OidcEndSessionServlet":{
             "endSessionEndpoint":"$[env:FRONTEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/logout",
             "clientId":"$[env:KEYCLOAK_CLIENT_ID]",
             "postLogoutRedirectUri":"$[env:IAP_PUBLIC_URL]/login"
         },
 
-        // Back-channel logout: IAP presents the user's refresh token to Keycloak itself, so the SSO session ends
-        // without a confirmation screen the user could abandon. Back-channel URL, unlike the servlet's above --
-        // this call is made by IAP, not the browser. Leaving the endpoint blank falls back to the redirect alone.
+        // Back-channel logout: IAP posts the user's refresh token to Keycloak, which ends the SSO
+        // session without asking the user. IAP makes this call, so it uses the backend URL. A blank
+        // endpoint leaves only the redirect.
         "io.uhndata.iap.auth.oidc.impl.OidcLogoutAuthenticationHandler":{
             "backchannelLogoutEndpoint":"$[env:BACKEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/logout",
             "clientId":"$[env:KEYCLOAK_CLIENT_ID]",
@@ -198,10 +191,8 @@
         }
     },
 
-    // Dedicated OIDC trigger. The sign-in button navigates here; because only the OIDC handler
-    // covers this path (see its `path` above) while the form handler stays the default elsewhere,
-    // hitting it starts the Keycloak round trip without disturbing the /login gate. The oauth
-    // client returns the user to this same path afterwards, where this sling:redirect bounces the
-    // now-authenticated session on to the app.
+    // /oidc-login, where the sign-in button leads. The OIDC handler covers this path more
+    // specifically than the form handler, so a request here starts the Keycloak sign-in. The
+    // OAuth client returns the user to the same path, where the sling:redirect sends them on to /.
     "repoinit:TEXT|true": "@file"
 }
