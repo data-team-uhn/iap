@@ -54,60 +54,31 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Serves the static "starting up" page instead of half-working pages until the system is actually ready to face
- * visitors, everywhere except under {@code /system/}, which stays reachable throughout so that a stuck startup can be
- * diagnosed through the console and the health checks. Ready means that every one of the {@link #REQUIRED_CHECKS} is
- * registered and passing. A gate that has stayed shut for {@link #CEILING_NANOS} opens anyway, so a startup that
- * cannot finish degrades to working badly rather than to unreachable.
+ * Serves the "starting up" page until IAP is ready for visitors. Requests under {@code /system/} always pass, so the
+ * console and the health checks can diagnose a startup that does not finish.
  *
  * <p>
- * Naming the checks, rather than trusting the {@code systemalive} tag to bring them all in, is what makes the gate
- * fail closed. The executor builds its results from the checks registered at that instant, so a check that is not
- * registered contributes no result at all rather than a failing one, and "every result passes" is trivially true of a
- * set that is empty or partial. That is not a rare race: the configured checks are absent for the whole early part of
- * startup, until their configurations have been delivered, and absent again on every redelivery, since none of them
- * declares a {@code modified} method and so SCR has to deactivate and reactivate them even for an identical one --
- * which is exactly what the JCR installer does on the way up. An earlier version of this class pinned one check and
- * required the rest only to pass if they happened to be there, which says nothing at all about a set that is merely
- * incomplete, and the gate could open on a single passing check.
+ * IAP is ready when every one of the {@link #REQUIRED_CHECKS} is registered and every registered health check
+ * tagged {@code systemalive} passes. The gate opens once that has held for {@link #HOLD_NANOS}, and closes again
+ * whenever it stops holding. A background poller decides, and a request only reads its decision.
  * </p>
  *
  * <p>
- * Readiness is evaluated by a background poller rather than on the request thread, because running the checks is
- * expensive: it includes rendering the whole login page internally. Requests only read a volatile flag. Once the
- * system has been continuously ready for {@link #SETTLE_NANOS}, the gate retires for good: it disables the
- * placeholder context and servlet it needs during startup, then itself, leaving nothing behind on the request path.
- * The components are disabled, not permanently removed, so a restart arms the gate again.
+ * Once IAP has been ready for {@link #SETTLE_NANOS}, the gate retires. It disables the placeholder servlet, the
+ * placeholder context and itself, so nothing of it stays on the request path. If IAP is still not ready
+ * {@link #CEILING_NANOS} after the first poll, the gate opens anyway and retires.
  * </p>
  *
  * <p>
- * This intentionally duplicates a small part of the Felix Health Check {@code ServiceUnavailableFilter} instead of
- * using it, for two reasons learned the hard way. First, that filter is set up through OSGi configuration, so when the
- * JCR installer starts up and re-delivers configurations mid-startup, the filter component is restarted and requests
- * flow unfiltered for several seconds; this component is deliberately configuration-free so nothing restarts it.
- * Second, its equivalent of retiring fires on the first healthy result, and it counts an empty result set as healthy,
- * so the same churn makes it disappear long before the system is usable. The settle window here exists precisely
- * because readiness during startup is not monotonic: a page can render and then fail a second later when a late
- * bundle activation invalidates the scripting classloader, and any such regression reopens the gate and restarts the
- * window.
- * </p>
- *
- * <p>
- * Two alternatives were considered and rejected. Discovering the required checks at runtime, by remembering every
- * name ever seen, removes the hardcoded list but does not work: at the very beginning only a couple of checks exist,
- * they all pass, and the gate opens immediately. From in here, "not registered yet" and "registered a moment ago and
- * briefly gone again" are the same observation. Never retiring, and keeping the gate as a permanent safety net, would
- * cost a login page render twice a second forever; the filter itself is one volatile read per request and free, but
- * the poller behind it is not, so widening the settle window is the proportionate answer to a regression arriving
- * late.
+ * The gate takes no configuration, so the configuration deliveries during startup never restart it.
  * </p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Component(service = Filter.class, property = {
-    // Every request of every context; which ones to actually gate is decided in doFilter, because the whiteboard
-    // matches this pattern against context-relative paths, so it cannot express a rule about absolute ones
+    // Every request in every context. The whiteboard matches this pattern against the path inside the context, and
+    // /system/console/bundles.json reaches it as /bundles.json, so doFilter exempts /system/ instead.
     "osgi.http.whiteboard.filter.regex=.*",
     "osgi.http.whiteboard.context.select=(osgi.http.whiteboard.context.name=*)",
     "service.ranking:Integer=2147483647"
@@ -115,62 +86,40 @@ import org.slf4j.LoggerFactory;
 public final class StartupGateFilter implements Filter
 {
     /**
-     * The framework property that, set to {@code true}, lets the gate retire after {@link #QUIET_NANOS}. The end-to-end
-     * launches in {@code integration-tests} set it, since each of them would otherwise wait out {@link #SETTLE_NANOS}.
+     * The framework property that, set to {@code true}, also lets the gate retire after {@link #QUIET_NANOS} of
+     * readiness and quiet, without waiting out {@link #SETTLE_NANOS}.
      */
     static final String RETIRE_WHEN_QUIET = "iap.startup.gate.retireWhenQuiet";
 
     /**
-     * How long the system must be ready, and the framework quiet, before a launch setting {@link #RETIRE_WHEN_QUIET}
-     * retires the gate. Quiet means no bundle event and no service event. Those are what the JCR installer's
-     * configuration re-deliveries and the late bundle activations that invalidate the scripting classloader look like
-     * from here. Retiring is final, so a gate that stepped aside while they were still arriving would be gone when the
-     * next one broke the pages.
+     * How long IAP must be ready and the framework quiet before a launch that sets {@link #RETIRE_WHEN_QUIET} retires
+     * the gate. Quiet means no bundle event and no service event. Configuration deliveries and late bundle activations
+     * both show up as such events, and either can still break the pages.
      */
     static final long QUIET_NANOS = TimeUnit.SECONDS.toNanos(10);
 
     /**
-     * How long the system must be continuously ready before the gate retires. Deliberately longer than the window in
-     * which the JCR installer re-delivers configurations and bundles finish activating, because retiring is final: a
-     * gate that stepped aside inside that window would be gone by the time the next activation invalidates the
-     * scripting classloader. Retiring late costs nothing a visitor can see, since what they wait for is the gate
-     * opening, not the gate retiring; retiring early costs them a raw 500.
+     * How long IAP must be ready, without a break, before the gate retires. It outlasts the configuration deliveries
+     * and the late bundle activations of a startup. A retired gate stays retired until a restart, so a page that
+     * breaks after that reaches visitors as a raw error.
      */
     static final long SETTLE_NANOS = TimeUnit.SECONDS.toNanos(30);
 
     /**
-     * How long readiness must hold before the gate believes it and lets anybody in.
-     *
-     * <p>
-     * Readiness does not arrive monotonically. On the way up the JCR installer re-delivers configurations, and none
-     * of the configured checks declares a {@code modified} method, so SCR deactivates and reactivates each of them
-     * even for an identical configuration — during which the check is absent, and an absent check contributes no
-     * result rather than a failing one. A gate that opened on the first evaluation where everything happened to be
-     * registered and passing therefore let traffic into the middle of that churn.
-     * </p>
-     *
-     * <p>
-     * Short, because every startup pays it and a visitor waits through it; long enough to outlast the observed
-     * churn.
-     * </p>
+     * How long readiness must hold before the gate opens. During startup each configuration delivery restarts the
+     * check it configures, and a check that is restarting gives no result at all. One poll that finds every check
+     * registered and passing can fall in the middle of that.
      */
     static final long HOLD_NANOS = TimeUnit.SECONDS.toNanos(5);
 
     /**
-     * How long the gate may hold requests before it opens regardless, measured from its first evaluation.
+     * How long after its first poll the gate may still hold requests. Past it, the next poll that finds IAP not ready
+     * opens the gate and retires it.
      *
      * <p>
-     * A gate that can never open is worse than the half-working pages it exists to hide, because some of what it waits
-     * on can only be cleared by an administrator working inside the application. Content that failed to load because
-     * an upgrade left merge conflicts is the case that actually happens, and it is a deadlock rather than a risk: the
-     * check can only pass once someone resolves the conflicts, and the tooling to resolve them is not under
-     * {@link #SYSTEM_PATH}. Diagnosis survives a stuck gate, since the console and the health checks are exempt;
-     * repair does not.
-     * </p>
-     *
-     * <p>
-     * Long enough that no legitimately slow startup reaches it -- the gate normally opens in some fifteen seconds and
-     * retires half a minute after that -- and short enough that nobody facing a broken upgrade is locked out for long.
+     * Some failures can only be cleared by an administrator who logs in. Content that failed to load because an
+     * upgrade left merge conflicts is one. A gate that never opened would lock that administrator out for good, since
+     * the tools that resolve the conflicts are not under {@link #SYSTEM_PATH}.
      * </p>
      */
     static final long CEILING_NANOS = TimeUnit.MINUTES.toNanos(5);
@@ -181,63 +130,45 @@ public final class StartupGateFilter implements Filter
     private static final Logger LOGGER = LoggerFactory.getLogger(StartupGateFilter.class);
 
     /**
-     * The health checks that must all be registered and passing before the gate opens. They are listed by name,
-     * rather than counted or discovered, because a check that is not registered is invisible to the executor, so only
-     * knowing what to expect can tell a partial set apart from a passing one. The names are duplicated here rather
-     * than referenced because the checks live in bundles that start much later, and a compile-time dependency just
-     * for a constant would force this early-starting bundle to wait for the whole Sling stack.
+     * The health checks that must be registered before the gate opens. The executor returns results only for the
+     * checks registered at that moment, so a missing check gives no result rather than a failing one. Only a list of
+     * the expected names tells an incomplete set from a passing one.
      *
      * <p>
-     * This is not the same list as the {@code systemalive} tag, and deliberately so. The tag decides which checks the
-     * gate consults, so a check added to it starts gating on its own; this list decides which of them must be there
-     * before an all-clear can be believed. A check that cannot be relied on to register belongs in the former and not
-     * in the latter, since requiring it would hold the gate shut forever on the runs where it does not turn up. That
-     * is the case today for the content loader's {@code Bundle Content Loaded}: it is configured and tagged, but its
-     * component is only sometimes satisfied, and on the runs where it is not it never registers at all. Left out of
-     * this list it still gates whenever it is there, and costs nothing when it is not.
+     * The {@code systemalive} tag decides which checks must pass, and this list decides which of them must be there.
+     * A tagged check that is not listed holds the gate shut only while it is registered and failing.
      * </p>
      *
      * <p>
-     * That check is also out of this list for a second and stronger reason, which outlives the registration problem:
-     * content that failed to load is a state only an administrator can clear, and after an upgrade whose content
-     * merges conflicted it is an expected one, so requiring it would keep the instance unreachable until someone
-     * resolved conflicts they had no way to reach. <strong>Do not re-require it if its registration is ever made
-     * reliable</strong> -- that fixes the lesser half of why it is here. The general rule it stands for: a check whose
-     * remedy needs someone logged in must never gate logging in.
-     * </p>
-     *
-     * <p>
-     * Note also what leaving a check off this list does not buy. {@link #findProblem} reports any tagged check that
-     * comes back not-OK, required or not, so one that registers and then fails still holds the gate shut -- which for
-     * this check is precisely the upgrade case above, since a not-loaded bundle is reported as {@code CRITICAL} or
-     * {@code WARN} depending on its configuration and neither is OK. {@link #CEILING_NANOS} is what bounds that, and
-     * it is the only thing that does.
+     * {@code Bundle Content Loaded} is tagged but not listed. A check whose remedy needs somebody logged in must
+     * never gate logging in, and content that failed to load after an upgrade needs an administrator to fix it.
+     * While that check fails it still holds the gate, until {@link #CEILING_NANOS}. Its component also does not
+     * register on every start. <strong>Do not list it if its registration becomes reliable</strong>: the first reason
+     * still holds.
      * </p>
      */
     private static final Set<String> REQUIRED_CHECKS = Set.of(
         // io.uhndata.iap.healthcheck.internal.LoginPageReadyCheck, in the healthcheck module
         "Login Page Ready Check",
-        // The four below are configured in packaging/slingfeature/src/main/features/healthcheck.json, which sets
-        // hc.name explicitly for each of them so that an upstream default cannot change these names under us
+        // The four below are configured in packaging/slingfeature/src/main/features/healthcheck.json, which sets each
+        // one's hc.name, so a new default name in a Felix or Sling release cannot change them
         "OSGi Framework Ready Check",
         "Bundles Started",
         "Authentication Handler Ready Check",
         "Services Ready Check");
 
     /**
-     * Runs the checks for real on every poll. The executor caches results for two seconds by default, which at this
-     * poll interval would leave the settle window resting on a handful of fresh observations and one that may predate
-     * it entirely. Doing it properly costs nothing in steady state, since the gate retires. The global timeout is
-     * deliberately left alone: a check slower than it yields an error result, which keeps the gate shut for another
-     * poll and recovers by itself, whereas a longer timeout would block this thread and delay the gate closing again.
+     * Runs every check afresh on each poll, instead of reusing the executor's cached results, which last two seconds
+     * by default. The executor's timeout stays as it is: a check slower than that comes back as a failure, and the
+     * next poll asks again.
      */
     private static final HealthCheckExecutionOptions INSTANT_EXECUTION =
         new HealthCheckExecutionOptions().setForceInstantExecution(true);
 
-    /** The tag selecting the health checks that make up the gate. */
+    /** The tag of the health checks that must pass before the gate opens. */
     private static final String GATE_TAG = "systemalive";
 
-    /** Requests below this path are never gated: the console, the health check servlet and the readiness probes. */
+    /** Requests below this path are never held: the web console, the health checks and Sling's system pages. */
     private static final String SYSTEM_PATH = "/system/";
 
     private final HealthCheckExecutor healthCheckExecutor;
@@ -256,40 +187,40 @@ public final class StartupGateFilter implements Filter
 
     private final BundleListener bundleListener = event -> this.frameworkChanged.set(true);
 
-    /** The static "starting up" page, also served by the launcher itself before the framework is up. */
+    /** The "starting up" page, as HTML. */
     private final String startupPage;
 
     /** Whether requests may pass through. Written by the poller, read by every request. */
     private volatile boolean open;
 
-    /** Whether the system is in an uninterrupted ready stretch. Only the poller touches this, and the field below. */
+    /** Whether IAP has been ready since {@link #readySinceNanos}. Only the poller reads and writes it. */
     private boolean settling;
 
-    /** When the current ready stretch started; meaningless unless {@link #settling}, since any value is a valid one. */
+    /** When the current stretch of readiness started. Meaningless unless {@link #settling}. */
     private long readySinceNanos;
 
-    /** Whether {@link #firstPollNanos} has been taken, since the timer can legitimately read zero. */
+    /** Whether {@link #firstPollNanos} has been taken. The timer can read zero, so zero cannot mean "not yet". */
     private boolean polled;
 
-    /** When the gate started evaluating readiness, which is what {@link #CEILING_NANOS} is measured from. */
+    /** When the first poll ran. {@link #CEILING_NANOS} counts from it. */
     private long firstPollNanos;
 
-    /** The first poll after the latest framework change, or the first poll of all if nothing has changed since. */
+    /** The first poll after the latest bundle or service change, or the first poll if nothing has changed since. */
     private long quietSinceNanos;
 
     /**
-     * What the log last said about readiness, so that a situation that is not changing is reported once rather than
-     * twice a second. Starts as a value no evaluation can produce, so that the first one is always reported: a gate
-     * that never opens must still say what it is waiting for.
+     * What the log last said about readiness, so the same situation is logged once rather than on every poll. The
+     * initial value is one no poll produces, so the first poll is always logged.
      */
     private String reportedState = "not evaluated yet";
 
     /**
-     * Constructor injection for OSGi.
+     * Creates the gate, closed, and starts polling.
      *
-     * @param healthCheckExecutor executes the gating health checks, with its own short-lived result cache
-     * @param componentContext used to disable this component, and the placeholder pair, once the system is up
-     * @throws IOException if the startup page cannot be read from the classpath, which means a broken build
+     * @param healthCheckExecutor runs the health checks tagged {@code systemalive}
+     * @param componentContext gives the framework properties, and disables this component and the placeholder servlet
+     *            and context when the gate retires
+     * @throws IOException if the startup page cannot be read from the bundle, which means a broken build
      */
     @Activate
     public StartupGateFilter(@Reference final HealthCheckExecutor healthCheckExecutor,
@@ -299,12 +230,13 @@ public final class StartupGateFilter implements Filter
     }
 
     /**
-     * Constructor taking the poller to use, so that tests can drive {@link #poll} themselves.
+     * Creates the gate with the scheduler to poll on, so the tests can call {@link #poll} themselves.
      *
-     * @param healthCheckExecutor executes the gating health checks
-     * @param componentContext used to disable the gate components once the system is up
-     * @param poller schedules the readiness evaluations
-     * @throws IOException if the startup page cannot be read from the classpath
+     * @param healthCheckExecutor runs the health checks tagged {@code systemalive}
+     * @param componentContext gives the framework properties, and disables this component and the placeholder servlet
+     *            and context when the gate retires
+     * @param poller the scheduler that runs {@link #poll} every {@link #POLL_INTERVAL_MS}
+     * @throws IOException if the startup page cannot be read from the bundle
      */
     StartupGateFilter(final HealthCheckExecutor healthCheckExecutor, final ComponentContext componentContext,
         final ScheduledExecutorService poller) throws IOException
@@ -322,14 +254,13 @@ public final class StartupGateFilter implements Filter
             bundleContext.addServiceListener(this.serviceListener);
             bundleContext.addBundleListener(this.bundleListener);
         }
-        // The initial delay also keeps the poller from running against a half-constructed object
         this.poller.scheduleWithFixedDelay(this::poll, POLL_INTERVAL_MS, POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
 
     /**
-     * A single-threaded scheduler running one daemon thread, so it can never hold up a shutdown.
+     * Creates the scheduler that polls readiness. It runs one daemon thread, which never keeps the JVM from exiting.
      *
-     * @return a scheduler for the readiness poller
+     * @return a new single-threaded scheduler
      */
     static ScheduledExecutorService newPoller()
     {
@@ -340,7 +271,7 @@ public final class StartupGateFilter implements Filter
         });
     }
 
-    /** Stops the poller and the listeners when the component goes away, including when the gate retires itself. */
+    /** Stops the poller and the listeners, both when the component is stopped and when the gate retires. */
     @Deactivate
     void deactivate()
     {
@@ -365,22 +296,21 @@ public final class StartupGateFilter implements Filter
         final HttpServletResponse httpResponse = (HttpServletResponse) response;
         httpResponse.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
         httpResponse.setContentType("text/html;charset=UTF-8");
-        // The page changes from one moment to the next, and the stub itself must never be cached
+        // The real page replaces the stub at this URL once the gate opens, so the browser must not keep the stub
         httpResponse.setHeader("Cache-Control", "no-store");
         httpResponse.getWriter().write(this.startupPage);
     }
 
-    /** Evaluates readiness, as scheduled. */
+    /** Evaluates readiness now, on the scheduler's thread. */
     void poll()
     {
         poll(System.nanoTime());
     }
 
     /**
-     * Evaluates readiness once: opens or closes the gate, retires it once it has been open long enough, and gives up
-     * on it once it has been shut for too long.
+     * Evaluates readiness once, and opens, closes or retires the gate to match.
      *
-     * @param nowNanos the current value of the nanosecond timer
+     * @param nowNanos the current time, as read from {@link System#nanoTime()}
      */
     void poll(final long nowNanos)
     {
@@ -394,7 +324,7 @@ public final class StartupGateFilter implements Filter
         }
         final String problem = findProblem();
         if (problem != null) {
-            // Not a one-way latch: a system that stops being ready mid-startup gets the stub back
+            // An open gate closes again when IAP stops being ready, until it retires
             this.settling = false;
             this.open = false;
             report(problem, false);
@@ -408,8 +338,6 @@ public final class StartupGateFilter implements Filter
             this.readySinceNanos = nowNanos;
         }
         final long readyForNanos = nowNanos - this.readySinceNanos;
-        // Readiness has to HOLD before it is believed. Opening on the first passing evaluation is what used to let a
-        // half-started instance through, for the reasons in HOLD_NANOS.
         this.open = readyForNanos >= HOLD_NANOS;
         report(null, this.open);
         if (readyForNanos >= SETTLE_NANOS
@@ -419,9 +347,7 @@ public final class StartupGateFilter implements Filter
         }
     }
 
-    /**
-     * Takes the whole gate out of the way, now that the system has proven itself started.
-     */
+    /** Removes the gate from the request path, once IAP has been ready long enough. */
     private void retire()
     {
         LOGGER.info("The system is fully started, retiring the startup gate");
@@ -429,11 +355,10 @@ public final class StartupGateFilter implements Filter
     }
 
     /**
-     * Opens the gate on a system that has not started, because staying shut would be worse: whatever is wrong needs
-     * someone to come in and fix it. Logged at error, since the pages behind the gate are not expected to work and
-     * this is the only record of why they are being served anyway.
+     * Opens the gate and retires it, although IAP is not ready. Logs an error that says what is still wrong, since the
+     * pages behind the gate may not work.
      *
-     * @param problem what readiness was still waiting for when the ceiling was reached
+     * @param problem what kept IAP from being ready at this poll, as {@link #findProblem} describes it
      */
     private void giveUp(final String problem)
     {
@@ -446,24 +371,26 @@ public final class StartupGateFilter implements Filter
     }
 
     /**
-     * Leaves nothing of the gate on the request path: no more polling, and none of the three components that make it
-     * up left registered. They are disabled rather than removed, so a restart arms the gate again.
+     * Stops polling and disables the placeholder servlet, the placeholder context and this filter. A restart of the
+     * bundle or the framework enables them again.
      */
     private void standDown()
     {
         this.poller.shutdown();
         this.componentContext.disableComponent(StartupPlaceholderServlet.class.getName());
         this.componentContext.disableComponent(StartupPlaceholderContext.class.getName());
-        // Last, since this ends up deactivating the very component running this code
+        // Last, since this deactivates the component running this code
         this.componentContext.disableComponent(StartupGateFilter.class.getName());
     }
 
     /**
-     * Evaluates the gating health checks. Package private so that the tests can assert on the reason directly, which
-     * is also what keeps the reason and the gate from ever disagreeing: this is the only thing that decides either.
+     * Runs the health checks tagged {@code systemalive} and says what keeps IAP from being ready.
      *
-     * @return {@code null} if every required check is registered and passing, otherwise a description of what is not,
-     *         worded so that a situation that has not changed produces the same description again
+     * @return {@code null} if every one of the {@link #REQUIRED_CHECKS} is registered and every registered tagged
+     *         check passes. Otherwise the missing and the failing checks, such as
+     *         {@code waiting for [Login Page Ready Check], failing [Bundles Started is CRITICAL]}. If the checks
+     *         could not run, the exception that stopped them. The same missing and failing checks always give the
+     *         same text.
      */
     String findProblem()
     {
@@ -473,18 +400,18 @@ public final class StartupGateFilter implements Filter
             final List<HealthCheckExecutionResult> results =
                 this.healthCheckExecutor.execute(HealthCheckSelector.tags(GATE_TAG), INSTANT_EXECUTION);
             for (final HealthCheckExecutionResult result : results) {
-                // getName reads the hc.name service property raw, so a check registered without one reads as null
+                // A check registered without an hc.name property has no name
                 final String name = Objects.toString(result.getHealthCheckMetadata().getName(), "(unnamed)");
                 missing.remove(name);
                 if (!result.getHealthCheckResult().isOk()) {
-                    // The status only, never the result message: those carry timings and stack traces, which would
-                    // make a situation that is not changing look different on every poll
+                    // The status, not the message: messages carry timings and stack traces, which differ on every
+                    // poll and would log the same situation again each time
                     failing.add(name + " is " + result.getHealthCheckResult().getStatus());
                 }
             }
         } catch (final Exception e) {
-            // An exception escaping into the scheduler cancels every further poll, which would leave the gate shut
-            // for the life of the process with nothing in the log to say why
+            // An exception that reaches the scheduler cancels every later poll, and the gate would stay shut with
+            // nothing in the log to say why
             return "the health checks cannot be executed: " + e;
         }
         if (missing.isEmpty() && failing.isEmpty()) {
@@ -494,16 +421,12 @@ public final class StartupGateFilter implements Filter
     }
 
     /**
-     * Logs what the gate is doing, on change only: a handful of lines over a startup, and none at all once it is over.
+     * Logs what the gate is doing, when that changes. Passing the checks and letting requests through are logged
+     * apart, since requests wait {@link #HOLD_NANOS} after the checks first pass.
      *
-     * <p>
-     * Passing the checks and letting requests through are two different events now that readiness has to hold, and
-     * they are reported separately — otherwise the log would claim the instance was open for business
-     * {@link #HOLD_NANOS} before anybody could reach it, which is the sort of line that gets believed later.
-     * </p>
-     *
-     * @param problem what is keeping the gate shut, or {@code null} if every check passes
-     * @param passing whether requests are actually being let through
+     * @param problem what keeps IAP from being ready, as {@link #findProblem} describes it, or {@code null} if it is
+     *            ready
+     * @param passing whether the gate lets requests through
      */
     private void report(final String problem, final boolean passing)
     {

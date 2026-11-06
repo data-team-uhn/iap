@@ -15,10 +15,11 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 -->
-<!-- This page is served while the system is still starting up, before anything else works, so it
-     must be completely self-contained: no scripts, no images, nothing loaded from the application
-     itself. It hand-copies the layout, typography and colours of the (React/MUI) error pages, with
-     the theme's fallback palette since the deployment's configured branding isn't readable yet. -->
+<!-- The page visitors get while IAP starts. The startup gate answers every request to the
+     application with this page, so the page loads nothing from it: no scripts and no images.
+     Only the font comes from Google Fonts, and the system fonts stand in without it. The layout,
+     type and colours copy ErrorPage in frontend-commons, with the theme's default colours, since
+     a deployment's own colours cannot be read yet. -->
 <!doctype html>
 <html lang="en">
   <head>
@@ -30,7 +31,7 @@
     <style>
       :root {
         color-scheme: light dark;
-        /* The appTheme fallback primary, and its 60%-lightened variant used on the dark scheme */
+        /* The theme's default primary colour, and below the same lightened by 60% for the dark scheme */
         --primary: #192958;
         --text-secondary: rgba(0, 0, 0, 0.6);
         --track: rgba(25, 41, 88, 0.2);

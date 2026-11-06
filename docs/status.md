@@ -39,9 +39,8 @@ single field, and no reporter speaking for the others.
 
 **Liveness is a different question, asked of a different endpoint**: the Felix
 [health checks](healthcheck.md) tagged `systemalive`, at
-`GET /system/health?tags=systemalive`. Those are what the startup gate waits for before
-it stops serving the "starting up" stub, and what a load balancer or container probe
-should be pointed at.
+`GET /system/health?tags=systemalive`. The startup gate serves its "starting up" page
+until they pass. A load balancer or a container probe should ask them too.
 
 Wiring a liveness probe to `/system/status` instead — polling `targetStatus=ERROR` and
 treating a non-empty array as down — takes an instance out of service because a
