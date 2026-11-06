@@ -111,6 +111,7 @@ public class TransferSubmissionHandler implements ServiceTaskHandler
             }
             TransferAnswer.read(destination, this.http.post(endpoint(destination),
                 Map.of("Authorization", "Bearer " + token.getToken()), body(export)));
+            context.recordRole(submission, "sent to " + destination);
         } catch (final RepositoryException e) {
             throw new WorkflowFailedException("Could not read the submission to send", e);
         } catch (final IOException e) {

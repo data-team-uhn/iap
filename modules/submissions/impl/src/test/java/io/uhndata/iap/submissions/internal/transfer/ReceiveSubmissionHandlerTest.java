@@ -107,6 +107,7 @@ class ReceiveSubmissionHandlerTest
         assertEquals(ORIGIN, this.received.getValueMap().get("origin", String.class));
         // Reported as created, so that the engine records the submitter it acted for as its creator
         Mockito.verify(task).setVariable(WorkflowResult.CREATED_PATH_VARIABLE, this.received.getPath());
+        Mockito.verify(task).recordRole(this.received, "received from " + ORIGIN);
     }
 
     @Test

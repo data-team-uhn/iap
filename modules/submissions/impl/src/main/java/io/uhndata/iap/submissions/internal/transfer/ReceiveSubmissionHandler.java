@@ -89,6 +89,8 @@ public class ReceiveSubmissionHandler implements ServiceTaskHandler
         Objects.requireNonNull(submission.adaptTo(ModifiableValueMap.class), "A submission just made is writable")
             .put(TransferFormat.ORIGIN_PROPERTY, origin);
         context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, submission.getPath());
+        // Names the instance too: the history keeps who sent the event, which is this instance's own peer user
+        context.recordRole(submission, "received from " + origin);
     }
 
     private static JsonObject manifest(final WorkflowEvent event) throws InvalidPayloadException

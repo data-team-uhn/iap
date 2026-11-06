@@ -26,6 +26,7 @@ import jakarta.json.JsonReader;
 import jakarta.json.JsonValue;
 
 import io.uhndata.iap.httprequests.api.HttpResponse;
+import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -68,11 +69,11 @@ final class TransferAnswer
         final JsonObject refusal = refusal(response.getBody());
         final int status = response.getStatusCode();
         if (status == CONFLICT_STATUS
-            && TransferFormat.ALREADY_RECEIVED.equals(refusal.getString(TransferFormat.REASON_KEY, null))) {
+            && TransferFormat.ALREADY_RECEIVED.equals(refusal.getString(JsonResponses.STATUS_KEY, null))) {
             return;
         }
         final String said = destination + " did not take the submission: "
-            + refusal.getString(TransferFormat.ERROR_KEY, String.valueOf(status));
+            + refusal.getString(JsonResponses.ERROR_KEY, String.valueOf(status));
         if (status == CONFLICT_STATUS) {
             throw new InvalidStateException(said);
         }
