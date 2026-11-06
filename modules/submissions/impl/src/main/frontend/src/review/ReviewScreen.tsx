@@ -595,6 +595,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     editIssue: (note, said, severity, topic) => actions.write({ edit: note.id, text: said,
       ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {} }),
     removeIssue: note => actions.write({ remove: note.id }),
+    reply: (note, said) => actions.write({ replyTo: note.id, text: said }),
     showOthers: () => setShown(kinds => storeKinds(new Set([ ...kinds, "otherIssue" ]))),
   };
   const taskCreated = text(myTaskNode()?.["jcr:created"]);

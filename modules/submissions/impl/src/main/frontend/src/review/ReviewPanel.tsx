@@ -43,6 +43,7 @@ import TagChip from "@iap/tags/TagChip";
 
 import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
+import { PersonName } from "./people";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
 
@@ -85,6 +86,7 @@ export interface ReviewDoing {
   addIssue: (topic: string | undefined, text: string, severity?: string) => Promise<void>;
   editIssue: (note: ReviewNote, text: string, severity?: string, topic?: string) => Promise<void>;
   removeIssue: (note: ReviewNote) => Promise<void>;
+  reply: (note: ReviewNote, text: string) => Promise<void>;
   showOthers: () => void;
   decision?: { send: () => void; approve: () => void; approveBlocked?: string; board?: () => void };
 }
@@ -211,6 +213,12 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
   const [ withConcerns, setWithConcerns ] = useState(false);
   const risk = risks.find(one => one.topic.path === chosen);
   // Showing where something was raised leaves the review for the page
+  // An issue's thread, under it on its risk's page, or with those under no risk
+  const showThread = (issue: ReviewNote) => {
+    setChosen(risks.some(one => one.topic.path === issue.topicPath) ? issue.topicPath : UNFILED);
+    setTimeout(() => document.getElementById(`review-issue-${issue.id}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+  };
   const show = (note: ReviewNote) => {
     onClose();
     doing.open(note);
@@ -292,7 +300,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
                   issues={[ ...risks.flatMap(one => one.issues), ...props.unfiled ]}
                   concerns={withConcerns ? risks.flatMap(one => one.aiOpen) : []}
                   risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
-                  about={props.about} onShow={show}
+                  about={props.about} onShow={show} onShowReplies={showThread}
                   onChange={(issue, text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
                   onMakeIssue={concern => doing.makeIssue(concern,
                     concern.suggestion ? `${concern.text}\n\n${concern.suggestion}` : concern.text,
@@ -571,6 +579,7 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
   onShow: (note: ReviewNote) => void;
 }) {
   const [ editing, setEditing ] = useState(false);
+  const [ replying, setReplying ] = useState(false);
   if (editing) {
     return (
       <Box sx={{ py: 1 }}>
@@ -586,8 +595,9 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
       </Box>
     );
   }
+  const replies = issue.replies.length;
   return (
-    <Box sx={{ py: 1 }}>
+    <Box id={`review-issue-${issue.id}`} sx={{ py: 1, scrollMarginTop: 16 }}>
       <RowHead note={issue} about={about} tools={(
         <Box sx={{ display: "flex", mr: -0.75 }}>
           <Tooltip title="Change">
@@ -603,13 +613,48 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
         </Box>
       )} />
       <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", ...dense ? cutShort(3) : {} }}>{issue.text}</Typography>
-      {anchored(issue) && (
-        <Links>
-          <Link component="button" variant="caption" onClick={() => onShow(issue)}>Show where</Link>
-        </Links>
+      {/* In full, its thread under it: the study team's and other reviewers' replies, and the reviewer's own */}
+      {!dense && replies > 0 && (
+        <Stack spacing={1} sx={{ mt: 1, pl: 1.5, borderInlineStart: 2, borderColor: "divider" }}>
+          {issue.replies.map(reply => (
+            <Box key={reply.path}>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                <PersonName user={reply.author} /> · {when(reply.created)}
+              </Typography>
+              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{reply.text}</Typography>
+            </Box>
+          ))}
+        </Stack>
       )}
+      {replying && (
+        <Box sx={{ mt: 1 }}>
+          <Composer
+            kinds={[]} saveLabel="Reply" onCancel={() => setReplying(false)}
+            onSave={async (_kind, text) => {
+              await doing.reply(issue, text);
+              setReplying(false);
+            }}
+          />
+        </Box>
+      )}
+      <Links>
+        {dense && replies > 0 && (
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            {replies === 1 ? "1 reply" : `${replies} replies`}
+          </Typography>
+        )}
+        {!dense && !replying && (
+          <Link component="button" variant="caption" onClick={() => setReplying(true)}>Reply</Link>
+        )}
+        {anchored(issue) && <Link component="button" variant="caption" onClick={() => onShow(issue)}>Show where</Link>}
+      </Links>
     </Box>
   );
+}
+
+function when(created: string): string {
+  const date = new Date(created);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 // An AI concern the reviewer settled, greyed: made into an issue, leading to it, or dismissed, which can be taken back

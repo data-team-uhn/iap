@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
-import { Box, InputBase, Link, Stack } from "@mui/material";
+import { Box, InputBase, Link, Stack, Tooltip } from "@mui/material";
 import {
   DataGridPro, GridCellModes, type GridCellModesModel, type GridCellParams, type GridColDef,
   type GridRenderEditCellParams, useGridApiContext,
@@ -51,7 +51,8 @@ const SEVERITY_NAMES: Record<string, string> = {
 // a search over every column, and the columns and filters; shift and click sorts by several columns. The AI's open
 // concerns can be listed among them, greyed, to triage everything in one list: made issues of as they are, or
 // dismissed.
-export default function IssuesGrid({ issues, concerns = [], risks, about, onChange, onShow, onMakeIssue, onDismiss }: {
+export default function IssuesGrid({ issues, concerns = [], risks, about, onChange, onShow, onMakeIssue, onDismiss,
+  onShowReplies }: {
   issues: ReviewNote[];
   concerns?: ReviewNote[];
   // The risks issues can be filed under, by path
@@ -61,6 +62,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   onShow?: (issue: ReviewNote) => void;
   onMakeIssue?: (concern: ReviewNote) => Promise<void>;
   onDismiss?: (concern: ReviewNote) => Promise<void>;
+  onShowReplies?: (issue: ReviewNote) => void;
 }) {
   const rows: IssueRow[] = useMemo(() => [ ...issues, ...concerns ].map(issue => ({
     id: issue.id, ai: issue.kind === "aiIssue", severity: issue.severity ?? "medium",
@@ -112,8 +114,12 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     {
       field: "replies", headerName: "Replies", type: "number", width: 90,
       description: "How many replies it has, from the study team or other reviewers",
-      // None said by leaving the cell empty
-      renderCell: ({ row }) => (row.replies > 0 ? row.replies : ""),
+      // None said by leaving the cell empty; some lead to the thread
+      renderCell: ({ row }) => row.replies > 0 && (
+        <Tooltip title={`Read the ${row.replies === 1 ? "reply" : `${row.replies} replies`}`}>
+          <Link component="button" variant="body2" onClick={() => onShowReplies?.(row.issue)}>{row.replies}</Link>
+        </Tooltip>
+      ),
     },
     {
       field: "where", headerName: "", width: concerns.length > 0 ? 140 : 110, sortable: false, filterable: false,
