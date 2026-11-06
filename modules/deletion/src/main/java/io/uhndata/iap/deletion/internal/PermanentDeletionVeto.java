@@ -38,18 +38,13 @@ import io.uhndata.iap.deletion.spi.DeletionMode;
 import io.uhndata.iap.deletion.spi.DeletionVeto;
 
 /**
- * Reserves irreversible deletion to a configured set of principals, or bans it outright.
+ * When switched on, bans deletion for good to all but the configured users and principals. The ban covers both
+ * {@link DeletionMode#PERMANENT} and {@link DeletionMode#PURGE}. Banning only the first would let anybody archive,
+ * then purge.
  *
  * <p>
- * Two modes destroy data with nothing left to restore, and the ban covers both: {@link DeletionMode#PERMANENT},
- * which never reaches the archive, and {@link DeletionMode#PURGE}, which removes what is already in it. Guarding
- * only the first would leave the ban defeatable in two ordinary steps — archive, then purge.
- * </p>
- *
- * <p>
- * A veto can only refuse, never permit, so the allowlist is an exemption from the ban rather than a grant of the
- * right to delete: an exempt user still needs the same access rights as anybody else, checked separately before any
- * guard runs. With the ban switched off the list means nothing at all.
+ * The allowlist exempts from the ban and grants nothing. An exempt user still needs the access rights any deletion
+ * needs. With the ban off, the list does nothing.
  * </p>
  *
  * @version $Id$
@@ -93,9 +88,7 @@ public class PermanentDeletionVeto implements DeletionVeto
         if (this.isExempt(requester)) {
             return null;
         }
-        // Naming who is exempt would tell an unauthorized caller how the policy is configured; saying where the
-        // resource ends up instead is both safer and more useful. Which reassurance is true depends on the mode: an
-        // ordinary deletion is still open to them, but a resource that is already archived simply stays there.
+        // The message says where the resource stays, and never who is exempt
         return mode == DeletionMode.PURGE
             ? "Destroying archived resources is not permitted here; this one stays in the archive"
             : "Permanently deleting resources is not permitted here; delete it to the archive instead";
@@ -104,33 +97,27 @@ public class PermanentDeletionVeto implements DeletionVeto
     @Override
     public boolean judgesWholeOperation()
     {
-        // The ban is about the operation, so the answer is the same for every impacted resource; asking per resource
-        // would report one identical objection per node of the subtree.
+        // The answer does not depend on the node
         return true;
     }
 
     /**
-     * Whether the requester is named in the allowlist, either by user id or through any principal the session is
-     * bound to.
+     * Whether the allowlist names the requester's user id, or any principal their session is bound to.
      */
     private boolean isExempt(final Session requester) throws RepositoryException
     {
         if (this.allowedPrincipals.isEmpty()) {
             return false;
         }
-        // getUserID() is permitted to be null, and an unmodifiable set throws rather than answering false for it
+        // getUserID() can be null, and Set.contains(null) throws on an unmodifiable set
         final String userId = requester.getUserID();
         if (userId != null && this.allowedPrincipals.contains(userId)) {
             return true;
         }
-        // Membership is read from the principals the requesting session is <em>bound to</em>, not from group nodes
-        // found through {@code UserManager}. The two differ in exactly the deployment this is meant for: with
-        // {@code user.dynamicMembership} enabled, an identity provider's roles reach the repository as principals with
-        // no local group node behind them, so a membership lookup would report that a Keycloak role's members belong to
-        // nothing. Bound principals cover local groups and provider-supplied roles alike, which is what lets the two
-        // vocabularies be used interchangeably in the configuration.
+        // Bound principals, not a UserManager membership lookup. With user.dynamicMembership, an identity provider's
+        // roles have no local group node, and a lookup finds that their members belong to nothing.
         if (!(requester instanceof JackrabbitSession jackrabbitSession)) {
-            // Fail closed: without the Jackrabbit API there is no way to learn what this session acts as
+            // Without the Jackrabbit API, the session's principals cannot be read
             LOGGER.warn("Cannot read the principals of a {}, so the permanent deletion policy exempts nobody",
                 requester.getClass().getName());
             return false;

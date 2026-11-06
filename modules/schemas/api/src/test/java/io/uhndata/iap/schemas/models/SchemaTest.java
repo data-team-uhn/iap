@@ -98,8 +98,6 @@ class SchemaTest
     @Test
     void adaptsToParentModels()
     {
-        // A schema node can also be wrapped by the parent models, letting callers work with it
-        // through the base models when they only need the generic properties.
         final Resource resource = this.context.create().resource("/Schemas/schema", Map.of(
             "sling:resourceType", "sch/Schema",
             "jcr:uuid", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345"));

@@ -30,8 +30,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 /**
- * Tests for {@link OidcEndSessionServlet}: it redirects to the provider's end-session endpoint,
- * carrying the client id and a URL-encoded post-logout redirect URI.
+ * Tests for {@link OidcEndSessionServlet}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -76,8 +75,6 @@ public class OidcEndSessionServletTest
     @Test
     void expiresTheSessionCookieSoADirectHitCannotLeaveTheLocalSessionBehind() throws IOException
     {
-        // Reached without going through Sling's logout, nothing else expires the cookie, and the
-        // provider's session would end while this one carried on
         final SlingJakartaHttpServletRequest request = Mockito.mock(SlingJakartaHttpServletRequest.class);
         final SlingJakartaHttpServletResponse response = Mockito.mock(SlingJakartaHttpServletResponse.class);
         Mockito.when(request.isSecure()).thenReturn(true);
@@ -97,8 +94,7 @@ public class OidcEndSessionServletTest
     @Test
     void misconfiguredEndpointStillExpiresTheCookie() throws IOException
     {
-        // sendError commits the response, so the cookie has to be added before it or it is dropped:
-        // a deployment that cannot reach the provider must still be able to end the local session
+        // sendError commits the response, so a cookie added after it is dropped
         final OidcEndSessionConfiguration broken = Mockito.mock(OidcEndSessionConfiguration.class);
         Mockito.when(broken.endSessionEndpoint()).thenReturn("kc.example/logout");
         Mockito.when(broken.cookieName()).thenReturn(COOKIE_NAME);

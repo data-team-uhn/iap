@@ -133,9 +133,8 @@ class MetricsEndpointTest
     }
 
     /**
-     * A GET from a named caller. Who that is comes from the session, not from the request's remote user: a login
-     * resolves case-insensitively, so the remote user is the spelling that was typed while only the repository's
-     * answer identifies an account.
+     * A GET by the given user, whom the resource resolver names as its user. {@code null} is a visitor who has not
+     * logged in.
      */
     private MockSlingJakartaHttpServletResponse get(final String user) throws Exception
     {

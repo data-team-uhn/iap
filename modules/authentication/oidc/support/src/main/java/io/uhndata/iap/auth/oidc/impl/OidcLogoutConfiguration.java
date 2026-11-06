@@ -28,8 +28,8 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
  * @since 0.1.0
  */
 @ObjectClassDefinition(name = "IAP OIDC Logout Handler",
-    description = "Clears the OIDC session cookie on logout, which the Sling OAuth client itself does not, and ends "
-        + "the provider's SSO session back-channel so the next sign-in asks for credentials again.")
+    description = "Clears the OIDC session cookie on logout, which the Sling OAuth client itself does not. Ends the "
+        + "provider's SSO session back-channel, so the next sign-in asks for credentials again.")
 public @interface OidcLogoutConfiguration
 {
     /**
@@ -39,7 +39,7 @@ public @interface OidcLogoutConfiguration
      */
     @AttributeDefinition(name = "Cookie name",
         description = "The session cookie to expire on logout. Must match the cookie name configured on the OAuth "
-            + "client's SlingLoginCookieManager; the two default to the same value.")
+            + "client's SlingLoginCookieManager. The two default to the same value.")
     String cookieName() default "sling.oidcauth";
 
     /**
@@ -49,8 +49,8 @@ public @interface OidcLogoutConfiguration
      */
     @AttributeDefinition(name = "Refresh token property",
         description = "Path of the stored refresh token, relative to the user's home node. Must match the entry in "
-            + "the DefaultSyncHandler's user.propertyMapping that persists it, and the OAuth client's "
-            + "storeRefreshToken must be on, or there is nothing to read and the back-channel logout is skipped.")
+            + "the DefaultSyncHandler's user.propertyMapping that stores it. The OAuth client's storeRefreshToken "
+            + "must be on too. Otherwise there is no token to read, and the back-channel logout is skipped.")
     String refreshTokenPath() default "oauth/refresh_token";
 
     /**
@@ -59,9 +59,9 @@ public @interface OidcLogoutConfiguration
      * @return the absolute back-channel URL of the OIDC {@code end_session_endpoint}
      */
     @AttributeDefinition(name = "Back-channel logout endpoint",
-        description = "The provider's logout endpoint as IAP reaches it in-network, e.g. Keycloak's "
-            + "{realm}/protocol/openid-connect/logout. IAP calls this itself, so it must be the back-channel URL, "
-            + "not the browser-facing one the end-session servlet redirects to. Blank disables the call.")
+        description = "The provider's logout endpoint as IAP reaches it in-network, such as Keycloak's "
+            + "{realm}/protocol/openid-connect/logout. IAP calls it itself, so it is the back-channel URL, not the "
+            + "browser-facing one the end-session servlet redirects to. Blank disables the call.")
     String backchannelLogoutEndpoint() default "";
 
     /**
@@ -79,8 +79,8 @@ public @interface OidcLogoutConfiguration
      * @return the {@code client_secret} sent on the back-channel logout request
      */
     @AttributeDefinition(name = "Client secret",
-        description = "The confidential client's secret. The logout endpoint refuses an unauthenticated caller, so "
-            + "ending a session requires it.",
+        description = "The confidential client's secret, which authenticates the back-channel call. Blank disables "
+            + "the call.",
         type = AttributeType.PASSWORD)
     String clientSecret() default "";
 }

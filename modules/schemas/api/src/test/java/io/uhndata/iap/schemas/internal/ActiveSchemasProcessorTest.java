@@ -64,7 +64,6 @@ class ActiveSchemasProcessorTest
     @Test
     void runsAfterTheProcessorThatSerializesChildren()
     {
-        // Discarding a child has to be the later word than turning it into JSON, or `deep` would put it back
         assertTrue(this.processor.getPriority() > 10);
     }
 
@@ -80,7 +79,6 @@ class ActiveSchemasProcessorTest
         assertTrue(this.processor.canProcess(resourceOf(SchemasHomepage.RESOURCE_TYPE)));
         assertTrue(this.processor.canProcess(resourceOf(Schema.RESOURCE_TYPE)));
         assertTrue(this.processor.canProcess(resourceOf(SchemaVersion.RESOURCE_TYPE)));
-        // A submission also has an `active`-looking life of its own, and this rule is not about it
         assertFalse(this.processor.canProcess(resourceOf("sub/Submission")));
     }
 
@@ -123,7 +121,7 @@ class ActiveSchemasProcessorTest
     @Test
     void readsATagsPropertyHoldingASingleValue() throws RepositoryException
     {
-        // Content loaded from JSON stores a lone tag as a single value rather than as a list of one
+        // Content loaded from JSON can hold a lone tag as a single value
         final Node version = node(VERSION);
         final Property tags = Mockito.mock(Property.class);
         Mockito.when(tags.isMultiple()).thenReturn(false);
@@ -137,15 +135,13 @@ class ActiveSchemasProcessorTest
     @Test
     void keepsWhatIsNeitherASchemaNorAVersion() throws RepositoryException
     {
-        // A schema holds questions, sections and requirements, none of which this rule has an opinion about
         assertEquals(JsonValue.EMPTY_JSON_OBJECT, process(node("sch:Question", "retired")));
     }
 
     @Test
     void leavesAChildNothingHasSerializedAlone() throws RepositoryException
     {
-        // Nothing to discard: without `deep` there is no child JSON, and inventing one here would serialize the
-        // whole tree for a request that asked for one node
+        // Without `deep`, a child has no JSON to leave out
         assertNull(this.processor.processChild(Mockito.mock(Node.class), node(SCHEMA), null,
             candidate -> JsonValue.NULL));
     }
@@ -180,7 +176,7 @@ class ActiveSchemasProcessorTest
      * @param nodeType the type it reports
      * @param tags the names of the tags placed on it
      * @return the mocked node
-     * @throws RepositoryException never, since nothing here touches a repository
+     * @throws RepositoryException never: the node is a mock
      */
     private static Node node(final String nodeType, final String... tags) throws RepositoryException
     {

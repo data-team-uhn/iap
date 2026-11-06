@@ -29,10 +29,9 @@ interface ControlledAnswerProps {
 }
 
 /**
- * An answer component with something holding its answer, which is what AnswerField does in the
- * application. The components are controlled, so without a caller feeding `onChange` back in as
- * `values` there is nowhere for typing to land. A test would then be asserting against an input
- * that never changed rather than against the component.
+ * An answer component with a state holding its answer, as AnswerField gives it in the application.
+ * The components are controlled. Without a caller feeding `onChange` back in as `values`, typing
+ * would not change the input, and a test would assert against an input that never changed.
  */
 export function ControlledAnswer({ component, question, initial = [], onAnswered }: ControlledAnswerProps) {
   const [ values, setValues ] = useState(initial);

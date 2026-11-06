@@ -39,11 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The public half of the catcher's status: one boolean, readable by anyone.
- *
- * <p>
- * Anyone can reach it, so it must not answer anything about what was caught.
- * </p>
+ * Tests for {@link CatcherStatusServlet}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -63,7 +59,7 @@ class CatcherStatusServletTest
         this.context.create().resource(NODE, "sling:resourceType", "mail/CatcherStatus");
     }
 
-    /** Puts a catcher in place, the way the service registry would while it is switched on. */
+    /** Binds the catcher's mail service, as OSGi does while the catcher is on. */
     private void catcherIsRegistered() throws ReflectiveOperationException
     {
         final Field field = CatcherStatusServlet.class.getDeclaredField("catcher");

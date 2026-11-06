@@ -35,12 +35,12 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
- * Filling in email templates, and handing the result to the mail service.
+ * Fills in email templates, and sends emails through Sling's mail service.
  *
  * <p>
- * Sending is fire and forget. The mail service sends asynchronously on a thread pool, so a refused address or an
- * unreachable relay fails long after the caller has moved on. The outcome is recorded here rather than by whoever
- * asked for it.
+ * The send methods do not wait for the email to go out. The mail service sends it on a thread pool, so a refused
+ * address or an unreachable relay fails after the method has returned. That failure is logged and recorded through
+ * {@link ErrorLogger}, and the caller never sees it.
  * </p>
  *
  * @version $Id$
@@ -50,25 +50,25 @@ public final class EmailUtils
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(EmailUtils.class);
 
-    /** Only static methods, no instances. */
+    /** Only static methods. */
     private EmailUtils()
     {
         // Utility class
     }
 
     /**
-     * Fills in a plain text template.
+     * Fills in a template without escaping its values, for a subject or a plain text body.
      *
      * <p>
      * Templates are written in <a href="https://velocity.apache.org/engine/devel/user-guide.html">Apache Velocity</a>,
-     * rendered in strict mode. A name that was never supplied is an error rather than something to mail to a
-     * person, so write {@code #if($name)} around anything genuinely optional.
+     * in strict mode. A variable that nobody supplied is an error, so write {@code #if($name)} around one that may be
+     * missing.
      * </p>
      *
-     * @param template the text to fill in, may be {@code null}
-     * @param values the values it may refer to, by name
-     * @return the filled in text, {@code null} if there was no template to fill in
-     * @throws EmailTemplateException if the template does not parse, or refers to something not among the values
+     * @param template the Velocity template text, or {@code null} for an email with no such part
+     * @param values the values the template may use, by variable name
+     * @return the filled in text, or {@code null} if the template is {@code null}
+     * @throws EmailTemplateException if the template does not parse, or uses a variable that is not among the values
      */
     @Nullable
     public static String render(@Nullable final String template, @NotNull final Map<String, ?> values)
@@ -77,16 +77,12 @@ public final class EmailUtils
     }
 
     /**
-     * Fills in an HTML template, escaping every value on its way in.
+     * Fills in an HTML template, and escapes each value it puts in. Otherwise the same as {@link #render}.
      *
-     * <p>
-     * The same templates as {@link #render}, with one difference: values are escaped to be HTML-safe.
-     * </p>
-     *
-     * @param template the HTML to fill in, may be {@code null}
-     * @param values the values it may refer to, by name
-     * @return the filled in HTML, {@code null} if there was no template to fill in
-     * @throws EmailTemplateException if the template does not parse, or refers to something not among the values
+     * @param template the Velocity template text, or {@code null} for an email with no HTML body
+     * @param values the values the template may use, by variable name
+     * @return the filled in HTML, or {@code null} if the template is {@code null}
+     * @throws EmailTemplateException if the template does not parse, or uses a variable that is not among the values
      */
     @Nullable
     public static String renderHtml(@Nullable final String template, @NotNull final Map<String, ?> values)
@@ -95,16 +91,12 @@ public final class EmailUtils
     }
 
     /**
-     * Sends an email. This accepts either/both HTML or plain text bodies.
-     *
-     * <p>
-     * This is the method for a caller that is passing on somebody else's email template and has no opinion about its
-     * shape.
-     * </p>
+     * Sends an email the way {@link #sendHtmlEmail} does if it has an HTML body, and the way {@link #sendTextEmail}
+     * does otherwise.
      *
      * @param email the email to send
      * @param mailService the service that sends it
-     * @throws MessagingException if sending the email fails
+     * @throws MessagingException if the message cannot be assembled, such as for an address that does not parse
      * @throws IllegalArgumentException if the email has no body at all
      * @since 0.1.0
      */
@@ -119,13 +111,12 @@ public final class EmailUtils
     }
 
     /**
-     * Sends a plain text email.
+     * Sends the plain text body of an email, without its HTML body or its attachments.
      *
      * @param email the email to send
      * @param mailService the service that sends it
-     * @throws MessagingException if sending the email fails
-     * @throws IllegalArgumentException if the email has no plain text body, since an email built from a template with
-     *             only an HTML part cannot be sent as plain text
+     * @throws MessagingException if the message cannot be assembled, such as for an address that does not parse
+     * @throws IllegalArgumentException if the email has no plain text body
      */
     public static void sendTextEmail(@NotNull final Email email, @NotNull final MailService mailService)
         throws MessagingException
@@ -144,13 +135,12 @@ public final class EmailUtils
     }
 
     /**
-     * Sends an email with an HTML body, and a plain text one for the mail clients that cannot show it.
+     * Sends the HTML body of an email with its attachments, and its plain text body if it has one.
      *
      * @param email the email to send
      * @param mailService the service that sends it
-     * @throws MessagingException if sending the email fails
-     * @throws IllegalArgumentException if the email has no HTML body, since an email built from a template with only
-     *             a plain text part cannot be sent as HTML
+     * @throws MessagingException if the message cannot be assembled, such as for an address that does not parse
+     * @throws IllegalArgumentException if the email has no HTML body
      */
     public static void sendHtmlEmail(@NotNull final Email email, @NotNull final MailService mailService)
         throws MessagingException
@@ -164,7 +154,6 @@ public final class EmailUtils
             .html(htmlBody);
         final String textBody = email.getTextBody();
         if (textBody != null) {
-            // Only a fallback for the clients that cannot show the HTML part, so an email may well have none
             message.text(textBody);
         }
         addSender(message, email);
@@ -178,10 +167,11 @@ public final class EmailUtils
     }
 
     /**
-     * Hands a built message to the mail service and watches how it goes, without waiting for it.
+     * Hands a message to the mail service without waiting for it to be sent. A failed send is logged and recorded
+     * when it happens.
      *
      * @param mailService the service that sends it
-     * @param message the message to hand over
+     * @param message the message to send
      * @throws MessagingException if the message cannot be assembled
      */
     private static void handOver(final MailService mailService, final MessageBuilder message)
@@ -189,7 +179,7 @@ public final class EmailUtils
     {
         mailService.sendMessage(message.build()).whenComplete((ignored, failure) -> {
             if (failure != null) {
-                // Nothing here says who it was for: an address names a person, and this line goes to a log file
+                // This line adds no recipient address, since an address names a person
                 LOGGER.error("An email could not be sent: {}", failure.getMessage(), failure);
                 ErrorLogger.logError(failure, ErrorContext.of(EmailUtils.class, "sendEmail"));
             }
@@ -197,12 +187,11 @@ public final class EmailUtils
     }
 
     /**
-     * Sets the sender and the address replies go to. As with the recipient, an address with no display name is set on
-     * its own rather than paired with a missing name.
+     * Sets the {@code From} and {@code Reply-To} headers. An address with no display name is set alone.
      *
      * @param message the message being built
      * @param email the email being sent
-     * @throws MessagingException if the sender or reply-to address is not a valid one
+     * @throws MessagingException if the sender or reply-to address does not parse
      */
     private static void addSender(final MessageBuilder message, final Email email) throws MessagingException
     {
@@ -221,12 +210,11 @@ public final class EmailUtils
     }
 
     /**
-     * Addresses the message. A recipient with no display name is addressed by its address alone, rather than with an
-     * empty name.
+     * Sets the {@code To} header. An address with no display name is set alone.
      *
      * @param message the message being built
      * @param email the email being sent
-     * @throws MessagingException if the recipient address is not a valid one
+     * @throws MessagingException if the recipient address does not parse
      */
     private static void addRecipient(final MessageBuilder message, final Email email) throws MessagingException
     {

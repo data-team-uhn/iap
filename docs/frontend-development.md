@@ -61,21 +61,21 @@ build did not pick up the config change.
 
 ### Use `useAuthenticatedFetch`, not `fetch`
 
-Sessions expire mid-session, and Sling's answer to that is not uniform: a read comes
-back 401 or as the login page, while a write with an expired session comes back **500**.
-`useAuthenticatedFetch` absorbs all of it — it re-authenticates, re-sends, and resolves
-with the retried response, so a caller sees one pending promise and writes no session
-handling at all.
+A session can expire while a page is open. Sling then answers a read with a 401 or with
+the login page, and a write with a **500**. `useAuthenticatedFetch` asks the user to
+sign in again, re-sends the request, and resolves with the answer to the retried one.
+The caller sees one pending promise and handles no session itself.
 
 ```tsx
 const authFetch = useAuthenticatedFetch();
 const response = await authFetch("/Categories.deep.simple.json");
 ```
 
-The 500 case is disambiguated by asking whether the session is still alive, because
-neither passing it on nor treating it as expired is right: the first loses the case
-that matters most, the second prompts a sign-in that fixes nothing and prompts again on
-the retry.
+A 500 can also be a real server error. On a 500, the hook asks Sling's session endpoint
+whether the session is still there, and asks the user to sign in only if it is not.
+Signing in cannot fix a real server error, and the retry would prompt again. With no
+re-login provider on the page, or when the user gives up, the promise rejects with a
+`NotAuthenticatedError`.
 
 ### Choose the serialization you need
 
@@ -108,28 +108,28 @@ anything, and the hook above it stays small enough to read.
 
 ## Failures
 
-Four helpers, and the distinction between them matters.
+Four helpers in `requestFailure.ts` handle a request that failed.
 
 | Helper | Use |
 |---|---|
-| `RequestError` | Thrown when the server answered without success, carrying the status |
-| `readJson(response)` | The data of a successful response; a page in its place fails readably |
-| `messageOf(error)` | Whatever a rejection has to say, for anything that is not necessarily an `Error` |
-| `describeRequestFailure(error)` | One sentence a user can act on, and logs the original |
+| `RequestError` | Thrown when the server answered without success. It carries the status, and the server's reason when it gave one |
+| `readJson(response)` | The data of a successful response. A page in place of the data fails with a sentence a user can read |
+| `messageOf(error)` | The message of any rejection, whether or not it is an `Error` |
+| `describeRequestFailure(error)` | One sentence a user can act on. It also logs the original to the console |
 
 Read the data of a successful response with `readJson`, never `response.json()`. A
-proxy's page, or the login page after the session expired, can arrive as a success, and
-`readJson` turns it into "your session has expired" or "the server's response could not
-be read" instead of "Unexpected token '<'".
+proxy's page, or the login page after the session expired, can arrive as a success.
+`readJson` fails on the login page as an expired session, and on any other page with
+"The server's response could not be read", instead of "Unexpected token '<'".
 
 `describeRequestFailure` is what a user should see. It turns a `TypeError` into "the
-server could not be reached" (or "you appear to be offline", by checking
-`navigator.onLine`), a 403 into "you do not have permission to do this", a 409 into
-"this conflicts with a more recent change" — each keeping the status in parentheses for
-someone to relay, and none of them leading with it.
+server could not be reached", or "you appear to be offline" when `navigator.onLine` says
+so. A 403 becomes "you do not have permission to do this", and a 409 "this conflicts
+with a more recent change". Each ends with the status in parentheses, for someone to
+relay. A `RequestError` carrying the server's reason gives that reason instead.
 
 It describes **the cause only, never the attempt**. The dialog or screen asking for the
-action already says what was being attempted, and repeating it reads as an echo.
+action already says what was being attempted.
 
 ### `useAsyncAction` for anything with a button
 
@@ -143,10 +143,10 @@ const { working, failure, run } = useAsyncAction<string>({
 { failure && <Alert severity="error">{failure}</Alert> }
 ```
 
-It owns the sequence that is easy to get subtly wrong: clear the previous failure before
-retrying, stop reporting busy on both paths, and never report a failure thrown by
-`onSuccess` as a failure of the action. The failure type is the caller's, so the hook
-stays out of the wording business.
+It clears the previous failure before each attempt, and stops reporting busy whether
+the action succeeds or fails. A failure thrown by `onSuccess` is not reported as a
+failure of the action. `onFailure` turns a rejection into whatever the caller shows, of
+the type the caller chose. If it returns `undefined`, no failure is shown.
 
 ## Shared components
 
@@ -154,22 +154,23 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 
 | Component | For |
 |---|---|
-| `WidgetDashboard`, `Widget` | The responsive grid and titled frames, parameterized by extension point |
-| `WidgetStatList` | The figures inside a widget, fetched from a tool's `adminSummary.json`: a value, then what it is a figure for, all aligned in a grid |
-| `ConfirmActionDialog`, `ResponsiveDialog` | Confirmations and dialogs that behave on a phone |
+| `WidgetDashboard`, `Widget` | The responsive grid of an extension point's widgets, and the titled frame around each |
+| `WidgetStatList` | The figures inside a widget, read from a tool's `adminSummary.json`: each value, then what it is a figure for, aligned in a grid |
+| `ConfirmActionDialog`, `ResponsiveDialog` | A dialog that asks before an action, and a dialog that fills the screen on a phone |
+| `ActionBar`, `EventAction` | The actions registered on an [action point](ui-extensions.md#action-points), and an icon button that confirms and sends one workflow event |
 | `ErrorDialog`, `ErrorPage`, `LoadError`, `GenericErrorPage`, `PageNotFound` | Failure states |
 | `LoadingOverlay` | Waiting |
 | `StepProgress` | Work moving through named steps, as a full stepper or on one compact line |
-| `NoticeBanner`, `NoticeSnackbar` | Announcements and transient feedback |
-| `FormattedText` | Rendering the markdown a definition supplied |
+| `NoticeBanner` | A full-width announcement, registered as a data-only extension |
+| `useNotice` (`NoticeSnackbar.tsx`) | A notice an action raises over the screen. `NoticeProvider` is mounted once, at the top of the page |
+| `FormattedText` | Markdown from content, such as a definition's description |
 | `EntityDataGrid` (`entityGrid/`) | A server-paged, server-filtered table over an entity homepage |
 
-`EntityDataGrid` is worth reaching for rather than assembling: it already speaks the
-[pagination endpoint's](ui-extensions.md) filtering and sorting parameters.
+`EntityDataGrid` reads a homepage's `.paginate.json`, and sends it the filtering and
+sorting the user picks.
 
-It is possible to display nested entities. If an entity type expects child rows, it can specify how to fetch
-and display them using the `children` structure, and the grid nests those rows under their parent entity as a tree.
-A schema listing its versions:
+An entity type can list child rows under each entity, as a tree. Its `children` say how
+to fetch them and which column names them. A schema listing its versions:
 
 ```ts
 registerEntityType("sch/Schema", {
@@ -184,8 +185,8 @@ registerEntityType("sch/Schema", {
 });
 ```
 
-Paging, sorting and searching still apply to the schemas alone. On a small screen the list keeps one
-card per schema, so the card describes its versions.
+Paging, sorting and searching still apply to the schemas alone. On a small screen the
+list keeps one card per schema, and the card ends with the schema's versions.
 
 Before a file is uploaded, check it with `validateUpload` from
 `@iap/frontend-commons/fileValidation`. It refuses an empty or oversized file, a type the
@@ -195,8 +196,8 @@ caller does not take, and a PDF or Word file whose content does not match its na
 ## Styling
 
 MUI's `sx` prop and the theme, not stylesheets. The theme
-(`frontend-commons/src/appTheme.ts`) is extended with what this platform needs, and
-using those extensions is what keeps a deployment's rebranding effective:
+(`frontend-commons/src/appTheme.ts`) adds what this platform needs to MUI's own. A
+deployment's brand colours reach a component only through the theme. What it adds:
 
 - `Typography variant="pageTitle"` for the one top-level heading of a view. A view
   showing one resource puts the resource's tags in line with that heading (`TagChip`
@@ -204,10 +205,13 @@ using those extensions is what keeps a deployment's rebranding effective:
   cards place their chips as their layout allows.
 - `background.default` is a gray canvas and `background.paper` the surfaces standing
   out against it, in both colour schemes.
-- `background.tinted` for surfaces that carry the brand quietly: the frame bars and
-  emphasised widgets.
-- `background.muted` for surfaces that need to recede — translucent, so it composes
-  with whatever it overlaps rather than assuming white.
+- `background.tinted` for surfaces that carry the brand quietly, such as the frame bars
+  and emphasised widgets. `background.tintedStrong` has more of the primary colour, for
+  a tinted surface that stands out, such as one under the pointer.
+- `background.muted` for a page region set apart from the background. It is
+  translucent, so it shades whatever it overlaps.
+- `palette.condition` for content that applies only under a condition: `main` for its
+  icon, and `surface` behind the line saying when it applies.
 - `palette.diff.added` and `palette.diff.removed` for what a comparison marks as added
   or removed. `main` is for markers, `line` for a changed line's background, and `word`
   for the stronger shade of the words that changed within it. `palette.diff.moved` has
@@ -215,19 +219,19 @@ using those extensions is what keeps a deployment's rebranding effective:
   that stands in for unchanged content left out.
 - `iapShell` for the page frame's rail widths and collapse thresholds.
 
-Both colour schemes are defined, so anything hard-coded will be wrong in one of them.
-Colours arriving from content go through `safeCssColor` before reaching a style — a tag
-definition's `color` is authored data, and unvalidated data in a style is an injection.
+Both colour schemes are defined, so a hard-coded colour is wrong in one of them. A
+colour from content, such as a tag definition's `color`, goes through `safeCssColor`
+before it reaches a style. It accepts hex, `rgb()` and `hsl()` notation only, so the
+value cannot carry other CSS.
 
 ## Personas
 
-`ext:personas` on an extension restricts it to some personas, and `visibleInPersona` is
-the predicate. Naming none means all, which is what keeps an extension that never
-considered personas working when a new one is added.
+`ext:personas` on an extension names the personas it is for, and `visibleInPersona`
+tests it. An extension naming none is for every persona. See
+[personas](ui-extensions.md#personas).
 
-A persona is **presentation only, never access control**. The repository authorizes
-every request independently, and a control hidden from a persona must never be the only
-thing preventing the action behind it.
+A persona is **presentation only, never access control**. The server authorizes every
+request, whatever the persona.
 
 ## Tests
 

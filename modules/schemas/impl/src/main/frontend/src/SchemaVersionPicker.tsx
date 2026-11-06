@@ -33,7 +33,7 @@ interface SchemaVersionPickerProps {
   disabled?: boolean;
 }
 
-// Which version a new one starts as a copy of, if any.
+// Picks the version a new one starts as a copy of, or none to start empty.
 function SchemaVersionPicker({ schemas, value, onChange, grouped = false, disabled }: SchemaVersionPickerProps) {
   const choices = schemas.flatMap(schema => versionsOf(schema).map(version => ({ schema, version })));
   const named = (path: string) => {

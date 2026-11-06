@@ -18,15 +18,14 @@
 
 import { render, screen, waitFor } from "@testing-library/react";
 
-// A module that really exists in the test bundle, so the dynamic import inside loadAsset is
-// exercised for real. Non-"asset:" URLs are passed through untouched, which is what makes it
-// reachable without having to fake a content-hashed assets.json entry.
+// A module in the test bundle, so that loadAsset's dynamic import runs for real. A URL without
+// `asset:` needs no entry in the asset map.
 const FIXTURE_URL = "/src/frontend-commons/remoteAsset.fixture.tsx";
-// A second one, for the asset above to depend on, and for the dependency-cycle tests.
+// A second one, for the asset above to depend on, and for the cycles.
 const DEPENDENCY_URL = "/src/frontend-commons/remoteDependency.fixture.tsx";
 
-// The resolved manifests and the loaded modules are memoised in module state, so every test starts
-// from a fresh copy of the module.
+// The maps and the loaded modules are kept in module state, so every test starts from a fresh copy
+// of the module.
 const freshAssetManager = async () => {
   vi.resetModules();
   return import("@iap/frontend-commons/assetManager");
@@ -121,7 +120,6 @@ describe("assetManager", () => {
       expect(errorSpy).toHaveBeenCalledWith("Failed to resolve assets", expect.any(Error));
 
       await getAssetURL("asset:iap-test.Widget.js");
-      // Nothing was cached, so the manifest is asked for again
       expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("assets.json"))).toHaveLength(2);
     });
 
@@ -172,7 +170,7 @@ describe("assetManager", () => {
       const component = await loadAsset(FIXTURE_URL);
 
       expect((component as { name: string }).name).toBe("RemoteDefault");
-      // Evaluating the dependency's module is what sets this
+      // Set by evaluating the dependency's module
       expect((globalThis as { __remoteDependencyLoaded?: boolean }).__remoteDependencyLoaded).toBe(true);
     });
 
@@ -261,7 +259,6 @@ describe("assetManager", () => {
       const { unmount } = render(<LazyAsset url={FIXTURE_URL} />);
       unmount();
 
-      // Nothing was rendered, and React was not asked to update an unmounted component
       await waitFor(() => { expect(screen.queryByTestId("remote-default")).not.toBeInTheDocument(); });
     });
   });
@@ -273,7 +270,6 @@ describe("assetManager", () => {
     await loadAsset("asset:iap-test.First.js");
     await loadAsset("asset:iap-test.Second.js");
 
-    // The 404 was remembered as "no dependencies" instead of being re-fetched per asset
     const dependencyFetches = fetchMock.mock.calls.filter(([url]) => String(url).endsWith("assetDependencies.json"));
     expect(dependencyFetches).toHaveLength(1);
   });

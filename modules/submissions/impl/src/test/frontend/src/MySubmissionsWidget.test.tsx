@@ -78,8 +78,8 @@ function page(rows: unknown[]) {
 
 function json(body: unknown) {
   // A real Response rather than an object literal. The deletion controls fetch through
-  // useAuthenticatedFetch, which reads `response.url` to tell an expired session from an answer;
-  // a literal without one throws there instead
+  // useAuthenticatedFetch, which reads `response.url` to tell an expired session from an answer,
+  // and throws on a literal without one.
   return Promise.resolve(new Response(JSON.stringify(body), {
     status: 200,
     headers: { "Content-Type": "application/json" },
@@ -135,13 +135,12 @@ describe("MySubmissionsWidget", () => {
     expect(url.pathname).toBe("/Submissions.paginate.json");
     expect(url.searchParams.getAll("fieldName")).toEqual(["createdBy"]);
     expect(url.searchParams.getAll("fieldValue")).toEqual(["@me"]);
-    // Newest activity first by default
+    // The most recently modified first
     expect(url.searchParams.get("sortBy")).toBe("jcr:lastModified");
     expect(url.searchParams.get("descending")).toBe("true");
   });
 
   it("draws its own header, so the action sits on the title's line", async () => {
-    // The dashboard is told to skip its own header for this widget
     vi.stubGlobal("fetch", widgetFetch());
 
     render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
@@ -169,7 +168,6 @@ describe("MySubmissionsWidget", () => {
     const confirmation = within(await screen.findByRole("dialog"));
     await userEvent.click(confirmation.getByRole("button", { name: "Delete" }));
 
-    // The row is gone from the server, and the grid has no way of knowing that unless it is told
     await waitFor(() => expect(listings()).toBeGreaterThan(before));
   });
 
@@ -179,20 +177,16 @@ describe("MySubmissionsWidget", () => {
 
     render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
 
-    // The dialog is only mounted once it is asked for, so nothing reads the schemas on the way to
-    // showing a dashboard that may never open it
+    // The schemas are read only once the dialog opens
     expect(fetchMock.mock.calls.some(([ url ]) => String(url).startsWith("/Schemas"))).toBe(false);
 
     await raiseOne();
 
     await waitFor(() => expect(screen.queryByRole("radio")).not.toBeInTheDocument());
-    // Where it went, not merely that the dialog closed: two other things turn on this navigation
-    // happening at the right moment
     await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(SUBMISSION_PATH));
   });
 
   it("stays on the dashboard when the engine created nothing to open, and re-reads the listing", async () => {
-    // Accepted without raising anything, so the dashboard is where the submitter stays
     const fetchMock = widgetFetch({ redirected: false });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -205,8 +199,6 @@ describe("MySubmissionsWidget", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByTestId("where")).toHaveTextContent("/");
-    // The grid never unmounted, so nothing re-reads unless it is told; without that a submission
-    // that was raised is indistinguishable from nothing having happened
     await waitFor(() => expect(listings()).toBe(2));
   });
 

@@ -25,13 +25,11 @@ import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Numbering versions, the same way whatever is being versioned: the next version is numbered one past the largest
- * number a version beside it is named with, named {@code v3} after that number, and labelled {@code 3.0} unless
- * whoever created it asked for another label.
+ * Numbers the versions kept as children of one parent. A version's node is named after its number, as {@code v3},
+ * and its label is {@code 3.0} unless its creator gives another.
  *
- * <p>Names are read rather than labels, since a label is free text, as likely a year as a number; and the largest
- * number is taken rather than the count, so that a version discarded from the middle leaves no number for a new one
- * to take again.</p>
+ * <p>The next number comes from the names, not the labels, since a label is free text and can be a year. It is the
+ * largest number plus one, not the count plus one, so a version deleted from the middle does not free its number.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -46,11 +44,11 @@ public final class VersionNumbers
     }
 
     /**
-     * The number of the next version under a parent: one past the largest a version there is named with.
+     * The number of the next version under a parent: one past the largest number in a version's name there.
      *
      * @param parent the resource holding the versions
-     * @param versionType the resource type of a version, telling the versions from whatever else the parent holds
-     * @return a number no version under the parent is named with yet, {@code 1} for the first
+     * @param versionType the resource type of a version, which tells the versions from the parent's other children
+     * @return a number no version under the parent is named with yet; {@code 1} for the first
      */
     public static int next(@NotNull final Resource parent, @NotNull final String versionType)
     {
@@ -66,7 +64,8 @@ public final class VersionNumbers
      *
      * @param parent the resource the version is created under
      * @param number the version's number, from {@link #next}
-     * @return a free name, as {@link NodeNameUtils#findFreeName} finds one
+     * @return {@code v} followed by the number, with a further suffix if that name is taken, as
+     *     {@link NodeNameUtils#findFreeName} adds one
      */
     @NotNull
     public static String nodeName(@NotNull final Resource parent, final int number)
@@ -75,7 +74,7 @@ public final class VersionNumbers
     }
 
     /**
-     * The label of a version nobody asked another label for: {@code 3.0}.
+     * The label of a version whose creator gives none, such as {@code 3.0}.
      *
      * @param number the version's number, from {@link #next}
      * @return the label
@@ -87,11 +86,10 @@ public final class VersionNumbers
     }
 
     /**
-     * The whole number a version's name starts with: {@code v3} as {@link #nodeName} names them, or {@code 3.0} as
-     * content imported by hand may be.
+     * The whole number a version's name starts with, after an optional {@code v}: 3 for {@code v3} or {@code 3.0}.
      *
      * @param name a version's node name
-     * @return the number, or 0 when there is none
+     * @return the number; 0 if the name starts with none
      */
     private static int numberIn(final String name)
     {

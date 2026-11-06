@@ -24,7 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A bit of information about the status of the system.
+ * A report on one part of the state of the instance: a name, a level and a text.
  *
  * @version $Id$
  * @since 0.1.0
@@ -32,21 +32,22 @@ import org.jetbrains.annotations.Nullable;
 public class StatusReport
 {
     /**
-     * A category for this status.
+     * How much a report needs attention, from the least to the most. A reader asks for the reports at one level or
+     * above.
      *
      * @since 0.1.0
      */
     public enum Status
     {
-        /** A debug report, excluded unless explicitly requested. */
+        /** Detail for somebody investigating, left out unless a reader asks for this level. */
         DEBUG,
-        /** An information report. */
+        /** Information, with nothing to act on. */
         INFO,
-        /** A report about a successful status. */
+        /** Something that was checked, and works. */
         SUCCESS,
-        /** A report containing a warning message that should be looked at. */
+        /** Something somebody should look at. */
         WARNING,
-        /** A report containing an error message that signals a critical problem that must be investigated. */
+        /** A failure somebody must look at. */
         ERROR
     }
 
@@ -57,11 +58,11 @@ public class StatusReport
     private final String text;
 
     /**
-     * Basic constructor.
+     * Creates a report.
      *
-     * @param name the name of the report
-     * @param status the status category of the report
-     * @param text the body of the report, may be {@code null} when there is nothing more to say than the status
+     * @param name the title of the report, such as {@code System Started}
+     * @param status how much the report needs attention
+     * @param text the body of the report; {@code null} if the name and the level say everything
      */
     public StatusReport(@NotNull final String name, @NotNull final Status status, @Nullable final String text)
     {
@@ -71,9 +72,9 @@ public class StatusReport
     }
 
     /**
-     * The name of this report.
+     * The title of this report.
      *
-     * @return a simple string
+     * @return a short title, such as {@code System Started}
      */
     @NotNull
     public String getName()
@@ -82,9 +83,9 @@ public class StatusReport
     }
 
     /**
-     * The status of this report.
+     * How much this report needs attention.
      *
-     * @return one of the {@link Status} values
+     * @return the level of this report
      */
     @NotNull
     public Status getStatus()
@@ -93,9 +94,9 @@ public class StatusReport
     }
 
     /**
-     * The body of the report.
+     * The body of this report.
      *
-     * @return a piece of text, may be {@code null}
+     * @return the text; {@code null} if the name and the level say everything
      */
     @Nullable
     public String getText()
@@ -104,9 +105,9 @@ public class StatusReport
     }
 
     /**
-     * String serialization mostly for debug purposes.
+     * A short summary of this report, without its text.
      *
-     * @return a short summary about this report, containing just the name of the report and the status level
+     * @return the name and the level, such as {@code Health Check: WARNING}
      */
     @Override
     @NotNull
@@ -116,9 +117,10 @@ public class StatusReport
     }
 
     /**
-     * Serialize this report as a JSON object.
+     * This report as JSON.
      *
-     * @return a JSON object with the following keys: {@code name}, {@code status}, {@code text}
+     * @return an object with the keys {@code name}, {@code status} and {@code text}; {@code text} is empty if the
+     *         report has no text
      */
     @NotNull
     public JsonObject toJson()

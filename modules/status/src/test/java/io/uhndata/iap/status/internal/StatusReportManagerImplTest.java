@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class StatusReportManagerImplTest
 {
     /**
-     * A simple configurable reporter.
+     * A reporter that returns a fixed report.
      *
      * @since 0.1.0
      */
@@ -120,12 +120,10 @@ class StatusReportManagerImplTest
     @Test
     void collectsReportsAboveTheTargetLevel()
     {
-        // The default level is INFO: the DEBUG report is excluded, and so is the silent reporter
+        // INFO by default, so the DEBUG report is left out. The silent reporter has no report
         assertEquals(List.of("Uptime", "Problems"),
             this.manager.getReports(true).stream().map(StatusReport::getName).toList());
-        // Explicitly asking for DEBUG reports includes everything
         assertEquals(3, this.manager.getReports(true, StatusReport.Status.DEBUG, null).size());
-        // A higher target level filters more
         assertEquals(List.of("Problems"),
             this.manager.getReports(true, StatusReport.Status.WARNING, null).stream()
                 .map(StatusReport::getName).toList());
@@ -140,7 +138,6 @@ class StatusReportManagerImplTest
         // Null or empty tags include all reporters
         assertEquals(2, this.manager.getReports(true, StatusReport.Status.INFO, null).size());
         assertEquals(2, this.manager.getReports(true, StatusReport.Status.INFO, Set.of()).size());
-        // Unknown tags match no reporter
         assertTrue(this.manager.getReports(true, StatusReport.Status.INFO, Set.of("unknown")).isEmpty());
     }
 
@@ -151,7 +148,6 @@ class StatusReportManagerImplTest
 
         final List<StatusReport> reports = this.manager.getReports(true);
 
-        // The broken reporter is turned into an ERROR report, and doesn't prevent the other reports
         assertEquals(2, reports.size());
         assertEquals("Broken", reports.get(0).getName());
         assertEquals(StatusReport.Status.ERROR, reports.get(0).getStatus());

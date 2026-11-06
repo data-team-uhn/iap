@@ -22,13 +22,9 @@ import WidgetDashboard from "@iap/frontend-commons/components/WidgetDashboard";
 
 import AdminScreen from "./AdminScreen";
 
-// The landing page of the administration console: one widget per administrative tool, registered
-// on the `iap/adminDashboard/entry` extension point. Each tool's widget shows a live summary of
-// its area (e.g. the category tool lists the current top-level categories) and leads into the
-// tool's own page — much more informative than a plain list of links, and reusing the exact same
-// layout as the user dashboard. Access control is entirely repository-side: extensions the user
-// cannot read are simply never served, so a non-administrator sees the empty state (and no way to
-// reach the console in the first place).
+// The landing page of the administration console: a dashboard of the widgets on the
+// `iap/adminDashboard/entry` point, one for each tool. A user is served only the widgets they can
+// read, and sees the empty state if there are none.
 function AdminDashboard() {
   return (
     <AdminScreen disablePanel>

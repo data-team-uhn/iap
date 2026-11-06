@@ -58,14 +58,13 @@ import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.tags.spi.TagProcessor;
 
 /**
- * Default implementation of {@link TagManager}.
+ * Reads the tag definitions, and reads and writes the tags of content for the
+ * {@link io.uhndata.iap.tags.models.Taggable} model.
  *
  * <p>
- * The definitions are read with the manager's own service user, since they are world-readable platform vocabulary
- * needed by callers that may have no user session at all, and they are cached until {@code /Tags} changes: they are
- * looked up on nearly every tag operation, while being edited very rarely. The cached definitions are Sling Models
- * bound to the resolver they were read with, which is kept open for as long as they are cached and closed once a
- * newer set replaces them, so reading a definition's own values is always safe.
+ * The definitions are cached until something under {@code /Tags} changes. The cached definitions are Sling Models
+ * bound to the resolver they were read with. That resolver stays open while they are cached, and is closed once a
+ * newer set replaces them.
  * </p>
  *
  * @version $Id$
@@ -77,7 +76,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(TagManagerImpl.class);
 
-    /** The subservice name mapped to the service user allowed to read the tag definitions. */
+    /** The subservice name mapped to the service user that reads the tag definitions. */
     private static final Map<String, Object> SERVICE_USER = Map.of(ResourceResolverFactory.SUBSERVICE, "tags");
 
     @Reference
@@ -93,7 +92,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     private ResourceResolver definitionsResolver;
 
     /**
-     * Gathers the origins and sources of one effective tag while the resource tree is visited.
+     * The origins and sources of one tag, gathered while the resource tree is visited.
      *
      * @since 0.1.0
      */
@@ -117,7 +116,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     public void onChange(final List<ResourceChange> changes)
     {
         synchronized (this.definitionsLock) {
-            // Drop the cache; the resolver the stale definitions are bound to is closed by the next read
+            // The next read closes the resolver the dropped definitions are bound to
             this.definitions = null;
         }
     }
@@ -185,7 +184,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
         getDefinitions().forEach(definition -> knownDefinitions.put(definition.getName(), definition));
         final Map<String, TagOccurrences> found = new LinkedHashMap<>();
 
-        // The resource's own tags, whether defined or not, placed explicitly or computed from its content
+        // The resource's own tags, defined or not, placed on it or computed from its content
         getTags(resource).forEach(name -> record(found, name, Tag.Origin.EXPLICIT, resource.getPath()));
         readTags(resource, TagProcessor.Phase.LOCAL.getPropertyName())
             .forEach(name -> record(found, name, Tag.Origin.COMPUTED, resource.getPath()));
@@ -215,18 +214,8 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
                 }
             }
         }
-        if (definition.isAggregated()) {
-            final Deque<Resource> toVisit = new ArrayDeque<>();
-            resource.getChildren().forEach(toVisit::add);
-            while (!toVisit.isEmpty()) {
-                final Resource descendant = toVisit.removeFirst();
-                if (ownTags(descendant).contains(name)) {
-                    return true;
-                }
-                descendant.getChildren().forEach(toVisit::add);
-            }
-        }
-        return false;
+        return definition.isAggregated()
+            && aggregationSources(resource).stream().anyMatch(descendant -> ownTags(descendant).contains(name));
     }
 
     @Override
@@ -313,8 +302,8 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     }
 
     /**
-     * Reads the definitions from {@code /Tags} into the cache, with the service user's own resolver. The resolver
-     * the previous set was bound to is closed once the new one is in place. Must be called while holding the lock.
+     * Reads the definitions from {@code /Tags} into the cache, with a new service user resolver. The resolver of the
+     * previous set is closed once the new set is in place. The caller must hold the lock.
      */
     private void readDefinitions()
     {
@@ -326,8 +315,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
             this.definitions = List.of();
             LOGGER.error("Cannot read the tag definitions, the tags service user is not available: {}",
                 e.getMessage(), e);
-            // An empty vocabulary is not an error anybody meets head-on: every tag then reads as undefined, so
-            // placing one is refused as if nobody had ever declared it
+            // Recorded, since every tag then reads as undefined, and placing one is refused as unknown
             ErrorLogger.logError(e, ErrorContext.of(TagManagerImpl.class, "readDefinitions"));
             return;
         }
@@ -375,7 +363,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
 
     /**
      * Checks that a tag may be placed on a resource: it must be defined, applicable to the resource, and not a
-     * system tag unless system tags are explicitly allowed.
+     * system tag unless system tags are allowed.
      *
      * @param resource the resource to tag
      * @param name the tag name
@@ -399,8 +387,8 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     }
 
     /**
-     * Checks that a tag may be removed from a resource: it must not be a system tag unless system tags are
-     * explicitly allowed. Undefined tags may always be removed.
+     * Checks that a tag may be removed from a resource: it must not be a system tag unless system tags are allowed.
+     * An undefined tag may always be removed.
      *
      * @param name the tag name
      * @param allowSystem whether system tags are allowed
@@ -420,7 +408,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     }
 
     /**
-     * Notes that one resource carries a tag, reached in one particular way.
+     * Notes that a tag reached the resource being described in one way, from one source.
      *
      * @param found the occurrences gathered so far, updated in place
      * @param name the tag name
@@ -454,10 +442,9 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     }
 
     /**
-     * Gathers the aggregated tags belonging to a resource's descendants, visiting the subtree down to the nearest
-     * boundaries. An {@code tag:Boundary} container is where aggregation stops, so neither it nor anything inside it
-     * contributes here — the same rule the stored {@code aggregatedTags} are built by, and this has to agree with them
-     * or the two ways of asking the same question give different answers.
+     * Gathers the aggregated tags belonging to a resource's descendants, down to the nearest boundaries. Neither a
+     * {@code tag:Boundary} below the resource nor anything inside it contributes, as in the stored
+     * {@code aggregatedTags}.
      *
      * @param resource the resource being described
      * @param definitions the known definitions, by tag name
@@ -466,24 +453,35 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     private void collectAggregated(final Resource resource, final Map<String, TagDefinition> definitions,
         final Map<String, TagOccurrences> found)
     {
+        aggregationSources(resource).forEach(descendant -> ownTags(descendant).stream()
+            .filter(name -> isAggregated(definitions.get(name)))
+            .forEach(name -> record(found, name, Tag.Origin.AGGREGATED, descendant.getPath())));
+    }
+
+    /**
+     * Lists the descendants whose aggregated tags reach a resource: all of them, down to the nearest boundaries.
+     *
+     * @param resource the resource being described
+     * @return the descendants, breadth first; a {@code tag:Boundary} and everything inside it are left out
+     */
+    private List<Resource> aggregationSources(final Resource resource)
+    {
+        final List<Resource> sources = new ArrayList<>();
         final Deque<Resource> toVisit = new ArrayDeque<>();
         resource.getChildren().forEach(toVisit::add);
         while (!toVisit.isEmpty()) {
             final Resource descendant = toVisit.removeFirst();
-            if (isBoundary(descendant)) {
-                continue;
+            if (!isBoundary(descendant)) {
+                sources.add(descendant);
+                descendant.getChildren().forEach(toVisit::add);
             }
-            ownTags(descendant).stream()
-                .filter(name -> isAggregated(definitions.get(name)))
-                .forEach(name -> record(found, name, Tag.Origin.AGGREGATED, descendant.getPath()));
-            descendant.getChildren().forEach(toVisit::add);
         }
+        return sources;
     }
 
     /**
-     * Checks whether a resource is where aggregation stops. {@code isNodeType} rather than a property check, so that
-     * the mixin is seen both when a node carries it explicitly and when its primary type declares it, which is how
-     * every {@code data:EntityHomepage} is one.
+     * Checks whether a resource is a {@code tag:Boundary}, where aggregation stops. {@code isNodeType} sees the mixin
+     * whether the node carries it or its primary type declares it, as {@code data:EntityHomepage} does.
      *
      * @param resource the resource to check
      * @return {@code true} if aggregated tags may not travel out of this resource
@@ -494,11 +492,9 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
         try {
             return node != null && node.isNodeType(TagManager.BOUNDARY_MIXIN);
         } catch (final RepositoryException e) {
-            // Describing a resource must not fail because one node could not be classified; treating it as ordinary
-            // content is what the aggregation did before boundaries existed
+            // Describing a resource does not fail over one node, which counts as ordinary content
             LOGGER.warn("Could not tell whether {} bounds tag aggregation: {}", resource.getPath(), e.getMessage());
-            // Recorded because the degradation is invisible and wrong in the unsafe direction: a boundary that
-            // cannot be recognized lets aggregated tags climb past it, which is the failure IAP-71 exists to stop
+            // Recorded, since a boundary that is not recognized lets aggregated tags past it without a trace
             ErrorLogger.logError(e, ErrorContext.of(TagManagerImpl.class, "isBoundary").about(resource));
             return false;
         }
@@ -515,8 +511,8 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     }
 
     /**
-     * All the tags belonging to a resource itself, whether a user placed them explicitly or a tag processor computed
-     * them from the resource's content. These are the tags that propagate to the resource's neighbors.
+     * All the tags belonging to a resource itself, placed on it or computed by a tag processor from its content.
+     * These are the tags that propagate to its ancestors and descendants.
      *
      * @param resource the resource to read
      * @return the resource's own tag names, an empty set if it has none

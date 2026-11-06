@@ -21,10 +21,9 @@ import type { DescendantFilter } from "@iap/frontend-commons/entityGrid/paginati
 
 import { SUBMISSION_TYPE } from "./submissionGrid";
 
-// Only the submissions with an open review assigned to the current user: a sub:Review descendant
-// whose reviewer is `@me` (resolved server-side) and whose tags name no final decision yet.
-// The servlet's `<>` comparator serializes as `not tags = '...'`, which on the multivalued
-// `tags` property correctly means "none of the values is".
+// The submissions with a review assigned to the current user and not yet decided: a `sub:Review`
+// descendant whose reviewer is `@me`, and whose tags hold neither decision. On the multi-valued `tags`
+// property, the servlet reads `<>` as "none of the values is".
 const MY_OPEN_REVIEWS: DescendantFilter = {
   type: "sub:Review",
   filters: [
@@ -34,9 +33,8 @@ const MY_OPEN_REVIEWS: DescendantFilter = {
   ],
 };
 
-// The dashboard widget listing the submissions waiting for the current user's review, registered
-// on the `iap/dashboard/widget` extension point. The surrounding titled frame is provided by the
-// dashboard, so this only renders the grid.
+// The dashboard widget listing the submissions waiting for the current user's review. The dashboard
+// draws its title.
 function MyReviewQueueWidget() {
   return (
     <EntityDataGrid

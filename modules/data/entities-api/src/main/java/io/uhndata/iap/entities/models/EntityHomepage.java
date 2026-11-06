@@ -24,9 +24,8 @@ import org.apache.sling.models.annotations.Model;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * A Sling Model wrapping an {@code data:EntityHomepage} node, the root container of a collection of entities of one
- * type (e.g. {@code /Schemas}, {@code /Submissions}). It exposes no properties beyond the generic
- * {@code data:Content} ones; concrete homepage subtypes add typed listing methods for their entities.
+ * The model of an entity homepage: a {@code data:EntityHomepage} node, the container of the entities of one type,
+ * such as {@code /Submissions}. It reads only what every content node has.
  *
  * @version $Id$
  * @since 0.1.0

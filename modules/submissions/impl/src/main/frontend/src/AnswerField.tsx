@@ -34,15 +34,12 @@ interface AnswerFieldProps {
   state: SaveState;
   error?: string;
   disabled?: boolean;
-  // Called when the answer is complete, meaning a field left, a box ticked or an option picked, rather
-  // than on every keystroke. That is what makes saving as-you-go bearable, and it is also what keeps
-  // the saved answers current enough for the server to re-decide which questions apply.
+  // Called when the answer is finished, not on each keystroke
   onAnswered: (values: string[]) => void;
 }
 
-// What a save is currently doing, shown per field because that is where it can fail. A request may
-// be refused because somebody submitted this request in another tab, and a field that looked saved
-// would be a lie.
+// What the field's save is doing. A save can be refused, such as when the request was submitted in
+// another tab.
 function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
   if (state === "saving") {
     return <CircularProgress size={16} aria-label="Saving" />;
@@ -51,9 +48,8 @@ function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
     return <Typography variant="caption">Saved</Typography>;
   }
   if (state === "failed") {
-    // With no Save button this is the only report that an answer was refused, so it cannot live on
-    // the icon: SvgIcon marks itself aria-hidden, which hides anything said through it. The text
-    // carries the outcome, and the wrapper takes focus so the reason is reachable from a keyboard
+    // The only report that an answer was refused. The text carries it, since an SvgIcon is
+    // aria-hidden. The wrapper takes focus, so that a keyboard reaches the reason in the tooltip.
     return (
       <Tooltip title={error ?? "This answer was not saved"}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }} tabIndex={0}>
@@ -66,29 +62,24 @@ function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
   return null;
 }
 
-// One question and its answer.
-//
-// What kind of input a question gets is not decided here. Each answer component says which questions
-// it recognizes and how well (see answerComponents.ts). Adding a kind of question is adding a
-// component rather than another branch in this one. What stays here is what is the same whatever is
-// being answered: following the saved answer, noticing a change, and reporting what the save does.
+// One question and its answer. The input is drawn by the registered answer component that fits the
+// question best. This keeps what every kind of answer shares: following the saved answer, noticing a
+// change, and reporting what the save does.
 function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFieldProps) {
   const ready = useAnswerComponents();
   const [ draft, setDraft ] = useState(question.value);
   const [ focused, setFocused ] = useState(false);
-  // The server is the authority on what the answer is: it re-reads the whole form after every save,
-  // and an answer changed elsewhere should appear here. Adjusted while rendering, which is React's
-  // own way of following a prop and avoids the extra pass an effect would cost.
+  // Follows the saved answer, which changes each time the editor reads the form again. It is adjusted
+  // during render, which is how React follows a prop without an effect.
   //
-  // Compared by content rather than by identity, because each read returns fresh arrays. An identity
-  // check would reset every field on every save, including one somebody is halfway through typing
-  // in, whose keystrokes would vanish because a different field was saved.
+  // Compared by content, since each read returns fresh arrays. Compared by identity, every save would
+  // reset every field, including one somebody is typing in.
   // Joined on a character an answer cannot contain, so that ["a", "b"] and ["a b"] stay distinct.
   const answered = question.value.join("\u0000");
   const [ seen, setSeen ] = useState(answered);
-  // Held back while this field has focus. Clearing an answer changes the server's value, so without this a
-  // submitter who empties a field and immediately types again has the field blanked mid-word when the re-read
-  // lands. `seen` is left alone too, so the new value is applied on the first render after they leave.
+  // Held back while the field has focus. Otherwise a submitter who empties a field and types again
+  // would lose the new text when the read after the clearing lands. `seen` is left alone too, so the
+  // new value is applied on the first render after they leave.
   if (seen !== answered && !focused) {
     setSeen(answered);
     setDraft(question.value);
@@ -96,7 +87,6 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
 
   const changed = (values: string[]) =>
     values.length !== question.value.length || values.some((value, index) => value !== question.value[index]);
-  // Saving an answer that did not change would be a workflow event that means nothing
   const submit = (values: string[]) => {
     setDraft(values);
     if (changed(values)) {
@@ -105,8 +95,8 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
   };
 
   if (!ready) {
-    // Not the "cannot be answered here" message below: until the components have been fetched,
-    // nothing is registered yet, and saying the question cannot be answered would be untrue
+    // Not the "cannot be answered here" message below. Until the components have loaded, none is
+    // registered, and the question may yet have one.
     return (
       <Box>
         <Typography variant="subtitle2">{questionLabel(question)}</Typography>
@@ -117,8 +107,7 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
 
   const Answer = getAnswerComponent(question);
   if (!Answer) {
-    // Said out loud rather than skipped: a form that silently drops a question it cannot ask reads
-    // as complete when it is not
+    // Shown rather than skipped, so that the form does not look complete when it is not
     return (
       <Box>
         <Typography variant="subtitle2">{questionLabel(question)}</Typography>
@@ -135,9 +124,7 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
       onFocusCapture={() => setFocused(true)}
       onBlurCapture={() => setFocused(false)}
     >
-      {/* Built through createElement rather than as <Answer/>, because which component this is comes
-          from the registry and so is only known during the render that uses it. In JSX that is what
-          react-hooks/static-components refuses: "Cannot create components during render" */}
+      {/* react-hooks/static-components refuses <Answer/> for a component chosen during render */}
       <Box sx={{ flexGrow: 1 }}>
         {createElement(Answer, {
           question,

@@ -42,14 +42,15 @@ import io.uhndata.iap.deletion.api.DeletionService;
 import io.uhndata.iap.deletion.api.Veto;
 
 /**
- * Handles {@code DELETE} requests on any content resource. Without parameters the deletion is refused if resources
- * other than links reference the target, and the affected resources are moved into the archive; the optional
- * boolean parameters adjust this: {@code recursive} also deletes the referencing resources, {@code permanent}
- * skips the archive, and {@code dryRun} only reports what the deletion would do, changing nothing.
+ * Deletes a content resource on {@code DELETE <path>}. By default it moves the resource into the archive, and refuses
+ * if other resources reference it. Three boolean parameters change that. {@code recursive=true} deletes the
+ * referencing resources too, and {@code permanent=true} skips the archive. {@code dryRun=true} only says what the
+ * deletion would do.
  *
  * <p>
- * Responses are JSON: 200 with the outcome, 409 when references or vetoes block the deletion, 401/403 when the
- * requester may not remove everything involved, 404 for a non-repository resource, 500 for unexpected failures.
+ * It answers in JSON: 200 with the outcome, and 409 when references or a guard block the deletion. It answers 401
+ * or 403 when the requesting user may not remove everything the deletion affects. A resource with no JCR node gets
+ * 404, one that cannot be deleted at all gets 400, and a failure gets 500.
  * </p>
  *
  * @version $Id$

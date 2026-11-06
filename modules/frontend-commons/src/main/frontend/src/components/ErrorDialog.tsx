@@ -32,12 +32,11 @@ type ErrorDialogProps = Omit<DialogProps, "title" | "onClose"> & {
   onClose?: (event: object) => void;
 };
 
-// Component that renders an Error Dialog with a red title and a close button
+// A dialog that reports an error, with a red title and a close button. It is `xs` wide by default.
 //
 // Props:
-// title: String specifying the title of the dialog. Defaults to "Error".
-// children: the dialog contents
-// onClose: Callback for closing the dialog
+// title: the dialog's title; "Error" by default.
+// onClose: called when the close button, Escape or a click on the backdrop closes the dialog.
 //
 // Sample usage:
 // <ErrorDialog

@@ -28,7 +28,7 @@
   <artifactId>iap-error-tracking-api</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Error Tracking - Definitions and APIs</name>
-  <description>The way in to error recording: the service, the static facade, and the context a caller describes a failure with</description>
+  <description>The API for recording errors: the service, its static facade, and the context a caller describes a failure with</description>
 
   <build>
     <plugins>
@@ -47,9 +47,8 @@
       <artifactId>annotations</artifactId>
     </dependency>
     <!--
-      Sling's Resource, so that a caller with one in hand can name it as the subject of a failure without first
-      turning it into a path. Deliberately the only platform dependency: anything that can fail must be able to
-      depend on this bundle, including the data model itself.
+      Sling's Resource, which a caller may name as the subject of a failure. This is the only platform dependency, so
+      that any module can depend on this bundle, iap-java-utils included.
     -->
     <dependency>
       <groupId>org.apache.sling</groupId>

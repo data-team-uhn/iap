@@ -24,9 +24,8 @@ vi.mock("@iap/frontend-commons/components/ErrorPage", () => ({
   ),
 }));
 
-// A page the server rendered without status metadata. This is a file of its own because the entry
-// point renders once, on import, and only one such render survives per file -- see the note in
-// GenericErrorPage.test.tsx.
+// A page the server rendered without status metadata. Only one test per file can render the entry
+// point, so this case has a file of its own.
 describe("generic error page entry point, without status metadata", () => {
   it("renders with no status at all", async () => {
     document.body.innerHTML = '<div id="main-error-container"></div>';

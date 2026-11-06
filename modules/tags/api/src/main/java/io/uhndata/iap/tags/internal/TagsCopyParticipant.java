@@ -32,8 +32,8 @@ import io.uhndata.iap.tags.spi.TagProcessor;
 import io.uhndata.iap.utils.copy.CopyParticipant;
 
 /**
- * Keeps computed tags out of copies: they are derived from where a node sits and what it holds, and the copy gets
- * its own when it is saved. The tags placed by hand are copied like any other property.
+ * Keeps the derived tags and the stale mark out of a content copy. The copy gets its own derived tags when it is
+ * saved. The tags placed on the source are copied like any other property.
  *
  * @version $Id$
  * @since 0.1.0

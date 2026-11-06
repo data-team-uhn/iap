@@ -29,8 +29,8 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 
 /**
- * Check that no two installed bundles share the same symbolic name, which usually means that two versions of the
- * same jar were deployed side by side.
+ * Warns about installed bundles that have the same symbolic name. Two such bundles are usually two versions of one
+ * jar, deployed side by side.
  *
  * @version $Id$
  * @since 0.1.0

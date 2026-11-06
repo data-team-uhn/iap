@@ -21,36 +21,27 @@
 
 //-----------------------------------------------------------------------------
 //
-// Tags: named markers that can be placed on any data:Content node through its
-// multivalued `tags` property, e.g. "incomplete", "submitted", or "sensitive".
+// Tags: named markers placed on content through its multivalued `tags`
+// property, such as "incomplete", "submitted" or "retired".
 //
-// Unlike free-form labels, every usable tag must first be *defined* as an
-// tag:Definition node stored under /Tags: the definition is the single
-// source of truth for what the tag means, where it may be applied, and how it
-// behaves, instead of each piece of code relying on an off-hand understanding
-// of ad-hoc marker strings.
+// A tag can be placed only once it is defined by a tag:Definition under
+// /Tags. The definition says what the tag means, where it may be placed and
+// how it behaves. See docs/tags.md.
 //
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Homepage node for the /Tags root path, holding the tag definitions.
+// The /Tags homepage, holding the tag definitions.
 [tag:Homepage] > data:Content, rep:AccessControllable, doc:Documented
-  // Attributes:
-
-  // We can query tag definitions
   query
-
-  // Properties:
 
   - sling:resourceType (STRING) = "tag/Homepage" mandatory autocreated protected
 
-  // The type of the children listed by the pagination servlet
+  // The node type a paginated listing of /Tags returns
   - childNodeType (STRING) = "tag:Definition" mandatory autocreated protected
 
-  // The heading of the served documentation, overriding the empty defaults of
-  // the doc:Documented mixin. Autocreated rather than hardcoded in the model
-  // serving the catalogue, but still editable, so that a deployment can reword
-  // the heading without touching code.
+  // The heading of the tag catalogue served at /Tags.doc.md. A deployment can
+  // edit them to reword it.
   - title (STRING) = "Tags" autocreated
   - description (STRING) = "All the tags defined in this instance, grouped by category." autocreated
 
@@ -58,7 +49,7 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // Contains tag definitions
+  // The tag definitions
   + * (tag:Definition) = tag:Definition
 
   // Allow any other children for extensibility
@@ -66,63 +57,60 @@
 
 //-----------------------------------------------------------------------------
 // The definition of one tag: what it means, where it may be placed, and how
-// it behaves. The tag itself is stored on tagged nodes as a plain string in
-// their `tags` property, matching this definition's name.
+// it behaves. Tagged content stores the tag as a plain string in its `tags`
+// property, equal to the definition's name.
 [tag:Definition] > data:Content
   - sling:resourceType (STRING) = "tag/Definition" mandatory autocreated protected
 
-  // The string stored in the `tags` property of tagged nodes. When absent,
-  // the name of this definition node itself is the tag name; setting an
-  // explicit name allows tag strings that would be awkward as node names.
+  // The string stored in the `tags` property of tagged content. When absent,
+  // the tag's name is the name of this node. Set it for a tag string that
+  // would be awkward as a node name.
   - name (STRING)
 
-  // Human-readable name displayed in the UI; falls back to the tag name
+  // The tag's name as people read it. When absent, the UI shows the name.
   - label (STRING)
 
-  // Longer explanation of what this tag means and when it applies
+  // What the tag means and when it applies, in one short sentence
   - description (STRING)
 
-  // The categories this tag belongs to, e.g. "lifecycle" or "review",
-  // used for grouping and filtering tags in listings
+  // The categories the tag belongs to, such as "lifecycle" or "review".
+  // Listings group and filter tags by category.
   - category (STRING) multiple
 
-  // Whether content under a tagged node implicitly carries this tag too,
-  // e.g. every answer inside a "sensitive" submission is itself sensitive
+  // Whether the content under a tagged node carries the tag too. Every
+  // version of a "retired" schema is retired.
   - inheritable (BOOLEAN) = false autocreated
 
-  // Whether a node implicitly carries this tag when any of its descendants
-  // explicitly does, e.g. a submission with an "incomplete" answer is
-  // itself incomplete
+  // Whether a node carries the tag when content below it does, up to the
+  // nearest tag:Boundary. A submission with an "incomplete" answer is
+  // incomplete.
   - aggregated (BOOLEAN) = false autocreated
 
-  // The sling:resourceType values of the content this tag may be placed
-  // on, including their subtypes, e.g. "sub/Submission" or "data/Entity";
-  // when empty, the tag may be placed on any content
+  // The resource types of the content the tag may be placed on, subtypes
+  // included, such as "sub/Submission" or "data/Entity". When empty, it may
+  // be placed on any content.
   - targetResourceTypes (STRING) multiple
 
-  // Optional color used when displaying this tag, as a CSS color value; the
-  // chip's background, text and border are all derived from it, according to
-  // the variant
+  // The color the UI shows the tag in, as a CSS color. The chip's
+  // background, text and border all derive from it, as the variant says.
   - color (STRING)
 
-  // How the tag is displayed: "soft" (the default when absent) tints the
-  // background with the color and clamps the color into a readable text,
-  // "outlined" draws only that readable text and a matching border on a
-  // transparent background, and "filled" uses the color as a loud fill
-  // under contrasting text
+  // How the UI shows the tag. "soft", the default, tints the background with
+  // the color and makes the text a readable shade of it. "outlined" shows
+  // that text and a matching border on no background. "filled" fills the
+  // chip with the color, under black or white text.
   - variant (STRING)
 
-  // Optional icon displayed next to this tag's label, as a MUI icon name,
-  // e.g. "EditOutlined"; names outside the UI's curated icon set (see the
-  // tags module's tagIcons.tsx) display no icon
+  // The icon shown next to the label, as a MUI icon name such as
+  // "EditOutlined". A name the tags module's tagIcons.tsx does not list
+  // shows no icon.
   - icon (STRING)
 
-  // Optional explicit position of this tag in listings; tags with a lower
-  // order are displayed first, tags without an order are displayed last
+  // The tag's position in listings, lowest first. Tags without one come
+  // last.
   - order (LONG)
 
-  // Whether this tag is managed by the platform itself, which prevents
-  // adding or removing it through the regular user-facing APIs
+  // Whether only the code managing the tag may add or remove it
   - system (BOOLEAN) = false autocreated
 
   // Allow any other properties for extensibility

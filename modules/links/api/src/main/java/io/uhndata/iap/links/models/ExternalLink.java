@@ -25,8 +25,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A Sling Model wrapping an {@code link:ExternalLink} node: a link to something outside the repository, recording
- * the target as a value — e.g. this resource's identifier in an external system.
+ * A link to something outside this repository: a {@code link:ExternalLink} node, recording a value that names the
+ * target, such as this resource's identifier in another system.
  *
  * @version $Id$
  * @since 0.1.0
@@ -35,19 +35,19 @@ import org.jetbrains.annotations.Nullable;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class ExternalLink extends Link
 {
-    /** The {@code sling:resourceType} of an {@code link:ExternalLink} node. */
+    /** The resource type of {@code link:ExternalLink}. */
     public static final String RESOURCE_TYPE = "link/ExternalLink";
 
-    /** The name of the property holding the recorded value. */
+    /** The property that holds the recorded value. */
     public static final String VALUE_PROPERTY = "value";
 
     @ValueMapValue(name = VALUE_PROPERTY)
     private String value;
 
     /**
-     * The recorded value identifying the external target, e.g. an identifier in an external system.
+     * The recorded value, which names the target, such as an identifier in another system.
      *
-     * @return the recorded value
+     * @return the value
      */
     @NotNull
     public String getValue()
@@ -56,10 +56,9 @@ public class ExternalLink extends Link
     }
 
     /**
-     * The definition of this link's type. Always an external one: a link recording a value can only have been
-     * created from a definition describing such values.
+     * The definition of this link's type, an external one.
      *
-     * @return a link definition, or {@code null} if it cannot be resolved
+     * @return the definition; {@code null} if this session cannot read it
      */
     @Override
     @Nullable
@@ -69,11 +68,10 @@ public class ExternalLink extends Link
     }
 
     /**
-     * A navigable address for the external target, rendered through the definition's
-     * {@link ExternalLinkDefinition#getUrlTemplate() URL template}. The recorded value is substituted as-is, so
-     * templates are responsible for any encoding their target system needs.
+     * The address of the target: the definition's {@link ExternalLinkDefinition#getUrlTemplate() URL template},
+     * with the recorded value in place of {@code {value}}. The value goes in as it is, without encoding.
      *
-     * @return a URL, or {@code null} if the definition sets no URL template
+     * @return the address; {@code null} if this session cannot read the definition, or it sets no URL template
      */
     @Nullable
     public String getTargetUrl()

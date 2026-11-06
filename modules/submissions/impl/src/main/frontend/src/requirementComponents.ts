@@ -38,9 +38,10 @@ export interface RequirementComponentProps {
   disabled: boolean;
   // How each answer's save is going, by question path, for a kind that draws questions
   states: Record<string, FieldState | undefined>;
-  // An answer was finished, for a kind that draws questions
+  // Called when an answer is finished, for a kind that draws questions
   onAnswered: (question: FormQuestion, values: string[]) => void;
-  // Hears of each save as it starts, so whatever must wait for stored data can wait for this kind's saves too
+  // Called with each save the kind starts, so that whatever waits for the answers to be stored waits
+  // for it too
   onSaving: (save: Promise<unknown>) => void;
   // Called after a kind changed the submission, so the editor reads the form again
   onChanged: () => void;

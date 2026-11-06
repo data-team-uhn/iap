@@ -74,21 +74,20 @@ class HealthCheckStatusReporterTest
         final StatusReport report = this.reporter.report(true);
 
         assertEquals(StatusReport.Status.WARNING, report.getStatus());
-        // An unprivileged report only mentions the number of failed checks, not their names
+        // An unprivileged report gives the number of failed checks, without their names
         assertEquals("There are 1 failed checks", report.getText());
     }
 
     @Test
     void privilegedReportsNameTheFailedChecks()
     {
-        configure(check("Grumbling check", Result.Status.WARN));
+        configure(check("Grumbling check", Result.Status.WARN), check("Fine check", Result.Status.OK));
 
         final StatusReport report = this.reporter.report(false);
 
         assertTrue(report.getText().startsWith("There are 1 failed checks"));
         assertTrue(report.getText().contains("Grumbling check"));
-        // The successful checks are not listed
-        assertFalse(report.getText().contains("Fine check"));
+        assertFalse(report.getText().contains("Fine check"), "A passing check is not listed");
     }
 
     @Test
@@ -103,7 +102,7 @@ class HealthCheckStatusReporterTest
         configure(check("Buggy check", Result.Status.HEALTH_CHECK_ERROR));
         assertEquals(StatusReport.Status.ERROR, this.reporter.report(true).getStatus());
 
-        // The worst failure decides the report status, regardless of the order the checks are reported in
+        // The worst failure decides the level, whatever order the checks come in
         configure(check("Grumbling check", Result.Status.WARN), check("Broken check", Result.Status.CRITICAL));
         assertEquals(StatusReport.Status.ERROR, this.reporter.report(true).getStatus());
         configure(check("Broken check", Result.Status.CRITICAL), check("Grumbling check", Result.Status.WARN));

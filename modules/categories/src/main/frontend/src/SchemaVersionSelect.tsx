@@ -28,9 +28,9 @@ import type { JcrNode } from "./categoryModel";
 
 // One selectable schema version.
 interface VersionOption {
-  // The jcr:uuid stored in the category's schemaVersion REFERENCE
+  // The `jcr:uuid`, which the category's `schemaVersion` stores
   uuid: string;
-  // The version label, e.g. "1.0"
+  // The version label, such as "1.0"
   version: string;
   // The names of the tags placed on it, its lifecycle state among them
   tags: string[];
@@ -57,8 +57,8 @@ const isType = (value: unknown, primaryType: string): value is JcrNode =>
 const tagsOf = (node: JcrNode): string[] =>
   Array.isArray(node.tags) ? node.tags.filter((tag): tag is string => typeof tag === "string") : [];
 
-// Parses the /Schemas serialization into selectable groups: one group per schema, one option per
-// version. Versions without an identifier cannot be referenced and are skipped.
+// Parses the JSON of /Schemas into one group per schema and one option per version. A version
+// without a `jcr:uuid` cannot be referenced and is skipped, and so is a schema left with no versions.
 const parseSchemas = (homepage: JcrNode): SchemaGroup[] =>
   Object.entries(homepage)
     .filter(([, schema]) => isType(schema, "sch:Schema"))
@@ -83,8 +83,7 @@ const parseSchemas = (homepage: JcrNode): SchemaGroup[] =>
     .filter(group => group.versions.length > 0);
 
 // A picker for the schema version a category is bound to, listing every version of every schema
-// defined under /Schemas, grouped by schema. The "None" choice leaves the category without a
-// binding, deferring its submissions to the default handling.
+// under /Schemas, grouped by schema. "None" leaves the category unbound.
 function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
   const [ groups, setGroups ] = useState<SchemaGroup[]>([]);
   const [ loading, setLoading ] = useState(true);
@@ -92,8 +91,7 @@ function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
   const authenticatedFetch = useAuthenticatedFetch();
 
   useEffect(() => {
-    // The `simple` selector summarizes each schema version: without it the picker downloads every
-    // version's whole requirement subtree, and its dereferenced workflow, to list version labels
+    // `simple` cuts each version to its own properties
     authenticatedFetch("/Schemas.deep.simple.json")
       .then(response => response.ok
         ? readJson<JcrNode>(response)
@@ -106,7 +104,7 @@ function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
       .finally(() => setLoading(false));
   }, [authenticatedFetch]);
 
-  // A Select requires its options as a flat list, so subheaders and items are collected together
+  // A Select takes its options as one flat list, subheaders included
   const items: ReactNode[] = [
     <MenuItem key="none" value="">
       <em>None &mdash; default handling</em>
@@ -132,8 +130,8 @@ function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
       );
     });
   });
-  // Keep an unknown current binding selectable instead of letting the Select reject its value,
-  // e.g. when the bound version's schema was removed from under it
+  // A bound version the list does not hold, such as one whose schema is no longer under /Schemas,
+  // stays selectable, so that the Select keeps the value
   if (value && !groups.some(group => group.versions.some(version => version.uuid === value))) {
     items.push(<MenuItem key="current" value={value}>Current binding</MenuItem>);
   }

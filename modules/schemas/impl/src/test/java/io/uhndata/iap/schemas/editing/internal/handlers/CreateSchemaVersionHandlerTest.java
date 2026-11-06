@@ -79,7 +79,6 @@ class CreateSchemaVersionHandlerTest
         this.handler.execute(task);
 
         assertEquals("1.0", this.fixture.get("/Schemas/study/v1").getValueMap().get("version"));
-        // What follows, e.g. marking it as a draft, acts on the new version
         assertEquals("/Schemas/study/v1", task.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
     }
 
@@ -97,7 +96,6 @@ class CreateSchemaVersionHandlerTest
     @Test
     void numbersPastAVersionDiscardedFromTheMiddle() throws WorkflowException, PersistenceException
     {
-        // With v2 gone, counting what is left would make a second v3
         final Resource schema = this.fixture.schema("study");
         this.fixture.version(schema, "v1", "retired");
         this.fixture.version(schema, "v3", "active");
@@ -110,7 +108,7 @@ class CreateSchemaVersionHandlerTest
     @Test
     void numbersByTheNamesAlone() throws WorkflowException, PersistenceException
     {
-        // Named by hand as an import may, named without a number, and labelled freely, which counts for nothing
+        // Named 1.0, pilot and v2, with v2 labelled 2026: only the numbers in the names count
         final Resource schema = this.fixture.schema("study");
         this.fixture.create(schema.getPath(), "1.0", "sch:SchemaVersion", Map.of("version", "1.0"));
         this.fixture.create(schema.getPath(), "pilot", "sch:SchemaVersion", Map.of("version", "Pilot"));

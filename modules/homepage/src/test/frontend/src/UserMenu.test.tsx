@@ -21,8 +21,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import UserMenu from "@iap/homepage/UserMenu";
 import { STORE_KEY, getActivePersona } from "@iap/ui-extension/personas";
 
-// Answers the two Sling endpoints the menu consults: the session info (who is logged in) and
-// the user's properties (their full name).
+// Answers the two Sling endpoints the menu reads: the session info, with the username, and the
+// user's properties, with the full name
 const stubUserEndpoints = (userId: string, userProperties: Record<string, unknown> = {}) =>
   vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
     ok: true,
@@ -33,7 +33,7 @@ const stubUserEndpoints = (userId: string, userProperties: Record<string, unknow
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  // The active persona is held on `window`; reset it so tests don't inherit each other's choice.
+  // The active persona is kept on `window`, which would carry it into the next test
   Reflect.deleteProperty(window, STORE_KEY);
 });
 
@@ -43,8 +43,6 @@ describe("UserMenu", () => {
 
     render(<UserMenu />);
 
-    // The initials render only after the two chained fetches resolve; a coverage-instrumented
-    // run on a loaded machine can outlast the default 1s waiting window, so allow extra room.
     expect(await screen.findByText("JD", {}, { timeout: 5000 })).toBeInTheDocument();
   });
 
@@ -70,7 +68,7 @@ describe("UserMenu", () => {
   });
 
   it("renders nothing while the user is unknown", () => {
-    // A fetch that never resolves keeps the user unidentified
+    // A fetch that never ends
     vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
 
     const { container } = render(<UserMenu />);
@@ -106,7 +104,6 @@ describe("UserMenu", () => {
 
     const { container } = render(<UserMenu />);
 
-    // A blank user name leaves the menu unrendered altogether
     await waitFor(() => { expect(container).toBeEmptyDOMElement(); });
   });
 
@@ -132,7 +129,7 @@ describe("UserMenu", () => {
 
     render(<UserMenu />);
 
-    // The initials still come from the user name, and the menu offers no full name
+    // The initials come from the username, and the menu shows no full name
     expect(await screen.findByText("J")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Account: jdoe" }));
     expect(await screen.findByText("jdoe")).toBeInTheDocument();

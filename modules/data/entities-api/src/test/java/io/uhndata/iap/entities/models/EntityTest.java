@@ -85,8 +85,6 @@ class EntityTest
     @Test
     void inheritsContentProperties()
     {
-        // The key inheritance behavior: an Entity also exposes every accessor defined on its
-        // Content superclass, populated through the same adaptation.
         final Resource resource = this.context.create().resource("/content/entity", Map.of(
             "sling:resourceType", "data/Entity",
             "jcr:created", this.created,
@@ -103,8 +101,6 @@ class EntityTest
     @Test
     void adaptsToParentModel()
     {
-        // A node of a derived type can also be wrapped by the parent Content model, letting callers work
-        // with any resource through the base model when they only need the generic content properties.
         final Resource resource = this.context.create().resource("/content/entity", Map.of(
             "sling:resourceType", "data/Entity",
             "jcr:created", this.created,
@@ -112,7 +108,6 @@ class EntityTest
         final Content content = resource.adaptTo(Content.class);
 
         assertNotNull(content);
-        // Adapting to the parent class yields the parent model, not the derived one
         assertEquals(Content.class, content.getClass());
         assertEquals("/content/entity", content.getPath());
         assertEquals("data/Entity", content.getType());
@@ -123,8 +118,6 @@ class EntityTest
     @Test
     void toleratesMissingOptionalMetadata()
     {
-        // A node with none of the optional metadata still adapts, and both the entity-specific and
-        // the inherited getters return null rather than failing the adaptation.
         final Resource resource = this.context.create().resource("/content/bare",
             "sling:resourceType", "data/Entity");
         final Entity entity = resource.adaptTo(Entity.class);

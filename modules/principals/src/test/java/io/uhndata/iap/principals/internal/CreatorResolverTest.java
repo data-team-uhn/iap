@@ -37,8 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link CreatorResolver}: the recorded human first, the repository's answer second, nobody for a
- * resource nothing raised.
+ * Tests for {@link CreatorResolver}: {@code createdBy} first, then {@code jcr:createdBy}, else nobody.
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,8 +61,6 @@ class CreatorResolverTest
         assertEquals(PrincipalService.CREATOR_SPECIAL_NAME, this.resolver.getName());
     }
 
-    // The engine writes everything as its own service user, so jcr:createdBy names the machinery; the human the
-    // engine recorded is the answer
     @Test
     void prefersTheRecordedHumanOverTheRepositoryWriter()
     {
@@ -74,7 +71,6 @@ class CreatorResolverTest
         assertEquals(List.of("alice"), this.resolver.resolve(PrincipalContext.about(subject)));
     }
 
-    // Content somebody wrote directly has no separate record, and the repository's own answer is the right one
     @Test
     void fallsBackToTheRepositoryWriterOnContent()
     {
@@ -84,7 +80,6 @@ class CreatorResolverTest
         assertEquals(List.of("bob"), this.resolver.resolve(PrincipalContext.about(subject)));
     }
 
-    // A resource that is not content at all may still carry an explicit record
     @Test
     void readsAPlainResourcesOwnRecord()
     {
@@ -107,7 +102,7 @@ class CreatorResolverTest
         assertTrue(this.resolver.resolve(PrincipalContext.actedBy("alice")).isEmpty());
     }
 
-    // In a context with no model registry at all, adaptation itself answers nothing
+    // A Mockito resource, since sling-mock adapts any resource to Content
     @Test
     void readsTheRecordWhenTheModelCannotAdapt()
     {

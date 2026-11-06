@@ -22,27 +22,27 @@ import { readJson } from "./requestFailure";
 
 const ASSET_PREFIX = "asset:";
 
-// The assets map, from simple asset name to the contenthashed real path
+// The asset map, from an asset name to its file name under /libs/iap/resources, which carries a
+// content hash
 let assetsJson: Record<string, string> | null = null;
-// If there is an ongoing request for the assets JSON, cache it to only have one request sent
+// The request for the asset map while it runs, so that only one is sent
 let assetsJsonRequest: Promise<Record<string, string> | undefined> | null = null;
-// The assets dependencies map, from an asset name to an array of other asset names it depends on
+// The dependency map, from an asset name to the asset URLs it depends on
 let assetDependenciesJson: Record<string, string[]> | null = null;
-// If there is an ongoing request for the asset dependencies JSON, cache it to only have one request sent
+// The request for the dependency map while it runs, so that only one is sent
 let assetDependenciesJsonRequest: Promise<Record<string, string[]> | undefined> | null = null;
-// A cache, mapping between asset URLs to modules loaded from the sources
+// The loaded modules, by the URL they were fetched from
 const modules: Record<string, unknown> = {};
-// A cache, mapping between asset URLs to React components loaded from the sources
+// The loaded components, by the asset URL they were asked for with
 const assets: Record<string, unknown> = {};
 // The assets whose dependencies are currently being resolved, so that a dependency cycle is
 // followed once rather than forever
 const loading = new Set<string>();
 
-// Retrieves the JSON containing the mapping between a simple asset name and its actual node name, including a content hash.
-// This is an asynchronous function, it will return a Promise that resolves to the actual JSON.
-// At the moment, the JSON is only fetched once and reused, but this may change if live code update will be incorporated.
+// The asset map, fetched once and kept. After a failure, which is logged, the next call fetches it
+// again.
 //
-// @return a Promise that will resolve to the actual asset mapping JSON
+// @return the asset map; undefined if it could not be loaded
 const getAssetsJson = async function(): Promise<Record<string, string> | undefined> {
   if (!assetsJson) {
     assetsJsonRequest ??= fetch("/libs/iap/resources/assets.json")
@@ -55,19 +55,17 @@ const getAssetsJson = async function(): Promise<Record<string, string> | undefin
   return assetsJson;
 };
 
-// Retrieves the JSON containing the asset dependencies.
-// This is an asynchronous function, it will return a Promise that resolves to the actual JSON.
-// At the moment, the JSON is only fetched once and reused, but this may change if live code update will be incorporated.
+// The dependency map, fetched once and kept.
 //
-// @return a Promise that will resolve to the actual asset dependencies JSON
+// @return the dependency map; undefined if it could not be loaded
 const getAssetDependenciesJson = async function(): Promise<Record<string, string[]> | undefined> {
   if (!assetDependenciesJson) {
     assetDependenciesJsonRequest ??= fetch("/libs/iap/resources/assetDependencies.json")
       .then(response => response.ok ? readJson<Record<string, string[]>>(response) : Promise.reject(new Error(`Failed to load assetDependencies.json: ${response.status}`)))
       .then(json => assetDependenciesJson = json)
       .catch((_e: unknown) => {
-        // A missing manifest just means no dependencies are declared; remember it as an empty
-        // map, so that it isn't re-fetched (and re-logged) on every single asset load.
+        // A missing map means no asset declares dependencies. It is kept as an empty map, so that
+        // it is not fetched again for every asset.
         assetDependenciesJson = {};
         return undefined;
       })
@@ -77,13 +75,10 @@ const getAssetDependenciesJson = async function(): Promise<Record<string, string
   return assetDependenciesJson;
 };
 
-// Get the base name of an asset, by removing the (optional) "asset:" prefix, and the (optional) query parameters.
-// If the asset URL starts with `asset:`, this prefix is removed.
-// If the asset URL contains query parameters, they are removed.
-// Otherwise, the asset URL is returned as-is as the asset name.
+// The name of an asset, without the `asset:` prefix and the query parameters, if it has them.
 //
-// @param {string} assetURL the asset to resolve, may be an actual asset name, or a special `asset:`-prefixed string followed by the asset name
-// @return a string, the asset name
+// @param {string} assetURL an asset name, or `asset:` followed by an asset name
+// @return the asset name, such as "iap-commons.404.js"
 const getAssetName = function(assetURL: string): string {
   let assetName = assetURL;
   if (assetName.startsWith(ASSET_PREFIX)) {
@@ -95,13 +90,11 @@ const getAssetName = function(assetURL: string): string {
   return assetName;
 }
 
-// Get the actual URL where an asset can be fetched from.
-// This is an asynchronous function, it will return a Promise that resolves to the actual URL to use.
-// If the asset URL starts with `asset:`, then it is interpreted as an asset with a content hash in its actual URL, and will be resolved from the `assets.json` resource.
-// Otherwise, the asset URL is returned as-is.
+// The URL an asset is fetched from. An `asset:` URL is looked up in the asset map, which gives the
+// file name with its content hash. Any other URL is returned as it is.
 //
-// @param {string} assetURL the asset to resolve, may be an actual URL, or a special `asset:`-prefixed string followed by the asset name
-// @return a Promise that will resolve to the actual URL to use
+// @param {string} assetURL a URL, or `asset:` followed by an asset name
+// @return the URL to fetch; an empty string if the asset is unknown or the asset map could not be loaded
 const getAssetURL = async function(assetURL: string): Promise<string> {
   if (!assetURL.startsWith(ASSET_PREFIX)) {
     return assetURL;
@@ -118,23 +111,20 @@ const getAssetURL = async function(assetURL: string): Promise<string> {
     });
 }
 
-// Get the (optional) dependencies needed by an asset.
-// This is an asynchronous function, it will return a Promise that resolves to the actual dependencies.
-// Dependencies are returned as a list of asset URLs.
-// If there are no dependencies, an empty array is returned.
+// The assets an asset depends on.
 //
-// @param {string} assetURL the asset to check, as a resource name like "iap-dataentry.Subjects.js"
-// @return a Promise that will resolve to the actual list of dependencies, or an empty array if there are no dependencies
+// @param {string} assetURL an asset name, such as "iap-commons.404.js", or `asset:` followed by one
+// @return the asset URLs of its dependencies; empty if it has none
 const getAssetDependencies = async function(assetURL: string): Promise<string[]> {
   const assetName = getAssetName(assetURL);
   return getAssetDependenciesJson()
     .then(json => json?.[assetName] ?? []);
 }
 
-// Get the URL parameters from the provided URL or asset URL string.
+// The query parameters of a URL.
 //
-// @param {string} assetURL the URL to extract the parameters from, potentially prefixed with ASSET_PREFIX
-// @return a URLSearchParams object containing the parameters from the input, or an empty URLSearchParams if the original URL didn't have any query parameters
+// @param {string} assetURL a URL, or `asset:` followed by an asset name
+// @return the query parameters; empty if the URL has none
 const getURLParameters = (assetURL: string): URLSearchParams => {
   if (!assetURL.includes("?")) {
     return new URLSearchParams();
@@ -142,40 +132,37 @@ const getURLParameters = (assetURL: string): URLSearchParams => {
   return new URLSearchParams(assetURL.slice(assetURL.indexOf("?") + 1));
 }
 
-// Fetch a module from a URL.
-// This is an asynchronous function, it will return a Promise that resolves to the actual module.
-// The module will be cached, once loaded, further calls to it will return the same module.
+// Fetches and evaluates a module, once. Later calls return the same module.
 //
-// @param {string} assetURL the asset to load, may be an actual URL, or a special `asset:`-prefixed string followed by the asset name
-// @return a Promise that will resolve to the actual module
+// @param {string} assetURL a URL, or `asset:` followed by an asset name
+// @return the module; null if the asset is unknown
 const loadModule = async function(assetURL: string): Promise<unknown> {
   const realURL = await getAssetURL(assetURL);
-  // If the URL is empty, return
+  // An unknown asset
   if (realURL === "") {
     return null;
   }
   return modules[realURL] ??= await import(/* webpackIgnore: true */realURL);
 };
 
-// Load a React component from a URL.
-// This is an asynchronous function, it will return a Promise that resolves to the actual component.
-// The component will be cached, once loaded, further calls to it will return the same component.
+// Loads a component from an asset, after the assets it depends on. It is loaded once, and later calls
+// return the same component.
 //
-// @param {string} assetURL the asset to load, may be an actual URL, or a special `asset:`-prefixed string followed by the asset name
-// @return a Promise that will resolve to the actual component
+// @param {string} assetURL a URL, or `asset:` followed by an asset name; a `component` query
+//     parameter names the export to take
+// @return the module's default export, or the export the `component` parameter names; null if the
+//     asset is unknown
 const loadAsset = async function(assetURL: string): Promise<unknown> {
   if (process.env.NODE_ENV == 'production') {
     if (assetURL == 'asset:iap-login.ReLoginDialog.js') {
-      // In production mode, this is already embedded in the top level script and does not need to be loaded
+      // In production, the page's own script holds this dialog
       return;
     }
   }
   if (!assets[assetURL]) {
     const dependencies = await getAssetDependencies(assetURL);
-    // Declared dependencies are followed recursively, so a cycle between them (whether declared by
-    // mistake or by two assets that genuinely need each other) would recurse until the tab dies.
-    // Assets already being loaded further up the chain are skipped: whoever started them is the one
-    // that awaits them.
+    // Dependencies load recursively, so a cycle between them would never end. An asset already
+    // loading further up the chain is skipped, and the call that started it awaits it.
     loading.add(assetURL);
     try {
       await Promise.all(dependencies
@@ -200,15 +187,11 @@ const loadAsset = async function(assetURL: string): Promise<unknown> {
   return assets[assetURL];
 };
 
-// Renders a component loaded on demand from an `asset:` URL, only once actually mounted.
-// Useful for a `?lazy` asset (see `loadRemoteComponents` in extensionManager.ts): instead
-// of a consumer having to fetch and evaluate such an asset itself, rendering <LazyAsset>
-// defers the fetch to whenever it is actually mounted - e.g. only once a matching route
-// is navigated to, when used as a route's element. Nothing is rendered until the asset
-// resolves; all props other than `url` are forwarded to the loaded component.
+// Renders a component from an asset, which is fetched only once this is mounted, such as when its
+// route is first visited. Nothing renders until the asset loads, nor after a failure, which is logged.
 //
-// @param {string} url the asset to load, may be an actual URL, or a special `asset:`-prefixed string followed by the asset name
-// @param {object} props any additional props, forwarded to the loaded component once resolved
+// @param {string} url a URL, or `asset:` followed by an asset name
+// @param {object} props the props for the loaded component
 function LazyAsset({ url, ...props }: { url: string, [prop: string]: unknown }) {
   const [ Component, setComponent ] = useState<ComponentType<Record<string, unknown>> | null>(null);
 

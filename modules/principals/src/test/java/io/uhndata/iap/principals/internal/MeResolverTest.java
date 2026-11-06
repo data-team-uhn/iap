@@ -49,8 +49,6 @@ class MeResolverTest
         assertEquals(List.of("alice"), this.resolver.resolve(PrincipalContext.actedBy("alice")));
     }
 
-    // A timer or a scheduled sweep acts for nobody, and the honest answer is nobody rather than the service user
-    // the machinery happens to run as
     @Test
     void standsForNobodyWhenNobodyIsActing()
     {

@@ -54,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Switching the catcher on and off writes the one setting that already governs it.
+ * Tests for {@link CatcherToggleServlet}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -72,7 +72,7 @@ class CatcherToggleServletTest
 
     private PrincipalService principals;
 
-    /** What the caller's resolver adapts to, so that a test can decide what the user store says. */
+    /** The session the caller's resolver adapts to, which decides what the user manager says. */
     private Session session;
 
     @BeforeEach
@@ -101,13 +101,10 @@ class CatcherToggleServletTest
     }
 
     /**
-     * A resolver that knows who is asking.
+     * The context's resolver, with a user id. The mock resolver has none, and the servlet refuses a caller with
+     * no user id.
      *
-     * <p>
-     * The mock resource resolver has no user id, and the guard refuses a caller with no name.
-     * </p>
-     *
-     * @return the context's resolver, answering for somebody
+     * @return the resolver of {@code an-administrator}
      */
     private ResourceResolver asSomebody()
     {
@@ -118,9 +115,9 @@ class CatcherToggleServletTest
     }
 
     /**
-     * Make the user store answer for the caller.
+     * Sets what the user manager answers for the caller.
      *
-     * @param authorizable what {@code getAuthorizable} returns for them, {@code null} for nobody
+     * @param authorizable what {@code getAuthorizable} returns for the caller; {@code null} for an unknown user
      * @throws RepositoryException never, but the stubbed methods declare it
      */
     private void userStoreReturns(final Authorizable authorizable) throws RepositoryException
@@ -131,9 +128,9 @@ class CatcherToggleServletTest
     }
 
     /**
-     * A session that answers for the caller and hands out the given user store.
+     * A session of the caller, with the given user manager.
      *
-     * @param users the user store, or {@code null} to leave {@code getUserManager} unstubbed
+     * @param users the user manager; {@code null} to leave {@code getUserManager} unstubbed
      * @return the session the caller's resolver will adapt to
      * @throws RepositoryException never, but the stubbed methods declare it
      */
@@ -224,7 +221,6 @@ class CatcherToggleServletTest
     @Test
     void refusesARequestThatCarriesNoIdentityAtAll() throws IOException
     {
-        // Refused without asking the principal service.
         final MockSlingJakartaHttpServletRequest request =
             new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(),
                 this.context.bundleContext());
@@ -281,7 +277,6 @@ class CatcherToggleServletTest
     @Test
     void admitsTheRepositorySuperuserWhoBelongsToNoGroup() throws Exception
     {
-        // `iap-administrators` ships empty, so on a fresh instance the superuser is the only account.
         final User superuser = Mockito.mock(User.class);
         Mockito.when(superuser.isAdmin()).thenReturn(true);
         userStoreReturns(superuser);
@@ -328,7 +323,7 @@ class CatcherToggleServletTest
         Mockito.when(jackrabbit.getUserManager()).thenThrow(new RepositoryException("no store"));
         this.session = jackrabbit;
 
-        // Still allowed: the group check is stubbed to admit them.
+        // The group check is stubbed to admit them
         final MockSlingJakartaHttpServletResponse response = post(Map.of("enabled", "true"));
 
         assertEquals(200, response.getStatus());

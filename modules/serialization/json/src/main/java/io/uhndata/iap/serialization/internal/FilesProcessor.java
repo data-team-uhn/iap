@@ -35,11 +35,11 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 import io.uhndata.iap.utils.DateUtils;
 
 /**
- * Serialize {@code nt:file} children as a small download descriptor — the file's path (which, requested directly,
- * streams the file itself), name, content type, size and modification date — instead of descending into them, which
- * would dump the raw binary content into the JSON. Runs before the {@code deep} processor, which leaves the already
- * serialized value untouched. The name of this processor is {@code files}, and it is enabled by default; disable it
- * with the {@code -files} selector to get the raw node structure back.
+ * Keeps the content of a file out of the JSON. A {@code jcr:content} child of type {@code nt:resource} is written as
+ * its path, so its binary {@code jcr:data} is never serialized. An {@code nt:file} gets its content's
+ * {@code jcr:mimeType}, its {@code size} in bytes and its {@code jcr:lastModified} as its own keys. The name of this
+ * processor is {@code files}, and it is enabled by default. With {@code -files}, {@code deep} serializes the binary
+ * with the rest of the content node.
  *
  * @version $Id$
  * @since 0.1.0
@@ -73,7 +73,6 @@ public class FilesProcessor implements ResourceJsonProcessor
     public JsonValue processChild(final Node node, final Node child, final JsonValue input,
         final Function<Node, JsonValue> serializeNode)
     {
-        // Another processor already serialized this child, leave its result in place
         if (input != null) {
             return input;
         }

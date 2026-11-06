@@ -28,7 +28,7 @@ import io.uhndata.iap.schemas.editing.internal.PartNames;
 import io.uhndata.iap.schemas.models.Question;
 
 /**
- * A utility class for the schema validity checks: finding the parts of a draft they inspect, and naming a part in a
+ * What the schema validity checks share: finding the parts of a draft they inspect, and naming a part in a
  * problem.
  *
  * @version $Id$
@@ -48,11 +48,11 @@ final class DraftParts
     }
 
     /**
-     * The parts of a version of one node type, in the order they are presented.
+     * The nodes of one node type anywhere in a version, in the order they are presented.
      *
-     * @param version the version
-     * @param nodeType the node type, e.g. {@code sch:Question}
-     * @return the parts, possibly none
+     * @param version the schema version
+     * @param nodeType the primary node type, such as {@code sch:Question}
+     * @return the nodes; empty if the version holds none
      */
     static Stream<Resource> ofType(final Resource version, final String nodeType)
     {
@@ -60,9 +60,9 @@ final class DraftParts
     }
 
     /**
-     * A question part as its model.
+     * A question, read as its model.
      *
-     * @param part a part of type {@code sch:Question}
+     * @param part a node of type {@code sch:Question}
      * @return the model
      */
     static Question asQuestion(final Resource part)
@@ -72,12 +72,11 @@ final class DraftParts
     }
 
     /**
-     * How to call a part in a problem: by what the submitter reads, or by its path in the version when that is
-     * blank.
+     * How a problem names a part, as {@link PartNames} does.
      *
      * @param part the part
-     * @param version the version it belongs to
-     * @return a name to put in a sentence
+     * @param version the schema version it belongs to
+     * @return the part's text, label or title in quotes, or else its path within the version
      */
     static String describe(final Resource part, final Resource version)
     {
@@ -86,10 +85,10 @@ final class DraftParts
     }
 
     /**
-     * The part a condition belongs to: the nearest ancestor that is not part of the condition itself.
+     * The part a condition belongs to: the nearest ancestor that is not a node of the condition itself.
      *
-     * @param conditionPart a node of a condition
-     * @return the part the condition decides about
+     * @param conditionPart a node of a condition, such as a {@code cond:ConditionOperand}
+     * @return the part whose condition it is
      */
     static Resource conditioned(final Resource conditionPart)
     {

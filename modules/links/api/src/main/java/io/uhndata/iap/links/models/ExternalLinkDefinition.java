@@ -29,10 +29,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A Sling Model wrapping an {@code link:ExternalDefinition} node: a type of link recording a value that means
- * something outside this repository — an identifier in another system — instantiated as {@link ExternalLink}s.
- * There is no target the repository can resolve, so what a definition says here is about the value itself: what
- * a valid one looks like, and how to turn it into an address somebody can follow.
+ * A type of link that records a value naming something outside this repository, such as an identifier in another
+ * system. It is defined by a {@code link:ExternalDefinition} node, and its links are {@link ExternalLink}s. It says
+ * what a valid value looks like, and how to turn one into an address.
  *
  * @version $Id$
  * @since 0.1.0
@@ -42,7 +41,7 @@ import org.jetbrains.annotations.Nullable;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class ExternalLinkDefinition extends LinkDefinition
 {
-    /** The {@code sling:resourceType} of an {@code link:ExternalDefinition} node. */
+    /** The resource type of {@code link:ExternalDefinition}. */
     public static final String RESOURCE_TYPE = "link/ExternalDefinition";
 
     @ValueMapValue
@@ -59,9 +58,9 @@ public class ExternalLinkDefinition extends LinkDefinition
     }
 
     /**
-     * An optional regular expression that recorded values must fully match.
+     * A regular expression every recorded value must match in full.
      *
-     * @return a regular expression, or {@code null} if values are unrestricted
+     * @return the expression; {@code null} if any value is accepted
      */
     @Nullable
     public String getValuePattern()
@@ -70,10 +69,10 @@ public class ExternalLinkDefinition extends LinkDefinition
     }
 
     /**
-     * An optional URL template turning the recorded value into a navigable address, with {@code {value}}
-     * standing for the recorded value.
+     * A template that turns a recorded value into an address, with {@code {value}} standing for the value, such as
+     * {@code https://ehr.example.org/chart/{value}}.
      *
-     * @return a template, or {@code null} if values are not navigable
+     * @return the template; {@code null} if the values have no address
      */
     @Nullable
     public String getUrlTemplate()
@@ -82,11 +81,10 @@ public class ExternalLinkDefinition extends LinkDefinition
     }
 
     /**
-     * Whether a value may be recorded as a link of this type. The rule belongs to the definition rather than to
-     * whoever is creating the link, so that every route into the repository applies the same one.
+     * Whether a value may be recorded as a link of this type.
      *
-     * @param value the value a caller wants to record
-     * @return {@code true} if the type places no restriction, or the value satisfies it
+     * @param value the value to record
+     * @return {@code true} if the definition sets no value pattern, or the value matches it in full
      */
     public boolean accepts(@Nullable final String value)
     {

@@ -63,8 +63,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Checks the shipped system workflows: every one is administrative and uses only known steps, and their guards
- * make up the schema lifecycle, each event in each state answered by exactly the workflow meant for it.
+ * Checks the shipped system workflows. Each admits administrators only and uses known steps. Their guards make up the
+ * schema lifecycle: in each state, each event starts the one workflow meant for it, or none.
  *
  * @version $Id$
  * @since 0.1.0
@@ -165,7 +165,7 @@ class SystemWorkflowDefinitionsTest
     {
         assertEquals(Set.of("reactivateSchemaVersion"), answering(VERSION, "activate", RETIRED, NONE));
         assertEquals(Set.of(), answering(VERSION, "activate", RETIRED, RETIRED));
-        // Retired only through its schema, which is what reopening the schema is for
+        // Retired only through its schema, which reopening the schema undoes
         assertEquals(Set.of(), answering(VERSION, "activate", NONE, RETIRED));
         assertEquals(Set.of(), answering(VERSION, "retire", RETIRED, NONE));
         assertEquals(Set.of("updatePublishedSchemaVersion"), answering(VERSION, "update", RETIRED, NONE));
@@ -280,7 +280,7 @@ class SystemWorkflowDefinitionsTest
         }
         assertEquals(3, patterns.size());
         assertEquals(Set.of("^[A-Za-z0-9][A-Za-z0-9_-]*$"), Set.copyOf(patterns));
-        // The hint the editor shows, for creating and renaming alike
+        // The create workflows say the same rule in words
         assertEquals(2, hints.size());
         assertEquals(Set.of("Letters, digits, - and _, starting with a letter or a digit."), Set.copyOf(hints));
     }
@@ -297,7 +297,7 @@ class SystemWorkflowDefinitionsTest
     @Test
     void anOptionMovesOnlyAmongTheOptionsOfItsQuestion() throws IOException, URISyntaxException
     {
-        // In another question it could repeat a value there, or join options that question takes from elsewhere
+        // In another question, it could repeat a value, or join a question that takes its options from elsewhere
         final Path move = definitions().get(0).resolveSibling("moveAnswerOption.json");
         assertEquals("sch/Question", read(move).getJsonObject("v1").getJsonObject("move").getString("within"));
         assertEquals("sch/SchemaVersion", read(move.resolveSibling("moveSchemaPart.json")).getJsonObject("v1")
@@ -384,8 +384,8 @@ class SystemWorkflowDefinitionsTest
     }
 
     /**
-     * A definition as the repository would store it, where every node carries the resource type its node type
-     * autocreates: the mock repository has no node types to do that.
+     * A definition as Oak would store it, where every node carries the resource type its node type autocreates. The
+     * mock repository has no node types to do that.
      *
      * @param node a node of the definition
      * @return the same, with resource types

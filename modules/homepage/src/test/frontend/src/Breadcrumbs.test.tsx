@@ -29,8 +29,7 @@ vi.mock("@iap/frontend-commons/routes", () => ({
 
 const mockedGetRoutes = vi.mocked(getRoutes);
 
-// The registered views as the extension mechanism returns them; only the routing-relevant
-// properties matter to the breadcrumb trail.
+// The views, with only the properties the trail reads
 const views = [
   { "ext:name": "Dashboard", "ext:targetURL": "/" },
   { "ext:name": "Administration", "ext:targetURL": "/admin" },
@@ -48,9 +47,8 @@ const renderAt = (url: string) => render(
 );
 
 describe("Breadcrumbs", () => {
-  // A block body on purpose: the arrow shorthand returns the mock, and Vitest takes a function
-  // returned from a hook to be a teardown callback -- so it would call getRoutes() again after
-  // every test, which goes unnoticed until an implementation rejects and nothing is listening.
+  // A block body, because the shorthand would return the mock. Vitest calls a function returned
+  // from a hook after each test, as its teardown.
   beforeEach(() => { mockedGetRoutes.mockResolvedValue(views); });
 
   it("renders nothing on the home page", async () => {
@@ -72,7 +70,6 @@ describe("Breadcrumbs", () => {
 
     const crumb = await screen.findByRole("link", { name: "Administration" });
     expect(crumb).toHaveAttribute("href", "/admin");
-    // The current page itself is not part of the trail - its title is the page heading
     expect(screen.queryByText("Submission categories")).not.toBeInTheDocument();
   });
 
@@ -98,7 +95,7 @@ describe("Breadcrumbs", () => {
     await waitFor(() => expect(screen.queryByRole("link", { name: "Clinical study" })).not.toBeInTheDocument());
   });
 
-  // The path carries three bucket segments that are not pages, and all three match /Submissions/*
+  // /Submissions/* matches /Submissions and the three folders under it, and none of them is a page
   it("puts no crumb on the buckets a treed submission is filed under", async () => {
     const { container } = renderAt("/Submissions/95/21/a8/6f3c1e2a-0b44-4d21-9a77-51e0c9d3b8fa");
 
@@ -106,7 +103,7 @@ describe("Breadcrumbs", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  // Both targets match, and which one `find` reaches first is the order the extensions came back in
+  // Both /admin/archive and /admin/archive/* match the ancestor /admin/archive
   it("names an ancestor after its own page, not after the view detailing one of its children", async () => {
     renderAt("/admin/archive/6f3c1e2a");
 
@@ -115,7 +112,7 @@ describe("Breadcrumbs", () => {
   });
 
   it("skips ancestors that have no registered view, e.g. views the user cannot read", async () => {
-    // A user who cannot read the Administration view only gets the other views served
+    // Served to a user who cannot read the Administration view
     mockedGetRoutes.mockResolvedValue(views.filter(view => view["ext:targetURL"] !== "/admin"));
 
     const { container } = renderAt("/admin/categories");

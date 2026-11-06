@@ -22,7 +22,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Answers what a given reader may be told about a path that a deletion took away.
+ * What a reader may be told about a path that a deletion took away.
  *
  * @version $Id$
  * @since 0.1.0
@@ -32,21 +32,22 @@ public interface DeletedPathDisclosure
     /**
      * What this reader may be told about the requested path.
      *
-     * @param request the request that 404ed, whose own session decides how much may be disclosed
-     * @param requestedPath the absolute repository path that was asked for
-     * @return what to say, or {@code null} when this reader is to be told nothing: no deletion accounts for the
-     *         path, the archive cannot be consulted, or the reader is entitled to neither answer
+     * @param request the request that failed with a 404, whose resolver decides how much may be disclosed
+     * @param requestedPath the absolute path that was asked for, possibly with selectors and an extension
+     * @return what to tell the reader; {@code null} if no deletion took the path away, if the archive cannot be
+     *         read, or if this reader may be told nothing
      */
     @Nullable
     Disclosure describe(@NotNull SlingJakartaHttpServletRequest request, @NotNull String requestedPath);
 
     /**
-     * What a reader is allowed to learn about one deletion. Words are left to the page. This says what happened,
-     * not how to phrase it, and carries {@code null} for each fact this reader is not entitled to.
+     * What a reader may learn about one deletion. The page chooses the words.
      *
-     * @param deletedAt when the path was deleted, ISO-8601; always present
-     * @param deletedBy who deleted it, only for a reader who can read the archive entry
-     * @param entryUrl where to look at the entry, only for a reader who can read it
+     * @param deletedAt when the path was deleted, as an ISO-8601 timestamp
+     * @param deletedBy the user id of the user who deleted it; {@code null} unless the reader can read the archive
+     *            entry
+     * @param entryUrl the console route of the archive entry's page; {@code null} unless the reader can read the
+     *            entry
      * @version $Id$
      * @since 0.1.0
      */

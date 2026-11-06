@@ -16,25 +16,22 @@
 
 create path (tag:Homepage) /Tags
 
-# Every user needs to know what the tags placed on the resources they can see mean
+# Every user may read what the tags they see mean
 set ACL for everyone
     allow   jcr:read    on /Tags
 end
 
-# The tag manager reads the definitions with its own service user, since they are needed by callers that have no
-# user session at all, e.g. commit hooks and scheduled jobs. Reading the definitions is all it may ever do: every
-# operation on tagged content goes through the caller's own session.
+# The tag manager reads the definitions with its own service user, so a caller needs no session of its own. It may
+# only read them. Every operation on tagged content goes through the caller's own session.
 create service user iap-tags
 
 set ACL for iap-tags
     allow   jcr:read    on /Tags
 end
 
-# Repairing tags means marking content that a tag definition change or a failed computation left stale, and letting
-# the propagation editor recompute it. That needs a user of its own: the one above may only read the definitions,
-# and repair has to reach content anywhere, including content no logged-in user is looking at -- the routine sweep
-# runs on a schedule, with no session to borrow. It is still not a writer in any general sense: it sets one marker
-# property, and the recomputation that follows is the commit hook's work, done with the repository's own rights.
+# The tag repair marks stale content anywhere in the repository for recomputation, on a schedule or on request. It
+# may read anything and set properties, but never create or remove a node. Oak checks the propagation editor's writes
+# against this same user, and they too are only properties.
 create service user iap-tag-repair
 
 set ACL for iap-tag-repair

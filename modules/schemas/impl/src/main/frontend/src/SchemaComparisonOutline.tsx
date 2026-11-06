@@ -35,7 +35,7 @@ import {
 } from "./schemaComparisonModel";
 import { schemaPartTypeOf } from "./schemaPartTypes";
 
-// The theme's colours for what was added or removed, else for what moved, nothing for the rest
+// The palette entry for an added or removed part or option, or else for a moved one. Undefined for the rest.
 const colorsOf = (change: Change, moved = false) => {
   if (change === "added" || change === "removed") {
     return `diff.${change}`;
@@ -188,7 +188,8 @@ function UnchangedRun({ parts, fields, names, at }: Omit<PartListProps, "everyth
   );
 }
 
-// Where a run stands among the runs of its list: first or last of several, or else between others, or alone
+// Where a run stands among the runs of its list: the first or the last of several, or else between. A run alone
+// counts as between.
 const placeOf = (index: number, count: number): keyof typeof UNFOLDING => {
   if (count > 1 && index === 0) {
     return "start";

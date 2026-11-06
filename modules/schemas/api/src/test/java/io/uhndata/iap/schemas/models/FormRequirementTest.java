@@ -94,15 +94,14 @@ class FormRequirementTest
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form",
             "sling:resourceType", FormRequirement.RESOURCE_TYPE);
-        // sling:resourceSuperType is mandatory/autocreated on sch:FormItem in the real CND;
-        // sling-mock doesn't know about the CND, so it must be set explicitly here.
+        // The CND sets sling:resourceSuperType, and sling-mock does not read the CND
         this.context.create().resource("/Schemas/schema/1.0/form/section1", Map.of(
             "sling:resourceType", Section.RESOURCE_TYPE, "sling:resourceSuperType", FormItem.RESOURCE_TYPE,
             "title", "Study details"));
         this.context.create().resource("/Schemas/schema/1.0/form/q1", Map.of(
             "sling:resourceType", Question.RESOURCE_TYPE, "sling:resourceSuperType", FormItem.RESOURCE_TYPE,
             "text", "Does this involve human subjects?"));
-        // Inherited from Requirement: not a FormItem, excluded from getChildren()
+        // A requirement's condition, which is not a form item
         this.context.create().resource("/Schemas/schema/1.0/form/c1",
             "sling:resourceType", SingleCondition.RESOURCE_TYPE);
         final FormRequirement requirement = resource.adaptTo(FormRequirement.class);

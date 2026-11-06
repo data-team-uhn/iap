@@ -41,7 +41,14 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 import io.uhndata.iap.utils.DateUtils;
 
 /**
- * Serialize all node properties. The name of this processor is {@code properties}.
+ * Writes the value of each property as it is stored. The name of this processor is {@code properties}, and it is
+ * enabled by default.
+ *
+ * <p>
+ * A {@code LONG} or {@code DOUBLE} is a JSON number, a {@code BOOLEAN} a JSON boolean, and a {@code DATE} an ISO 8601
+ * string. Every other type is a string, {@code DECIMAL} included, so a decimal keeps its precision. A {@code BINARY}
+ * is a string with one character for each byte, read as ISO 8859-1, so the character's code is the byte's value.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -71,14 +78,9 @@ public class PropertiesProcessor implements ResourceJsonProcessor
     public JsonValue processProperty(final Node node, final Property property, final JsonValue input,
         final Function<Node, JsonValue> serializeNode)
     {
-        // By default this should be the base serializer for properties, but in case someone wants special
-        // serialization for a property, leave the previous value unmodified. For example, to skip serializing extra
-        // large binary content, a processor with a lower priority may already replace the content with a download
-        // link.
         if (input != null) {
             return input;
         }
-        // The default is to simply serialize all properties
         return serializeProperty(property);
     }
 
@@ -91,7 +93,7 @@ public class PropertiesProcessor implements ResourceJsonProcessor
                 return serializeSingleValuedProperty(property);
             }
         } catch (RepositoryException e) {
-            // Not accessible, just return null
+            // The property cannot be read: write it as a JSON null
         }
         return JsonValue.NULL;
     }
@@ -107,7 +109,6 @@ public class PropertiesProcessor implements ResourceJsonProcessor
             case PropertyType.DATE -> serializeDate(value.getDate());
             case PropertyType.DOUBLE -> Json.createValue(value.getDouble());
             case PropertyType.LONG -> Json.createValue(value.getLong());
-            // Decimals are sent as strings to prevent losing precision, like all other value types
             default -> Json.createValue(value.getString());
         };
     }
@@ -124,7 +125,6 @@ public class PropertiesProcessor implements ResourceJsonProcessor
                 case PropertyType.DATE -> arrayBuilder.add(serializeDate(value.getDate()));
                 case PropertyType.DOUBLE -> arrayBuilder.add(value.getDouble());
                 case PropertyType.LONG -> arrayBuilder.add(value.getLong());
-                // Decimals are sent as strings to prevent losing precision, like all other value types
                 default -> arrayBuilder.add(value.getString());
             }
         }
@@ -133,17 +133,15 @@ public class PropertiesProcessor implements ResourceJsonProcessor
 
     private JsonValue serializeDate(final Calendar value)
     {
-        // Use the ISO 8601 date+time format
         return Json.createValue(DateUtils.toString(value));
     }
 
     private JsonValue serializeInputStream(final InputStream value)
     {
         try {
-            // We're supposed to be transforming raw bytes into an Unicode string; ISO 8859-1 is a subset of Unicode
             return Json.createValue(IOUtils.toString(value, StandardCharsets.ISO_8859_1));
         } catch (IOException e) {
-            // Cannot be read, just return null
+            // The binary cannot be read: write it as a JSON null
         }
         return JsonValue.NULL;
     }

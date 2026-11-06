@@ -18,13 +18,10 @@
 
 import { readJson } from "@iap/frontend-commons/requestFailure";
 
-// Client-side access to the tag definitions stored under /Tags: the single source of truth
-// for what a tag means and how it is displayed. See the tags module's TagListServlet for the
-// serving side.
+// Reads the tag definitions under /Tags, which say what each tag means and how it is shown.
 
-// One tag definition, as served by /Tags.search.json. The chip's background, text and border
-// all derive from the one `color`, per the `variant` ("soft" when absent, "outlined", or
-// "filled"); `icon` is a MUI icon name (see tagIcons).
+// One tag definition, as /Tags.search.json serves it. `variant` is "soft" when absent,
+// "outlined" or "filled", and `icon` is a MUI icon name (see tagIcons).
 export interface TagDefinition {
   name: string;
   label?: string;
@@ -35,10 +32,8 @@ export interface TagDefinition {
   category?: string[];
 }
 
-// The tag definitions are stable content, so they are fetched once per category and shared by
-// every consumer on the page; a failed fetch resolves to "no definitions" and consumers show
-// less rather than breaking their surroundings. Alongside the promises, the resolved lists are
-// kept as a synchronous snapshot for consumers that cannot await, like tagValueOptions.
+// The definitions are fetched once per category and shared by everything on the page. The
+// resolved lists are also kept for tagValueOptions, which cannot wait for a promise.
 const definitionCache = new Map<string, Promise<TagDefinition[]>>();
 const resolvedDefinitions = new Map<string, TagDefinition[]>();
 
@@ -71,20 +66,15 @@ export function loadTagDefinitions(
   return cached;
 }
 
-// The choices a data grid column (or any other synchronous consumer) should offer when
-// filtering by a category of tags: the defined tag names, labeled and colored like their
-// definitions (colors are passed through raw; whoever places one into styles is responsible
-// for whitelisting it, like TagChip does). Returns a provider function rather than the
-// values, because the definitions are fetched asynchronously and the grid asks for them
-// synchronously.
+// The choices for filtering by the tags of one category, such as in a data grid column: the
+// defined tag names, with their labels, colors and variants. A color is passed on as stored, and
+// whatever puts it into a style must check it first, as chipStyle does. Returns a function
+// rather than the choices, since the definitions arrive later and the caller asks synchronously.
 //
-// The fetch starts here, as the column is configured, rather than only in the provider: columns
-// are configured when their module loads, long before anyone can open a filter panel, and that is
-// what keeps the snapshot from being empty when it is first read. It matters more than it looks --
-// the grid's multi-select filter input renders only those of its values it finds among the
-// options, so an empty snapshot shows an applied filter as having no values, and the next edit
-// then saves only what was displayed, silently dropping the rest. The provider re-triggers the
-// load too, to recover if the cache was cleared.
+// tagValueOptions starts the fetch itself, so that the choices are there before the returned
+// function is first called. A filter input that finds none of its applied values among the
+// choices shows none, and its next edit saves only what it shows. The returned function fetches
+// again too, in case the cache was cleared.
 export function tagValueOptions(
   category: string
 ): () => { value: string; label: string; color?: string; variant?: string }[] {
@@ -101,7 +91,7 @@ export function tagValueOptions(
   };
 }
 
-// Forgets the fetched definitions; only meant for tests, which stub fetch per test.
+// Forgets the fetched definitions, for tests that stub fetch per test
 export function clearTagDefinitionsCache(): void {
   definitionCache.clear();
   resolvedDefinitions.clear();

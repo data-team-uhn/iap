@@ -73,7 +73,7 @@ public class QueryBuilderTest
             .withFilters(List.of(new Filter("title", "ILIKE", "%CARdiac's%")))
             .build();
         Assertions.assertEquals(BASE_QUERY + " and (LOWER(n.[title]) LIKE $p0)" + ORDER, query.statement());
-        // The lowercasing moved to what gets bound, since the statement no longer holds the value
+        // Lowercased in what is bound
         Assertions.assertEquals(Map.of("p0", "%cardiac's%"), query.bindings());
     }
 
@@ -230,9 +230,6 @@ public class QueryBuilderTest
     @Test
     public void aQuoteInAValueIsBoundRatherThanEscaped()
     {
-        // The value never reaches the statement, so there is nothing to escape and nothing to get wrong. Before
-        // binding, this needed the quote doubling that is JCR-SQL2's only string escape, and a backslash escape
-        // instead was a parse error that turned an ordinary surname into a failed query.
         final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("title", "=", "O'Brien"))).build();
         Assertions.assertEquals(BASE_QUERY + " and (n.[title] = $p0)" + ORDER, query.statement());
@@ -242,8 +239,6 @@ public class QueryBuilderTest
     @Test
     public void fullTextSearchStillEscapesItsOwnGrammar()
     {
-        // Binding removes the string literal's escaping, not the full text grammar's. The grammar is applied to
-        // whatever the variable holds, and a backslash is still doubled to keep the term inert.
         final BoundStatement query =
             new QueryBuilder(SUBMISSION, SCOPE).withFullText("O'Brien \\ ties").build();
         Assertions.assertEquals(BASE_QUERY + " and contains(n.*, $p0)" + ORDER, query.statement());
@@ -253,8 +248,6 @@ public class QueryBuilderTest
     @Test
     public void fullTextSearchIgnoresSurroundingWhitespace()
     {
-        // A full text expression has to start with a term. A leading space fails the whole listing as a bad
-        // request. The space between the words is the parser's own separator and is left as it is.
         Assertions.assertEquals(Map.of("p0", "renal biopsy"),
             new QueryBuilder(SUBMISSION, SCOPE).withFullText("  renal biopsy \t").build().bindings());
     }
@@ -262,8 +255,6 @@ public class QueryBuilderTest
     @Test
     public void fullTextSearchEscapesApostrophesThatWouldOpenAPhrase()
     {
-        // An apostrophe opens a quoted phrase for the full text parser, as the double quote does. A bound value is
-        // handed to that parser as it is. An unescaped apostrophe leaves it looking for a phrase that never ends.
         Assertions.assertEquals(Map.of("p0", "it\\'s"),
             new QueryBuilder(SUBMISSION, SCOPE).withFullText("it's").build().bindings());
     }
@@ -271,8 +262,6 @@ public class QueryBuilderTest
     @Test
     public void fullTextSearchEscapesQuotesThatWouldOpenAPhrase()
     {
-        // The double quote opens a phrase in the full text grammar. An odd number of them leaves one unterminated
-        // and fails the whole query to parse.
         Assertions.assertEquals(Map.of("p0", "2\\\" pipe"),
             new QueryBuilder(SUBMISSION, SCOPE).withFullText("2\" pipe").build().bindings());
     }
@@ -280,8 +269,7 @@ public class QueryBuilderTest
     @Test
     public void fullTextSearchEscapesTheEscapeBeforeTheQuote()
     {
-        // Order matters: doubling the backslashes after escaping the quote turns the escape just added back into a
-        // literal backslash, re-opening the phrase it closed
+        // Doubling the backslashes after escaping the quote would undo the quote's escape
         Assertions.assertEquals(Map.of("p0", "a\\\\\\\" b"),
             new QueryBuilder(SUBMISSION, SCOPE).withFullText("a\\\" b").build().bindings());
     }
@@ -300,9 +288,7 @@ public class QueryBuilderTest
     @Test
     public void onlyTheScopePathIsStillWrittenIntoTheStatement()
     {
-        // isdescendantnode takes a path, not a static operand. JCR-SQL2 accepts no bind variable there, and the
-        // scope path keeps its quote doubling. Every other value is bound, backslash included. A backslash needs no
-        // escaping in a comparison; only the full text grammar makes it mean anything.
+        // A backslash is bound as it is in a comparison. Only the full-text grammar gives it a meaning.
         final BoundStatement query = new QueryBuilder(SUBMISSION, "/Sub'missions")
             .withFilters(List.of(new Filter("title", "=", "It's a \\ test"), new Filter("status", "=", null)))
             .withFullText("some'text")
@@ -333,8 +319,7 @@ public class QueryBuilderTest
     @Test
     public void buildingTwiceRepeatsNeitherTheStatementNorTheBindings()
     {
-        // The bindings are collected per call. A builder reused for a second statement does not accumulate the
-        // first one's variables.
+        // A builder used twice does not carry the first statement's variables into the second
         final QueryBuilder builder = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("owner", "=", "alice")));
         final BoundStatement first = builder.build();
@@ -347,8 +332,6 @@ public class QueryBuilderTest
     @Test
     public void aQueryWithoutAScopeIsRejected()
     {
-        // Only the scope path is still written into the statement. Without one the query would list the whole
-        // repository.
         Assertions.assertThrows(NullPointerException.class, () -> new QueryBuilder(SUBMISSION, null));
     }
 

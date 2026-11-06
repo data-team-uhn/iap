@@ -126,13 +126,13 @@ class TagManagerImplTest
         // An extensibility child of another type, not a tag definition
         this.context.create().resource("/Tags/config",
             TYPE_PROPERTY, "data/Content");
-        // The manager reads the definitions with its own service user, so it needs a resolver factory; the SCR
-        // metadata that would let the mock OSGi runtime inject it is only generated when the bundle is packaged
+        // Set by hand: the SCR metadata the mock OSGi runtime would inject it from is generated only when the
+        // bundle is packaged
         this.tagManager = new TagManagerImpl();
         final Field factory = TagManagerImpl.class.getDeclaredField("resolverFactory");
         factory.setAccessible(true);
         factory.set(this.tagManager, new TestResolverFactory(this.context.resourceResolver()));
-        // The models' behavior delegates to the manager through its internal TagOperations face
+        // The Taggable model reaches the manager as TagOperations
         this.context.registerService(TagOperations.class, this.tagManager);
     }
 
@@ -282,7 +282,7 @@ class TagManagerImplTest
     {
         final Resource resource = this.context.create().resource(ENTITY_PATH, Map.of(
             TYPE_PROPERTY, ENTITY_TYPE,
-            // "submitted" is a system tag, but an unchanged set is not validated since nothing is added or removed
+            // "submitted" is a system tag, but an unchanged set adds and removes nothing to check
             "tags", new String[] { DRAFT, SUBMITTED }));
 
         this.taggable(resource).setTags(List.of(SUBMITTED, DRAFT));
@@ -295,7 +295,7 @@ class TagManagerImplTest
         final Resource resource = entityTagged(DRAFT, SENSITIVE, LEGACY);
 
         assertTrue(this.taggable(resource).tagReplacing(SUBMITTED, true));
-        // Another category, and a tag nothing defines, are not this tag's to retire
+        // A tag of another category, and a tag nothing defines, stay
         assertEquals(Set.of(SENSITIVE, LEGACY, SUBMITTED), this.taggable(resource).getTags());
     }
 
@@ -380,7 +380,7 @@ class TagManagerImplTest
             Phase.TOP_DOWN.getPropertyName(), new String[] { SENSITIVE },
             Phase.LOCAL.getPropertyName(), new String[] { "computed" }));
 
-        // One property per phase, all read whatever processors happen to be registered
+        // One property per phase, all read whatever processors are registered
         assertEquals(Set.of(DRAFT, INCOMPLETE, SENSITIVE, "computed"),
             this.taggable(resource).getEffectiveTagNames());
     }
@@ -406,11 +406,11 @@ class TagManagerImplTest
         final Map<String, Tag> entityTags = collect(this.taggable(entity).getEffectiveTags());
         assertEquals(Set.of(Tag.Origin.COMPUTED), entityTags.get(SENSITIVE).getOrigins());
         assertEquals(Set.of(Tag.Origin.EXPLICIT), entityTags.get(DRAFT).getOrigins());
-        // A computed tag propagates exactly like an explicitly placed one
+        // A computed tag propagates like a placed one
         assertEquals(Set.of(Tag.Origin.INHERITED),
             collect(this.taggable(part).getEffectiveTags()).get(SENSITIVE).getOrigins());
         assertTrue(this.taggable(part).hasTag(SENSITIVE));
-        // ...but it is not an explicit tag of the node it was computed for
+        // ...but it is not placed on the node it was computed for
         assertFalse(this.taggable(entity).hasOwnTag(SENSITIVE));
         assertTrue(this.taggable(entity).hasTag(SENSITIVE));
     }
@@ -429,18 +429,14 @@ class TagManagerImplTest
             collect(this.taggable(entity).getEffectiveTags()).get(INCOMPLETE).getOrigins());
     }
 
-    /**
-     * What a resource's tags say has to match what the propagation editor stored, so this read path stops at a
-     * boundary exactly as the {@code aggregatedTags} chain does. Otherwise the two ways of asking give different
-     * answers about the same content.
-     */
+    /** Reading a resource's aggregated tags stops at a boundary, as the stored {@code aggregatedTags} do. */
     @Test
     void aggregationStopsAtABoundaryContainer()
     {
         this.context.registerAdapter(Resource.class, Node.class,
             (Function<Resource, Node>) TagManagerImplTest::asNode);
         final Resource entity = this.context.create().resource(ENTITY_PATH, TYPE_PROPERTY, ENTITY_TYPE);
-        // A listing inside the entity, and content of its own carrying the aggregated tag
+        // A boundary inside the entity, with content of its own carrying the aggregated tag
         this.context.create().resource("/data/entity/listing", Map.of(
             TYPE_PROPERTY, "data/EntityHomepage",
             BOUNDARY, true));
@@ -459,6 +455,22 @@ class TagManagerImplTest
     }
 
     @Test
+    void hasTagStopsAtABoundaryContainer()
+    {
+        this.context.registerAdapter(Resource.class, Node.class,
+            (Function<Resource, Node>) TagManagerImplTest::asNode);
+        final Resource entity = this.context.create().resource(ENTITY_PATH, TYPE_PROPERTY, ENTITY_TYPE);
+        this.context.create().resource("/data/entity/listing", Map.of(
+            TYPE_PROPERTY, "data/EntityHomepage",
+            BOUNDARY, true));
+        this.context.create().resource("/data/entity/listing/inner", Map.of(
+            TYPE_PROPERTY, "data/EntityPart",
+            Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
+
+        assertFalse(this.taggable(entity).hasTag(INCOMPLETE));
+    }
+
+    @Test
     void aResourceThatCannotBeClassifiedCountsAsOrdinaryContent()
     {
         this.context.registerAdapter(Resource.class, Node.class,
@@ -469,14 +481,13 @@ class TagManagerImplTest
             UNCLASSIFIABLE, true,
             Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
 
-        // Describing a resource must not fail because one node could not be classified
         assertEquals(Set.of("/data/entity/unclassifiable"),
             collect(this.taggable(entity).getEffectiveTags()).get(INCOMPLETE).getSources());
     }
 
     /**
-     * Stands in for the node behind a resource, since the mock resolver has no node types of its own: a marker
-     * property decides what {@code isNodeType} answers, and another makes it fail the way a real one can.
+     * Stands in for the node behind a resource, since the mock resolver has no node types. One marker property
+     * decides what {@code isNodeType} answers, and another makes it throw.
      *
      * @param resource the resource being adapted
      * @return a node answering only {@code isNodeType}
@@ -504,7 +515,7 @@ class TagManagerImplTest
         this.context.create().resource("/Tags/added", Map.of(
             TYPE_PROPERTY, "tag/Definition",
             "label", "Added"));
-        // The definitions are cached until something under /Tags changes
+        // Still cached
         assertNull(this.tagManager.getDefinition("added"));
         this.tagManager.onChange(List.of());
 
@@ -519,7 +530,6 @@ class TagManagerImplTest
         factory.setAccessible(true);
         factory.set(manager, new TestResolverFactory(null));
 
-        // A misconfigured deployment must not take every tag lookup down with it
         assertTrue(manager.getDefinitions().isEmpty());
         assertNull(manager.getDefinition(DRAFT));
     }
@@ -530,7 +540,7 @@ class TagManagerImplTest
         assertFalse(this.tagManager.getDefinitions().isEmpty());
         this.tagManager.deactivate();
 
-        // The definitions are read again, with a fresh resolver, if the manager is used after being stopped
+        // Used after being stopped, the manager reads the definitions again with a new resolver
         assertFalse(this.tagManager.getDefinitions().isEmpty());
     }
 
@@ -559,8 +569,7 @@ class TagManagerImplTest
             }
         };
 
-        // Through the internal face: adapting the wrapper to a model would slip past its refusal, since model
-        // adaptation delegates to the wrapped, writable resource
+        // Called directly: a model adapted from the wrapper would wrap the writable resource underneath
         assertThrows(PersistenceException.class, () -> this.tagManager.tag(readOnly, DRAFT, false));
     }
 
@@ -665,7 +674,7 @@ class TagManagerImplTest
     @Test
     void unadaptableNodesHaveNoApplicableDefinitions()
     {
-        // A resource with no Content view, e.g. a synthetic one; real repository nodes always adapt
+        // A resource that does not adapt to Content, such as a synthetic one
         final Resource opaque = new ResourceWrapper(this.context.create().resource("/data/opaque"))
         {
             @Override

@@ -19,6 +19,7 @@ package io.uhndata.iap.serialization.internal;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -47,32 +48,23 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 import io.uhndata.iap.utils.SelectorUtils;
 
 /**
- * AdapterFactory that converts Apache Sling resources to JsonObjects. This is just a shell, the actual implementation
- * of the serialization process is implemented by implementations of the {@link ResourceJsonProcessor} service. To
- * configure the serialization process, include serializer names in the resource selectors. This can be accomplished
- * by appending them in the request URL for a resource, for example
- * {@code http://server.example/path/to/resource.deep.simple.json}, or by appending them in the resource path
- * when using {@code resourceResolver.resolve}, for example
- * {@code resourceResolver.resolve("/path/to/resource.deep.simple")}. A few processors are
- * {@link ResourceJsonProcessor#isEnabledByDefault(Resource) enabled by default}, for example the {@code properties},
- * {@code identify}, and {@code dereference} processors; to disable them, use their name prefixed by {@code -} in the
- * selectors, e.g. {@code /path/to/resource.-dereference.json}.
+ * Serves a resource as JSON, through {@code adaptTo(JsonObject.class)}. It walks the resource's node, and the
+ * {@link ResourceJsonProcessor processors} the selectors enable decide what the JSON holds. The processor interface
+ * describes how the selectors choose them.
  *
  * <p>
- * How many levels of descendants to serialize can be limited with a numeric selector, using the same convention as
- * Sling's default JSON renderer: {@code .0.json} serializes just the resource itself, {@code .1.json} the resource
- * and its direct children, and {@code .infinity.json} the whole subtree. Nodes past the requested depth, just like
- * nodes that are already being serialized higher up in the JSON, are included only as their path. Without a numeric
- * selector the depth is unlimited, so {@code .deep.json} still serializes the whole subtree.
+ * A numeric selector limits how many levels of descendants to serialize, as in Sling's default JSON renderer.
+ * {@code .0.json} is the resource alone, {@code .1.json} adds its children, and {@code .infinity.json} or a negative
+ * number sets no limit. A node nested deeper is written as its path, and so is a node already being serialized higher
+ * up. The limit counts children and referenced nodes alike. Without a numeric selector there is no limit, so
+ * {@code .deep.json} serializes the whole subtree.
  * </p>
  *
  * <p>
- * A selector may also be passed as a {@code selector} <b>query parameter</b>, repeated once per selector:
- * {@code http://server.example/path/to/resource.json?selector=deep&selector=simple} means the same as
- * {@code .deep.simple.json}. That exists for the selectors a path cannot carry — an option value containing a dot
- * would have to escape it with a backslash, and Jetty refuses a path containing one, encoded or not, unless the
- * whole deployment loosens its URI compliance. In the parameter each selector is taken whole, so nothing needs
- * escaping at all. See {@code SelectorParameterFilter}, which records them for the duration of the request.
+ * Selectors can also come as {@code selector} query parameters, one per selector:
+ * {@code /path/to/resource.json?selector=deep&selector=simple} means {@code .deep.simple.json}. A parameter holds one
+ * whole selector, so a dot in it needs no escaping. A path escapes a dot with a backslash, and Jetty refuses a
+ * backslash in a path by default. {@code SelectorParameterFilter} reads the parameters.
  * </p>
  *
  * @version $Id$
@@ -87,7 +79,7 @@ public class ResourceToJsonAdapterFactory
     /** Logging helper. */
     private static final Logger LOGGER = LoggerFactory.getLogger(ResourceToJsonAdapterFactory.class);
 
-    /** A list of all available processors. */
+    /** Every registered processor. */
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, fieldOption = FieldOption.REPLACE,
         policy = ReferencePolicy.DYNAMIC)
     private volatile List<ResourceJsonProcessor> allProcessors;
@@ -99,8 +91,6 @@ public class ResourceToJsonAdapterFactory
             return null;
         }
         final Resource resource = (Resource) adaptable;
-        // The state of this serialization: the processors to invoke, the requested depth, and the nodes processed so
-        // far down the stack.
         final SerializationContext context = new SerializationContext(resource, setupProcessors(resource));
 
         start(resource, context);
@@ -109,7 +99,7 @@ public class ResourceToJsonAdapterFactory
             final Node node = resource.adaptTo(Node.class);
             result = serializeNode(node, context);
         } finally {
-            // Processors clean up in end whatever they set up in start, so a failing processor must not skip it
+            // A processor releases in end what it set up in start, even when a processor fails midway
             end(resource, context);
         }
         if (result != null) {
@@ -119,13 +109,12 @@ public class ResourceToJsonAdapterFactory
     }
 
     /**
-     * Serializes a Node into a JSON value. Usually this will be a JSON object listing its items, but to avoid
-     * recursion, or to stay within the requested depth, it is also possible to be just the node's path as a simple
-     * string.
+     * Serializes a node as a JSON object, or as its path if it is past the requested depth or already being serialized
+     * higher up.
      *
-     * @param node the node to serialize
+     * @param node the node to serialize; {@code null} if the resource has no node
      * @param context the state of the current serialization
-     * @return a JSON value, either a JsonObject or a JsonString
+     * @return the JSON object, or the path as a JSON string; {@code null} if the node is {@code null} or cannot be read
      */
     private JsonValue serializeNode(final Node node, final SerializationContext context)
     {
@@ -136,9 +125,7 @@ public class ResourceToJsonAdapterFactory
         String path = null;
         try {
             path = node.getPath();
-            // Serializing a node that is already being serialized higher up the stack would lead to infinite
-            // recursion, and a node deeper than the requested depth isn't wanted; either way, only its path is
-            // included in the output.
+            // Serializing a node again while it is being serialized higher up would recurse forever
             final boolean summarize = context.isBeingSerialized(path) || context.isTooDeep();
             context.enter(path);
             if (!summarize) {
@@ -153,7 +140,7 @@ public class ResourceToJsonAdapterFactory
         } catch (RepositoryException e) {
             LOGGER.error("Failed to serialize node [{}] to JSON: {}", node, e.getMessage(), e);
         } finally {
-            // The node was entered only if its path could be retrieved
+            // The node was entered only if its path could be read
             if (path != null) {
                 context.leave();
             }
@@ -162,10 +149,9 @@ public class ResourceToJsonAdapterFactory
     }
 
     /**
-     * Prepare the serialization of a resource by invoking {@link ResourceJsonProcessor#start} in all enabled
-     * processors.
+     * Calls {@link ResourceJsonProcessor#start} on each enabled processor.
      *
-     * @param resource the resource being serialized
+     * @param resource the requested resource
      * @param context the state of the current serialization
      */
     private void start(final Resource resource, final SerializationContext context)
@@ -174,10 +160,10 @@ public class ResourceToJsonAdapterFactory
     }
 
     /**
-     * Prepare the serialization of a node by invoking {@link ResourceJsonProcessor#enter} in all enabled processors.
+     * Calls {@link ResourceJsonProcessor#enter} on each enabled processor.
      *
      * @param node the node to serialize
-     * @param json the JSON being built
+     * @param json the node's JSON so far
      * @param context the state of the current serialization
      */
     private void enterNode(final Node node, final JsonObjectBuilder json, final SerializationContext context)
@@ -186,11 +172,11 @@ public class ResourceToJsonAdapterFactory
     }
 
     /**
-     * Serialize the properties of a node into a {@code JsonObjectBuilder} by invoking
-     * {@link ResourceJsonProcessor#processProperty} in all enabled processors.
+     * Writes each property of a node, under the key and with the value that the enabled processors'
+     * {@link ResourceJsonProcessor#processPropertyName} and {@link ResourceJsonProcessor#processProperty} give it.
      *
      * @param node the node to serialize
-     * @param json the JSON being built
+     * @param json the node's JSON so far
      * @param context the state of the current serialization
      * @throws RepositoryException if accessing the repository fails
      */
@@ -213,11 +199,11 @@ public class ResourceToJsonAdapterFactory
     }
 
     /**
-     * Serialize the children of a node into a {@code JsonObjectBuilder} by invoking
-     * {@link ResourceJsonProcessor#processChild} in all enabled processors.
+     * Writes each child of a node, with the value that the enabled processors'
+     * {@link ResourceJsonProcessor#processChild} give it.
      *
      * @param node the node to serialize
-     * @param json the JSON being built
+     * @param json the node's JSON so far
      * @param context the state of the current serialization
      * @throws RepositoryException if accessing the repository fails
      */
@@ -238,11 +224,10 @@ public class ResourceToJsonAdapterFactory
     }
 
     /**
-     * Further enhance the JSON representing a node after all its properties and children have been serialized by
-     * invoking {@link ResourceJsonProcessor#leave} in all enabled processors.
+     * Calls {@link ResourceJsonProcessor#leave} on each enabled processor.
      *
      * @param node the node to serialize
-     * @param json the JSON being built
+     * @param json the node's JSON so far
      * @param context the state of the current serialization
      */
     private void leaveNode(final Node node, final JsonObjectBuilder json, final SerializationContext context)
@@ -251,10 +236,9 @@ public class ResourceToJsonAdapterFactory
     }
 
     /**
-     * Clean up after the serialization of a resource by invoking {@link ResourceJsonProcessor#end} in all enabled
-     * processors.
+     * Calls {@link ResourceJsonProcessor#end} on each enabled processor.
      *
-     * @param resource the resource that was serialized
+     * @param resource the requested resource
      * @param context the state of the current serialization
      */
     private void end(final Resource resource, final SerializationContext context)
@@ -263,50 +247,46 @@ public class ResourceToJsonAdapterFactory
     }
 
     /**
-     * Compute the list of enabled processors using the resource's type and selectors.
+     * The processors to run for a resource: those its selectors name, and those enabled by default that its selectors
+     * do not disable. Of these, only the ones that can process the resource run.
      *
-     * @param resource the resource to serialize
-     * @return the list of enabled processors, sorted in ascending order of their priority
+     * @param resource the requested resource
+     * @return the processors, in ascending order of priority
      */
     private List<ResourceJsonProcessor> setupProcessors(final Resource resource)
     {
-        // Compute the list of requested processor names:
-        // These are enabled by default
         final List<String> defaults = this.allProcessors.stream().filter(p -> p.isEnabledByDefault(resource))
             .map(ResourceJsonProcessor::getName).collect(Collectors.toList());
-        // These have been requested
         final List<String> requestedProcessors = new ArrayList<>(
             SelectorUtils.parseSelectors(resource.getResourceMetadata().getResolutionPathInfo()));
-        // Add the defaults, if not already selected and not explicitly excluded
         for (String def : defaults) {
             if (!requestedProcessors.contains(def) && !requestedProcessors.contains("-" + def)) {
                 requestedProcessors.add(def);
             }
         }
 
-        // Build the enabled list using the requested names
         final List<ResourceJsonProcessor> enabled = this.allProcessors.stream()
             .filter(p -> requestedProcessors.contains(p.getName()))
             .filter(p -> p.canProcess(resource))
             .collect(Collectors.toList());
-        enabled.sort((o1, o2) -> o1.getPriority() - o2.getPriority());
+        enabled.sort(Comparator.comparingInt(ResourceJsonProcessor::getPriority));
 
         return enabled;
     }
 
     /**
-     * The state of one serialization process: which processors are enabled, how deep the serialization may go, and
-     * which nodes are currently being serialized higher up in the JSON being built.
+     * The state of one serialization: the processors it runs, how deep it may go, and which nodes it is serializing
+     * higher up in the JSON.
      *
      * @version $Id$
      * @since 0.1.0
      */
     private static final class SerializationContext
     {
-        /** The processors enabled for this serialization, in ascending order of their priority. */
+        /** The processors this serialization runs, in ascending order of priority. */
         private final List<ResourceJsonProcessor> processors;
 
-        /** How many levels of descendants to serialize, negative for no limit. */
+        /** How many levels of descendants to serialize; negative for no limit. */
         private final int maxDepth;
 
         /** The paths of the nodes whose serialization is in progress, the innermost one first. */
@@ -320,11 +300,10 @@ public class ResourceToJsonAdapterFactory
         }
 
         /**
-         * Check if a node is already being serialized higher up in the JSON being built, in which case serializing it
-         * again would lead to infinite recursion.
+         * Whether a node is already being serialized higher up in the JSON.
          *
          * @param path the path of the node about to be serialized
-         * @return {@code true} if the node's serialization is already in progress
+         * @return {@code true} if the node's serialization is in progress
          */
         boolean isBeingSerialized(final String path)
         {
@@ -332,7 +311,7 @@ public class ResourceToJsonAdapterFactory
         }
 
         /**
-         * Check if the node about to be serialized is deeper than the requested depth. The topmost node is at depth
+         * Whether the node about to be serialized is past the requested depth. The requested node is at depth
          * {@code 0}, the nodes nested in it at depth {@code 1}, and so on.
          *
          * @return {@code true} if the node is past the requested depth
@@ -343,7 +322,7 @@ public class ResourceToJsonAdapterFactory
         }
 
         /**
-         * Record that a node's serialization started.
+         * Records that a node's serialization started.
          *
          * @param path the path of the node
          */
@@ -352,7 +331,7 @@ public class ResourceToJsonAdapterFactory
             this.openNodes.push(path);
         }
 
-        /** Record that the innermost node's serialization ended. */
+        /** Records that the innermost node's serialization ended. */
         void leave()
         {
             this.openNodes.pop();

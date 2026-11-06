@@ -45,12 +45,11 @@ import io.uhndata.iap.metrics.api.MetricsException;
 import io.uhndata.iap.utils.DateUtils;
 
 /**
- * Default implementation of {@link Metric}: a lightweight handle over a metric node. A handle obtained by name opens
- * a short-lived service session for each read, so its values are always current and it can be held for as long as
- * its owner lives; one obtained from a listing answers reads from the properties the listing already read, so that
- * rendering a page of metrics costs a single session. Updates always go to the repository either way: increments go
- * through its atomic counter support, and updates that hit a conflicting concurrent change are retried on a fresh
- * session a few times before giving up.
+ * A metric, kept in the {@code metric:Metric} node under {@code /Metrics} that has its name. It reaches the node as
+ * the metrics service user.
+ *
+ * <p>Each read opens a session of its own, unless the metric was made from the properties a listing read. Each change
+ * opens a session too. A change that fails to save is tried again on a new session, up to three attempts in all.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -63,7 +62,7 @@ public class MetricImpl implements Metric
     /** The node type of a metric node. */
     static final String NODE_TYPE = "metric:Metric";
 
-    /** The name of the subservice performing all repository access. */
+    /** The subservice that the metrics service user, {@code iap-metrics}, is mapped to. */
     static final String SUBSERVICE_NAME = "metrics";
 
     /** The name of the property holding the human-readable name. */
@@ -81,10 +80,10 @@ public class MetricImpl implements Metric
     /** The name of the property holding the access level. */
     static final String PN_ACCESS_LEVEL = "accessLevel";
 
-    /** The name of the property holding the baseline for delta computations. */
+    /** The name of the property holding the count at the last roll-over. */
     static final String PN_PREVIOUS_VALUE = "previousValue";
 
-    /** The name of the property holding the delta frozen at the last roll-over. */
+    /** The name of the property holding the amount counted in the last closed period. */
     static final String PN_LAST_DELTA = "lastDelta";
 
     /** The name of the property holding the last increment date. */
@@ -96,10 +95,10 @@ public class MetricImpl implements Metric
     /** The name of the property holding the Quartz cron expression for automatic roll-overs. */
     static final String PN_ROLLOVER_SCHEDULE = "rolloverSchedule";
 
-    /** The name of the protected property in which the repository maintains the current count. */
+    /** The name of the protected property in which Oak keeps the count. */
     static final String PN_COUNTER = "oak:counter";
 
-    /** The name of the transient property consumed by the repository when an increment is committed. */
+    /** The name of the property that asks Oak to add to the count. Oak removes it as it saves the change. */
     static final String PN_INCREMENT = "oak:increment";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MetricImpl.class);
@@ -111,14 +110,14 @@ public class MetricImpl implements Metric
 
     private final String name;
 
-    /** The properties this handle reads from, or {@code null} when each read goes to the repository instead. */
+    /** The properties a listing read, which reads are answered from; {@code null} if each read opens a session. */
     private final ValueMap snapshot;
 
     /**
-     * Basic constructor, for a handle that reads the repository on every access.
+     * A metric that reads the repository on every call.
      *
-     * @param resolverFactory used to open a service session for each operation
-     * @param name the identifier of the metric
+     * @param resolverFactory the factory that opens a service session for each read and each change
+     * @param name the metric's name, which is also the name of its node
      */
     MetricImpl(final ResourceResolverFactory resolverFactory, final String name)
     {
@@ -128,13 +127,12 @@ public class MetricImpl implements Metric
     }
 
     /**
-     * Constructor for a handle whose reads are answered from properties that have already been read, so that listing
-     * many metrics costs one session instead of one per metric per property.
+     * A metric that answers reads from the properties a listing read, and opens a session only to change them.
      *
-     * @param resolverFactory used to open a service session for updates, which never use the snapshot
-     * @param name the identifier of the metric
-     * @param properties the properties of the metric node, copied since the session they were read in is closed by
-     *            the time this handle is used
+     * @param resolverFactory the factory that opens a service session for each change
+     * @param name the metric's name, which is also the name of its node
+     * @param properties the properties of the metric's node; they are copied, since the session they were read in
+     *            closes before the metric is used
      */
     MetricImpl(final ResourceResolverFactory resolverFactory, final String name, final ValueMap properties)
     {
@@ -144,11 +142,11 @@ public class MetricImpl implements Metric
     }
 
     /**
-     * Check that a resource is an actual metric node, and not something else that happens to be under
-     * {@code /Metrics}, like an access control policy.
+     * Whether a resource is a metric's node, and not something else under {@code /Metrics} such as its access control
+     * policy.
      *
-     * @param resource a resource to check, may be {@code null}
-     * @return {@code true} if the resource is a metric node
+     * @param resource the resource; {@code null} if there is none
+     * @return {@code true} if the resource is a {@code metric:Metric} node
      */
     static boolean isMetric(final Resource resource)
     {
@@ -158,9 +156,9 @@ public class MetricImpl implements Metric
     /**
      * Open a new session as the metrics service user.
      *
-     * @param resolverFactory the resource resolver factory service
-     * @return a service resource resolver, must be closed by the caller
-     * @throws MetricsException if the service session cannot be opened
+     * @param resolverFactory the factory to open it with
+     * @return the resource resolver, for the caller to close
+     * @throws MetricsException if the service user cannot log in
      */
     static ResourceResolver openServiceResolver(final ResourceResolverFactory resolverFactory)
     {
@@ -268,7 +266,6 @@ public class MetricImpl implements Metric
                 properties.put(PN_LAST_UPDATED, Calendar.getInstance());
             });
         } catch (final MetricsException e) {
-            // Losing a count is better than breaking the operation being counted
             LOGGER.error("Failed to increment metric {}: {}", this.name, e.getMessage(), e);
         }
     }
@@ -310,12 +307,13 @@ public class MetricImpl implements Metric
     }
 
     /**
-     * Read something from the current state of the metric node.
+     * Read a value of this metric: from the properties a listing read if there are any, and from the repository
+     * otherwise.
      *
-     * @param <T> the type of data extracted
-     * @param extractor computes the result from the current properties of the metric node
-     * @return the extracted data
-     * @throws MetricsException if the metric node cannot be accessed
+     * @param <T> the type of the value
+     * @param extractor computes the value from the properties of the metric's node
+     * @return the value
+     * @throws MetricsException if the metric's node cannot be read
      */
     private <T> T read(final Function<ValueMap, T> extractor)
     {
@@ -328,11 +326,11 @@ public class MetricImpl implements Metric
     }
 
     /**
-     * Apply changes to the metric node and commit them, retrying on a fresh session when a conflicting concurrent
-     * change prevents the commit.
+     * Change the metric's node and save it. A save that fails is tried again on a new session, up to
+     * {@link #MAX_ATTEMPTS} attempts in all.
      *
-     * @param changes the changes to apply
-     * @throws MetricsException if the changes cannot be persisted even after retrying
+     * @param changes sets the new values on the node's properties
+     * @throws MetricsException if the node is missing or cannot be modified, or if the last attempt fails to save
      */
     private void write(final Consumer<ModifiableValueMap> changes)
     {
@@ -356,11 +354,11 @@ public class MetricImpl implements Metric
     }
 
     /**
-     * Fetch the node backing this metric.
+     * The node of this metric.
      *
-     * @param resolver the session to read through
-     * @return the metric resource
-     * @throws MetricsException if the metric node no longer exists
+     * @param resolver the session to read it in
+     * @return the metric's resource
+     * @throws MetricsException if no metric's node has this name
      */
     private Resource getMetricResource(final ResourceResolver resolver)
     {

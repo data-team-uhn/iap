@@ -58,14 +58,13 @@ import io.uhndata.iap.principals.spi.SpecialNameResolver;
 import io.uhndata.iap.utils.UserIds;
 
 /**
- * Answers who a list of names stands for, in each of the ways the platform asks.
+ * Answers who a list of names stands for.
  *
- * <p>The repository stores group membership two ways at once. A local group is a node listing its members, so
- * {@link UserManager} can check it and enumerate it. A group synchronised under dynamic membership has no node:
- * the roles are written on each member's account and surfaced as principals, so {@link UserManager} answers
- * {@code null} for the group's own name while {@link PrincipalManager} still knows who is in it. Every lookup
- * here asks the user store first and the principal store second, so a definition does not have to know where a
- * deployment's groups come from.</p>
+ * <p>Oak stores a group in one of two ways. A local group is a node listing its members, and {@link UserManager}
+ * can check it and list them. A role an identity provider synchronises under dynamic membership has no node. Its
+ * name is written on each member's account, and Oak reads it back as a group principal. {@link UserManager}
+ * answers {@code null} for that name, and {@link PrincipalManager} knows its members. Every lookup here asks the
+ * user store first and the principal store second.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -75,7 +74,7 @@ public class PrincipalServiceImpl implements PrincipalService
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(PrincipalServiceImpl.class);
 
-    /** The registered special-name vocabulary. A dynamic whiteboard, so any bundle may extend it. */
+    /** The registered resolvers, which any bundle may add to at any time. */
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
         policyOption = ReferencePolicyOption.GREEDY)
     private volatile List<SpecialNameResolver> resolvers;
@@ -84,14 +83,13 @@ public class PrincipalServiceImpl implements PrincipalService
     public List<String> resolve(final List<String> names, final PrincipalContext context)
     {
         final Map<String, SpecialNameResolver> vocabulary = currentResolvers();
-        // A LinkedHashSet: somebody named twice is named once, and the definition's order is the answer's
+        // Each principal once, in the order the names give them
         final Collection<String> found = new LinkedHashSet<>();
         for (final String name : names) {
             final SpecialNameResolver resolver = vocabulary.get(name);
             if (resolver != null) {
                 found.addAll(answerOf(resolver, context));
             } else if (name.startsWith("@")) {
-                // Most likely a typo in a definition, so it is said rather than silently naming nobody
                 LOGGER.warn("Nothing knows who {} stands for, so it names nobody", name);
             } else {
                 found.add(name);
@@ -105,8 +103,6 @@ public class PrincipalServiceImpl implements PrincipalService
     {
         final Session session = resolver.adaptTo(Session.class);
         if (session == null) {
-            // No repository behind this resolver, so nothing is bound. Answering nobody would widen every
-            // caller's question, so the resolver's own user is the answer
             return Stream.ofNullable(resolver.getUserID()).toList();
         }
         try {
@@ -123,8 +119,6 @@ public class PrincipalServiceImpl implements PrincipalService
         final Collection<String> found = new LinkedHashSet<>();
         for (final String name : principals) {
             if (EVERYONE_GROUP.equals(name)) {
-                // Everyone names every authenticated user by definition, and no definition means the whole
-                // user base, so it contributes nobody rather than everybody
                 LOGGER.warn("The group {} cannot be expanded into people, so it names nobody here", EVERYONE_GROUP);
                 continue;
             }
@@ -145,14 +139,13 @@ public class PrincipalServiceImpl implements PrincipalService
         if (principals.isEmpty()) {
             return false;
         }
-        // Everyone admits any authenticated user by definition. Whether the user exists is the caller's question
         if (principals.contains(userId) || principals.contains(EVERYONE_GROUP)) {
             return true;
         }
         final JackrabbitSession session = sessionOf(resolver);
         try {
             if (userId.equals(session.getUserID())) {
-                // The session's own bound principals already carry every membership, dynamic ones included
+                // The session's bound principals carry every membership, dynamic ones included
                 final Set<String> mine = new HashSet<>(principalsOf(resolver));
                 return principals.stream().anyMatch(mine::contains);
             }
@@ -165,9 +158,9 @@ public class PrincipalServiceImpl implements PrincipalService
     /**
      * The people one principal names: a user themselves, or a group's members, however the group is stored.
      *
-     * @param name the principal name to expand
+     * @param name a user id or a group name
      * @param session a session that may read the user store
-     * @return the user ids, empty when the name names nobody
+     * @return the user ids; empty if the name is unknown, or a group with no users in it
      * @throws RepositoryException when the user store cannot be read
      */
     private static List<String> usersOf(final String name, final JackrabbitSession session)
@@ -182,7 +175,7 @@ public class PrincipalServiceImpl implements PrincipalService
             return List.of(authorizable.getID());
         }
         final List<String> ids = new ArrayList<>();
-        // getMembers is transitive, so that naming a group also names the members of its member groups
+        // getMembers includes the members of nested groups
         for (final Iterator<Authorizable> all = ((Group) authorizable).getMembers(); all.hasNext();) {
             final Authorizable member = all.next();
             if (!member.isGroup()) {
@@ -193,13 +186,13 @@ public class PrincipalServiceImpl implements PrincipalService
     }
 
     /**
-     * The people in a group the user store has no node for, asked of the principal store. That is where a group
-     * synchronised under dynamic membership answers from, by querying what is written on each member's account.
+     * The people in a group the user store has no node for, as the principal store lists them. For a role an
+     * identity provider synchronises, Oak finds them with a query over the accounts.
      *
      * @param name the group's principal name
      * @param users the user store, to turn member principals back into user ids
      * @param principalManager the principal store
-     * @return the user ids, empty when the name names nobody there either
+     * @return the user ids of the members with an account; empty if the principal store has no such group
      * @throws RepositoryException when the stores cannot be read
      */
     private static List<String> dynamicMembersOf(final String name, final UserManager users,
@@ -221,12 +214,12 @@ public class PrincipalServiceImpl implements PrincipalService
     }
 
     /**
-     * Whether the user belongs to any of the named principals, asked name by name of whichever store knows it.
+     * Whether the user is in any of the named groups, asked name by name of whichever store knows it.
      *
-     * @param userId the user
-     * @param principals the principal names that grant
+     * @param userId the user's id
+     * @param principals user ids and group names
      * @param session a session that may read the user store
-     * @return {@code true} if any name admits the user
+     * @return {@code true} if any name is a group the user is in; {@code false} if the repository has no such user
      * @throws RepositoryException when the stores cannot be read
      */
     private static boolean isMemberOfAny(final String userId, final Collection<String> principals,
@@ -235,7 +228,6 @@ public class PrincipalServiceImpl implements PrincipalService
         final UserManager users = session.getUserManager();
         final Authorizable user = users.getAuthorizable(userId);
         if (user == null) {
-            // Fail-closed: an account the repository does not know belongs to nothing
             return false;
         }
         final PrincipalManager principalManager = session.getPrincipalManager();
@@ -251,7 +243,7 @@ public class PrincipalServiceImpl implements PrincipalService
      * Whether one named principal is a group this user belongs to, however the group is stored.
      *
      * @param name the principal name
-     * @param user the user
+     * @param user the user's account
      * @param users the user store
      * @param principalManager the principal store
      * @return {@code true} if the name is a group and the user is in it
@@ -262,7 +254,7 @@ public class PrincipalServiceImpl implements PrincipalService
     {
         final Authorizable named = users.getAuthorizable(name);
         if (named != null) {
-            // isMember is transitive, matching what expansion enumerates
+            // isMember counts nested groups too
             return named.isGroup() && ((Group) named).isMember(user);
         }
         final Principal principal = principalManager.getPrincipal(name);
@@ -270,11 +262,11 @@ public class PrincipalServiceImpl implements PrincipalService
     }
 
     /**
-     * One resolver's answer. A broken resolver loses its own name's answer, not the whole list's.
+     * One resolver's answer. A resolver that throws names nobody, and the other names keep their answers.
      *
      * @param resolver the resolver to ask
      * @param context what to ask it about
-     * @return its answer, empty when it failed
+     * @return its answer; empty if it threw
      */
     private static List<String> answerOf(final SpecialNameResolver resolver, final PrincipalContext context)
     {
@@ -290,10 +282,9 @@ public class PrincipalServiceImpl implements PrincipalService
     }
 
     /**
-     * The registered vocabulary, keyed by name. Rebuilt per call because the whiteboard is dynamic; with two
-     * resolvers claiming one name, which answers is not defined.
+     * The resolvers registered now, by the name each answers. Built on each call, since resolvers come and go.
      *
-     * @return the current resolvers by name
+     * @return each special name, mapped to its resolver
      */
     private Map<String, SpecialNameResolver> currentResolvers()
     {
@@ -304,11 +295,11 @@ public class PrincipalServiceImpl implements PrincipalService
     }
 
     /**
-     * The user store behind a resolver, which is the one thing nothing here can do without.
+     * The Jackrabbit session behind a resolver, which reaches the user store and the principal store.
      *
      * @param resolver the session to ask
      * @return its Jackrabbit session
-     * @throws PrincipalLookupException when the session is not a Jackrabbit one
+     * @throws PrincipalLookupException if the resolver has no JCR session, or it is not a Jackrabbit one
      */
     private static JackrabbitSession sessionOf(final ResourceResolver resolver)
     {

@@ -43,8 +43,6 @@ describe("a candidate registry", () => {
     expect(registry.get("anything")).toBe("narrow");
   });
 
-  // Registration order decides a tie, so which component wins does not depend on the order the
-  // registry happens to visit its candidates in
   it("leaves a tie to whichever registered first", () => {
     registry.register(() => [ "first", 50 ]);
     registry.register(() => [ "second", 50 ]);
@@ -60,8 +58,7 @@ describe("a candidate registry", () => {
     expect(registry.get("date")).toBe("calendar");
   });
 
-  // Counted rather than resolved. A duplicate answers with the same component at the same
-  // confidence, so asserting on the winner would hold whether or not anything deduplicated
+  // Counts the calls: a duplicate answers with the same component, so the winner is the same either way
   it("asks a candidate offered twice only once", () => {
     const candidate = vi.fn<Candidate<string, string>>(() => [ "only", 90 ]);
     registry.register(candidate);
@@ -79,7 +76,7 @@ describe("a candidate registry", () => {
     expect(registry.get("anything")).toBeNull();
   });
 
-  // A bundle built separately creates its own registry from its own copy of this module
+  // A bundle built separately creates its own registry, from its own copy of this module
   it("shares its candidates with every registry created on the same key", () => {
     const elsewhere = createCandidateRegistry<string, string>(STORE_KEY);
 

@@ -25,51 +25,51 @@ import jakarta.json.JsonObject;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Service interface for producing messages to post to a chat webhook. When it is time to send a message, each
- * implementation's {@link #prepareMessages} is invoked, and the results are aggregated into a single post.
+ * Provides attachments for a scheduled chat message. At each run of a scheduled notification, every producer it
+ * includes is asked for its attachments, and all of them are posted to the webhook as one message.
  *
  * @version $Id$
  * @since 0.1.0
  */
 public interface SlackNotificationProducer
 {
-    /** The name of the JSON property holding the title of the message. */
+    /** The name of the JSON property holding the title of an attachment. */
     String TITLE_KEY = "title";
 
-    /** The name of the JSON property holding the text part of a message. */
+    /** The name of the JSON property holding the text of a message or of an attachment. */
     String TEXT_KEY = "text";
 
-    /** The name of the JSON property defining the side color of an attachment. */
+    /** The name of the JSON property holding the color of the bar beside an attachment. */
     String COLOR_KEY = "color";
 
-    /** The color used for neutral/informational messages. */
+    /** The color of an informational attachment, grey. */
     String INFO_COLOR = "999";
 
-    /** The color used for success messages. */
+    /** The color of a success, green. */
     String SUCCESS_COLOR = "393";
 
-    /** The color used for warning messages. */
+    /** The color of a warning, yellow. */
     String WARNING_COLOR = "BA0";
 
-    /** The color used for error messages. */
+    /** The color of an error, red. */
     String ERROR_COLOR = "900";
 
     /**
-     * The name of this producer, used to identify it, and to enable/disable it for specific jobs.
+     * The name of this producer. A notification's configuration lists it to include this producer.
      *
-     * @return a simple string
+     * @return a name such as {@code status}
      */
     @NotNull
     String getName();
 
     /**
-     * Prepare a message, as a list of valid webhook "attachment" objects. A producer with nothing to say returns an
-     * empty list; it must not throw, since one producer failing would cost the whole message.
+     * Prepares this producer's attachments for the message. It must not throw: an exception loses the whole message,
+     * the other producers' attachments included.
      *
-     * @param extraParameters optional extra parameters configured for the notification, which may influence how the
-     *            message is prepared
-     * @return a list of JSON objects respecting the attachment API, that will be added to the attachments list of
-     *         the message; an empty list when there is nothing to report
+     * @param extraParameters the notification's extra parameters, by name, empty if none are configured. Each producer
+     *            reads the ones it knows, such as {@code statusReport.targetStatusLevel}
+     * @return the attachments, each a JSON object with keys such as {@link #TITLE_KEY}, {@link #TEXT_KEY} and
+     *         {@link #COLOR_KEY}, or an empty list if there is nothing to report
      */
     @NotNull
     List<JsonObject> prepareMessages(@NotNull Map<String, String> extraParameters);

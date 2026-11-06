@@ -51,10 +51,8 @@ public class DeepProcessorTest
     @Test
     public void testEnabledByDefaultOnlyByADepthSelector()
     {
-        // Deep serialization must be explicitly requested...
         Assertions.assertFalse(this.processor.isEnabledByDefault(mockResource(".json")));
         Assertions.assertFalse(this.processor.isEnabledByDefault(mockResource(".simple.json")));
-        // ...but a depth selector is a request for descendants as well
         Assertions.assertTrue(this.processor.isEnabledByDefault(mockResource(".2.json")));
         Assertions.assertTrue(this.processor.isEnabledByDefault(mockResource(".infinity.json")));
         // A depth of 0 asks for no descendants at all

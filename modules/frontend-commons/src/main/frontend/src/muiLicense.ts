@@ -18,16 +18,15 @@
 
 import { LicenseInfo } from "@mui/x-license";
 
-// Registers the MUI X commercial license, unlocking the Pro components (DataGridPro, ...).
-// Import this module (for its side effect) from any file that renders a Pro component, so the
-// key is always set before the first render, no matter which entry point loads first.
+// Registers the MUI X commercial license, which the Pro components such as DataGridPro need. Import
+// this module from every file that renders a Pro component, so that the key is set before the first
+// render, whichever entry point loads first.
 //
-// The key arrives from the MUI_LICENSE_KEY environment variable, substituted into the bundle at
-// build time (see the DefinePlugin entry in webpack.config-template.js).
+// The key comes from the MUI_LICENSE_KEY environment variable, written into the bundle at build time
+// by the DefinePlugin entry in webpack.config-template.js.
 //
-// An unset key is deliberately not a build failure: this repository is public and anyone should
-// be able to build it. The grid then reports itself unlicensed and paints its watermark, which
-// is a licensing question rather than a broken build.
+// The build does not fail without a key, since anyone may build this public repository. The Pro
+// components then show their watermark, and a warning is logged.
 const licenseKey = process.env.MUI_LICENSE_KEY;
 
 if (licenseKey) {

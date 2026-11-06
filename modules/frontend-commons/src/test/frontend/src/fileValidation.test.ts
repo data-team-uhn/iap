@@ -26,7 +26,7 @@ import {
   validateUpload,
 } from "@iap/frontend-commons/fileValidation";
 
-// Each format's own check has tests of its own, so here they only say what they were asked
+// The content checks answer what each test sets. Each has tests of its own.
 const checks = vi.hoisted(() => ({
   pdf: vi.fn(),
   docx: vi.fn(),

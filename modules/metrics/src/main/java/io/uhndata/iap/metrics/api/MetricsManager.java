@@ -24,8 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Service for defining and looking up {@link Metric metrics}. This only handles the lifecycle: reading and updating
- * a counter is done through the returned {@link Metric} handles.
+ * Defines metrics and finds them. A metric is read, counted and rolled over through the {@link Metric} returned.
  *
  * @version $Id$
  * @since 0.1.0
@@ -33,118 +32,112 @@ import org.jetbrains.annotations.Nullable;
 public interface MetricsManager
 {
     /**
-     * Configures the metadata of a metric being {@link MetricsManager#createMetric defined}. All the metadata is
-     * optional: an unlabeled metric displays its name, and unless restricted, a metric is publicly visible.
+     * The definition of a metric, saved by {@link #create()}. Every setting is optional. A metric without a label
+     * shows its name, and a metric is public unless restricted.
      *
      * @since 0.1.0
      */
     interface MetricBuilder
     {
         /**
-         * Set the human-readable name of the metric.
+         * Set the name of the metric as people read it.
          *
-         * @param label a short display string
+         * @param label a short phrase, such as {@code Submitted proposals}; {@code null} to show the metric's name
          * @return this builder
          */
         @NotNull
         MetricBuilder withLabel(@Nullable String label);
 
         /**
-         * Set a longer explanation of what the metric counts.
+         * Set what the metric counts.
          *
-         * @param description a description
+         * @param description one or more sentences; {@code null} for none
          * @return this builder
          */
         @NotNull
         MetricBuilder withDescription(@Nullable String description);
 
         /**
-         * Set the category used to group related metrics in reports.
+         * Set the category that groups the metric with related ones in reports.
          *
-         * @param category a category name
+         * @param category a category name, such as {@code Submissions}; {@code null} for none
          * @return this builder
          */
         @NotNull
         MetricBuilder withCategory(@Nullable String category);
 
         /**
-         * Place the metric among the metrics of its own {@link #withCategory category}, lower values first. The
-         * convention elsewhere in the platform is to leave gaps, e.g. multiples of ten, so that a metric can later
-         * be slotted in between two existing ones without renumbering them.
+         * Set where the metric is shown among the metrics of its {@link #withCategory category}, lower values first.
+         * Leave gaps, such as multiples of ten, so a metric can go between two others later without renumbering.
          *
-         * @param defaultOrder the requested order; metrics that do not set one are ordered as {@code 0}
+         * @param defaultOrder the order, which may be negative; {@code 0} if never set
          * @return this builder
          */
         @NotNull
         MetricBuilder withDefaultOrder(long defaultOrder);
 
         /**
-         * Restrict who is allowed to see the metric.
+         * Set who is allowed to see the metric.
          *
-         * @param accessLevel one of the {@link Metric.AccessLevel} values
+         * @param accessLevel the access level; {@link Metric.AccessLevel#PUBLIC} if never set
          * @return this builder
          */
         @NotNull
         MetricBuilder withAccessLevel(@NotNull Metric.AccessLevel accessLevel);
 
         /**
-         * Set a schedule for automatic periodic {@link Metric#rollOver roll-overs}. Without a schedule, the metric
-         * is only rolled over when {@link Metric#rollOver} is explicitly invoked. The expression is not validated
-         * here: an invalid expression is reported in the logs by the scheduler and simply never fires.
+         * Set when the metric is {@link Metric#rollOver() rolled over}. The expression is not checked here. An
+         * invalid one is logged as an error and never fires.
          *
-         * @param rolloverSchedule a Quartz cron expression, e.g. {@code 0 0 0 * * ?} for "nightly at midnight"
+         * @param rolloverSchedule a Quartz cron expression, such as {@code 0 0 0 * * ?} for every midnight;
+         *            {@code null} to roll over only when {@link Metric#rollOver()} is called
          * @return this builder
          */
         @NotNull
         MetricBuilder withRolloverSchedule(@Nullable String rolloverSchedule);
 
         /**
-         * Persist the metric definition. This is idempotent and can safely be invoked on every component
-         * activation: if the metric already exists, its counter is left untouched and its metadata is updated to
-         * match this builder, including removing metadata not set on the builder.
+         * Save the definition. A metric that already exists takes this definition, and loses any setting not given
+         * here. Its count and its periods stay as they were, so a component can define its metrics at every
+         * activation.
          *
-         * @return the created or updated metric
-         * @throws MetricsException if the definition cannot be persisted
+         * @return the metric, which reads the repository on every call
+         * @throws MetricsException if the definition cannot be saved, or if a node that is not a metric has taken
+         *             the name
          */
         @NotNull
         Metric create();
     }
 
     /**
-     * Start defining a new metric. Nothing is persisted until {@link MetricBuilder#create()} is invoked on the
-     * returned builder.
+     * Start the definition of a metric, new or existing. Nothing is saved until {@link MetricBuilder#create()}.
      *
-     * @param name the identifier of the metric, a non-empty string of letters, digits, dashes and underscores
-     * @return a builder for the optional metadata
-     * @throws IllegalArgumentException if the name is missing or contains other characters
+     * @param name the metric's name: letters, digits, dashes and underscores, starting with a letter or a digit, such
+     *            as {@code submittedProposals}
+     * @return the definition, to set the optional settings on
+     * @throws IllegalArgumentException if the name is {@code null} or not of that form
      */
     @NotNull
     MetricBuilder createMetric(@Nullable String name);
 
     /**
-     * Look up an existing metric.
+     * The metric with the given name.
      *
-     * @param name the identifier of the metric
-     * @return the metric, or an empty optional if no metric with this name was defined
+     * @param name the metric's name, such as {@code submittedProposals}
+     * @return the metric, which reads the repository on every call; empty if no metric has this name
      */
     @NotNull
     Optional<Metric> getMetric(@Nullable String name);
 
     /**
-     * List all the defined metrics, in the order they are meant to be displayed: grouped by
-     * {@link Metric#getCategory category}, categories in alphabetical order with the uncategorized metrics last,
-     * and ordered by {@link Metric#getDefaultOrder defaultOrder} within each category. Metrics that agree on all of
-     * that are ordered by name, so the listing is stable.
+     * Every metric, in the order to show them. They are grouped by {@link Metric#getCategory() category}, sorted by
+     * the category's name with uppercase before lowercase. A metric with no category, or a blank one, comes last.
+     * Within a category, metrics are sorted by {@link Metric#getDefaultOrder() order}, then by name.
      *
-     * <p>
-     * The returned metrics report the values read while listing them, which is what a report or a dashboard wants,
-     * and costs one repository session for the whole list rather than one per value. They are still perfectly good
-     * for {@link Metric#increment incrementing} and {@link Metric#rollOver rolling over}, since those always go to
-     * the repository; but for a handle that keeps reporting current values, ask for it by name with
-     * {@link #getMetric}.
-     * </p>
+     * <p>The metrics report the values read for the listing, and reading them opens no session. They still count and
+     * roll over in the repository. A metric that keeps reporting current values comes from {@link #getMetric}.</p>
      *
-     * @return all metrics, in display order, may be empty
+     * @return the metrics; empty if there are none
      */
     @NotNull
     List<Metric> getMetrics();

@@ -81,7 +81,6 @@ class AnswerOptionTest
             "description", "More than one working day.")).getDescription());
     }
 
-    // An option whose label would only repeat its value may declare the value alone
     @Test
     void readsAsItsValueWhenNoLabelIsGiven()
     {

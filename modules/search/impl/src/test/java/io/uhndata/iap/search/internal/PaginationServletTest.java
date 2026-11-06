@@ -195,7 +195,7 @@ public class PaginationServletTest
     @Test
     public void lookaheadIsBoundedForLargePageSizes() throws Exception
     {
-        // 100 pages of lookahead at this page size would count 20 000 rows; the absolute row bound applies instead
+        // 100 pages of lookahead at this page size would count 20 000 rows, so the ceiling of 10 000 applies
         withParameter("limit", "200");
         mockResults(IntStream.range(0, 10_150).mapToObj(i -> "/Submissions/s" + i).toArray(String[]::new));
         this.servlet.doGet(this.request, this.response);
@@ -305,7 +305,7 @@ public class PaginationServletTest
                 + " and (not n.[status] = $p1)"
                 + " and contains(n.*, $p2)"
                 + " order by n.[jcr:lastModified] DESC", statement.getValue());
-        // @me is resolved before the value is bound. The session's user is what reaches Oak.
+        // @me is resolved before the value is bound, and the session's user is what reaches Oak
         Assertions.assertEquals(Map.of("p0", "testUser", "p1", "draft", "p2", "cancer"), this.boundValues);
     }
 
@@ -477,14 +477,14 @@ public class PaginationServletTest
 
         this.servlet.doGet(this.request, this.response);
 
-        // Nothing the caller sent appears in the statement
+        // Nothing the request sent appears in the statement
         Assertions.assertEquals("select n.* from [sub:Submission] as n"
             + " where isdescendantnode(n, '/Submissions')"
             + " and (n.[owner] = $p0)"
             + " and (LOWER(n.[title]) LIKE $p1)"
             + " and contains(n.*, $p2)"
             + " order by n.[jcr:created] ASC", statement.getValue());
-        // ... and all of it is bound, the apostrophe unescaped and the case-insensitive value lowercased
+        // All of it is bound, the apostrophe unescaped and the ILIKE value lowercased
         Assertions.assertEquals(Map.of("p0", "O'Brien", "p1", "%cardiac%", "p2", "tumor"), this.boundValues);
     }
 
@@ -507,7 +507,7 @@ public class PaginationServletTest
     @Test
     public void aFailureWhileReadingTheResultsStillLeavesParsableJson() throws Exception
     {
-        // The result set is lazy, so a read can fail once part of the response has already gone out
+        // The result set is lazy, so a read can fail after part of the response has gone out
         final Query query = Mockito.mock(Query.class);
         Mockito.when(this.queryManager.createQuery(Mockito.anyString(), Mockito.eq(Query.JCR_SQL2)))
             .thenReturn(query);
@@ -595,7 +595,7 @@ public class PaginationServletTest
 
     /**
      * Prepares for a second request in the same test: empties the captured output and hands the response a fresh
-     * writer, since writing the first response closed the previous one.
+     * writer. Writing the first response closed the previous one.
      *
      * @throws Exception in case of unexpected mocking errors
      */
@@ -619,8 +619,6 @@ public class PaginationServletTest
     @Test
     public void myPrincipalsExpandsIntoAnOrOverEverythingTheSessionActsAs() throws Exception
     {
-        // A property naming who may act holds principals, not user ids, so "waiting for me" is "any of the things
-        // I act as". The client cannot build that itself: it would have to be told its own group memberships first
         jackrabbitSession("testUser", "reviewers", "everyone");
         withParameter("childType", "wf:TaskInstance");
         withParameter("childFieldName", "performers");
@@ -640,8 +638,7 @@ public class PaginationServletTest
     @Test
     public void myPrincipalsNarrowsToTheUserWhenTheSessionActsAsNothingElse() throws Exception
     {
-        // Never no condition at all: dropping the filter would list everybody's work, the opposite of what asking
-        // for one's own means. The plain mock session cannot be asked what it is bound to, which is the same case
+        // The plain mock session cannot say what it is bound to, so it acts only as its user
         withParameter("fieldName", "performers");
         withParameter("fieldValue", "@myPrincipals");
         final ArgumentCaptor<String> statement = mockResults();
@@ -656,7 +653,7 @@ public class PaginationServletTest
     @Test
     public void myPrincipalsStaysInTheGroupTheCallerAskedFor() throws Exception
     {
-        // So that "waiting for me, or already assigned to somebody" can be one OR rather than two ANDed conditions
+        // "Waiting for me, or assigned to somebody else" is one OR, not two ANDed conditions
         jackrabbitSession("testUser", "reviewers");
         withParameter("fieldName", "performers", "assignee");
         withParameter("fieldValue", "@myPrincipals", "someone-else");
@@ -674,8 +671,7 @@ public class PaginationServletTest
     @Test
     public void aNameTheVocabularyKnowsIsResolvedWhereverItCameFrom() throws Exception
     {
-        // The point of asking the principals service rather than knowing the names here: a module that teaches it
-        // `@reviewers` makes that filterable without this servlet learning what a reviewer is
+        // A name another module registers with the principals service
         vocabulary(new MeResolver(), resolverFor("@reviewers", List.of("alice", "bob")));
         withParameter("fieldName", "assignee");
         withParameter("fieldValue", "@reviewers");
@@ -691,8 +687,6 @@ public class PaginationServletTest
     @Test
     public void aNameStandingForNobodyMatchesNothingRatherThanEverything() throws Exception
     {
-        // A typo in a filter must not widen the listing to everybody's work: kept as written, it matches nothing,
-        // because no stored property holds a name starting with `@`
         withParameter("fieldName", "assignee");
         withParameter("fieldValue", "@nobodyKnows");
         final ArgumentCaptor<String> statement = mockResults();
@@ -701,17 +695,15 @@ public class PaginationServletTest
             "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
                 + " and (n.[assignee] = $p0)"
                 + " order by n.[jcr:created] ASC", statement.getValue());
-        // Bound as written, so it is compared rather than injected, and no stored property holds it
         Assertions.assertEquals(Map.of("p0", "@nobodyKnows"), this.boundValues);
     }
 
     /**
-     * Gives the servlet the real principals service, carrying the given vocabulary, so that these tests assert on
-     * what a deployment resolves rather than on stubbed answers. Called with the platform's own {@code @me}
-     * resolver by default.
+     * Gives the servlet the real principals service, with the given special-name resolvers, so that these tests
+     * check what a deployment resolves and not a stubbed answer.
      *
      * @param resolvers the special-name resolvers to register, {@link MeResolver} if none are given
-     * @throws ReflectiveOperationException if either component's shape changes
+     * @throws ReflectiveOperationException if either component's field is renamed
      */
     private void vocabulary(final SpecialNameResolver... resolvers) throws ReflectiveOperationException
     {
@@ -743,13 +735,13 @@ public class PaginationServletTest
      *
      * @param userId the user the session belongs to
      * @param principalNames the principals it acts as
-     * @throws RepositoryException never, but the API the stubs stand in for declares it
+     * @throws RepositoryException never; the stubbed methods declare it
      */
     private void jackrabbitSession(final String userId, final String... principalNames) throws RepositoryException
     {
         final JackrabbitSession bound = Mockito.mock(JackrabbitSession.class);
-        // Both read out of the mock before the stubbing starts: a call on a mock inside thenReturn() is
-        // stubbing nested in unfinished stubbing, which Mockito refuses
+        // Both read before the stubbing starts. Mockito refuses a call on a mock inside thenReturn(), as stubbing
+        // nested in unfinished stubbing.
         final Workspace workspace = this.session.getWorkspace();
         final ValueFactory values = this.session.getValueFactory();
         Mockito.when(bound.getUserID()).thenReturn(userId);

@@ -105,7 +105,7 @@ class ContextTest
         assertNull(quoted.getPrefix());
         assertNull(quoted.getSuffix());
         assertNull(quoted.getHeader());
-        // A quote from a source with no page markers, e.g. anything that came in as DOCX
+        // A quote from a source with no page markers, such as one uploaded as DOCX
         assertNull(quoted.getPage());
     }
 

@@ -27,8 +27,8 @@ set ACL for everyone
     allow   jcr:read    on /Extensions
 end
 
-# The brand colours, driving the UI theme (the dark colour scheme derives its own shades from
-# them, see appTheme.ts); deployments may override them alongside the rest of the branding
+# The brand colours the UI theme is built from. The dark colour scheme lightens them.
+# `default` leaves a colour a deployment has already set as it is.
 set properties on /libs/iap/conf/ThemeColor
   default primaryColor to "#192958"
   default secondaryColor to "#A3213F"

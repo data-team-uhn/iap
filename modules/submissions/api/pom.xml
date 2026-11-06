@@ -28,7 +28,7 @@
   <artifactId>iap-submissions-api</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Submissions - Definitions, APIs and SPIs</name>
-  <description>Node types and Sling Models for submissions.</description>
+  <description>The submission node types, their Sling Models, and the SPIs for answer rules, completeness and the form.</description>
 
   <build>
     <plugins>
@@ -55,7 +55,7 @@
   </build>
 
   <dependencies>
-    <!-- Nullability annotations for the exported API/SPI -->
+    <!-- Nullability annotations -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>

@@ -16,18 +16,16 @@
  * limitations under the License.
  */
 
-// Where to navigate after a successful login: the `resource` query parameter that the
-// authentication handler appended when it redirected here, restricted to same-origin
-// relative paths so that a crafted link cannot bounce a freshly logged-in user to
-// another site. Anything else falls back to the current page, or to the homepage when
-// the current page is the login page itself.
+// Where to go after signing in. Sling's form authentication sends a visitor to the login
+// page with the path they asked for in the `resource` query parameter. Only a path on this
+// site is followed, so a crafted link cannot send a user who just signed in to another
+// site. Otherwise it is the current page, or the homepage on the login page itself.
 export function loginRedirectPath(location: Pick<Location, "pathname" | "search"> = window.location): string {
   const fallback = location.pathname.startsWith("/login") ? "/" : location.pathname;
   const resource = new URLSearchParams(location.search).get("resource") ?? "";
 
-  // Only allow relative, same-origin paths starting with a single "/". Backslashes are
-  // rejected too, since browsers treat them as "/" when parsing URLs, which would turn
-  // "/\evil.com" into a protocol-relative external URL.
+  // A path starts with a single "/", and holds no "://" and no backslash. Browsers read a
+  // backslash as "/", so "/\evil.com" would lead to another site.
   const isValidRelativePath =
     resource.startsWith("/") &&
     !resource.startsWith("//") &&
@@ -37,10 +35,9 @@ export function loginRedirectPath(location: Pick<Location, "pathname" | "search"
     return fallback;
   }
 
-  // String checks alone can be defeated by characters the URL parser removes — e.g. tabs
-  // and newlines, turning "/\t/evil.example" into "//evil.example" — so additionally parse
-  // the value exactly the way the browser will and require the result to stay on this
-  // origin, navigating to the parsed (canonical) form rather than the raw input.
+  // The URL parser drops tabs and newlines, so "/\t/evil.example" passes the checks above
+  // and becomes "//evil.example". The value is parsed as the browser will parse it, and
+  // must stay on this site. The parsed form is what the browser is sent to.
   let parsed: URL;
   try {
     parsed = new URL(resource, window.location.origin);

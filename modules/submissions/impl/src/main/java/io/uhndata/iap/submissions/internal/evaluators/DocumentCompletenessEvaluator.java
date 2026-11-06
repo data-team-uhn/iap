@@ -42,8 +42,8 @@ import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.CompletenessEvaluator;
 
 /**
- * Judges a submission's documents. If a document requirement that applies and is mandatory doesn't have an attached
- * file, it is incomplete.
+ * Judges a submission's documents. A document requirement that applies and is required is incomplete until a file
+ * is attached for it. Its document is reported, or the submission when the requirement has no document.
  *
  * @version $Id$
  * @since 0.1.0
@@ -83,11 +83,11 @@ public class DocumentCompletenessEvaluator implements CompletenessEvaluator
     }
 
     /**
-     * The submission's documents, by the path of the requirement each one fulfills. A document fulfilling nothing
-     * that resolves is left out.
+     * The submission's documents, by the path of the requirement each one fulfills. A document whose requirement
+     * does not resolve is left out.
      *
      * @param submission the submission
-     * @return the documents, by requirement path
+     * @return the documents, by the absolute path of their requirement
      */
     private static Map<String, List<Document>> getDocuments(final Submission submission)
     {

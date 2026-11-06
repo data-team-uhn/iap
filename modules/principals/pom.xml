@@ -28,8 +28,8 @@
   <artifactId>iap-principals</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Principals</name>
-  <description>One vocabulary for saying who: special names like @creator and @me resolved into principals through
-    a pluggable SPI, groups expanded into people, and membership answered the same way everywhere.</description>
+  <description>Says who names such as @creator, @me or a group stand for, and whether one person is among them. Any
+    bundle can add a special name.</description>
 
   <dependencies>
     <dependency>
@@ -98,7 +98,7 @@
       <artifactId>parsson</artifactId>
       <scope>test</scope>
     </dependency>
-    <!-- Without this, sling-mock silently skips the injection of some model fields -->
+    <!-- Sling Models looks for @PostConstruct on every model it adapts, and needs this class to do it -->
     <dependency>
       <groupId>javax.annotation</groupId>
       <artifactId>javax.annotation-api</artifactId>

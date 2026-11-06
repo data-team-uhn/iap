@@ -60,25 +60,25 @@
       <artifactId>iap-schemas-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The service task SPI every change to a schema goes through -->
+    <!-- The service task and validity check SPIs -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-workflows</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The veto keeping a question that conditions depend on -->
+    <!-- The deletion veto SPI, for a question that conditions depend on -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-deletion</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The comparators and aggregates a condition may name, checked before a version is published -->
+    <!-- The comparators and aggregators a condition may name, checked before a version is published -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-conditions</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The schema models extend these, and so must be on the compile path -->
+    <!-- The base models the schema models extend -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-content-api</artifactId>
@@ -148,7 +148,7 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock-oak</artifactId>
     </dependency>
-    <!-- A JSON-P implementation for the patch tests; at runtime one is provided by the platform -->
+    <!-- A JSON-P implementation for the tests; the platform provides one at runtime -->
     <dependency>
       <groupId>org.eclipse.parsson</groupId>
       <artifactId>parsson</artifactId>

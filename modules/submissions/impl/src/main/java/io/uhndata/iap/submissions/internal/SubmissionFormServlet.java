@@ -53,14 +53,11 @@ import io.uhndata.iap.submissions.spi.RequirementDescriber;
 import io.uhndata.iap.utils.UserIds;
 
 /**
- * The form a submitter fills in: what this submission's schema version asks of it, with the answers it
- * already holds. Everything that does not currently apply is left out. Served as
- * {@code /Submissions/…/….form.json}.
+ * The form a submitter fills in: what this submission's schema version asks of it, with the answers it already holds.
+ * Served as {@code <submission>.form.json}.
  *
- * <p><strong>Why this exists rather than a filtered node serialization.</strong> Whether a question applies
- * depends on the answers <em>this</em> submission holds, so it cannot be decided by looking at the schema
- * alone. What an editor needs is a different document from either: the schema's structure and the submission's answers,
- * merged, with conditions already resolved.</p>
+ * <p>Whether an item applies depends on this submission's answers. The form therefore merges the schema's structure
+ * with the answers, and leaves out every requirement, section and question whose condition does not hold now.</p>
  *
  * <p>Each requirement gets its kind's own fields from every {@link RequirementDescriber} that handles it. A kind
  * declared in another module reaches the form without this module depending on it.</p>
@@ -88,7 +85,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     /**
      * Constructor.
      *
-     * @param conditions decides which requirements currently apply
+     * @param conditions decides which requirements apply now
      */
     @Activate
     public SubmissionFormServlet(@Reference final ConditionEvaluator conditions)
@@ -112,15 +109,13 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     protected void doGet(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
-        // This servlet is bound to the submission resource type, so it is always handed one.
-        // A null here would mean the models are not registered at all, not that this request was odd.
+        // Bound to the submission resource type, so a null means the models are not registered
         final Submission submission = Objects.requireNonNull(request.getResource().adaptTo(Submission.class),
             "A submission resource always reads as a submission");
         final SchemaVersion version = submission.findSchemaVersion();
         if (version == null) {
-            // The reference is mandatory and a REFERENCE, so the repository will not let its target be
-            // deleted from under it: what is left is a session that may not read the version. Answered
-            // rather than recorded, since that is access control doing its job
+            // A REFERENCE keeps its target from being deleted, so this session may not read the version. That is
+            // access control at work, so it is answered and not recorded.
             response.sendError(HttpServletResponse.SC_FORBIDDEN,
                 "The schema version this submission answers cannot be read");
             return;
@@ -132,17 +127,17 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * The whole document: what the submission is, whether it may still be answered, and what it asks.
+     * The whole document: what the submission is, whether the reader may still answer it, and what it asks.
      *
      * @param submission the submission being read
      * @param version the schema version it answers
-     * @param reader the user asking
+     * @param reader the canonical user id of whoever asks
      * @return the form's JSON
      */
     private JsonObject form(final Submission submission, final SchemaVersion version, final String reader)
     {
-        // Read once, so one form is described by one set of describers however the registry changes meanwhile.
-        // Null until the first describer arrives
+        // Read once, so one form is described by one set of describers while the registry changes. Null until the
+        // first describer arrives.
         final List<RequirementDescriber> current = Objects.requireNonNullElse(this.describers, List.of());
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
         version.getRequirements().stream()
@@ -151,8 +146,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         return Json.createObjectBuilder()
             .add(FormKeys.PATH_KEY, submission.getPath())
             .add(FormKeys.TITLE_KEY, Objects.toString(submission.getTitle(), ""))
-            // The same two rules the save workflow enforces. An editor can then offer editing only where a
-            // save would be accepted, rather than discovering it from a refusal
+            // The two rules the save workflow enforces, so an editor offers editing only where a save is accepted
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
             .add("requirements", requirements)
             .build();
@@ -171,7 +165,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(FormKeys.NAME_KEY, requirement.getName())
-            // What a document's reference is compared against, since names repeat across schema versions
+            // Names repeat across schema versions, and paths do not
             .add(FormKeys.PATH_KEY, requirement.getPath())
             .add(FormKeys.TYPE_KEY, requirement.getType())
             .add(FormKeys.LABEL_KEY, Objects.toString(requirement.getLabel(), ""))
@@ -208,12 +202,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Whether a conditionable part of the schema currently applies to this submission. Delegated in full: the
-     * rule, its vocabulary and its extensions all live in the evaluator.
+     * Whether a part of the schema applies to this submission now, as the condition evaluator decides.
      *
      * @param conditionable the schema part to test
      * @param submission the submission to test it against
-     * @return {@code true} if it should be shown
+     * @return {@code true} if it is shown
      */
     private boolean applies(final Conditionable conditionable, final Submission submission)
     {

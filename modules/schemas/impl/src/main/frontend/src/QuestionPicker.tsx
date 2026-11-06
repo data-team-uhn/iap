@@ -32,8 +32,8 @@ interface QuestionPickerProps extends OperandEditorProps {
   questions: SerializedNode[];
 }
 
-// Picks the question an answer operand reads, found by what it asks. The operand names it by its `jcr:uuid`, which
-// still names it wherever it moves. One named otherwise, such as by path, is shown as the question it is.
+// Picks the question an answer operand reads, searched by its text. The operand names the question by its
+// `jcr:uuid`, which stays the same when the question moves. An operand naming it by path still shows its text.
 function QuestionPicker({ label, value, disabled, required, onChange, questions }: QuestionPickerProps) {
   const { index } = useVersionConditions();
   const current = value.at(0);

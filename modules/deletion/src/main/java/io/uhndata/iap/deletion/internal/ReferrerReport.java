@@ -35,21 +35,21 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.deletion.api.ReferrerGroup;
 
 /**
- * Turns the referencing resources blocking a deletion into a report the requesting user can act on: groups by
- * type, a few display names per group, and one readable sentence. Resources the user cannot see, and resources
- * that fail to describe themselves, are only counted, so one odd node never degrades the whole report.
+ * Describes the referencing resources that block a deletion, for the requesting user: grouped by node type, with a
+ * few names per group, and in one sentence. A resource the user cannot read, an archived one, or one that fails to
+ * describe itself is only counted.
  *
  * @version $Id$
  * @since 0.1.0
  */
 class ReferrerReport
 {
-    /** How many members of a group are named before the rest is elided. */
+    /** How many resources of a group are named. */
     private static final int MAX_NAMES = 10;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ReferrerReport.class);
 
-    /** The property preferred over the node name as a display name, when present. */
+    /** The property that names a resource, when it is set. The node name is used otherwise. */
     private static final String TITLE_PROPERTY = "title";
 
     private final List<ReferrerGroup> groups;
@@ -57,9 +57,9 @@ class ReferrerReport
     private final long inaccessibleCount;
 
     /**
-     * A visible referrer reduced to what the report needs.
+     * A referrer the requesting user can read, reduced to what the report needs.
      *
-     * @param type the referrer's primary node type
+     * @param type the referrer's primary node type, such as {@code sub:Submission}
      * @param name the referrer's display name
      * @since 0.1.0
      */
@@ -90,9 +90,9 @@ class ReferrerReport
     }
 
     /**
-     * The visible blocking referrers, grouped by primary node type.
+     * The blocking referrers the requesting user can read, grouped by primary node type.
      *
-     * @return an immutable list of groups, in type order
+     * @return an immutable list of groups, sorted by node type name; empty if there are none
      */
     List<ReferrerGroup> getGroups()
     {
@@ -100,10 +100,10 @@ class ReferrerReport
     }
 
     /**
-     * How many blocking referrers are counted but not named: hidden from the requesting user by access control,
-     * sitting in the archive, or failing to describe themselves.
+     * How many blocking referrers are counted but not named: those the requesting user cannot read, those in the
+     * archive, and those that fail to describe themselves.
      *
-     * @return a number, {@code 0} when everything is visible
+     * @return the count; {@code 0} if every blocking referrer is named
      */
     long getInaccessibleCount()
     {
@@ -111,10 +111,11 @@ class ReferrerReport
     }
 
     /**
-     * One readable sentence describing all the blockers.
+     * All the blocking referrers in one sentence.
      *
-     * @return e.g. {@code "This item is referenced by 3 submissions (S-1, S-2, S-3) and 1 schema (Onboarding)."},
-     *         or an empty string when nothing blocks the deletion
+     * @return the sentence, such as
+     *         {@code "This item is referenced by 3 submissions (S-1, S-2, S-3) and 1 schema (Onboarding)."};
+     *         empty if no referrer blocks the deletion
      */
     String summary()
     {
@@ -151,8 +152,8 @@ class ReferrerReport
     }
 
     /**
-     * Turn a node type name into a label, e.g. {@code sub:Submission} into {@code submission} and
-     * {@code wf:WorkflowVersion} into {@code workflow version}.
+     * A node type name in words, such as {@code submission} for {@code sub:Submission} and {@code workflow version}
+     * for {@code wf:WorkflowVersion}.
      */
     private static String humanize(final String nodeType)
     {

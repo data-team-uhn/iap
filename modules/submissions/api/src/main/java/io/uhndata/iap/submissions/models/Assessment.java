@@ -34,8 +34,8 @@ import io.uhndata.iap.schemas.models.Topic;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
- * A Sling Model wrapping a {@code sub:Assessment} node: one assessment of a single schema {@link Topic},
- * in a reviewer's {@link Review} or in the AI's {@link Screening}.
+ * A Sling Model wrapping a {@code sub:Assessment} node: one assessment of one {@link Topic} of the schema, in a
+ * reviewer's {@link Review} or in the AI's {@link Screening}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -65,7 +65,7 @@ public class Assessment extends EntityPart implements Referenceable
     /**
      * The topic this assesses.
      *
-     * @return the topic, or {@code null} if not set or unresolvable
+     * @return the topic; {@code null} if none is set, or this session cannot resolve it
      */
     @Nullable
     public Topic getTopic()
@@ -74,9 +74,9 @@ public class Assessment extends EntityPart implements Referenceable
     }
 
     /**
-     * The reviewer's verdict on the topic.
+     * The verdict on the topic.
      *
-     * @return the assessment, or {@code null} if not yet assessed
+     * @return the verdict; {@code null} if none is given yet
      */
     @Nullable
     public String getValue()
@@ -87,7 +87,7 @@ public class Assessment extends EntityPart implements Referenceable
     /**
      * A short summary of this assessment.
      *
-     * @return the summary, or {@code null} if none was given
+     * @return the summary; {@code null} if none was given
      */
     @Nullable
     public String getSummary()
@@ -99,7 +99,7 @@ public class Assessment extends EntityPart implements Referenceable
      * What the assessment read: document revisions and answers. A newer revision or a changed answer makes it
      * stale. The link is weak, so one removed since is skipped.
      *
-     * @return the parts of the submission read, empty if none are recorded or none of them resolve
+     * @return the parts of the submission read; empty if none are recorded or none of them resolve
      */
     @NotNull
     public List<EntityPart> getSources()
@@ -116,7 +116,7 @@ public class Assessment extends EntityPart implements Referenceable
     /**
      * How sure an automated assessment is.
      *
-     * @return a value between 0 and 1, or {@code null} if not given
+     * @return a value from 0 to 1; {@code null} if none was given
      */
     @Nullable
     public Double getConfidence()
@@ -127,7 +127,7 @@ public class Assessment extends EntityPart implements Referenceable
     /**
      * The comments raised about this topic, in the order they were raised.
      *
-     * @return a list of comments, empty if none
+     * @return the comments; empty if there are none
      */
     @NotNull
     public List<Comment> getComments()

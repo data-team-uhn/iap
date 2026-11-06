@@ -22,9 +22,9 @@ import { render, screen } from "@testing-library/react";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import Logo from "@iap/frontend-commons/components/Logo";
 
-// Logo reads the deployment branding from <meta> tags in the page head, so each test seeds the
-// head and clears the metas afterwards (only the metas — the head also holds the styles emotion
-// injected, which must survive between renders).
+// Logo reads the deployment's branding from `<meta>` tags, so each test adds them and removes them
+// afterwards. Only the metas go: the head also holds the styles emotion injected, which later
+// renders need.
 describe("Logo", () => {
   afterEach(() => {
     document.head.querySelectorAll("meta").forEach(meta => meta.remove());

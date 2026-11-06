@@ -26,12 +26,11 @@ import { parseCategoryTree, type CategoryNode, type JcrNode } from "./categoryMo
 // The repository path of the category tree's root.
 export const CATEGORIES_ROOT = "/Categories";
 
-// The tag closing a category to new submissions, defined as inheritable by the categories module.
+// The tag that closes a category, and everything under it, to new submissions.
 const RETIRED_TAG = "retired";
 
-// Thrown when the deletion endpoint refuses to remove a category - something still references it,
-// or a deletion guard objected. Either way the deletion is off the table and the UI offers retiring
-// instead, carrying the endpoint's own account of what stands in the way.
+// The deletion endpoint's refusal to remove a category, because something references it or a
+// deletion guard objected. The message is the endpoint's own sentence saying why.
 export class DeletionRefusedError extends Error {
   constructor(reason: string) {
     super(reason);
@@ -39,17 +38,16 @@ export class DeletionRefusedError extends Error {
   }
 }
 
-// A refusal from the deletion endpoint, of which the UI needs the sentence describing what blocks
-// the deletion, e.g. "This item is referenced in 3 submissions (S-1, S-2, S-3)."
+// The body of a refusal from the deletion endpoint. `status.message` says what blocks the deletion,
+// such as "This item is referenced in 3 submissions (S-1, S-2, S-3)."
 interface DeletionRefusal {
   "status.message"?: string;
 }
 
 const DELETION_REFUSED = "Something still refers to this category, so it cannot be deleted.";
 
-// What the endpoint said stands in the way. A body that cannot be read falls back to the general
-// sentence rather than to a failure: the deletion was still refused, and saying so with less detail
-// beats reporting it as if the server had broken.
+// The endpoint's reason for refusing. An unreadable body gives the general sentence instead, since
+// the deletion was refused all the same.
 const refusalReason = async (response: Response): Promise<string> => {
   try {
     const refusal = await response.json() as DeletionRefusal | null;
@@ -59,9 +57,8 @@ const refusalReason = async (response: Response): Promise<string> => {
   }
 };
 
-// The fields of a category that the edit dialog manages. `schemaVersion` is the identifier
-// (jcr:uuid) of the bound sch:SchemaVersion; null explicitly removes an existing binding, while
-// undefined leaves it untouched.
+// The fields of a category that a save writes. `schemaVersion` is the `jcr:uuid` of the bound
+// sch:SchemaVersion: null removes the binding, and undefined leaves it as it is.
 export interface CategoryFields {
   label: string;
   description?: string;
@@ -75,10 +72,9 @@ const checkOk = (response: Response): Response => {
   return response;
 };
 
-// Every exchange with the repository goes through here, so that a failure - an unreachable server,
-// a refused write, an unreadable response - reaches the UI already worded for the person who will
-// read it. A refused deletion is the exception: it is not a failure to report but a refusal the UI
-// answers with an offer to retire instead, so it passes through as itself.
+// Runs one exchange with the repository. A failure, such as an unreachable server, a refused write
+// or an unreadable response, becomes a sentence for the person using the UI. A DeletionRefusedError
+// passes through unchanged, so that a refusal stays apart from a failure.
 const reporting = async <T>(exchange: () => Promise<T>): Promise<T> => {
   try {
     return await exchange();
@@ -90,17 +86,17 @@ const reporting = async <T>(exchange: () => Promise<T>): Promise<T> => {
   }
 };
 
-// All writes go through the standard Sling POST servlet on the affected node itself:
+// Writes to a node through the Sling POST servlet:
 // https://sling.apache.org/documentation/bundles/manipulating-content-the-slingpostservlet-servlets-post.html
-// The fetch arrives as an argument because useCategoryTree is the only thing here that can ask the
-// hook for one.
+// `authenticatedFetch` is an argument because useAuthenticatedFetch is a hook, which only a hook or a
+// component can call.
 const post = (
   authenticatedFetch: AuthenticatedFetch,
   path: string,
   params: Record<string, string>
 ): Promise<Response> => {
   const body = new URLSearchParams(params);
-  // Ask for a JSON (non-redirect) response, so the interesting headers survive
+  // Ask for the JSON status response rather than the HTML one
   body.append(":http-equiv-accept", "application/json");
   return reporting(() => authenticatedFetch(path, { method: "POST", body }).then(checkOk));
 };
@@ -111,7 +107,6 @@ const fieldParams = (fields: CategoryFields): Record<string, string> => {
     params.description = fields.description;
   }
   if (fields.schemaVersion === null) {
-    // Explicitly unbind
     params["schemaVersion@Delete"] = "true";
   } else if (fields.schemaVersion !== undefined) {
     params.schemaVersion = fields.schemaVersion;
@@ -121,20 +116,18 @@ const fieldParams = (fields: CategoryFields): Record<string, string> => {
   return params;
 };
 
-// The single owner of all category tree I/O: it holds the parsed tree, and exposes the write
-// operations the manager UI needs, each of which re-fetches the whole tree on success - the tree
-// is small, and a full refetch guarantees the UI reflects the server-side truth (name mangling,
-// ordering, concurrent edits) rather than an optimistic guess.
+// Reads and writes the category tree. It holds the parsed tree, and every successful write reloads
+// all of it. The tree then shows what the server made of the write, such as the node name it chose,
+// along with other people's edits.
 export function useCategoryTree() {
   const [ tree, setTree ] = useState<CategoryNode[]>([]);
   const [ loading, setLoading ] = useState(true);
   const [ loadError, setLoadError ] = useState<string>();
   const authenticatedFetch = useAuthenticatedFetch();
 
-  // Serialization selectors: `deep` recurses into the tree, the default-enabled `dereference`
-  // inlines each bound schema version so it can be displayed without extra requests, and `simple`
-  // is what keeps that affordable - without it, inlining a schema version brings its whole
-  // requirement subtree and its dereferenced workflow, BPMN and all, to render two words per chip.
+  // `deep` reads the whole tree, and the default `dereference` inlines each bound schema version.
+  // `simple` keeps an inlined version to its own properties, without its requirements and the
+  // workflow it references.
   const reload = useCallback((): Promise<void> =>
     reporting(async () => {
       const response = checkOk(await authenticatedFetch(`${CATEGORIES_ROOT}.deep.simple.json`));
@@ -153,9 +146,9 @@ export function useCategoryTree() {
     void reload();
   }, [reload]);
 
-  // Creates a category under the given parent and returns the new node's path. The node name is
-  // derived by the server from the label via :nameHint; the typed fields are then set with a
-  // follow-up update, which keeps the type hints in one place.
+  // Creates a category under the given parent, and resolves to its path. The server derives the
+  // node name from the label, through `:nameHint`. If the server reports no Location, it resolves to
+  // the parent's path.
   const create = useCallback(async (parentPath: string, fields: CategoryFields): Promise<string> => {
     const response = await post(authenticatedFetch, `${parentPath}/`, {
       "jcr:primaryType": "cat:Category",
@@ -174,9 +167,7 @@ export function useCategoryTree() {
     await reload();
   }, [authenticatedFetch, reload]);
 
-  // Removes a category's schema version binding and touches nothing else, which is what a category
-  // about to receive its first subcategory needs: it is ceasing to be a leaf, and only leaves may
-  // carry a binding.
+  // Removes a category's schema version binding, and leaves its other fields alone.
   const unbindSchemaVersion = useCallback(async (path: string): Promise<void> => {
     await post(authenticatedFetch, path, { "schemaVersion@Delete": "true" });
     await reload();
@@ -195,9 +186,8 @@ export function useCategoryTree() {
     await reload();
   }, [authenticatedFetch, reload]);
 
-  // Retires or unretires a category by placing or removing the `retired` tag. Sling's @Patch adds and
-  // removes individual values of a multi-valued property, which is what a tag write has to be: the
-  // property holds every tag the category carries, and rewriting it wholesale would drop the others.
+  // Retires or unretires a category by adding or removing the `retired` tag. `@Patch` changes that
+  // one value: `tags` holds every tag the category carries, and assigning it would drop the others.
   // TODO Fix this when the workflow engine lands
   const setRetired = useCallback(async (path: string, retired: boolean): Promise<void> => {
     await post(authenticatedFetch, path, {
@@ -208,10 +198,9 @@ export function useCategoryTree() {
     await reload();
   }, [authenticatedFetch, reload]);
 
-  // Deletes a category through the platform's deletion endpoint rather than a plain repository
-  // write: it knows what points at the category, moves what it removes into the archive instead of
-  // destroying it, and answers a refusal with the reasons rather than an opaque failure. A refusal
-  // rejects with a DeletionRefusedError, which the UI turns into a "retire instead?" offer.
+  // Deletes a category with a DELETE to the deletion endpoint, which moves it into the archive. A
+  // `:operation=delete` POST would skip the endpoint's check for references. A refusal rejects with
+  // a DeletionRefusedError.
   const remove = useCallback(async (path: string): Promise<void> => {
     await reporting(async () => {
       const response = await authenticatedFetch(path, { method: "DELETE" });

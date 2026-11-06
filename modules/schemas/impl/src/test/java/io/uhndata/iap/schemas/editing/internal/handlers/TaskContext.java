@@ -30,7 +30,7 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * A task context for calling a handler directly, the way the engine would.
+ * A task context for calling a handler directly, without the engine.
  *
  * @version $Id$
  * @since 0.1.0
@@ -48,9 +48,9 @@ final class TaskContext implements WorkflowTaskContext
     /**
      * A context for one handler run.
      *
-     * @param target what the event is aimed at
-     * @param payload what the event carries
-     * @param configuration the activity's own properties
+     * @param target the resource the event is sent to
+     * @param payload the event's payload, by entry name
+     * @param configuration the activity's own properties, by name
      */
     TaskContext(final Resource target, final Map<String, Object> payload, final Map<String, Object> configuration)
     {
@@ -130,6 +130,6 @@ final class TaskContext implements WorkflowTaskContext
     @Override
     public void checkInAfterCommit(final String path)
     {
-        // No handler tested here checks anything out
+        // No handler tested here asks for a check-in
     }
 }

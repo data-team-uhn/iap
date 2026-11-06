@@ -65,7 +65,6 @@ class PermanentDeletionVetoTest
         assertNull(this.veto.veto(this.node, DeletionMode.PERMANENT, session(ALICE)));
     }
 
-    // Archiving is recoverable, which is the whole point of refusing the other two
     @Test
     void leavesArchivingAlone() throws Exception
     {
@@ -74,7 +73,6 @@ class PermanentDeletionVetoTest
         assertNull(this.veto.veto(this.node, DeletionMode.ARCHIVE, session(ALICE)));
     }
 
-    // Without this the ban is defeatable in two ordinary steps: archive, then purge the entry
     @Test
     void refusesPurgingAsWellAsPermanentDeletion() throws Exception
     {
@@ -82,7 +80,7 @@ class PermanentDeletionVetoTest
 
         final String reason = this.veto.veto(this.node, DeletionMode.PURGE, session(ALICE));
 
-        // A resource already in the archive cannot be told to go to the archive instead
+        // An archived resource stays in the archive, so the message does not suggest archiving it
         assertEquals("Destroying archived resources is not permitted here; this one stays in the archive", reason);
     }
 
@@ -94,15 +92,12 @@ class PermanentDeletionVetoTest
         assertNull(this.veto.veto(this.node, DeletionMode.PURGE, session(ALICE)));
     }
 
-    // The answer never varies by node, so the engine asks once instead of once per impacted node
     @Test
     void judgesTheOperationRatherThanEachResource()
     {
         assertTrue(this.veto.judgesWholeOperation());
     }
 
-    // getUserID() may return null, and the allowlist is an unmodifiable set, which throws rather than
-    // answering false when asked whether it contains null
     @Test
     void refusesASessionWithNoUserIdWithoutFailing() throws Exception
     {
@@ -118,7 +113,7 @@ class PermanentDeletionVetoTest
 
         final String reason = this.veto.veto(this.node, DeletionMode.PERMANENT, session(ALICE));
 
-        // The refusal points at the way out rather than naming who is exempt
+        // The message names nobody who is exempt
         assertEquals("Permanently deleting resources is not permitted here; delete it to the archive instead",
             reason);
     }
@@ -139,8 +134,6 @@ class PermanentDeletionVetoTest
         assertNotNull(this.veto.veto(this.node, DeletionMode.PERMANENT, jackrabbitSession("bob")));
     }
 
-    // Group membership arrives as a bound principal, which is what makes an identity provider's roles usable here
-    // even though they have no local group node behind them
     @Test
     void exemptsAUserThroughAPrincipalTheSessionIsBoundTo() throws Exception
     {
@@ -159,7 +152,6 @@ class PermanentDeletionVetoTest
             jackrabbitSession("bob", principal("submitters"))));
     }
 
-    // Fail closed: a session whose principals cannot be read is exempt from nothing
     @Test
     void refusesASessionWhosePrincipalsCannotBeRead() throws Exception
     {

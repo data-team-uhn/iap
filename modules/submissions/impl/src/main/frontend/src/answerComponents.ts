@@ -22,17 +22,17 @@ import { type Candidate, createCandidateRegistry } from "@iap/frontend-commons/c
 
 import type { FormQuestion } from "./submissionForm";
 
-// Which component displays each question type
+// Which component draws the answer to each question
 
 export interface AnswerComponentProps {
   question: FormQuestion;
-  // The answer as it currently stands, starting with the saved values, updated when somebody starts typing
+  // The answer as it stands: the saved values, or what is being typed
   values: string[];
   disabled: boolean;
-  // While the answer is being composed, so that what was typed is what is shown
+  // Called as the answer changes, before it is finished, so that the input shows what was typed
   onChange: (values: string[]) => void;
-  // When the answer is finished: a field left, a box ticked, an option picked. This is what gets
-  // saved, so a component decides for its own kind of input when an answer is done being given
+  // Called with the values to save when the answer is finished. Each component decides when that is
+  // for its own kind of input, such as when a field is left or an option picked.
   onAnswered: (values: string[]) => void;
 }
 
@@ -52,9 +52,9 @@ export const registerAnswerComponent = registry.register;
 export const clearAnswerComponents = registry.clear;
 
 /**
- * The registered component that fits this question best, or null when nothing does.
+ * The registered component that fits this question best, or null when none does.
  *
- * Null rather than a fallback to some default. Typing an answer into an input never meant for it
- * produces a value the schema does not accept, and nobody notices until a condition stops matching.
+ * There is no default component. An input not meant for the question would store a value the schema
+ * does not accept.
  */
 export const getAnswerComponent = registry.get;

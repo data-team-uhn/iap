@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/SchemaPart",
-    "description": "Changes anything a requirement, section or question holds, while its version is a draft.",
+    "description": "Edits a requirement, section or question while its version is a draft.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

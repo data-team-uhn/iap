@@ -24,7 +24,6 @@ describe("nextVersionLabel", () => {
   });
 
   it("follows the largest number a version is named with, however the name spells it", () => {
-    // The largest decides, so the numbers missing below it are never handed out again
     expect(nextVersionLabel([ "v1", "V4", "2.0" ])).toBe("5.0");
   });
 

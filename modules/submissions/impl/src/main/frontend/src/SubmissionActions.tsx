@@ -31,10 +31,8 @@ interface SubmissionActionsProps {
   onDeleted?: () => void;
 }
 
-// The actions offered on one row of a submissions listing.
-//
-// The whole row is a link, so every control inside one has to stop its own clicks reaching it.
-// Otherwise pressing a button here would navigate to the submission as well.
+// The actions on one row of a submissions listing. The row is a link, so the actions keep their
+// clicks from reaching it.
 function SubmissionActions({ path, title, onDeleted }: SubmissionActionsProps) {
   const navigate = useNavigate();
 
@@ -52,9 +50,8 @@ function SubmissionActions({ path, title, onDeleted }: SubmissionActionsProps) {
           <VisibilityIcon fontSize="small" />
         </IconButton>
       </Tooltip>
-      {/* The same page, asked for by extension. Whether it can actually be edited is the server's
-          answer, given by the form it serves; offering the action to somebody who may not edit costs
-          them a page rather than a refused save. */}
+      {/* The submission's page at `.edit`, offered to every reader. The editor says when they may not
+          edit. */}
       <Tooltip title="Edit">
         <IconButton size="small" aria-label="Edit" onClick={() => void navigate(`${path}.edit`)}>
           <EditIcon fontSize="small" />

@@ -19,8 +19,7 @@
     {
       // Every history node type builds on data:Content, so this must start after iap-data-content-api
       // (start-order 21). It must also start before the workflow engine (26), which describes what
-      // it commits: every data change goes through the engine, so that is where an action becomes
-      // known.
+      // it commits.
       "id": "${project.groupId}:iap-history-api:${project.version}",
       "start-order": "25"
     },

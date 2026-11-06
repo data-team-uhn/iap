@@ -90,8 +90,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link SubmissionFormServlet}. What a submitter is shown, what is left out because it does
- * not currently apply, and how a question says where its answer should be posted.
+ * Unit tests for {@link SubmissionFormServlet}: what a submitter is shown, what is left out because it does not apply
+ * now, and where each answer is posted.
  *
  * @version $Id$
  * @since 0.1.0
@@ -102,9 +102,8 @@ class SubmissionFormServletTest
     private static final String TYPE = "sling:resourceType";
 
     /**
-     * The supertype a real repository autocreates from the node type, and a mock repository does not. It is
-     * what `getChildren(Requirement.RESOURCE_TYPE, ...)` selects on, since the models reach the concrete kinds
-     * through their abstract base. Without it a schema version reports no requirements at all.
+     * The supertype Oak autocreates from the node type, and a mock repository does not. A schema version lists its
+     * requirements by it, so without it a version reports none.
      */
     private static final String SUPER_TYPE = "sling:resourceSuperType";
 
@@ -152,14 +151,13 @@ class SubmissionFormServletTest
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
-        // Everything applies unless a test says otherwise. The evaluator is exercised by its own module's
-        // tests; what matters here is that this servlet asks it about every part and honors the answer
+        // Everything applies unless a test hides it. What these tests check is that the servlet asks about every
+        // part, and follows the answer.
         this.evaluator = Mockito.mock(ConditionEvaluator.class);
         Mockito.when(this.evaluator.applies(Mockito.any(), Mockito.any()))
             .thenAnswer(call -> !this.hidden.contains(((Content) call.getArgument(0)).getName()));
         this.servlet = new SubmissionFormServlet(this.evaluator);
-        // The real describers rather than stand-ins: these cases pin the document a reader is served, whichever
-        // describer writes each key
+        // The shipped describers, so these tests pin the whole document a reader is served
         this.servlet.setDescribers(builtinDescribers());
 
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
@@ -177,7 +175,7 @@ class SubmissionFormServletTest
             "text", "Which day are you back?", "dataType", "date"));
         this.context.create().resource(VERSION_PATH + "/doctorsNote", Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Doctor's note"));
-        // The same kind of requirement, but saying what it takes and offering a blank to start from
+        // The same kind of requirement, but saying what it takes and offering a template
         this.context.create().resource(VERSION_PATH + "/signedForm", Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Signed form",
             "acceptedFileTypes", new String[] {"application/pdf", "image/png"}));
@@ -210,11 +208,11 @@ class SubmissionFormServletTest
         final JsonObject startDate = item(details, "startDate");
         assertEquals("Which day does your time off start?", startDate.getString("text"));
         assertEquals("date", startDate.getString("dataType"));
-        // The pair as stored, not derived flags; an absent maximum reads as the single value it defaults to
+        // The pair as stored. An absent maximum reads as its default, 1.
         assertEquals(1, startDate.getInt("minAnswers"));
         assertEquals(1, startDate.getInt("maxAnswers"));
         assertEquals("2026-10-06", startDate.getJsonArray("value").getString(0));
-        // Unanswered, and saying so as an empty list rather than by omission
+        // Unanswered, said as an empty list
         assertTrue(item(details, "endDate").getJsonArray("value").isEmpty());
     }
 
@@ -394,8 +392,7 @@ class SubmissionFormServletTest
         assertEquals(DocumentRequirement.RESOURCE_TYPE, note.getString("type"));
         assertEquals("Doctor's note", note.getString("label"));
         assertFalse(note.containsKey("items"));
-        // Restricted to nothing in particular, said as an empty list rather than by omission: a reader has to be
-        // able to tell "takes anything" from "the server did not say"
+        // Any type, said as an empty list
         assertTrue(note.getJsonArray("acceptedFileTypes").isEmpty());
         assertFalse(note.containsKey("template"));
         assertTrue(note.getJsonArray("attached").isEmpty());
@@ -410,18 +407,16 @@ class SubmissionFormServletTest
 
         final JsonObject form = form(REQUESTER);
 
-        // Absence of the flag on the node means demanded, and the wire says so explicitly
+        // A requirement without the flag is required, and the form says so
         assertTrue(requirement(form, "doctorsNote").getBoolean("required"));
         assertFalse(requirement(form, "sponsorLetter").getBoolean("required"));
-        // Only document requirements carry the key; a form's optionality lives in each of its questions
+        // Only document requirements carry the key. Each question of a form says whether it is required.
         assertFalse(requirement(form, DETAILS).containsKey("required"));
     }
 
     @Test
     void namesWhatHasAlreadyBeenAttachedForARequirement() throws IOException
     {
-        // Named rather than counted, so that a form reopened later says which document is there: an upload control
-        // that looks the same before and after leaves the only way to check outside the page
         final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d1", Map.of(
             TYPE, Document.RESOURCE_TYPE, "title", "note.pdf"));
         reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
@@ -464,8 +459,7 @@ class SubmissionFormServletTest
     @Test
     void fallsBackOnANameForAnUntitledAttachment() throws IOException
     {
-        // A document created by something other than the attach workflow may carry no title at all, and a form
-        // saying "Attached: " with nothing after it reads as broken rather than as untitled
+        // A document not created by the attach workflow may have no title
         final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d2", Map.of(
             TYPE, Document.RESOURCE_TYPE));
         reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
@@ -478,7 +472,6 @@ class SubmissionFormServletTest
     @Test
     void leavesOutADocumentAttachedForSomeOtherRequirement() throws IOException
     {
-        // The reference is what ties a document to a requirement, not being a child of the same submission
         final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d3", Map.of(
             TYPE, Document.RESOURCE_TYPE, "title", "form.pdf"));
         reference(document.getPath(), VERSION_PATH + "/signedForm", "fulfills");
@@ -491,7 +484,6 @@ class SubmissionFormServletTest
     @Test
     void leavesOutADocumentThatFulfillsNothing() throws IOException
     {
-        // A document with no reference at all: whatever it is, it is not the answer to this requirement
         this.context.create().resource(SUBMISSION_PATH + "/d4", Map.of(
             TYPE, Document.RESOURCE_TYPE, "title", "stray.pdf"));
 
@@ -501,8 +493,6 @@ class SubmissionFormServletTest
     @Test
     void saysWhatADocumentRequirementTakesAndWhatItOffersToStartFrom() throws IOException
     {
-        // Both are here because an upload control cannot be drawn without them, and this projection is the only
-        // place that says which requirements currently apply
         final JsonObject signed = requirement(form(REQUESTER), "signedForm");
 
         assertEquals(List.of("application/pdf", "image/png"), signed.getJsonArray("acceptedFileTypes").stream()
@@ -573,21 +563,17 @@ class SubmissionFormServletTest
     @Test
     void passesOverAnAnswerWhoseQuestionIsGone() throws IOException
     {
-        // A question removed from the schema leaves its answer behind; it is the answer to nothing being asked
+        // A question removed from the schema leaves its answer behind
         this.context.create().resource(SUBMISSION_PATH + "/orphan", Map.of(
             TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"stale"}));
 
         assertTrue(item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonArray("value").isEmpty());
     }
 
-    // Mandatory in the CND is a rule about the content, not a promise to every reader. Answered rather
-    // than thrown, because a bare 500 blaming a missing mandatory reference sends the next reader after
-    // the wrong thing
     @Test
     void refusesWhenTheSchemaVersionCannotBeRead() throws IOException, PersistenceException
     {
-        // A reference that resolves to nothing, which is what a version this session may not read comes
-        // to by the time the model asks for it
+        // A reference that resolves to nothing, as one to a version this session may not read does
         Objects.requireNonNull(this.context.resourceResolver().getResource(SUBMISSION_PATH))
             .adaptTo(ModifiableValueMap.class)
             .put("schemaVersion", "00000000-dead-0000-0000-000000000000");
@@ -620,7 +606,7 @@ class SubmissionFormServletTest
 
         assertTrue(decision.getBoolean("approved"));
         assertEquals(APPROVER, decision.getString("by"));
-        // As the resource JSON dates every property, so a reader parses one format
+        // In the format the resource JSON gives every date
         assertEquals("2026-08-27T09:15:30.500-05:00", decision.getString("at"));
     }
 
@@ -733,9 +719,9 @@ class SubmissionFormServletTest
     }
 
     /**
-     * A request from a named person. The repository holds the canonical id, which is the only thing worth
-     * comparing a creator against; a resolver reports whatever spelling was typed at the login. The two are
-     * deliberately different here, so a servlet reading the wrong one fails instead of passing quietly.
+     * A request from a named person. The session holds the canonical user id, which a creator is compared against.
+     * The resolver reports the name as it was typed at login, here in upper case, so a servlet reading the wrong one
+     * fails.
      */
     private MockSlingJakartaHttpServletRequest request(final Resource resource, final String reader)
     {

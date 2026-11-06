@@ -29,10 +29,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A Sling Model wrapping an {@code link:InternalDefinition} node: a type of link whose targets are resources in
- * this repository, instantiated as {@link InternalLink}s. Everything about referential integrity lives here —
- * what may be pointed at, whether the reference is hard or weak, what happens when the target is deleted, and
- * whether the target points back — since none of it means anything without a target the repository knows about.
+ * A type of link to content in this repository, defined by a {@code link:InternalDefinition} node, whose links are
+ * {@link InternalLink}s. It says what a link may point at, whether the reference is hard or weak, what happens when
+ * the target is deleted, and whether the target links back.
  *
  * @version $Id$
  * @since 0.1.0
@@ -42,22 +41,21 @@ import org.jetbrains.annotations.Nullable;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class InternalLinkDefinition extends LinkDefinition
 {
-    /** The {@code sling:resourceType} of an {@code link:InternalDefinition} node. */
+    /** The resource type of {@code link:InternalDefinition}. */
     public static final String RESOURCE_TYPE = "link/InternalDefinition";
 
     /**
-     * What to do with the linking resource when the linked resource is deleted. Enforced by the deletion
-     * service, which consults this policy for every link pointing at a resource being deleted.
+     * What happens to a link, and to the content holding it, when the linked content is deleted.
      *
      * @since 0.1.0
      */
     public enum OnDelete
     {
-        /** Keep the link as a broken reference. Only valid for weak links. */
+        /** The link stays, pointing at nothing. Only valid for weak links. */
         IGNORE,
-        /** Only remove the link between resources, keep the linking resource in place. */
+        /** The link is removed, and the content holding it stays. */
         REMOVE_LINK,
-        /** Also delete the linking resource, and any others it may impact. */
+        /** The content holding the link is deleted too, with whatever that deletion takes along. */
         RECURSIVE_DELETE
     }
 
@@ -84,8 +82,8 @@ public class InternalLinkDefinition extends LinkDefinition
     }
 
     /**
-     * Whether links of this type hold a weak reference, which may break when the linked resource is deleted,
-     * instead of a hard one, which prevents that deletion.
+     * Whether links of this type hold a weak reference, which lets the target be deleted, rather than a hard one,
+     * which stops the deletion.
      *
      * @return {@code true} if this link type is weak
      */
@@ -95,21 +93,20 @@ public class InternalLinkDefinition extends LinkDefinition
     }
 
     /**
-     * An optional list of node types allowed as the linked resource. When empty, any node can be linked to.
+     * The node types the linked content must have, any one of them.
      *
-     * @return an array of node type names, or {@code null} if unrestricted
+     * @return node type names, such as {@code data:Entity}; {@code null} or empty if any content may be linked to
      */
     @Nullable
     public String[] getRequiredDestinationTypes()
     {
-        // A copy, since arrays are mutable and callers must not be able to alter the model's own state
         return this.requiredDestinationTypes == null ? null : this.requiredDestinationTypes.clone();
     }
 
     /**
-     * Whether a reverse link is automatically added from the linked resource back to the linking resource.
+     * Whether links of this type get a reverse link, from the linked content back to the content holding them.
      *
-     * @return {@code true} if a backlink is configured
+     * @return {@code true} if the definition names a backlink
      */
     public boolean hasBacklink()
     {
@@ -117,12 +114,11 @@ public class InternalLinkDefinition extends LinkDefinition
     }
 
     /**
-     * The definition of the reverse link automatically added from the linked resource back to the linking
-     * resource. A definition may name itself, for a symmetrical double link. A backlink is itself a reference
-     * to content, so only an internal definition can serve as one.
+     * The definition of the reverse link. A definition may name itself, for a pair of links of the same type. The
+     * reverse is a link to content, so only an internal definition can serve.
      *
-     * @return a link definition, or {@code null} if no backlink is configured, it cannot be resolved, or it does
-     *         not name an internal link type
+     * @return the definition; {@code null} if none is named, this session cannot read it, or it is an external
+     *         definition
      */
     @Nullable
     public InternalLinkDefinition getBacklink()
@@ -131,9 +127,7 @@ public class InternalLinkDefinition extends LinkDefinition
             return null;
         }
         final Resource target = this.resource.getResourceResolver().getResource(this.backlink);
-        // The resource type check is what makes a wrong kind report as a miss: adaptation is not a type filter,
-        // so an external definition would otherwise come back as a model wrapping a node that has none of the
-        // settings this one reads
+        // Adapting does not check the resource type, so an external definition would come back as an internal one
         if (target == null || !target.isResourceType(RESOURCE_TYPE)) {
             return null;
         }
@@ -141,9 +135,9 @@ public class InternalLinkDefinition extends LinkDefinition
     }
 
     /**
-     * Whether this link type can only be instantiated as an automatically created backlink, never directly.
+     * Whether links of this type are only created as the reverse of another link, never directly.
      *
-     * @return {@code true} if direct creation is forbidden
+     * @return {@code true} if a link of this type cannot be added directly
      */
     public boolean isBacklinkOnly()
     {
@@ -151,9 +145,9 @@ public class InternalLinkDefinition extends LinkDefinition
     }
 
     /**
-     * The policy to apply to the linking resource when the linked resource is deleted.
+     * What happens when the linked content is deleted.
      *
-     * @return a deletion policy, {@link OnDelete#REMOVE_LINK} if not set or unrecognized
+     * @return the policy; {@link OnDelete#REMOVE_LINK} if none is set, or the value names no policy
      */
     @NotNull
     public OnDelete getOnDeletePolicy()

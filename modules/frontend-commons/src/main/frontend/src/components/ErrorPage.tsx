@@ -26,14 +26,21 @@ import FormattedText from "./FormattedText";
 import Logo from "./Logo";
 
 type ErrorPageProps = Omit<BoxProps, "title"> & {
+  // The large heading at the top, such as "404"
   errorCode?: ReactNode;
+  // A theme color, such as "error"; "primary" if empty
   errorCodeColor?: string;
   title?: ReactNode;
+  // A theme color; "primary" if empty
   titleColor?: string;
+  // Markdown, shown under the title
   message?: string;
+  // A theme color; "textSecondary" if empty
   messageColor?: string;
+  // The URL the button loads. The button is shown only with both a link and a label.
   buttonLink?: string;
   buttonLabel?: ReactNode;
+  // "left" by default
   textAlign?: CSSProperties["textAlign"];
   /**
    * Supporting detail shown under the message. `message` is markdown, so anything carrying a value
@@ -51,6 +58,8 @@ const ErrorContainer = styled(Box)(({ theme }) => ({
   margin: '0 auto',
 }));
 
+// A whole page that reports an error: the logo, the error code, a title, a message, and a button
+// that leads elsewhere. The other props go to the page's container.
 export default function ErrorPage(props: ErrorPageProps) {
   const {
     errorCode,
@@ -66,8 +75,7 @@ export default function ErrorPage(props: ErrorPageProps) {
     ...rest
   } = props;
 
-  // An explicitly empty color should fall back to the default too, not just a missing one, so
-  // `||` (not `??`) is intentional for these three.
+  // An empty color falls back to the default as well, hence `||` rather than `??`
   /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
   const resolvedErrorCodeColor = errorCodeColor || "primary";
   const resolvedTitleColor = titleColor || "primary";
@@ -80,9 +88,8 @@ export default function ErrorPage(props: ErrorPageProps) {
         container
         spacing={6}
         sx={{
-          // Grid's `direction` prop only accepts the row axis, so the column layout goes
-          // through `flexDirection`. `spacing` sets the gap on both axes, so it applies
-          // either way.
+          // Grid's `direction` supports only the row axis, so the column layout goes through
+          // `flexDirection`. `spacing` sets the gap on both axes.
           flexDirection: "column",
           textAlign: textAlign,
           alignItems: "stretch",
@@ -106,8 +113,6 @@ export default function ErrorPage(props: ErrorPageProps) {
             {children}
           </Stack>
         </Grid>
-        { /* Both halves are needed for the button to be worth offering: a label with nowhere to go
-             would reload the page, and a link with nothing to label it would be a blank button. */ }
         { buttonLabel && buttonLink &&
             <Grid>
               <Button

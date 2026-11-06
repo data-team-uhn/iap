@@ -59,19 +59,15 @@ import io.uhndata.iap.links.models.Link;
 import io.uhndata.iap.links.models.LinkDefinition;
 
 /**
- * Straightforward implementation of {@link LinkManager}, doubling as the {@link LinkOperations} behind the
- * models' behavior. The only writes not going through the models' own resolver are the creation of a missing
- * {@code link:links} container — done through the links service user, since it may require checking out a
- * versionable resource — and, indirectly, the automatic completion of backlinks the caller could not create,
- * performed by {@link AutocreateBacklinksListener} after the links are committed.
+ * Resolves the link definitions, and carries out the {@link LinkOperations} behind the links models. Every write
+ * goes through the resolver of the model that asked, except one. A missing {@code link:links} container is created
+ * and committed by the {@code iap-links} service user. When that service user cannot see the owner, such as an owner
+ * not committed yet, the caller's session creates the container instead.
  *
  * <p>
- * The definitions are read with the manager's own service user, since they are world-readable platform vocabulary
- * needed by callers that may have no user session at all, and they are cached until
- * {@value LinkManager#LINK_TYPES_PATH} changes: they are looked up on every link operation, while being edited
- * very rarely. The cached definitions are Sling Models bound to the resolver they were read with, which is kept
- * open for as long as they are cached and closed once a newer set replaces them — never a try-with-resources one,
- * since the models read through it lazily.
+ * The definitions are cached until {@value LinkManager#LINK_TYPES_PATH} changes. The cached models read through the
+ * service resolver they came from, so that resolver stays open while they are cached. It is closed when a newer set
+ * replaces them.
  * </p>
  *
  * @version $Id$
@@ -84,7 +80,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     /** The subservice name mapped to the {@code iap-links} service user. */
     static final String SUBSERVICE_NAME = "links";
 
-    /** The subservice name mapped to the {@code iap-link-types} service user reading the definitions. */
+    /** The subservice name mapped to the {@code iap-link-types} service user, which reads the definitions. */
     static final String DEFINITIONS_SUBSERVICE = "link-types";
 
     private static final String UUID_PROPERTY = "jcr:uuid";
@@ -104,13 +100,10 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     /** Guards the cached definitions and the resolver they are bound to. */
     private final Object definitionsLock = new Object();
 
-    /**
-     * The definitions as last read from {@value LinkManager#LINK_TYPES_PATH}, keyed by name, {@code null} when the
-     * cache must be rebuilt.
-     */
+    /** The cached definitions, by name; {@code null} until the next lookup reads them again. */
     private Map<String, LinkDefinition> definitions;
 
-    /** The resolver the cached definitions are bound to, closed when a newer set replaces them. */
+    /** The service resolver the cached definitions read through. */
     private ResourceResolver definitionsResolver;
 
     @Deactivate
@@ -126,7 +119,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     public void onChange(final List<ResourceChange> changes)
     {
         synchronized (this.definitionsLock) {
-            // Drop the cache; the resolver the stale definitions are bound to is closed by the next read
+            // The next lookup reads them again, and closes the resolver of the stale ones
             this.definitions = null;
         }
     }
@@ -146,11 +139,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
         }
     }
 
-    /**
-     * Reduces a definition name or path to a plain name; anything outside
-     * {@value LinkManager#LINK_TYPES_PATH} resolves to nothing, so that a definition lookup, made with the
-     * manager's own service user, can never be turned into an arbitrary repository read.
-     */
+    /** Reduces a definition's name or path to its name; {@code null} for a path outside the definitions. */
     private String toDefinitionName(final String type)
     {
         if (type == null || !type.startsWith("/")) {
@@ -254,7 +243,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
                 "Link type " + type + " can only be instantiated as an automatic backlink");
         }
         this.checkTypeRequirements(source, definition.getRequiredSourceTypes(), "source");
-        // The destination model never surfaces its resource; the check runs through the source's own session
+        // A model does not expose its resource, so the destination is checked through the source's session
         this.checkTypeRequirements(destination, source.getResourceResolver().adaptTo(Session.class),
             definition.getRequiredDestinationTypes(), "destination");
         return this.createInternalLink(source, destination, definition, label, true);
@@ -324,8 +313,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
             return false;
         }
         if (original.getBacklink() != null) {
-            // The pair is already complete; recognizing this from the stored data alone is what
-            // keeps automatic backlink creation from ping-ponging between the two resources.
+            // The pair is complete
             return true;
         }
         return this.createBacklink(link.getResourceResolver(), original, definition.getBacklink());
@@ -351,11 +339,10 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
             return false;
         }
         if (!this.mayAddChild(resolver, destination)) {
-            // This session may not write the reverse link; it will be completed by the links
-            // service user once the original link is committed
+            // This session may not add the reverse; the backlinks listener adds it after the commit
             return false;
         }
-        // No backlink for the reverse itself: the pair is complete once it is created
+        // The reverse needs no reverse of its own
         this.createInternalLink(destination, linkingResource, backlinkDefinition, original.getLabel(), false);
         return true;
     }
@@ -364,7 +351,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     {
         final Session session = resolver.adaptTo(Session.class);
         if (session == null) {
-            // No JCR session to check permissions with; leave the reverse to the links service user
+            // No JCR session to check permissions with; the backlinks listener adds the reverse
             return false;
         }
         try {
@@ -456,7 +443,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
         }
     }
 
-    // The models never surface their resource, but their stored type properties remain readable
+    // The same check on a model, which does not expose its resource: its stored types stand in for it
     private void checkTypeRequirements(final Content content, final Session session, final String[] requiredTypes,
         final String role)
     {
@@ -483,7 +470,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
                 return false;
             }
         }
-        // Without a JCR session only the directly stored types can be compared, without supertype expansion
+        // Without a JCR session, only the stored types match, not their supertypes
         return requiredType.equals(primaryType)
             || (mixins != null && Arrays.asList(mixins).contains(requiredType));
     }
@@ -507,16 +494,15 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
         }
         Resource container = owner.getChild(CONTAINER_NAME);
         if (container == null) {
-            // The owner may be invisible to the service user, typically because it is still
-            // uncommitted in the caller's own session; create the container there instead
+            // The service user failed, or cannot see the owner, such as one not committed yet
             container = this.createContainer(owner.getResourceResolver(), owner);
         }
         return container;
     }
 
     /**
-     * Creates the links container with the version checkout/checkin dance needed when the owner is a versionable,
-     * checked-in resource: a checked-in node rejects new children, links included.
+     * Creates and commits the links container. A checked-in node accepts no new child, so a checked-in owner is
+     * checked out first, and checked in again after.
      */
     private void createContainerCheckedOut(final ResourceResolver serviceResolver, final Resource owner)
         throws PersistenceException, RepositoryException
@@ -567,16 +553,15 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     }
 
     /**
-     * The resource API stores strings as STRING properties, without the conversion to the type required by the
-     * node type definition that the JCR API performs, so the reference properties of a freshly created link must
-     * be explicitly retyped, in the same pending session.
+     * Sets the {@code type} and {@code reference} of a new link again, as references. The resource API stores a
+     * string as a STRING property, whatever the node type declares.
      */
     private void retypeReferences(final Resource linkResource, final String targetProperty, final boolean weak)
         throws RepositoryException
     {
         final Node node = linkResource.adaptTo(Node.class);
         if (node == null) {
-            // No real repository behind the resolver, no property type enforcement either
+            // No JCR node, so no property types to set
             return;
         }
         node.setProperty(Link.TYPE_PROPERTY, node.getProperty(Link.TYPE_PROPERTY).getString(),
@@ -597,9 +582,9 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     }
 
     /**
-     * Raw property comparison, deliberately not going through the models: it must work on freshly created,
-     * still uncommitted nodes, where the autocreated {@code sling:resourceType} needed for model dispatch is not
-     * materialized yet.
+     * Whether a link node's stored properties match a definition, a target and a label. A {@code null} target
+     * property matches any target. A {@code null} label matches any label, and an empty one only a link without
+     * a label.
      */
     private boolean matches(final ValueMap properties, final String definitionId, final String targetProperty,
         final String targetValue, final String label)

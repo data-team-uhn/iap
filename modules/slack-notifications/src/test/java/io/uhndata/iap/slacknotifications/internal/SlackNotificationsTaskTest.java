@@ -121,14 +121,12 @@ class SlackNotificationsTaskTest
         final JsonObject posted = parse(this.webhook.posted.get(0));
         assertEquals(1, posted.getJsonArray("attachments").size());
         assertEquals("two", posted.getJsonArray("attachments").getJsonObject(0).getString("title"));
-        // No title was configured, so none is sent
         assertFalse(posted.containsKey("text"));
     }
 
     @Test
     void producersWithNothingToSayDoNotMakeAMessage()
     {
-        // Every producer answers with an empty list rather than with nothing, which must still count as silence
         task(List.of(new Producer("quiet", List.of())), List.of(), "Nightly", true).run();
 
         assertTrue(this.webhook.posted.isEmpty());
@@ -157,7 +155,6 @@ class SlackNotificationsTaskTest
     {
         this.webhook.answer = new HttpResponse(400, "invalid_payload");
 
-        // Nothing throws, but the refusal must be noticed rather than treated as success
         task(List.of(producer("first", "one")), List.of(), "", true).run();
 
         assertEquals(1, this.webhook.posted.size());
@@ -176,8 +173,6 @@ class SlackNotificationsTaskTest
     @Test
     void eachRunAsksTheProducersRegisteredByThen()
     {
-        // The list the task is given is the live one Declarative Services keeps up to date, so a task scheduled once
-        // must follow it rather than freeze the producers that happened to exist at scheduling time
         final List<SlackNotificationProducer> registered = new CopyOnWriteArrayList<>();
         registered.add(producer("first", "one"));
         final SlackNotificationsTask task = task(registered, List.of(), "", true);

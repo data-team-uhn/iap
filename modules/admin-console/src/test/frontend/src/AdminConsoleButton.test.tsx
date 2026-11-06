@@ -21,7 +21,7 @@ import { MemoryRouter, useLocation } from "react-router";
 
 import AdminConsoleButton from "@iap/admin-console/AdminConsoleButton";
 
-// Exposes the router's current location, so the test can observe navigation.
+// Shows the router's current path, for the test to read
 function LocationProbe() {
   return <span data-testid="location">{useLocation().pathname}</span>;
 }

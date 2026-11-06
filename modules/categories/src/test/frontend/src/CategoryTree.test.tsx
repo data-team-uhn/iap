@@ -77,7 +77,6 @@ describe("CategoryTree", () => {
     renderTree([node("Legacy", { retired: true })]);
 
     expect(screen.getByText("Retired by a parent")).toBeInTheDocument();
-    // The retirement is not this category's to take off, so the action would only ever fail
     expect(screen.getByRole("button", { name: "Unretire Legacy" })).toBeDisabled();
   });
 

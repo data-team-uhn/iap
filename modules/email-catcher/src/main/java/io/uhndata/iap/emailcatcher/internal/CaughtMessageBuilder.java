@@ -37,20 +37,13 @@ import jakarta.mail.internet.MimeMultipart;
 import org.apache.sling.commons.messaging.mail.MessageBuilder;
 
 /**
- * Builds the {@link MimeMessage} a caught message is read from.
+ * Builds the {@link MimeMessage} that the catcher's mail service files. The builder of Sling's
+ * {@code SimpleMailService} is internal to its bundle, and the catcher must work where that service has no
+ * configuration.
  *
  * <p>
- * This exists because the builder Sling's own mail service uses is internal to that bundle, and because the
- * catcher must not depend on that service being able to start: the situation it is for is precisely the one where
- * no mail server, and often no mail configuration, exists. What it produces is an ordinary {@code MimeMessage},
- * so everything downstream — including {@link CaughtMailService}, which only ever reads one back — works the same
- * whether the message was built here or anywhere else.
- * </p>
- *
- * <p>
- * The interface is wide, but only because it offers the same few things in several shapes. Every recipient method
- * funnels into {@link #recipients(RecipientType, InternetAddress[])} and every sender into
- * {@link #from(InternetAddress)}, so there is one place each decision is actually made.
+ * Every recipient method ends in {@link #recipients(RecipientType, InternetAddress[])}, and every sender method in
+ * {@link #from(InternetAddress)}.
  * </p>
  *
  * @version $Id$
@@ -58,14 +51,12 @@ import org.apache.sling.commons.messaging.mail.MessageBuilder;
  */
 public class CaughtMessageBuilder implements MessageBuilder
 {
-    /** No transport is ever opened from this session; it exists because a MimeMessage requires one. */
+    /** A mail session for building messages. Nothing opens a transport from it. */
     private static final Session MAIL_SESSION = Session.getInstance(new Properties());
 
     private final List<Header> headers = new ArrayList<>();
 
-    // Kept in their RFC 822 form rather than as InternetAddress objects. An InternetAddress is mutable, so
-    // holding one a caller still has a reference to would let a message change after it was described; the string
-    // is what would have gone on the wire anyway, and it parses back to the same address.
+    // Kept as strings, not as InternetAddress objects: an InternetAddress is mutable, and the caller still holds it
     private final List<String> to = new ArrayList<>();
 
     private final List<String> cc = new ArrayList<>();
@@ -330,15 +321,13 @@ public class CaughtMessageBuilder implements MessageBuilder
             message.addHeader(value.getName(), value.getValue());
         }
         setBody(message);
-        // saveChanges settles the headers, the Date among them, so the message carries the moment it was built.
-        // That is what the catcher records as the moment it was handed over; it stamps one itself only for a
-        // message that somehow arrives without.
+        // Sets the headers that depend on the content, and a Date header if there is none
         message.saveChanges();
         return message;
     }
 
     /**
-     * Puts whatever bodies and parts were given onto the message.
+     * Puts the bodies and parts given onto the message. A message with no body at all gets an empty text body.
      *
      * @param message the message being built
      * @throws MessagingException if the parts cannot be assembled
@@ -358,14 +347,14 @@ public class CaughtMessageBuilder implements MessageBuilder
     }
 
     /**
-     * Remembers one attached or inline part. Nothing is assembled here: the interface gives these methods no way
-     * to report a MIME failure, so the bytes are held as given and become a part when the message is built.
+     * Remembers one attached or inline part. The part is assembled when the message is built, because these
+     * methods of the interface cannot throw a {@link MessagingException}.
      *
      * @param content the bytes of the part
-     * @param type its MIME type
-     * @param name the file name for an attachment, or the content id for an inline part
-     * @param partHeaders any headers to set on the part itself
-     * @param disposition {@code attachment} or {@code inline}
+     * @param type its MIME type, such as {@code image/png}
+     * @param name the file name of an attachment, or the content id of an inline part
+     * @param partHeaders the headers to set on the part itself; empty for none
+     * @param disposition {@link Part#ATTACHMENT} or {@link Part#INLINE}
      * @return this builder
      */
     private MessageBuilder part(final byte[] content, final String type, final String name,
@@ -376,9 +365,9 @@ public class CaughtMessageBuilder implements MessageBuilder
     }
 
     /**
-     * The single place a recipient of any kind is remembered.
+     * Remembers recipients of one kind.
      *
-     * @param type which of To, Cc and Bcc these are
+     * @param type whether these are To, Cc or Bcc recipients
      * @param addresses the addresses to add
      * @return this builder
      */
@@ -406,12 +395,12 @@ public class CaughtMessageBuilder implements MessageBuilder
     }
 
     /**
-     * An address with a display name on it.
+     * An address with a display name, the name encoded in UTF-8.
      *
-     * @param address the email address
-     * @param name what a client shows instead of it
-     * @return the pair as one address
-     * @throws AddressException if the address is not one
+     * @param address the email address, such as {@code sender@example.com}
+     * @param name the display name, such as {@code The Sender}
+     * @return the address with its name
+     * @throws AddressException if the address is not a valid email address
      */
     private static InternetAddress address(final String address, final String name) throws AddressException
     {
@@ -419,14 +408,14 @@ public class CaughtMessageBuilder implements MessageBuilder
     }
 
     /**
-     * The same, in a named encoding. The charset is a parameter only so that the failure it can produce is
-     * reachable: UTF-8 is required of every JVM, so the caller above can never see one.
+     * An address with a display name, the name encoded in the given charset. The charset is a parameter so that
+     * a test can reach the encoding failure, which UTF-8 never produces.
      *
-     * @param address the email address
-     * @param name what a client shows instead of it
-     * @param charset what to encode the name in
-     * @return the pair as one address
-     * @throws AddressException if the address is not one, or the name cannot be encoded
+     * @param address the email address, such as {@code sender@example.com}
+     * @param name the display name, such as {@code The Sender}
+     * @param charset the name of the charset to encode the display name in, such as {@code UTF-8}
+     * @return the address with its name
+     * @throws AddressException if the address is not a valid email address, or the charset is not supported
      */
     static InternetAddress address(final String address, final String name, final String charset)
         throws AddressException
@@ -434,17 +423,15 @@ public class CaughtMessageBuilder implements MessageBuilder
         try {
             return new InternetAddress(address, name, charset);
         } catch (final UnsupportedEncodingException e) {
-            // Reported as a bad address rather than swallowed, because the alternative is a message that
-            // silently loses its sender
             throw new AddressException("The name for " + address + " cannot be encoded: " + e.getMessage());
         }
     }
 
     /**
-     * The given part headers, or none: the interface lets a caller leave them out altogether.
+     * The given part headers, or none.
      *
-     * @param headers what the caller passed, possibly {@code null}
-     * @return a collection safe to walk
+     * @param headers the headers the caller passed; {@code null} if it passed none
+     * @return the headers; empty if the caller passed none
      */
     private static Collection<Header> headersOr(final Collection<Header> headers)
     {

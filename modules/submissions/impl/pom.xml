@@ -26,8 +26,7 @@
   </parent>
 
   <artifactId>iap-submissions-impl</artifactId>
-  <!-- The frontend under src/main/frontend is collected into the aggregated bundle by webpack_script.py,
-       so it is not part of this jar; only the Java below is. -->
+  <!-- The frontend in src/main/frontend is built into the aggregated frontend, not into this jar -->
   <packaging>bundle</packaging>
   <name>IAP - Submissions - Implementation</name>
   <description>The submissions UI, and the handlers and endpoints serving it.</description>
@@ -52,8 +51,7 @@
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
     </dependency>
-    <!-- Submission extends Entity extends Content, so javac needs both to resolve the hierarchy even though
-         no source here names them. The tests also register the models. -->
+    <!-- The base models the submission models extend -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-content-api</artifactId>
@@ -113,8 +111,6 @@
       <groupId>jakarta.servlet</groupId>
       <artifactId>jakarta.servlet-api</artifactId>
     </dependency>
-    <!-- VersioningUtils.checkOut is overloaded for a Node, so javac needs JCR to resolve a call made with a
-         Resource even though no source here names it. The tests also use it. -->
     <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>

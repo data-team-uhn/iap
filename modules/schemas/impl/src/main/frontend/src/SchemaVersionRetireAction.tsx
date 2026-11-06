@@ -25,7 +25,7 @@ import { labelOf, pathOf } from "./schemaModel";
 
 import type { SchemaVersionActionProps } from "./SchemaVersionActions";
 
-// Closes an active version to new submissions; existing ones keep using it.
+// Closes an active version to new submissions. Those already filed keep using it.
 function SchemaVersionRetireAction(props: SchemaVersionActionProps) {
   const { version } = props;
   if (!offers(version, "retire")) {

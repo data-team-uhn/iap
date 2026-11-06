@@ -30,8 +30,7 @@ import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Submission;
 
 /**
- * Which items of its schema a submission is asked now, by the conditions they carry. The part creators and the
- * completeness evaluators read the same answer.
+ * Which items of its schema a submission is asked now, by the conditions they carry.
  *
  * @version $Id$
  * @since 0.1.0
@@ -46,9 +45,9 @@ public final class ApplicableItems
      * The questions the submitter is shown, in schema order. A question is shown when it, every section around it and
      * its form requirement all apply.
      *
-     * @param submission the submission whose conditions decide
+     * @param submission the submission whose answers the conditions read
      * @param conditions the condition evaluator
-     * @return the questions that apply
+     * @return the questions that apply; empty if none does
      */
     public static List<Question> getQuestions(final Submission submission, final ConditionEvaluator conditions)
     {
@@ -64,9 +63,9 @@ public final class ApplicableItems
     /**
      * The document requirements the submitter is asked to fulfill, in schema order.
      *
-     * @param submission the submission whose conditions decide
+     * @param submission the submission whose answers the conditions read
      * @param conditions the condition evaluator
-     * @return the document requirements that apply
+     * @return the document requirements that apply; empty if none does
      */
     public static List<DocumentRequirement> getDocumentRequirements(final Submission submission,
         final ConditionEvaluator conditions)

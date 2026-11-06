@@ -37,12 +37,11 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that removes what was uploaded for a requirement: every version of its document, and the title the
- * last upload gave it.
+ * The service task that removes what was uploaded for a document requirement: every version of its document, and the
+ * title the last upload gave it. The document stays, empty, as the requirement's part.
  *
- * <p>Under the same rule as attaching: the person who raised the request, while it is still a draft. Every version
- * goes, since removing says the file was wrong, not that it has a history worth keeping. The document stays, empty,
- * as the requirement's part.</p>
+ * <p>The rule is the one attaching follows: only the person who raised the request, and only while it is a
+ * draft.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -73,7 +72,7 @@ public class DetachDocumentHandler implements ServiceTaskHandler
             .orElseThrow(() -> new InvalidPayloadException(
                 "There is no document requirement " + named + " in this request"));
         final Document attached = submission.getDocuments().stream()
-            // The empty document kept for a requirement nothing was uploaded for is no attachment to remove
+            // An empty document holds nothing to remove
             .filter(Document::isAttached)
             .filter(document -> document.isFulfilling(requirement))
             .findFirst()

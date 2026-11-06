@@ -22,8 +22,8 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The outcome of restoring an archive entry. The restore is all-or-nothing: either every archived item went back to
- * its original path and the entry is gone, or nothing was changed and every conflict is reported.
+ * The outcome of restoring an archive entry. Either every archived item went back to its original path and the entry
+ * is gone, or nothing changed and every conflict is reported.
  *
  * @version $Id$
  * @since 0.1.0
@@ -31,7 +31,7 @@ import org.jetbrains.annotations.NotNull;
 public final class RestoreResult
 {
     /**
-     * What happened to the restore request.
+     * What happened to a restore.
      *
      * @since 0.1.0
      */
@@ -40,7 +40,7 @@ public final class RestoreResult
         /** Every archived item was moved back to its original path, and the emptied entry was removed. */
         RESTORED,
 
-        /** At least one archived item could not be restored; nothing was changed. */
+        /** At least one archived item could not go back, and nothing changed. */
         CONFLICT
     }
 
@@ -54,8 +54,9 @@ public final class RestoreResult
      * Record an outcome.
      *
      * @param status what happened
-     * @param restoredPaths the paths the archived items were restored to, empty unless successful
-     * @param conflicts the conflicts that blocked the restore, empty when successful
+     * @param restoredPaths the absolute paths the archived items went back to; empty unless the status is
+     *            {@link Status#RESTORED}
+     * @param conflicts what blocked the restore; empty if the status is {@link Status#RESTORED}
      */
     public RestoreResult(@NotNull final Status status, @NotNull final List<String> restoredPaths,
         @NotNull final List<RestoreConflict> conflicts)
@@ -66,9 +67,9 @@ public final class RestoreResult
     }
 
     /**
-     * What happened to the restore request.
+     * What happened.
      *
-     * @return a status
+     * @return the status
      */
     @NotNull
     public Status getStatus()
@@ -77,9 +78,9 @@ public final class RestoreResult
     }
 
     /**
-     * Where the archived items were restored to.
+     * Where the archived items went back to.
      *
-     * @return an immutable list of absolute paths, empty unless the status is {@link Status#RESTORED}
+     * @return an immutable list of absolute paths; empty unless the status is {@link Status#RESTORED}
      */
     @NotNull
     public List<String> getRestoredPaths()
@@ -90,7 +91,7 @@ public final class RestoreResult
     /**
      * What blocked the restore.
      *
-     * @return an immutable list of conflicts, empty when the status is {@link Status#RESTORED}
+     * @return an immutable list of conflicts; empty if the status is {@link Status#RESTORED}
      */
     @NotNull
     public List<RestoreConflict> getConflicts()

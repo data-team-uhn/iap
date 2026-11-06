@@ -26,7 +26,7 @@ import {
   UnreadableResponseError,
 } from "@iap/frontend-commons/requestFailure";
 
-// Every description is logged with the original, so the raw failure stays reachable in the console
+// describeRequestFailure logs every failure it describes
 let logged: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
@@ -43,7 +43,6 @@ describe("RequestError", () => {
     const error = new RequestError(503);
 
     expect(error.status).toBe(503);
-    // HTTP/2 drops the reason phrase, so it is never part of what a user might be shown
     expect(error.message).toBe("HTTP 503");
     expect(error).toBeInstanceOf(Error);
   });
@@ -106,7 +105,6 @@ describe("describeRequestFailure", () => {
 
       expect(message).toContain("The server could not be reached");
       expect(message).toContain("Try again in a moment.");
-      // The browser's own wording, which differs per browser, is not passed on
       expect(message).not.toContain("Failed to fetch");
     });
   });
@@ -127,8 +125,6 @@ describe("describeRequestFailure", () => {
   });
 
   describe("when the server answered with a status", () => {
-    // The status is kept in every case it is known, so it can be quoted in a bug report - except
-    // for the expired session, where the user's next step is all that matters
     it.each([
       [401, "Your session has expired. Sign in again, then retry."],
       [403, "You do not have permission to do this. (HTTP 403)"],

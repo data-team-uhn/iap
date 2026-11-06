@@ -26,14 +26,12 @@ import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.tags.models.Taggable;
 
 /**
- * The tag vocabulary service, resolving the {@code tag:Definition} nodes stored under
- * {@value #DEFINITIONS_PATH}. The operations on the tags themselves live on the models: view any content model as
- * {@link Taggable} to read, place, or remove its tags.
+ * Reads the tag definitions, the {@code tag:Definition} nodes under {@value #DEFINITIONS_PATH}. To read, place or
+ * remove the tags of some content, view its model as {@link Taggable} instead.
  *
  * <p>
- * The definitions are read through the manager's own service user: they are platform vocabulary, world-readable by
- * design, and the code most in need of them — commit hooks, scheduled jobs — often runs with no user session at
- * all.
+ * The definitions are read with the manager's own service user, so a caller needs no session. An access control
+ * entry on one definition therefore does not hide it from the manager's callers.
  * </p>
  *
  * @version $Id$
@@ -41,28 +39,26 @@ import io.uhndata.iap.tags.models.Taggable;
  */
 public interface TagManager
 {
-    /** The name of the property holding the tags of a piece of content, declared by the {@code tag:Taggable} mixin. */
+    /** The property holding the tags placed on a piece of content, declared by the {@code tag:Taggable} mixin. */
     String TAGS_PROPERTY = "tags";
 
     /**
-     * The mixin marking a container that {@code aggregated} tags travel up to and no further: it carries the
-     * aggregate of everything beneath it, and offers nothing to its own ancestors. {@code data:EntityHomepage}
-     * declares it, so every entity listing is one.
+     * The mixin of a node that {@code aggregated} tags climb up to and no further. It carries the aggregate of the
+     * content beneath it, and passes nothing to its ancestors. {@code data:EntityHomepage} declares it.
      */
     String BOUNDARY_MIXIN = "tag:Boundary";
 
     /**
-     * The name of the property marking content whose derived tags cannot be trusted, declared by the
-     * {@code tag:Taggable} mixin. Absent when they can. See {@link #STATE_FAILED} and
-     * {@link #STATE_RECOMPUTING} for the two values, and note that the property's presence, not its value, is what
-     * drives the recomputation.
+     * The property set on content whose derived tags cannot be trusted, declared by the {@code tag:Taggable} mixin,
+     * and absent when they can. Its value is {@link #STATE_FAILED} or {@link #STATE_RECOMPUTING}. The next commit
+     * that reaches the node recomputes its tags in full, whatever the value.
      */
     String COMPUTATION_STATE_PROPERTY = "tagComputationState";
 
-    /** A tag processor threw: the stored derived tags are the last ones computed successfully. */
+    /** A tag processor threw, and the stored derived tags are the last ones computed successfully. */
     String STATE_FAILED = "failed";
 
-    /** The stored derived tags were declared untrustworthy and a recomputation was asked for. */
+    /** A repair asked for the derived tags to be recomputed. */
     String STATE_RECOMPUTING = "recomputing";
 
     /** The path of the {@code tag:Homepage} node holding the tag definitions. */

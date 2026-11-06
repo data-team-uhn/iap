@@ -30,8 +30,6 @@
   <name>IAP - Base data model</name>
 
   <modules>
-    <!-- content-api before entities-api: the entity types extend the content ones, and node type
-         registration follows bundle start order -->
     <module>content-api</module>
     <module>entities-api</module>
   </modules>

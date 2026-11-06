@@ -21,7 +21,7 @@ import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
 /**
- * When to sweep up the content whose tags could not be computed.
+ * When to repair the content whose derived tags are marked as stale.
  *
  * @version $Id$
  * @since 0.1.0

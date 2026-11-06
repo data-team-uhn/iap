@@ -29,9 +29,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The response conventions shared by the endpoints that return a page of results as JSON. This class reads
- * {@code offset} and {@code limit} from the request, counts the matches, and writes the summary that follows the
- * results.
+ * Writes one page of results as JSON, with a summary that counts every match. It reads {@code offset} and
+ * {@code limit} from the request, decides which results go on the page, and writes the summary after them.
  *
  * <p>
  * A successful response is a JSON object holding a {@code rows} array followed by a summary:
@@ -50,10 +49,10 @@ import org.jetbrains.annotations.Nullable;
  * }
  *
  * <p>
- * The caller writes the {@code rows} array itself and {@link #offer offers} each candidate result to this class, which
- * decides whether it belongs on the requested page, serializes it if so, and keeps the counts. Counting stops at the
- * end of the {@value #LOOKAHEAD_PAGES}-page batch holding the requested page. A total that stopped there is reported
- * with {@code totalIsApproximate} set.
+ * The caller opens the {@code rows} array and {@link #offer offers} each result in turn. This class serializes the
+ * results that fall on the requested page, and counts the rest. Counting stops at the end of the batch of
+ * {@value #LOOKAHEAD_PAGES} pages that holds the requested page. A total cut short there has
+ * {@code totalIsApproximate} set.
  * </p>
  *
  * <p>
@@ -72,8 +71,7 @@ import org.jetbrains.annotations.Nullable;
  *     final PaginatedJsonResponse page = PaginatedJsonResponse.forRequest(json, request);
  *     boolean more = true;
  *     while (results.hasNext() && more) {
- *         // Read the result here, not inside the serializer: the serializer only runs for the results that end up
- *         // in the response, so advancing the iterator from it would leave the loop spinning on every other one
+ *         // Advance the iterator here: the serializer runs only for the results on the page
  *         final Result result = results.next();
  *         more = page.offer(result.getKey(), () -> serialize(result));
  *     }
@@ -88,24 +86,20 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class PaginatedJsonResponse
 {
-    /** The number of results returned when the request doesn't ask for a specific {@code limit}: {@value}. */
+    /** The number of results on a page when the request gives no {@code limit}: {@value}. */
     public static final long DEFAULT_LIMIT = 10;
 
-    /** The number of results returned at most, no matter how large a {@code limit} the request asks for: {@value}. */
+    /** The most results a page holds, whatever {@code limit} the request gives: {@value}. */
     public static final long MAX_LIMIT = 1000;
 
-    /**
-     * The size, in pages, of the batch counted before the total is called approximate: {@value}. Counting iterates
-     * the query results without serializing them. The horizon is deep enough to keep the total exact for all but the
-     * largest collections.
-     */
+    /** The size, in pages, of the batch counted before the total is called approximate: {@value}. */
     public static final long LOOKAHEAD_PAGES = 100;
 
     /**
-     * The number of results a single request ever counts, whatever it asks for: {@value}. {@link #MAX_LIMIT} caps the
-     * {@code limit}, but the {@code offset} also comes from the client and nothing else bounds it. Without this
-     * ceiling one request could walk the whole repository, holding a key per match. It caps the counting batch too:
-     * {@value #LOOKAHEAD_PAGES} pages of {@link #MAX_LIMIT} results is a hundred thousand.
+     * The most results a single request counts, whatever it asks for: {@value}. {@link #MAX_LIMIT} caps the
+     * {@code limit}, but the client also chooses the {@code offset}. Without this ceiling, one request could walk the
+     * whole repository and hold a key for each match. It also caps the counting batch, which can otherwise reach
+     * {@value #LOOKAHEAD_PAGES} pages of {@value #MAX_LIMIT} results.
      */
     public static final long MAX_COUNT = 10_000;
 
@@ -135,21 +129,20 @@ public final class PaginatedJsonResponse
         this.json = json;
         this.offset = offset;
         this.limit = limit;
-        // Count to the end of the batch of pages holding the requested page, plus one result to tell whether the
-        // total is exact. A limit of 0 asks for a count only and counts as far as any request may; it also keeps
-        // pageSize non-zero for the division below.
+        // Count to the end of the batch holding the requested page, plus one result to tell whether the total is
+        // exact. A limit of 0 asks for a count only, and counts as far as any request may.
         final long batch = limit > 0 ? Math.min(limit, MAX_LIMIT) : MAX_LIMIT;
         final long pageSize = LOOKAHEAD_PAGES * batch;
-        // The offset is clamped here rather than in the field. The summary still reports what was asked for.
-        // Clamping both terms keeps the sum in range: forPage passes its arguments through untouched, and only small
-        // positive values here stop the lookahead wrapping negative.
+        // The summary reports the offset as given, so it is clamped only here. forPage passes any long through, and
+        // clamping both terms keeps the lookahead from wrapping negative.
         final long wanted = Math.max(0, Math.min(offset, MAX_COUNT)) + batch;
         this.lookahead = Math.min(MAX_COUNT, ((wanted + pageSize - 1) / pageSize) * pageSize) + 1;
     }
 
     /**
-     * Starts the page the client asked for, from the {@code offset} and {@code limit} request parameters, corrected
-     * to sane values.
+     * Starts the page the client asked for, from the {@code offset} and {@code limit} request parameters. A missing
+     * or invalid value takes its default, a negative one counts as {@code 0}, and the limit is capped at
+     * {@value #MAX_LIMIT}.
      *
      * @param json the generator to write the results into, positioned inside the {@code rows} array
      * @param request the current request
@@ -165,12 +158,12 @@ public final class PaginatedJsonResponse
     }
 
     /**
-     * Starts an explicitly sized page. The caller is responsible for the values being sane. Prefer
-     * {@link #forRequest} when they come from a request.
+     * Starts a page of the given size. The values are used as given, so use {@link #forRequest} for values from a
+     * request.
      *
      * @param json the generator to write the results into, positioned inside the {@code rows} array
      * @param offset how many results to skip, {@code 0} or more
-     * @param limit how many results to write at most, {@code 0} or more
+     * @param limit how many results to write at most, {@code 0} or more; {@code 0} only counts them
      * @return a paginator for the requested page
      */
     @NotNull
@@ -180,10 +173,11 @@ public final class PaginatedJsonResponse
     }
 
     /**
-     * The extra serialization selectors requested by the client, cleaned up for appending to a resource path.
+     * The serialization selectors the client gives in the {@code resourceSelectors} parameter, to append to the path
+     * of each result. Slashes and whitespace are removed, and runs of dots become one.
      *
      * @param request the current request
-     * @return a string safe to append to a repository path, either empty or in the form {@code .sel1.sel2}
+     * @return the selectors after a dot, such as {@code .deep.simple}; empty if the parameter is missing or blank
      */
     @NotNull
     public static String getResourceSelectors(@NotNull final SlingJakartaHttpServletRequest request)
@@ -196,12 +190,11 @@ public final class PaginatedJsonResponse
     }
 
     /**
-     * Converts a request parameter, which may be missing or invalid, into a {@code long}, falling back to a default
-     * value.
+     * Reads a request parameter as a {@code long}.
      *
-     * @param value the string to convert, may be {@code null} or not a number
-     * @param defaultValue the value to use if the input cannot be converted to a number
-     * @return the parsed input, if valid, or the default value
+     * @param value the parameter's value; {@code null} if the request does not give it
+     * @param defaultValue the value to use if the parameter is missing or not a whole number
+     * @return the number the parameter holds, or the default
      */
     public static long parseLong(@Nullable final String value, final long defaultValue)
     {
@@ -213,35 +206,35 @@ public final class PaginatedJsonResponse
     }
 
     /**
-     * Offers one result to the page. Results before the requested offset and past the requested limit are only
-     * counted. The serializer runs for the results that end up in the response.
+     * Offers one result to the page. A result before the requested offset or past the limit is only counted. The
+     * serializer runs only for the results on the page.
      *
-     * @param key a value uniquely identifying the result. A result reached twice, as a query with a join routinely
-     *            does, is counted and returned once. {@code null} skips the duplicate check, for a source that cannot
-     *            produce the same result twice
+     * @param key a value unique to the result, such as its path. A result offered twice with the same key, as a query
+     *            with a join can return it, is counted and returned once. {@code null} skips the duplicate check, for
+     *            a source that never returns the same result twice
      * @param serializer computes the JSON for the result; returning {@code null} leaves the result out of the
      *            response, although it still counts towards the total
-     * @return {@code true} if more results are wanted, {@code false} once enough have been seen and the caller should
-     *         stop; the inverse of a subsequent {@link #isFull()}
+     * @return {@code true} if more results are wanted; {@code false} once enough have been seen, and then
+     *         {@link #isFull()} is {@code true}
      */
     public boolean offer(@Nullable final String key, @NotNull final Supplier<JsonObject> serializer)
     {
         return offer(key, serializer, () -> {
-            // A caller with no skipper has already moved past the result
+            // A caller that has no skipper has already moved past the result
         });
     }
 
     /**
-     * Offers one result to the page, for a source that only moves forward when it is told to. Exactly one of the two
-     * callbacks is invoked for every result that isn't a duplicate: the serializer for the results that go into the
-     * response, the skipper for the ones that are only counted.
+     * Offers one result to the page, for a source that moves forward only when it is told to. For each result that is
+     * not a duplicate, exactly one callback runs. The serializer runs for a result on the page, and the skipper for
+     * one that is only counted.
      *
-     * @param key a value uniquely identifying the result, or {@code null} to skip the duplicate check. The skipper is
-     *            not called for a duplicate: a caller that has a key has already read the result
+     * @param key a value unique to the result, or {@code null} to skip the duplicate check. A duplicate runs neither
+     *            callback, since a caller that has a key has already read the result
      * @param serializer reads the result and computes its JSON; returning {@code null} leaves the result out of the
      *            response, although it still counts towards the total
      * @param skipper moves past the result without reading it
-     * @return {@code true} if more results are wanted, {@code false} once enough have been seen
+     * @return {@code true} if more results are wanted; {@code false} once enough have been seen
      */
     public boolean offer(@Nullable final String key, @NotNull final Supplier<JsonObject> serializer,
         @NotNull final Runnable skipper)
@@ -253,9 +246,8 @@ public final class PaginatedJsonResponse
             return true;
         }
         ++this.counted;
-        // The result at the lookahead only proves there are more, and the summary leaves it out of the total. For a
-        // page starting close enough to MAX_COUNT the lookahead lands inside the requested page, where writing it
-        // would put a row in the response that the reported total does not cover.
+        // The result at the lookahead only proves there are more, and the total leaves it out. A page that starts
+        // just short of MAX_COUNT reaches the lookahead, and writing that result would put a row outside the total.
         if (this.counted < this.lookahead && this.counted > this.offset && this.returned < this.limit) {
             final JsonObject row = serializer.get();
             if (row != null) {
@@ -270,8 +262,8 @@ public final class PaginatedJsonResponse
     }
 
     /**
-     * Whether enough results have been seen for offering more to change nothing. A caller pulling from several
-     * sources checks this before starting on the next one.
+     * Whether enough results have been seen that offering more changes nothing. A caller reading several sources
+     * checks this before it starts on the next one.
      *
      * @return {@code true} if no further results are wanted
      */
@@ -281,8 +273,8 @@ public final class PaginatedJsonResponse
     }
 
     /**
-     * How many more results can still change the response. A caller asks a source for no more than this many;
-     * anything past them is discarded.
+     * How many more results can still change the response. A caller need not ask a source for more than this many,
+     * since the page ignores the rest.
      *
      * @return the number of results still wanted, {@code 0} once the page {@link #isFull() is full}
      */
@@ -292,11 +284,11 @@ public final class PaginatedJsonResponse
     }
 
     /**
-     * Writes the summary of the page: the effective offset and limit, the number of returned results, and the
-     * (possibly approximate) total number of matches. Must be called after the {@code rows} array has been closed.
+     * Writes the summary of the page: the offset and limit, the number of results written, and the total number of
+     * matches, which may be approximate. Call it after closing the {@code rows} array.
      *
-     * @param requestId the opaque {@code req} request parameter, echoed back for the client to match the response to
-     *            its request or discard an out-of-order one; not written when {@code null}
+     * @param requestId the client's {@code req} parameter, echoed back so that it can match the response to its
+     *            request or discard an out-of-order one; {@code null} if the request has none, and then not written
      */
     public void writeSummary(@Nullable final String requestId)
     {
@@ -304,18 +296,19 @@ public final class PaginatedJsonResponse
     }
 
     /**
-     * Writes the summary of a page whose results could not all be read. The response stays a well-formed document:
-     * the rows gathered before the failure, then the usual summary, with an {@code error} describing what went wrong
-     * and {@code partial} set. A client can tell an incomplete page from a short one.
+     * Writes the summary of a page whose results may not all have been read. The response stays a well-formed
+     * document. It holds the rows gathered before the failure, then the usual summary with an {@code error} saying
+     * what went wrong and {@code partial} set to {@code true}. A client can tell an incomplete page from a short
+     * one.
      *
      * <p>
-     * This is how a failure part-way through the results is reported. By then the response may already be on the
-     * wire. A failure before any result is written is an ordinary {@link JsonResponses#writeError} response.
+     * This reports a failure part-way through the results, when the response may already be on its way. A failure
+     * before any result is written is answered with {@link JsonResponses#writeError} instead.
      * </p>
      *
-     * @param requestId the opaque {@code req} request parameter, echoed back for the client to match the response to
-     *            its request or discard an out-of-order one; not written when {@code null}
-     * @param error a description of the failure, or {@code null} for a page that was read in full
+     * @param requestId the client's {@code req} parameter, echoed back so that it can match the response to its
+     *            request or discard an out-of-order one; {@code null} if the request has none, and then not written
+     * @param error what went wrong, in words for the person who will read it; {@code null} for a page read in full
      */
     public void writeSummary(@Nullable final String requestId, @Nullable final String error)
     {
@@ -325,7 +318,7 @@ public final class PaginatedJsonResponse
         this.json.write("offset", this.offset);
         this.json.write("limit", this.limit);
         this.json.write("returnedrows", this.returned);
-        // The result at the lookahead proves there are more and is not itself part of the total
+        // Leaves out the result at the lookahead
         this.json.write("totalrows", this.more ? this.counted - 1 : this.counted);
         this.json.write("totalIsApproximate", this.more);
         if (error != null) {

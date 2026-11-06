@@ -36,11 +36,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Check that all the required node properties are present. The list of properties to check is defined as nodes in
- * the repository, under {@code /libs/iap/healthcheck/requiredProperties/}, with the {@code propertyPath} property
- * holding the full JCR path to a property, and an optional {@code requiredValue} property holding the expected
- * value, compared through its string representation. If no required value is set, only the property's existence is
- * checked. Other modules should provide the actual required properties to check for.
+ * Checks that the repository properties IAP needs exist. Each child of
+ * {@code /libs/iap/healthcheck/requiredProperties} names one property. Its {@code propertyPath} holds the property's
+ * absolute path, and its optional {@code requiredValue} holds the value the property must have. The values are
+ * compared as strings, so a {@code requiredValue} of {@code true} matches a boolean property. Without a
+ * {@code requiredValue}, the property only has to exist. A module adds the properties it needs as children of that
+ * node, in its own initial content.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,13 +50,15 @@ import org.slf4j.LoggerFactory;
     HealthCheck.NAME + "=IAP properties present" }, immediate = true)
 public class PropertiesPresentHealthCheck implements HealthCheck
 {
-    /** JCR node where all the configurations are stored. */
+    /** The node whose children name the required properties. */
     public static final String CONFIGURATION_PATH = "/libs/iap/healthcheck/requiredProperties";
 
-    /** The name of the configuration node property holding the path to the property to check. */
+    /**
+     * The property holding the absolute path of a required property, such as {@code /libs/iap/conf/Media/logoLight}.
+     */
     public static final String PATH_PROPERTY = "propertyPath";
 
-    /** The name of the configuration node property holding the required value to check. */
+    /** The optional property holding the value a required property must have, as a string. */
     public static final String VALUE_PROPERTY = "requiredValue";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PropertiesPresentHealthCheck.class);
@@ -103,14 +106,14 @@ public class PropertiesPresentHealthCheck implements HealthCheck
     }
 
     /**
-     * Runs one configured check: the property must exist, and, when the configuration specifies a required value,
-     * its value must match it.
+     * Checks one required property, and adds a missing property or a wrong value to the result.
      *
-     * @param configuration the configuration node describing the check
-     * @param session the session to read the checked property with
-     * @param result the result log to report into
-     * @return {@code true} if the property is present and correct
-     * @throws RepositoryException if accessing the configuration or the checked property fails unexpectedly
+     * @param configuration a child of {@link #CONFIGURATION_PATH}
+     * @param session the service session to read the property with
+     * @param result the log this check's outcome is added to
+     * @return {@code true} if the property exists and, when a value is required, has that value
+     * @throws RepositoryException if the configuration has no {@code propertyPath}, or either value cannot be read as
+     *             a single string
      */
     private boolean checkProperty(final Node configuration, final Session session, final FormattingResultLog result)
         throws RepositoryException
@@ -125,8 +128,6 @@ public class PropertiesPresentHealthCheck implements HealthCheck
             return true;
         }
 
-        // Compare string representations, so that a required value configured as a string can match an actual
-        // property of another type, e.g. a boolean or a long
         final String requiredValue = configuration.getProperty(VALUE_PROPERTY).getString();
         final String actualValue = session.getProperty(propertyPath).getString();
         if (!requiredValue.equals(actualValue)) {

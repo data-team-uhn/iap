@@ -14,13 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Everything a remote peer has ever caused to be created, kept apart from the content the platform
-# itself owns. Nothing is granted on it to anyone: the endpoint is the only way in, and it writes as
-# the service user below.
+# Holds the nodes remote peers create, apart from the platform's own content. This module grants
+# access to it only to the service user below.
 create path (sling:Folder) /remote
 
-# The write that follows a verified token. Its rights stop at /remote, so a flaw in the endpoint's own
-# name checking still cannot reach content that matters.
+# Writes what a peer with a verified token asks for. Its rights stop at /remote, so a flaw in the
+# endpoint's name check cannot reach other content.
 create service user iap-remote-requests
 
 set ACL for iap-remote-requests

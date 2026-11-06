@@ -39,11 +39,10 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that raises a new submission: what the bootstrap workflow on {@code /Submissions} performs.
- * The event's {@code title} labels the submission, and its {@code schemaVersion}, the <em>path</em> of a
- * {@code sch:SchemaVersion}, says what is being submitted against. The submission is named by a UUID and filed
- * in the homepage's {@link PrefixTree prefix tree}. It holds real references to the schema version and to the
- * schema that version belongs to.
+ * The service task that raises a new submission under the homepage it targets. The event's {@code title} is the
+ * submission's title, and its {@code schemaVersion}, the path of a {@code sch:SchemaVersion}, says what is being
+ * submitted against. The submission is named by a UUID and filed in the homepage's {@link PrefixTree prefix tree}.
+ * It references the schema version and the schema that version belongs to.
  *
  * @version $Id$
  * @since 0.1.0
@@ -60,7 +59,7 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     /** The payload entry pointing at the schema version being submitted against. */
     private static final String SCHEMA_VERSION_PARAMETER = "schemaVersion";
 
-    /** Where the title is kept on the submission. Spelled like the payload entry, but not the same name. */
+    /** The submission's title property. Spelled like the payload entry, but a different name. */
     private static final String TITLE_PROPERTY = "title";
 
     /** The {@code REFERENCE} property holding the schema version. */
@@ -114,28 +113,26 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     }
 
     /**
-     * Places the {@code draft} lifecycle tag on the submission just raised.
+     * Places the {@code draft} lifecycle tag on the submission just raised. Saving answers requires it.
      *
-     * <p>Here rather than on the workflow's end event, which is where a lifecycle is normally declared: this
-     * definition targets the submissions homepage, so the host an end event would tag is {@code /Submissions}
-     * and not the submission. A submission without the tag cannot be answered at all, since that is the state
-     * saving checks for.</p>
+     * <p>An end event would tag the workflow's target, which here is the homepage and not the submission, so the
+     * tag is placed here.</p>
      *
      * @param submission the submission just created
      * @throws PersistenceException when the tag cannot be written
      */
     private void draft(final Resource submission) throws PersistenceException
     {
-        // Every resource adapts to Taggable where the tags bundle is installed, and it starts first
+        // Every resource adapts to Taggable once the tags bundle is active, and it starts before this one
         Objects.requireNonNull(submission.adaptTo(Taggable.class), "A submission is taggable")
             .tag(Submission.DRAFT_TAG);
     }
 
     /**
-     * Resolves and vets the schema version the payload points at. It must exist, be a schema version rather
-     * than whatever else sits at that path, carry the {@code active} lifecycle tag, and belong to a schema that
-     * is not {@code retired}: a retired schema closes all of its versions, which inherit the tag rather than
-     * carry it. This is where "no new submissions against a closed version" is actually enforced.
+     * Resolves and vets the schema version the payload points at. It must exist, be a schema version, carry the
+     * {@code active} lifecycle tag, and belong to a schema that is not {@code retired}. A retired schema closes all
+     * of its versions, which inherit the tag and do not carry it. This is where a closed version is refused new
+     * submissions.
      *
      * @param context the executing task's context
      * @return the resolved schema version, and the schema it belongs to

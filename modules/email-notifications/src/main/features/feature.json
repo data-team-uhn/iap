@@ -16,7 +16,7 @@
 
 {
   "title": "IAP - Email notification support",
-  "description": "Sending emails built from templates stored in the repository",
+  "description": "Sends emails built from templates stored in the repository",
   "variables":{
     "emailnotifications.smtps.host":"localhost",
     "emailnotifications.smtps.port":"8465",
@@ -27,32 +27,23 @@
     "emailnotifications.messageidprovider.host": "localhost"
   },
   "bundles":[
-    // Jakarta Mail 2.1 moved the implementation out of the API jar, and the API finds its
-    // providers through ServiceLoader, which only crosses a bundle boundary when the framework
-    // carries an osgi.serviceloader mediator. This launcher carries none, so the combined bundle
-    // Angus publishes is what keeps the API and the SMTP provider in one classloader. Installing
-    // jakarta.mail:jakarta.mail-api next to it is not belt and braces but a coin flip: both
-    // export jakarta.mail 2.1.5, install order decides which one everything else wires to, and
-    // sending fails outright when the API-only bundle wins. It stays a compile dependency only.
+    // The Jakarta Mail API and the Angus Mail implementation in one bundle. The API finds the SMTP
+    // provider through ServiceLoader, which crosses no bundle boundary in this launcher, so the
+    // two must share a bundle. Never install jakarta.mail:jakarta.mail-api beside it. Both
+    // export jakarta.mail 2.1.5, and sending fails if the API-only bundle is the one wired.
     {
       "id":"org.eclipse.angus:jakarta.mail:2.0.5",
       "start-order":"24"
     },
-    // Jakarta Activation 2.1 split the same way, and the split leaves the API unable to find the
-    // classes that write each part of a message. Rather than mediate that lookup -- which takes a
-    // ServiceLoader extender, the angus-activation registry provider, and a fragment carrying a
-    // mailcap file, all so a class name in a text file can be resolved -- the handlers are named at
-    // compile time in AngusContentHandlers, which installs itself as the default command map. The
-    // API bundle alone is then all the runtime needs. The one thing given up is the other registry:
-    // with no MimeTypeRegistryProvider, FileTypeMap cannot guess a media type from a file name and
-    // answers application/octet-stream, which costs nothing here because every attachment is sent
-    // with an explicit type.
+    // The Jakarta Activation API alone. AngusContentHandlers gives it the classes that write
+    // each part of a message. With no angus-activation, FileTypeMap cannot guess a media type
+    // from a file name; every attachment here is sent with an explicit type.
     {
       "id":"jakarta.activation:jakarta.activation-api:2.1.4",
       "start-order":"24"
     },
-    // The template engine the email bodies are written in. Its only library dependency is
-    // commons-lang3, which boot.json already installs.
+    // The template engine of the subjects and bodies. It needs commons-lang3, which boot.json
+    // installs.
     {
       "id":"org.apache.velocity:velocity-engine-core:2.4.1",
       "start-order":"24"
@@ -78,7 +69,7 @@
       "start-order":"24"
     },
     {
-      // After the notifications bundles whose delivery extension point this implements
+      // After iap-notifications-api (26), whose delivery extension point this implements
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
       "start-order":"27"
     }
@@ -103,8 +94,8 @@
       "names": [
         "default"
       ],
-      // Pinned because iap-oidc-support ships a second Jasypt stack ("~iapoauth"); untargeted,
-      // these cross-bind and whichever loses reads an env var that is not set
+      // iap-oidc-support configures a second Jasypt stack, "~iapoauth". Without these targets
+      // the two stacks can bind each other's services, and one then reads an unset variable.
       "passwordProvider.target": "(names=default)",
       "ivGenerator.target": "(algorithm=SHA1PRNG)",
       "saltGenerator.target": "(algorithm=SHA1PRNG)",
@@ -121,9 +112,8 @@
       "mail.smtps.ssl.checkserveridentity": "${emailnotifications.smtps.checkserveridentity}",
       "username": "${emailnotifications.smtps.username}",
       "password": "${emailnotifications.smtps.password}",
-      // This reference is greedy, so without the target it would follow the higher-ranked
-      // "~iapoauth" CryptoService that iap-oidc-support registers and decrypt `password` with the
-      // wrong key
+      // This reference is greedy. Without the target it would bind the higher-ranked "~iapoauth"
+      // CryptoService of iap-oidc-support, and decrypt `password` with the wrong key.
       "cryptoService.target": "(names=default)",
       "messageIdProvider.target": "(names=default)"
     },

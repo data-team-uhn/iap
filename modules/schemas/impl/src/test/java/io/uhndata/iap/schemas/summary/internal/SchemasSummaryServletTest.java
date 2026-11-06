@@ -115,9 +115,9 @@ class SchemasSummaryServletTest
         final Map<String, Object> properties = new HashMap<>(Map.of(
             "sling:resourceType", Schema.RESOURCE_TYPE, "title", "Single", "tags", "retired"));
         this.context.create().resource(HOME + "/single", properties);
+        // A version without lifecycle tags, which no figure counts
         this.version(HOME + "/single", "v1");
 
-        // An untagged version is in no state the widget counts
         final JsonObject summary = this.summary();
 
         assertEquals(1, value(summary, "retired"));
@@ -141,7 +141,7 @@ class SchemasSummaryServletTest
     {
         final MockSlingJakartaHttpServletRequest request =
             new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
-        // A homepage that will not adapt, as happens when the session cannot read its properties
+        // A homepage that does not adapt to its model
         request.setResource(new ResourceWrapper(this.context.resourceResolver().getResource(HOME))
         {
             @Override

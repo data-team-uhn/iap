@@ -29,9 +29,6 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
-// The app shell's Footer.test exercises the common rendering (links, version, affiliation logo)
-// through its wrapper, so this focuses on the behaviors specific to the shared component: the
-// default anchor navigation, the label fallback, and the credits being omittable.
 describe("FooterContent", () => {
   beforeEach(() => {
     mockedLoadExtensions.mockResolvedValue([]);

@@ -24,12 +24,12 @@ import org.jetbrains.annotations.NotNull;
 import io.uhndata.iap.principals.api.PrincipalContext;
 
 /**
- * Answers one special name. Any bundle may register one, which is how the vocabulary grows: a comments module can
- * teach the platform {@code @commentAuthor} without anything else learning what a comment is.
+ * Answers one special name, such as {@code @creator}. A bundle adds a special name by registering a resolver as an
+ * OSGi service.
  *
- * <p>A resolver answers who a name stands for in a situation, nothing more. No group expansion, no membership
- * checks, no judgement about what the answer may do. It may answer with several principals. It answers with
- * nobody when the situation identifies no one, which is a normal answer and not a failure.</p>
+ * <p>A resolver says who the name stands for in a situation. It does not expand groups or check membership. It may
+ * answer with several principals, or with none when the situation identifies nobody. None is a normal answer, not
+ * a failure.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -37,10 +37,10 @@ import io.uhndata.iap.principals.api.PrincipalContext;
 public interface SpecialNameResolver
 {
     /**
-     * The special name this resolver answers, including the {@code @}, e.g. {@code @creator}. Registering a
-     * second resolver for the same name is a deployment mistake; which one answers is not defined.
+     * The special name this resolver answers. When two resolvers answer the same name, which one is asked is not
+     * defined.
      *
-     * @return the special name
+     * @return the name, starting with {@code @}, such as {@code @creator}
      */
     @NotNull
     String getName();
@@ -48,8 +48,8 @@ public interface SpecialNameResolver
     /**
      * Who the name stands for in the given situation.
      *
-     * @param context what the name is being asked about
-     * @return the principals it stands for there, empty when it stands for nobody
+     * @param context what the name is asked about
+     * @return the principal names; empty if the name stands for nobody there
      */
     @NotNull
     List<String> resolve(@NotNull PrincipalContext context);

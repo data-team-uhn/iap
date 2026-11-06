@@ -33,8 +33,8 @@ import org.apache.jackrabbit.oak.spi.state.NodeStateUtils;
 import io.uhndata.iap.entities.nodetypes.NodeTypeRules;
 
 /**
- * A commit editor keeping {@code jcr:lastModified} and {@code jcr:lastModifiedBy} current on every node whose type is
- * {@code mix:lastModified}, so that no writer has to remember to.
+ * A commit editor that stamps each node of a {@code mix:lastModified} type with the time and the user of the commit
+ * that changes its content. The stamp is the pair {@code jcr:lastModified} and {@code jcr:lastModifiedBy}.
  *
  * <p>A node is modified when its own content changes, or the content of a child that is part of it, as
  * {@link NodeTypeRules} decides. Reordering the children that are part of it counts too, since a version keeps their
@@ -207,7 +207,8 @@ final class LastModifiedEditor extends DefaultEditor
     }
 
     /**
-     * The order of a node's children: as Oak records it once the order has been set, as it stores them before.
+     * The order of a node's children. Oak records it in {@code :childOrder} once something has ordered them, and
+     * before that, it is the order Oak stores them in.
      *
      * @param state the node
      * @return the child names, in order

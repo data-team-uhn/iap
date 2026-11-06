@@ -84,7 +84,7 @@ class MetricsManagerImplTest
         final ValueMap properties = properties("simple");
         assertEquals("metric:Metric", properties.get("jcr:primaryType", String.class));
         assertArrayEquals(new String[] { "mix:atomicCounter" }, properties.get("jcr:mixinTypes", String[].class));
-        // The protected sling:resourceType property is not set by the code, it is autocreated by the node type
+        // Oak sets sling:resourceType from the node type, and the mock repository has no node types
         assertNull(properties.get("sling:resourceType", String.class));
         assertEquals("simple", properties.get("label", String.class));
         assertEquals(0L, properties.get("defaultOrder", Long.class));
@@ -125,7 +125,6 @@ class MetricsManagerImplTest
             .withCategory("Old category")
             .withRolloverSchedule("0 0 0 * * ?")
             .create();
-        // Simulate some activity on the counter
         try (ResourceResolver resolver = open()) {
             final ModifiableValueMap properties =
                 resolver.getResource("/Metrics/counted").adaptTo(ModifiableValueMap.class);
@@ -142,15 +141,15 @@ class MetricsManagerImplTest
         final ValueMap properties = properties("counted");
         assertEquals("New label", properties.get("label", String.class));
         assertEquals("admin", properties.get("accessLevel", String.class));
-        // Metadata not repeated on the new definition is removed
+        // The settings this definition does not give are removed
         assertNull(properties.get("description", String.class));
         assertNull(properties.get("category", String.class));
         assertNull(properties.get("rolloverSchedule", String.class));
-        // The counter state is left untouched
+        // The count and the period stay
         assertEquals(42L, properties.get("oak:counter", Long.class));
         assertEquals(30L, properties.get("previousValue", Long.class));
 
-        // And metadata provided again on a later definition is set back
+        // A later definition sets them again
         this.manager.createMetric("counted")
             .withDescription("Newer description")
             .withCategory("Newer category")
@@ -214,7 +213,7 @@ class MetricsManagerImplTest
         assertFalse(this.manager.getMetric("unknown").isPresent());
         assertFalse(this.manager.getMetric(null).isPresent());
         assertFalse(this.manager.getMetric("../Metrics").isPresent());
-        // A child of /Metrics which is not an actual metric is not returned either
+        // Nor is a node under /Metrics that is not a metric
         try (ResourceResolver resolver = open()) {
             resolver.create(resolver.getResource("/Metrics"), "other",
                 Map.of("jcr:primaryType", "nt:unstructured"));
@@ -229,7 +228,7 @@ class MetricsManagerImplTest
         this.manager.createMetric("charlie").create();
         this.manager.createMetric("alpha").create();
         this.manager.createMetric("bravo").create();
-        // Non-metric children are not listed
+        // A node that is not a metric, which the listing leaves out
         try (ResourceResolver resolver = open()) {
             resolver.create(resolver.getResource("/Metrics"), "other",
                 Map.of("jcr:primaryType", "nt:unstructured"));
@@ -257,7 +256,7 @@ class MetricsManagerImplTest
         this.manager.createMetric("third").withCategory("Submissions").withDefaultOrder(30).create();
         this.manager.createMetric("first").withCategory("Submissions").withDefaultOrder(10).create();
         this.manager.createMetric("second").withCategory("Submissions").withDefaultOrder(20).create();
-        // A negative order is allowed, and puts the metric ahead of the ones that declare none
+        // A negative order puts the metric ahead of the ones that set none
         this.manager.createMetric("zeroth").withCategory("Submissions").withDefaultOrder(-10).create();
         this.manager.createMetric("unordered").withCategory("Submissions").create();
 
@@ -276,7 +275,6 @@ class MetricsManagerImplTest
     @Test
     void getMetricsOrdersCategoriesAheadOfTheDefaultOrder() throws Exception
     {
-        // The category wins over the order: a low order in a later category still comes second
         this.manager.createMetric("early").withCategory("Alpha").withDefaultOrder(90).create();
         this.manager.createMetric("late").withCategory("Beta").withDefaultOrder(10).create();
 

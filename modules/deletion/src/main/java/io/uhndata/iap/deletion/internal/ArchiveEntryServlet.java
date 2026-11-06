@@ -39,21 +39,15 @@ import io.uhndata.iap.deletion.api.RestoreConflict;
 import io.uhndata.iap.deletion.api.Veto;
 
 /**
- * Describes one archive entry: {@code GET /Archive/<xx>/<yy>/<zz>/<entry>.entry.json} answers with what was
- * archived and, crucially, whether the two things that can be done about it would actually work.
+ * Describes one archive entry: {@code GET <entry>.entry.json} answers with what the entry holds, and whether a
+ * restore and a purge would succeed now. It runs the checks that {@link DeletionService#restore} and
+ * {@link DeletionService#purge} make before they change anything. Each item that cannot go back is listed with its
+ * conflict, and each guard that refuses the purge with its reason.
  *
  * <p>
- * Both actions can fail for reasons that are knowable in advance — a restore whose original parent is gone or whose
- * path has been taken, a purge a guard refuses — and until now the only way to find out was to attempt one and read
- * the 409. This endpoint runs the same evaluations the operations run before they change anything, so a page can
- * state the consequences before anybody commits to them. That is the shape the deletion endpoint already uses for
- * its own {@code dryRun}.
- * </p>
- *
- * <p>
- * A preflight is a snapshot, not a promise: another deletion can occupy a path, and a retention floor expires. The
- * operations therefore evaluate again rather than trusting this, and a client should treat a refusal arriving after
- * a clean preflight as ordinary rather than as an error.
+ * The answer holds only until something changes. Another deletion can occupy a path, and an archived resource can
+ * gain the {@code del:Undeletable} mixin. A restore or purge refused after a clean answer is an ordinary outcome, not
+ * an error.
  * </p>
  *
  * @version $Id$

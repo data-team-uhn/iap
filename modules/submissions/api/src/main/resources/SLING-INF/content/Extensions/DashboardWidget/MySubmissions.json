@@ -6,9 +6,8 @@
   "ext:renderURL": "asset:iap-submissions.MySubmissionsWidget.js",
   "defaultOrder": 1,
   "ext:widgetWidth": "full",
-  // The widget draws its own header, so the action for raising a submission can sit on the same line
-  // as the title rather than floating above the table. It still takes the title and subtitle from
-  // this node, so they are declared in exactly one place.
+  // The widget draws its own header, with the action that raises a submission on the line of the title.
+  // It still takes the title and subtitle from this node.
   "ext:widgetHideHeader": true,
   "ext:personas": ["submitter"]
 }

@@ -59,9 +59,9 @@ public class Topic extends EntityPart implements Referenceable
     private String[] sources;
 
     /**
-     * The topic as shown to the submitter.
+     * The topic, as people read it.
      *
-     * @return the topic's text
+     * @return the text
      */
     @NotNull
     public String getText()
@@ -70,9 +70,9 @@ public class Topic extends EntityPart implements Referenceable
     }
 
     /**
-     * An optional longer explanation displayed to the submitter.
+     * What to look for.
      *
-     * @return a description, or {@code null} if not set
+     * @return the description; {@code null} if there is none
      */
     @Nullable
     public String getDescription()
@@ -83,7 +83,7 @@ public class Topic extends EntityPart implements Referenceable
     /**
      * The prompt an LLM is given to assess this topic from the submission.
      *
-     * @return a prompt, or {@code null} if this topic is not assessed by an LLM
+     * @return the prompt; {@code null} if no LLM assesses this topic
      */
     @Nullable
     public String getAssessmentPrompt()
@@ -92,10 +92,10 @@ public class Topic extends EntityPart implements Referenceable
     }
 
     /**
-     * The requirements and questions that bear on this topic. They may be of any requirement kind, so they are
-     * read as {@link EntityPart}s. The link is weak, so one removed since is skipped.
+     * The requirements and questions that bear on this topic, read as {@link EntityPart}s whatever their type. The
+     * link is weak, and a part removed since is left out.
      *
-     * @return a list of schema parts, empty if none are linked or none of them resolve
+     * @return the parts, in stored order; empty if none are linked or none of them can be read
      */
     @NotNull
     public List<EntityPart> getSources()

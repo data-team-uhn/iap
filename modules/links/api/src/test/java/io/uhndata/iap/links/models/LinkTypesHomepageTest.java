@@ -94,8 +94,7 @@ class LinkTypesHomepageTest
     @Test
     void documentsTheLinkTypes()
     {
-        // The heading properties are autocreated from the defaults declared by the link:TypesHomepage node
-        // type, which the mock repository does not apply, so the test sets the very values the CND declares
+        // The mock repository does not autocreate properties, so the test sets the defaults the CND declares
         final Resource resource = this.context.create().resource("/LinkTypes", Map.of(
             "sling:resourceType", LinkTypesHomepage.RESOURCE_TYPE,
             "title", "Link types",
@@ -108,14 +107,13 @@ class LinkTypesHomepageTest
         this.context.create().resource("/LinkTypes/ehrChart", Map.of(
             "sling:resourceType", ExternalLinkDefinition.RESOURCE_TYPE));
 
-        // The homepage is the AutoDocumentable adapter for the whole vocabulary
         final AutoDocumentable documentation = resource.adaptTo(AutoDocumentable.class);
         assertNotNull(documentation);
         assertEquals("Link types", documentation.getDocumentationTitle());
         assertEquals("All the link types defined in this instance.", documentation.getDocumentationIntro());
         assertEquals(2, documentation.getDocumentedItems().size());
 
-        // Link types have no categories, so the catalogue renders as a flat list, without section headings
+        // Link types have no categories, so the catalogue has no section headings
         assertEquals("# Link types\n"
             + "\n"
             + "All the link types defined in this instance.\n"
@@ -135,8 +133,6 @@ class LinkTypesHomepageTest
     @Test
     void headingsCanBeReworded()
     {
-        // A deployment can reword the heading by editing the autocreated properties, and nothing in the model
-        // second-guesses what it stored
         final Resource resource = this.context.create().resource("/LinkTypes", Map.of(
             "sling:resourceType", LinkTypesHomepage.RESOURCE_TYPE,
             "title", "Connections",

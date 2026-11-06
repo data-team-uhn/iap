@@ -27,8 +27,7 @@ import WidgetDashboard from "@iap/frontend-commons/components/WidgetDashboard";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import { STORE_KEY, setActivePersona } from "@iap/ui-extension/personas";
 
-// Only the loading half is mocked; visibleInPersona is pure, and the dashboard's persona filtering
-// is only worth testing against the real predicate.
+// Only loadExtensions is mocked, so the persona filter is the real one.
 vi.mock("@iap/ui-extension/extensionManager", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@iap/ui-extension/extensionManager")>()),
   loadExtensions: vi.fn(),
@@ -41,16 +40,15 @@ afterEach(() => {
   Reflect.deleteProperty(window, STORE_KEY);
 });
 
-// Builds a widget extension as returned by loadExtensions: the parsed ext:Extension
-// JSON with the render asset already resolved to a component.
+// A widget as loadExtensions returns it, with `ext:render` already a component.
 const widget = (name: string, order: number) => ({
   "ext:name": name,
   "defaultOrder": order,
   "ext:render": () => <div>{`${name} content`}</div>,
 });
 
-// Builds a widget group node as returned by loadExtensions: a data-only extension on the same point,
-// identified by its node name and titled by its ext:name.
+// A widget group as loadExtensions returns it: a data-only extension, named by `@name` and titled by
+// `ext:name`.
 const group = (name: string, label = name) => ({
   "@name": name,
   "ext:name": label,
@@ -80,7 +78,6 @@ describe("WidgetDashboard", () => {
 
     render(<WidgetDashboard point="TestWidgets" />);
 
-    // The dashboard frames every widget itself, titling it with the extension's ext:name.
     const content = await screen.findByText("Welcome content");
     expect(content.closest(".MuiPaper-root")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Welcome" })).toBeInTheDocument();
@@ -104,8 +101,7 @@ describe("WidgetDashboard", () => {
 
     render(<MemoryRouter><WidgetDashboard point="TestWidgets" /></MemoryRouter>);
 
-    // The label is what is shown, while the accessible name also carries the widget's title, so
-    // that a verb shared by several widgets still says where it leads.
+    // The accessible name adds the widget's title to the label
     const action = await screen.findByRole("link", { name: "Configure: Categories" });
     expect(action).toHaveTextContent("Configure");
     expect(action).toHaveAttribute("href", "/admin/categories");

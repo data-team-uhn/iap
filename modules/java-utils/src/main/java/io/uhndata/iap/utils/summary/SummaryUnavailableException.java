@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.utils.summary;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Thrown by {@link AdminSummaryServlet#summarize} when the summary cannot be read. The message is sent to the
  * client, so it names what failed and never the cause's details.
@@ -33,7 +35,7 @@ public class SummaryUnavailableException extends Exception
      *
      * @param message what could not be read, as the client is told
      */
-    public SummaryUnavailableException(final String message)
+    public SummaryUnavailableException(@NotNull final String message)
     {
         super(message);
     }
@@ -44,7 +46,7 @@ public class SummaryUnavailableException extends Exception
      * @param message what could not be read, as the client is told
      * @param cause the underlying failure
      */
-    public SummaryUnavailableException(final String message, final Throwable cause)
+    public SummaryUnavailableException(@NotNull final String message, @NotNull final Throwable cause)
     {
         super(message, cause);
     }

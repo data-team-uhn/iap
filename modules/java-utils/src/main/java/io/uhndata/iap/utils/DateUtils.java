@@ -37,7 +37,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Various utility methods for working with dates.
+ * Reads dates written in any of several formats, and writes them in one.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,14 +45,16 @@ import org.jetbrains.annotations.Nullable;
 public final class DateUtils
 {
     /**
-     * The preferred date format, as a formatter object that can format {@code ZonedDateTime} instances. The
-     * {@code xxx} offset pattern always writes a numeric offset, so a zero UTC offset is serialized as
-     * {@code +00:00} rather than {@code Z}.
+     * The format dates are written in, such as {@code 2025-01-15T10:30:00.000-05:00}. JCR accepts it as a
+     * {@code DATE} value. The offset is always numeric, so UTC is written {@code +00:00}, never {@code Z}.
      */
     public static final DateTimeFormatter PREFERRED_DATETIME_FORMAT =
         DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
 
-    /** Supported date formats. */
+    /**
+     * The formats dates are read in, most specific first. A format without an offset reads the date in the JVM's
+     * default time zone, and a format without a time reads midnight.
+     */
     public static final List<DateTimeFormatter> DATETIME_FORMATS = List.of(
         PREFERRED_DATETIME_FORMAT,
         getFormat("yyyy-MM-dd'T'HH:mm:ss.SSSz"),
@@ -68,12 +70,8 @@ public final class DateUtils
         getFormat("yyyy-MM-dd"),
         getFormat("M/d/y"));
 
-    /**
-     * Hide the utility class constructor.
-     */
     private DateUtils()
     {
-        // Nothing to do, just making the class uninstantiable
     }
 
     private static DateTimeFormatter getFormat(final String format)
@@ -88,10 +86,11 @@ public final class DateUtils
     }
 
     /**
-     * Parses a date from the given input string as a {@link Calendar} object.
+     * Reads a date as a {@link Calendar} in the JVM's default time zone. The instant is kept, and the string's own
+     * offset is not.
      *
-     * @param str the serialized date to parse
-     * @return the parsed date, or {@code null} if the date cannot be parsed
+     * @param str a date in one of the {@link #DATETIME_FORMATS}; {@code null} or blank when there is no date
+     * @return the date; {@code null} if the string is {@code null}, blank, or matches none of the formats
      */
     @Nullable
     public static Calendar parseCalendar(@Nullable final String str)
@@ -106,30 +105,24 @@ public final class DateUtils
     }
 
     /**
-     * Parses a date from the given input string as a {@link ZonedDateTime} object.
+     * Reads a date as a {@link ZonedDateTime}, in the zone the string names, or the JVM's default if it names none.
      *
-     * @param str the serialized date to parse
-     * @return the parsed date, or {@code null} if the date cannot be parsed
+     * @param str a date in one of the {@link #DATETIME_FORMATS}; {@code null} or blank when there is no date
+     * @return the date; {@code null} if the string is {@code null}, blank, or matches none of the formats
      */
     @Nullable
     public static ZonedDateTime parseDateTime(@Nullable final String str)
     {
         return parseWithFirstMatchingFormat(str, format -> {
-            // The date string may or may not have a timezone offset, try both a zoned and a local datetime
             final TemporalAccessor result = format.parseBest(str, ZonedDateTime::from, LocalDateTime::from);
-            // No timezone in the string means the system default
             return result instanceof ZonedDateTime zoned ? zoned
                 : LocalDateTime.from(result).atZone(ZoneId.systemDefault());
         });
     }
 
     /**
-     * Parses the day out of the given input string, ignoring any time and zone it also carries.
-     *
-     * <p>
-     * Use it to read a stored {@code date} answer. That is usually the bare {@code yyyy-MM-dd} a date input stores,
-     * but may be a full timestamp, whose offset must not move the day to the reader's zone.
-     * </p>
+     * Reads the day a string names. Any time and offset it also carries are ignored, so the offset never moves the
+     * day into another zone: {@code 2025-01-15T02:00:00.000+05:00} reads as January 15 whatever the JVM's zone.
      *
      * @param str a date as {@code yyyy-MM-dd}, or a timestamp in one of the {@link #DATETIME_FORMATS}; {@code null}
      *     or blank when there is no date
@@ -140,7 +133,6 @@ public final class DateUtils
     @Nullable
     public static LocalDate parseDate(@Nullable final String str)
     {
-        // The day is read straight off the string, before any offset can move it
         return parseWithFirstMatchingFormat(str, format -> LocalDate.from(format.parse(str)));
     }
 
@@ -159,7 +151,6 @@ public final class DateUtils
         if (StringUtils.isBlank(str)) {
             return null;
         }
-        // The formats are listed in descending order of specificity
         return DATETIME_FORMATS.stream().map(format -> {
             try {
                 return reading.apply(format);
@@ -171,10 +162,10 @@ public final class DateUtils
     }
 
     /**
-     * Return a copy of the passed date at midnight.
+     * The start of a date's day, in the date's own zone.
      *
-     * @param date the source date+time, will not be modified.
-     * @return a date instance at the same date, but at midnight
+     * @param date the date
+     * @return the same day at {@code 00:00}
      */
     @NotNull
     public static ZonedDateTime atMidnight(@NotNull final ZonedDateTime date)
@@ -183,10 +174,10 @@ public final class DateUtils
     }
 
     /**
-     * Return a copy of the passed date at midnight.
+     * The start of a date's day, in the date's own time zone.
      *
-     * @param date the source date+time, will not be modified.
-     * @return a date instance at the same date, but at midnight
+     * @param date the date, which is left unchanged
+     * @return a new calendar on the same day at {@code 00:00}
      */
     @NotNull
     public static Calendar atMidnight(@NotNull final Calendar date)
@@ -200,11 +191,10 @@ public final class DateUtils
     }
 
     /**
-     * Serialize a date to the canonical format expected by JCR.
+     * Writes a date in the {@link #PREFERRED_DATETIME_FORMAT}, in the calendar's own time zone.
      *
-     * @param date a date object, may be null
-     * @return a date serialization in the {@code 1999-12-31T20:30:00.000+05:00} format, using the date's own timezone,
-     *         or {@code null} if the input date was {@code null}
+     * @param date the date; {@code null} when there is none
+     * @return the date, such as {@code 1999-12-31T20:30:00.000+05:00}; {@code null} if the date is {@code null}
      */
     @Nullable
     public static String toString(@Nullable final Calendar date)
@@ -220,11 +210,11 @@ public final class DateUtils
     }
 
     /**
-     * Serialize a date to the canonical format expected by JCR.
+     * Writes a date in the {@link #PREFERRED_DATETIME_FORMAT}.
      *
-     * @param date a date object, may be null
-     * @return a date serialization in the {@code 1999-12-31T20:30:00.000+05:00} format, or {@code null} if the input
-     *         date was {@code null}
+     * @param date a date with a time and an offset, such as a {@link ZonedDateTime}; {@code null} when there is none
+     * @return the date, such as {@code 1999-12-31T20:30:00.000+05:00}; {@code null} if the date is {@code null}, or
+     *         lacks a time or an offset, as a {@link LocalDate} does
      */
     @Nullable
     public static String toString(@Nullable final TemporalAccessor date)
@@ -240,12 +230,12 @@ public final class DateUtils
     }
 
     /**
-     * Reformat a date string to the format expected by JCR. This may involve adding missing information, e.g. setting
-     * the time to midnight if no time is provided, or using the system default timezone if one isn't specified.
+     * Rewrites a date in the {@link #PREFERRED_DATETIME_FORMAT}. A date without a time gets midnight, and one
+     * without an offset gets the JVM's default time zone.
      *
-     * @param date a date string in any of the supported {@link #DATETIME_FORMATS formats} may be {@code null}
-     * @return a date serialization in the {@code 1999-12-31T20:30:00.000+05:00} format, or {@code null} if the input
-     *         date was {@code null} or in an unsupported format
+     * @param date a date in one of the {@link #DATETIME_FORMATS}; {@code null} or blank when there is no date
+     * @return the date, such as {@code 1999-12-31T20:30:00.000+05:00}; {@code null} if the string is {@code null},
+     *         blank, or matches none of the formats
      */
     @Nullable
     public static String normalize(@Nullable final String date)

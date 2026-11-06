@@ -37,8 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link FormItem}, exercised through the {@link Question} concrete subtype (an abstract
- * node type has no direct instances of its own). Every subtype, including {@link Section}, inherits this behavior.
+ * Unit tests for {@link FormItem}, through {@link Question}, since a form item is always of a concrete type.
  *
  * @version $Id$
  * @since 0.1.0

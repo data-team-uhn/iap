@@ -17,12 +17,12 @@
 {
   "bundles": [
     {
-      // After the entity bundles at 24, so that the /search node is created once the repository is
-      // fully set up; the data:Search node type itself only needs the built-in sling: types
+      // With its implementation. The data:Search node type needs only Sling's own types.
       "id": "${project.groupId}:iap-search-api:${project.version}",
       "start-order": "25"
     },
     {
+      // After the principals service (24), which resolves the filter values starting with @
       "id": "${project.groupId}:${project.artifactId}:${project.version}",
       "start-order": "25"
     }

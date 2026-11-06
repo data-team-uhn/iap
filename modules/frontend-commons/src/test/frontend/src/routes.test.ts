@@ -24,8 +24,7 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
-// The resolved routes are memoised in module state, so each test starts from a fresh copy of the
-// module rather than inheriting whatever the previous one cached.
+// The views are kept in module state, so each test starts from a fresh copy of the module.
 const freshRoutes = async () => {
   vi.resetModules();
   return (await import("@iap/frontend-commons/routes")).getRoutes;

@@ -42,10 +42,9 @@ import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.UserIds;
 
 /**
- * Serves all the metrics at {@code /Metrics.json} as a JSON object with a {@code metrics} array, each entry
- * serialized as by {@link Metric#toJson}. The endpoint is accessible without authentication so that dashboards and
- * monitoring tools can poll it, but metrics restricted to administrators are only listed when an administrator is
- * asking. Reading the metrics doesn't change them.
+ * Serves the metrics at {@code /Metrics.json}: an object whose {@code metrics} array holds each metric's
+ * {@link Metric#toJson() JSON}, in display order. It needs no login, so a monitoring tool can poll it. A metric with
+ * the {@code admin} access level is listed only for the {@code admin} user.
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,7 +61,7 @@ public class MetricsEndpoint extends SlingJakartaSafeMethodsServlet
     private transient MetricsManager metricsManager;
 
     @Override
-    // The metrics are content, served as they are rather than as a command's answer
+    // The metrics are content, not a command's answer
     @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException

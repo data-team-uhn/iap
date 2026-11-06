@@ -49,13 +49,12 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.utils.JsonResponses;
 
 /**
- * The first thing a trusted remote instance can actually ask this one to do, and for now the only way to exercise
- * the token authentication: {@code POST /system/remote} with a JWT in the {@code Authorization} header and a body
- * of {@code {"path": "<name>"}} creates an empty node at {@code /remote/<name>}.
+ * Lets a trusted remote instance create an empty node in this one. The peer sends {@code POST /system/remote} with a
+ * JWT in the {@code Authorization} header and the body {@code {"path": "<name>"}}, and the node appears at
+ * {@code /remote/<name>}.
  *
- * <p>Currently mostly a placeholder, to showcase the cross-site authentication work. The write that follows is done
- * by a service user whose rights end at {@code /remote}, and the requested name is confined to a single alphanumeric
- * segment, to prevent subtree traversal. JWT usage is limited to this endpoint currently.</p>
+ * <p>The name must be one segment of ASCII letters and digits, so it cannot address anything outside
+ * {@code /remote}. A service user whose rights end at {@code /remote} does the write.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -64,7 +63,7 @@ import io.uhndata.iap.utils.JsonResponses;
 @SlingServletPaths(value = RemoteNodeServlet.ENDPOINT_PATH)
 public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
 {
-    /** Where a remote peer posts. Unauthenticated as far as Sling is concerned; the token is the credential. */
+    /** The path a remote peer posts to. Sling requires no session here: the token is the credential. */
     public static final String ENDPOINT_PATH = "/system/remote";
 
     /** The only subtree a remote peer may create anything in. */
@@ -74,16 +73,14 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RemoteNodeServlet.class);
 
-    /** The subservice whose user holds the write rights on {@link #ROOT_PATH}. */
+    /** The subservice mapped to the service user that may write under {@link #ROOT_PATH}. */
     private static final String SUBSERVICE_NAME = "remote";
 
 
-    /**
-     * What the body's {@code path} may be: one segment, ASCII letters and digits only.
-     */
+    /** A valid {@code path} in the body: one segment of 1 to 64 ASCII letters and digits. */
     private static final Pattern SAFE_NAME = Pattern.compile("\\p{Alnum}{1,64}");
 
-    /** The scheme the token is expected under, tolerated rather than required. */
+    /** The optional scheme before the token in the {@code Authorization} header, matched in any letter case. */
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final transient TokenManager tokenManager;
@@ -147,7 +144,7 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
         final String presented = header.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())
             ? header.substring(BEARER_PREFIX.length()) : header;
         final IapToken token = this.tokenManager.parse(presented.trim());
-        // The parser rejects an expired token itself; checked again because this is the only gate before a write
+        // TokenManager does not promise that parse refuses an expired token
         return token == null || token.isExpired(System.currentTimeMillis()) ? null : token;
     }
 
@@ -167,11 +164,11 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Create the node and answer with what became of it.
+     * Create the node, and answer with its path or with why it could not be created.
      *
      * @param response the HTTP response to write into
      * @param name the validated node name
-     * @param token the verified token of the peer asking, used to attribute a failure
+     * @param token the verified token of the peer asking; a failure is logged with its user ID
      * @throws IOException when the response cannot be written
      */
     private void create(final SlingJakartaHttpServletResponse response, final String name, final IapToken token)
@@ -189,15 +186,12 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
                 return;
             }
 
-            // Actually create the node + return success
             resolver.create(parent, name, Map.of("jcr:primaryType", "nt:unstructured"));
             resolver.commit();
             response.setHeader("Location", path);
             JsonResponses.write(response, HttpServletResponse.SC_CREATED, "created",
                 Json.createObjectBuilder().add("path", path));
         } catch (final LoginException | PersistenceException e) {
-            // A missing service user or an unwritable /remote: the deployer's to fix, and nobody would otherwise
-            // find out, since all the peer sees is a 500 it will retry
             LOGGER.error("Could not create {} for {}: {}", path, token.getUserId(), e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(RemoteNodeServlet.class, "create")
                 .about(path)

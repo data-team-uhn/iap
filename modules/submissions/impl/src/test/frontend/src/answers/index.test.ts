@@ -18,9 +18,8 @@
 
 import { getAnswerComponent } from "@iap/submissions/answerComponents";
 import { loadAnswerComponents } from "@iap/submissions/answers";
-// Imported rather than fetched: in a browser each of these arrives as its own asset, named by an
-// extension on the point below, and registers itself as it is evaluated. Importing does the same
-// thing, and is the only way to get them here.
+// Imported rather than fetched. In a browser each of these arrives as its own asset, named by an
+// extension on the point below, and registers itself as it is evaluated. Importing does the same.
 import BooleanAnswer from "@iap/submissions/answers/BooleanAnswer";
 import ChoiceAnswer from "@iap/submissions/answers/ChoiceAnswer";
 import DateAnswer from "@iap/submissions/answers/DateAnswer";
@@ -51,8 +50,8 @@ function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
 }
 
 describe("loading the answer components", () => {
-  // Spelled out rather than read from the module: the name is that of the extension point the
-  // content declares
+  // Spelled out rather than read from the module: it is the name of the extension point the content
+  // declares
   it("asks the repository which ones are declared on the AnswerComponent point", async () => {
     await loadAnswerComponents();
 
@@ -60,8 +59,8 @@ describe("loading the answer components", () => {
   });
 });
 
-// Nothing here empties the registry, and it must not: a component registers itself as it loads, and
-// a module is evaluated once, so a registry cleared mid-file could never be filled again.
+// Nothing here empties the registry. A component registers itself when its module is evaluated, which
+// happens once, so a registry cleared mid-file could not be filled again.
 describe("the answer components that ship with this module", () => {
   it("has one for every data type a schema can declare", () => {
     expect(getAnswerComponent(question({ dataType: "text" }))).toBe(TextAnswer);
@@ -71,8 +70,6 @@ describe("the answer components that ship with this module", () => {
     expect(getAnswerComponent(question({ dataType: "double" }))).toBe(NumberAnswer);
   });
 
-  // The one candidate that reads something other than the data type, and it has to win against the
-  // component that would otherwise have the submitter type the answer in
   it("answers a question offering options by picking, whatever its data type says", () => {
     expect(getAnswerComponent(question({
       dataType: "text",
@@ -84,8 +81,6 @@ describe("the answer components that ship with this module", () => {
     expect(getAnswerComponent(question({ dataType: "date", options: [] }))).toBe(DateAnswer);
   });
 
-  // A deployment whose schema declares a type nothing here answers must hear about it rather than
-  // be given some default input that stores a value the schema will not accept
   it("offers nothing for a data type none of them recognizes", () => {
     expect(getAnswerComponent(question({ dataType: "invented" }))).toBeNull();
   });

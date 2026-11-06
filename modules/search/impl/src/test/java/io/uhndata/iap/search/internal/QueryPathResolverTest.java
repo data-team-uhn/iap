@@ -103,7 +103,7 @@ public class QueryPathResolverTest
     @Test
     public void aPathComparedToAnOrdinaryPropertyIsLeftAlone() throws Exception
     {
-        // The value of such a property really is a path; turning it into a UUID would break the statement
+        // The value of such a property is a path, and a UUID would not match it
         withType(ANSWER, "value", PropertyType.STRING);
         withNode(QUESTION_PATH, UUID);
         final String statement = "select * from [sub:Answer] as a where a.value = '" + QUESTION_PATH + "'";
@@ -124,7 +124,6 @@ public class QueryPathResolverTest
     {
         withType(ANSWER, QUESTION, PropertyType.REFERENCE);
         withNode("/Submissions", UUID);
-        // Only a comparison is translated, which is what keeps a scoping path out of it
         final String statement = "select * from [sub:Answer] as a where isdescendantnode(a, '/Submissions')";
         Assertions.assertEquals(statement, resolve(statement));
     }
@@ -148,7 +147,7 @@ public class QueryPathResolverTest
     @Test
     public void anUnqualifiedPropertyIsLeftAloneWhenTheStatementJoins() throws Exception
     {
-        // With two selectors in play there is no telling which node type the property belongs to
+        // With two selectors, the property could belong to either node type
         withType(ANSWER, QUESTION, PropertyType.REFERENCE);
         withNode(QUESTION_PATH, UUID);
         final String statement = "select * from [sub:Answer] as a inner join [sub:Submission] as s"
@@ -193,7 +192,7 @@ public class QueryPathResolverTest
     @Test
     public void aResolvedComparisonFollowingAnUntouchedOneLandsInTheRightPlace() throws Exception
     {
-        // The untouched one has to be copied over verbatim, brackets, quotes and all
+        // The untouched comparison is copied as it is, brackets, quotes and all
         withType(ANSWER, QUESTION, PropertyType.REFERENCE);
         withNode(QUESTION_PATH, UUID);
         Assertions.assertEquals("select * from [sub:Answer] as a where a.value = '/kept/as/it/is'"
@@ -221,7 +220,6 @@ public class QueryPathResolverTest
     @Test
     public void aTargetThatCannotBeReferencedIsLeftAlone() throws Exception
     {
-        // Oak answers getIdentifier() for such a node with its path, which no reference property holds
         withType(ANSWER, QUESTION, PropertyType.REFERENCE);
         withNode(QUESTION_PATH, null);
         Assertions.assertEquals(BY_PATH, resolve(BY_PATH));
@@ -238,7 +236,6 @@ public class QueryPathResolverTest
     @Test
     public void anUncheckedFailureLeavesThePathAlone() throws Exception
     {
-        // A malformed path is the client's to send, and Oak may reject one without wrapping its complaint
         withType(ANSWER, QUESTION, PropertyType.REFERENCE);
         Mockito.when(this.session.nodeExists(QUESTION_PATH)).thenThrow(new IllegalArgumentException("Not a path"));
         Assertions.assertEquals(BY_PATH, resolve(BY_PATH));

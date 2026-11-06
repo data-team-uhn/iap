@@ -26,11 +26,11 @@ import { usePhone } from "../usePhone";
 
 interface InMenu {
   close: () => void;
-  // Stands in for the button of an action chosen in the menu, once the menu has closed
+  // Stands for the button of an action chosen in the menu, since the menu closes with the choice
   trigger: HTMLElement;
 }
 
-// Set while actions are lines of a menu rather than buttons
+// Set while actions are the lines of a menu; null while they are buttons
 export const ActionsMenuContext = createContext<InMenu | null>(null);
 
 interface ActionsMenuProps {
@@ -90,6 +90,7 @@ export function ActionsMenu({ label, inline, children }: ActionsMenuProps) {
   );
 }
 
+// Whether the caller is rendered as part of an ActionsMenu's menu.
 export function useInActionsMenu() {
   return use(ActionsMenuContext) !== null;
 }

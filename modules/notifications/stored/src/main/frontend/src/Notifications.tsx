@@ -25,9 +25,9 @@ import { useNavigate } from "react-router";
 import { type Notification, SHOWN } from "./notificationsModel";
 import { useNotifications } from "./useNotifications";
 
-// The notifications bell in the app bar, revealing the current user's notifications as a dropdown.
-// Opening the list marks what it shows as read. Registered on the `iap/appBar/entry` extension
-// point, end section.
+// The notifications bell in the app bar. Its badge counts the current user's unread notifications,
+// and it lists the newest in a dropdown. Opening the list marks what it shows as read, and an entry
+// leads to what it is about. It is an `iap/appBar/entry` extension, at the end of the bar.
 function Notifications() {
   const navigate = useNavigate();
   const [ anchor, setAnchor ] = useState<HTMLElement | null>(null);
@@ -53,7 +53,7 @@ function Notifications() {
           onClick={event => open(event.currentTarget)}
           size="small"
         >
-          { /* Hides itself at 0, and stops at 99+ rather than widening to fit */ }
+          { /* MUI hides the badge at 0, and shows 99+ above 99 */ }
           <Badge badgeContent={unreadCount} max={99} color="secondary">
             <NotificationsNoneIcon />
           </Badge>

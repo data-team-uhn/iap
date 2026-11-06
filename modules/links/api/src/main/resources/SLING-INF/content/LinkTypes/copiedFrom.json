@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "link:InternalDefinition",
   "label": "Copied from",
-  "description": "The content this started as a copy of. It may be deleted, leaving the copy as it is.",
+  "description": "The content this started as a copy of.",
   "weak": true,
   "onDelete": "IGNORE"
 }

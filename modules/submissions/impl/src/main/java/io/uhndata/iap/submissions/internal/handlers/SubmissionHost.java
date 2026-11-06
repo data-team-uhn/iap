@@ -40,7 +40,7 @@ final class SubmissionHost
      * Returns the task's host, once it is known to be a submission.
      *
      * @param host the resource the task acts on
-     * @param task the handler name, for the message
+     * @param task the handler name, such as {@code saveAnswers}, for the message
      * @return the same host
      * @throws WorkflowDefinitionException when the workflow points the task at anything else
      */

@@ -18,37 +18,20 @@
 <app = 'https://iap.uhndata.io/app/'>
 
 //-----------------------------------------------------------------------------
-//
-// The Homepage
-//
-//-----------------------------------------------------------------------------
-
-//-----------------------------------------------------------------------------
-// Simple nodetype for identifying the homepage.
+// A page of the application, such as /admin: a node whose URL serves the
+// application's page shell.
 [app:Homepage] > sling:Folder
-  // Attributes:
-  // We can use the homepage in a query
   query
 
-  // Properties:
-  // Hardcode the resource type
   - sling:resourceType (STRING) = "app/Homepage" mandatory autocreated protected
-  // Hardcode the resource supertype: the Homepage is a resource
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
-  // Set a default title
   - title (String) = "${platform.name}" mandatory autocreated
 
 //-----------------------------------------------------------------------------
-// A node holding platform configuration, delivered to the browser as <meta>
-// tags: everything under /libs/iap/conf, flattened into one map by
-// ConfigMetadata and rendered by the shared page header.
+// Platform configuration, under /libs/iap/conf. Each property with a value and
+// no namespace reaches every page as a <meta> tag of the same name.
 [app:Configuration] > sling:Folder
-  // Attributes:
-  // We can look configuration up in a query
   query
 
-  // Properties:
-  // Hardcode the resource type
   - sling:resourceType (STRING) = "app/Configuration" mandatory autocreated protected
-  // Hardcode the resource supertype: configuration is plain content
   - sling:resourceSuperType (STRING) = "data/Content" mandatory autocreated protected

@@ -42,7 +42,7 @@ describe("schemaLabel", () => {
   });
 
   it("is empty for anything that is not a dereferenced node", () => {
-    // An unexpanded reference is serialized as a plain UUID string
+    // A reference that is not dereferenced is serialized as its `jcr:uuid`
     expect(schemaLabel("f8cfa08e-b315-4eed-9d38-af6473fcd48f")).toBe("");
     expect(schemaLabel(undefined)).toBe("");
   });
@@ -60,17 +60,16 @@ describe("the registered submission grid configuration", () => {
     const status = config?.columns.find(column => column.field === "tags");
     expect(status?.headerName).toBe("Status");
     expect(status?.type).toBe("singleSelect");
-    // Ordering by a multivalued property has no meaningful semantics
     expect(status?.sortable).toBe(false);
 
-    // The filterable choices come from the lifecycle tag definitions: the first call triggers
-    // the fetch, and once it resolves the defined names are offered with their labels
+    // The first call starts reading the lifecycle tag definitions, and offers nothing until they
+    // arrive
     const options = status && "valueOptions" in status && typeof status.valueOptions === "function"
       ? status.valueOptions
       : undefined;
     expect(options?.({ field: "tags" })).toEqual([]);
     await vi.waitFor(() => {
-      // The colors ride along, surfacing as colored chips in the "is any of" filter input
+      // Each with its label and colour
       expect(options?.({ field: "tags" })).toEqual([
         { value: "draft", label: "Draft", color: "#4c5670" },
         { value: "submitted", label: "Submitted", color: "#1b4f8f" },
@@ -87,7 +86,7 @@ describe("the registered submission grid configuration", () => {
 
   it("links each row to the submission's own page", () => {
     expect(config?.rowLink?.({ "@path": "/Submissions/demo-1" })).toBe("/Submissions/demo-1");
-    // A row somehow missing its path is not clickable rather than a broken link
+    // A row without a path links nowhere
     expect(config?.rowLink?.({})).toBeUndefined();
   });
 
@@ -105,8 +104,6 @@ describe("the registered submission grid configuration", () => {
 
   it("describes the narrow-screen card through the columns' card slots", () => {
     const slotOf = (field: string) => config?.columns.find(column => column.field === field)?.cardSlot;
-    // Title and status chip lead the card, schema and modification day form the caption line,
-    // and the creation timestamp stays off the card (the modification day already dates it)
     expect(slotOf("title")).toBe("title");
     expect(slotOf("tags")).toBe("badge");
     expect(slotOf("schemaVersion")).toBe("caption");

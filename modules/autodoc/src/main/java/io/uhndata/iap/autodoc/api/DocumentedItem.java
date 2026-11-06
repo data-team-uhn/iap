@@ -28,11 +28,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * One entry in a {@link AutoDocumentable auto-documentable} catalogue: a defined tag, a supported workflow node type,
- * a tracked metric. The base contract is minimal (a name, an optional label, description and categories), and comes
- * with default JSON and Markdown serializations built from it; an implementation only overrides what it has to say
- * more: typically {@link #getDocumentationDetails} for extra behavior bullets in the Markdown rendering, and
- * {@link #documentationJsonBuilder} to append extra fields to the JSON one.
+ * One entry in an {@link AutoDocumentable} catalogue, such as one tag. It needs only a name and a description. The
+ * JSON and Markdown forms also show its label and its categories. An entry with more to say adds
+ * Markdown bullets through {@link #getDocumentationDetails}, and JSON fields through
+ * {@link #documentationJsonBuilder}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -40,10 +39,9 @@ import org.jetbrains.annotations.Nullable;
 public interface DocumentedItem
 {
     /**
-     * The identifier of this item, the exact string used when referencing it, e.g. the tag name or the workflow
-     * node type name.
+     * The name other content refers to this item by, such as a tag's name.
      *
-     * @return a simple string
+     * @return the name, exactly as a reference writes it
      */
     @NotNull
     String getName();
@@ -51,7 +49,7 @@ public interface DocumentedItem
     /**
      * The human-readable name of this item.
      *
-     * @return a short display string, the {@link #getName name} itself unless overridden
+     * @return a short display string; the {@link #getName name} unless the implementation gives another
      */
     @NotNull
     default String getDocumentationLabel()
@@ -60,18 +58,17 @@ public interface DocumentedItem
     }
 
     /**
-     * A longer explanation of what this item means and when it applies.
+     * What this item means and when it applies.
      *
-     * @return a description, or {@code null} if there is nothing more to say than the label
+     * @return plain text, which may span several lines; {@code null} if there is none
      */
     @Nullable
     String getDescription();
 
     /**
-     * The categories this item belongs to, used for grouping the catalogue into sections; an item belonging to
-     * several categories is documented under each of them.
+     * The categories this item is listed under.
      *
-     * @return category names, an empty list if the item is not categorized
+     * @return the categories' names; empty to list it under {@value AutoDocumentable#DEFAULT_CATEGORY}
      */
     @NotNull
     default List<String> getDocumentationCategories()
@@ -80,10 +77,10 @@ public interface DocumentedItem
     }
 
     /**
-     * Extra behaviors or constraints of this item worth calling out, each rendered as one bullet point after the
-     * description, e.g. {@code **Inheritable**: implicitly carried by everything inside a tagged resource}.
+     * What else a reader should know about this item, each shown as a bullet after the description, such as
+     * {@code **Inheritable**: implicitly carried by everything inside a tagged resource}.
      *
-     * @return Markdown fragments, one per bullet point, an empty list if there is nothing to call out
+     * @return one Markdown fragment per bullet; empty if there are none
      */
     @NotNull
     default List<String> getDocumentationDetails()
@@ -92,11 +89,11 @@ public interface DocumentedItem
     }
 
     /**
-     * Start the JSON serialization of this item with the base contract: {@code name}, {@code label}, and when
-     * present, {@code description} and {@code category}. Implementations override this to append their extra
-     * fields to {@code DocumentedItem.super.documentationJsonBuilder()}.
+     * The JSON form of this item, still open for more fields. An implementation with more to say adds its fields to
+     * what {@code DocumentedItem.super.documentationJsonBuilder()} returns.
      *
-     * @return a JSON object builder holding this item's data, still open for more fields
+     * @return a builder holding the {@code name}, the {@code label}, the {@code description} if there is one, and
+     *         the {@code category} array if there are any
      */
     @NotNull
     default JsonObjectBuilder documentationJsonBuilder()
@@ -117,9 +114,9 @@ public interface DocumentedItem
     }
 
     /**
-     * Serialize this item as a JSON object, as assembled by {@link #documentationJsonBuilder}.
+     * This item as JSON, as {@link #documentationJsonBuilder} builds it.
      *
-     * @return a JSON object describing this item
+     * @return the built object
      */
     @NotNull
     default JsonObject toDocumentationJson()
@@ -128,10 +125,10 @@ public interface DocumentedItem
     }
 
     /**
-     * Render the documentation of this item as a Markdown fragment: a heading with the label and name, the
-     * description, and one bullet point per {@link #getDocumentationDetails detail}.
+     * This item as Markdown: a level 3 heading with the label and the name, the description, and one bullet per
+     * {@link #getDocumentationDetails detail}.
      *
-     * @return a Markdown fragment with a level 3 heading
+     * @return the Markdown fragment
      */
     @NotNull
     default String toMarkdown()
@@ -140,7 +137,7 @@ public interface DocumentedItem
             new StringBuilder("### " + getDocumentationLabel() + " (`" + getName() + "`)\n");
         final String description = getDescription();
         if (description != null) {
-            // Turn raw line breaks into Markdown hard line breaks
+            // Two spaces before a line break keep it in Markdown
             out.append('\n').append(description.replaceAll("\n", "  \n")).append('\n');
         }
         if (!getDocumentationDetails().isEmpty()) {

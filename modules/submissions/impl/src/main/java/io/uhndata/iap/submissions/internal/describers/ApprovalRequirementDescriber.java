@@ -34,10 +34,8 @@ import io.uhndata.iap.utils.DateUtils;
 
 /**
  * What an approval requirement adds to a form: who decides it, and the latest decision once somebody has made one.
- *
- * <p>Nobody grants an approval from the form, so where it stands is all the form can say about it. Which review
- * counts as the decision is the submission's to say. Until there is one, there is no decision to report, whatever
- * reviews are still open.</p>
+ * The {@link Submission#findLatestDecisionOn submission} says which review is that decision. An open review is not a
+ * decision.
  *
  * @version $Id$
  * @since 0.1.0
@@ -72,7 +70,7 @@ public class ApprovalRequirementDescriber implements RequirementDescriber
     }
 
     /**
-     * One decision on an approval: which way it went, who made it, and when, if the review records that.
+     * One decision on an approval: which way it went, who made it, and when, if the review records when.
      *
      * @param review the review that decided
      * @return the decision's JSON

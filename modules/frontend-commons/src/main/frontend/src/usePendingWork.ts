@@ -18,7 +18,7 @@
 
 import { useCallback, useRef } from "react";
 
-// Work still on its way, for something that must not start before it is done: a step that ends
+// Tracks work still running, such as saves, so that a step can wait for it. A step that ends
 // editing must not overtake the save of the answer just given.
 //
 // Sample usage:
@@ -30,6 +30,7 @@ import { useCallback, useRef } from "react";
 export function usePendingWork() {
   const pending = useRef(new Set<Promise<unknown>>());
 
+  // Tracks the work until it settles
   const track = useCallback((work: Promise<unknown>) => {
     pending.current.add(work);
     const forget = () => {
@@ -38,7 +39,8 @@ export function usePendingWork() {
     work.then(forget, forget);
   }, []);
 
-  // Resolves once everything tracked so far has succeeded, and rejects with the first failure
+  // Resolves once all the work still running has succeeded, and rejects with the first failure. Work
+  // that failed before the call is forgotten, and does not count.
   const allDone = useCallback((): Promise<void> =>
     Promise.all([ ...pending.current ]).then(() => undefined), []);
 

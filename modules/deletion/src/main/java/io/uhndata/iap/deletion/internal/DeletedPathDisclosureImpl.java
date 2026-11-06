@@ -42,16 +42,13 @@ import io.uhndata.iap.utils.DateUtils;
 import io.uhndata.iap.utils.UserIds;
 
 /**
- * Looks a dead link up in the archive on behalf of the 404 page, and decides what its reader may be told.
+ * Looks a missing path up in the archive, through the {@code iap-deletion} service user's session, and decides what
+ * the reader may be told about it.
  *
  * <p>
- * Three different responses: A reader who can read the archive learns when it was archived, who
- * deleted it, and a link to the archive entry. The person who deleted it learns when it was archived.
- * Anybody else is told nothing and sees an ordinary 404.
- * </p>
- *
- * <p>
- * The archive test is a plain read through the requester's own session to use JCR's permission system.
+ * A reader who can read the archive entry learns when the path was deleted, who deleted it, and where the entry is.
+ * The user who deleted it, if they cannot read the entry, learns only when. Anybody else is told nothing. Whether the
+ * reader can read the entry is a plain read through their own resolver.
  * </p>
  *
  * @version $Id$
@@ -61,9 +58,8 @@ import io.uhndata.iap.utils.UserIds;
 public class DeletedPathDisclosureImpl implements DeletedPathDisclosure
 {
     /**
-     * Where the archive browser shows one entry. The console route and the repository path parted company, so
-     * this is not derivable from {@link DeletionService#ARCHIVE_PATH}. It is the {@code ext:targetURL} of
-     * {@code Extensions/Admin/Views/ArchiveEntry.json}, and has to move with it.
+     * The console route of the page showing one archive entry, followed by the entry's name. It is the
+     * {@code ext:targetURL} of {@code Extensions/Admin/Views/ArchiveEntry.json}, and has to change with it.
      */
     static final String ENTRY_ROUTE = "/admin/archive/";
 
@@ -85,8 +81,8 @@ public class DeletedPathDisclosureImpl implements DeletedPathDisclosure
                 throw new RepositoryException("The deletion service resolver is not backed by a repository session");
             }
             if (!serviceSession.nodeExists(DeletionService.ARCHIVE_PATH)) {
-                // repoinit creates the archive, so not seeing it means this session is not the one this component
-                // asked for. Unreported, the query comes back empty and every dead link claims it was never one
+                // repoinit creates the archive, so this session is not the service user's. Without this warning
+                // the query finds nothing, and every deleted path reads as one that never existed.
                 LOGGER.warn("Cannot tell whether {} was deleted: {} is not readable by the deletion service session",
                     requestedPath, DeletionService.ARCHIVE_PATH);
                 return null;
@@ -95,8 +91,7 @@ public class DeletedPathDisclosureImpl implements DeletedPathDisclosure
                 DeletedPathLookup.find(serviceSession, requestedPath);
             return found.map(archived -> this.disclose(archived, request)).orElse(null);
         } catch (final LoginException | RepositoryException e) {
-            // The page falls back to a plain "does not exist", so the reader never sees this. Recording it is
-            // how an administrator finds out
+            // The reader sees a plain "not found", so only the error log tells an administrator
             LOGGER.warn("Failed to look up whether {} was deleted: {}", requestedPath, e.getMessage(), e);
             ErrorLogger.logError(e,
                 ErrorContext.of(DeletedPathDisclosureImpl.class, "deletedPathLookup").about(requestedPath));
@@ -105,20 +100,18 @@ public class DeletedPathDisclosureImpl implements DeletedPathDisclosure
     }
 
     /**
-     * Narrow one deletion down to what this reader may know about it.
+     * What this reader may know about one deletion.
      *
      * @param archived the deletion that took the requested path away
-     * @param request the request that 404ed, whose own session decides what may be disclosed
-     * @return the facts to hand to the page, or {@code null} when this reader is to be told nothing
+     * @param request the request that failed with a 404, whose resolver decides what may be disclosed
+     * @return the facts to hand to the page; {@code null} if this reader is to be told nothing
      */
     @Nullable
     Disclosure disclose(final DeletedPathLookup.Archived archived, final SlingJakartaHttpServletRequest request)
     {
         final String deletedAt = DateUtils.toString(archived.deletedAt());
         if (deletedAt == null) {
-            // The date is what tells the page it was deleted at all, so a deletion without one cannot be reported
-            // as a deletion. An archive entry always carries its jcr:created, so this is the repository being
-            // broken rather than a link being dead, and it is worth saying so out loud.
+            // The page reads a deletion from its date, so without one there is nothing to report
             LOGGER.warn("Not reporting that {} was deleted: the archive entry has no usable creation date",
                 archived.entryPath());
             return null;

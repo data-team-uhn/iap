@@ -22,10 +22,7 @@
     }
   ],
   "configurations":{
-    // Send unauthenticated users to the branded login page at /login instead of Sling's
-    // built-in form at /system/sling/form/login. The /login path is exempted from the
-    // authentication requirements in core/sling-configuration.json, and made readable by
-    // everyone in this module's repoinit.
+    // Sling's form authentication sends a visitor without a session to /login
     "org.apache.sling.auth.form.FormAuthenticationHandler":{
       "form.login.form":"/login"
     }

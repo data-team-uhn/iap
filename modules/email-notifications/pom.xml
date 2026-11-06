@@ -28,7 +28,7 @@
   <artifactId>iap-email-notifications</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Email Notifications</name>
-  <description>Sending emails built from templates stored in the repository</description>
+  <description>Sends emails built from templates stored in the repository</description>
 
   <build>
     <plugins>
@@ -60,8 +60,7 @@
       <groupId>jakarta.mail</groupId>
       <artifactId>jakarta.mail-api</artifactId>
     </dependency>
-    <!-- For the content handlers, which have to be named at compile time inside OSGi; see
-         AngusContentHandlers -->
+    <!-- The content handlers that AngusContentHandlers names in code -->
     <dependency>
       <groupId>org.eclipse.angus</groupId>
       <artifactId>jakarta.mail</artifactId>
@@ -83,12 +82,12 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
     </dependency>
-    <!-- The delivery extension point this module's email sender implements -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-error-tracking-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- The delivery extension point that EmailDelivery implements -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-notifications-api</artifactId>
@@ -114,13 +113,12 @@
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-lang3</artifactId>
     </dependency>
-    <!-- The engine the templates are written in; commons-lang3 above is its only library dependency -->
+    <!-- The template engine of the subjects and bodies -->
     <dependency>
       <groupId>org.apache.velocity</groupId>
       <artifactId>velocity-engine-core</artifactId>
     </dependency>
-    <!-- Escaping the values that go into an HTML body. Velocity's own escaping event handlers are
-         deprecated in 2.4, so the handler is ours and this is what it escapes with. -->
+    <!-- Escapes the values put in an HTML body -->
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-text</artifactId>

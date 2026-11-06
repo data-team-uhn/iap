@@ -39,8 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for the self-served documentation of the category tree: {@link CategoriesHomepage}'s
- * {@link AutoDocumentable} side and {@link Category}'s {@code DocumentedItem} side.
+ * Unit tests for the catalogue the category tree serves: {@link CategoriesHomepage} as {@link AutoDocumentable}, and
+ * {@link Category} as {@code DocumentedItem}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -69,15 +69,15 @@ class CategoriesDocumentationTest
     }
 
     /**
-     * Builds a tree exercising every documentation rule: a branch category whose leaves are documented (the branch
-     * itself is not), a live top-level leaf, a retired leaf, a retired branch with a live leaf under it (pruned
-     * entirely), and non-category children (ignored).
+     * Builds a tree with a case for each rule. It has a branch whose leaves are listed and which is not, a live
+     * top-level leaf, and a retired leaf. A retired branch is left out with the untagged leaf under it. Children that
+     * are not categories are ignored.
      *
      * @return the homepage model of the created tree
      */
     private CategoriesHomepage createTree()
     {
-        // The headings are autocreated by the node type on a real repository, which the mocks do not apply
+        // The mock repository does not apply the node type's autocreated headings
         final Resource root = this.context.create().resource("/Categories", Map.of(
             SLING_RESOURCE_TYPE, CategoriesHomepage.RESOURCE_TYPE,
             "title", SHIPPED_TITLE,
@@ -91,7 +91,7 @@ class CategoriesDocumentationTest
             "label", "Retrospective Data Studies",
             "description", "Chart reviews and analyses of previously collected data.",
             "jcr:uuid", LEAF_UUID));
-        // No label and no description: documented with the node name as label, and without a description
+        // No label and no description
         this.context.create().resource("/Categories/Retrospective/RetrospectiveBiospecimen", Map.of(
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE,
             "jcr:uuid", BARE_LEAF_UUID));
@@ -112,7 +112,7 @@ class CategoriesDocumentationTest
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE,
             "label", "Legacy Data Studies"));
         this.context.create().resource("/Categories/notes", SLING_RESOURCE_TYPE, "data/Content");
-        // LegacyData is not marked itself: it is retired because Legacy above it is
+        // LegacyData is retired only through Legacy
         Retirement.retire(this.context, "/Categories/Paper", "/Categories/Legacy");
         return root.adaptTo(CategoriesHomepage.class);
     }
@@ -156,7 +156,7 @@ class CategoriesDocumentationTest
 
         assertEquals("RetrospectiveBiospecimen", leaf.getString("label"));
         assertFalse(leaf.containsKey("description"));
-        // The identifier is not optional: every category is referenceable, so it always has one
+        // Every category is referenceable, so the id is always there
         assertEquals(BARE_LEAF_UUID, leaf.getString("id"));
     }
 
@@ -167,7 +167,7 @@ class CategoriesDocumentationTest
 
         assertEquals(SHIPPED_TITLE, catalogue.getString("title"));
         assertEquals(SHIPPED_INTRO, catalogue.getString("description"));
-        // The catalogue is deliberately flat: every leaf lands in the one default group
+        // No category names a group, so every leaf is under the default one
         assertEquals(3, catalogue.getJsonObject("items").getJsonArray("uncategorized").size());
     }
 
@@ -190,13 +190,12 @@ class CategoriesDocumentationTest
         final String markdown = createTree().toMarkdown();
 
         assertTrue(markdown.startsWith("# " + SHIPPED_TITLE + "\n"));
-        // Only the leaves are rendered, flat: their labels are level 2 headings right under the title, with no
-        // technical node name after the label, and the branches contribute no headings of their own
+        // The leaves as level 2 headings without their node names, and nothing for the branches
         assertTrue(markdown.contains("\n## Retrospective Data Studies\n"));
         assertFalse(markdown.contains("`RetrospectiveData`"));
         assertFalse(markdown.contains("Retrospective studies"));
         assertTrue(markdown.contains("\nChart reviews and analyses of previously collected data.\n"));
-        // The pruned and retired categories are nowhere in the rendering
+        // Nothing of the retired categories, nor of the leaf under one
         assertFalse(markdown.contains("Legacy"));
         assertFalse(markdown.contains("Paper"));
     }

@@ -28,7 +28,7 @@
   <artifactId>iap-slack-notifications</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Slack Notifications</name>
-  <description>Posting scheduled messages to a chat webhook</description>
+  <description>Posts scheduled messages to a chat webhook</description>
 
   <build>
     <plugins>
@@ -46,7 +46,7 @@
       <artifactId>iap-error-tracking-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- Nullability annotations for the exported API/SPI -->
+    <!-- Nullability annotations for the exported SPI -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>

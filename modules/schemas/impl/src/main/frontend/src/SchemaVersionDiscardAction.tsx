@@ -25,7 +25,7 @@ import { labelOf, pathOf } from "./schemaModel";
 
 import type { SchemaVersionActionProps } from "./SchemaVersionActions";
 
-// Deletes a version, unless something refers to it: what is in use is retired instead.
+// Deletes a version into the archive. The server refuses when something refers to the version.
 function SchemaVersionDiscardAction(props: SchemaVersionActionProps) {
   const { version } = props;
   if (!offers(version, "discard")) {

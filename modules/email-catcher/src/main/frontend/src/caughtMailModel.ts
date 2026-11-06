@@ -18,45 +18,37 @@
 
 import { type SerializedNode, stringsOf } from "@iap/frontend-commons/serializedNode";
 
-// What a caught message is, where it lives, and how to read one out of the serializer's JSON. No
-// React, no fetch: everything here is a pure function of its arguments, so it can be tested without
-// rendering anything or stubbing a response. The I/O that uses it is in useCaughtMail.
-//
-// Listing is deliberately absent: the messages live under an entity homepage, so the shared grid
-// pages, sorts and searches them through `.paginate.json` with no client code of its own. See
-// caughtMailGrid.
+// The paths and routes of the caught mail, and how to read a caught message and the catcher's
+// status out of the server's JSON. The requests are in useCaughtMail.
 
 export const CAUGHT_MAIL_PATH = "/CaughtMail";
 export const CAUGHT_MAIL_ROUTE = "/admin/mail";
 export const CAUGHT_MESSAGE_TYPE = "mail/CaughtMessage";
 
-/** Where the catcher reports whether it is on, and how much it holds. */
+/** Where the catcher reports whether it is on, and how many messages it holds. */
 export const CATCHER_STATUS_PATH = `${CAUGHT_MAIL_PATH}.adminSummary.json`;
 
-/**
- * Where anyone may ask whether mail is being caught, signed in or not. It is outside `/CaughtMail`,
- * which administrators alone can read.
- */
+/** Where anyone, signed in or not, may ask whether mail is being caught. */
 export const CATCHING_PATH = "/libs/iap/mail-catcher.catching.json";
 
 /**
- * Fired on `window` when catching has just been switched, so this page's banner updates at once.
- * Other tabs see the change on their next page load.
+ * The event fired on `window` when catching has just been switched on or off. Other tabs see the
+ * change on their next page load.
  */
 export const CATCHING_CHANGED_EVENT = "iap:mail-catching-changed";
 
 /** Where an administrator switches catching on and off. */
 export const CATCHER_TOGGLE_PATH = `${CAUGHT_MAIL_PATH}.catching.json`;
 
-/** Where one message is stored. */
+/** The path of one message, from its node name. */
 export const messagePath = (name: string): string => `${CAUGHT_MAIL_PATH}/${name}`;
 
-/** Where one message is read in the console. */
+/** The console route of one message, from its node name. */
 export const messageRoute = (name: string): string => `${CAUGHT_MAIL_ROUTE}/${name}`;
 
 /**
- * The message a console route names, or null when it names none — the list page itself, or an
- * address with something further down the path.
+ * The node name of the message a console route names. Null for the list page itself, and for a
+ * route with more segments after the name.
  */
 export function messageNameFromRoute(route: string): string | null {
   const trimmed = route.replace(/\/+$/, "");
@@ -67,13 +59,13 @@ export function messageNameFromRoute(route: string): string | null {
   return rest.length === 0 || rest.includes("/") ? null : rest;
 }
 
-/** Whether mail is being caught rather than delivered, and how much of it has been. */
+/** Whether mail is being caught rather than delivered, and how many messages have been. */
 export interface CatcherStatus {
   enabled: boolean;
   total: number;
 }
 
-/** One message that would have been sent, as it was handed over. */
+/** One message that would have been sent. A header or body the message lacked is undefined. */
 export interface CaughtMessage {
   path: string;
   name: string;
@@ -84,7 +76,7 @@ export interface CaughtMessage {
   to: string[];
   cc: string[];
   bcc: string[];
-  /** Every header except the ones read into properties of their own, as `Name: value`. */
+  /** Every other header, as `Name: value`. */
   headers: string[];
   textBody?: string;
   htmlBody?: string;
@@ -96,15 +88,8 @@ const asString = (node: SerializedNode, name: string): string | undefined => {
 };
 
 /**
- * Whether mail is being caught, and how many messages have been.
- *
- * The two travel together because they are useless apart: a count with no idea whether catching is
- * on reads as "no mail has been sent", which is the opposite of what an empty mailbox means on an
- * instance that is delivering normally.
- *
- * An answer missing either half is read as the safe reading rather than refused — claiming mail is
- * being caught when the answer did not say so would send somebody looking for a message that was in
- * fact delivered.
+ * The catcher's status, from its admin summary. An answer that does not say catching is on reads
+ * as off, and a missing count reads as 0.
  */
 export const parseCatcherStatus = (node: SerializedNode): CatcherStatus => ({
   enabled: figureValue(node, "enabled") === true,
@@ -117,11 +102,8 @@ const figureValue = (node: SerializedNode, name: string): unknown => {
 };
 
 /**
- * One caught message, whole.
- *
- * Absent properties are left absent rather than filled with empty ones: a message with no subject
- * and no HTML body is a message rather than a broken one, and the viewer shows different things for
- * "empty" and "not there".
+ * One caught message, from its node's JSON. An absent or empty subject, date or body stays
+ * undefined, and an absent address or header list is empty.
  */
 export const parseCaughtMessage = (node: SerializedNode, name: string): CaughtMessage => ({
   path: asString(node, "@path") ?? messagePath(name),

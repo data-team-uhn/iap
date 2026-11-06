@@ -31,8 +31,8 @@ import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Writing references, which the resource API cannot: it stores a string holding the identifier, which a node type
- * declaring a {@code REFERENCE} refuses at commit, so a reference is set on the JCR node instead.
+ * Sets {@code REFERENCE} properties, through the JCR node. The Sling resource API passes an identifier as a string,
+ * and Oak keeps it a {@code STRING} wherever a residual property definition accepts it. Nothing here is saved.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,7 +49,7 @@ public final class ReferenceUtils
      * @param holder the resource the property is set on
      * @param property the property's name
      * @param target the resource it points at, which must be referenceable
-     * @throws PersistenceException when either resource is not a node, or the repository refuses the reference
+     * @throws PersistenceException when either resource is not a node, or Oak refuses the reference
      */
     public static void setReference(@NotNull final Resource holder, @NotNull final String property,
         @NotNull final Resource target) throws PersistenceException
@@ -74,8 +74,7 @@ public final class ReferenceUtils
      * @param property the property's name
      * @param targets the resources it points at, in the order the property keeps them, each referenceable; an
      *     empty list leaves the property an empty list of references
-     * @throws PersistenceException when the holder or any target is not a node, or the repository refuses a
-     *     reference
+     * @throws PersistenceException when the holder or any target is not a node, or Oak refuses a reference
      */
     public static void setReferences(@NotNull final Resource holder, @NotNull final String property,
         @NotNull final List<Resource> targets) throws PersistenceException
@@ -108,8 +107,8 @@ public final class ReferenceUtils
      * @param holder the resource the property is set on, through the session that writes it
      * @param property the property's name
      * @param target what it points at, found through the holder's session
-     * @throws PersistenceException when the holder is not a node, that session cannot find the target, or the
-     *     repository refuses the reference
+     * @throws PersistenceException when the holder is not a node, that session cannot find the target, or Oak
+     *     refuses the reference
      */
     public static void setReference(@NotNull final Resource holder, @NotNull final String property,
         @NotNull final Referenceable target) throws PersistenceException

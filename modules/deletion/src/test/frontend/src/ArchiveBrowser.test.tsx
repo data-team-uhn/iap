@@ -55,9 +55,8 @@ const page = (rows: unknown[], extra: Record<string, unknown> = {}) => ({
 
 // Routes the listing and the actions to different answers, and records every URL asked for.
 //
-// The session endpoint is answered as a live session because `useAuthenticatedFetch` reads a 500 as a
-// possibly-expired session and asks: without that answer, every 500 in these tests would be reported
-// as a sign-in problem instead of as the failure being exercised.
+// The session endpoint answers that the session is live. `useAuthenticatedFetch` asks it after a 500,
+// and would otherwise report every 500 here as an expired session.
 const server = (options: {
   listing?: () => Response;
   action?: () => Response;
@@ -178,10 +177,8 @@ describe("ArchiveBrowser", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /next page/i }));
 
-    // That the next page was asked for, rather than that it was asked for last: the filter debounce
-    // set going on mount fires 300ms in and returns to the first page, so under a slow enough run
-    // (coverage instrumentation is enough) a second listing lands after this one and the reader is
-    // back where they started. Harmless in a browser, where nobody pages within 300ms of a load.
+    // Asks only that the next page was requested, not that it was requested last. The filter's
+    // debounce returns to the first page 300ms after mounting, which a slow run can reach first.
     await waitFor(() => {
       expect(listings(calls).some(url => url.includes("offset=25"))).toBe(true);
     });
@@ -197,9 +194,8 @@ describe("ArchiveBrowser", () => {
     await userEvent.click(screen.getByRole("combobox", { name: /rows per page/i }));
     await userEvent.click(await screen.findByRole("option", { name: "10" }));
 
-    // Only the size is asserted, deliberately. Choosing one also returns to the first page, but on
-    // the first page that cannot be told from staying put, and getting somewhere else first would
-    // mean racing the mount's own debounce — which is what makes the test above timing-bound.
+    // Only the size is asserted. Choosing it also returns to the first page, which cannot be told
+    // apart from staying there without racing the mount's debounce.
     await waitFor(() => { expect(listings(calls).at(-1)).toContain("limit=10"); });
   });
 
@@ -301,7 +297,7 @@ describe("ArchiveBrowser", () => {
   });
 
   it("offers another go at a request that never arrived, and takes it", async () => {
-    // Nothing reached the server, so nothing was decided: the same action can simply be sent again
+    // The request got no answer, so the same action can be sent again
     let attempts = 0;
     vi.spyOn(globalThis, "fetch").mockImplementation((url: RequestInfo | URL) => {
       if (String(url).includes(".entries.json")) {
@@ -355,7 +351,7 @@ describe("ArchiveBrowser", () => {
     browser();
 
     const link = await screen.findByRole("link", { name: "/content/one" });
-    // The bucket path is storage; a reader is only ever shown the short address
+    // The link uses the short address, not the stored path
     expect(link).toHaveAttribute("href", "/admin/archive/one");
   });
 

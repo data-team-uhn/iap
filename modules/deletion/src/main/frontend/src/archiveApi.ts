@@ -16,29 +16,25 @@
  * limitations under the License.
  */
 
-// The client half of the archive browser's endpoints: reading what is in the archive, and acting on
-// one entry of it. Every call takes the fetch to use as its first argument rather than reaching for
-// a hook, so that this file stays free of React and can be tested as plain functions; components
-// pass `useAuthenticatedFetch()` in.
+// Calls the archive endpoints: listing the archive, describing one entry, and restoring or purging it.
+// Every call takes the fetch to use as its first argument, and components pass `useAuthenticatedFetch()`.
 
+import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { readJson } from "@iap/frontend-commons/requestFailure";
 
-/** The fetch a caller supplies, normally the session-aware one from `@iap/frontend-commons/reLogin`. */
-export type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>;
-
-/** One recorded deletion. */
+/** One archive entry, as a listing row. */
 export interface ArchiveEntry {
-  /** The entry's own repository path — where it is stored, inside the prefix tree. */
+  /** Where the entry is stored, inside the prefix tree. */
   path: string;
-  /** The same entry without the prefix tree, which is what a reader should be shown and linked to. */
+  /** The entry's address without the prefix tree, `/Archive/by-id/<name>`, to show and link to. */
   shortPath: string;
   /** The path whose deletion was requested. */
   requestedPath: string;
-  /** The user who asked for it. */
+  /** The user id of the user who requested the deletion. */
   deletedBy: string;
-  /** When it was archived, ISO-8601; absent only if the entry somehow carries no creation date. */
+  /** When it was archived, as an ISO-8601 timestamp; absent if the entry has no `jcr:created`. */
   created?: string;
-  /** Where each archived subtree came from. */
+  /** Where each archived subtree was deleted from. */
   originalPaths: string[];
   itemCount: number;
 }
@@ -51,31 +47,31 @@ export interface ArchivePage {
   returnedrows: number;
   totalrows: number;
   totalIsApproximate: boolean;
-  /** The sort the server actually applied, which is not always the one that was asked for. */
+  /** The sort the server used, which differs from the one asked for if that one is unknown. */
   sortBy: string;
   descending: boolean;
 }
 
-/** What a listing asks for. All optional; the server has a default for each. */
+/** What to ask a listing for. The server has a default for each. */
 export interface ArchiveQuery {
   offset?: number;
   limit?: number;
-  /** Keeps only the entries whose requested path or requesting user contains this, ignoring case. */
+  /** Keeps the entries whose requested path or requesting user contains this, ignoring case. */
   filter?: string;
   sortBy?: string;
   descending?: boolean;
 }
 
-/** The outcome word an action answers with. */
+/** The outcome word a restore or purge answers with. */
 export type ActionStatus =
   | "restored"  // every archived item went back where it came from
   | "deleted"   // the entry and everything in it are gone for good
-  | "conflict"  // refused: something is in the way of the restore, nothing changed
-  | "vetoed"    // refused: a guard objected to destroying this
-  | "invalid"   // the request did not name something that can be acted on
+  | "conflict"  // refused: something blocks the restore, and nothing changed
+  | "vetoed"    // refused: a guard objected to the purge
+  | "invalid"   // the request did not name an archive entry
   | "failed";   // the server could not carry it out
 
-/** One thing standing in the way of a restore. */
+/** One archived item that cannot go back, and why. */
 export interface RestoreConflict {
   originalPath: string;
   reason: string;
@@ -90,15 +86,15 @@ export interface ActionVeto {
 
 export interface ActionResponse {
   status: ActionStatus;
-  /** A sentence fit to show the user, present whenever there is something to explain. */
+  /** A sentence for the user; present when there is something to explain. */
   "status.message"?: string;
-  /** Where everything went back to, on a successful restore. */
+  /** Where every item went back to, after a restore. */
   restored?: string[];
   conflicts?: RestoreConflict[];
   vetoes?: ActionVeto[];
 }
 
-/** One entry, with what would happen if either action were taken on it now. */
+/** One entry, and whether a restore and a purge would succeed now. */
 export interface ArchiveEntryDetail extends ArchiveEntry {
   /** Whether a restore requested now would go through. */
   restorable: boolean;
@@ -108,22 +104,17 @@ export interface ArchiveEntryDetail extends ArchiveEntry {
   purgeVetoes: ActionVeto[];
 }
 
-/** The archive root. The entries themselves live in buckets under it and are addressed by path. */
+/** The archive root. The entries are filed in buckets under it. */
 export const ARCHIVE_PATH = "/Archive";
 
-// Where an entry answers to its bare name, beside the prefix tree rather than over it. Mirrors
-// PrefixTreeResourceProvider.ADDRESS_SEGMENT; the tree itself stays a server-side concern, and this
-// is only ever appended to a name the server already handed back.
+// The segment under which an entry answers to its name alone. The same as the server's
+// PrefixTree.ADDRESS_SEGMENT.
 const ADDRESS_SEGMENT = "by-id";
 
 /**
- * Where the archive is browsed, which is a page of the administration console rather than the
- * repository path the entries actually live at.
- *
- * The two used to be the same string, and everything derived one from the other by appending a
- * selector. They part company here, so the conversions are kept next to each other and next to the
- * root they are built from: a route that drifted from the resource path would send the browser
- * somewhere real and fetch from somewhere that is not.
+ * The administration console's route for the archive. An entry's page is at
+ * `/admin/archive/<name>`, while its endpoints answer at `/Archive/by-id/<name>`. The two
+ * conversions below are the only place either is built.
  */
 export const ARCHIVE_ROUTE = "/admin/archive";
 
@@ -137,8 +128,8 @@ const entryName = (path: string): string | null => {
 export const entryRoute = (path: string): string => `${ARCHIVE_ROUTE}/${entryName(path) ?? ""}`;
 
 /**
- * The repository path of the entry a console route is showing, or null when the route names no
- * entry — which is what the browse page's own route looks like.
+ * The path at which the endpoints answer for the entry a console route shows. Null if the route
+ * names no entry, as for the listing's own route, or for one more than one segment deeper.
  */
 export const entryResourcePath = (route: string): string | null => {
   const name = entryName(route);
@@ -148,9 +139,7 @@ export const entryResourcePath = (route: string): string | null => {
 };
 
 /**
- * Read one page of archive entries.
- *
- * Rejects on failure: a table with no rows and no explanation would claim the archive is empty.
+ * Read one page of archive entries. Rejects if the listing fails, rather than resolving to an empty page.
  */
 export const fetchArchiveEntries = async (
   doFetch: AuthenticatedFetch,
@@ -175,16 +164,16 @@ export const fetchArchiveEntries = async (
 /**
  * Put one entry's contents back where they came from.
  *
- * A refusal is an outcome, not an error: this resolves for every answer the endpoint gives, so
- * callers switch on `status`. Only a network failure rejects.
+ * Resolves for every answer, refusals included, and the caller switches on `status`. Rejects only when
+ * the request gets no answer, or when the fetch rejects for an expired session.
  */
 export const restoreEntry = (doFetch: AuthenticatedFetch, path: string): Promise<ActionResponse> =>
   act(doFetch, `${path}.restore.json`, "POST");
 
 /**
- * Destroy one entry and everything archived in it. Irreversible.
+ * Remove one entry and everything archived in it, for good.
  *
- * Resolves for every answer, like {@link restoreEntry}.
+ * Resolves for every answer, as {@link restoreEntry} does.
  */
 export const purgeEntry = (doFetch: AuthenticatedFetch, path: string): Promise<ActionResponse> =>
   act(doFetch, path, "DELETE");
@@ -192,7 +181,7 @@ export const purgeEntry = (doFetch: AuthenticatedFetch, path: string): Promise<A
 const act = async (doFetch: AuthenticatedFetch, url: string, method: string): Promise<ActionResponse> => {
   const response = await doFetch(url, { method, headers: { Accept: "application/json" } });
   try {
-    // A body of `null` is valid JSON, so the parse can succeed and still yield nothing
+    // `null` is valid JSON, so the parse can succeed and still yield nothing
     const body = await response.json() as ActionResponse | null;
     if (typeof body?.status === "string") {
       return body;
@@ -200,9 +189,8 @@ const act = async (doFetch: AuthenticatedFetch, url: string, method: string): Pr
   } catch {
     // Falls through to the synthesized outcome below
   }
-  // The endpoints answer JSON for everything they handle themselves, but the container can cut in
-  // ahead of them — an HTML error page, a login redirect. An unreadable body is never taken as
-  // success, even on a 2xx: at that point we genuinely do not know what happened.
+  // Something other than the endpoint answered, such as an HTML error page or a login redirect.
+  // An unreadable body is a failure, even with a 2xx status.
   return {
     status: "failed",
     "status.message": `The server gave an answer this page could not read (${String(response.status)})`,
@@ -210,13 +198,9 @@ const act = async (doFetch: AuthenticatedFetch, url: string, method: string): Pr
 };
 
 /**
- * Describe one entry: what is archived in it, and whether restoring or purging it would work.
+ * Describe one entry: what is archived in it, and whether a restore and a purge would succeed now.
  *
- * The preflight is a snapshot rather than a promise — another deletion can occupy a path between
- * reading this and acting on it — so the actions still report their own refusals.
- *
- * Rejects when the path does not name an archive entry: buckets share the archive's resource type
- * and answer with something else entirely, and rendering that as an empty entry would be a lie.
+ * Rejects if the path does not name an archive entry, such as a prefix-tree bucket's path.
  */
 export const fetchArchiveEntry = async (
   doFetch: AuthenticatedFetch,

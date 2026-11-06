@@ -30,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
- * A Sling Model wrapping a {@code sch:Question} node: a single question the submitter must answer.
+ * A Sling Model wrapping a {@code sch:Question} node: a question the submitter answers.
  *
  * @version $Id$
  * @since 0.1.0
@@ -54,8 +54,8 @@ public class Question extends FormItem implements Referenceable
     @ValueMapValue
     private long minAnswers;
 
-    // Defaulted here too: the node type's default only reaches nodes created through JCR, and an absent
-    // maximum read as 0 would turn "one value" into "any number of values"
+    // Defaulted here too: the node type's default reaches only nodes created through JCR. An absent maximum
+    // read as 0 would turn "one value" into "any number of values".
     @ValueMapValue
     @Default(longValues = 1)
     private long maxAnswers;
@@ -88,9 +88,9 @@ public class Question extends FormItem implements Referenceable
     private String responseShape;
 
     /**
-     * The question text shown to the submitter.
+     * The question, as the submitter reads it.
      *
-     * @return the question text
+     * @return the text
      */
     @NotNull
     public String getText()
@@ -99,9 +99,9 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * An optional longer explanation displayed to the submitter.
+     * A longer explanation the submitter reads under the question.
      *
-     * @return a description, or {@code null} if not set
+     * @return the description; {@code null} if there is none
      */
     @Nullable
     public String getDescription()
@@ -110,9 +110,9 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * The expected answer type.
+     * The type of value an answer holds.
      *
-     * @return a data type name, e.g. {@code text}, {@code long}, {@code boolean}, {@code file}
+     * @return one of {@code text}, {@code long}, {@code double}, {@code boolean} and {@code date}
      */
     @NotNull
     public String getDataType()
@@ -121,9 +121,9 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * The fewest values an answer must give; {@code 0} or less asks for nothing.
+     * The fewest values an answer must give.
      *
-     * @return the minimum number of values
+     * @return the minimum number of values; {@code 0} or less if the question is optional
      */
     public long getMinAnswers()
     {
@@ -131,9 +131,9 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * The most values an answer may give; {@code 0} or less allows any number.
+     * The most values an answer may give.
      *
-     * @return the maximum number of values
+     * @return the maximum number of values; {@code 0} or less if any number is allowed
      */
     public long getMaxAnswers()
     {
@@ -141,7 +141,7 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * Whether an answer must be provided before submitting: a reading of {@link #getMinAnswers()}.
+     * Whether the question must be answered, which a {@link #getMinAnswers() minimum} above zero means.
      *
      * @return {@code true} if at least one value is required
      */
@@ -151,9 +151,9 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * Whether more than one value may be provided: a reading of {@link #getMaxAnswers()}.
+     * Whether an answer may give several values, which a {@link #getMaxAnswers() maximum} other than 1 means.
      *
-     * @return {@code true} if multiple values are allowed
+     * @return {@code true} if several values are allowed
      */
     public boolean isMultiple()
     {
@@ -161,9 +161,9 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * For numeric answers, the smallest value accepted.
+     * For a numeric answer, the smallest value accepted.
      *
-     * @return the smallest accepted value, or {@code null} when unbounded
+     * @return the smallest value; {@code null} if there is no lower bound
      */
     @Nullable
     public Double getMinValue()
@@ -172,9 +172,9 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * For numeric answers, the largest value accepted.
+     * For a numeric answer, the largest value accepted.
      *
-     * @return the largest accepted value, or {@code null} when unbounded
+     * @return the largest value; {@code null} if there is no upper bound
      */
     @Nullable
     public Double getMaxValue()
@@ -183,9 +183,9 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * For text answers, a regular expression every value must match in full.
+     * For a text answer, a regular expression every value must match in full.
      *
-     * @return the pattern, or {@code null} when anything is accepted
+     * @return the pattern; {@code null} if any text is accepted
      */
     @Nullable
     public String getPattern()
@@ -196,7 +196,7 @@ public class Question extends FormItem implements Referenceable
     /**
      * What the submitter is told when a value does not match {@link #getPattern() the pattern}.
      *
-     * @return the message, or {@code null} when none is configured
+     * @return the message; {@code null} if none is set
      */
     @Nullable
     public String getPatternMessage()
@@ -205,10 +205,10 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * A content path whose live items are the answers this question offers, in place of child
-     * {@link AnswerOption} nodes.
+     * A content path whose items are the options, in place of child {@link AnswerOption} nodes.
      *
-     * @return an absolute repository path, or {@code null} when the options, if any, are declared as children
+     * @return an absolute path, such as {@code /Vocabularies/sites}; {@code null} if the question takes no options
+     *         from elsewhere
      */
     @Nullable
     public String getOptionsFrom()
@@ -217,10 +217,9 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * The answers this question offers as declared child nodes, in the order they are declared. A question
-     * offering none is answered freely, in whatever its {@link #getDataType() data type} accepts.
+     * The options this question holds as children. A question with options is answered only with their values.
      *
-     * @return the declared options, an empty list if there are none
+     * @return the options, in stored order; empty if there are none
      */
     @NotNull
     public List<AnswerOption> getOptions()
@@ -229,9 +228,9 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * How the question is rendered to the submitter.
+     * How the question is shown to the submitter.
      *
-     * @return a display mode, or {@code null} to let the answer's data type decide
+     * @return a display mode; {@code null} if none is set
      */
     @Nullable
     public String getDisplayMode()
@@ -240,9 +239,9 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * What the answer is used to judge, in the reviewer's terms rather than the submitter's.
+     * What the answer is used to judge, in the reviewer's terms.
      *
-     * @return a purpose, or {@code null} if not stated
+     * @return the purpose; {@code null} if none is set
      */
     @Nullable
     public String getPurpose()
@@ -253,7 +252,7 @@ public class Question extends FormItem implements Referenceable
     /**
      * The prompt an LLM is given to read this answer out of the submitted documents.
      *
-     * @return a prompt, or {@code null} if this answer is not extracted
+     * @return the prompt; {@code null} if this answer is not read out of documents
      */
     @Nullable
     public String getExtractionPrompt()
@@ -264,7 +263,7 @@ public class Question extends FormItem implements Referenceable
     /**
      * The shape the LLM's reply must take, as a JSON schema.
      *
-     * @return a JSON schema, or {@code null} if the reply is unconstrained
+     * @return the JSON schema; {@code null} if none is set
      */
     @Nullable
     public String getResponseShape()

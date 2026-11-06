@@ -22,7 +22,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider, useNotice, type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
 
-// A screen that raises whichever of its notices is asked for, the way a real one would after an action
+// A screen with one button per notice, which raises it
 function Raiser({ notices }: { notices: Notice[] }) {
   const raise = useNotice();
   return (
@@ -50,7 +50,7 @@ const failure: Notice = {
   message: "You do not have permission to do this. (HTTP 403)",
 };
 
-// How long a notice stays. Waiting is done with fake timers, so the suite does not.
+// Lets the given time pass, on fake timers
 const waitOut = (milliseconds: number) => {
   act(() => { vi.advanceTimersByTime(milliseconds); });
 };

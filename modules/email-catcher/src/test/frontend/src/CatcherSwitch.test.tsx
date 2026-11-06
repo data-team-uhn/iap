@@ -55,7 +55,6 @@ describe("CatcherSwitch", () => {
   });
 
   it("asks before it stops, too, because the other direction reaches real people", async () => {
-    // Switching off on a test instance starts delivering to whatever addresses the data holds.
     vi.stubGlobal("fetch", accepting());
     showing(true);
 

@@ -21,12 +21,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 type FormattedTextProps = Omit<TypographyProps, "children"> & {
+  // The markdown
   children?: string;
 };
 
-// Renders GitHub-flavored markdown as plain semantic HTML inside a Typography wrapper, so
-// the text inherits the surrounding font, size and color. Raw HTML in the markdown source
-// is intentionally not rendered.
+// Renders GitHub-flavored markdown as HTML inside a Typography, which takes the other props. Raw
+// HTML in the markdown is not rendered.
 const FormattedText = ({ children, ...typographyProps }: FormattedTextProps) => {
   return (
     <Typography component="div" {...typographyProps} >

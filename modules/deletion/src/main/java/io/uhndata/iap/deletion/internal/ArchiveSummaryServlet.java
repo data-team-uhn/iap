@@ -35,14 +35,8 @@ import io.uhndata.iap.utils.summary.AdminSummaryServlet;
 import io.uhndata.iap.utils.summary.SummaryUnavailableException;
 
 /**
- * Counts the archive entries: {@code GET /Archive.adminSummary.json} answers with how many deletions were recorded
- * in the last day, in the last week, and altogether.
- *
- * <p>
- * This is what the archive console widget shows, which is why it is a separate endpoint from the listing rather
- * than a field on it: the widget wants three numbers and no rows, and asking for a page of entries to read a count
- * off it would fetch what nothing displays.
- * </p>
+ * Counts archive entries: {@code GET /Archive.adminSummary.json} answers with how many deletions were archived in the
+ * last day, in the last week, and in total.
  *
  * {@snippet lang=json :
  * {
@@ -53,8 +47,9 @@ import io.uhndata.iap.utils.summary.SummaryUnavailableException;
  * }
  *
  * <p>
- * Like the listing, it is reachable only by users who can see the archive, and it counts with the requester's own
- * session. Counting stops at a bound, so the answer says whether it is exact.
+ * Only a user who can read the archive reaches this servlet, and Sling answers 404 to anyone else. It counts with the
+ * requesting user's own session. Counting stops at {@link ArchiveSearch#MAX_SCAN}, and {@code approximate} marks a
+ * count that stopped there.
  * </p>
  *
  * @version $Id$
@@ -67,17 +62,17 @@ public class ArchiveSummaryServlet extends AdminSummaryServlet
 {
     private static final long serialVersionUID = 1L;
 
-    /** The wording used whichever way the query fails to run. */
+    /** The message for a query that cannot run, whatever the reason. */
     private static final String UNQUERYABLE_MESSAGE = "The archive cannot be queried";
 
-    /** Reads the current instant. A field so that tests can pin the windows down instead of racing them. */
+    /** Reads the current instant, in milliseconds since the epoch. */
     private final transient LongSupplier clock;
 
-    /** How many entries to count before giving up and saying the answer is a lower bound. */
+    /** How many entries to count before stopping, which makes the count a lower bound. */
     private final long cap;
 
     /**
-     * Simple constructor, used by OSGi.
+     * The constructor OSGi uses, reading the system clock.
      */
     public ArchiveSummaryServlet()
     {
@@ -85,7 +80,7 @@ public class ArchiveSummaryServlet extends AdminSummaryServlet
     }
 
     /**
-     * Constructor taking the clock to read, so that tests can decide what "now" is.
+     * A constructor that reads the given clock.
      *
      * @param clock supplies the current instant, in milliseconds since the epoch
      */
@@ -95,8 +90,7 @@ public class ArchiveSummaryServlet extends AdminSummaryServlet
     }
 
     /**
-     * Constructor taking the scan bound as well, so that a test can reach it without first archiving enough to hit
-     * the real one.
+     * A constructor that reads the given clock and stops counting at the given bound.
      *
      * @param clock supplies the current instant, in milliseconds since the epoch
      * @param cap how many entries to count before stopping

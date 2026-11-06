@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link CaughtMailSummaryServlet}: whether mail is being caught, and how much of it.
+ * Tests for {@link CaughtMailSummaryServlet}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -61,7 +61,7 @@ class CaughtMailSummaryServletTest
         this.context.create().resource(HOME, "sling:resourceType", "mail/CaughtMailHomepage");
     }
 
-    /** Puts a catcher in place, the way the service registry would while it is switched on. */
+    /** Binds the catcher's mail service, as OSGi does while the catcher is on. */
     private void catcherIsRegistered() throws ReflectiveOperationException
     {
         final Field field = CaughtMailSummaryServlet.class.getDeclaredField("catcher");
@@ -70,7 +70,7 @@ class CaughtMailSummaryServletTest
     }
 
     /**
-     * Files one message, as the catcher would have.
+     * Creates one caught message.
      *
      * @param name the node name
      */
@@ -93,10 +93,6 @@ class CaughtMailSummaryServletTest
         return Json.createReader(new StringReader(response.getOutputAsString())).readObject();
     }
 
-    /**
-     * An instance that is not catching says so. It matters that this is distinguishable from an empty mailbox:
-     * the two look identical in a count and mean opposite things.
-     */
     @Test
     void saysCatchingIsOffWhenNoCatcherIsRegistered() throws IOException
     {
@@ -145,10 +141,6 @@ class CaughtMailSummaryServletTest
         assertEquals(2, caughtSoFar(this.read()));
     }
 
-    /**
-     * The access control policy protecting the folder is a child of it too, so a reader counting children would
-     * report a message before anything had been sent.
-     */
     @Test
     void countsOnlyMessages() throws IOException
     {

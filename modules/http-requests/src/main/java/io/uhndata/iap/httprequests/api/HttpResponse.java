@@ -21,7 +21,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * What a remote service answered: the status code it answered with, and the body it sent. Instances are immutable.
+ * What a service answered: the status code and the body. Instances are immutable.
  *
  * @version $Id$
  * @since 0.1.0
@@ -33,10 +33,10 @@ public final class HttpResponse
     private final String body;
 
     /**
-     * Basic constructor.
+     * A response with the given status code and body.
      *
-     * @param statusCode the HTTP status code of the response
-     * @param body the body of the response, {@code null} or empty when the response had none
+     * @param statusCode the HTTP status code, such as {@code 200}
+     * @param body the body as text; {@code null} or empty if the response had none
      */
     public HttpResponse(final int statusCode, @Nullable final String body)
     {
@@ -45,9 +45,9 @@ public final class HttpResponse
     }
 
     /**
-     * The HTTP status code the remote service answered with.
+     * The HTTP status code the service answered with.
      *
-     * @return a status code, e.g. {@code 200}
+     * @return the status code, such as {@code 200} or {@code 404}
      */
     public int getStatusCode()
     {
@@ -55,9 +55,9 @@ public final class HttpResponse
     }
 
     /**
-     * The body the remote service answered with, exactly as it was sent.
+     * The body the service answered with, as text.
      *
-     * @return a string, empty when the response had no body
+     * @return the body; empty if the response had none
      */
     @NotNull
     public String getBody()
@@ -66,10 +66,9 @@ public final class HttpResponse
     }
 
     /**
-     * Whether the remote service accepted the request, i.e. answered with a {@code 2xx} status. A request that
-     * reaches a service and is refused by it does not throw, so callers that care must check this.
+     * Whether the service accepted the request.
      *
-     * @return {@code true} for any {@code 2xx} status code
+     * @return {@code true} for a status code from {@code 200} to {@code 299}
      */
     public boolean isSuccessful()
     {

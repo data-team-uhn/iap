@@ -40,7 +40,7 @@ import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.utils.VersioningUtils;
 
 /**
- * Gives every document requirement that applies a document, empty until something is uploaded into it.
+ * Gives every document requirement that applies a document of its own, empty until something is uploaded into it.
  *
  * @version $Id$
  * @since 0.1.0

@@ -51,9 +51,9 @@ public class Review extends Feedback
     private String requirement;
 
     /**
-     * The principal name of the reviewer.
+     * Who wrote this review.
      *
-     * @return a principal name
+     * @return the reviewer's user id
      */
     @NotNull
     public String getReviewer()
@@ -62,10 +62,10 @@ public class Review extends Feedback
     }
 
     /**
-     * The requirement (typically an {@code ApprovalRequirement}) this review addresses.
+     * The requirement this review addresses, usually an {@code ApprovalRequirement}.
      *
-     * @return a requirement, or {@code null} if this review does not address a specific requirement, or it is
-     *         unresolvable
+     * @return the requirement; {@code null} if this review addresses no requirement, or this session cannot
+     *         resolve it
      */
     @Nullable
     public Requirement getRequirement()
@@ -74,10 +74,10 @@ public class Review extends Feedback
     }
 
     /**
-     * Whether this review has been approved, i.e. it carries the {@code approved} tag. The tag has to be placed on
-     * the review itself to count, rather than reaching it from the submission it belongs to.
+     * Whether this review approved what it addresses: it carries the {@code approved} tag itself. A tag on the
+     * submission it belongs to does not count.
      *
-     * @return {@code true} if approved, {@code false} also when the tags service is unavailable
+     * @return {@code true} if approved; {@code false} also when the tags service is unavailable
      */
     public boolean isApproved()
     {
@@ -86,10 +86,10 @@ public class Review extends Feedback
     }
 
     /**
-     * Whether this review has reached a decision, either way. A review whose tags name neither an approval nor a
-     * rejection is still open: its reviewer may be at work on it, or have asked for changes.
+     * Whether this review has reached a decision, either way. A review that is neither approved nor rejected is still
+     * open: its reviewer may be at work on it, or have asked for changes.
      *
-     * @return {@code true} if approved or rejected, {@code false} also when the tags service is unavailable
+     * @return {@code true} if approved or rejected; {@code false} also when the tags service is unavailable
      */
     public boolean isDecided()
     {
@@ -98,10 +98,10 @@ public class Review extends Feedback
     }
 
     /**
-     * Whether this review addresses the given requirement. Compared by path, since a requirement of another schema
-     * version is a different requirement even when it has the same name.
+     * Whether this review addresses the given requirement. Requirements are compared by path, since a requirement of
+     * another schema version is a different requirement even when it has the same name.
      *
-     * @param requirement the requirement in question
+     * @param requirement the requirement to compare with
      * @return {@code true} if this review says it addresses that requirement
      */
     public boolean isAbout(@NotNull final Requirement requirement)

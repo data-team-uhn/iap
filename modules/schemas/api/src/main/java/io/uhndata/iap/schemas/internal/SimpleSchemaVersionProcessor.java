@@ -31,21 +31,9 @@ import org.osgi.service.component.annotations.Component;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
- * Serialize a schema version as what identifies it rather than as everything it governs. The name of this processor
- * is {@code simple}.
- *
- * <p>
- * A schema version is a small node with a very large tail: the requirements a submission must fulfill hang under it,
- * and the workflow it freezes is a reference that the {@code dereference} processor inlines whole, BPMN included. A
- * caller that only wants to name the version - which schema, which version, whether it is still open - would receive
- * all of it. This processor keeps the version's own properties and drops that tail: its children are left out, and
- * the workflow stays the identifier it is stored as.
- * </p>
- *
- * <p>
- * Neither is a loss of addressable information: what was dropped is reachable by serializing the schema version
- * itself, which is exactly the request that means "I do want the requirements".
- * </p>
+ * Serializes a schema version as its own properties only. Its requirements are left out, and its {@code workflow}
+ * stays the {@code jcr:uuid} it is stored as, rather than the workflow version {@code dereference} inlines. The
+ * processor is named {@code simple}. Without it, the schema version serializes with its requirements.
  *
  * @version $Id$
  * @since 0.1.0
@@ -66,7 +54,7 @@ public class SimpleSchemaVersionProcessor implements ResourceJsonProcessor
     @Override
     public int getPriority()
     {
-        // After the general trimming, and after dereference has already inlined the workflow this undoes
+        // After the general `simple` (25), and after `dereference` (10), whose inlining of the workflow this undoes
         return 50;
     }
 
@@ -79,8 +67,7 @@ public class SimpleSchemaVersionProcessor implements ResourceJsonProcessor
                 return Json.createValue(property.getString());
             }
         } catch (RepositoryException e) {
-            // Following the same rule as the dereferencing this undoes: a property that cannot be read is left as it
-            // was found, since a wrong value would be worse than a verbose one
+            // A property that cannot be read is left as it was found, as `dereference` leaves it
         }
         return input;
     }
@@ -89,7 +76,7 @@ public class SimpleSchemaVersionProcessor implements ResourceJsonProcessor
     public JsonValue processChild(final Node node, final Node child, final JsonValue input,
         final Function<Node, JsonValue> serializeNode)
     {
-        // The requirements, and anything else a deployment nests under a version
+        // The requirements, and anything else stored under a version
         return isSchemaVersion(node) ? null : input;
     }
 
@@ -98,7 +85,7 @@ public class SimpleSchemaVersionProcessor implements ResourceJsonProcessor
         try {
             return node != null && node.isNodeType(SCHEMA_VERSION_TYPE);
         } catch (RepositoryException e) {
-            // A node whose type cannot be read is not one this processor claims to summarize
+            // A node whose type cannot be read is not treated as a schema version
             return false;
         }
     }

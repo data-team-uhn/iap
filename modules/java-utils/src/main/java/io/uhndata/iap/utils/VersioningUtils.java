@@ -27,8 +27,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Making versioned content writable. A checked-in versionable node makes itself and everything under it read-only,
- * so before such content is modified, whichever versionable node holds it has to be checked out.
+ * Makes versioned content writable. A checked-in versionable node is read-only, with everything under it, so the
+ * versionable node holding content has to be checked out before the content changes.
  *
  * @version $Id$
  * @since 0.1.0
@@ -40,13 +40,13 @@ public final class VersioningUtils
     }
 
     /**
-     * Makes a node writable: when it is read-only because it, or the versionable node above it, is checked in,
-     * checks that versionable node out. A checkout takes effect at once, outside any pending changes, so it stays
-     * even if those changes are then discarded; that changes nothing about what the node holds.
+     * Makes a node writable. If the node is read-only because it, or the nearest versionable node above it, is
+     * checked in, that versionable node is checked out. A checkout takes effect at once, outside the session's
+     * pending changes, so discarding them does not undo it. It changes nothing the node holds.
      *
      * @param node the node about to be modified, or whose children are about to change
-     * @return the path of the versionable node checked out, for whoever means to check it back in, or {@code null}
-     *         when the node was writable already
+     * @return the path of the versionable node checked out, for a caller that checks it back in; {@code null} if the
+     *         node was writable already
      * @throws VersionException when the node is read-only, yet neither it nor anything above it is versionable
      * @throws RepositoryException when the checkout fails
      */
@@ -70,14 +70,12 @@ public final class VersioningUtils
     }
 
     /**
-     * Makes a resource writable, as {@link #checkOut(Node)} does a node, failing the way a write through the resource
-     * API would. Content created through the Sling POST servlet is checked in, which makes it and everything under it
-     * read-only; this checks out whichever versionable node is holding it, as the POST servlet's own auto-checkout
-     * would. A resource that is not a node is under no version control, and so writable already.
+     * Makes a resource writable, as {@link #checkOut(Node)} does a node. A resource that is not a node is under no
+     * version control, so it is writable already.
      *
      * @param resource the resource about to be modified, or whose children are about to change
-     * @return the path of the versionable node checked out, for whoever means to check it back in, or {@code null}
-     *         when the resource was writable already
+     * @return the path of the versionable node checked out, for a caller that checks it back in; {@code null} if the
+     *         resource was writable already
      * @throws PersistenceException when the checkout fails, or nothing versionable holds the resource read-only
      */
     @Nullable

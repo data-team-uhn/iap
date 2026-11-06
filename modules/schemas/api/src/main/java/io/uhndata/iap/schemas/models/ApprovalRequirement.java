@@ -27,8 +27,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A Sling Model wrapping a {@code sch:ApprovalRequirement} node: an approval that must be granted before a
- * submission is accepted, e.g. "REB approval".
+ * A Sling Model wrapping a {@code sch:ApprovalRequirement} node: an approval a submission must obtain, such as "REB
+ * approval".
  *
  * @version $Id$
  * @since 0.1.0
@@ -46,7 +46,7 @@ public class ApprovalRequirement extends Requirement
     /**
      * The principal name of the group whose members may grant this approval.
      *
-     * @return a group name, or {@code null} if not set
+     * @return a group's principal name; {@code null} if none is set
      */
     @Nullable
     public String getApproverGroup()
@@ -55,9 +55,9 @@ public class ApprovalRequirement extends Requirement
     }
 
     /**
-     * What the approvers want assessed, in the order it is listed.
+     * What the approvers want assessed.
      *
-     * @return a list of topics, empty if none
+     * @return the topics, in stored order; empty if there are none
      */
     @NotNull
     public List<Topic> getTopics()

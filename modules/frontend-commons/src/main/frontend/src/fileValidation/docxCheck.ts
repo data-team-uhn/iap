@@ -45,7 +45,8 @@ function decodeXmlPart(bytes: Uint8Array): string {
 }
 
 /**
- * Checks the sizes the directory states before unzipping anything, then unzips only the content
+ * Refuses a .docx that is not a readable zip, unzips to more than the limit, or does not hold a
+ * Word document. It adds up the sizes the zip's directory states, then unzips only the content
  * types. Unzipping a whole document could hang the tab.
  *
  * @param file the file, already known to be named .docx

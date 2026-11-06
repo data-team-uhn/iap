@@ -43,19 +43,18 @@ import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.utils.JsonResponses;
 
 /**
- * Records a decision about one recorded error, at
- * {@code POST /LoggedErrors/<fingerprint>.acknowledge.json}.
+ * Records a decision about one recorded error, at {@code POST /LoggedErrors/<fingerprint>.acknowledge.json}.
  *
  * <p>
- * Takes a {@code resolution} naming one of the tags in the {@value LoggedError#TRIAGE_CATEGORY} category, and an
- * optional {@code note} saying why. The decision is appended as a child of the error rather than replacing anything:
- * an error that was acknowledged, recurred, and was acknowledged again keeps all three facts. The triage markers on
- * the error are then derived from the newest decision, so nothing here writes tags directly.
+ * The {@code resolution} parameter names a tag in the {@value LoggedError#TRIAGE_CATEGORY} category, other than
+ * {@value LoggedError#UNACKNOWLEDGED_TAG}. The optional {@code note} says why. The decision is added as a child of the
+ * error, beside the earlier ones. The error's triage tags are then computed from its newest decision, so this servlet
+ * writes no tags.
  * </p>
  *
  * <p>
- * The write goes through the caller's own session, so who may triage an error is a question for the repository's
- * access control rather than for this servlet.
+ * The decision is written through the caller's own session, so the repository's access control decides who may
+ * record one.
  * </p>
  *
  * @version $Id$
@@ -70,7 +69,7 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AcknowledgeServlet.class);
 
-    /** The name given to the node recording a decision, before a number is appended to make it unique. */
+    /** The name of a decision node, before the number that makes it unique, as in {@code decision1}. */
     private static final String DECISION_NAME = "decision";
 
     @Reference
@@ -81,8 +80,7 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
         final SlingJakartaHttpServletResponse response) throws IOException
     {
         final Resource target = request.getResource();
-        // The resource type is checked before adapting, never by adapting: a Sling Model registered for one
-        // resource type will happily adapt a resource of an unrelated one
+        // A Sling Model adapts a resource of any type, so the type is checked first
         final LoggedError error =
             target.isResourceType(LoggedError.RESOURCE_TYPE) ? target.adaptTo(LoggedError.class) : null;
         if (error == null) {
@@ -91,8 +89,7 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
         }
         final String resolution = request.getParameter("resolution");
         if (!isTriageTag(resolution)) {
-            // What was rejected goes to the log rather than into the answer: the caller already knows what it sent,
-            // and an error response is not the place to hand a value from the request back to a browser
+            // The rejected value goes to the log, not into the answer, which never echoes a request value
             LOGGER.debug("Refusing to acknowledge {} with the unknown resolution {}", target.getPath(), resolution);
             JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST,
                 "resolution must name one of the " + LoggedError.TRIAGE_CATEGORY + " tags");
@@ -111,13 +108,13 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Appends the decision to the error it is about.
+     * Adds a decision to the error it is about.
      *
-     * @param target the resource recording the error
+     * @param target the resource that records the error
      * @param error the same, as a model
-     * @param resolution what was decided
-     * @param note why, may be {@code null}
-     * @return the newly created node, not yet committed
+     * @param resolution the name of a triage tag, such as {@code known-issue}
+     * @param note why, in the words of whoever decided; left out if {@code null} or blank
+     * @return the new decision node, not yet committed
      * @throws PersistenceException if the decision cannot be created
      */
     private Resource record(final Resource target, final LoggedError error, final String resolution,
@@ -126,8 +123,7 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
         final Map<String, Object> properties = new HashMap<>();
         properties.put("jcr:primaryType", "err:Acknowledgement");
         properties.put("resolution", resolution);
-        // What the count has reached now is what a later occurrence is measured against: pass it, and the error goes
-        // back to needing attention by itself
+        // Once the error's count passes this, it needs attention again
         properties.put("acknowledgedOccurrences", error.getOccurrences());
         if (note != null && !note.isBlank()) {
             properties.put("note", note);
@@ -136,11 +132,10 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * A name no decision on this error has taken yet. Decisions accumulate, so the first one cannot simply own the
-     * name.
+     * The first name of the form {@code decision<n>} that no child of the error has.
      *
-     * @param target the resource recording the error
-     * @return a name free among the error's children
+     * @param target the resource that records the error
+     * @return a name free among the error's children, such as {@code decision2}
      */
     private static String freeName(final Resource target)
     {
@@ -152,11 +147,11 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Whether a resolution names one of the triage tags. Checked against the definitions rather than a list in code,
-     * so a deployment that adds a triage tag of its own can use it without a change here.
+     * Whether a resolution names a tag defined in the triage category, other than
+     * {@value LoggedError#UNACKNOWLEDGED_TAG}. A tag a deployment adds to the category qualifies.
      *
-     * @param resolution what the caller asked for, may be {@code null}
-     * @return {@code true} when a tag by that name is defined in the triage category
+     * @param resolution the {@code resolution} parameter, or {@code null} if the request has none
+     * @return {@code true} if the resolution names such a tag
      */
     private boolean isTriageTag(final String resolution)
     {

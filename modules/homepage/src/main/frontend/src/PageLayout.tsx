@@ -45,13 +45,12 @@ import {
 import { ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
-// The extension points composing the page shell. The four Frame* points form the stable screen
-// frame — always visible, never scrolling away: the full-width top and bottom bars and the two
-// side rails between them. The Page* points are inside the frame, above and below the main
-// content, and scroll with it.
-// Naming convention: the vertical axis uses physical Top/Bottom names (vertical placement never
-// flips with the writing direction); Start/End is reserved for the horizontal axis, where a
-// right-to-left locale mirrors the layout.
+// The extension points of the page shell. The Frame* points are the frame around the screen,
+// which never scrolls away. It has a full-width bar at the top and at the bottom, and a side rail
+// at each side between them. The Page* points are above and below the main content, and scroll
+// with it.
+// Top and Bottom are physical. Start and End are logical, so that they swap in a right-to-left
+// language.
 const SHELL_POINTS = [
   "FrameTop",
   "FrameBottom",
@@ -61,9 +60,7 @@ const SHELL_POINTS = [
   "PageBottom"
 ] as const;
 
-// Fallback dimensions for the frame regions. The active values are meant to be configured
-// per-region in the theme's `iapShell` section (see frontend-commons/src/appTheme.ts); these only
-// fill in when the theme doesn't specify them.
+// The sizes of the frame regions where the theme's `iapShell` does not set them
 const DEFAULT_RAIL_CONFIG = { width: 200, collapseWidth: "md" as number | Breakpoint };
 const DEFAULT_BAR_CONFIG = { collapseHeight: 500 };
 
@@ -72,27 +69,25 @@ const railConfig = (theme: Theme, edge: "start" | "end") =>
 const barConfig = (theme: Theme, edge: "start" | "end") =>
   ({ ...DEFAULT_BAR_CONFIG, ...theme.iapShell?.[edge === "start" ? "frameTop" : "frameBottom"] });
 
-// Media queries matching viewports shorter/taller than the given height — MUI's own breakpoint
-// helpers only cover widths. The 0.05px epsilon mirrors how MUI's `breakpoints.down` avoids
-// overlapping its `up` counterpart.
+// Media queries on the viewport's height, which MUI's breakpoints do not cover. `shorterThan`
+// stops 0.05px short of the height, so that the two never match together.
 const shorterThan = (height: number) => `@media (max-height: ${height - 0.05}px)`;
 const tallerThan = (height: number) => `@media (min-height: ${height}px)`;
 
-// How long the hint tooltip on a pull tab stays up, and how long after the page loads (or a
-// resize settles) it appears.
+// How long, in milliseconds, the hint on a pull tab stays up, and how long after the page opens
+// or the region collapses it appears
 const HINT_DURATION = 3000;
 const HINT_APPEAR_DELAY = 1500;
 const HINT_SEEN_KEY = "iap.pullTabHintSeen";
-// At most one first-visit hint per page load across all regions (several may start collapsed,
-// e.g. on a phone; flashing a hint on every one of them would be noise), claimed by whichever
-// region's timer fires first.
+// Whether a region has shown the hint for this page load. Several regions may open collapsed, on
+// a phone, and only the first whose timer fires shows it.
 let pageLoadHintClaimed = false;
 
 const hintAlreadySeen = () => {
   try {
     return window.localStorage.getItem(HINT_SEEN_KEY) !== null;
   } catch {
-    // No storage (e.g. blocked) — behave as already-seen rather than nag on every visit
+    // Without storage, the hint counts as seen, so that it does not show on every visit
     return true;
   }
 };
@@ -101,22 +96,20 @@ const rememberHintSeen = () => {
   try {
     window.localStorage.setItem(HINT_SEEN_KEY, "true");
   } catch {
-    // No storage — nothing to remember into
+    // Without storage, nothing is remembered
   }
 };
 
-// Drives the transient hint tooltip on a pull tab: it flashes when the region live-collapses
-// and once ever (remembered in localStorage) when a page first opens with the region already
-// collapsed — the moments when content silently hiding behind a subtle tab would otherwise be
-// confusing. `expandedMedia` is the same media query that keeps the expanded region visible in
-// CSS; `enabled` should be false when the region has nothing to show (so there is no tab to
-// point at).
+// Whether the hint on a region's pull tab is up. It shows for a while each time the region
+// collapses. It also shows once per browser, when a page opens with a region collapsed.
+// `expandedMedia` is the media query under which the region is expanded. `enabled` is false
+// when the region has nothing to show, and so no tab.
 function useCollapseHint(expandedMedia: string, enabled: boolean): boolean {
   const [ hint, setHint ] = useState(false);
 
   useEffect(() => {
-    // Skip environments that can't actually evaluate media queries (jsdom's matchMedia matches
-    // nothing, not even "all") — there is no real screen to adapt to there.
+    // There is no screen without a matchMedia, or with one that does not even match "all", as in
+    // a test
     if (!enabled || typeof window.matchMedia !== "function" || !window.matchMedia("all").matches) {
       return;
     }
@@ -128,9 +121,8 @@ function useCollapseHint(expandedMedia: string, enabled: boolean): boolean {
     };
     if (!expanded.matches && !pageLoadHintClaimed && !hintAlreadySeen()) {
       pending = window.setTimeout(() => {
-        // Both the claim and the flash happen only when the timer actually fires, so that regions
-        // scheduled in the same tick race fairly, and cancelled effects (e.g. React StrictMode's
-        // mount/unmount/mount cycle) don't burn the hint without ever showing it
+        // The hint is claimed when the timer fires, not when it is set. An effect cancelled before
+        // then, as StrictMode cancels the first, leaves the hint to the next one.
         if (!pageLoadHintClaimed) {
           pageLoadHintClaimed = true;
           rememberHintSeen();
@@ -157,35 +149,34 @@ function useCollapseHint(expandedMedia: string, enabled: boolean): boolean {
 }
 
 interface RegionProps {
-  // The extensions registered on this region's extension point, already in display order.
+  // The extensions on the region's extension point, in their order
   extensions: Extension[];
-  // Which edge of the screen this region sits at: block start/end for the frame bars,
-  // inline start/end for the side rails.
+  // The edge of the screen the region is at: the block start or end for a frame bar, and the
+  // inline start or end for a side rail
   edge: "start" | "end";
 }
 
 interface PullTabProps {
-  // The accessible name of the tab, also its hover tooltip.
+  // The tab's accessible name, which its tooltip shows
   label: string;
-  // The friendlier message shown while the collapse hint flashes.
+  // What the tooltip says while the hint is up
   hintTitle: string;
-  // Transiently true right after the region collapses (see useCollapseHint); opens the tooltip.
+  // Whether the hint is up, which opens the tooltip
   hint: boolean;
-  // Which side of the tab the tooltip floats to — pointing into the screen. Physical, like the
-  // drawer anchors; at a screen edge the popper repositions an overflowing tooltip inward anyway.
+  // The side of the tab the tooltip shows on, towards the middle of the screen
   placement: TooltipProps["placement"];
   onClick: () => void;
-  // Placement, visibility, and shape for the specific screen edge this tab hugs.
+  // The tab's placement, visibility and shape at its edge of the screen
   sx: Record<string, unknown>;
-  // The chevron to display, pointing into the screen where the drawer will open.
+  // The chevron, pointing the way the drawer opens
   children: ReactNode;
 }
 
-// A slim half-pill button at the screen edge, revealed when its frame region is collapsed;
-// clicking it pulls the region's content over the page as a drawer.
+// A small half-round button at the edge of the screen, for a collapsed frame region. Clicking it
+// opens the region's content in a drawer over the page.
 function PullTab({ label, hintTitle, hint, placement, onClick, sx, children }: PullTabProps) {
-  // The tooltip must be controlled (the hint opens it programmatically), so the regular
-  // hover/focus behaviour is re-implemented through onOpen/onClose.
+  // The hint opens the tooltip, so the tooltip is controlled, and hovering opens it through
+  // onOpen and onClose
   const [ hover, setHover ] = useState(false);
   return (
     <Tooltip
@@ -207,9 +198,8 @@ function PullTab({ label, hintTitle, hint, placement, onClick, sx, children }: P
           border: "1px solid",
           borderColor: "divider",
           borderRadius: 0,
-          // Draw the eye whenever the tab (re)appears: CSS restarts the animation each time the
-          // element regains a rendering box, which is exactly when a region collapses into the
-          // tab (or the page opens with it collapsed).
+          // Pulses twice each time the tab appears. CSS restarts the animation whenever the tab
+          // goes from `display: none` to shown, which is when its region collapses.
           "@keyframes iapPullTabPulse": {
             "0%, 100%": { scale: "1" },
             "50%": { scale: "1.2" },
@@ -226,17 +216,15 @@ function PullTab({ label, hintTitle, hint, placement, onClick, sx, children }: P
 }
 
 type FrameBarProps = RegionProps & {
-  // Receives the bar element (or null while there is none), so the shell can measure its height
-  // and keep the side rails out from under it.
+  // Given the bar's element, or null while there is none, so that the shell can measure its
+  // height and keep the side rails below it
   barRef: Ref<HTMLDivElement>;
 };
 
-// One of the frame bars: `iap/coreUI/frameTop` pinned to the top of the screen,
-// `iap/coreUI/frameBottom` pinned to its bottom. All the extensions of a bar share one pinned,
-// opaque, full-width container, so they stack instead of overlapping and the content scrolling
-// past doesn't show through them. On screens shorter than the bar's configured collapse height,
-// the bar leaves the flow entirely; instead, a pull tab pinned to the matching screen edge pulls
-// the same content over the page as a temporary drawer. A bar with no extensions renders nothing.
+// A frame bar, pinned to the top or the bottom of the screen. Its extensions are stacked in one
+// opaque, full-width container, which the content scrolls under. On a screen shorter than the
+// bar's collapse height, the bar is hidden, and a pull tab at that edge opens its extensions in a
+// drawer. A bar without extensions renders nothing.
 function FrameBar({ extensions, edge, barRef }: FrameBarProps) {
   const [ open, setOpen ] = useState(false);
   const theme = useTheme();
@@ -256,8 +244,7 @@ function FrameBar({ extensions, edge, barRef }: FrameBarProps) {
           ...(edge === "start" ? { insetBlockStart: 0 } : { insetBlockEnd: 0 }),
           zIndex: "appBar",
           bgcolor: "background.default",
-          // When collapsed, the measuring ResizeObserver reports the bar as 0 high, freeing the
-          // side rails to span the full viewport height.
+          // A hidden bar is measured as 0px high, so the side rails take its height
           [shorterThan(collapseHeight)]: { display: "none" },
         }}
       >
@@ -303,18 +290,15 @@ function FrameBar({ extensions, edge, barRef }: FrameBarProps) {
   );
 }
 
-// One of the side rails of the frame: `iap/coreUI/frameStart` and `iap/coreUI/frameEnd`. A rail
-// spans the band of the screen left between the frame bars (whose measured heights the shell
-// publishes as the CSS variables used below), keeps its configured width, and scrolls its own
-// content independently of the page. On screens narrower than the rail's configured collapse
-// width, the rail leaves the page flow entirely; instead, a slim pull tab pinned to the matching
-// screen edge pulls the same content over the page as a temporary drawer. A rail with no
-// extensions renders nothing, giving its width back to the main content (and no pull tab).
+// A side rail of the frame, at the start or the end of the screen. It spans the height between
+// the frame bars, has its configured width, and scrolls on its own. On a screen narrower than the
+// rail's collapse width, the rail is hidden, and a pull tab at that edge opens its extensions in a
+// drawer. A rail without extensions renders nothing, and the main content takes its width.
 function SideRail({ extensions, edge }: RegionProps) {
   const [ open, setOpen ] = useState(false);
   const theme = useTheme();
   const { width, collapseWidth } = railConfig(theme, edge);
-  // Media query matching viewports wide enough for this rail to stay in the page flow
+  // The media query under which the rail is shown
   const expanded = theme.breakpoints.up(collapseWidth);
   const hint = useCollapseHint(expanded, extensions.length > 0);
 
@@ -341,8 +325,6 @@ function SideRail({ extensions, edge }: RegionProps) {
       >
         <ExtensionList extensions={extensions} />
       </Box>
-      { /* Deliberately just "side panel", not the code-facing start/end vocabulary: the tab's own
-           position already tells the user which side it is. */ }
       <PullTab
         label="Open the side panel"
         hintTitle="The side panel is available here"
@@ -370,10 +352,8 @@ function SideRail({ extensions, edge }: RegionProps) {
       >
         {edge === "start" ? <ChevronRightIcon /> : <ChevronLeftIcon />}
       </PullTab>
-      { /* The drawer is a detached overlay, outside the page's writing direction, so unlike the
-           rest of the shell it must be anchored physically. When a right-to-left mode lands, this
-           mapping (and the chevron choice above) is the one place that must also consult the
-           theme direction — in RTL, "start" anchors right. */ }
+      { /* A drawer's anchor is a physical side. MUI swaps left and right inside its RtlProvider.
+           The chevrons above do not swap. */ }
       <Drawer
         anchor={edge === "start" ? "left" : "right"}
         open={open}
@@ -388,22 +368,17 @@ function SideRail({ extensions, edge }: RegionProps) {
 }
 
 interface PageLayoutProps {
-  // The main content of the page.
+  // The main content of the page
   children: ReactNode;
 }
 
-// The overall page shell: a stable screen frame (the FrameTop/FrameBottom bars and the
-// FrameStart/FrameEnd side rails, always visible), around a scrolling middle that stacks the
-// PageTop extensions, the main content, and the PageBottom extensions — so the Page* regions sit
-// between the rails and scroll naturally with the content instead of spanning over the rails.
-// On screens too small for a frame region (narrow for the rails, short for the bars, with the
-// thresholds configured per-region in the theme's `iapShell` section), that region collapses
-// into an edge pull tab that opens its content as a drawer over the page.
+// The page shell. A frame of two bars and two side rails stays on the screen. Between the rails,
+// the PageTop extensions, the main content and the PageBottom extensions scroll together. A frame
+// region collapses into a pull tab on a screen too narrow for a rail or too short for a bar. The
+// theme's `iapShell` sets each region's threshold.
 //
-// The shell only uses CSS logical properties (inset-block/inline, inline-size, ...) and flex
-// order, never left/right, so the whole layout mirrors automatically if a future right-to-left
-// locale sets `dir="rtl"` on the document — the "start" rail then lands on the right, as RTL
-// users expect.
+// The shell's styles place things with logical properties, such as `inset-inline-start`, rather
+// than left and right.
 function PageLayout({ children }: PageLayoutProps) {
   const [ regions, setRegions ] = useState<Record<string, Extension[]>>({});
   const region = (point: string) => regions[point] ?? [];
@@ -420,18 +395,16 @@ function PageLayout({ children }: PageLayoutProps) {
     SHELL_POINTS.forEach(point => void loadRegion(point));
   }, []);
 
-  // The measured heights of the two frame bars, so the side rails can span exactly the band of
-  // the screen between them. Published to the rails as CSS variables on the shell root.
+  // The heights of the two frame bars, which the side rails span the screen between. The shell
+  // gives them to the rails as CSS variables.
   const frameTopRef = useRef<HTMLDivElement>(null);
   const frameBottomRef = useRef<HTMLDivElement>(null);
   const [ frameInsets, setFrameInsets ] = useState({ top: 0, bottom: 0 });
 
-  // (Re-)measure whenever a bar appears, disappears (the loaded extensions change, the screen
-  // becomes too short and the bar collapses, ...), or resizes (its own content changes, the
-  // window narrows and its content wraps, ...).
+  // Measures the bars again when the loaded extensions change, and whenever a bar changes size,
+  // such as when it is hidden or its content wraps
   useEffect(() => {
-    // Not available in some non-browser environments (jsdom); the rails then keep the 0px
-    // fallbacks of the CSS variables, i.e. they span the full viewport height.
+    // Without a ResizeObserver, as in jsdom, the bars count as 0px high
     if (typeof ResizeObserver === "undefined") {
       return;
     }
@@ -448,12 +421,8 @@ function PageLayout({ children }: PageLayoutProps) {
   const shellVariables = {
     "--iap-frame-top": `${frameInsets.top}px`,
     "--iap-frame-bottom": `${frameInsets.bottom}px`,
-    // The single source of the content gutter (3 spacing units): the padding around the main
-    // content, also used by anything that must align with the content's edges (the breadcrumb
-    // strip's inset, the admin screen's collapse against the strip, ...) without duplicating
-    // the value. Published pre-computed, like the frame insets above: under the CSS-variables
-    // theme, theme.spacing() would yield a calc(var()) *expression*, which consumers cannot
-    // reliably embed in their own calc() arithmetic.
+    // The padding around the main content, 3 spacing units. What lines up with the content's
+    // edges uses it too, such as the breadcrumb trail.
     "--iap-content-gutter": "24px",
   } as CSSProperties;
 
@@ -463,16 +432,13 @@ function PageLayout({ children }: PageLayoutProps) {
       sx={{ display: "flex", flexDirection: "column", minBlockSize: "100dvh" }}
     >
       <FrameBar extensions={region("FrameTop")} edge="start" barRef={frameTopRef} />
-      { /* The middle band grows to keep a short page's frame bottom bar at the bottom. */ }
+      { /* The middle grows, so that the bottom bar stays at the bottom of a short page */ }
       <Box sx={{ display: "flex", flexGrow: 1 }}>
         <SideRail extensions={region("FrameStart")} edge="start" />
-        { /* The scrolling middle: page-top extensions, then the main content, then page-bottom
-             extensions, all between the rails. minInlineSize lets it shrink below its content's
-             intrinsic width instead of pushing the rails off-screen. */ }
+        { /* minInlineSize lets the middle shrink below the width of its content, rather than push
+             the rails off the screen */ }
         <Box sx={{ display: "flex", flexDirection: "column", flexGrow: 1, minInlineSize: 0 }}>
           <ExtensionList extensions={region("PageTop")} />
-          { /* Page gutters: CssBaseline resets the browser's default body margin, so the main
-               content provides its own padding - the shell-published content gutter. */ }
           <Box component="main" sx={{ flexGrow: 1, p: "var(--iap-content-gutter)" }}>
             {children}
           </Box>

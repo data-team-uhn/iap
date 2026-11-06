@@ -23,7 +23,7 @@ import { listing, SCHEMAS_ROOT } from "./schemaModel";
 
 const asNode = (node: SerializedNode): SerializedNode => node;
 
-// One schema and its versions. The changes made on its page are workflow events sent by its actions.
+// One schema and its versions, drafts and retired ones included, with the events the user may send to each.
 export function useSchema(name: string) {
   const path = `${SCHEMAS_ROOT}/${name}`;
   const { value, loading, loadError, reload } = useNode(path, listing(1), asNode);

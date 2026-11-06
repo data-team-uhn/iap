@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link UserIds}, whose whole job is to prefer the repository's answer to the login's.
+ * Unit tests for {@link UserIds}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,8 +45,6 @@ class UserIdsTest
     @Test
     void answersWithTheRepositorysIdRatherThanTheOneTypedAtLogin()
     {
-        // Measured on a running instance: signing in as "Admin" has the resolver report "Admin" while the same
-        // request writes jcr:createdBy "admin". The second is the identity; the first is a spelling
         final Session session = Mockito.mock(Session.class);
         Mockito.when(session.getUserID()).thenReturn("admin");
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
@@ -59,8 +57,6 @@ class UserIdsTest
     @Test
     void fallsBackOnTheResolverWhereThereIsNoRepositoryToAsk()
     {
-        // A resolver over another provider has no repository to be canonical about, and the only name available
-        // beats no name at all
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         Mockito.when(resolver.getUserID()).thenReturn("someone");
         Mockito.when(resolver.adaptTo(Session.class)).thenReturn(null);
@@ -79,8 +75,6 @@ class UserIdsTest
     @Test
     void answersWithEverythingASessionIsBoundTo() throws Exception
     {
-        // The user's own id first, then the principals: a task's performers name principals, so "is this mine"
-        // is a question about the whole set rather than about the user id alone
         final JackrabbitSession session = boundTo("priya", "reviewers", "everyone");
 
         assertEquals(List.of("priya", "reviewers", "everyone"), UserIds.principalsOf(session));
@@ -89,8 +83,6 @@ class UserIdsTest
     @Test
     void answersWithJustTheUserWhereTheSessionIsNotJackrabbitsToAsk() throws Exception
     {
-        // Never the empty list: a caller filtering on nothing would widen its question to everybody, which is the
-        // opposite of asking what is theirs
         final Session session = Mockito.mock(Session.class);
         Mockito.when(session.getUserID()).thenReturn("priya");
 
@@ -100,7 +92,7 @@ class UserIdsTest
     @Test
     void namesEachPrincipalOnce() throws Exception
     {
-        // A session is bound to a principal for its own user as well, so the user id would otherwise appear twice
+        // The session is bound to its user's own principal too
         final JackrabbitSession session = boundTo("priya", "priya", "everyone");
 
         assertEquals(List.of("priya", "everyone"), UserIds.principalsOf(session));

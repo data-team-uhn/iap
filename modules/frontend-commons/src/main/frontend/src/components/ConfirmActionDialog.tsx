@@ -26,18 +26,16 @@ import ResponsiveDialog from "./ResponsiveDialog";
 
 interface ConfirmActionDialogProps {
   title: string;
-  // Explains what the action does; the failure report, if any, appears underneath.
+  // Says what the action does. A failure is reported under it.
   children: ReactNode;
   confirmLabel: string;
   // What the confirm button says while the action runs, such as "Removing…". Defaults to `confirmLabel`.
   workingLabel?: string;
   confirmColor?: ButtonProps["color"];
-  // Performs the action. Resolving closes the dialog; rejecting keeps it open and reports the
-  // failure in place, next to the explanation of what was being attempted.
+  // Runs the action. Resolving closes the dialog. Rejecting keeps it open and reports the failure.
   onConfirm: () => Promise<void>;
-  // Claims a rejection the caller would rather handle itself: returning true suppresses the
-  // report, letting the caller turn a particular refusal into something other than an error - an
-  // offer of an alternative, say.
+  // Takes over a rejection: returning true reports nothing, so that the caller can turn a refusal
+  // into something else, such as an offer of an alternative.
   interceptFailure?: (error: unknown) => boolean;
   // Whether a rejection is final, such as a refusal. Confirming again would fail the same way, so the
   // confirm button stays disabled. Without it, every failure may be retried.
@@ -45,11 +43,8 @@ interface ConfirmActionDialogProps {
   onClose: () => void;
 }
 
-// The shell for an action that asks before it acts: it states the consequences, runs the action
-// once, and - since the dialog is already the user's focus - reports a failure right there rather
-// than handing it to a second dialog. While the action is in flight the dialog takes no further
-// instruction at all - not the buttons, and not the close button or Escape either, since an action
-// that cannot be taken back should not be abandoned halfway by a stray keypress.
+// A dialog that asks before running an action, and reports a failure inside itself. While the
+// action runs, the dialog takes no input: not its buttons, its close button or Escape.
 //
 // Sample usage:
 // <ConfirmActionDialog
@@ -69,8 +64,7 @@ function ConfirmActionDialog(
 ) {
   const [ refused, setRefused ] = useState(false);
   const { working, failure, run } = useAsyncAction<string>({
-    // A claimed rejection is discarded here because the caller has taken it over - turned it into an
-    // offer of an alternative, say - and reporting it as a failure as well would contradict that
+    // A rejection the caller took over is not reported
     onFailure: error => {
       if (interceptFailure?.(error)) {
         return undefined;

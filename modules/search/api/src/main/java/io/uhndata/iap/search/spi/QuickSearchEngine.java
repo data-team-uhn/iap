@@ -29,14 +29,13 @@ import io.uhndata.iap.search.api.SearchContext;
 import io.uhndata.iap.search.api.SearchUtils;
 
 /**
- * Searches for one kind of content on behalf of the {@code quick} mode of the {@code /search} endpoint. Every
- * registered engine that supports one of the requested node types is called, in no particular order, until enough
+ * Searches one kind of content for the {@code quick} mode of {@code /search.json}, which answers while the user is
+ * still typing. Each registered engine that supports one of the requested node types is asked in turn, until enough
  * results have been collected.
  *
  * <p>
- * A quick search answers while the user is still typing. An engine looks wherever the user would expect a match,
- * including in descendants of the content it returns. It describes each match with
- * {@link SearchUtils#addMatchMetadata}, which the client uses to show why a result is there.
+ * An engine looks wherever the user would expect a match, including in descendants of the content it returns. It
+ * describes each match with {@link SearchUtils#addMatchMetadata}, so that the client can show why a result is there.
  * </p>
  *
  * @version $Id$
@@ -47,16 +46,16 @@ public interface QuickSearchEngine
     /**
      * The node types this engine can search.
      *
-     * @return a list of JCR node types, usually a singleton, in the {@code sub:Submission} format
+     * @return node type names, such as {@code sub:Submission}; usually just one
      */
     @NotNull
     List<String> getSupportedTypes();
 
     /**
-     * Check whether the given node type is one this engine can search.
+     * Whether this engine can search the given node type.
      *
-     * @param type the JCR node type to check, in the {@code sub:Submission} format
-     * @return {@code true} if the node type is supported, {@code false} otherwise
+     * @param type a node type name, such as {@code sub:Submission}
+     * @return {@code true} if the node type is one of {@link #getSupportedTypes()}
      */
     default boolean isTypeSupported(@NotNull final String type)
     {
@@ -66,27 +65,26 @@ public interface QuickSearchEngine
     /**
      * Finds content matching the search. An implementation matches the query in the properties of the content it
      * knows, or in those of its descendants. It reads through the context's
-     * {@link SearchContext#getResourceResolver() resource resolver}, which keeps the matches to what the requesting
-     * user may see.
+     * {@link SearchContext#getResourceResolver() resource resolver}, so the matches are what the requesting user may
+     * see.
      *
      * @param context what to look for, how much of it is wanted, and on whose behalf
-     * @return the matches, possibly {@link Results#empty() none}
+     * @return the matches; {@link Results#empty()} if there are none
      */
     @NotNull
     Results quickSearch(@NotNull SearchContext context);
 
     /**
-     * The matches found by an engine. Each is serialized only when it is asked for. A caller stops as soon as it has
-     * enough results, and the matches it never reaches are never serialized.
+     * The matches found by an engine. Each is serialized only when the caller reads it, and the caller stops reading
+     * once it has enough.
      *
      * @since 0.1.0
      */
     interface Results extends Iterator<JsonObject>, AutoCloseable
     {
         /**
-         * Discards the next match without serializing it. The caller uses this for the matches it counts but does
-         * not return, such as those before the requested offset. Make it cheaper than {@link #next()} where
-         * possible.
+         * Moves past the next match without serializing it. The caller skips the matches it counts but does not
+         * return, such as those before the requested offset. Make it cheaper than {@link #next()} where possible.
          */
         default void skip()
         {
@@ -94,12 +92,12 @@ public interface QuickSearchEngine
         }
 
         /**
-         * Releases whatever the search held, typically a session or a resource resolver the engine opened. Called
-         * exactly once, whether the matches were read to the end or not.
+         * Releases whatever the search held, such as a session or a resource resolver the engine opened. The caller
+         * calls it once, whether it read the matches to the end or not.
          *
          * <p>
-         * Narrowed from {@link AutoCloseable#close()} to throw nothing. A caller can do nothing about a failure to
-         * release, and the response is usually already going out by then.
+         * Unlike {@link AutoCloseable#close()}, it throws no checked exception. A caller can do nothing about a
+         * failure to release.
          * </p>
          */
         @Override

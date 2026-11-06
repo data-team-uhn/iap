@@ -27,14 +27,22 @@ import org.apache.sling.spi.resource.provider.ResourceProvider;
 import org.osgi.service.component.annotations.Component;
 
 /**
- * Serves every path below the administration console from the console itself, so that a tool's pages can have real
- * URLs, like {@code /admin/groups/reviewers}, without a repository node behind each one.
+ * Gives the pages of the administration console's tools real URLs, such as {@code /admin/categories}, without a
+ * repository node behind each one.
  *
  * <p>
- * This provider hands back a synthetic resource of the same type as the admin console for anything below it, which the
- * usual script resolution then renders as the application shell, leaving the client-side router to decide what the path
- * means. Registered for {@code /admin} in overlay mode, so real content still wins: the console node itself, and
- * anything genuinely stored beneath it, resolves through the repository as before, with its own access control.
+ * A path below {@code /admin} that nothing is stored at resolves to a synthetic resource of the console's own type.
+ * Sling renders it with the application shell, and the client-side router decides what the path shows.
+ * </p>
+ *
+ * <p>
+ * The provider is mounted on {@code /admin} in overlay mode, and asks the repository first. Stored content, the
+ * console node included, resolves with its own type, properties and access control.
+ * </p>
+ *
+ * <p>
+ * The provider lists no children, and the resolver asks no other provider for the children of {@code /admin} or of
+ * a path below it. Nothing stored there can be listed.
  * </p>
  *
  * @version $Id$
@@ -48,13 +56,10 @@ import org.osgi.service.component.annotations.Component;
     })
 public class AdminViewResourceProvider extends ResourceProvider<Object>
 {
-    /** The administration console's own path; everything below it is served from it. */
+    /** The path of the administration console. */
     public static final String ADMIN_ROOT = "/admin";
 
-    /**
-     * The type the synthesized resources carry, the same one the console node itself has, so that
-     * they render through the very same script.
-     */
+    /** The resource type of the synthetic resources, which is the console node's own type. */
     static final String VIEW_RESOURCE_TYPE = "app/Homepage";
 
     @Override
@@ -68,10 +73,8 @@ public class AdminViewResourceProvider extends ResourceProvider<Object>
         if (!path.startsWith(ADMIN_ROOT + "/") || isResolverArtifact(path)) {
             return null;
         }
-        // A synthetic resource carries no access control of its own, so it borrows the console's:
-        // no readable console, no pages below it. Without this a caller who cannot see /admin
-        // would still be handed the shell for /admin/anything, which is a wider door than the
-        // repository nodes these replace.
+        // A synthetic resource has no access control of its own. It is served only to a caller who
+        // can read the console.
         if (resolveStored(ctx, ADMIN_ROOT, resourceContext, null) == null) {
             return null;
         }
@@ -81,32 +84,29 @@ public class AdminViewResourceProvider extends ResourceProvider<Object>
     @Override
     public Iterator<Resource> listChildren(final ResolveContext<Object> ctx, final Resource parent)
     {
-        // These resources exist only when asked for by name; there is no set of them to enumerate,
-        // and claiming otherwise would make the console's children unlistable rather than merely
-        // undefined.
+        // A synthetic resource exists only when asked for by its path
         return null;
     }
 
     /**
-     * Whether the last segment of a path carries a dot, which means the resolver is still peeling
-     * an extension (or selectors) off it rather than asking for a view.
+     * Whether the last segment of a path has a dot. Sling asks for such a path before it has taken the extension and
+     * selectors off the request path, and it is never a page.
      *
      * <p>
-     * Refusing these is what keeps the shell renderable. Resolution offers the whole request path
-     * first and only then the same path with the trailing {@code .something} removed, and the
-     * extension-less shell script includes the relative path {@code .html} to render its own HTML
-     * form -- so both {@code /admin/users.html} and {@code /admin/users/.html} are put to this
-     * provider on the way to {@code /admin/users} plus an {@code html} extension. Synthesizing
-     * them instead would answer with a resource that has no extension, whose script includes
-     * {@code .html} again, and so on until the request dies of recursion. Declining costs nothing
-     * even where a view URL does carry a dot: a page asked for in a mode of its own, such as
-     * {@code /admin/workflows/Workflows/review/v1.edit}, is served by the same falling back --
-     * the dotless path is synthesized and the mode arrives as the extension, which is where the
-     * script that renders it is registered.
+     * Sling offers the whole request path first, then the same path without its last {@code .something}. The script
+     * for a request without an extension includes the relative path {@code .html}. So {@code /admin/categories.html}
+     * and {@code /admin/categories/.html} both reach this provider before {@code /admin/categories} with the
+     * {@code html} extension. A synthetic resource for either has no extension. Its script includes {@code .html}
+     * again, until the request fails with a recursion error.
+     * </p>
+     *
+     * <p>
+     * A page asked for with an extension still renders. For {@code /admin/categories.edit}, the provider synthesizes
+     * {@code /admin/categories}, and Sling renders it with the script for {@code edit}.
      * </p>
      *
      * @param path the absolute path being resolved
-     * @return {@code true} when the path is an artifact of resolution rather than a view
+     * @return {@code true} if the last segment of the path has a dot
      */
     private boolean isResolverArtifact(final String path)
     {
@@ -114,14 +114,14 @@ public class AdminViewResourceProvider extends ResourceProvider<Object>
     }
 
     /**
-     * Looks the path up in whatever provides the repository below this one, so that real content
-     * keeps its own resource type, properties and access control.
+     * Looks a path up in the provider below this one, which is the repository.
      *
      * @param ctx the context this provider was called with
-     * @param path the absolute path being resolved
-     * @param resourceContext the resolution context to pass on unchanged
-     * @param parent the parent resource, when the resolver already knows it
-     * @return the stored resource, or {@code null} when nothing is stored at that path
+     * @param path the absolute path to look up
+     * @param resourceContext the resource context of the request, passed on unchanged
+     * @param parent the parent resource, or {@code null} if the resolver has not resolved it
+     * @return the stored resource, or {@code null} if nothing the caller can read is stored at that path, or if no
+     *     provider is below this one
      */
     @SuppressWarnings("unchecked")
     private Resource resolveStored(final ResolveContext<Object> ctx, final String path,

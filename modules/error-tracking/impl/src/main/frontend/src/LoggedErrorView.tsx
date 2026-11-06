@@ -49,7 +49,7 @@ import {
   simpleName,
 } from "./errorTrackingApi";
 
-/** A timestamp as a reader wants it, or the raw value if it is not one we can parse. */
+/** A timestamp in the browser's locale, the raw value if it cannot be parsed, or a dash if absent. */
 function moment(value: string | undefined): string {
   if (value === undefined) {
     return "—";
@@ -68,8 +68,8 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-// A bounded sample the server kept: the messages, subjects or actors this fault was seen with.
-// Nothing is shown at all when there are none, rather than an empty heading.
+// A sample the server kept: the messages, subjects or users of the fault. It renders nothing when the
+// sample is empty.
 function Sample({ label, values, hint }: { label: string; values: string[]; hint: string }) {
   if (values.length === 0) {
     return null;
@@ -91,9 +91,8 @@ function Sample({ label, values, hint }: { label: string; values: string[]; hint
   );
 }
 
-// Preformatted evidence — a stack trace, or the context of the last occurrence. Scrolls inside its
-// own box: a stack trace is wider than any screen, and letting it widen the page would push the
-// triage form off the side.
+// Preformatted text, such as a stack trace. It scrolls inside its own box, so that a long line does
+// not widen the page.
 function Preformatted({ label, text }: { label: string; text: string }) {
   return (
     <Box>
@@ -118,7 +117,7 @@ function Preformatted({ label, text }: { label: string; text: string }) {
   );
 }
 
-// One decision somebody took, in the order they were taken, newest first.
+// One decision somebody took about the error.
 function DecisionEntry({ decision }: { decision: Decision }) {
   return (
     <Box>
@@ -142,18 +141,17 @@ function DecisionEntry({ decision }: { decision: Decision }) {
 }
 
 /**
- * The administration console page for one recorded error, at {@code /admin/errors/<fingerprint>}:
- * everything the instance kept about the fault, and the form for recording what was decided.
+ * The administration console page for one recorded error, at `/admin/errors/<fingerprint>`: what
+ * the instance kept about the fault, and the form for recording a decision.
  *
- * A decision is appended rather than replacing the last one, and the triage markers shown above are
- * *derived* from the decisions server-side — so a successful submission re-reads the error rather
- * than patching what is on screen, which is the only way the markers here can be trusted.
+ * The server computes the triage tags from the decisions, so after recording one the page reads the
+ * error again.
  */
 function LoggedErrorView() {
   const { pathname } = useLocation();
   const doFetch = useAuthenticatedFetch();
-  // Derived at render, never stored: the React Compiler lint rejects a setState reached
-  // synchronously from an effect, and a route that names no error is not a fetch to make
+  // Derived at render, not stored: react-hooks/set-state-in-effect rejects a setState reached
+  // synchronously from an effect
   const name = errorNameFromRoute(pathname);
 
   const [ error, setError ] = useState<LoggedErrorDetail | null>(null);
@@ -165,28 +163,20 @@ function LoggedErrorView() {
   const [ note, setNote ] = useState("");
   const [ saving, setSaving ] = useState(false);
 
-  // Reads are sent in order but can land out of order — a reload after a decision can overtake a
-  // retry already in flight — so each one carries a token and only the newest is applied. The same
-  // shape the submission editor uses; a `cancelled` flag would not do, because the writes happen
-  // inside the read rather than after awaiting it.
+  // Reads can land out of order: a re-read after a decision can overtake a retry in flight. Each read
+  // carries a token, and only the newest is applied.
   const newestRead = useRef(0);
 
-  // Both the first read and the retry button go through this, so a retry cannot drift from the load
-  // it is retrying. It resolves only once the fetch has settled, which is what lets LoadError show
-  // the attempt's own progress.
+  // Reads the error, for the first load and for the retry button. It resolves once the fetch has
+  // settled, so that LoadError can show the retry's progress.
   const load = useCallback((): Promise<void> => {
     if (name === null) {
       return Promise.resolve();
     }
     newestRead.current += 1;
     const token = newestRead.current;
-    // Written with callbacks rather than await deliberately: every setState below then sits in a
-    // promise callback, which is what keeps react-hooks/set-state-in-effect satisfied when the
-    // effect calls this. An async body would put them on the synchronous path as far as the rule
-    // is concerned, however many awaits precede them.
-    //
-    // The outcome is applied in ONE place, so there is a single decision about whether this read is
-    // still the one being waited for, rather than the same question asked in three callbacks.
+    // Callbacks, not await: react-hooks/set-state-in-effect counts a setState in an async function
+    // as synchronous, however many awaits precede it
     return fetchLoggedError(doFetch, name)
       .then(result => ({ result, failure: null as string | null }))
       .catch((cause: unknown) => ({
@@ -203,11 +193,8 @@ function LoggedErrorView() {
       });
   }, [ doFetch, name ]);
 
-  // Navigating from one error to another must not leave the previous one's details on screen under
-  // the new one's heading. Done as a render-phase adjustment rather than in the effect: `load`
-  // deliberately sets nothing synchronously, because setState reached synchronously from an effect
-  // is what react-hooks/set-state-in-effect rejects — the same shape AnswerField uses to follow a
-  // changed value.
+  // Moving to another error clears the previous one's details. Done during render, since the effect
+  // may not set state synchronously.
   const [ shown, setShown ] = useState(name);
   if (shown !== name) {
     setShown(name);
@@ -221,8 +208,7 @@ function LoggedErrorView() {
   }, [ load, reloads ]);
 
   if (name === null) {
-    // Not a LoadError: nothing failed to load and retrying cannot help, because the address itself
-    // names no single error. Saying so beats rendering an empty page that looks like one.
+    // Not a LoadError: nothing failed to load, and retrying cannot help
     return (
       <AdminScreen title="Recorded error">
         <Typography variant="placeholder">
@@ -232,9 +218,8 @@ function LoggedErrorView() {
     );
   }
 
-  // A const arrow rather than a function declaration, and declared after the early return, so that
-  // `name` is narrowed to a string here and this needs no null guard of its own — there is no form
-  // to submit on a page that names no error. A hoisted declaration would not inherit the narrowing.
+  // A const arrow after the early return, where `name` is narrowed to a string. A hoisted function
+  // declaration would not see the narrowing.
   const submit = (): void => {
     setSaving(true);
     acknowledgeError(doFetch, name, resolution, note)
@@ -242,15 +227,13 @@ function LoggedErrorView() {
         if (outcome.status === "ok") {
           notify({ title: "Decision recorded", severity: "success" });
           setNote("");
-          // The triage markers are derived from the decisions when the write commits, so what is on
-          // screen is stale the moment this succeeds
+          // The triage tags were computed again when the decision was committed
           setReloads(previous => previous + 1);
         } else {
           notify({
             title: "The decision was not recorded",
             message: outcome.message,
-            // Only worth another attempt when the server could not carry it out; a refused
-            // resolution or a vanished error would refuse again
+            // A refused resolution or a missing error would be refused again
             onRetry: outcome.status === "failed" ? submit : undefined,
           });
         }
@@ -265,8 +248,8 @@ function LoggedErrorView() {
       .finally(() => { setSaving(false); });
   };
 
-  // The phrase for a problem; for a failure the throwable's simple name, because the package would
-  // fill the heading and the fully-qualified name is shown once below, as the "Thrown" fact
+  // The name of a problem, or the simple class name of what was thrown; the "Thrown" fact below
+  // shows the fully qualified name
   const heading = error === null
     ? "Recorded error"
     : (error.problem ?? (simpleName(error.type) || error.name));

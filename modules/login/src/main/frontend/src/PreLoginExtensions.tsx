@@ -21,10 +21,9 @@ import { useEffect, useState } from "react";
 import { ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
-// Renders the `iap/coreUI/frameTop` extensions that opt into pre-authentication visibility
-// with `ext:visibleBeforeLogin: true` — e.g. a maintenance notice that must reach users
-// before they sign in. The flag is opt-in so that the rest of the frame (the app bar and
-// anything else that assumes a session) never leaks onto the login page.
+// The `iap/coreUI/frameTop` extensions marked with `ext:visibleBeforeLogin: true`, such as a
+// maintenance notice that must reach users before they sign in. The others, such as the app
+// bar, need a session, and are not shown.
 export default function PreLoginExtensions() {
   const [ extensions, setExtensions ] = useState<Extension[]>([]);
 

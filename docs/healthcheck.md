@@ -4,73 +4,68 @@
 **Package:** `…healthcheck.internal` · **Generic checks configured in:**
 `packaging/slingfeature/src/main/features/healthcheck.json`
 
-IAP plugs into
+Health checks say whether an instance is working. IAP uses
 [Apache Felix Health Checks](https://felix.apache.org/documentation/subprojects/apache-felix-healthchecks.html).
-The platform ships the generic Felix and Sling checks — memory, CPU, thread usage,
-disk space, framework start, started bundles, bundle content loaded, services, DS
-components, scheduler — configured in the packaging feature, and this module adds
-platform-specific ones.
+The packaging feature configures the generic Felix and Sling checks: memory, CPU,
+thread usage, disk space, framework start, started bundles, bundle content loaded,
+services, DS components and the scheduler. This module adds the checks specific to IAP.
 
 | Request | Runs |
 |---|---|
-| `GET /system/health` | Everything, as HTML |
-| `GET /system/health.json` | Everything, as JSON |
-| `GET /system/health?tags=iap` | Only the IAP-specific checks |
+| `GET /system/health` | Every check, as HTML |
+| `GET /system/health.json` | Every check, as JSON |
+| `GET /system/health?tags=iap` | Only the checks tagged `iap` |
 
-Results also appear in the web console's Sling Health Check tab, and the overall
-outcome is published as a [status report](status.md) named `Health Check`: `ERROR`
-when any check reached `TEMPORARILY_UNAVAILABLE` or worse, `WARNING` for anything
-lesser that failed, naming the failing checks.
+The web console shows the results too, on its Health Check page
+(`/system/console/healthcheck`). A [status report](status.md) named `Health Check`
+sums up every check that has a tag. It is a `SUCCESS` when they all pass. Otherwise the
+worst result decides: `WARNING` for a `WARN`, and `ERROR` for `TEMPORARILY_UNAVAILABLE`
+or worse. Only a privileged report names the failed checks.
 
 ## The checks
 
-Four are tagged `iap` and are configuration-driven or environmental:
+Four checks are tagged `iap`. They find problems in the configuration and the
+environment:
 
 | Name | Verifies |
 |---|---|
-| `IAP duplicate jars` | No two installed bundles share a symbolic name — usually two versions of the same jar deployed side by side |
-| `IAP properties present` | Required repository properties exist and, optionally, hold an expected value |
-| `IAP services active` | Required OSGi services are registered |
-| `IAP query counts` | JCR-SQL2 queries return a result count satisfying a condition |
+| `IAP duplicate jars` | No two installed bundles have the same symbolic name. Two such bundles are usually two versions of one jar, deployed side by side |
+| `IAP properties present` | The required repository properties exist and, where a value is required, have that value |
+| `IAP services active` | The required OSGi services are registered |
+| `IAP query counts` | Each configured JCR-SQL2 query returns a number of rows that satisfies its condition |
 
-A fifth, `Login Page Ready Check`, is tagged **`systemalive`** rather than `iap`,
-because it is not a diagnostic but a gate condition. It renders `/login` internally
-through `SlingRequestProcessor` — no HTTP round trip — under the `healthcheck`
-subservice, and passes only on a 200; anything else is
-`TEMPORARILY_UNAVAILABLE`. The path is deliberately extensionless, because that is
-what visitors actually hit: the authentication handler redirects to
-`/login?resource=…`, which renders through the extensionless scripts.
+A fifth check, `Login Page Ready Check`, is tagged **`systemalive`** instead of `iap`,
+since the startup gate waits for it. It renders `/login` inside Sling, through
+`SlingRequestProcessor`, as the `healthcheck` subservice. A request over HTTP would
+wait behind the gate, which waits for this check. The check passes on a 200. Any other
+status, or a failure to render, makes it `TEMPORARILY_UNAVAILABLE`. The path has no
+extension, like the one visitors reach: Sling's form authentication handler sends them
+to `/login?resource=…`. That rendering includes the `.html` one, so a 200 covers both.
 
-> **Do not rename that check.** `StartupGateFilter` (module
-> `startup-customization`) holds requests until a named set of checks passes, and
-> `"Login Page Ready Check"` is one of the five string literals in its
-> `REQUIRED_CHECKS` — with `OSGi Framework Ready Check`, `Bundles Started`,
-> `Authentication Handler Ready Check` and `Services Ready Check`, whose names the
-> packaging feature pins with an explicit `hc.name` so an upstream default cannot
-> change them underneath. The gate names checks rather than trusting the tag, so
-> adding one to `systemalive` does not silently make it a startup prerequisite:
-> `Bundle Content Loaded` carries the tag and is not in the gate's list.
+> **Do not rename that check.** `StartupGateFilter`, in the `startup-customization`
+> module, lists five checks by name in `REQUIRED_CHECKS`, and `"Login Page Ready Check"`
+> is one of them. The gate waits for each of the five to register and pass.
 
 ## Configuring the checks
 
-Three of the `iap` checks are driven by configuration nodes under
-`/libs/iap/healthcheck/`. The module ships only the empty containers; other modules
-contribute checks through their own initial content, and `test-data` provides a demo
-set for each.
+Three of the `iap` checks read their configuration from nodes under
+`/libs/iap/healthcheck/`, one child node for each thing to check. The module ships the
+three containers empty. A module adds the checks it needs as children, in its own
+initial content. `test-data` adds one example to each.
 
 ### `requiredProperties/`
 
 | Property | Meaning |
 |---|---|
-| `propertyPath` | Full JCR path of the property that must exist |
-| `requiredValue` | Optional expected value, compared through its string representation |
+| `propertyPath` | The absolute path of a property that must exist, such as `/libs/iap/conf/Media/logoLight` |
+| `requiredValue` | Optional. The value the property must have, compared as a string, so `true` matches a boolean property |
 
 ### `requiredServices/`
 
 | Property | Meaning |
 |---|---|
-| `serviceClass` | Fully qualified name of the service that must be registered |
-| `osgiFilter` | Optional OSGi service filter the registration must match |
+| `serviceClass` | The fully qualified name a service must be registered under |
+| `osgiFilter` | Optional. An OSGi filter the service must also match |
 
 ### `queryCountChecks/`
 
@@ -78,14 +73,15 @@ set for each.
 |---|---|
 | `query` | A JCR-SQL2 select query |
 | `comparator` | One of `<`, `<=`, `=`, `>=`, `>`, `!=` |
-| `compareAgainst` | The expected count; the check passes when `actualCount comparator compareAgainst` holds |
+| `compareAgainst` | The number the row count is compared with. The query passes when `row count <comparator> compareAgainst` holds |
 
-The query is capped at `compareAgainst + 1` rows, since nothing beyond that changes
-the outcome of any comparator.
+The check reads at most `compareAgainst + 1` rows of a query, since no comparison needs
+more.
 
-Query strings may carry date placeholders resolved at execution time —
-`${yesterday}`, `${today}`, `${tomorrow}`, each that date at the server's
-midnight — usable inside date literals:
+A query may contain the placeholders `${yesterday}`, `${today}` and `${tomorrow}`.
+Before running the query, the check replaces each with midnight at the start of that
+day, in the server's time zone, such as `2026-11-05T00:00:00.000-05:00`. They go inside
+a date literal:
 
 ```sql
 SELECT * FROM [sub:Submission] AS submission
@@ -94,8 +90,8 @@ SELECT * FROM [sub:Submission] AS submission
 
 ## Adding a check in code
 
-A check is an OSGi component implementing Felix's `HealthCheck`, named and tagged
-through service properties:
+A check is an OSGi component that implements Felix's `HealthCheck`. Its service
+properties give its name and its tags:
 
 ```java
 @Component(service = HealthCheck.class, property = {
@@ -112,6 +108,12 @@ public class DuplicateJarsHealthCheck implements HealthCheck
 }
 ```
 
-Tag `iap` for a diagnostic. Reserve `systemalive` for a condition that should hold
-requests at startup — and if a new check belongs in the gate, add its name to
-`REQUIRED_CHECKS` deliberately, since the tag alone will not put it there.
+Tag a diagnostic `iap`. Tag a check `systemalive` only if requests must wait for it at
+startup: the gate holds requests while any registered `systemalive` check fails, for up
+to five minutes. Never tag a check whose remedy needs somebody to log in, since the gate
+would keep that person out.
+
+The tag alone does not make the gate wait for a check to register. For that, add its
+name to `REQUIRED_CHECKS` too. A check that does not register on every start must stay
+off that list, or the gate waits the full five minutes on each start where it is
+missing.

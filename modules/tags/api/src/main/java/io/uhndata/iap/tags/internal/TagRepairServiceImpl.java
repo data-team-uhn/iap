@@ -39,8 +39,8 @@ import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.api.TagRepairService;
 
 /**
- * Marks stale nodes and lets the propagation editor recompute them. See {@link TagRepairService} for why this is
- * needed at all, and {@link TagPropagationEditor} for what happens once a node is marked.
+ * Finds the nodes to repair with a query, and marks them in batches of {@value #BATCH_SIZE}. See
+ * {@link TagPropagationEditor} for the recomputation.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,31 +49,21 @@ import io.uhndata.iap.tags.api.TagRepairService;
 public class TagRepairServiceImpl implements TagRepairService
 {
     /**
-     * Nodes whose derived tags cannot be trusted, whatever the reason recorded on them; the marker is indexed, so
-     * this is not a scan. Testing for presence rather than for {@code failed} matters: it also picks up nodes left
-     * at {@code recomputing} by a commit that was interrupted before the editor got to them, which nothing else
-     * would ever come back for.
+     * The nodes whose derived tags cannot be trusted, whatever the value of the mark. It also finds a node left at
+     * {@code recomputing} by an interrupted commit, which nothing else comes back for.
      */
     static final String STALE_QUERY =
         "SELECT * FROM [nt:base] WHERE [" + TagManager.COMPUTATION_STATE_PROPERTY + "] IS NOT NULL";
 
-    /** How many nodes are marked before saving. Bounds how much a single refused save can cost. */
+    /** How many nodes are marked before saving. A refused save loses at most this many marks. */
     static final int BATCH_SIZE = 200;
 
-    /**
-     * What a tag name may look like. Names come from node names under {@code /Tags}, so this rejects nothing that
-     * could legitimately be one, and it is checked rather than escaped because a name that fails it is a bug or an
-     * attack, not a value to be quoted and passed on.
-     */
+    /** The tag names a repair accepts, since the name goes into a query unescaped. */
     private static final Pattern SAFE_NAME = Pattern.compile("[a-zA-Z0-9_-]+");
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TagRepairServiceImpl.class);
 
-    /**
-     * The repair has a service user of its own rather than borrowing the tag manager's, which may only ever read the
-     * definitions. This one may not create or remove anything either: marking a node is a property write, and the
-     * recomputation that follows is the commit hook's work, done with the repository's own privileges.
-     */
+    /** The subservice name mapped to the service user allowed to mark any node. */
     private static final Map<String, Object> SERVICE_USER =
         Map.of(ResourceResolverFactory.SUBSERVICE, "tagrepair");
 
@@ -95,8 +85,8 @@ public class TagRepairServiceImpl implements TagRepairService
             LOGGER.warn("Refusing to repair the tag {}: not a tag name", tagName);
             return new RepairReport(0, 0);
         }
-        // All four properties are indexed, and a comparison against a multi-valued property holds when any of its
-        // values match, so this finds both the content the tag was placed on and the content it was copied to
+        // A comparison with a multivalued property holds when any of its values matches, so this finds the content
+        // the tag was placed on, computed for, or copied to
         final String query = "SELECT * FROM [nt:base] WHERE [" + TagManager.TAGS_PROPERTY + "] = '" + tagName + "'"
             + " OR [computedTags] = '" + tagName + "'"
             + " OR [inheritedTags] = '" + tagName + "'"
@@ -116,16 +106,14 @@ public class TagRepairServiceImpl implements TagRepairService
             return markAll(resolver, resolver.findResources(query, "JCR-SQL2"));
         } catch (final LoginException e) {
             LOGGER.error("Cannot repair tags, the tag repair service user is not available: {}", e.getMessage(), e);
-            // A report of nothing repaired is what a healthy repository returns too, so the scheduled sweep would
-            // go on reporting success while every stale node stayed stale
+            // Recorded, since the report reads the same as for a repository with nothing to repair
             ErrorLogger.logError(e, ErrorContext.of(TagRepairServiceImpl.class, "repair"));
             return new RepairReport(0, 0);
         }
     }
 
     /**
-     * Marks everything the query found, saving in batches. A node that cannot be marked is counted and skipped: one
-     * unwritable node must not stop the rest of the repository from being repaired.
+     * Marks everything the query found, saving in batches.
      *
      * @param resolver the resolver the resources belong to
      * @param found the resources to mark
@@ -159,21 +147,17 @@ public class TagRepairServiceImpl implements TagRepairService
     }
 
     /**
-     * Asks for one node to be recomputed, by recording that its stored tags are untrustworthy.
+     * Asks for one node to be recomputed, by marking its stored tags as stale.
      *
      * <p>
-     * What reaches the editor is the <em>change</em>, not the value: a commit that writes nothing new to a node never
-     * visits it, and the node is never recomputed. Writing {@link TagManager#STATE_RECOMPUTING} differs from both
-     * states a node can be found in — absent, or {@link TagManager#STATE_FAILED} — so in the ordinary case this is
-     * simply a write.
+     * The editor visits only a node the commit changes, so the mark must change the node. A node is usually found
+     * with no mark or with {@link TagManager#STATE_FAILED}, and gets {@link TagManager#STATE_RECOMPUTING}.
      * </p>
      *
      * <p>
-     * The exception is a node already sitting at {@code recomputing}, which should not be possible: the request and
-     * the recomputation happen in the same commit, so that value is not observable at rest. Finding one means a
-     * commit was interrupted in between, and writing the same value again would leave it stranded for good. Clearing
-     * the property is what gets the editor there, since it recomputes a node marked before the commit as readily as
-     * one marked during it.
+     * A node already at {@code recomputing} was left there by an interrupted commit, since the mark is set and
+     * removed within one commit. Writing the same value would change nothing. Removing the mark is a change, and the
+     * editor recomputes a node that was marked before the commit.
      * </p>
      *
      * @param properties the properties of the node to mark
@@ -205,8 +189,7 @@ public class TagRepairServiceImpl implements TagRepairService
         } catch (final PersistenceException e) {
             LOGGER.warn("Cannot save a batch of {} tag repairs: {}", pending, e.getMessage(), e);
             resolver.revert();
-            // The count comes back in the report, which a caller who asked for a repair does read — but the
-            // scheduled sweep is nobody's to read, and that is the path this runs on unattended
+            // Recorded, since the scheduled sweep only logs its report
             ErrorLogger.logError(e, ErrorContext.of(TagRepairServiceImpl.class, "saveBatch")
                 .with("batchSize", pending));
             return pending;

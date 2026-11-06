@@ -23,8 +23,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Service interface for producing status reports. When it's time to produce a status report, each implementation's
- * {@link #report} will be invoked.
+ * Contributes one report on the state of the instance whenever somebody reads the status. Register an
+ * implementation as an OSGi service.
  *
  * @version $Id$
  * @since 0.1.0
@@ -32,28 +32,30 @@ import org.jetbrains.annotations.Nullable;
 public interface StatusReporter
 {
     /**
-     * The name of this reporter, used to identify it.
+     * The name of this reporter. If {@link #report} throws an exception, the error report in its place has this name.
      *
-     * @return a simple string
+     * @return a short title, such as {@code Health Check}
      */
     @NotNull
     String getName();
 
     /**
-     * The tags used to categorize this reporter, used to enable/disable it for specific jobs.
+     * The tags a reader selects this reporter by. {@code problems} marks a reporter about something that needs
+     * attention.
      *
-     * @return a set of simple strings
+     * @return the tags, such as {@code problems} and {@code healthcheck}; empty if the reporter only runs when the
+     *         reader selects no tags
      */
     @NotNull
     Set<String> getTags();
 
     /**
-     * Prepare and return a status report.
+     * Describes the current state of what this reporter covers.
      *
-     * @param unprivileged Whether the body of the report should not include sensitive information, since the report
-     *            will be posted into an unprivileged/unsecure location. {@code false} means that the report may
-     *            include confidential information, {@code true} means it should not.
-     * @return a status report, or {@code null} if there is nothing to report
+     * @param unprivileged {@code true} if a reader who must not see confidential details may read the report, so it
+     *            must leave out whatever quotes content, such as paths, user names, messages and stack traces;
+     *            {@code false} if only a privileged reader will
+     * @return the report; {@code null} if there is nothing to report
      */
     @Nullable
     StatusReport report(boolean unprivileged);

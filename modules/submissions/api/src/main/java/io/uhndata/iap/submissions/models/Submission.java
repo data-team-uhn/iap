@@ -44,9 +44,8 @@ import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstances;
 
 /**
- * A Sling Model wrapping a {@code sub:Submission} node, a submission filed by a submitter against a specific
- * schema version. It holds the submitter's answers to the schema questions, the attached documents, and the
- * reviews added by reviewers.
+ * A Sling Model wrapping a {@code sub:Submission} node: what a submitter files against one schema version. It holds
+ * the answers to the schema's questions, the documents, and the feedback on the submission.
  *
  * @version $Id$
  * @since 0.1.0
@@ -77,9 +76,9 @@ public class Submission extends Entity
     private String schema;
 
     /**
-     * The title of the submission.
+     * The submission's title, as people read it.
      *
-     * @return a title
+     * @return the title
      */
     @NotNull
     public String getTitle()
@@ -88,9 +87,9 @@ public class Submission extends Entity
     }
 
     /**
-     * The schema version this submission answers.
+     * The schema version this submission answers. It fails where this session cannot read the version.
      *
-     * @return a schema version
+     * @return the schema version
      */
     @NotNull
     public SchemaVersion getSchemaVersion()
@@ -99,13 +98,10 @@ public class Submission extends Entity
     }
 
     /**
-     * The schema version this submission answers, where this session can reach it.
+     * The schema version this submission answers, where this session can read it. The reference is mandatory, but a
+     * session that may not read the version resolves nothing.
      *
-     * <p>{@link #getSchemaVersion()} states the node type's rule, that the reference is mandatory, and that
-     * rule is about the content rather than about every reader: a session denied the version resolves
-     * nothing. Ask this where the caller has to be answered rather than failed.</p>
-     *
-     * @return the schema version, or {@code null} where this session cannot resolve the reference
+     * @return the schema version; {@code null} if this session cannot resolve the reference
      * @since 0.1.0
      */
     @Nullable
@@ -127,9 +123,9 @@ public class Submission extends Entity
     }
 
     /**
-     * The submitter's answers to the schema questions.
+     * The submitter's answers to the schema's questions.
      *
-     * @return a list of answers, empty if none
+     * @return the answers; empty if there are none
      */
     @NotNull
     public List<Answer> getAnswers()
@@ -138,9 +134,9 @@ public class Submission extends Entity
     }
 
     /**
-     * The documents attached to this submission.
+     * The documents of this submission, including the empty ones nothing has been uploaded into.
      *
-     * @return a list of documents, empty if none
+     * @return the documents; empty if there are none
      */
     @NotNull
     public List<Document> getDocuments()
@@ -149,9 +145,9 @@ public class Submission extends Entity
     }
 
     /**
-     * The reviews added by reviewers.
+     * The reviews of this submission.
      *
-     * @return a list of reviews, empty if none
+     * @return the reviews; empty if there are none
      */
     @NotNull
     public List<Review> getReviews()
@@ -161,11 +157,13 @@ public class Submission extends Entity
 
     /**
      * The latest decision on one requirement, which is where that requirement now stands: the most recent review of
-     * it that approved or rejected it. Reviews still open are left out. Recency is the review's creation date, since
-     * the children of a submission have no order of their own; a review with no recorded date counts as the oldest.
+     * it that approved or rejected it. Reviews still open are left out.
+     *
+     * <p>The most recent is the one created last, since the children of a submission have no order of their own. A
+     * review with no creation date counts as the oldest.</p>
      *
      * @param requirement the requirement to look up
-     * @return the latest review deciding it, or {@code null} while nobody has
+     * @return the latest review deciding it; {@code null} while nobody has
      */
     @Nullable
     public Review findLatestDecisionOn(@NotNull final Requirement requirement)
@@ -179,25 +177,23 @@ public class Submission extends Entity
 
     /**
      * The workflows running over this submission, held in the container the {@code wf:WorkflowAttachable} mixin
-     * autocreates. Several may run at once, which is why this is a list rather than a single lifecycle.
+     * autocreates. Several may run at once.
      *
-     * @return a list of workflow instances, empty if none has ever been started
+     * @return the workflow instances; empty if none has ever been started
      */
     @NotNull
     public List<WorkflowInstance> getWorkflowInstances()
     {
-        // Type-checked, because the node type accepts arbitrary children too. The name alone does not say
-        // that what it finds is the container, and an unrelated node by that name would still adapt to the model
+        // Type-checked: the node type accepts any child, and an unrelated node by that name would still adapt
         final WorkflowInstances container = this.getChild(WorkflowInstances.NODE_NAME,
             WorkflowInstances.RESOURCE_TYPE, WorkflowInstances.class);
         return container == null ? List.of() : container.getInstances();
     }
 
     /**
-     * Whether this submission has been approved, i.e. it carries the {@code approved} lifecycle tag (set by the
-     * attached user workflow).
+     * Whether this submission has been approved: it carries the {@code approved} lifecycle tag itself.
      *
-     * @return {@code true} if approved, {@code false} also when the tags service is unavailable
+     * @return {@code true} if approved; {@code false} also when the tags service is unavailable
      */
     public boolean isApproved()
     {
@@ -206,11 +202,10 @@ public class Submission extends Entity
     }
 
     /**
-     * Whether this submission is still being written, i.e. it carries the {@code draft} lifecycle tag. A
-     * submission that has moved on is read-only to its submitter, so this is what an editor asks before
-     * offering to edit.
+     * Whether this submission is still being written: it carries the {@code draft} lifecycle tag itself. Only a
+     * draft can be changed by its submitter.
      *
-     * @return {@code true} while it is a draft, {@code false} also when the tags service is unavailable
+     * @return {@code true} while it is a draft; {@code false} also when the tags service is unavailable
      */
     public boolean isDraft()
     {
@@ -221,7 +216,7 @@ public class Submission extends Entity
     /**
      * Every kind of feedback on this submission: reviews, screenings and discussions.
      *
-     * @return a list of feedback, empty if none
+     * @return the feedback; empty if there is none
      */
     @NotNull
     public List<Feedback> getFeedback()
@@ -232,7 +227,7 @@ public class Submission extends Entity
     /**
      * Every unresolved comment raised across all of this submission's feedback.
      *
-     * @return a list of unresolved comments, empty if none
+     * @return the unresolved comments; empty if there are none
      */
     @NotNull
     public List<Comment> getUnresolvedComments()
@@ -245,7 +240,7 @@ public class Submission extends Entity
     /**
      * The unresolved comments raised in binding feedback, which are the ones a decision waits on.
      *
-     * @return a list of unresolved comments, empty if none
+     * @return the unresolved comments; empty if there are none
      */
     @NotNull
     public List<Comment> getUnresolvedBindingComments()
@@ -257,10 +252,11 @@ public class Submission extends Entity
     }
 
     /**
-     * Whether a requirement, section or question is asked of this submission, i.e. its condition holds for it.
+     * Whether a requirement, section or question is asked of this submission: its condition holds for it.
      *
      * @param item the requirement, section or question
-     * @return {@code true} if its condition holds or it has none, also when the condition service is unavailable
+     * @return {@code true} if its condition holds or it has none; {@code true} also when the condition service is
+     *     unavailable
      */
     public boolean isApplicable(@NotNull final Conditionable item)
     {
@@ -268,13 +264,11 @@ public class Submission extends Entity
     }
 
     /**
-     * What has been answered, by the path of the question each answer is for.
+     * What has been answered, by the path of the question each answer is for. An answer whose question no longer
+     * resolves is left out. When two answers are for the same question, the first one holding values wins.
      *
-     * <p>Both the completeness of a question and the form shown to the submitter are read from this, so the two count
-     * the same answers. An answer whose question no longer resolves is left out. When two answers are for
-     * the same question, the one holding values wins.</p>
-     *
-     * @return the values given, by question path; empty for a submission nobody has answered
+     * @return the values of each answer, as stored, by the absolute path of its question; an empty list for an answer
+     *     holding no value; an empty map if the submission has no answers
      */
     @NotNull
     public Map<String, List<String>> getAnswersByQuestion()
@@ -295,10 +289,10 @@ public class Submission extends Entity
     }
 
     /**
-     * The values answering a particular question, named by its path within the schema version. That path stays the
-     * same in a new version of the schema, and in a copy of it.
+     * The values answering one question, named by its path within the schema version. That path stays the same in a
+     * new version of the schema, and in a copy of it.
      *
-     * @param questionPath the path of the question to read, relative to the schema version, e.g.
+     * @param questionPath the path of the question to read, relative to the schema version, such as
      *     {@code details/startDate}
      * @return the non-blank values of the answer as stored, such as {@code 2026-11-23} for a date; empty if the
      *     question is unanswered, the schema version has no question at that path, or this session cannot read the
@@ -309,7 +303,6 @@ public class Submission extends Entity
     {
         final SchemaVersion version = this.findSchemaVersion();
         if (version == null) {
-            // Nothing is asked of a reader who cannot see what was asked
             return List.of();
         }
         return this.getAnswersByQuestion().getOrDefault(version.getPath() + "/" + questionPath, List.of()).stream()
@@ -318,9 +311,9 @@ public class Submission extends Entity
     }
 
     /**
-     * The single value answering a particular question, for the questions that take one.
+     * The single value answering one question, for the questions that take one.
      *
-     * @param questionPath the path of the question to read, relative to the schema version, e.g.
+     * @param questionPath the path of the question to read, relative to the schema version, such as
      *     {@code details/startDate}
      * @return the first non-blank value stored in the answer; {@code null} if the question is unanswered, the schema
      *     version has no question at that path, or this session cannot read the schema version

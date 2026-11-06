@@ -37,10 +37,9 @@ import io.uhndata.iap.deletion.api.DeletionService;
 import io.uhndata.iap.deletion.api.Veto;
 
 /**
- * Purges an archive entry: {@code DELETE /Archive/<entry>} permanently removes the entry and everything archived
- * in it. Guards are consulted again, so archived resources protected from deletion block the purge with a 409.
- * Only users who can see the archive — in practice, administrators — can reach this endpoint; everyone else gets
- * a 404 from the resource resolution itself.
+ * Purges an archive entry: {@code DELETE <entry>} removes the entry and everything archived in it for good. The
+ * guards are asked again, and a veto answers 409. Only a user who can read the entry reaches this servlet, and Sling
+ * answers 404 to anyone else.
  *
  * @version $Id$
  * @since 0.1.0

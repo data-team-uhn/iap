@@ -150,11 +150,7 @@ class TagProcessorsTest
         assertEquals(Set.of(AGG), this.aggregation.computeTags(context(node.getNodeState(), null)));
     }
 
-    /**
-     * Aggregation reads what the context offers and never the node's own child list, which is what makes the
-     * context's exclusions — hidden children, and the boundaries an aggregated tag may not climb past — binding
-     * rather than advisory.
-     */
+    /** Aggregation reads the children the context offers, never the node's own child list. */
     @Test
     void aggregationOnlyReadsTheSourcesItIsOffered()
     {
@@ -200,8 +196,7 @@ class TagProcessorsTest
     }
 
     /**
-     * The same, with an explicit list of the children whose tags may flow up, as the editor hands a bottom-up
-     * processor once the hidden children and the boundaries have been left out.
+     * The same, with the given children as the aggregation sources.
      *
      * @param node the node being processed
      * @param parent the node's parent, {@code null} for the repository root

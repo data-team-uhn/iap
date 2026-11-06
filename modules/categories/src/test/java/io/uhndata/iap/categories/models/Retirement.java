@@ -27,9 +27,9 @@ import org.mockito.Mockito;
 import io.uhndata.iap.tags.models.Taggable;
 
 /**
- * Retires categories in a mock repository. The tags service the {@code Taggable} model delegates to does not run
- * under sling-mock, so the effect an inheritable tag has for real - placed on one node, materialized onto its whole
- * subtree at commit time - is reproduced here from the paths it was placed on.
+ * Retires categories in a mock repository. The tags service that the {@code Taggable} model reads through does not
+ * run under sling-mock. In Oak, an inheritable tag placed on one node is copied onto its whole subtree at commit
+ * time. This class reproduces that from the paths the tag is placed on.
  *
  * @version $Id$
  * @since 0.1.0
@@ -42,10 +42,10 @@ final class Retirement
     }
 
     /**
-     * Marks the given categories retired, and every category below them with them.
+     * Retires the given categories and everything under them.
      *
-     * @param context the mock context whose resources are being tagged
-     * @param paths the paths the {@code retired} tag is placed on
+     * @param context the mock context to register the {@code Taggable} adapter in
+     * @param paths the paths of the categories that carry the {@code retired} tag themselves
      */
     static void retire(final SlingContext context, final String... paths)
     {

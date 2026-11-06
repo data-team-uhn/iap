@@ -22,16 +22,14 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * What a special name is being asked about: the resource the question concerns, and whoever is asking.
+ * What a special name is asked about: the resource the question concerns, and the user who is acting.
  *
- * <p>A special name is only answerable in a situation. {@code @creator} means whoever raised this resource,
- * {@code @me} means whoever is acting now. Both halves are optional: a scheduled job acts for nobody, and a
- * question about the current user is about nothing in particular. A resolver missing the half it needs answers
- * with nobody rather than failing. {@code @creator} on a resource nothing raised is a fact about the resource,
- * not an error in the definition.</p>
+ * <p>{@code @creator} needs the resource, and {@code @me} needs the user. Either half may be missing. A scheduled
+ * job acts for nobody, and a question about the current user concerns no resource. A resolver missing the half it
+ * needs answers with nobody.</p>
  *
- * @param subject the resource the names are about, or {@code null} when the question is not about one
- * @param actingUser who is acting, as their repository user id, or {@code null} when nobody is
+ * @param subject the resource the names are about; {@code null} if they are about none
+ * @param actingUser the user id of whoever is acting; {@code null} if nobody is
  * @version $Id$
  * @since 0.1.0
  */
@@ -40,8 +38,8 @@ public record PrincipalContext(@Nullable Resource subject, @Nullable String acti
     /**
      * A context about a resource, with nobody acting.
      *
-     * @param subject the resource the names are about
-     * @return a context
+     * @param subject the resource the names are about; {@code null} if they are about none
+     * @return a context with no acting user
      */
     @NotNull
     public static PrincipalContext about(@Nullable final Resource subject)
@@ -50,10 +48,10 @@ public record PrincipalContext(@Nullable Resource subject, @Nullable String acti
     }
 
     /**
-     * A context about nothing in particular, with somebody acting.
+     * A context about no resource, with somebody acting.
      *
-     * @param actingUser who is acting, as their repository user id
-     * @return a context
+     * @param actingUser the user id of whoever is acting; {@code null} if nobody is
+     * @return a context with no subject
      */
     @NotNull
     public static PrincipalContext actedBy(@Nullable final String actingUser)

@@ -31,8 +31,8 @@ import org.osgi.service.component.annotations.Component;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
- * Identify a node by including {@code @path} and {@code @name} properties. The name of this processor is
- * {@code identify}.
+ * Adds each node's path and name, as {@code @path} and {@code @name}. The name of this processor is {@code identify},
+ * and it is enabled by default.
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,12 +62,11 @@ public class IdentificationProcessor implements ResourceJsonProcessor
     public void leave(final Node node, final JsonObjectBuilder json,
         final Function<Node, JsonValue> serializeNode)
     {
-        // Add a few properties identifying the resource
         try {
             json.add("@path", node.getPath());
             json.add("@name", node.getName());
         } catch (RepositoryException e) {
-            // Unlikely, and not critical, just make sure the serialization doesn't fail
+            // The node is serialized without them
         }
     }
 }

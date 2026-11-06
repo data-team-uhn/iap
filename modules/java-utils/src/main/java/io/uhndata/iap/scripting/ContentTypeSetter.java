@@ -24,8 +24,8 @@ import org.apache.sling.scripting.sightly.pojo.Use;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A HTL Use-API that can set the content type of the response. This is needed because HTL cannot call methods that
- * require parameters, only simple getter-like methods. To use this API, simply place the following code in a HTL file:
+ * Sets the content type of the response from an HTL script. HTL calls only methods that take no arguments, so each
+ * type has a method of its own:
  *
  * {@snippet lang=html :
  * <sly data-sly-use.contentType="io.uhndata.iap.scripting.ContentTypeSetter">${contentType.html}</sly>
@@ -44,37 +44,37 @@ public class ContentTypeSetter implements Use
         this.response = (SlingJakartaHttpServletResponse) bindings.get("jakartaResponse");
     }
 
-    /** Set the content type to text/html. */
+    /** Sets the content type to {@code text/html;charset=UTF-8}. */
     public void html()
     {
         this.response.setContentType("text/html;charset=UTF-8");
     }
 
-    /** Set the content type to application/javascript. */
+    /** Sets the content type to {@code application/javascript;charset=UTF-8}. */
     public void javascript()
     {
         this.response.setContentType("application/javascript;charset=UTF-8");
     }
 
-    /** Set the content type to application/json. */
+    /** Sets the content type to {@code application/json;charset=UTF-8}. */
     public void json()
     {
         this.response.setContentType("application/json;charset=UTF-8");
     }
 
-    /** Set the content type to text/csv. */
+    /** Sets the content type to {@code text/csv;charset=UTF-8}. */
     public void csv()
     {
         this.response.setContentType("text/csv;charset=UTF-8");
     }
 
-    /** Set the content type to text/plain. */
+    /** Sets the content type to {@code text/plain;charset=UTF-8}. */
     public void text()
     {
         this.response.setContentType("text/plain;charset=UTF-8");
     }
 
-    /** Set the content type to text/markdown. */
+    /** Sets the content type to {@code text/markdown;charset=UTF-8}. */
     public void markdown()
     {
         this.response.setContentType("text/markdown;charset=UTF-8");

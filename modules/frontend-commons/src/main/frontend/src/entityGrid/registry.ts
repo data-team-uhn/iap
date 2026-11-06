@@ -21,25 +21,27 @@ import type { ReactNode } from "react";
 import type { EntityRow } from "./pagination";
 import type { GridColDef, GridSortDirection } from "@mui/x-data-grid-pro";
 
-// Where a column's content goes on the compact card shown in the grid's narrow-screen list
-// mode: leading the card as its "title", as a "badge" beside the title (e.g. a status chip),
-// on the muted "caption" line under it (several caption columns join into one " • " line),
-// as a labeled "row" (the default), at the end of the title's line ("actions"), or nowhere
-// ("omit"). An "actions" column holds what can be done with the entity as one compact control,
-// such as a menu, since the card itself opens the entity.
+// Where a column's content goes on the card that stands for a row on a narrow screen:
+// - "title" leads the card.
+// - "badge" sits beside the title, such as a status chip.
+// - "actions" ends the title's line. It holds what can be done with the entity as one compact
+//   control, such as a menu, because a click on the card itself opens the entity.
+// - "caption" goes on the muted line under the title. Several captions join into one " • " line.
+// - "row" is a labeled row, and the default.
+// - "omit" leaves the column off the card.
 export type EntityGridCardSlot = "title" | "badge" | "caption" | "row" | "actions" | "omit";
 
-// A column of an entity grid: a regular MUI DataGrid column definition, optionally naming the
-// server-side entity property that server-side sorting should order by when this column's own
-// `field` is not a direct property of the entity (e.g. a column rendering a dereferenced
-// `schemaVersion` object). Columns computed from data the server cannot order by should set
-// `sortable: false` instead. The card* properties shape the narrow-screen card, which is
-// otherwise derived from the column's regular definition.
+// A column of an entity grid: an MUI DataGrid column definition, and where it goes on the
+// narrow-screen card. A column computed from data the server cannot order by sets
+// `sortable: false`.
 export type EntityGridColumn = GridColDef<EntityRow> & {
+  // The entity property the server sorts and filters by, when `field` is not one, such as a
+  // column showing a dereferenced `schemaVersion`; `field` if absent
   sortProperty?: string;
+  // "row" if absent
   cardSlot?: EntityGridCardSlot;
-  // Overrides the column's grid rendering on the card, when the card wants a more compact
-  // form (e.g. a day instead of a full timestamp, or a fallback for a missing title)
+  // What the card shows for the column, such as a date instead of a full timestamp; the column's
+  // grid rendering if absent
   cardValue?: (row: EntityRow) => ReactNode;
 };
 
@@ -48,59 +50,57 @@ export function serverProperty(column: EntityGridColumn): string {
   return column.sortProperty ?? column.field;
 }
 
-// Rows nested under each listed entity, shown beneath it as a tree: e.g. a schema's versions. They
-// arrive with their entity, serialized deep enough to include them, so paging, sorting and searching
-// still apply to the entities alone.
+// Rows nested under each listed entity, shown beneath it as a tree, such as the versions of a
+// schema. They come inside their entity's JSON, so paging, sorting and searching apply to the
+// entities alone.
 export interface EntityGridChildren {
-  // Selectors serializing each listed entity with its children, e.g. "1" for one level down
+  // Selectors for each entity's JSON that include its children, such as "1" for one level down
   selectors: string;
-  // One entity's children, as rows of their own; each is identified by its `@path`
+  // One entity's children, read out of its JSON as rows of their own
   rows: (row: EntityRow) => EntityRow[];
-  // The column whose value names each row in the tree, parent or child, e.g. "title". It becomes
-  // the tree column, with the expand toggle.
+  // The field of the column that names each row in the tree, entity or child, such as "title". The
+  // tree column, with the expand toggle, takes that column's place.
   treeField: string;
-  // Whether entities start expanded, showing their children; collapsed by default
+  // Whether entities start expanded, showing their children; collapsed if absent
   expanded?: boolean;
-  // How the number of an entity's children is worded beside its name, e.g. "2 versions"; the bare
-  // number by default
+  // How the number of an entity's children is worded beside its name, such as "2 versions"; the bare
+  // number if absent
   countLabel?: (count: number) => string;
 }
 
-// How to present one entity type in a data grid: where its entities live, the columns to show,
-// and the initial sort order. A module defining an entity type registers its configuration with
-// registerEntityType, and any grid can then render that type by name.
+// How one entity type shows in a data grid: where its entities live, the columns to show, and the
+// initial sort. A module defining an entity type registers it with registerEntityType, and any grid
+// can then list that type by name.
 export interface EntityGridConfig {
-  // The homepage path under which the entities live, e.g. "/Submissions"
+  // The path of the homepage the entities live under, such as "/Submissions"
   homepage: string;
   columns: EntityGridColumn[];
-  // The initial sort: the `field` of one of the columns, and a direction
+  // The initial sort: the `field` of one of the columns, and a direction; the server's own order if absent
   defaultSort?: { field: string; sort: GridSortDirection };
-  // Where clicking a row navigates to (an in-app URL). Rows aren't clickable when this is
-  // absent, and individual rows aren't when it returns undefined.
+  // The in-app URL a click on a row opens. No row can be clicked if this is absent, and a row it
+  // returns undefined for cannot.
   rowLink?: (row: EntityRow) => string | undefined;
-  // The escape hatch for a fully bespoke narrow-screen card, for compositions the columns'
-  // cardSlots cannot describe. When absent — the normal case — the card is composed from the
-  // visible columns according to their cardSlots. A bespoke renderer is expected to honor the
-  // user's column selection itself: visibleFields holds the `field`s of the currently shown
-  // columns, so the renderer can leave out what the user hid (keeping the card's identity —
-  // the title — is fine regardless).
+  // Draws the narrow-screen card itself, for a card the columns' slots cannot describe. If absent,
+  // the card is composed from the visible columns by their slots. `visibleFields` holds the
+  // `field`s of the columns the user shows, and the card is expected to leave out the others. It
+  // may keep its title regardless.
   listItem?: (row: EntityRow, visibleFields: ReadonlySet<string>) => ReactNode;
-  // Rows to show nested under each entity. The narrow-screen list mode keeps one card per entity.
-  // The composed card closes with the children, each named by its tree field and linked where
-  // rowLink gives it a page. A type's own listItem shows them itself.
+  // Rows to show nested under each entity. On a narrow screen an entity keeps one card. The
+  // composed card ends with the children, each named by its tree field, and linked where rowLink
+  // gives it a page. A listItem shows them itself.
   children?: EntityGridChildren;
 }
 
 const configs = new Map<string, EntityGridConfig>();
 
-// Registers (or replaces) the grid configuration for an entity type, e.g. "sub/Submission".
-// Modules are expected to call this at import time, from the same file that consumers import
-// the configuration from, so registration always happens before the first render.
+// Registers the grid configuration for an entity type, such as "sub/Submission", replacing any
+// earlier one. Call it at import time, in a file that every grid of the type imports, so that it
+// runs before the first render.
 export function registerEntityType(type: string, config: EntityGridConfig): void {
   configs.set(type, config);
 }
 
-// The grid configuration registered for an entity type, if any.
+// The grid configuration registered for an entity type; undefined if there is none.
 export function getEntityTypeConfig(type: string): EntityGridConfig | undefined {
   return configs.get(type);
 }

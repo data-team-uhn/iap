@@ -32,12 +32,10 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
 /**
- * A health check reporting whether the login page can actually be rendered. Merely reaching the target start level is
- * not enough for the system to be usable: the page scripts are still being loaded into the repository, and the
- * scripting engine is still wiring itself up, so early requests can get raw errors instead of a page. Tagged
- * {@code systemalive}, so the {@code StartupGateFilter} keeps serving the "starting up" stub, which retries
- * automatically, until a rendered login page is what visitors will get. The internal rendering goes through
- * {@link SlingRequestProcessor}, not over HTTP, so it is not blocked by that same filter.
+ * Passes once the login page renders. While IAP starts, a request can get a raw error instead of a page. The page's
+ * scripts may not be in the repository yet, or Sling may not be able to compile them yet. The check is tagged
+ * {@code systemalive}, so the startup gate in the startup-customization module holds requests until it passes. It
+ * renders the page through Sling's {@link SlingRequestProcessor}, not over HTTP, so the gate does not hold it back.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,16 +47,15 @@ import org.osgi.service.component.annotations.Reference;
 public class LoginPageReadyCheck implements HealthCheck
 {
     /**
-     * The check name. The startup gate ({@code StartupGateFilter} in the startup-customization module) requires a
-     * check with exactly this name to be present and passing, so it must not be renamed without updating the filter.
+     * The name of this check. {@code StartupGateFilter}, in the startup-customization module, waits for a check with
+     * exactly this name, so renaming it means changing the filter too.
      */
     public static final String CHECK_NAME = "Login Page Ready Check";
 
     /**
-     * The path of the login page, the one page that must work before the platform presents itself as up. Deliberately
-     * extensionless, because that is what visitors actually hit: the authentication handler redirects them to
-     * {@code /login?resource=...}, which renders through the extensionless scripts, a superset of the {@code .html}
-     * ones.
+     * The path of the login page, without an extension. Sling's form authentication handler sends visitors to
+     * {@code /login?resource=...}, which has none. The script for that rendering includes the {@code .html} one, so a
+     * 200 here covers both.
      */
     private static final String LOGIN_PAGE = "/login";
 
@@ -67,10 +64,10 @@ public class LoginPageReadyCheck implements HealthCheck
     private final SlingRequestProcessor slingRequestProcessor;
 
     /**
-     * Constructor injection, both for OSGi and for the tests.
+     * Creates the check with the services it renders the login page with.
      *
-     * @param resolverFactory provides the service resource resolver the internal rendering runs with
-     * @param slingRequestProcessor renders the page internally, without going through HTTP
+     * @param resolverFactory opens the session the page is rendered with, as the {@code healthcheck} subservice
+     * @param slingRequestProcessor renders the page inside Sling, without an HTTP request
      */
     @Activate
     public LoginPageReadyCheck(@Reference final ResourceResolverFactory resolverFactory,

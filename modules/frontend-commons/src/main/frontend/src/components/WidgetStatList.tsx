@@ -28,30 +28,31 @@ import { readJson } from "../requestFailure";
 interface WidgetStat {
   // The key the summary listed it under. Unique within one summary, and the row's identity.
   id: string;
-  // What the value is a figure for, e.g. "Archived in total".
+  // What the value is a figure for, such as "Archived in total".
   label: string;
   // A count, a state that is on or off, or null for a count that could not be taken.
   value: number | boolean | null;
-  // If the count is a lower bound rather than a complete count
+  // Whether the count is a lower bound rather than complete
   approximate?: boolean;
-  // Which value is worth acting on, and so coloured as a problem. Left out when neither is: a widget
-  // that is permanently red stops being read
+  // Which count calls for action, and is shown in the error colour: any count above zero, or zero.
+  // Undefined when neither does.
   important?: "nonzero" | "zero";
-  // The repository path this figure is about, for a label that leads somewhere. Plain text without one,
-  // or without a hrefFor to turn it into a route.
+  // The repository path the figure is about. The label links to its route when the list has `hrefFor`,
+  // and is plain text otherwise.
   path?: string;
 }
 
 interface WidgetStatListProps {
-  // The resource whose summary to list, e.g. "/Workflows". The summary itself is at `<url>.adminSummary.json`.
+  // The path of the resource whose summary to list, such as "/Workflows". The list reads
+  // `<url>.adminSummary.json`.
   url: string;
-  // What this widget is about, in words, e.g. "recorded errors": what the waiting and refusal messages say.
+  // What the figures are about, in words, such as "recorded errors". The loading and refusal messages name it.
   name: string;
-  // Turns a figure's repository path into the route its label links to.
+  // Turns a figure's repository path into the route its label links to; labels are plain text without it.
   hrefFor?: (path: string) => string;
 }
 
-// How a count reads: the number, marked with a "+" when the server only counted so far, or a "?" if unknown.
+// How a count reads: the number, with a "+" when it is a lower bound, or "?" when there is no count.
 function countLabel(stat: WidgetStat): string {
   if (stat.value === null) {
     return "?";
@@ -96,9 +97,9 @@ function readStat(id: string, entry: unknown): WidgetStat | null {
   };
 }
 
-// Where one stat's two cells sit: the value in the left column, its label to the right of it, both
-// on the stat's own row. Placed explicitly because the label is written first: grid will not put a
-// later item back in a column it has already moved past.
+// Where one figure's two cells sit: the value in the left column, its label to the right of it, both
+// on the figure's own row. They are placed explicitly because the label is written first, and grid
+// does not put a later item back in a column it has already moved past.
 const valueCell = (row: number) => ({ gridColumn: 1, gridRow: row, justifySelf: "end", m: 0 });
 const labelCell = (row: number) => ({ gridColumn: 2, gridRow: row });
 
@@ -122,8 +123,7 @@ function StatValue({ stat, row }: { stat: WidgetStat; row: number }) {
       sx={{
         ...valueCell(row),
         color: isEmphasised(stat) ? "error.main" : "text.primary",
-        // Digits of equal width, so the figures line up with each other down the column and a number
-        // does not jump sideways when it grows by a digit
+        // Digits of equal width, so the figures line up down the column
         fontVariantNumeric: "tabular-nums",
       }}
     >
@@ -149,21 +149,21 @@ function StatLabel({ stat, row, href }: { stat: WidgetStat; row: number; href?: 
   );
 }
 
-// The one way a dashboard widget lists what it found: a value, then what the value is a figure for.
-// The widget names the resource to summarize and what to call it. This list fetches the summary,
-// shows a placeholder while it loads, and says so when it is refused.
+// A dashboard widget's list of figures, each a value and then what the value is a figure for. The
+// widget names the resource to summarize and what to call it. The list fetches the summary, shows a
+// placeholder while it loads, and says the summary is not available when it cannot be read.
 //
-// A description list, because that is what these are: each label is a term and its value the
-// description of it. The label is written first and displayed second, so a screen reader says what
-// a figure counts before the figure. The value is then found from its label rather than from where
-// it sits.
+// It is a description list: each label is a term, and its value the description. The label comes
+// first in the markup and second on screen, so a screen reader says what a figure counts before the
+// figure.
 //
 // Sample usage:
 // <WidgetStatList url="/Workflows" name="workflows" hrefFor={adminUrl} />
 //
 function WidgetStatList({ url, name, hrefFor }: WidgetStatListProps) {
   const doFetch = useAuthenticatedFetch();
-  // The summary, and the url it was read for. A summary read for a previous url means this one is still loading.
+  // The summary, and the url it was read for; `stats` is null if it could not be read. A summary read for a
+  // previous url means this one is still loading.
   const [ read, setRead ] = useState<{ url: string; stats: WidgetStat[] | null } | null>(null);
 
   useEffect(() => {
@@ -181,12 +181,12 @@ function WidgetStatList({ url, name, hrefFor }: WidgetStatListProps) {
   }, [ doFetch, url ]);
 
   if (read?.url !== url) {
-    // Placeholder height guessing that 2 figures will be present to reduce screens shifting as data loads
+    // Sized for two figures, so the page shifts less when they arrive
     return <Skeleton variant="rounded" height={96} aria-label={`Loading the ${name} summary`} />;
   }
 
   if (read.stats === null) {
-    // Reaching the console does not mean the reader may see what a tool holds. Zeros would claim it is empty.
+    // Not zeros, which would claim the tool holds nothing
     return (
       <Typography variant="placeholder">
         The {name} summary is not available to you.

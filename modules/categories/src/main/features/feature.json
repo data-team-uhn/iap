@@ -26,8 +26,7 @@
       "service.ranking:Integer": 300,
       "scripts": [
         "create path (cat:CategoriesHomepage) /Categories",
-        // Submitters have to browse the tree to pick the category they file under, and the
-        // descriptions are written for them, so the whole tree is world-readable.
+        // Submitters browse the tree to choose a category, so everyone can read it
         // TODO: Update when the workflow engine becomes responsible for listing categories
         "set ACL for everyone \n allow jcr:read on /Categories \n end"
       ]

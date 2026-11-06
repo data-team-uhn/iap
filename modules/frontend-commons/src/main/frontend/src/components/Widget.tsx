@@ -28,53 +28,46 @@ import {
 import { styled } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router";
 
-// The surface every dashboard widget sits on. Styling lives here (driven by theme tokens) rather
-// than in the dashboard layout, so the widget frame can grow more elaborate without cluttering the
-// tiling logic, and so all widgets stay visually consistent. An emphasised widget sits on the
-// theme's tinted surface; a borderless widget drops its fill to sit seamlessly on the page.
+// The surface a dashboard widget sits on. An emphasised widget sits on the theme's tinted surface,
+// and a borderless one has no fill.
 const WidgetSurface = styled(Paper, {
   shouldForwardProp: prop => prop !== "emphasis" && prop !== "borderless",
 })<{ emphasis?: boolean; borderless?: boolean }>(({ theme, emphasis, borderless }) => ({
   padding: theme.spacing(2),
-  // Fill the grid cell so widgets sharing a row are the same height (the grid stretches the cells;
-  // this makes the surface stretch to match).
+  // Fills its grid cell, so widgets sharing a row are the same height
   height: "100%",
-  // The fill against the page canvas is what sets a widget apart
+  // The fill sets a widget apart from the page, so it needs no border
   border: "none",
-  // When the content is wider than the widget, such as a table on a phone, it scrolls sideways inside the
-  // widget instead of making the whole dashboard wider.
+  // Content wider than the widget, such as a table on a phone, scrolls sideways inside it rather than
+  // widening the dashboard
   overflowX: "auto",
   ...(emphasis && { backgroundColor: (theme.vars ?? theme).palette.background.tinted }),
   ...(borderless && { backgroundColor: "transparent" }),
 }));
 
 interface WidgetProps {
-  // Optional heading rendered at the top of the widget. When omitted, the widget's own content is
-  // responsible for any heading.
+  // The heading at the top of the widget, which also names the widget's region. Without it, the
+  // content draws any heading.
   title?: string;
-  // Optional in-app path the title links to, normally wherever the action leads. Plain text when absent.
+  // The in-app path the title links to; the title is plain text without it.
   titleHref?: string;
-  // Optional secondary line rendered under the title (e.g. a short description of the content).
+  // A line under the title, such as a short description of the content.
   subtitle?: string;
-  // Optional action (e.g. a Configure button) rendered in the header row, in line with the title.
+  // Shown at the end of the header row, such as a button.
   action?: ReactNode;
-  // When true, the widget is rendered on a tinted surface to draw attention to it.
+  // Puts the widget on a tinted surface.
   emphasis?: boolean;
-  // When true, the widget has no surface fill and blends into the page background.
+  // Drops the surface's fill, so the widget sits on the page.
   borderless?: boolean;
-  // When true, the title/subtitle header is not rendered (the widget supplies its own chrome),
-  // and neither is the action.
+  // Leaves out the title, subtitle and action, for content that draws its own header.
   hideHeader?: boolean;
-  // The widget's content.
   children: ReactNode;
 }
 
-// The frame wrapping one dashboard widget's content: a styled surface with an optional title and
-// subtitle, and an optional action beside them. Title and subtitle form one header block, kept
-// tight together and separated from the content below; the action sits at the header's end.
+// The frame around one dashboard widget's content: a surface, with a header of a title, a subtitle
+// and an action, each optional.
 function Widget({ title, titleHref, subtitle, action, emphasis, borderless, hideHeader, children }: WidgetProps) {
-  // A titled widget is a region named by its title, so it can be found by what it is called, whether or
-  // not its own header shows the title
+  // A titled widget is a region named by its title, even when its header is hidden
   const named = Boolean(title);
   return (
     <WidgetSurface
@@ -83,8 +76,7 @@ function Widget({ title, titleHref, subtitle, action, emphasis, borderless, hide
       role={named ? "region" : undefined}
       aria-label={named ? title : undefined}
     >
-      {/* An explicitly empty title/subtitle should count as absent too, so `||` (not `??`) is
-          intentional here. */}
+      {/* An empty title or subtitle counts as absent, hence `||` rather than `??` */}
       {/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */}
       { !hideHeader && (title || subtitle || action) && (
         <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "flex-start", gap: 1, mb: 2 }}>

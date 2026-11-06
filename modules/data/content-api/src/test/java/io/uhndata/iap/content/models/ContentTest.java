@@ -81,11 +81,9 @@ class ContentTest
             SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
         final Content content = resource.adaptTo(Content.class);
 
-        // A registered model class yields a new view of the same content
         final Content view = content.as(Content.class);
         assertNotNull(view);
         assertEquals(content.getPath(), view.getPath());
-        // A model class the model factory doesn't know about yields nothing
         assertNull(content.as(UnknownModel.class));
     }
 
@@ -159,8 +157,6 @@ class ContentTest
     @Test
     void prefersTheRecordedActorToWhoeverDidTheWriting()
     {
-        // Content raised through a workflow is written by the engine's service user, so jcr:createdBy names the
-        // machinery; the person it was acting for is recorded separately, and is the honest answer
         final Resource resource = this.context.create().resource("/content/raised", Map.of(
             SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE,
             "jcr:createdBy", "workflows",
@@ -172,8 +168,6 @@ class ContentTest
     @Test
     void toleratesMissingOptionalMetadata()
     {
-        // A node without the optional jcr:created / jcr:createdBy still adapts, thanks to the
-        // OPTIONAL injection strategy, and the corresponding getters return null.
         final Resource resource = this.context.create().resource("/content/bare",
             SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
         final Content content = resource.adaptTo(Content.class);
@@ -223,7 +217,7 @@ class ContentTest
             "customProperty", "customValue"));
         final Content content = resource.adaptTo(Content.class);
 
-        // A single value reads as an array just as well, following the usual ValueMap conversion rules
+        // A single value read as an array
         assertEquals(List.of("customValue"), List.of(content.get("customProperty", String[].class)));
         assertNull(content.get("missingProperty", String.class));
     }
@@ -231,8 +225,7 @@ class ContentTest
     @Test
     void exposesJsonRepresentation()
     {
-        // The actual serialization is provided by iap-serialization-json's AdapterFactory; here a stand-in
-        // adapter is registered to verify that toJson() delegates to it, without depending on that module.
+        // A stand-in for the JSON serialization module's adapter factory
         final JsonObject json = Json.createObjectBuilder().add("path", "/content/sample").build();
         this.context.registerAdapter(Resource.class, JsonObject.class, json);
         final Resource resource = this.context.create().resource("/content/sample",
@@ -286,7 +279,7 @@ class ContentTest
     @Test
     void returnsNullReferenceWhenNoSessionIsAvailable()
     {
-        // The default RESOURCERESOLVER_MOCK sling-mock type has no real JCR session behind it.
+        // sling-mock's default RESOURCERESOLVER_MOCK has no JCR session
         final Resource resource = this.context.create().resource("/content/sample",
             SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
         final Content content = resource.adaptTo(Content.class);
@@ -313,8 +306,7 @@ class ContentTest
     void returnsNullReferenceWhenTargetPathHasNoResource()
         throws RepositoryException
     {
-        // The identifier resolves to a JCR node, but no resource exists at its path (e.g. it was deleted
-        // through the JCR API directly, bypassing the resource tree).
+        // The identifier names a node, but the resource resolver has nothing at its path
         final Node targetNode = Mockito.mock(Node.class);
         Mockito.when(targetNode.getPath()).thenReturn("/content/missing");
         final Session session = Mockito.mock(Session.class);
@@ -335,7 +327,6 @@ class ContentTest
             SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
         this.context.create().resource("/content/parent/first", SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
         this.context.create().resource("/content/parent/second", SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
-        // A child of an unrelated resource type is excluded, even though it would still adapt
         this.context.create().resource("/content/parent/unrelated", SLING_RESOURCE_TYPE, "sling:Folder");
         final Content content = parent.adaptTo(Content.class);
 
@@ -363,7 +354,6 @@ class ContentTest
         final Resource parent = this.context.create().resource("/content/parent",
             SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
         this.context.create().resource("/content/parent/first", SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
-        // Unlike the type-filtered listing, an unrelated resource type is included too
         this.context.create().resource("/content/parent/unrelated", SLING_RESOURCE_TYPE, "sling:Folder");
         final Content content = parent.adaptTo(Content.class);
 
@@ -425,8 +415,6 @@ class ContentTest
     @Test
     void returnsNullWhenTheNamedChildIsOfAnotherType()
     {
-        // Without the type check the child would still be adapted: adaptation does not check the resource type, and
-        // the model registered here is returned for any resource at all
         final Resource parent = this.context.create().resource("/content/mixedChildren",
             SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
         this.context.create().resource("/content/mixedChildren/other", SLING_RESOURCE_TYPE, "sling:Folder");
@@ -462,8 +450,6 @@ class ContentTest
     @Test
     void returnsNullWhenTheParentIsOfAnotherType()
     {
-        // Without the type check the parent would still be adapted: adaptation does not check the resource type, and
-        // the model registered here is returned for any resource at all
         this.context.create().resource("/content/folder", SLING_RESOURCE_TYPE, "sling:Folder");
         final Resource resource = this.context.create().resource("/content/folder/part",
             SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);

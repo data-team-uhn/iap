@@ -16,32 +16,29 @@
 
 create path (mail:CaughtMailHomepage) /CaughtMail
 
-# The node the public status endpoint answers on. Created here rather than shipped as initial content, because
-# repoinit runs first and the grant below has to have something to be set on; it carries no content of its own.
+# The node that answers, to anyone, whether mail is being caught. It is created here, not shipped as initial
+# content, because repoinit runs before initial content loads and cannot set an ACL on a path that does not exist.
 create path (sling:Folder) /libs/iap
 create path (mail:CatcherStatus) /libs/iap/mail-catcher
 
+# The user the catcher files messages as. It may write under /CaughtMail, and nowhere else.
 create service user iap-email-catcher
 
-# Created here too, harmlessly if another module got there first, so that the grant below does not depend on
-# whichever module's repoinit happens to run before this one.
+# Also created by other modules. Creating it here keeps the grant below from depending on their order.
 create group iap-administrators
 
 set ACL for iap-email-catcher
     allow   jcr:read,jcr:addChildNodes,jcr:modifyProperties,jcr:nodeTypeManagement    on /CaughtMail
 end
 
-# Administrators only, since emails may have sensitive information.
+# Administrators only, since a caught message may hold private information.
 set ACL for iap-administrators
     allow   jcr:read    on /CaughtMail
 end
 
-# The one fact everybody may have: whether mail is being caught at all.
-# /libs is exempt from sling.auth.requirements, so this is reachable before sign-in,
-# which is where somebody waiting for a password-reset mail is standing.
-#
-# Granted here rather than left to the blanket `everyone jcr:read on /libs/iap` that frontend-commons sets,
-# so that narrowing that one does not silently take the banner down with it.
+# Whether mail is being caught, for everyone. /libs is exempt from sling.auth.requirements, so this answers
+# before sign-in too. frontend-commons grants everyone read on all of /libs/iap, and this grant does not rely
+# on it.
 set ACL for everyone
     allow   jcr:read    on /libs/iap/mail-catcher
 end

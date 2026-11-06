@@ -21,7 +21,7 @@ import userEvent from "@testing-library/user-event";
 
 import AnswerField from "@iap/submissions/AnswerField";
 import { loadAnswerComponents } from "@iap/submissions/answers";
-// Imported rather than fetched: in a browser each answer component arrives as its own asset, named
+// Imported rather than fetched. In a browser each answer component arrives as its own asset, named
 // by an extension on the AnswerComponent point, and registers itself as it is evaluated.
 import "@iap/submissions/answers/BooleanAnswer";
 import "@iap/submissions/answers/ChoiceAnswer";
@@ -79,7 +79,6 @@ describe("AnswerField", () => {
   });
 
   it("saves a pick as soon as it happens", async () => {
-    // There is nothing to leave: the answer is complete the moment one of the two is chosen
     const answered = vi.fn();
     render(<AnswerField question={question({ dataType: "boolean" })} state="idle" onAnswered={answered} />);
 
@@ -143,14 +142,11 @@ describe("AnswerField", () => {
     rerender(<AnswerField question={question()} state="saved" onAnswered={vi.fn()} />);
     expect(screen.getByText("Saved")).toBeInTheDocument();
 
-    // Where a save can be refused, so where it has to be reported: a field that looked saved and was
-    // not would be a lie
     rerender(<AnswerField question={question()} state="failed" error="No longer a draft" onAnswered={vi.fn()} />);
     expect(screen.getByText("Not saved")).toBeInTheDocument();
   });
 
   it("says a save failed even when nothing said why", async () => {
-    // A refusal that carried no message must still read as a refusal rather than as a blank tooltip
     render(<AnswerField question={question()} state="failed" onAnswered={vi.fn()} />);
 
     fireEvent.mouseOver(screen.getByText("Not saved"));
@@ -159,17 +155,15 @@ describe("AnswerField", () => {
   });
 
   it("adopts a new stored answer, and keeps what is being typed when nothing changed", async () => {
-    // Each read of the form returns fresh arrays, so following the prop by identity would reset
-    // every field on every save. It follows the content instead.
     const initial = question({ dataType: "text" });
     const { rerender } = render(<AnswerField question={initial} state="idle" onAnswered={vi.fn()} />);
     await userEvent.type(screen.getByLabelText(/Which day/), "half day");
 
+    // A fresh array holding the same answer
     rerender(<AnswerField question={question({ dataType: "text", value: [] })} state="saved" onAnswered={vi.fn()} />);
     expect(screen.getByLabelText(/Which day/)).toHaveValue("half day");
 
-    // Still held while the field has focus. A save that lands mid-word must not take the word away,
-    // which is reachable now that clearing an answer changes the stored value.
+    // A new answer, while the field still has focus
     rerender(
       <AnswerField question={question({ dataType: "text", value: [ "full day" ] })} state="saved" onAnswered={vi.fn()} />);
     expect(screen.getByLabelText(/Which day/)).toHaveValue("half day");
@@ -182,9 +176,8 @@ describe("AnswerField", () => {
   });
 
   it("tells a regrouped multi-value answer from the same text stored as one value", () => {
-    // The values are compared as one joined string, so the separator has to be a character an answer
-    // cannot contain. Joining on a space would make [ "Monday", "Tuesday" ] and [ "Monday Tuesday" ]
-    // equal, and a re-read would leave the field showing the grouping it replaced.
+    // Joined on a space, the two answers would compare equal, and the field would keep showing the
+    // first grouping
     const many = { dataType: "text", maxAnswers: 0 };
     const { rerender } = render(
       <AnswerField question={question({ ...many, value: [ "Monday", "Tuesday" ] })} state="saved" onAnswered={vi.fn()} />);

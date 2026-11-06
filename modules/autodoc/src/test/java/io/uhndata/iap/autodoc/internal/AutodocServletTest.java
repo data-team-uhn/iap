@@ -106,7 +106,7 @@ class AutodocServletTest
     @Test
     void declinesNonJcrResources()
     {
-        // No Node adapter registered, the resource cannot be adapted
+        // Nothing adapts the resource to a Node
         assertFalse(this.servlet.accepts(request("md")));
     }
 
@@ -148,7 +148,7 @@ class AutodocServletTest
     @Test
     void reportsMissingDocumentation() throws Exception
     {
-        // The node carries the mixin, but no model provides a AutoDocumentable adaptation
+        // Nothing adapts the resource to AutoDocumentable
         final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
         this.servlet.service(request("json"), response);
 

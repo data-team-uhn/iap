@@ -44,10 +44,12 @@ const DEFLATED = 8;
 const ZIP64_COUNT = 0xFFFF;
 const ZIP64_MARKER = 0xFFFFFFFF;
 
+// One entry of a zip, as its central directory lists it.
 export interface ZipEntry {
   name: string;
+  // How the entry is compressed: 0 for stored, 8 for deflated
   method: number;
-  // As the directory states them
+  // In bytes, as the directory states them
   storedSize: number;
   unzippedSize: number;
   // Where the entry's local header starts
@@ -119,6 +121,7 @@ function readZip64Fields(view: DataView, entry: ZipEntry, from: number, to: numb
 /**
  * A zip's entries as its central directory lists them, read without unzipping anything.
  *
+ * @param data the whole zip
  * @returns the entries, or undefined when the directory cannot be read or names an entry twice
  */
 export function readZipDirectory(data: ArrayBuffer): ZipEntry[] | undefined {
@@ -204,6 +207,10 @@ async function inflate(
 /**
  * One entry's content, read straight from the zip and capped, whatever size the zip states.
  *
+ * @param data the whole zip
+ * @param entry the entry, as readZipDirectory found it
+ * @param maxBytes the most the content may unzip to
+ * @param signal stops the unzipping, which then rejects with the signal's reason
  * @returns the content, or undefined when it cannot be read or grows past the limit
  */
 export async function readZipEntry(

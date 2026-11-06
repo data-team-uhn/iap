@@ -1,121 +1,137 @@
 # Notifications
 
 IAP tells people about itself through **notification channels**. Something gathers what
-is worth saying; a channel delivers it. The two are separate modules on purpose, so a
-new channel reaches every existing source of messages and a new source reaches every
-channel.
+is worth saying; a channel delivers it. A workflow's notification is offered to every
+channel that delivers notifications. The chat webhook posts only what its own producers
+gather.
 
 | Channel | Module | Delivers |
 |---|---|---|
 | Chat webhook | `modules/slack-notifications` | Scheduled posts to a webhook, assembled from producers |
 | Email | `modules/email-notifications` | Emails built from templates kept in the repository |
+| In the application | `modules/notifications/stored` | Notifications kept for their recipients, shown under a bell in the app bar |
 
 More channels are expected. A channel is an ordinary module: it decides what triggers a
 delivery, what a message looks like in its medium, and how the platform's content
-becomes one. Where a channel needs to reach a remote service it uses
-[`HttpRequests`](http-requests.md) rather than talking to the network itself.
+becomes one. A channel that calls a web service does so through
+[`HttpRequests`](http-requests.md).
 
 ## Chat webhooks
 
-Each factory configuration of `Scheduled Slack Notifications` is one scheduled job, so
-an instance can run a nightly summary and a weekly digest to different channels.
+Each factory configuration of `Scheduled Slack Notifications` is one notification,
+posted on its own schedule. An instance can have several, such as a nightly one to one
+channel and a weekly one to another.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `name` | — | Names the notification and its job |
-| `schedule` | `%ENV%SLACK_NOTIFICATIONS_SCHEDULE` | Quartz expression — `0 0 0 * * ? *` nightly, `0 0 9 ? * MON *` Monday mornings |
-| `endpoint` | `%ENV%SLACK_NOTIFICATIONS_ENDPOINT` | The webhook address |
-| `title` | empty | An optional line above the attachments |
-| `include` | — | Which producers to use; empty means all |
-| `notificationParameters` | — | `key=value` strings passed to the producers |
-| `skipEmpty` | `true` | Post nothing when there is nothing to report, rather than "Nothing to report" |
+| `name` | — | The notification's name, which also names its job. Different for each notification |
+| `schedule` | `%ENV%SLACK_NOTIFICATIONS_SCHEDULE` | A Quartz cron expression, such as `0 0 0 * * ? *` for every night or `0 0 9 ? * MON *` for Monday mornings. Every night at midnight if it resolves to nothing |
+| `endpoint` | `%ENV%SLACK_NOTIFICATIONS_ENDPOINT` | The webhook URL |
+| `title` | empty | A line posted above the attachments |
+| `include` | — | The names of the producers to ask, such as `status`. Empty asks every one |
+| `notificationParameters` | — | `key=value` strings for the producers |
+| `skipEmpty` | `true` | Post nothing when no producer has an attachment. With `false`, post "Nothing to report" |
 
-A value starting with **`%ENV%`** names an environment variable to read instead of being
-used directly — `%ENV%SLACK_NOTIFICATIONS_ENDPOINT` reads `$SLACK_NOTIFICATIONS_ENDPOINT`.
-Both the schedule and the endpoint default to that form: a webhook address is a secret
-and belongs in the environment, not in a configuration file.
+A schedule or endpoint starting with **`%ENV%`** is read from the environment variable
+it names: `%ENV%SLACK_NOTIFICATIONS_ENDPOINT` reads `$SLACK_NOTIFICATIONS_ENDPOINT`.
+Both default to that form. A webhook URL is a secret, and belongs in the environment
+rather than in a configuration file.
 
-**A notification whose endpoint resolves to nothing is not scheduled at all**, and says
-so once in the log. Scheduling a job that could only ever fail would report the same
-failure every night forever.
+**A notification whose endpoint resolves to nothing is not scheduled.** Its activation
+logs and records that once, instead of a failed post every night.
 
 ### Providing messages
 
-What a chat notification says comes from producers, not from the channel. Implement
-`SlackNotificationProducer` (`…slacknotifications.spi`) as an OSGi component:
+A chat notification's attachments come from producers. A producer is an OSGi component
+implementing `SlackNotificationProducer` (`…slacknotifications.spi`):
 
 ```java
 @NotNull String           getName();
 @NotNull List<JsonObject> prepareMessages(@NotNull Map<String, String> extraParameters);
 ```
 
-The SPI also carries the attachment keys, `TITLE_KEY`, `TEXT_KEY` and `COLOR_KEY`, and
-the four colours to use, so producers agree on what a severity looks like:
+`getName()` is the name a configuration's `include` lists. The SPI also holds the
+attachment keys, `TITLE_KEY`, `TEXT_KEY` and `COLOR_KEY`, and one colour per severity:
 `INFO_COLOR` `999`, `SUCCESS_COLOR` `393`, `WARNING_COLOR` `BA0`, `ERROR_COLOR` `900`.
 
-**Return an empty list to say nothing.** That counts as silence, so a notification whose
-producers are all quiet posts nothing at all when `skipEmpty` is set.
+**Return an empty list to say nothing.** When every producer returns one and `skipEmpty`
+is set, nothing is posted. A producer must not throw: an exception loses the whole
+message, the other producers' attachments included.
 
 ### The status report producer
 
-`StatusReportNotification` (named `status`) turns the [status report](status.md) into
-attachments, one per report, coloured by level. Three extra parameters:
+`StatusReportNotification` (named `status`) turns the [status reports](status.md) into
+attachments, one per report, coloured by its level. It reads three extra parameters:
 
 | Parameter | Default | Means |
 |---|---|---|
-| `statusReport.targetStatusLevel` | `INFO` | The lowest level to include. An unrecognized level falls back to `INFO` rather than costing the whole notification |
-| `statusReport.includeTags` | all | Comma-separated status tags |
-| `statusReport.unprivileged` | `false` | Generate the report for an unprivileged audience |
+| `statusReport.targetStatusLevel` | `INFO` | The lowest level to include, in upper or lower case. An unknown level is logged, and `INFO` is used instead |
+| `statusReport.includeTags` | all | The tags of the reporters to include, comma-separated, such as `problems` |
+| `statusReport.unprivileged` | `false` | `true` asks the reporters to leave sensitive information out. With `false`, a report can quote error messages and stack traces |
 
-Because it goes through the status SPI it picks up every registered reporter
-automatically — including [error tracking](error-tracking.md) — with no coupling between
-those modules. A producer for another channel would get the same reports for free.
+It reads the reports through `StatusReportManager`, so it includes every registered
+reporter, such as the one [error tracking](error-tracking.md) registers.
 
 ## Workflow notifications
 
 A workflow tells people what happened with a message event: a message intermediate throw
 event its process passes, or a message end event it stops at. The event carries what
-happened as its message name, who to tell, how urgent it is, and where its template
-lives, so adding a notification is adding a node and a template, never Java. Who to tell
-is written in the same vocabulary the workflow uses to say who may act: `@creator` is
-whoever raised the thing in question, `@entityCreator` whoever raised the entity it
-belongs to, and anything else is a person or a group, expanded into its members when the
-moment comes. The same name always means the same people in both places, because both are
-answered by the same service. The event's properties, and why nothing is sent before the
-workflow's changes are committed, are in
+happened as its message name, who to tell, how urgent it is, and its template. Adding a
+notification takes a node and a template, and no Java. Who to tell is written in the
+vocabulary the workflow uses to say who may act. `@creator` is whoever created the
+resource the notification is about, and `@entityCreator` whoever created the entity it
+belongs to. Any other name is a user or a group, and a group is expanded into its
+members when the notification is sent. A name means the same people in both places,
+because the same service answers both. The event's properties, and why nothing is sent
+before the workflow's changes are committed, are in
 [workflows](workflows.md#message-events-tell-people-what-happened).
 
-What happens next deliberately splits in two. The workflow states *what happened and who it
-concerns*; **how each person hears about it is decided per channel**, by whichever deliveries are
-installed — an email right away, a marker in the interface, or nothing at all for somebody who
-cannot be reached. A channel that cannot carry a notification simply declines it, and that is a
-normal answer: the workflow has already moved on either way.
+**The workflow says what happened and who it concerns. Each delivery decides how a
+person hears about it.** `NotificationService` (`modules/notifications/impl`) finds each
+person and their account, and offers the notification to every registered delivery for
+each of them. A delivery is an OSGi service implementing `NotificationDelivery`
+(`…notifications.spi`), and decides from the notification and the account whether to
+carry it. It can email the person at once, keep the notification in their list, or
+decline. Declining is a normal answer, and somebody every delivery declines is not told.
+A delivery that throws is logged and recorded, and the others are still offered the
+notification.
 
 ### Where the templates live
 
-Each notification's template is a folder under `/libs/iap/notificationTemplates/`, holding one
-rendering per channel. A `uiMessage` property on the folder is the one-sentence form a compact list can
-show; an `email` child carries the email rendering described below. A folder with no rendering for
-some channel simply says nothing through that channel — which is a choice its author made, not an
-error.
+A notification's template is a folder, kept under `/libs/iap/notificationTemplates/`. It
+holds one rendering per channel. Its `uiMessage` property is the sentence the stored
+notifications show, and its `email` child is the email described below. A folder with no
+`email` child sends no email, and that is not an error. Without a `uiMessage`, a stored
+notification says the subject's title and the event, such as `A long weekend: approved`.
 
 ## Email
 
 Emails are built from `mail:Template` nodes in the repository, so a deployment can
-reword what the platform says without touching code. Whether somebody *can* be
-emailed is a fact about their account — the address at `profile/email`, which the
-identity provider fills in at login — so nothing in a workflow ever carries an
-address, and people can change theirs without any definition noticing.
+reword what the platform says without touching code. A person's address is on their
+account, at `profile/email`. For somebody who signs in through an identity provider, it
+is copied from there at each sign-in. No workflow carries an address.
+
+`EmailDelivery` emails a notification as soon as it is offered one, if its urgency is
+`immediate`, the recipient has an address, and its template folder has an `email` child.
+That child is a `mail:Template`. Besides the notification's own variables, it can use
+four more:
+
+| Variable | Value |
+|---|---|
+| `subjectResource` | The resource the notification is about |
+| `subjectPath` | Its path |
+| `subjectTitle` | Its `title` property, or an empty string |
+| `event` | What happened, as the message name, such as `approved` |
 
 ### A template
 
 | Property | Meaning |
 |---|---|
 | `senderAddress` | **Required.** The `From` address |
-| `senderName` | Display name shown with it |
-| `replyToAddress`, `replyToName` | Where replies go, defaulting to the sender |
-| `subject` | **Required.** Itself a template |
-| *anything else* | A variable available to the subject and both bodies |
+| `senderName` | The display name shown with it |
+| `replyToAddress`, `replyToName` | Where replies go, the sender's if not set |
+| `subject` | **Required.** A template itself |
+| *any other single-valued property* | A variable for the subject and both bodies; `jcr:` and `sling:` properties are not |
 
 | Child file | Meaning |
 |---|---|
@@ -123,25 +139,26 @@ address, and people can change theirs without any definition noticing.
 | `bodyTemplate.txt` | The plain text body |
 | `bodyTemplate.header.html`, `bodyTemplate.footer.html` | Wrapped around the HTML body |
 | `bodyTemplate.header.txt`, `bodyTemplate.footer.txt` | Wrapped around the plain text body |
-| *any other file* | An inline attachment, referenced from the HTML as `cid:<file name>` |
+| *any other file* | An inline attachment, which the HTML shows as `cid:<file name>` |
 
-Both bodies are optional, but a template needs at least one.
+Either body may be left out, but an email cannot be built from a template with neither.
 
-Headers, footers and attachments shared by every email live under
-**`/libs/iap/mailTemplates/`** (`EmailTemplate.COMMON_TEMPLATES_PATH`). A template picks
-up the shared headers and footers automatically, overrides them by carrying its own, and
-asks for a shared attachment with an `includeAttachment_<file name>` property
-(`INCLUDE_ATTACHMENT_PREFIX`).
+Shared headers and footers live under **`/libs/iap/mailTemplates/`**
+(`EmailTemplate.COMMON_TEMPLATES_PATH`), and shared attachments in its
+`commonAttachments` folder. The platform ships none. A template uses the shared header
+and footer unless it has its own. It includes a shared attachment only if it has an
+`includeAttachment_<file name>` property (`INCLUDE_ATTACHMENT_PREFIX`), whatever its
+value.
 
-**A header and footer never make a body on their own.** A template with no
-`bodyTemplate.txt` has no plain text part at all, even where shared plain text headers
-and footers exist — and the same for HTML.
+**A header and footer alone do not make a body.** A template with no `bodyTemplate.txt`
+has no plain text body, even when a shared plain text header and footer exist. The same
+holds for HTML.
 
 ### Writing one
 
 The subject and both bodies are
 [Apache Velocity](https://velocity.apache.org/engine/devel/user-guide.html) templates, so
-a template can branch and loop rather than only substitute.
+a template can branch and loop as well as substitute.
 
 ```
 Dear ${name},
@@ -161,17 +178,17 @@ Nothing further is needed from you.
 
 Worth knowing when writing a template:
 
-- **A name nobody supplied fails the whole email.** Rendering it literally would mail
-  somebody `Dear ${name}`, which is worse than not sending. There are two ways to say
-  something is optional, and they mean different things: `#if($note)` for a name that may
-  not be there at all, `$!{note}` for one that is there but may be empty.
-- **Values are escaped in the HTML body and not in the plain text one.** A value carrying
-  `<` goes into the HTML as text rather than as a tag — the values are free text somebody
-  typed. Markup a template genuinely means to produce belongs in the template, where it is
-  not escaped.
-- **A template that does not parse sends nothing.** Failures raise
-  `EmailTemplateException`, whose message names the line and column — never the values,
-  which are somebody's answers.
+- **A variable that nobody supplied fails the whole email**, instead of mailing somebody
+  `Dear ${name}`. Write `#if($note)` around a variable that may be missing. A quiet
+  reference, `$!{note}`, is only for a variable supplied as `null`.
+- **Values are escaped in the HTML body, and not in the subject or the plain text
+  body.** A value holding `<` goes into the HTML as text, not as a tag. Markup
+  belongs in the template, which is not escaped.
+- **A template reaches nothing but its values.** `#include` and `#parse` find no
+  files, and Velocity's `SecureUberspector` refuses calls such as
+  `getClass().getClassLoader()`.
+- **A template that does not parse sends nothing.** The failure is an
+  `EmailTemplateException`, whose message names the line and column.
 
 ### Sending one
 
@@ -180,20 +197,23 @@ final EmailTemplate template = EmailTemplate.builder(templateNode, resolver).bui
 final Email email = template.getEmailBuilder(Map.of("name", "Alice", "submission", submission))
     .withRecipient("alice@example.invalid", "Alice")
     .build();
-EmailUtils.sendHtmlEmail(email, this.mailService);
+EmailUtils.sendEmail(email, this.mailService);
 ```
 
-`getEmailBuilder(variables)` fills in the subject and both bodies; what the caller passes
-overrides the template's own properties. **A value can be anything, not only a string** —
-the template decides how to read it, which is what lets the text of an email stay in the
-template while the caller just hands over the submission. `EmailTemplate.builder()`
-also takes no arguments, for a template assembled in code rather than read from a node.
+`getEmailBuilder(variables)` fills in the subject and both bodies. A value the caller
+passes replaces the template's property of the same name. **A value can be any object,
+not only a string**, such as the submission itself, and the template reads what it needs
+from it. `EmailTemplate.builder()` with no arguments builds a template in code.
 
-`sendTextEmail` sends only the plain text part. `sendHtmlEmail` sends the HTML one, the
-plain text part as a fallback for clients that cannot show it, and the inline
-attachments. Since either part may be missing, **each method requires the part it sends**:
-asking for the text form of an HTML-only template raises `IllegalArgumentException`
-rather than sending an email with no body.
+`sendEmail` sends an email as HTML if it has an HTML body, and as plain text otherwise.
+`sendHtmlEmail` sends the HTML body, the plain text body if there is one, and the inline
+attachments. `sendTextEmail` sends only the plain text body. **Each requires the body it
+sends**: asking for the plain text of an HTML-only email throws
+`IllegalArgumentException`.
+
+None of them waits for the email to go out. Sling's mail service sends it on a thread
+pool, and a send that fails is logged and recorded through
+[error tracking](error-tracking.md).
 
 ### Checking that mail works
 
@@ -201,44 +221,39 @@ rather than sending an email with no body.
 GET /content.emailtest.html?fromEmail=…&fromName=…&toEmail=…&toName=…[&isHtml=true]
 ```
 
-Sends one fixed message, so an administrator can tell whether an instance's SMTP
-configuration works without waiting for the platform to have a reason to write to
-somebody. **Restricted to `admin`**, since it mails an arbitrary address.
+Sends one fixed message, so an administrator can check an instance's SMTP
+configuration. **Only the `admin` user may use it**, since it mails any address.
 
-Sending is asynchronous, so the endpoint waits for it to finish before answering, for up
-to fifteen seconds. It reports `200` once the message has gone out, `500` if it was
-refused, and `202` if the send is still going when the wait runs out — a relay that never
-answers must not park the request thread indefinitely. The outcome reaches the instance
-log either way, which is the only place a send that outlives the wait can report to.
+The endpoint waits up to fifteen seconds for the send to finish. It answers `200` once
+the message has gone out, `500` if it failed, and `202` if it is still being sent. The
+outcome reaches the instance log in every case.
 
-A failure answers that it failed and nothing more: what the mail server said goes to the
-log, because that text routinely names the relay, its port and the account the instance
-authenticates with.
+An answer that the send failed does not say why. What the mail server said goes to the
+log, since it can name the relay, its port and the account the instance signs in with.
 
-SMTP settings come from the module's feature configuration —
-`emailnotifications.smtps.host`, `.port`, `.username`, `.password`,
-`.checkserveridentity`, `.from` — with the password decrypted through Sling's crypto
-service, keyed by the `SLING_COMMONS_CRYPTO_PASSWORD` environment variable.
+The SMTP settings are the module's feature variables: `emailnotifications.smtps.host`,
+`.port`, `.username`, `.password`, `.checkserveridentity` and `.from`. Sling's crypto
+service decrypts the password, with the `SLING_COMMONS_CRYPTO_PASSWORD` environment
+variable as its key.
 
 ## Catching mail in development
 
 **Module:** `modules/email-catcher` · **Bundle:** `iap-email-catcher` (start-order 27)
 
 A development, test or demo instance has no mail server, and pointing one at a real relay
-to see what the platform writes is both awkward and a way to mail real people by accident.
-So the platform carries an **email catcher**: a `MailService` that files each message under
-`/CaughtMail` instead of delivering it.
+can mail real people by accident. The **email catcher** is a `MailService` that files each
+message under `/CaughtMail` instead of sending it.
 
-Nothing has to be configured to use it. Once switched on it registers at
-`service.ranking:Integer=1000`, above Sling's own mail service, which registers without a
-configuration and so ranks at zero — so every `@Reference MailService`, the test endpoint
-and `EmailUtils` included, is handed the catcher without knowing it. The real service still
-starts and stays reachable for anything that deliberately asks for it.
+While on, it registers at `service.ranking:Integer=1000`. Sling's `SimpleMailService` is
+configured without a ranking, so it ranks at zero, and it keeps running. A reference
+already bound to Sling's service moves to the catcher only if it is dynamic and greedy.
+Both references in `email-notifications` are, so the email delivery and the test endpoint
+send through the catcher without knowing it.
 
 A caught message is a `mail:CaughtMessage` under a `mail:CaughtMailHomepage`, written by
-the `iap-email-catcher` service user, which may write there and nowhere else. Filing
-happens on the way out of `sendMessage`; a failure is logged loudly and returned as a
-failed future, because nothing consumes the future a mail service reports into.
+the `iap-email-catcher` service user, which may write there and nowhere else. The message
+is filed before `sendMessage` returns. A failure is logged, and the returned future fails
+with it.
 
 ### Reading it over HTTP
 
@@ -246,8 +261,7 @@ failed future, because nothing consumes the future a mail service reports into.
 GET /CaughtMail.messages.json
 ```
 
-Bound to the homepage resource type, and answers with what has been caught, newest
-first:
+Bound to the homepage resource type, it answers with every caught message, newest first:
 
 ```json
 {
@@ -267,16 +281,14 @@ first:
 }
 ```
 
-Addresses are kept as they were written, display names and all, and `to`, `cc` and `bcc`
-stay apart — whether an address was visible to the others is usually the point of
-looking. Attachments are not stored: what they were is in the headers, and their bytes
-are not what anybody reads a caught message to check.
+Addresses are kept as the message wrote them, display names included. `to`, `cc` and
+`bcc` stay apart, so a reader can see which addresses the other recipients saw. A missing
+subject or body is an empty string. Attachments are not stored.
 
-`/CaughtMail` is readable by `iap-administrators` alone. What was caught is whatever the
-platform would have mailed, password-reset links included, so a test reads it with
-administrator credentials.
+`/CaughtMail` is readable by `iap-administrators` alone, since a caught message may hold
+private information. A test reads it with administrator credentials.
 
-The one fact anybody may have, signed in or not, is whether mail is being caught at all:
+Anyone, signed in or not, may ask whether mail is being caught:
 
 ```
 GET /libs/iap/mail-catcher.catching.json
@@ -285,57 +297,51 @@ GET /libs/iap/mail-catcher.catching.json
 
 It answers on a `mail:CatcherStatus` node that the module's repoinit creates at
 `/libs/iap/mail-catcher`, with an `everyone` read grant of its own. `/libs` is exempt
-from `sling.auth.requirements`, so it answers before sign-in, where somebody waiting
-for a password reset is standing. It reads the service registry, so it says what is in
-force rather than what the configuration asks for.
+from `sling.auth.requirements`, so it answers before sign-in too. The answer is whether
+the catcher's mail service is registered, not what its setting asks for.
 
-**It ships everywhere and is off everywhere until somebody turns it on.** The setting is
-a plain `enabled` boolean that defaults to false, so the bundle publishes no mail service
-until it is switched on. Three ways to do that, and they are the same setting:
+**It ships everywhere and is off until somebody turns it on.** The setting is a plain
+`enabled` boolean that defaults to false. Three ways change it, and all three write the
+same setting:
 
 - **On the administration dashboard**, with the switch on the *Caught mail* widget. It
-  asks first in both directions, since switching off on a test instance mails whatever
-  addresses its data holds, then writes the setting through `ConfigurationAdmin`:
-  `POST /CaughtMail.catching.json` with `enabled=true` or `enabled=false`, allowed to
-  `iap-administrators` and the repository superuser.
+  asks for confirmation in both directions, since switching off on a test instance mails
+  whatever addresses its data holds. It then writes the setting through
+  `ConfigurationAdmin`: `POST /CaughtMail.catching.json` with `enabled=true` or
+  `enabled=false`, allowed to `iap-administrators` and the repository superuser.
 - **In the Felix console**, under Configuration → *IAP Email Catcher*. Tick the box and
-  mail starts being filed; untick it and real sending comes back. Neither needs a
-  restart, because the consumers bind dynamically and the registration follows the
-  setting.
-- **In a feature**, which is how the `test_tar` and `demo_tar` aggregates get it without
-  anybody clicking anything: `dev/email-catcher-enabled.json` sets `enabled` to true. The
-  production aggregates do not include it.
+  mail starts being filed; untick it and real sending comes back. The instance needs no
+  restart: the catcher's component restarts, and registers or withdraws its mail service.
+- **In a feature**, which is how the `test_tar` and `demo_tar` aggregates catch mail from
+  the start: `dev/email-catcher-enabled.json` sets `enabled` to true. The production
+  aggregates do not include it.
 
 A restart reapplies what the deployment ships. The test and demo aggregates come back
-catching however they were left, while a production aggregate carries no configuration
-for the catcher, so a change made there survives.
+catching however they were left. A production aggregate carries no configuration for the
+catcher, so a change made there survives.
 
-That is deliberately not the same as leaving the bundle out of production. One set of
-artifacts is built rather than two, the difference between environments is a
-configuration a deployment can read back, and catching mail on some new instance is a
-configuration rather than a rebuild — which is exactly what somebody debugging a staging
-environment would want.
+Shipping the bundle everywhere means one set of artifacts, not two. The difference
+between environments is a configuration that a deployment can read back, and catching
+mail on a new instance needs no rebuild.
 
 **While mail is being caught, every page says so**, the sign-in page included, in a red
 banner across the top. `CatchingBanner` is an `iap/coreUI/frameTop` extension with
-`ext:visibleBeforeLogin`, and reads `catching.json` above when the page loads. The
-dashboard switch tells it at once through an `iap:mail-catching-changed` window event;
-another tab catches up on its next page load.
+`ext:visibleBeforeLogin`, and reads `catching.json` when the page loads. The dashboard
+switch fires an `iap:mail-catching-changed` window event, and the banner reads the status
+again. Another tab updates on its next page load.
 
 ### Reading it in the administration console
 
-`.messages.json` above is for a test to assert on. A person gets **Caught mail** in the
-administration console: a dashboard summary with the switch, a table of what has been
-filed at `/admin/mail`, and a page per message.
+People read the caught mail in the administration console, as **Caught mail**: a dashboard
+summary with the switch, a table of the caught messages at `/admin/mail`, and a page per
+message.
 
 The table is the [shared entity grid](frontend-development.md#shared-components), which
-pages, sorts, searches and filters through
-`/CaughtMail.paginate.json` — so the module serves no listing of its own. That works
+pages, sorts, searches and filters through `/CaughtMail.paginate.json`. That works
 because `mail:CaughtMailHomepage` extends `data:EntityHomepage` and declares
-`childNodeType = mail:CaughtMessage`, which is what tells the pagination servlet what it
-is listing.
+`childNodeType = mail:CaughtMessage`, which tells the pagination servlet what it lists.
 
-The one thing the grid cannot answer is whether mail is being caught **right now**:
+The dashboard summary and the table's page read whether mail is being caught from here:
 
 ```
 GET /CaughtMail.adminSummary.json
@@ -345,55 +351,50 @@ GET /CaughtMail.adminSummary.json
   }
 ```
 
-`enabled` is the presence of a registered `MailService` carrying the catcher's own
-`iap.mail.catcher` service property — not a reading of the configuration. The
-configuration says what somebody asked for; the registry says what is in force, and those
-differ while a component is settling or if something outranks the catcher in turn. The
-count travels with it because the two are useless apart: a count alone cannot tell
-"nothing has been sent" from "everything sent was delivered by mail".
+`enabled` is whether a `MailService` with the catcher's `iap.mail.catcher` service
+property is registered, not what the setting asks for. The two differ while the catcher
+restarts. The count comes with it, because a count alone cannot tell "nothing has been
+sent" from "everything sent was delivered".
 
-A message's own page shows the addresses one per line — a comma is legal inside a display
-name, so a joined list is ambiguous exactly where somebody is checking the addressing —
-and draws the HTML body **in an iframe with an empty `sandbox` attribute**, which blocks
-scripts, forms, navigation and same-origin access at once. These bodies come from the
-platform's own templates today, but a caught message is whatever was handed to the mail
-service, and this page renders it inside an administrator's session. It costs the page
-nothing: what is being checked is how the message reads, and a link in it is worth seeing
-rather than following. The plain text and the HTML source sit beside the rendering.
+A message's own page shows the addresses one per line, since a display name may contain a
+comma. It draws the HTML body **in an iframe with an empty `sandbox` attribute**, which
+blocks scripts, forms, navigation and same-origin access. A caught message is whatever was
+handed to the mail service, and the page runs in an administrator's session. The plain
+text and the HTML source are in tabs beside the rendering.
 
 ## Stored notifications
 
-`iap-stored-notifications` (`modules/notifications/stored`) is the channel that keeps what the others
-only say once: every notification it accepts becomes a small record under
-`/Notifications/<recipient>`, and the interface shows each person theirs. It accepts every urgency, because storing is not interrupting —
-an urgent decision and a quiet aside both belong in the list of what happened while nobody was
-looking.
+`iap-stored-notifications` (`modules/notifications/stored`) keeps each notification for
+its recipient to read in the application. It stores a `notif:Notification` in the
+recipient's folder, `/Notifications/<user id>`. It accepts a notification of any
+urgency, if it has a message to store: the template's `uiMessage`, or else the subject's
+title and the event. It declines a notification with neither.
 
-Each record carries the rendered sentence (the template's `uiMessage`, or the subject's title and
-the event when there is none), a link to what it is about, who caused it, and whether it has been
-read. The sentence is rendered at the moment of delivery, deliberately: templates can be reworded and
-subjects can be deleted, but what somebody was told should read tomorrow the way it read today.
+Each record holds the message, the event, the path of the subject, who caused it, the
+urgency, and whether the recipient has marked it read. The message is rendered when the
+notification is stored. It reads the same after the template is reworded or the subject
+is deleted.
 
-Who may see a notification is the repository's answer, not filtering code: each recipient's folder
-is readable by that one account, and everything filed under it inherits the grant. A listing
-therefore runs on the reader's own session and simply cannot contain anybody else's notifications. The recipient may also mark theirs read —
-`POST <notification>.markRead.json` — and nobody else gets a writable view to do even that.
+The delivery grants each recipient's folder to that recipient alone, the first time it
+stores a notification for them. Everything in the folder inherits the grant. If the
+grant fails, the notification is not stored. A recipient marks a notification read with
+`POST <notification>.markRead.json`, on their own session. The servlet refuses anybody
+the notification does not name, an administrator included.
 
-The bell in the application bar is where they land: it counts the unread ones, lists the latest when
-opened — opening the list is what "reading" means, the same way glancing at a stack of letters takes
-them off the doormat — and each entry leads to the thing it reports on.
+**The bell in the app bar shows them.** Every minute it asks the server how many of the
+current user's notifications are unread. Opening it lists the ten newest, and marks the
+unread ones among them as read. An entry leads to what it is about. The listing asks for
+the caller's own notifications by name. Access control does not apply to an
+administrator, whose bell would otherwise list, and mark read, everybody's
+notifications.
 
 ## Future work
 
-- **A channel that collects rather than interrupts.** Both shipped deliveries act at once,
-  so a notification marked `batched` reaches the stored list and no further. A digest that
-  accepts it, gathers a day of them and mails one summary is the missing half of what
-  urgency already says.
-- **Settings that belong to the person, not the workflow.** A notification says what
-  happened and who it concerns; how loudly each of them hears about it should be theirs to
-  choose, including turning a channel off. The account handle on `Recipient` is where that
-  would be read from.
-- **Somewhere to see all of them.** The bell shows the latest few, and nothing lists the
-  rest — so a notification scrolls out of reach rather than being filed. A page over the
-  same listing would also give "mark these read" a home that is not "whatever the dropdown
-  happened to show".
+- **A channel that collects notifications instead of sending each at once.** Both
+  deliveries act at once, and a notification marked `batched` reaches only the stored
+  list. A digest would accept it, gather a day of them and email one summary.
+- **Settings that belong to the person, not the workflow.** Each person could choose how
+  they hear about a notification, and turn a channel off. A delivery would read the
+  settings from the account on `Recipient`.
+- **Somewhere to see all of them.** The bell shows the ten newest, and nothing lists the
+  others. A page over the same listing could also mark chosen notifications read.

@@ -30,11 +30,10 @@ import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.principals.spi.SpecialNameResolver;
 
 /**
- * Answers {@code @entityCreator}: whoever raised the entity the resource in question belongs to. A notification
- * about a review can then tell the author of the submission it was written on, not the reviewer.
+ * Answers {@code @entityCreator}: the user who created the entity the resource in question belongs to.
  *
- * <p>An entity answers for itself, and a part for the entity it belongs to. Anything else, such as a homepage, is
- * nobody's.</p>
+ * <p>An entity answers for itself, and an entity part for the nearest entity above it. Anything else, such as a
+ * homepage or a part outside any entity, names nobody.</p>
  *
  * @version $Id$
  * @since 0.1.0

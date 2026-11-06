@@ -37,9 +37,9 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
- * Adds {@code @order} to a node whose type keeps its children in order. It lists the names of the children, in that
- * order. A reader takes the order from here, not from the order of the keys, as for the parts of a schema version and
- * the options of a question. The name of this processor is {@code order}.
+ * Adds {@code @order} to a node whose primary type keeps its children in order. It lists the names of the children, in
+ * that order. A reader takes the order from here, not from the order of the keys. The name of this processor is
+ * {@code order}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -77,7 +77,7 @@ public class OrderProcessor implements ResourceJsonProcessor
             }
             json.add("@order", names);
         } catch (final RepositoryException e) {
-            // Not fatal: the node is serialized without @order
+            // The node is serialized without @order
             LOGGER.warn("Could not list the children of {} in order: {}", node, e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(getClass(), "leave").about(path));
         }

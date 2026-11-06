@@ -28,7 +28,7 @@
   <artifactId>iap-stored-notifications</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Stored notifications</name>
-  <description>Stores notifications so that their intended recipient can read them in the application.</description>
+  <description>Keeps notifications for their recipients to read in the application</description>
 
   <build>
     <plugins>

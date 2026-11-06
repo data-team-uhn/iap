@@ -24,8 +24,7 @@ import AdminDashboard from "@iap/admin-console/AdminDashboard";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
-// Only the loading half is mocked; visibleInPersona is pure, and the persona filtering the shared
-// WidgetDashboard applies is only worth exercising against the real predicate.
+// Only loadExtensions is mocked, so the dashboard filters by persona with the real visibleInPersona.
 vi.mock("@iap/ui-extension/extensionManager", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@iap/ui-extension/extensionManager")>()),
   loadExtensions: vi.fn(),
@@ -33,8 +32,7 @@ vi.mock("@iap/ui-extension/extensionManager", async (importOriginal) => ({
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
-// AdminScreen reads the current URL (router) and titles itself through the app theme's
-// `pageTitle` variant mapping (theme), so the console needs both around it.
+// The dashboard's links need a router, and AdminScreen's heading needs the app theme.
 const renderDashboard = () => render(
   <ThemeProvider theme={appTheme}>
     <MemoryRouter initialEntries={["/admin"]}>
@@ -58,7 +56,6 @@ describe("AdminDashboard", () => {
     expect(screen.getByText("Organize the categories submitters choose from, and bind them to schemas"))
       .toBeInTheDocument();
     expect(mockedLoadExtensions).toHaveBeenCalledWith("AdminDashboard");
-    // The console's own heading is still there, around the widgets
     expect(screen.getByRole("heading", { name: "Administration" })).toBeInTheDocument();
   });
 

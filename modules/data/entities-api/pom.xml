@@ -52,7 +52,7 @@
   </build>
 
   <dependencies>
-    <!-- Nullability annotations for the exported API/SPI -->
+    <!-- Nullability annotations -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
@@ -105,7 +105,7 @@
       <artifactId>parsson</artifactId>
       <scope>test</scope>
     </dependency>
-    <!-- A real repository, so that the commit editor reads the node type registry as Oak stores it -->
+    <!-- A real Oak, so that the tests read the node type registry as Oak stores it -->
     <dependency>
       <groupId>org.apache.jackrabbit</groupId>
       <artifactId>oak-jcr</artifactId>

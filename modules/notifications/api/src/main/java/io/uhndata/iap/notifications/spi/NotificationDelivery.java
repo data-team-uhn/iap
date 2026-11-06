@@ -23,16 +23,16 @@ import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.Recipient;
 
 /**
- * One way of delivering a notification. Any bundle may register one; each is offered every notification and
- * decides for itself whether to deliverit it and how.
+ * One way of telling a person about a notification. Any bundle may register one as an OSGi service.
  *
  * <p>
- * <strong>They are not alternatives.</strong> Every delivery method is offered every notification.
+ * <strong>Deliveries are not alternatives.</strong> Every one is offered every notification, for each person it
+ * concerns, and decides for itself whether to carry it and how.
  * </p>
  *
  * <p>
- * <strong>Deciding not to deliver is a normal answer, not a failure.</strong> A delivery can decline, and the caller
- * carries on: a notification the recipient has opted out of is still a notification that was correctly handled.
+ * <strong>Declining is a normal answer, not a failure.</strong> A delivery declines what it cannot carry, such as a
+ * recipient with no address for its channel.
  * </p>
  *
  * @version $Id$
@@ -41,12 +41,12 @@ import io.uhndata.iap.notifications.api.Recipient;
 public interface NotificationDelivery
 {
     /**
-     * Offer to deliver a notification to one person using this delivery method.
+     * Offers a notification to this delivery, for one person.
      *
-     * @param notification what happened, including where its template lives
-     * @param recipient who to tell, an individual person rather than an abstract role
-     * @return {@code true} if this delivery acted on this request, {@code false} if it declined to act;
-     *         other deliveries are offered it either way
+     * @param notification what happened, and the name of its template
+     * @param recipient the person to tell; a role has already been resolved into people
+     * @return {@code true} if this delivery carried the notification, {@code false} if it declined it; the other
+     *         deliveries are offered it either way
      */
     boolean deliver(@NotNull NotificationContext notification, @NotNull Recipient recipient);
 }

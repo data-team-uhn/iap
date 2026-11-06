@@ -38,12 +38,11 @@ import io.uhndata.iap.principals.api.PrincipalContext;
 import io.uhndata.iap.principals.api.PrincipalService;
 
 /**
- * Resolves who a notification concerns and offers it to every registered way of telling them.
+ * Finds the people a notification concerns, and offers it to every registered delivery for each of them.
  *
  * <p>
- * The only judgement here is <em>who</em>. <em>How</em> is each delivery's own answer. A notification no
- * delivery accepts is one nobody was told. That is a normal outcome, not a failure: somebody with no address
- * and no other channel is simply not reachable.
+ * It decides only <em>who</em>. Each delivery decides <em>how</em>. A person every delivery declines is not told,
+ * and that is not a failure. Having no delivery registered at all is logged and recorded.
  * </p>
  *
  * @version $Id$
@@ -54,12 +53,12 @@ public class NotificationServiceImpl implements NotificationService
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
-    /** Every registered way of telling somebody something. A dynamic whiteboard, so a bundle may add one. */
+    /** Every registered delivery. A bundle can register or withdraw one at any time. */
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
         policyOption = ReferencePolicyOption.GREEDY)
     private volatile List<NotificationDelivery> deliveries;
 
-    /** The vocabulary the roles are read in: the same one the workflow engine reads performers in. */
+    /** Turns the roles into user ids. */
     @Reference
     private PrincipalService principals;
 
@@ -77,8 +76,6 @@ public class NotificationServiceImpl implements NotificationService
             return;
         }
         final ResourceResolver resolver = notification.getSubject().getResourceResolver();
-        // Resolved and expanded by the shared vocabulary, so "notify the approvers" and "the approvers may
-        // act" name the same people. Enumerated here because telling, unlike checking, names each person.
         final List<String> userIds = this.principals.expandToUsers(
             this.principals.resolve(roles,
                 new PrincipalContext(notification.getSubject(), notification.getActor())),
@@ -89,14 +86,11 @@ public class NotificationServiceImpl implements NotificationService
     }
 
     /**
-     * Offers one notification to every delivery, in turn.
-     *
-     * <p>Every one of them, not the first that accepts. A person may want both an email now and a marker in
-     * the interface.</p>
+     * Offers one notification to every delivery in turn, for one person, whatever the others answered.
      *
      * @param channels the registered deliveries
      * @param notification what happened
-     * @param recipient who to tell
+     * @param recipient the person to tell
      */
     private static void deliver(final List<NotificationDelivery> channels,
         final NotificationContext notification, final Recipient recipient)
@@ -105,8 +99,6 @@ public class NotificationServiceImpl implements NotificationService
             try {
                 channel.deliver(notification, recipient);
             } catch (final RuntimeException e) {
-                // One channel failing is not the others' problem, nor the workflow's: the process it
-                // reports on has already happened.
                 LOGGER.error("A notification about {} could not be delivered: {}",
                     notification.getEvent(), e.getMessage(), e);
                 ErrorLogger.logError(e, ErrorContext.of(NotificationServiceImpl.class, "deliver")
@@ -119,10 +111,9 @@ public class NotificationServiceImpl implements NotificationService
     }
 
     /**
-     * The deliveries registered right now. A dynamic whiteboard field is null until something registers, and the
-     * list itself can change under a call, so it is copied before being walked.
+     * The deliveries registered right now.
      *
-     * @return the current deliveries
+     * @return a copy of the registered deliveries, empty if there are none
      */
     private List<NotificationDelivery> currentDeliveries()
     {

@@ -20,7 +20,7 @@ package io.uhndata.iap.deletion.api;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * One reason a deletion was blocked: which guard objected, to which resource, and why.
+ * One guard's objection to a deletion or a purge: which guard objected, to which resource, and why.
  *
  * @version $Id$
  * @since 0.1.0
@@ -36,9 +36,9 @@ public final class Veto
     /**
      * Record a veto.
      *
-     * @param vetoerName the name of the guard that objected
-     * @param path the path of the resource the guard objected to
-     * @param reason the human-readable explanation
+     * @param vetoerName the {@link io.uhndata.iap.deletion.spi.DeletionVeto#getName() name} of the guard
+     * @param path the absolute path of the node the guard objected to
+     * @param reason the guard's explanation, in a sentence for the requesting user
      */
     public Veto(@NotNull final String vetoerName, @NotNull final String path, @NotNull final String reason)
     {
@@ -50,7 +50,7 @@ public final class Veto
     /**
      * The name of the guard that objected.
      *
-     * @return a {@link io.uhndata.iap.deletion.spi.DeletionVeto#getName() veto name}
+     * @return a {@link io.uhndata.iap.deletion.spi.DeletionVeto#getName() guard name}, such as {@code undeletable}
      */
     @NotNull
     public String getVetoerName()
@@ -59,8 +59,8 @@ public final class Veto
     }
 
     /**
-     * The path of the resource the guard objected to, which is not necessarily the resource whose deletion was
-     * requested: it may be a descendant, or another resource the deletion would have impacted.
+     * The node the guard objected to. It can be the requested resource, a node inside it, or another resource the
+     * deletion takes along.
      *
      * @return an absolute path
      */
@@ -71,9 +71,9 @@ public final class Veto
     }
 
     /**
-     * The human-readable explanation.
+     * Why the guard objected.
      *
-     * @return the reason returned by the guard
+     * @return the guard's explanation, in a sentence for the requesting user
      */
     @NotNull
     public String getReason()
