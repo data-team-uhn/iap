@@ -130,7 +130,16 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Read the requirement this step names.
+     * The whole intake step: pick the documents and the questions, ask the model once, and save its answers.
+     *
+     * <ol>
+     * <li>Find the parsed documents this step reads. None: record why and stop.</li>
+     * <li>Pick the questions this step asks. Unless the document is a newer version, drop the ones that already
+     * have an answer or a suggestion. None left: stop.</li>
+     * <li>Ask the model all of them in one call. The call failed: record why and stop.</li>
+     * <li>The step's {@code recordWhen} does not hold: save nothing (see {@link #shouldRecord}).</li>
+     * <li>Otherwise save the answers, each as a new run under its question.</li>
+     * </ol>
      *
      * @param context the step
      * @param target the submission
