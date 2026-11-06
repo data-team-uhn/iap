@@ -32,7 +32,8 @@ import io.uhndata.iap.conditions.api.AnswerDependencies;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
- * Check that every condition on an answer names a question of the same schema version.
+ * Checks that every condition on an answer names a question of the same schema version, by {@code jcr:uuid} or by
+ * its path within the version.
  *
  * @version $Id$
  * @since 0.1.0
@@ -73,7 +74,7 @@ public class ConditionQuestionsCheck extends SchemaVersionCheck
             return question.getPath().startsWith(version.getPath() + "/")
                 && question.isNodeType(DraftParts.QUESTION_TYPE);
         } catch (final RepositoryException e) {
-            // Not found, which is exactly the problem being looked for
+            // Not found: the problem this check reports
             return false;
         }
     }

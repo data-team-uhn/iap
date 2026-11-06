@@ -29,7 +29,7 @@ import { versionPageUrl } from "./useSchemaList";
 
 export const SCHEMA_VERSION_TYPE = "sch/SchemaVersion";
 
-// The schema a version belongs to, by name, from where the version lives
+// The name of the schema a version belongs to, read from the version's path
 const schemaNameOf = (version: SerializedNode): string => String(version["@path"]).split("/").at(-2) ?? "";
 
 // A version's label displayed as a link to its page
@@ -42,9 +42,9 @@ function VersionLink({ row, children }: { row: SerializedNode } & Pick<LinkProps
   );
 }
 
-// The versions of one schema, as its page lists them: rows it already has, sorted in the browser. The
-// default order is the order they were made in; by label, numbers compare as numbers (2.0 before 10.0). On a
-// phone, a version's card leads with its label and lifecycle tags, its description and creation day under them.
+// The columns of one schema's versions. By default the versions are in the order they were created. Sorted by
+// label, numbers compare as numbers, so 2.0 comes before 10.0. On a phone, a version's card leads with its label
+// and lifecycle tags, with its description and creation day under them.
 const COLUMNS: EntityGridColumn[] = [
   {
     field: "version",

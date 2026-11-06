@@ -93,7 +93,7 @@ function SchemaVersionView(
       {pageNotices}
       <Stack spacing={2}>
         { notice && (
-          // Standing guidance rather than news, so it is read in place instead of interrupting
+          // A note, not an alert: the guidance stays, and a screen reader does not interrupt with it
           <Alert severity="info" role="note">{notice}</Alert>
         ) }
         { loadError && <LoadError title="The version's content could not be loaded" message={loadError}

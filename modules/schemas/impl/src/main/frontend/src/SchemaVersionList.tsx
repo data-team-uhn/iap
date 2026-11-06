@@ -32,8 +32,8 @@ import SchemaVersionActions from "./SchemaVersionActions";
 import { SCHEMA_VERSION_TYPE } from "./schemaVersionGrid";
 import { comparisonPageUrl } from "./useSchemaList";
 
-// A schema's versions, with where each stands and what can be done with it. The schema's page has already read
-// them, so the grid lists them without fetching. Any two can be picked and compared.
+// A schema's versions, with where each stands and what can be done with it. The versions come with the schema,
+// so the grid lists them without fetching. Any two can be picked and compared.
 function SchemaVersionList({ schema, reload, comparisonDefaults }: {
   schema: SerializedNode;
   reload: () => void;

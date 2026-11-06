@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/SchemasHomepage",
-    "description": "What happens when a new schema is asked for: the schema, named after its title, then its first version. Administrators only.",
+    "description": "Creates a schema, with its first version.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

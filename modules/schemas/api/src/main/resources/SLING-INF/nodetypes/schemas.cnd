@@ -22,18 +22,17 @@
 
 //-----------------------------------------------------------------------------
 //
-// Schemas: templates describing the institutional process required for
-// approving a submission: what questions must be answered by the submitter,
-// which documents must be provided, which approvals are needed...
+// Schemas: what an institutional process asks of a submission, such as the
+// questions to answer, the documents to provide and the approvals to obtain.
 //
-// A schema is a container whose actual content lives in versions: editing a
-// schema never changes what past submissions were judged against, it produces
-// a new version that future submissions will reference.
+// A schema is a container, and its content lives in versions. A submission is
+// filed against one version. Once a version is published, only its wording
+// can change. See docs/schemas.md.
 //
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Homepage node for the /Schemas root path.
+// The /Schemas homepage.
 [sch:SchemasHomepage] > data:EntityHomepage
   - sling:resourceType (STRING) = "sch/SchemasHomepage" mandatory autocreated protected
   - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
@@ -42,198 +41,184 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // Contains schema definitions
+  // The schemas
   + * (sch:Schema) = sch:Schema
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A named institutional schema. This is only a container identifying the
-// schema; the actual requirements live in its versions.
+// A named schema. It only identifies the schema, and its versions hold what
+// a submission is asked for.
 [sch:Schema] > data:Entity, tag:Boundary
   - sling:resourceType (STRING) = "sch/Schema" mandatory autocreated protected
 
-  // Human-readable name for this schema
+  // The schema's name, as people read it
   - title (STRING) mandatory
 
-  // Open to new submissions unless it carries the `retired` lifecycle tag,
-  // which its versions inherit
+  // A schema is open to new submissions unless it carries the `retired`
+  // lifecycle tag, which its versions inherit.
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // Defined versions of this schema
+  // The versions of this schema
   + * (sch:SchemaVersion) = sch:SchemaVersion
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A particular version of a schema; holds the requirements a submission
-// must fulfill. Submissions reference a specific version.
+// One version of a schema, holding the requirements a submission must
+// fulfill. A submission references the version it is filed against.
 [sch:SchemaVersion] > data:Entity, tag:Boundary
-  // The list of requirements is orderable, so they can be presented to the
-  // submitter and reviewer in a deliberate sequence.
   orderable
 
   - sling:resourceType (STRING) = "sch/SchemaVersion" mandatory autocreated protected
 
-  // Mandatory version label, e.g. "1.0"
+  // The version's label, such as "1.0"
   - version (STRING) mandatory
 
-  // Optional description of this version
+  // What sets this version apart, in a sentence or two
   - description (STRING)
 
-  // Where it stands is its `lifecycle` tag: `draft`, `active` or `retired`.
-  // Only an active version accepts new submissions.
+  // Its state is its `lifecycle` tag: `draft`, `active` or `retired`. Only an
+  // active version takes new submissions.
 
-  // The user workflow driving submissions under this schema version.
-  // References the exact wf:WorkflowVersion to be instantiated, so that a
-  // schema version completely freezes the process its submissions follow;
-  // changing the workflow requires publishing a new schema version.
+  // The wf:WorkflowVersion that the submissions filed against this version
+  // go through. Only a draft can change it.
   - workflow (REFERENCE)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // What the submission must fulfill: sets of questions to answer, documents
-  // to provide, approvals to obtain, and future requirement types
+  // What a submission must fulfill, such as a form to answer or a document
+  // to provide
   + * (sch:Requirement)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// Abstract base of every part of a schema version: its requirements and the
-// items of its forms. Gives a binding or a workflow one type that addresses any
-// part of a schema, including requirement types added later.
+// The base of every part of a schema version: its requirements and the items
+// of its forms. A servlet or a workflow bound to sch/SchemaPart serves every
+// part. It is abstract, and concrete node types extend it.
 [sch:SchemaPart] > data:EntityPart
   abstract
 
-  // Hardcode the supertype to the parent sch/SchemaPart type.
   - sling:resourceSuperType (STRING) = "sch/SchemaPart" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
-// Abstract base shared by everything that may appear in the body of a form: a
-// single question, or a section grouping more items. Lets callers ask for
-// "the items" of a section or form without caring whether each one is a
-// question or a subsection. Conditionable, so every item may carry a single
-// condition controlling whether it is shown to the submitter.
+// The base of what a form holds: a question, or a section holding more items.
+// Each item may carry one condition deciding whether the submitter is asked
+// it. It is abstract, and concrete node types extend it.
 [sch:FormItem] > sch:SchemaPart, cond:Conditionable
   abstract
 
-  // Hardcode the supertype to the parent sch/FormItem type.
   - sling:resourceSuperType (STRING) = "sch/FormItem" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
-// A logical grouping of questions; sections may be nested.
+// A group of questions in a form. Sections can nest.
 [sch:Section] > sch:FormItem
-  // The list of items is orderable, so they can be presented to the
-  // submitter in a deliberate sequence.
   orderable
 
   - sling:resourceType (STRING) = "sch/Section" mandatory autocreated protected
 
-  // Human-readable name for this section
+  // The section's heading, as the submitter reads it
   - title (STRING) mandatory
 
-  // Optional description displayed to the submitter
+  // What the submitter reads under the heading
   - description (STRING)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // The questions and subsections grouped in this section
+  // The questions and sections it holds
   + * (sch:FormItem)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A single question the submitter must answer.
-// Referenceable so that submission answers can point back to it.
+// A question the submitter answers. Answers reference it.
 [sch:Question] > sch:FormItem, mix:referenceable
-  // The answer options are offered in the order they are declared, which only
-  // an orderable type preserves
+  // The answer options are offered in the order they are stored
   orderable
 
   - sling:resourceType (STRING) = "sch/Question" mandatory autocreated protected
 
-  // The question text shown to the submitter
+  // The question, as the submitter reads it
   - text (STRING) mandatory
 
-  // Optional longer explanation displayed to the submitter
+  // A longer explanation the submitter reads under the question
   - description (STRING)
 
-  // Expected answer type: text, long, double, boolean, date
+  // The type of value an answer holds: text, long, double, boolean or date
   - dataType (STRING) = "text" mandatory autocreated
 
-  // How many values an answer takes: a positive minimum is what "required"
-  // means, a maximum other than 1 is what "multiple" means, and zero or
-  // negative leaves that end unconstrained. (0,1) is an optional single value,
-  // (1,1) a mandatory one, (2,4) "pick two to four". Falling short of the
-  // minimum is incompleteness; exceeding the maximum refuses the save.
+  // How many values an answer takes. A positive minimum makes the question
+  // required, and a maximum other than 1 lets it take several values. Zero or
+  // less leaves that end open. (0,1) is one optional value, (1,1) one
+  // required value, and (2,4) asks for two to four. An answer short of the
+  // minimum leaves the submission incomplete, and saving an answer over the
+  // maximum is refused.
   - minAnswers (LONG) = '0' autocreated
   - maxAnswers (LONG) = '1' autocreated
 
-  // For numeric answers, the smallest and largest value accepted
+  // For a numeric answer, the smallest and the largest value accepted
   - minValue (DOUBLE)
   - maxValue (DOUBLE)
 
-  // For text answers, a regular expression every value must match in full,
-  // and the error message displayed when one does not
+  // For a text answer, a regular expression every value must match in full,
+  // and what the submitter is told when one does not
   - pattern (STRING)
   - patternMessage (STRING)
 
-  // How the question is rendered to the submitter
+  // How the question is shown to the submitter
   - displayMode (STRING)
 
-  // What the answer is used to judge, in the reviewer's terms rather than the
-  // submitter's
+  // What the answer is used to judge, in the reviewer's terms
   - purpose (STRING)
 
-  // The prompt an LLM is given to read this answer out of the submitted documents
+  // The prompt an LLM is given to read this answer out of the submitted
+  // documents
   - extractionPrompt (STRING)
 
   // The shape the LLM's reply must take, as a JSON schema
   - responseShape (STRING)
 
-  // A content path whose live items are the answers this question offers, in
-  // place of child AnswerOption nodes
+  // A content path whose items are the options, in place of child
+  // sch:AnswerOption nodes, such as /Vocabularies/sites
   - optionsFrom (STRING)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // The answers this question offers. A question declaring none is answered
-  // freely, in whatever its dataType accepts; one declaring options is answered
-  // only with their values, which is what lets a condition compare against an
-  // agreed value.
+  // The options. A question with options is answered only with their values.
   + * (sch:AnswerOption)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One of the answers a question offers. The value is what an answer stores and
-// what a condition compares against, so changing it changes the meaning of
-// every answer already recorded; the label is only what the submitter reads.
+// One of the answers a question offers. The value is what an answer stores
+// and what a condition compares against, so changing it changes the meaning
+// of every answer already recorded. The label is only what the submitter
+// reads.
 [sch:AnswerOption] > data:EntityPart
   - sling:resourceType (STRING) = "sch/AnswerOption" mandatory autocreated protected
 
-  // What an answer picking this option stores
+  // What an answer that picks this option stores
   - value (STRING) mandatory
 
-  // What the submitter reads; the value itself when left out
+  // What the submitter reads; the value itself when there is none
   - label (STRING)
 
-  // An optional explanation for this option, if the label is not clear enough,
-  // detailing When this option applies
+  // When this option applies, where the label does not say
   - description (STRING)
 
   // Allow any other properties for extensibility
@@ -241,23 +226,19 @@
   - * (UNDEFINED) multiple
 
 //-----------------------------------------------------------------------------
-// Abstract base for anything a submission must fulfill: a set of questions
-// to answer, an expected document, a required approval, or future
-// requirement types. Referenceable so that submission parts (answers,
-// documents, reviews) can point back at the requirement they fulfill.
-// Conditionable, so every requirement may carry a single condition
-// controlling whether it applies to a submission.
+// The base of what a submission must fulfill: a form to answer, a document to
+// provide, an approval to obtain. Documents, reviews, comments and topics
+// reference it. It may carry one condition deciding whether it applies to a
+// submission. It is abstract, and concrete node types extend it.
 [sch:Requirement] > sch:SchemaPart, mix:referenceable, cond:Conditionable
-  // This is an abstract node type, specific requirement types must be defined.
   abstract
 
-  // Hardcode the supertype to the parent sch/Requirement type.
   - sling:resourceSuperType (STRING) = "sch/Requirement" mandatory autocreated protected
 
-  // Short name for this requirement, e.g. "Patient consent"
+  // The requirement's short name, such as "Patient consent"
   - label (STRING) mandatory
 
-  // A description displayed to the submitter, explaining what is expected
+  // What the submitter reads about what is expected
   - description (STRING)
 
   // Allow any other properties for extensibility
@@ -268,112 +249,100 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A set of questions, grouped into sections, that the submitter must answer
-// to fulfill this requirement. This is how a schema version's own
-// questions are expressed: as a (typically unconditional, always required)
-// form requirement.
+// A form: questions, grouped into sections, that the submitter answers. A
+// schema version asks its questions through form requirements.
 [sch:FormRequirement] > sch:Requirement
-  // The list of items is orderable, so they can be presented to the
-  // submitter in a deliberate sequence.
   orderable
 
   - sling:resourceType (STRING) = "sch/FormRequirement" mandatory autocreated protected
 
-  // The questions and sections making up this form
+  // The questions and sections of the form
   + * (sch:FormItem)
 
 //-----------------------------------------------------------------------------
-// A document that the submitter is expected to provide, e.g. the patient
-// consent form, in an expected format described by this requirement.
+// A document the submitter provides, such as the patient consent form.
 [sch:DocumentRequirement] > sch:Requirement
-  // The sections are orderable, so they are listed in the order the document
-  // is expected to present them.
+  // The sections are kept in the order the document is expected to present
+  // them
   orderable
   - sling:resourceType (STRING) = "sch/DocumentRequirement" mandatory autocreated protected
 
-  // Whether the document must be attached before the submission is complete.
-  // The DocumentRequirement's condition decides if it is asked at all.
-  // Defaults to true.
+  // Whether the submission is incomplete without the document. The
+  // requirement's condition decides whether it is asked for at all.
   - required (BOOLEAN) = true autocreated
 
-  // Accepted MIME types for the uploaded document, e.g. application/pdf
+  // The media types the document may have, such as application/pdf; any
+  // when there are none
   - acceptedFileTypes (STRING) multiple
 
-  // Prompt for an AI agent that pre-checks whether the document
-  // provided by the submitter meets this requirement
+  // The prompt an AI agent is given to check whether the provided document
+  // meets this requirement
   - aiCheckPrompt (STRING)
 
-  // Optional template document offered to submitters
+  // A template of the document, offered to submitters
   + template (nt:file)
 
   // The sections the document is expected to contain
   + * (sch:SectionRequirement) = sch:SectionRequirement
 
 //-----------------------------------------------------------------------------
-// A section a document is expected to contain, e.g. the funding section of a
-// study protocol. Submitters tend to put everything in one long document, and
-// this lets a topic point at the part worth reading. A requirement
-// in its own right, with a label, a description, a condition and an identity
-// to reference. Nothing is uploaded for it: it is looked for in the document
-// uploaded for the requirement it belongs to.
+// A section a document is expected to contain, such as the funding section of
+// a study protocol. A topic can point at it rather than at the whole
+// document. It is a requirement, with a label, a description and a
+// condition, and it can be referenced. Nothing is uploaded for it: it is
+// looked for in the document of the requirement it belongs to.
 [sch:SectionRequirement] > sch:Requirement
-  // The subsections are orderable, like the sections themselves.
+  // The subsections are kept in the order the document is expected to present
+  // them
   orderable
   - sling:resourceType (STRING) = "sch/SectionRequirement" mandatory autocreated protected
 
-  // Whether the document must contain this section. Defaults to true.
+  // Whether the document must contain this section
   - required (BOOLEAN) = true autocreated
 
-  // The headings this section usually goes by, e.g. "Funding", "Budget" and
-  // "Sources of support". Documents name the same section differently, and a
-  // heading is the cheapest way to find one.
+  // The headings this section usually goes by, such as "Funding", "Budget"
+  // and "Sources of support"
   - headings (STRING) multiple
 
-  // The prompt an LLM is given to find where this section starts, when none of
-  // the document's headings is one of the above
+  // The prompt an LLM is given to find where this section starts, when none
+  // of the document's headings is one of the above
   - locationPrompt (STRING)
 
   // The subsections it is expected to contain
   + * (sch:SectionRequirement) = sch:SectionRequirement
 
 //-----------------------------------------------------------------------------
-// An approval that must be granted before a submission is accepted,
-// e.g. "REB approval".
+// An approval a submission must obtain, such as "REB approval".
 [sch:ApprovalRequirement] > sch:Requirement
-  // The topics are orderable, so they are shown in a deliberate sequence.
   orderable
 
   - sling:resourceType (STRING) = "sch/ApprovalRequirement" mandatory autocreated protected
 
-  // Principal name of the group whose members may grant this approval
+  // The principal name of the group whose members may grant this approval
   - approverGroup (STRING)
 
   // What the approvers want assessed
   + * (sch:Topic) = sch:Topic
 
 //-----------------------------------------------------------------------------
-// A broad area the approvers want assessed before they grant an approval, such
-// as consent: is it needed, clear, informed, free of coercion, in both
-// languages. One area rather than a checkbox per point, so the reviewer is
-// not overwhelmed; the description and the sources to look at say what to
-// look for. Referenceable so that sub:Assessment nodes can point back to it.
+// A broad area the approvers want assessed before they grant an approval,
+// such as consent: whether it is needed, clear, informed, free of coercion,
+// and in both languages. Assessments reference it.
 [sch:Topic] > data:EntityPart, mix:referenceable
   - sling:resourceType (STRING) = "sch/Topic" mandatory autocreated protected
 
-  // The topic as shown to the submitter
+  // The topic, as people read it
   - text (STRING) mandatory
 
-  // Optional longer explanation displayed to the submitter
+  // What to look for
   - description (STRING)
 
-  // The requirements and questions that bear on this topic: where a reviewer
-  // and the AI look first. A section requirement narrows a document down to
-  // the part of it worth reading. Weak, so one can be removed without first
+  // The requirements and questions that bear on this topic, where a reviewer
+  // and the AI look first. Weak, so a part can be removed without first
   // unlinking it from every topic.
   - sources (WEAKREFERENCE) multiple
 
-  // The prompt an LLM is given to assess this topic from the submission;
-  // it is extended with the answers and uploaded documents for the linked sources
+  // The prompt an LLM is given to assess this topic from the submission
   - assessmentPrompt (STRING)
 
   // Allow any other properties for extensibility

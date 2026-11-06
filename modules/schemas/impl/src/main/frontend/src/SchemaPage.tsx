@@ -35,7 +35,8 @@ import { strings } from "./schemaVersionTreeModel";
 import SchemaVersionView from "./SchemaVersionView";
 import { useSchema } from "./useSchema";
 
-// What stays true of the schema on its page and on each of its versions' pages
+// The notices about the schema on its page and on each of its versions' pages: that it could not be reloaded,
+// and that it is retired
 function SchemaNotices({ schema, loadError, reload }: {
   schema: SerializedNode;
   loadError?: string;
@@ -54,9 +55,10 @@ function SchemaNotices({ schema, loadError, reload }: {
   );
 }
 
-// One schema's page: its versions and where each stands, and the lifecycle actions on them and on
-// the schema as a whole. With a version named, that version's own page. With another version to compare it with
-// too, their comparison. The extension names the workflow definitions that describe the fields compared.
+// The page of one schema: its versions and where each stands, and the lifecycle actions on them and on the
+// schema. A path naming a version shows that version's page instead. With `?compare=` naming another version too,
+// it shows what changed from that version to this one. The extension names the workflow definitions whose fields
+// are compared, and the rules choosing what a version is compared with by default.
 function SchemaPage({ extension }: { extension?: Record<string, unknown> }) {
   const { pathname, search } = useLocation();
   const versionName = versionNameFromRoute(pathname);
@@ -65,7 +67,7 @@ function SchemaPage({ extension }: { extension?: Record<string, unknown> }) {
   const name = schemaNameFromRoute(pathname);
   const { schema, loading, loadError, reload } = useSchema(name);
   const reloadSchema = useCallback(() => void reload(), [ reload ]);
-  // Kept the same while the extension is, so that the version list does not redraw its actions for nothing
+  // The same array while the extension is the same, so the version list does not redraw its actions
   const comparisonDefaults = useMemo(() => strings(extension?.comparisonDefaults), [ extension ]);
 
   if (!schema) {

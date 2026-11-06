@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/SchemaPart",
-    "description": "Corrects what a requirement, section or question says, on a version that has been published: what submitters read, and what guides reading answers out of documents. Nothing that decides what an answer means, which answers are valid or which parts apply can change here; that takes a new version. A correction reaches the submissions already filed against the version.",
+    "description": "Corrects what a requirement, section or question of a published version says.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

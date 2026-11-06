@@ -30,8 +30,8 @@ import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
- * A Sling Model wrapping a {@code sch:SchemaVersion} node; holds the requirements a submission must fulfill.
- * Submissions reference a specific version.
+ * A Sling Model wrapping a {@code sch:SchemaVersion} node: one version of a schema, holding the requirements a
+ * submission must fulfill. A submission references the version it is filed against.
  *
  * @version $Id$
  * @since 0.1.0
@@ -53,9 +53,9 @@ public class SchemaVersion extends Entity
     private String workflow;
 
     /**
-     * The version label, e.g. "1.0".
+     * The version's label, such as "1.0".
      *
-     * @return a version label
+     * @return the label
      */
     @NotNull
     public String getVersion()
@@ -64,9 +64,9 @@ public class SchemaVersion extends Entity
     }
 
     /**
-     * An optional description of this version.
+     * What sets this version apart.
      *
-     * @return a description, or {@code null} if not set
+     * @return the description; {@code null} if there is none
      */
     @Nullable
     public String getDescription()
@@ -75,9 +75,9 @@ public class SchemaVersion extends Entity
     }
 
     /**
-     * The schema this version belongs to, which is simply its parent.
+     * The schema this version belongs to: its parent.
      *
-     * @return the owning schema, or {@code null} if this version is stored outside one
+     * @return the schema; {@code null} if this version is stored outside one
      */
     @Nullable
     public Schema getSchema()
@@ -86,10 +86,10 @@ public class SchemaVersion extends Entity
     }
 
     /**
-     * The version of the workflow driving submissions filed under this schema version.
+     * The workflow version that the submissions filed against this schema version go through.
      *
-     * @return a workflow version, or {@code null} if this schema version drives no workflow, or the reference
-     *         cannot be resolved
+     * @return the workflow version; {@code null} if none is set, or if the reference names nothing this session can
+     *         read
      */
     @Nullable
     public WorkflowVersion getWorkflow()
@@ -98,9 +98,9 @@ public class SchemaVersion extends Entity
     }
 
     /**
-     * Every requirement a submission against this version must fulfill, regardless of its specific subtype.
+     * Every requirement a submission against this version must fulfill, each read as the model of its own type.
      *
-     * @return a list of requirements, empty if none
+     * @return the requirements, in stored order; empty if there are none
      */
     @NotNull
     public List<Requirement> getRequirements()
@@ -111,7 +111,7 @@ public class SchemaVersion extends Entity
     /**
      * The form requirements of this version.
      *
-     * @return a list of form requirements, empty if none
+     * @return the form requirements, in stored order; empty if there are none
      */
     @NotNull
     public List<FormRequirement> getFormRequirements()
@@ -122,7 +122,7 @@ public class SchemaVersion extends Entity
     /**
      * The document requirements of this version.
      *
-     * @return a list of document requirements, empty if none
+     * @return the document requirements, in stored order; empty if there are none
      */
     @NotNull
     public List<DocumentRequirement> getDocumentRequirements()
@@ -133,7 +133,7 @@ public class SchemaVersion extends Entity
     /**
      * The approval requirements of this version.
      *
-     * @return a list of approval requirements, empty if none
+     * @return the approval requirements, in stored order; empty if there are none
      */
     @NotNull
     public List<ApprovalRequirement> getApprovalRequirements()

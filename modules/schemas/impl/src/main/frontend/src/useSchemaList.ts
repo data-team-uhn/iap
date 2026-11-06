@@ -30,7 +30,7 @@ export const versionPageUrl = (schemaName: string, versionName: string): string 
 export const comparisonPageUrl = (schemaName: string, base: string, compared: string): string =>
   `${versionPageUrl(schemaName, compared)}?compare=${encodeURIComponent(base)}`;
 
-// Every schema, with its versions: what the listing and the dashboard widget show.
+// Every schema with its versions, drafts and retired ones included.
 export function useSchemaList() {
   const { value, loading, loadError, reload } = useNode(SCHEMAS_ROOT, listing(2), schemasOf);
 

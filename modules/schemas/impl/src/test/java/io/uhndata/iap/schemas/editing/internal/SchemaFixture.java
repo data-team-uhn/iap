@@ -33,7 +33,7 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 
 /**
- * Builds schemas in an Oak-backed mock repository.
+ * Builds schemas in an Oak-backed sling-mock repository.
  *
  * @version $Id$
  * @since 0.1.0
@@ -76,7 +76,7 @@ public final class SchemaFixture
      *
      * @param schema the schema
      * @param name its node name
-     * @param tags its tags, e.g. its lifecycle state
+     * @param tags its tags, such as its lifecycle state
      * @return the version
      * @throws PersistenceException when it cannot be created
      */

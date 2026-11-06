@@ -27,7 +27,7 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sch:AnswerOption} node, one of the answers a {@link Question} offers.
+ * A Sling Model wrapping a {@code sch:AnswerOption} node: one of the answers a {@link Question} offers.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,9 +49,9 @@ public class AnswerOption extends EntityPart
     private String description;
 
     /**
-     * What an answer picking this option stores, and what conditions compare against.
+     * What an answer that picks this option stores, and what conditions compare against.
      *
-     * @return the stored value
+     * @return the value
      */
     @NotNull
     public String getValue()
@@ -60,9 +60,9 @@ public class AnswerOption extends EntityPart
     }
 
     /**
-     * What the submitter reads, falling back to the {@link #getValue() value}.
+     * What the submitter reads.
      *
-     * @return a label, never empty
+     * @return the label; the {@link #getValue() value} if the label is missing or empty
      */
     @NotNull
     public String getLabel()
@@ -71,9 +71,9 @@ public class AnswerOption extends EntityPart
     }
 
     /**
-     * When this option applies, for a person choosing and for a model matching.
+     * When this option applies, where the label does not say.
      *
-     * @return a description, or {@code null} when there is nothing more to say than the label
+     * @return the description; {@code null} if there is none
      */
     @Nullable
     public String getDescription()

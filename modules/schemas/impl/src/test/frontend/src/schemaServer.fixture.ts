@@ -18,9 +18,9 @@
 
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 
-// A stand-in server for the schema tool's tests: it serves the schemas, the lifecycle tag
-// definitions and a live session, records every event posted, and answers each event as a test
-// asks - completed, refused with the engine's reason, or redirected to what it created.
+// A stand-in server for the schema tool's tests. It serves the schemas, the lifecycle tag
+// definitions and a live session, and records every event posted. It answers each event as a test
+// asks: completed, refused with the engine's reason, or redirected to what it created.
 
 export interface EventAnswer {
   status?: number;
@@ -99,7 +99,7 @@ export const HOMEPAGE = {
 };
 
 // What versions ask of a submission, served when a version is read whole. A question and a requirement
-// carry the supertype the server stores on them; the rest is what the tree has to show.
+// carry the supertype the server stores on them. The rest is what the tree has to show.
 const question = (fields: Record<string, unknown>) => ({
   "jcr:primaryType": "sch:Question", "sling:resourceType": "sch/Question", "sling:resourceSuperType": "sch/FormItem",
   "dataType": "text", "minAnswers": 0, "maxAnswers": 1, ...fields,

@@ -25,7 +25,7 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 
 /**
- * What the schema handlers share: telling a schema from a version, and what to say when it is neither.
+ * Tells whether a workflow's target is a schema, and what to say when it is not.
  *
  * @version $Id$
  * @since 0.1.0
@@ -41,7 +41,7 @@ final class SchemaContent
      * The target as a schema, if it is one.
      *
      * @param target the workflow's target
-     * @return the schema model, or {@code null} when the target is something else
+     * @return the schema model; {@code null} if the target is not a schema
      */
     @Nullable
     static Schema asSchema(@NotNull final Resource target)
@@ -50,9 +50,10 @@ final class SchemaContent
     }
 
     /**
-     * The refusal for a workflow attached to a type its handler does not serve: a definition mistake.
+     * The refusal for a workflow that runs a handler on a type the handler does not serve: a mistake in the workflow
+     * definition.
      *
-     * @param handler the handler's name
+     * @param handler the handler's name, such as {@code createSchemaVersion}
      * @param target the target it was run against
      * @return the exception to throw
      */

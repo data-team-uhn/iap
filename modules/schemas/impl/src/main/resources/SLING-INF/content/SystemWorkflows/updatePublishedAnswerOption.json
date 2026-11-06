@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/AnswerOption",
-    "description": "Corrects what an answer option says, on a version that has been published. Its value, which answers store and conditions compare against, cannot change here.",
+    "description": "Corrects what an answer option of a published version says, but not its value.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

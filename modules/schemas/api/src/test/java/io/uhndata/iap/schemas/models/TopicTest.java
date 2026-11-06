@@ -120,7 +120,7 @@ class TopicTest
         final Node requirement = Mockito.mock(Node.class);
         Mockito.when(requirement.getPath()).thenReturn(REQUIREMENT_PATH);
         Mockito.when(session.getNodeByIdentifier(REQUIREMENT_ID)).thenReturn(requirement);
-        // The link is weak, so a source may have been removed since
+        // A source removed since it was linked
         Mockito.when(session.getNodeByIdentifier(GONE_ID)).thenThrow(new ItemNotFoundException(GONE_ID));
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
 

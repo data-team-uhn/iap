@@ -27,7 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A Sling Model wrapping a {@code sch:Section} node: a logical grouping of questions, which may be nested.
+ * A Sling Model wrapping a {@code sch:Section} node: a group of questions in a form. Sections can nest.
  *
  * @version $Id$
  * @since 0.1.0
@@ -46,9 +46,9 @@ public class Section extends FormItem
     private String description;
 
     /**
-     * The human-readable name of this section.
+     * The section's heading, as the submitter reads it.
      *
-     * @return a title
+     * @return the title
      */
     @NotNull
     public String getTitle()
@@ -57,9 +57,9 @@ public class Section extends FormItem
     }
 
     /**
-     * An optional longer description displayed to the submitter.
+     * What the submitter reads under the heading.
      *
-     * @return a description, or {@code null} if not set
+     * @return the description; {@code null} if there is none
      */
     @Nullable
     public String getDescription()
@@ -68,9 +68,9 @@ public class Section extends FormItem
     }
 
     /**
-     * The subsections nested directly under this section.
+     * The sections directly in this section.
      *
-     * @return a list of sections, empty if none
+     * @return the sections, in stored order; empty if there are none
      */
     @NotNull
     public List<Section> getSections()
@@ -79,9 +79,9 @@ public class Section extends FormItem
     }
 
     /**
-     * The questions grouped directly in this section.
+     * The questions directly in this section.
      *
-     * @return a list of questions, empty if none
+     * @return the questions, in stored order; empty if there are none
      */
     @NotNull
     public List<Question> getQuestions()
@@ -90,10 +90,9 @@ public class Section extends FormItem
     }
 
     /**
-     * Every item grouped directly in this section, whether a {@link Question} or a nested {@link Section} (or
-     * any future {@link FormItem} subtype), each adapted to its own specific model.
+     * Every item directly in this section, each read as the model of its own type, such as {@link Question}.
      *
-     * @return a list of items, empty if none
+     * @return the items, in stored order; empty if there are none
      */
     @NotNull
     public List<FormItem> getChildren()

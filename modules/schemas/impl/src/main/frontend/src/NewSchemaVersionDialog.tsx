@@ -30,7 +30,7 @@ import SchemaVersionPicker from "./SchemaVersionPicker";
 
 interface NewSchemaVersionDialogProps {
   schema: SerializedNode;
-  // The path of the version it starts as a copy of, or nothing to start empty
+  // The path of the version it starts as a copy of, or an empty string to start empty
   source: string;
   onClose: () => void;
   onCreate: (label: string, source: string) => Promise<void>;

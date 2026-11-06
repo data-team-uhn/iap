@@ -24,7 +24,7 @@ import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 import { pathOf } from "./schemaModel";
 
-// How a change made anywhere in a version's tree re-reads the tree
+// Reads a version's tree again after a change made anywhere in it
 export const ReloadTree = createContext<() => void | Promise<void>>(() => undefined);
 
 // Sends an event to a node of the tree, given as the node or its path, then re-reads the tree. Resolves with the path
