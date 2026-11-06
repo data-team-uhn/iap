@@ -23,6 +23,8 @@ import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import CircleOutlined from "@mui/icons-material/CircleOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+import EditOutlined from "@mui/icons-material/EditOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import ExpandLessOutlined from "@mui/icons-material/ExpandLessOutlined";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
@@ -39,7 +41,6 @@ import { cutShort, passageCard } from "@iap/frontend-commons/pdfViewer/passageSt
 import TagChip from "@iap/tags/TagChip";
 
 import Composer from "./Composer";
-import NoteCard from "./NoteCard";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
 
@@ -394,23 +395,21 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
       )}
       {risk.aiOpen.length > 0 && (
         <Section title="Raised by the AI" dense={dense}>
-          {bySeverity(risk.aiOpen).map(note => (
-            <Card key={note.id} kind="assistant">
-              <NoteCard
-                note={note}
-                onMakeIssue={(text, severity, topic) => doing.makeIssue(note, text, severity, topic ?? risk.topic.path)}
-                onDismiss={() => doing.dismiss(note)}
-              />
-              {anchored(note) && (
-                <Link component="button" variant="caption" onClick={() => onShow(note)}>Show where</Link>
-              )}
-            </Card>
-          ))}
+          <Rows>
+            {bySeverity(risk.aiOpen).map(note => (
+              <AiRow key={note.id} note={note} topic={risk.topic.path} dense={dense} about={about} doing={doing}
+                onShow={onShow} />
+            ))}
+          </Rows>
         </Section>
       )}
       {risk.aiSettled.length > 0 && (
         <Section title="Settled AI concerns" dense={dense}>
-          {bySeverity(risk.aiSettled).map(note => <Settled key={note.id} note={note} doing={doing} onShow={onShow} />)}
+          <Rows>
+            {bySeverity(risk.aiSettled).map(note => (
+              <Settled key={note.id} note={note} doing={doing} onShow={onShow} />
+            ))}
+          </Rows>
         </Section>
       )}
       <Section title={`Your issues (${risk.issues.length})`} dense={dense}>
@@ -437,8 +436,119 @@ function Section({ title, dense, children }: { title: string; dense: boolean; ch
   );
 }
 
-function Card({ kind, children }: { kind: "assistant" | "issue"; children: ReactNode }) {
-  return <Box sx={theme => ({ ...passageCard(theme, kind), px: 1.25, py: 1 })}>{children}</Box>;
+// Items listed one under the other, plainly, apart by a line: the section says what they are
+function Rows({ children }: { children: ReactNode }) {
+  return <Stack divider={<Box sx={{ borderTop: 1, borderColor: "divider" }} />}>{children}</Stack>;
+}
+
+// What an item is about and how serious, in small, over what it says
+function RowHead({ note, about, tools }: { note: ReviewNote; about: (note: ReviewNote) => string; tools?: ReactNode }) {
+  return (
+    <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: 26 }}>
+      {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
+      <Typography variant="caption" sx={{ flex: 1, minWidth: 0, color: "text.secondary", fontStyle: "italic",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {about(note)}
+      </Typography>
+      {tools}
+    </Stack>
+  );
+}
+
+function Links({ children }: { children: ReactNode }) {
+  return <Stack direction="row" sx={{ gap: 1.5, flexWrap: "wrap", mt: 0.25 }}>{children}</Stack>;
+}
+
+// An AI concern still open: made an issue of, filed under its risk, or dismissed, or shown where it was raised
+function AiRow({ note, topic, dense, about, doing, onShow }: {
+  note: ReviewNote;
+  topic: string;
+  dense: boolean;
+  about: (note: ReviewNote) => string;
+  doing: ReviewDoing;
+  onShow: (note: ReviewNote) => void;
+}) {
+  const [ adopting, setAdopting ] = useState(false);
+  return (
+    <Box sx={{ py: 1 }}>
+      <RowHead note={note} about={about} />
+      {adopting ? (
+        <Box sx={{ mt: 0.5 }}>
+          <Composer
+            kinds={[ "issue" ]} initialText={note.suggestion ? `${note.text}\n\n${note.suggestion}` : note.text}
+            initialSeverity={note.severity} initialTopic={note.topicPath ?? topic} saveLabel="Add issue"
+            onCancel={() => setAdopting(false)}
+            onSave={async (_kind, text, severity, chosen) => {
+              await doing.makeIssue(note, text, severity, chosen);
+              setAdopting(false);
+            }}
+          />
+        </Box>
+      ) : (
+        <>
+          <Typography variant="body2" sx={dense ? cutShort(3) : undefined}>{note.text}</Typography>
+          {!dense && note.suggestion && (
+            <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>Suggestion. {note.suggestion}</Typography>
+          )}
+          <Links>
+            <Link component="button" variant="caption" onClick={() => setAdopting(true)}>Make it an issue</Link>
+            <Link component="button" variant="caption" onClick={() => void doing.dismiss(note)}>Dismiss</Link>
+            {anchored(note) && <Link component="button" variant="caption" onClick={() => onShow(note)}>Show where</Link>}
+          </Links>
+        </>
+      )}
+    </Box>
+  );
+}
+
+// One of the reviewer's issues: changed or removed in place, or shown where it was raised
+function IssueRow({ issue, dense, about, doing, onShow }: {
+  issue: ReviewNote;
+  dense: boolean;
+  about: (note: ReviewNote) => string;
+  doing: ReviewDoing;
+  onShow: (note: ReviewNote) => void;
+}) {
+  const [ editing, setEditing ] = useState(false);
+  if (editing) {
+    return (
+      <Box sx={{ py: 1 }}>
+        <Composer
+          kinds={[ "issue" ]} initialText={issue.text} initialSeverity={issue.severity}
+          initialTopic={issue.topicPath ?? ""} saveLabel="Save"
+          onCancel={() => setEditing(false)}
+          onSave={async (_kind, text, severity, topic) => {
+            await doing.editIssue(issue, text, severity, topic);
+            setEditing(false);
+          }}
+        />
+      </Box>
+    );
+  }
+  return (
+    <Box sx={{ py: 1 }}>
+      <RowHead note={issue} about={about} tools={(
+        <Box sx={{ display: "flex", mr: -0.75 }}>
+          <Tooltip title="Change">
+            <IconButton size="small" aria-label="Change" onClick={() => setEditing(true)}>
+              <EditOutlined fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Remove">
+            <IconButton size="small" aria-label="Remove" onClick={() => void doing.removeIssue(issue)}>
+              <DeleteOutlined fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      )} />
+      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", ...dense ? cutShort(3) : {} }}>{issue.text}</Typography>
+      {anchored(issue) && (
+        <Links>
+          <Link component="button" variant="caption" onClick={() => onShow(issue)}>Show where</Link>
+        </Links>
+      )}
+    </Box>
+  );
 }
 
 // An AI concern the reviewer settled, greyed: made into an issue, leading to it, or dismissed, which can be taken back
@@ -449,7 +559,7 @@ function Settled({ note, doing, onShow }: {
 }) {
   const dismissed = note.settled === "dismissed";
   return (
-    <Box sx={{ opacity: 0.75, borderInlineStart: 3, borderColor: "divider", pl: 1.25 }}>
+    <Box sx={{ opacity: 0.75, py: 1 }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 0.75 }}>
         {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
@@ -464,7 +574,7 @@ function Settled({ note, doing, onShow }: {
   );
 }
 
-// The reviewer's issues: compact in the panel, leading to where they were raised; in full in the dialog, to change
+// The reviewer's issues, most serious first
 function Issues({ issues, dense, about, doing, onShow }: {
   issues: ReviewNote[];
   dense: boolean;
@@ -472,46 +582,12 @@ function Issues({ issues, dense, about, doing, onShow }: {
   doing: ReviewDoing;
   onShow: (note: ReviewNote) => void;
 }) {
-  if (dense) {
-    return (
-      <Stack spacing={0.75}>
-        {bySeverity(issues).map(issue => (
-          <ButtonBase key={issue.id} onClick={() => anchored(issue) && onShow(issue)}
-            sx={theme => ({ ...passageCard(theme, "issue"), display: "block", textAlign: "start", px: 1.25, py: 0.75,
-              cursor: anchored(issue) ? "pointer" : "default" })}>
-            <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mb: 0.25 }}>
-              <Typography variant="caption" sx={{ color: "issue.main", fontWeight: "fontWeightBold" }}>Issue</Typography>
-              {issue.severity && <TagChip tags={[ issue.severity ]} category="severity" />}
-            </Stack>
-            {about(issue) && (
-              <Typography variant="caption" sx={{ display: "block", color: "text.secondary", fontStyle: "italic" }}>
-                {about(issue)}
-              </Typography>
-            )}
-            <Typography variant="body2" sx={cutShort(2)}>{issue.text}</Typography>
-          </ButtonBase>
-        ))}
-      </Stack>
-    );
-  }
   return (
-    <Stack spacing={1}>
+    <Rows>
       {bySeverity(issues).map(issue => (
-        <Card key={issue.id} kind="issue">
-          {about(issue) && (
-            <Typography variant="caption" sx={{ display: "block", color: "text.secondary", fontStyle: "italic" }}>
-              {about(issue)}
-            </Typography>
-          )}
-          <NoteCard
-            note={issue}
-            onEdit={(text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
-            onRemove={() => doing.removeIssue(issue)}
-          />
-          {anchored(issue) && <Link component="button" variant="caption" onClick={() => onShow(issue)}>Show where</Link>}
-        </Card>
+        <IssueRow key={issue.id} issue={issue} dense={dense} about={about} doing={doing} onShow={onShow} />
       ))}
-    </Stack>
+    </Rows>
   );
 }
 
