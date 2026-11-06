@@ -126,10 +126,12 @@ class TransferSubmissionHandlerTest
     @Test
     void sendsTheSubmissionWithATokenForTheDestination() throws Exception
     {
-        answer(201, "{\"path\": \"/Submissions/s1\"}");
+        answer(201, "{\"status\": \"created\", \"path\": \"/Submissions/s1\"}");
+        final WorkflowTaskContext task = context(DESTINATION);
 
-        this.handler.execute(context(DESTINATION));
+        this.handler.execute(task);
 
+        Mockito.verify(task).recordRole(this.submission, "sent to " + DESTINATION);
         final ArgumentCaptor<Calendar> expiry = ArgumentCaptor.forClass(Calendar.class);
         Mockito.verify(this.tokens).create(Mockito.eq("alice"), expiry.capture(),
             Mockito.eq(Map.of("email", "alice@example.org")), Mockito.eq(Set.of(DESTINATION)));
@@ -151,7 +153,7 @@ class TransferSubmissionHandlerTest
     @Test
     void aSubmissionTheDestinationAlreadyHasFromHereCountsAsSent() throws Exception
     {
-        answer(409, "{\"reason\": \"alreadyReceived\", \"error\": \"Already here\"}");
+        answer(409, "{\"status\": \"alreadyReceived\", \"path\": \"/Submissions/ab/cd/s1\"}");
         // Registered without a final slash this time, which reaches the same endpoint
         Mockito.when(this.tokens.isTrustedPeer("https://site-b.example.org")).thenReturn(true);
 
@@ -163,11 +165,13 @@ class TransferSubmissionHandlerTest
     @Test
     void anyOtherConflictIsRefusedInTheDestinationsWords() throws Exception
     {
-        answer(409, "{\"error\": \"Nobody here has that email\"}");
+        answer(409, "{\"status\": \"error\", \"error\": \"Nobody here has that email\"}");
+        final WorkflowTaskContext task = context(DESTINATION);
 
         final InvalidStateException refusal =
-            assertThrows(InvalidStateException.class, () -> this.handler.execute(context(DESTINATION)));
+            assertThrows(InvalidStateException.class, () -> this.handler.execute(task));
         assertEquals(DESTINATION + " did not take the submission: Nobody here has that email", refusal.getMessage());
+        Mockito.verify(task, Mockito.never()).recordRole(Mockito.any(), Mockito.any());
     }
 
     @Test

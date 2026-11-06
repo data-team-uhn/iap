@@ -98,14 +98,8 @@ final class TransferFormat
     /** Where a received submission keeps the instance it came from. */
     static final String ORIGIN_PROPERTY = "origin";
 
-    /** The key of a refusal's machine-readable reason. */
-    static final String REASON_KEY = "reason";
-
-    /** The reason given for a submission that is already here, sent by the instance now sending it again. */
+    /** The outcome answered for a submission that is already here, sent by the instance now sending it again. */
     static final String ALREADY_RECEIVED = "alreadyReceived";
-
-    /** The key of a refusal's human-readable message. */
-    static final String ERROR_KEY = "error";
 
     private TransferFormat()
     {
