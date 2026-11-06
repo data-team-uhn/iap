@@ -105,8 +105,7 @@ class TagsHomepageTest
     @Test
     void documentsTheVocabulary()
     {
-        // The heading properties are autocreated from the defaults declared by the tag:Homepage node type,
-        // which the mock repository does not apply, so the test sets the very values the CND declares
+        // The mock repository does not autocreate the heading, so the test sets the defaults the CND declares
         final Resource resource = this.context.create().resource("/Tags", Map.of(
             "sling:resourceType", "tag/Homepage",
             "title", "Tags",
@@ -158,8 +157,7 @@ class TagsHomepageTest
     @Test
     void headingsAreServedAsStored()
     {
-        // A deployment can reword the heading by editing the autocreated properties, and nothing in the model
-        // second-guesses what it stored
+        // A heading a deployment edited
         final Resource resource = this.context.create().resource("/Tags", Map.of(
             "sling:resourceType", "tag/Homepage",
             "title", "Markers",

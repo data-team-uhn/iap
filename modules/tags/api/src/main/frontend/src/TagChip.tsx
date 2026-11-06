@@ -27,8 +27,8 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { type TagDefinition, loadTagDefinitions } from "./tagDefinitions";
 import { tagIcon } from "./tagIcons";
 
-// The values of a serialized node's `tags` property, normalized: the property is multivalued,
-// but tolerate a single string, and ignore anything that is not a string.
+// The values of a serialized node's `tags` property, as an array. A single string counts as one
+// value, and anything that is not a string is left out.
 function tagNames(tags: unknown): string[] {
   if (typeof tags === "string") {
     return [tags];
@@ -36,9 +36,9 @@ function tagNames(tags: unknown): string[] {
   return Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === "string") : [];
 }
 
-// One tag rendered per its definition: the definition's label, styled per its color and
-// variant (see chipStyle), plus its icon, when it names a known one (see tagIcons). Unusable
-// colors and unknown icon names degrade to less styling, never breakage.
+// One tag, as its definition shows it: its label, styled by its color and variant (see
+// chipStyle), and its icon if tagIcons lists it. A color chipStyle refuses, or an unknown icon
+// name, only leaves that styling out.
 function DefinedTagChip({ definition }: { definition: TagDefinition }) {
   const theme = useTheme();
   const style = chipStyle(theme, definition.color, definition.variant);
@@ -49,29 +49,24 @@ function DefinedTagChip({ definition }: { definition: TagDefinition }) {
       icon={tagIcon(definition.icon)}
       sx={{
         ...style,
-        // The icon follows the text color instead of MUI's default muted icon tint — also on a
-        // chip with no usable color, whose label is the stock one the icon should still match
+        // The icon takes the text color instead of MUI's muted icon color, on a chip without a
+        // usable color too
         "& .MuiChip-icon": { color: "inherit" },
       }}
     />
   );
 }
 
-// Small chips displaying a node's tags, labeled and colored by their definitions under /Tags.
+// Small chips showing a node's tags, labeled and colored by their definitions under /Tags.
 //
-// With a `category`, this displays the tags the node carries in that category — all of them, in
-// the definitions' own order. Not one: a category is a subject the tags on it speak about, not
-// necessarily a lifecycle with one state at a time, and an error's triage markers say both that
-// somebody dealt with it and what they decided. A name that no definition in the category matches
-// is not shown at all, since in a specific category only tags actually belonging to it are
-// trustworthy enough to show — outside one such a name is an unrecognized tag, but here it is a
-// tag of some other category, which the caller did not ask about.
+// With a `category`, it shows every tag the node carries in that category, in the definitions'
+// order. A category can hold several tags at once. A tag that no definition in the category
+// names belongs to another category, and is not shown.
 //
-// Without a category, this displays all of the node's tags: the defined ones styled by their
-// definitions (in definition order), and the unrecognized ones after them, raw, as muted
-// outlined chips — visible enough to be noticed, distinct enough to not look authoritative.
+// Without a category, it shows all of the node's tags. The defined ones come first, styled by
+// their definitions and in their order. The others follow as outlined chips with their raw names.
 //
-// Nothing is rendered while the definitions load, or for an untagged node.
+// It shows nothing while the definitions load, or for a node without tags.
 function TagChip({ tags, category }: { tags?: unknown; category?: string }) {
   const [definitions, setDefinitions] = useState<TagDefinition[]>();
   const fetchUtil = useAuthenticatedFetch();
@@ -96,8 +91,7 @@ function TagChip({ tags, category }: { tags?: unknown; category?: string }) {
   const defined = definitions.filter(definition => names.includes(definition.name));
   const recognized = new Set(defined.map(definition => definition.name));
   const unrecognized = category ? [] : names.filter(name => !recognized.has(name));
-  // Nothing at all rather than an empty row, so that a cell or a heading holding one of these is
-  // as narrow as it looks
+  // Nothing, rather than an empty row that would still take up room in a cell or a heading
   if (defined.length === 0 && unrecognized.length === 0) {
     return null;
   }

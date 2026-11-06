@@ -31,9 +31,9 @@ import io.uhndata.iap.tags.spi.TagDefinitions;
 import io.uhndata.iap.tags.spi.TagProcessor;
 
 /**
- * Copies {@link TagDefinitions#isInheritable inheritable} tags down the tree: a node's {@code inheritedTags} property
- * holds every inheritable tag placed on any of its ancestors, materialized by chaining the parent's own tags — the
- * explicit ones and the ones a {@link Phase#LOCAL} processor computed for it — with what the parent itself inherited.
+ * Copies {@link TagDefinitions#isInheritable inheritable} tags down the tree. A node's {@code inheritedTags} property
+ * holds every inheritable tag that belongs to one of its ancestors. The parent passes down its own tags, placed or
+ * computed by a {@link Phase#LOCAL} processor, and what it already inherited.
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,10 +44,7 @@ public class TagInheritanceProcessor implements TagProcessor
     /** The name of the property holding the tags inherited from ancestors. */
     public static final String INHERITED_TAGS_PROPERTY = Phase.TOP_DOWN.getPropertyName();
 
-    /**
-     * The parent properties an inheritable tag can reach this node through: the tags belonging to the parent itself,
-     * and the chain of what the parent inherited from its own ancestors.
-     */
+    /** The properties of the parent that inherited tags come from: its own tags, and what it inherited. */
     private static final List<String> SOURCE_PROPERTIES =
         List.of(TagManager.TAGS_PROPERTY, Phase.LOCAL.getPropertyName(), INHERITED_TAGS_PROPERTY);
 
@@ -71,8 +68,7 @@ public class TagInheritanceProcessor implements TagProcessor
             return Set.of();
         }
         final TagDefinitions definitions = context.getDefinitions();
-        // The chained values were already filtered when the parent's own properties were computed, but re-filtering
-        // sheds values left over from a definition that stopped being inheritable
+        // Filtered by the current definitions, which also drops the copies of a tag that stopped being inheritable
         return SOURCE_PROPERTIES.stream()
             .flatMap(property -> TagProcessor.readTags(parent, property).stream())
             .filter(definitions::isInheritable)

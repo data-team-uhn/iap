@@ -30,9 +30,9 @@ import io.uhndata.iap.tags.spi.TagProcessor.Phase;
 import io.uhndata.iap.tags.spi.TagProcessor.Scope;
 
 /**
- * Everything the {@link TagPropagationEditor}s of one commit share: the registered processors grouped by the phase
- * they run in, the tag definitions in effect, and the node type verdicts. Created once per commit, since the
- * definitions and the type verdicts are snapshots that must not outlive it.
+ * What the {@link TagPropagationEditor}s of one commit share: the registered processors grouped by phase, the tag
+ * definitions, and the node type answers. The definitions and the node type answers belong to one commit, so a new
+ * instance is made for each.
  *
  * @version $Id$
  * @since 0.1.0
@@ -48,8 +48,8 @@ public class TagPropagationConfig
     private final boolean entityScoped;
 
     /**
-     * The processor failures already recorded during this commit. A plain set: one of these is built per commit by
-     * {@code TagPropagationEditorProvider.getRootEditor}, and Oak runs an editor on a single thread.
+     * The processor failures already recorded during this commit. A plain set, since Oak runs one commit's editors
+     * on a single thread.
      */
     private final Set<String> recordedFailures = new HashSet<>();
 
@@ -57,8 +57,8 @@ public class TagPropagationConfig
      * Basic constructor.
      *
      * @param registered all the registered tag processors, in any order
-     * @param definitions the tag definitions in effect for this commit
-     * @param nodeTypes the node type verdicts for this commit
+     * @param definitions the tag definitions as this commit leaves them
+     * @param nodeTypes the node type answers for this commit
      */
     public TagPropagationConfig(final List<TagProcessor> registered, final TagDefinitions definitions,
         final NodeTypeInspector nodeTypes)
@@ -76,19 +76,17 @@ public class TagPropagationConfig
     }
 
     /**
-     * Whether a processor's failure in a phase is the first one this commit has seen, and so the one worth
-     * recording.
+     * Whether a processor's failure in a phase is the first one in this commit, and so the one to record.
      *
      * <p>
-     * A commit can touch thousands of nodes, and a processor broken enough to fail on one usually fails on all of
-     * them. The repository would survive that — recordings of one fault deduplicate onto a single node — but the
-     * work of getting there happens on the commit thread, once per node. One per commit is also the more useful
-     * record: the occurrence count then counts commits that were damaged rather than nodes that were visited.
+     * A processor that fails on one node usually fails on every node the commit touches, and recording an error
+     * happens on the commit thread. Recording once per commit keeps that cost to one, and makes the error's count a
+     * count of commits rather than of nodes.
      * </p>
      *
      * @param processor the processor that failed
      * @param phase the phase it failed in
-     * @return {@code true} the first time this is asked about that pair, {@code false} every time after
+     * @return {@code true} the first time this is asked about that processor and phase, {@code false} after
      */
     public boolean isFirstFailure(final TagProcessor processor, final Phase phase)
     {
@@ -107,7 +105,7 @@ public class TagPropagationConfig
     }
 
     /**
-     * The tag definitions in effect for this commit.
+     * The tag definitions as this commit leaves them.
      *
      * @return the definitions
      */
@@ -117,7 +115,7 @@ public class TagPropagationConfig
     }
 
     /**
-     * The node type verdicts for this commit.
+     * The node type answers for this commit.
      *
      * @return the inspector
      */
@@ -127,8 +125,8 @@ public class TagPropagationConfig
     }
 
     /**
-     * Whether any registered processor is {@link Scope#ENTITY entity-scoped}, and the editor therefore has to track
-     * the enclosing entities and recompute them whole. Nothing else pays for that bookkeeping.
+     * Whether any registered processor is {@link Scope#ENTITY entity-scoped}. Only then does the editor track the
+     * enclosing entities and recompute them whole.
      *
      * @return {@code true} if at least one processor needs a whole entity
      */

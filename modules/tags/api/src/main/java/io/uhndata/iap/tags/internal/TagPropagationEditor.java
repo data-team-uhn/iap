@@ -42,50 +42,32 @@ import io.uhndata.iap.tags.spi.TagProcessor.Phase;
 import io.uhndata.iap.tags.spi.TagProcessor.Scope;
 
 /**
- * A commit editor keeping the derived tag properties computed by the {@link TagProcessor} services up to date. Each
- * node the commit touches is processed in phase order — the ancestors' tags flow in, the node's own content is
- * examined, then the descendants' tags flow up — and each phase stores the union of what its processors computed in
- * the single property that phase owns. All writes are compare-and-set, so recomputing an unaffected node is harmless
- * and propagation stops as soon as the values stop changing.
+ * Keeps the derived tag properties up to date as content changes, by running the {@link TagProcessor} services at
+ * commit time. Each node the commit changes is processed in {@link Phase phase} order. Each phase stores the union of
+ * what its processors computed in the one property it owns. A property is written only when its value changes, so
+ * propagation stops as soon as the values stop changing.
  *
  * <p>
- * The traversal only visits the nodes a commit changed, which is not always enough: when what flows down out of a
- * node changes, the new values are pushed into its whole subtree, and when a processor needs a whole
- * {@link Scope#ENTITY entity}, that entity is recomputed as soon as anything inside it changes.
+ * The traversal visits only the nodes the commit changed. When what flows down out of a node changes, the new values
+ * are pushed into its whole subtree. When a processor needs a whole {@link Scope#ENTITY entity}, the entity is
+ * recomputed whenever anything inside it changes.
  * </p>
  *
  * <p>
- * A failing processor never fails the commit: losing a user's data because a tag could not be computed would be a
- * far worse outcome than carrying a stale tag, and the editor runs on every commit, including those that have
- * nothing to do with tags. The phase whose processor failed keeps the values it last computed successfully — storing
- * a union that is knowingly missing a contributor would replace good values with worse ones — and the node is
- * marked with {@link TagManager#COMPUTATION_STATE_PROPERTY} so that the tags can be recomputed later, and so that
- * code which must not act on stale tags can tell.
+ * A failing processor never fails the commit, since a user's write must not be lost over a tag. The phase it failed
+ * in keeps its last values, and the node is marked with {@link TagManager#COMPUTATION_STATE_PROPERTY}.
  * </p>
  *
  * <p>
- * That flag is also how a node gets repaired. Any node carrying it is recomputed in full — every phase, over its
- * whole subtree — by the next commit that reaches it, and the flag is cleared once the values are trustworthy again.
- * The incremental paths above all derive what to redo from the commit's diff, which is exactly what a stale node
- * cannot offer: its values went wrong in an earlier commit, or without any commit at all, when a tag definition
- * changed underneath it. Marking a node and letting it heal is therefore the whole of the repair protocol, and
- * anything that knows a node's tags are suspect — a failing processor here, a repair elsewhere — uses the same one.
+ * The next commit that reaches a marked node recomputes it in full, every phase over its whole subtree, and removes
+ * the mark. This is also how a repair works: it marks the nodes whose tags went wrong without any change to them.
  * </p>
  *
  * <p>
- * Two rules bound where the writing reaches, both decided by the {@link NodeTypeInspector}. A node is written to only
- * if one of its types <em>declares</em> the tag properties, which is what {@code tag:Taggable} does: types that
- * merely tolerate residual properties have not opted into tags, and strict types that would reject them (file
- * contents, access control entries...) never could. And aggregated tags climb no further than an
- * {@code tag:Boundary} — an entity homepage, or anything else that declares itself the top of its own content —
- * which is what keeps them out of the containers above it and out of the repository root.
- * </p>
- *
- * <p>
- * That bound is not cosmetic. Every write this editor makes is attributed to the session that committed, and Oak
- * validates permissions after the editors have run, so a copy travelling further up than the committer can write
- * fails their commit — losing the very data the "a failing processor never fails the commit" rule below exists to
- * protect. An unbounded aggregate reached the repository root, which no session may write and no query can use.
+ * The {@link NodeTypeInspector} decides where the editor writes. It writes only on a node whose types declare the
+ * tag properties, as {@code tag:Taggable} does. Aggregated tags climb no further than a {@code tag:Boundary}. Oak
+ * checks the editor's writes against the committing session, so a copy written where the committer may not write
+ * fails the commit.
  * </p>
  *
  * @version $Id$
@@ -95,7 +77,7 @@ public class TagPropagationEditor extends DefaultEditor
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(TagPropagationEditor.class);
 
-    /** Subtrees that can never carry tags: the system and index subtrees, and access control policies. */
+    /** The subtrees left out of tag propagation: the system and index subtrees, and access control policies. */
     private static final Set<String> SKIPPED_NODES =
         Set.of("jcr:system", "oak:index", "rep:policy", "rep:repoPolicy");
 
@@ -111,8 +93,8 @@ public class TagPropagationEditor extends DefaultEditor
     private final boolean added;
 
     /**
-     * The editor of the nearest {@code data:Entity} ancestor, this editor itself when its own node is one, and
-     * {@code null} outside any entity or when no processor needs an entity at all.
+     * The editor of the nearest {@code data:Entity} ancestor, or this editor when its own node is one. It is
+     * {@code null} outside any entity, or when no processor is entity-scoped.
      */
     private final TagPropagationEditor entity;
 
@@ -125,11 +107,11 @@ public class TagPropagationEditor extends DefaultEditor
     /** Whether the tags flowing up from one of this node's children may have changed. */
     private boolean childContributionChanged;
 
-    /** Whether anything inside this entity changed; only ever set on the editor of an entity node. */
+    /** Whether anything inside this entity changed. Set only on the editor of an entity node. */
     private boolean entityContentChanged;
 
     /**
-     * Constructor for the repository root, receiving the whole commit.
+     * Constructor for the editor of the repository root.
      *
      * @param builder the root node builder
      * @param config the processors, definitions and node type verdicts of this commit
@@ -156,12 +138,10 @@ public class TagPropagationEditor extends DefaultEditor
         this.explicitChanged =
             !Objects.equals(before.getProperty(TagManager.TAGS_PROPERTY), after.getProperty(TagManager.TAGS_PROPERTY));
         if (this.entity != null) {
-            // An editor only exists for a node the commit changed, so reaching here means this entity's content did
+            // An editor exists only for a node the commit changed, so this entity's content changed
             this.entity.entityContentChanged = true;
         }
-        // A node marked stale is recomputed in full instead of incrementally. The incremental path derives what to
-        // redo from this commit's diff, and staleness is precisely the case where the diff does not say: the values
-        // went wrong in an earlier commit, or without any commit at all, when a tag definition changed under them.
+        // A node marked stale is recomputed in full. This commit's changes do not say what went wrong with it.
         final boolean stale = isStale(before) || isStale(after);
         clearFailureFlag(this.node);
         if (stale) {
@@ -169,15 +149,15 @@ public class TagPropagationEditor extends DefaultEditor
             return;
         }
         if (this.added) {
-            // First computation for a new node; its children, also new, are each visited by the ongoing traversal
+            // A new node inherits for the first time. The traversal visits its children, which are new too.
             runPhase(Phase.TOP_DOWN, this.node, parentState(), this.path, scopeRoot());
         }
-        // Local tags are computed from the node's own content, which any commit reaching this node may have changed
+        // Local tags are computed from the node's own content, which any commit reaching it may have changed
         final boolean localChanged = runPhase(Phase.LOCAL, this.node, parentState(), this.path, scopeRoot());
         this.ownTagsChanged = this.explicitChanged || localChanged;
         if (!this.added && this.ownTagsChanged) {
-            // The tags flowing down into the subtree changed; the traversal only visits the nodes the commit
-            // changed, so the new values have to be pushed into all the descendants manually
+            // The tags flowing down changed, and the traversal visits only the nodes the commit changed, so the new
+            // values are pushed into every descendant here
             sweepDown(this.node, this.path, scopeRoot());
         }
     }
@@ -186,7 +166,7 @@ public class TagPropagationEditor extends DefaultEditor
     public void leave(final NodeState before, final NodeState after)
     {
         if (this.entity == this && this.entityContentChanged) {
-            // Something inside this entity changed, so every entity-scoped computation in it may have a new answer
+            // Something inside this entity changed, so any entity-scoped computation in it may have a new answer
             this.ownTagsChanged |= recompute(this.node, parentState(), this.path, this.node.getNodeState());
         }
         boolean upChanged = false;
@@ -194,10 +174,9 @@ public class TagPropagationEditor extends DefaultEditor
             upChanged = runPhase(Phase.BOTTOM_UP, this.node, parentState(), this.path, scopeRoot());
         }
         final boolean contributes = this.ownTagsChanged || upChanged || this.added;
-        // A boundary tells its parent nothing: what it aggregated is its own, and stops here. Only the saved
-        // recomputation, though — what makes it opaque is that the aggregation never reads a boundary child at all
+        // A boundary contributes nothing to its parent, so the parent need not recompute. What keeps its tags out of
+        // the parent is that the aggregation skips boundary children.
         if (this.parent != null && contributes && !isBoundary()) {
-            // The tags flowing up from this node may have changed, the parent must recompute
             this.parent.childContributionChanged = true;
         }
     }
@@ -218,7 +197,7 @@ public class TagPropagationEditor extends DefaultEditor
     public Editor childNodeDeleted(final String name, final NodeState before)
     {
         if (!skip(name)) {
-            // The deleted subtree may have contributed tags flowing up, recompute on leave
+            // The deleted subtree may have contributed tags flowing up, so this node aggregates again on leave
             this.childContributionChanged = true;
             if (this.entity != null) {
                 this.entity.entityContentChanged = true;
@@ -237,10 +216,10 @@ public class TagPropagationEditor extends DefaultEditor
     }
 
     /**
-     * Recomputes the tags flowing down into a node's descendants, recursing as long as the stored values keep
-     * changing. Needed when a node's downward flow changes without its descendants being part of the commit.
+     * Recomputes the tags flowing down into a node's descendants, going deeper as long as the stored values keep
+     * changing.
      *
-     * @param current the node whose children must be refreshed
+     * @param current the node whose children are recomputed
      * @param currentPath the path of that node
      * @param currentScope the entity enclosing that node, {@code null} if there is none
      */
@@ -255,7 +234,7 @@ public class TagPropagationEditor extends DefaultEditor
             final NodeState scope = childScope(currentScope, child);
             clearFailureFlag(child);
             boolean changed = runPhase(Phase.TOP_DOWN, child, current.getNodeState(), subPath, scope);
-            // A local computation may look at what its node inherited, so it is redone when that changed
+            // A local computation may read what its node inherited
             changed |= runPhase(Phase.LOCAL, child, current.getNodeState(), subPath, scope);
             if (changed) {
                 sweepDown(child, subPath, scope);
@@ -264,14 +243,13 @@ public class TagPropagationEditor extends DefaultEditor
     }
 
     /**
-     * Runs every phase on a whole subtree, in the same order the traversal would, for an entity whose content
-     * changed: an entity-scoped processor may return a different answer for any node of the entity, however small
-     * the change was.
+     * Runs every phase on a whole subtree, in the order the traversal would. It recomputes an entity whose content
+     * changed, and a node marked stale.
      *
      * @param current the node to recompute
      * @param currentParent the state of that node's parent, {@code null} for the repository root
      * @param currentPath the path of that node
-     * @param scope the entity being recomputed
+     * @param scope the state of the entity enclosing the node, {@code null} if there is none
      * @return {@code true} if any of the node's own stored properties changed
      */
     private boolean recompute(final NodeBuilder current, final NodeState currentParent, final String currentPath,
@@ -293,8 +271,8 @@ public class TagPropagationEditor extends DefaultEditor
 
     /**
      * Invokes all the processors of one phase on a node and stores the union of what they computed in the property
-     * that phase owns. A processor throwing leaves the stored value untouched, since a union missing one of its
-     * contributors is worse than a slightly stale one, and flags the node instead.
+     * that phase owns. If a processor throws, the stored value is left as it was, since a union missing one
+     * contributor can drop a tag that still applies. The node is marked stale instead.
      *
      * @param phase the phase to run
      * @param target the node to process
@@ -321,9 +299,7 @@ public class TagPropagationEditor extends DefaultEditor
                 failed = true;
                 LOGGER.error("The tag processor {} failed on {}, the {} of that node are left as they were: {}",
                     processor.getClass().getName(), targetPath, phase.getPropertyName(), e.getMessage(), e);
-                // Recorded against the processor's own class, not this editor's: a broken processor is what has to
-                // be fixed, and the framework that called it is the same in every such failure. Once per commit,
-                // because a processor that fails on one node fails on every node of that commit
+                // Recorded against the processor's class, which is what needs fixing, and once per commit
                 if (this.config.isFirstFailure(processor, phase)) {
                     ErrorLogger.logError(e, ErrorContext.of(processor.getClass(), "computeTags")
                         .about(targetPath).with("phase", phase.getPropertyName()));
@@ -338,9 +314,8 @@ public class TagPropagationEditor extends DefaultEditor
     }
 
     /**
-     * Stores a derived tag set in a node's property, if it differs from the already stored value. An empty set
-     * removes the property. Nodes whose types would reject the property are never written to; they act as
-     * propagation boundaries.
+     * Stores a derived tag set in a node's property, if it differs from the stored value. An empty set removes the
+     * property. A node whose types do not declare the tag properties is never written to, and the copies stop there.
      *
      * @param target the node to write to
      * @param property the property name
@@ -365,10 +340,9 @@ public class TagPropagationEditor extends DefaultEditor
     }
 
     /**
-     * Checks whether a node is marked as having stale derived tags, either because a processor failed on it or
-     * because a repair asked for one. The two are the same condition — the stored values may be wrong and only a
-     * full recomputation can say — so this asks only whether the property is there, never what it says. The value
-     * records who asked and why, for whoever has to diagnose it later.
+     * Checks whether a node is marked as having stale derived tags, because a processor failed on it or a repair
+     * asked. Either way only a full recomputation can fix the values, so this reads only whether the property is
+     * there. Its value tells a person which of the two it was.
      *
      * @param state the node state to check, before or after this commit
      * @return {@code true} if the node carries the marker
@@ -380,14 +354,16 @@ public class TagPropagationEditor extends DefaultEditor
 
     private void setFailureFlag(final NodeBuilder target)
     {
+        // Every commit reaching a flagged node removes the flag, so a flag on the repository root would make every
+        // commit write the root
         if (this.config.getNodeTypes().canStoreTags(target.getNodeState())) {
             target.setProperty(TagManager.COMPUTATION_STATE_PROPERTY, TagManager.STATE_FAILED);
         }
     }
 
     /**
-     * Clears the failure flag of a node about to be recomputed. Any phase that fails while recomputing it sets the
-     * flag again, so it survives exactly as long as the node's tags may be out of date.
+     * Clears the failure flag of a node about to be recomputed. A phase that fails during the recomputation sets it
+     * again, so the flag stays as long as the node's tags may be out of date.
      *
      * @param target the node about to be recomputed
      */
@@ -399,7 +375,7 @@ public class TagPropagationEditor extends DefaultEditor
     }
 
     /**
-     * The editor of the entity this node belongs to, looked up once and then inherited from the parent editor.
+     * The editor of the entity this node belongs to: this editor if its node is an entity, else the parent's.
      *
      * @return an editor, {@code null} outside any entity or when no processor is entity-scoped
      */
@@ -417,7 +393,7 @@ public class TagPropagationEditor extends DefaultEditor
     /**
      * Whether aggregated tags stop at this node rather than flowing up to its parent.
      *
-     * @return {@code true} if this node's types declare it an {@code tag:Boundary}
+     * @return {@code true} if this node is a {@code tag:Boundary}
      */
     private boolean isBoundary()
     {
@@ -449,8 +425,8 @@ public class TagPropagationEditor extends DefaultEditor
     }
 
     /**
-     * Checks whether a child node must be left out of tag processing: hidden Oak-internal nodes, the system and
-     * index subtrees, and access control policies, none of which can carry tags.
+     * Checks whether a child node is left out of tag processing: hidden Oak nodes, the system and index subtrees, and
+     * access control policies.
      *
      * @param name a child node name
      * @return {@code true} if the child must not be processed

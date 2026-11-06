@@ -157,11 +157,12 @@ In JSON, `items` maps each category to an array of items:
   "title": "Tags",
   "description": "All the tags defined in this instance, grouped by category.",
   "items": {
-    "lifecycle": [
+    "completeness": [
       { "name": "incomplete", "label": "Incomplete", "description": "…",
-        "category": ["lifecycle"], "inheritable": false, "path": "/Tags/incomplete" }
-    ],
-    "uncategorized": []
+        "category": ["completeness"], "inheritable": false, "aggregated": true,
+        "system": true, "color": "#8a5a1f", "icon": "RuleOutlined", "order": 10,
+        "path": "/Tags/incomplete" }
+    ]
   }
 }
 ```

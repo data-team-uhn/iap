@@ -40,12 +40,13 @@ import io.uhndata.iap.tags.models.TagsHomepage;
 import io.uhndata.iap.utils.JsonResponses;
 
 /**
- * Lists the defined tags, as a JSON array of tag definitions wrapped in a result object. Served at
- * {@code /Tags.search.json}, with optional filtering query parameters:
+ * Lists the tag definitions at {@code /Tags.search.json}, as {@code {"tags": [...], "total": <n>}}. Optional query
+ * parameters filter the list:
  * <ul>
- * <li>{@code category=<name>}: only tags listing this category (ignoring case)</li>
- * <li>{@code query=<text>}: only tags containing this text (ignoring case) in their name, label, or description</li>
- * <li>{@code target=<path>}: only tags that may be placed on the resource at this path</li>
+ * <li>{@code category=<name>}: only tags listing this category, ignoring case</li>
+ * <li>{@code query=<text>}: only tags with this text in their name, label or description, ignoring case</li>
+ * <li>{@code target=<path>}: only tags that may be placed on the resource at this path; a 400 if the caller cannot
+ * read it</li>
  * </ul>
  *
  * @version $Id$

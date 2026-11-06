@@ -18,8 +18,8 @@
 
 import { type SerializedNode, stringsOf } from "@iap/frontend-commons/serializedNode";
 
-// Where a node lists the tags it carries: those placed on it, then those each propagation phase
-// materialized at commit time, as the server's Taggable.getEffectiveTagNames reads them
+// The properties holding the tags a node carries: those placed on it, then those each phase derived
+// at commit time
 const TAG_PROPERTIES = [ "tags", "inheritedTags", "computedTags", "aggregatedTags" ];
 
 // Whether a node carries a tag: placed on it, inherited from an ancestor, computed from its own

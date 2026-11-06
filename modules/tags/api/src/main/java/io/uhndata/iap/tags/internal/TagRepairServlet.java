@@ -39,20 +39,12 @@ import io.uhndata.iap.tags.models.TagsHomepage;
 import io.uhndata.iap.utils.JsonResponses;
 
 /**
- * Repairs the content affected by an edited tag definition, on request. Served at {@code POST /Tags.repair.json},
- * with the name of the tag whose definition changed as the {@code tag} parameter.
+ * Repairs the content affected by an edited tag definition, on request: {@code POST /Tags.repair.json}, with the
+ * name of the tag as the {@code tag} parameter. The answer is {@code ok}, or {@code incomplete} if some nodes could
+ * not be marked, with the numbers of nodes marked and not marked.
  *
  * <p>
- * This is the deliberate half of tag repair. Deleting a definition, or changing whether a tag is inheritable or
- * aggregated, invalidates copies of it anywhere in the repository without touching any of the content carrying them,
- * so nothing recomputes them on its own. How much work that is depends on how widely the tag is used, which is why
- * it is asked for rather than done automatically when a definition is saved.
- * </p>
- *
- * <p>
- * Whoever may edit the definitions may repair after editing them: the permission is read off {@code /Tags} through
- * the caller's own session rather than compared against a user name, so it follows whatever access control the
- * deployment actually has.
+ * A caller who may set properties on {@code /Tags} may repair, as the caller's own session answers.
  * </p>
  *
  * @version $Id$
@@ -90,12 +82,10 @@ public class TagRepairServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Whether the caller may edit the tag definitions, which is the permission repairing after an edit follows.
-     * Asking the repository for a writable view is how that is decided: it answers for whatever access control is
-     * configured, where comparing the user name against {@code admin} would answer only for one deployment.
+     * Whether the caller may set properties on {@code /Tags}. The resolver gives a writable view of it only then.
      *
      * @param request the request, carrying the caller's own session
-     * @return {@code true} if the caller may write to the definitions
+     * @return {@code true} if the caller may set properties on {@code /Tags}
      */
     private boolean mayEditDefinitions(final SlingJakartaHttpServletRequest request)
     {

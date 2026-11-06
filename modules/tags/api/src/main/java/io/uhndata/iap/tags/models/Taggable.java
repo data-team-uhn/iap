@@ -33,18 +33,17 @@ import io.uhndata.iap.tags.api.Tag;
 import io.uhndata.iap.tags.internal.TagOperations;
 
 /**
- * The tags-aware view of a piece of content, and the entry point for working with its tags: view any content model
- * as this one, {@code content.as(Taggable.class)}, then read, place, or remove tags. Reads distinguish between the
- * tags <em>explicitly</em> placed here ({@link #getTags}) and the tags this content <em>effectively</em> carries
- * ({@link #getEffectiveTags}): the explicit ones, plus {@link TagDefinition#isInheritable() inheritable} tags
- * placed on an ancestor, plus {@link TagDefinition#isAggregated() aggregated} tags placed on a descendant. Writes
- * validate against the tag definitions, only modify the in-memory content, and are the caller's to commit through
- * the resolver this model was read with.
+ * Reads, places and removes the tags of a piece of content. View any content model as this one,
+ * {@code content.as(Taggable.class)}. {@link #getTags} gives the tags placed on the content. {@link #getEffectiveTags}
+ * gives every tag it carries: its own, the {@link TagDefinition#isInheritable() inheritable} tags of its ancestors,
+ * and the {@link TagDefinition#isAggregated() aggregated} tags of its descendants. Writes are checked against the
+ * tag definitions and change the content in memory. The caller commits them through the resolver this model was read
+ * with.
  *
  * <p>
- * The view adapts any content; the {@code tag:Taggable} mixin only declares the tagging properties once — every
- * {@code data:Content} node carries it through its supertypes, and other node types, e.g. {@code nt:file}, become
- * taggable by adding the mixin.
+ * Any content adapts to this model. Storing the tags needs a node type that declares them, as the
+ * {@code tag:Taggable} mixin does. Every {@code data:Content} node has it, and a node of another type, such as
+ * {@code nt:file}, gets it by adding the mixin.
  * </p>
  *
  * @version $Id$
@@ -53,8 +52,7 @@ import io.uhndata.iap.tags.internal.TagOperations;
 @Model(adaptables = Resource.class, defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class Taggable extends Content
 {
-    // The internal service the behavior delegates to; the model only hands it its own wrapped resource, which
-    // keeps the resource itself out of the public API
+    // Not exported, and handed only this model's own resource
     @OSGiService
     private TagOperations operations;
 
@@ -81,12 +79,11 @@ public class Taggable extends Content
     }
 
     /**
-     * All the tags this content effectively carries: the tags belonging to it, the
+     * All the tags this content carries: the tags belonging to it, the
      * {@link TagDefinition#isInheritable() inheritable} tags of its ancestors, and the
-     * {@link TagDefinition#isAggregated() aggregated} tags of its descendants. The content's own tags are both the
-     * ones explicitly placed on it and the ones a {@code TagProcessor} computed for it, distinguished by their
-     * {@link Tag#getOrigins() origin}. Note that computing the aggregated tags visits the whole subtree, which may
-     * be slow on very large subtrees.
+     * {@link TagDefinition#isAggregated() aggregated} tags of its descendants. The content's own tags are those placed
+     * on it and those a {@code TagProcessor} computed for it, told apart by their {@link Tag#getOrigins() origin}.
+     * Finding the aggregated tags visits the subtree down to the nearest boundaries, which can be slow.
      *
      * @return the effective tags, with their definitions and origins, an empty collection if there are none
      */
@@ -97,19 +94,16 @@ public class Taggable extends Content
     }
 
     /**
-     * The names of all the tags this content effectively carries, read from the explicit {@code tags} property and
-     * from the derived tag properties materialized at commit time, one per {@code TagProcessor.Phase}. This is the
-     * cheap variant of {@link #getEffectiveTags}: it reads a few properties of the content itself instead of
-     * walking the tree, at the cost of losing the origin information, and of reporting exactly what was
-     * materialized, no more and no less. In particular it does not see
+     * The names of all the tags this content carries. It reads the {@code tags} property and the derived tag
+     * properties written at commit time, one per {@code TagProcessor.Phase}, instead of walking the tree, and gives
+     * no origins. It reports what is stored, so it differs from
+     * {@link #getEffectiveTags} in three cases:
      * <ul>
-     * <li>changes not yet propagated, e.g. uncommitted ones;</li>
-     * <li>tags on the far side of a <em>propagation boundary</em> — strict node types that reject the derived
-     * properties, e.g. file contents or access control policies, stop the copies from travelling through them, so
-     * such tags are reported by the tree-walking methods but neither here nor by a query;</li>
-     * <li>the deletion of a definition: a derived copy left behind by a tag that stopped being defined, or stopped
-     * being inheritable or aggregated, is reported until the node is recomputed, while {@link #getEffectiveTags}
-     * and {@link #hasTag} filter it out immediately.</li>
+     * <li>it does not see changes not yet committed;</li>
+     * <li>it does not see a tag beyond a node whose types do not declare the tag properties, since the copies stop
+     * there, and neither does a query;</li>
+     * <li>it still reports a copy of a tag whose definition was deleted, or stopped being inheritable or aggregated,
+     * until the node is recomputed.</li>
      * </ul>
      *
      * @return the effective tag names, an empty set if there are none
@@ -121,12 +115,11 @@ public class Taggable extends Content
     }
 
     /**
-     * Checks whether this content effectively carries a tag, cheaper than computing all the
-     * {@link #getEffectiveTags effective tags}.
+     * Checks whether this content carries a tag, by walking the tree for that one tag.
      *
      * @param name a tag name
-     * @return {@code true} if the tag belongs to this content, whether explicitly placed on it or computed for it,
-     *         or is inherited from an ancestor, or aggregated from a descendant
+     * @return {@code true} if the tag belongs to this content, placed on it or computed for it, or is inherited from
+     *         an ancestor, or is aggregated from a descendant
      */
     public boolean hasTag(@NotNull final String name)
     {
@@ -134,7 +127,7 @@ public class Taggable extends Content
     }
 
     /**
-     * Checks whether the given tag is explicitly placed on this content.
+     * Checks whether the given tag is placed on this content.
      *
      * @param name a tag name
      * @return {@code true} if the tag is present in the content's own {@code tags} property
@@ -199,8 +192,8 @@ public class Taggable extends Content
     }
 
     /**
-     * Removes a tag from this content. Undefined tags, e.g. left behind after their definition was deleted, may be
-     * removed too. The change is made in memory: committing it is the caller's responsibility, through the
+     * Removes a tag from this content. An undefined tag, such as one whose definition was deleted, may be removed
+     * too. The change is made in memory: committing it is the caller's responsibility, through the
      * resolver this model was read with.
      *
      * @param name the name of a non-system tag
