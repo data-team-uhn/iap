@@ -20,8 +20,7 @@ import { render, screen } from "@testing-library/react";
 
 import { ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 
-// An extension whose render component reports both its own name and the data it was handed, so the
-// tests can tell that the extension itself is passed through to it.
+// An extension whose component shows its name and the `ext:data` of the extension it is given
 const extension = (name: string, extra: Record<string, unknown> = {}): Extension => ({
   "ext:name": name,
   "ext:render": ({ extension: own }: { extension: Extension }) => (

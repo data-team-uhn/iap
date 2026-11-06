@@ -19,33 +19,25 @@
 import { getURLParameters, loadAsset, LazyAsset } from '@iap/frontend-commons/assetManager';
 import { readJson } from '@iap/frontend-commons/requestFailure';
 
-// An extension is the parsed JSON returned by the repository for one extension; its
-// shape depends on the extension point, so it is an open string-keyed record.
+// One `ext:Extension`, as the server serializes it. Each extension point gives its extensions
+// properties of its own.
 type Extension = Record<string, unknown>;
 
-// Retrieves the JSON that lists all the extensions available for the given extension point.
-// This is an asynchronous function, it will return a Promise that resolves to the actual JSON.
+// The enabled extensions of an extension point, in their `defaultOrder`, as the server serializes them.
 //
-// @param {string} extensionPoint an extension point, either a repository path like `/apps/iap/ExtensionPoints/SidebarEntry`, or just a name that will be automatically prefixed with `/apps/iap/ExtensionPoints/`.
-// @return a Promise that will resolve to the extension point JSON
+// @param {string} extensionPoint the node name of an extension point under `/apps/iap/ExtensionPoints/`,
+//     such as `Views`, or its repository path, such as `/apps/iap/ExtensionPoints/Views`
+// @return the extensions; rejects if the extension point cannot be read
 const getExtensions = async function(extensionPoint: string): Promise<Extension[]> {
   return fetch(extensionPoint.startsWith("/") ? extensionPoint : `/apps/iap/ExtensionPoints/${extensionPoint}`)
     .then(response => response.ok ? readJson<Extension[]>(response) : Promise.reject(new Error(`Failed to load extensions from ${extensionPoint}: ${response.status}`)));
 }
 
-// Loads all the extensions for the given extension point.
-// Other than retrieving and parsing the extension point JSON, it will also fetch remote assets such as code to execute or icons to display.
-// This is an asynchronous function, it will return a Promise that resolves to the actual list of extensions.
+// The enabled extensions of an extension point, in their `defaultOrder`, with their `asset:` properties
+// loaded. An extension whose assets fail to load is logged and left out.
 //
-// This loader is resilient: a problem with one extension (or even with the whole extension point) does not
-// prevent the other extensions from loading. Specifically:
-//  - If the extension point itself cannot be retrieved (e.g. it is not deployed), an empty list is returned.
-//  - Any individual extension whose assets fail to load is logged and omitted from the result, so a single
-//    broken extension can no longer take down every other extension of the same point.
-// Every extension that IS returned is guaranteed to have all of its `asset:` properties resolved.
-//
-// @param {string} extensionPoint an extension point, either a repository path like `/apps/iap/ExtensionPoints/SidebarEntry`, or just a name that will be automatically prefixed with `/apps/iap/ExtensionPoints/`.
-// @return a Promise that will resolve to an array of extensions, where each extension is the parsed JSON returned by the repository, with asset properties fetched and parsed
+// @param {string} extensionPoint the extension point, named as for `getExtensions`
+// @return the extensions; empty if the extension point cannot be read, which is logged
 const loadExtensions = async function(extensionPoint: string): Promise<Extension[]> {
   let extensions: Extension[];
   try {
@@ -66,34 +58,26 @@ const loadExtensions = async function(extensionPoint: string): Promise<Extension
     .map(result => (result).value);
 };
 
-// Loads all remote assets of an extension.
-// Any direct property of the extension that starts with the `asset:` string will be fetched and `eval`-uated.
-// The resulting asset will be stored back in the extension under the key without the (case insensitive) `URL` suffix.
-// For example, if there's a `"iconUrl": "asset:/path/to/icon.js"`, then the real `/path/to/icon.js` will be fetched and evaluated, and the result will be stored under the `"icon"` property.
-// A property whose asset URL carries a `lazy` query parameter (e.g. `"asset:/path/to/view.js?lazy"`) is resolved
-// to a small component that renders <LazyAsset> instead of the loaded asset itself, so that fetching and
-// evaluating the real asset is deferred to whenever that component actually gets mounted (e.g. only once a
-// matching route is navigated to), rather than paying for it on every extension point load. A consumer never
-// needs to know whether a given property was lazy or not - either way, it gets back a renderable component. This
-// is opt-in and per-property, since some assets rely on side effects that run as soon as they are loaded, and
-// cannot be deferred.
-// This is an asynchronous function, it will return a Promise that resolves to the actual extension after all remote assets have been fetched.
+// Loads the assets of an extension. A property whose value is `asset:` followed by an asset name, such
+// as `"ext:renderURL": "asset:iap-commons.NoticeBanner.js"`, gives the component the asset exports. The
+// component is stored under the property's name without a final `URL`, in any case, so `ext:renderURL`
+// gives `ext:render`.
 //
-// If any non-lazy asset cannot be loaded - either because the fetch fails, or because it resolves to nothing
-// (e.g. an unknown asset name) - the returned Promise rejects, so that `loadExtensions` can omit this extension
-// rather than hand back a half-loaded one that would later throw when a caller reads the missing component. A
-// lazy asset that fails to load cannot be caught this way, since it isn't fetched until later; that failure is
-// instead logged by <LazyAsset> itself when it happens.
+// An asset with a `lazy` query parameter, such as `asset:iap-x.View.js?lazy`, gives a component that
+// loads the asset when it is first rendered. An asset that registers something when it is evaluated
+// must not be lazy.
 //
-// @param {object} extension an extension, the parsed JSON returned by the repository
-// @return a Promise that will resolve to the extension after all non-lazy remote components have been fetched
+// A non-lazy asset that fails to load, or that is unknown, makes the returned promise reject. A lazy asset
+// that fails is logged by `LazyAsset` when it is rendered.
+//
+// @param {object} extension an extension, as the server serializes it, which is changed in place
+// @return the same extension, once its non-lazy assets have loaded
 const loadRemoteComponents = async function(extension: Extension): Promise<Extension> {
   await Promise.all(
     Object.entries(extension)
       .filter(([, value]) => typeof value === 'string' && value.startsWith("asset:"))
       .map(async ([key, rawValue]) => {
-        // Guaranteed to be a string by the .filter() predicate above (typeof value === 'string'),
-        // which TS cannot see across the separate .map() callback.
+        // The filter above has checked that it is a string
         const value = rawValue as string;
         const resolvedKey = key.replace(/url$/i, '');
         if (getURLParameters(value).has('lazy')) {
@@ -114,23 +98,17 @@ const loadRemoteComponents = async function(extension: Extension): Promise<Exten
   return extension;
 };
 
-// Whether an extension should be shown to someone acting as the given persona.
+// Whether an extension is shown to someone acting as the given persona. An extension that names no
+// `ext:personas` is shown to every persona.
 //
-// An extension that declares no `ext:personas` belongs to all of them. That default is the opposite
-// of `ext:visibleBeforeLogin`, which is opt-IN, and the asymmetry is deliberate: an extension leaking
-// onto a pre-authentication page is a disclosure, whereas an extension that forgot to name its
-// personas merely stays where it already was. Opt-out here also means adding personas to the platform
-// changes nothing about what any existing extension displays.
-//
-// This is a presentation filter and nothing more — see personas.ts. It must be decided by the persona
-// ALONE: never consult what the current user is permitted to do, or an administrator would start
-// seeing controls in a persona designed without them.
+// The persona alone decides, never what the user may do. An administrator acting as a submitter sees
+// what a submitter sees.
 const visibleInPersona = function(extension: Extension, persona: string): boolean {
   const personas = extension["ext:personas"];
   if (personas === undefined || personas === null) {
     return true;
   }
-  // A repository multi-value property arrives as an array, but a single value may arrive bare.
+  // A multi-valued property arrives as an array, but a single value may arrive bare
   return (Array.isArray(personas) ? personas : [ personas ]).includes(persona);
 };
 

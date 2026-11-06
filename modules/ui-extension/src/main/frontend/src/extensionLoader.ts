@@ -21,21 +21,22 @@ import { useEffect, useState } from "react";
 import { loadExtensions } from "./extensionManager";
 
 export interface ExtensionLoader {
-  // Loads every extension declared on the point, once. Never rejects: a failed load is logged, and the
-  // next call tries again.
+  // Loads every extension registered on the point, once. It never rejects: a failed load is logged, and
+  // the next call tries again.
   load: () => Promise<void>;
-  // A hook that is false until the load settles, then true however it settled
+  // A hook that is false until the load has ended, then true, whether the load succeeded or failed
   useLoaded: () => boolean;
 }
 
 /**
- * Loads the extensions of a point whose assets register themselves as they are evaluated. What
- * `loadExtensions` hands back is discarded: the assets have already put their contribution where
- * it is read.
+ * Loads the extensions of a point whose assets register themselves when they are evaluated. The
+ * extensions `loadExtensions` returns are not kept, since each asset has already registered what it
+ * contributes.
  *
- * @param point the extension point, a name under `/apps/iap/ExtensionPoints/` or a repository path
- * @param what what the point's extensions are, in plural, such as "answer components", for the log
- * @return the loader of that point, keeping its result for the life of the page
+ * @param point the extension point, a node name under `/apps/iap/ExtensionPoints/` or a repository path
+ * @param what what the point's extensions are, in the plural, such as "answer components", for the error
+ *     logged when the load fails
+ * @return the loader of that point, which loads its extensions once per page load
  */
 export function createExtensionLoader(point: string, what: string): ExtensionLoader {
   let request: Promise<void> | null = null;

@@ -38,7 +38,6 @@
         <configuration>
           <instructions>
             <Include-Resource>{maven-resources}</Include-Resource>
-            <!-- Initial content to be loaded on bundle installation -->
             <Sling-Initial-Content>
               SLING-INF/content/libs/ext/Extension/;path:=/libs/ext/Extension/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/ext/Point/;path:=/libs/ext/Point/;overwriteProperties:=true;uninstall:=true,
@@ -58,7 +57,7 @@
       <artifactId>iap-error-tracking-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- Nullability annotations for the exported API/SPI -->
+    <!-- Nullability annotations -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>

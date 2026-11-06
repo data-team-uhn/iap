@@ -226,13 +226,12 @@ value cannot carry other CSS.
 
 ## Personas
 
-`ext:personas` on an extension restricts it to some personas, and `visibleInPersona` is
-the predicate. Naming none means all, which is what keeps an extension that never
-considered personas working when a new one is added.
+`ext:personas` on an extension names the personas it is for, and `visibleInPersona`
+tests it. An extension naming none is for every persona. See
+[personas](ui-extensions.md#personas).
 
-A persona is **presentation only, never access control**. The repository authorizes
-every request independently, and a control hidden from a persona must never be the only
-thing preventing the action behind it.
+A persona is **presentation only, never access control**. The server authorizes every
+request, whatever the persona.
 
 ## Tests
 

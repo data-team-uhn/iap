@@ -18,97 +18,67 @@
 
 import { useSyncExternalStore } from "react";
 
-// The persona a user is currently acting as. One person may be entitled to several — the same
-// account can file its own submissions and review someone else's — and which one they are wearing
-// decides what the UI offers them.
+// A persona, such as "reviewer": a role a user acts in, one at a time. The same account can file its
+// own submissions as a submitter and review someone else's as a reviewer. The UI can show each persona
+// different extensions.
 //
-// A persona is PRESENTATION ONLY. It never grants or withholds anything: the server authorizes every
-// request independently, and a control hidden from a persona must never be the only thing preventing
-// the action behind it. What a persona changes is what the UI is *about*, so that "view my
-// submissions" looks the same to everyone rather than sprouting administrative affordances for
-// whoever happens to hold the rights.
+// A persona never grants or withholds access. The server authorizes every request, whatever the
+// persona, and hiding a control from a persona must never be the only thing preventing its action.
 type Persona = string;
 
-// The personas a user can act as, ORDERED LEAST-PERMISSIVE FIRST.
-//
-// The order is load-bearing, not cosmetic: the active persona defaults to the least permissive one
-// available, so that signing in never silently puts someone in a more powerful view than they asked
-// for. `availablePersonas()[0]` is that default, which only means anything while this stays sorted.
+// The personas, least permissive first. The active persona defaults to the first one available.
 const PERSONAS: readonly Persona[] = [ "submitter", "reviewer", "administrator" ];
 
-// Human-readable labels, in the source language.
-//
-// English literals for now, matching the rest of the shell (UserMenu's "Sign out"). Once i18n lands
-// these become message lookups; none of them interpolate anything, so they need no formatter.
+// The name the UI shows for each persona
 const PERSONA_LABELS: Record<Persona, string> = {
   submitter: "Submitter",
   reviewer: "Reviewer",
   administrator: "Administrator",
 };
 
-// The personas the current user may choose between.
-//
-// THIS IS THE SEAM. The choice is meant to be constrained by the user's roles — you may only put on
-// a hat you are entitled to wear — but IAP has no groups or roles yet, so today everyone may choose
-// anything. When roles arrive, this function is the only thing that has to change: everything else
-// asks it rather than reading PERSONAS directly.
+// The personas the current user may choose between, in the order of PERSONAS. Every user may choose
+// every persona. The rest of the module asks this rather than reading PERSONAS, so a rule limiting the
+// choice belongs here.
 const availablePersonas = (): Persona[] => [ ...PERSONAS ];
 
-// The label to display for a persona, falling back to the raw value for one we don't know.
-//
-// `Object.hasOwn` rather than a plain lookup: persona names come from outside this module (repository
-// `ext:personas` values, and role names once the seam above is implemented), and a plain lookup would
-// answer for inherited members too — `personaLabel("constructor")` would hand back a function where
-// the signature promises a string.
+// The name the UI shows for a persona, or the persona itself if it has no label. `Object.hasOwn` keeps
+// an inherited member, such as `constructor`, from answering for a persona.
 const personaLabel = (persona: Persona): string =>
   Object.hasOwn(PERSONA_LABELS, persona) ? PERSONA_LABELS[persona] : persona;
 
 // --- The store -------------------------------------------------------------------------------
 //
-// The active persona is held on `window`, deliberately, rather than in a module-level variable or a
-// React context.
-//
-// Every extension is a separate webpack entry point, fetched and eval'd at runtime, so the control
-// that SETS the persona and the components that READ it live in different bundles. React itself is
-// shared (it is split into the common vendor chunk), but application modules are only deduplicated
-// when webpack's heuristics say so — a module this small can legitimately be copied into both
-// bundles, and two copies would mean two independent stores, or two context objects that never match.
-// Hanging the state off `window` makes that irrelevant: however many copies of this module exist,
-// they all read and write the same object.
+// The active persona is kept on `window`, not in this module. The control that sets it and the
+// components that read it are in different bundles, and each bundle may have its own copy of this
+// module. Every copy reads and writes the same object on `window`.
 
-// The shape stored on the window object.
+// What the store holds
 interface PersonaStore {
   active?: Persona;
 }
 
-// The property name under which the store hides on `window`, and the event that announces a change.
-//
-// STORE_KEY is exported because a global property name is observable contract, not an implementation
-// detail: anything that has to reach the store without going through this module (a test resetting it
-// between cases, say) must name the same key, and naming it twice is how the two drift apart.
+// The property of `window` that holds the store, and the event that announces a change. STORE_KEY is
+// exported for code that has to reach the store directly, such as a test resetting it.
 const STORE_KEY = "__iapPersona";
 const CHANGE_EVENT = "iap:personachange";
 
-// The window-hosted store, created on first use.
+// The store, created on first use
 const store = (): PersonaStore => {
   const holder = window as unknown as Record<string, PersonaStore | undefined>;
   holder[STORE_KEY] ??= {};
   return holder[STORE_KEY];
 };
 
-// The persona the user is currently acting as. Defaults to the least permissive one available, and
-// falls back to it if the stored value is no longer on offer.
+// The persona the user is acting as: the one chosen, or the first one available if none was chosen or
+// the one chosen is no longer available.
 const getActivePersona = (): Persona => {
   const available = availablePersonas();
   const active = store().active;
   return active !== undefined && available.includes(active) ? active : available[0];
 };
 
-// Switches the active persona and notifies every subscriber.
-//
-// A persona that is not available is ignored rather than throwing: the caller is a UI control, and
-// the list it was built from may have gone stale. Refusing quietly keeps the constraint true even
-// then — this is the one place the "constrained by roles" rule is enforced.
+// Makes a persona the active one, and tells every subscriber. A persona that is not available is
+// ignored, without an error, since the list a control offers may be out of date.
 const setActivePersona = (persona: Persona): void => {
   if (!availablePersonas().includes(persona) || persona === getActivePersona()) {
     return;
@@ -117,13 +87,13 @@ const setActivePersona = (persona: Persona): void => {
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
 };
 
-// Subscribes to persona changes; returns the unsubscribe function useSyncExternalStore expects.
+// Calls `onChange` whenever the active persona changes, until the function returned is called
 const subscribeToPersona = (onChange: () => void): (() => void) => {
   window.addEventListener(CHANGE_EVENT, onChange);
   return () => window.removeEventListener(CHANGE_EVENT, onChange);
 };
 
-// The active persona, re-rendering the component whenever it changes.
+// The active persona, rendering the component again whenever it changes
 const usePersona = (): Persona => useSyncExternalStore(subscribeToPersona, getActivePersona);
 
 export {

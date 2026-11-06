@@ -23,8 +23,8 @@ import ExtensionPoint from "@iap/ui-extension/ExtensionPoint";
 const EXTENSION_PATH = "iap/coreUI/sidebar/entry";
 const EXTENSION_URL = "/libs/iap/resources/sidebar.js";
 
-// The component makes two hops: it asks /uixp where the extension lives, then fetches that URL and
-// dispatches on the content type of what comes back.
+// The component makes two requests: it asks /uixp for the path of the extension point, then fetches
+// that path and handles the answer by its content type.
 const finderResponse = (url = EXTENSION_URL, ok = true) => ({
   ok,
   status: ok ? 200 : 404,
