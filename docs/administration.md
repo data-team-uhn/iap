@@ -3,44 +3,38 @@
 **Module:** `modules/admin-console` (start-order 25) · **Extension point:**
 `iap/adminDashboard/entry` · **Chrome:** `@iap/admin-console/AdminScreen`
 
-Everything that configures the platform rather than uses it lives behind one door:
-the administration console at `/admin`. It is reached through a worded
-"Administration" button in the app bar — words rather than an icon, because a gear
-reads as personal settings.
+The administration console at `/admin` holds everything that configures the platform
+rather than uses it. The app bar's "Administration" button leads there.
 
-The console owns only the door and the chrome. Tools are contributed by the modules
-that own the data behind them, so a module's administration ships with the feature
-itself.
+The console provides only the way in and the frame of each page. The tools come from
+the modules that own the data behind them, so a module's administration ships with the
+feature itself.
 
-That contribution happens entirely through [UI extensions](ui-extensions.md), and a
-tool is two of them. The **view** is the substance: a full-page interface registered
-on `iap/coreUI/view` and routed at `/admin/<tool>`, where the administration actually
-happens. The **widget** is the way in: a summary registered on the console's own
-point, `iap/adminDashboard/entry`, small enough to sit beside every other tool's,
-saying whether this area needs attention and leading to the view.
+A tool is two [UI extensions](ui-extensions.md). The **view** is the tool's page,
+registered on `iap/coreUI/view` and routed at `/admin/<tool>`. The **widget** is a
+summary of the tool's area on the console's landing page, registered on
+`iap/adminDashboard/entry`, and it leads to the view.
 
-Both are just nodes. The console holds no code for any particular tool — it renders
-whatever it finds registered, without knowing what any of it is. Reading
-[ui-extensions.md](ui-extensions.md) first will make the rest of this one much
-shorter.
+Both are nodes. The console has no code for any tool, and renders whatever is
+registered. This page assumes [ui-extensions.md](ui-extensions.md).
 
 ## The `iap/adminDashboard/entry` point
 
-The console's landing page is a dashboard of the extensions registered on this point,
-using the same layout and frame as the
-[homepage dashboard](ui-extensions.md#dashboard-widgets--iapdashboardwidget-node-dashboardwidget)
-— so all the
+The console's landing page is a dashboard of the extensions on this point. It has the
+same layout and frame as the
+[dashboard](ui-extensions.md#dashboard-widgets--iapdashboardwidget-node-dashboardwidget)
+on the application's landing page, and all the
 [dashboard frame properties](ui-extensions.md#dashboard-widgets--iapdashboardwidget-node-dashboardwidget)
-apply. Beyond those, and the properties every point understands, it reads:
+apply. A tool's widget uses these:
 
 | Property | Meaning |
 |---|---|
-| `ext:name`, `ext:subtitle` | Title the widget frame |
+| `ext:name`, `ext:subtitle` | The widget's title, and the line under it |
 | `ext:renderURL` | The summary component |
-| `ext:targetURL` | The tool's page, conventionally `/admin/<tool>` |
-| `ext:actionLabel` | Header action next to the title. A single verb for what the tool is for (`"Manage"`, `"Triage"`, `"Read"`); the title beside it already names the area, and the frame folds that title into the action's accessible name |
-| `ext:widgetGroup` | The widget group it is listed under — see [below](#widget-groups) |
-| `defaultOrder` | Position within its group |
+| `ext:targetURL` | The tool's page, by convention `/admin/<tool>`. It is used only with `ext:actionLabel` |
+| `ext:actionLabel` | The button in the header that leads to `ext:targetURL`. It is one verb for what the tool is for, such as `"Manage"`, `"Triage"` or `"Browse"`. The title beside it names the area, and the button's accessible name includes the title |
+| `ext:widgetGroup` | The widget group it is listed under; see [below](#widget-groups) |
+| `defaultOrder` | Its position in its group |
 
 ### Widget groups
 
@@ -55,9 +49,9 @@ The landing page arranges the tools into collapsible
 
 A tool names its group with `"ext:widgetGroup": "Configuration"`. Choose by what the
 administrator is doing when they reach for the tool, not by which module owns it. A
-tool that fits neither can leave the property out and be listed under "Other". A module
-or deployment can also add a group of its own: another group node on
-`iap/adminDashboard/entry`, conventionally under `/Extensions/Admin/`, so that
+tool that fits neither leaves the property out, and is listed under "Other". A module
+or a deployment can add a group of its own, as another group node on
+`iap/adminDashboard/entry`. By convention it is under `/Extensions/Admin/`, so that
 non-administrators cannot read it.
 
 ### Summary figures
@@ -105,12 +99,12 @@ with an error body.
 
 ## Contributing a tool
 
-The view is ordinary application code — it is only the `/admin` path and the
-[`AdminScreen`](#the-chrome) wrapper that make it administrative. Registering the two
-extensions is the whole of the wiring; both nodes live under `/Extensions/Admin/`:
+The view is ordinary application code. Only its `/admin` path and the
+[`AdminScreen`](#the-chrome) frame make it administrative. The two extensions are the
+whole of the wiring, and both nodes are under `/Extensions/Admin/`:
 
 ```json
-// Extensions/Admin/AdminDashboard/Categories.json — the console widget
+// Extensions/Admin/AdminDashboard/Categories.json, the widget
 {
   "jcr:primaryType": "ext:Extension",
   "ext:pointId": "iap/adminDashboard/entry",
@@ -123,7 +117,7 @@ extensions is the whole of the wiring; both nodes live under `/Extensions/Admin/
   "defaultOrder": 10
 }
 
-// Extensions/Admin/Views/Categories.json — routing for the tool's page
+// Extensions/Admin/Views/Categories.json, the view
 {
   "jcr:primaryType": "ext:Extension",
   "ext:pointId": "iap/coreUI/view",
@@ -133,14 +127,14 @@ extensions is the whole of the wiring; both nodes live under `/Extensions/Admin/
 }
 ```
 
-**No repository node is needed behind the URL.** `AdminViewResourceProvider` overlays
-`/admin` and answers any path below it that isn't stored with a synthetic
-`app/Homepage` resource, so a refresh or deep link resolves and pages may nest as
-deeply as they like. Two conditions in that provider are worth knowing: it declines
-paths whose last segment contains a dot (a selector or extension, left to normal
-resolution), and it synthesizes nothing at all if `/admin` itself does not resolve —
-which is what makes the ACL below an honest 404 rather than a shell that renders for
-everyone.
+**No repository node is needed behind the URL.** `AdminViewResourceProvider` is
+mounted on `/admin` in overlay mode. A path below `/admin` that nothing is stored at
+resolves to a synthetic `app/Homepage` resource. A refresh or a deep link therefore
+resolves, however deep the path. The provider declines a path whose last segment has a
+dot. Sling then resolves the path before the dot, and reads the rest as selectors and
+an extension. A user who cannot read `/admin` gets no synthetic resource, and so a 404
+rather than the shell. The provider lists no children, so nothing stored below
+`/admin` can be listed.
 
 ### The chrome
 
@@ -152,29 +146,27 @@ Wrap the page in `AdminScreen`:
 </AdminScreen>
 ```
 
-The props are optional. `title` defaults to "Administration" if absent. The main
-action sits on the heading's row, a `description` saying what the tool is for
-goes under the heading, and a tool page's title carries a small "Admin" chip.
-A page showing one thing that belongs to another names the owner in `titlePrefix`,
-which leads the heading in regular weight (a schema version's page is headed with
-its schema's title, then "Version 1.0"), and says where its subject stands in
-`status`, right after the title: the subject's tags, as every resource page shows
-them.
-The content sits on a `Panel`, a paper surface standing out against the page
-canvas. Content that brings its own surfaces passes `disablePanel` to lay out
-directly on the page instead (for example the console's landing page, whose
-widgets are panels themselves).
+Every prop is optional. Without a `title`, the page is headed "Administration". With
+one, the heading also has a small "Admin" chip. The `action` is on the heading's row,
+and the `description` of what the tool is for is under the heading.
+A page about something that belongs to something else names the owner in
+`titlePrefix`, before the title in regular weight. A schema version's page, for one,
+is headed with its schema's title, then "Version 1.0". The `status` follows the title,
+and shows the state of the page's subject, such as its tags.
+The content is on a `Panel`, a paper surface on the page's background. Content with
+surfaces of its own passes `disablePanel` to sit directly on the page. The console's
+landing page does, since its widgets are panels themselves.
 
-Wayfinding is the shell's
-[breadcrumb trail](ui-extensions.md#breadcrumb-trail) on `pageTop`, which the
-heading lines up with. A page whose owner is not named by its path adds the owner as
-a crumb itself, with `usePageCrumbs`.
+The way back is the shell's
+[breadcrumb trail](ui-extensions.md#breadcrumb-trail) on `pageTop`. When a page's path
+does not name its owner, the page adds the owner as a crumb itself, with
+`usePageCrumbs`.
 
 ## Access control
 
-Admin-only extension nodes — widgets, their `Views` routing nodes, and the console's
-own app-bar entry — live under `/Extensions/Admin/<PointName>/`, denied to `everyone`
-by the module's repoinit:
+The administrative extension nodes are under `/Extensions/Admin/<PointName>/`: the
+widgets, their views, and the console's own app bar entry. The module's repoinit denies
+that folder and `/admin` to `everyone`:
 
 ```
 create path (sling:Folder) /Extensions/Admin
@@ -184,13 +176,12 @@ set ACL for everyone
 end
 ```
 
-Extensions are queried with the requesting user's own session wherever they live, so
-for non-administrators the Administration button, the `/admin` route and every tool
-simply do not exist. `/admin` is denied too, so deep-linking it as a non-admin is a
-plain 404.
+Extensions are read with the user's own session, wherever they are. A user who cannot
+read these is not served the Administration button, the `/admin` view or any tool. A
+deep link to `/admin`, or to a page below it, is a 404 for them.
 
-That is the UI half only. **A tool's data must be protected by its own ACLs**, like
-any repository content.
+That protects only the user interface. **A tool's data needs ACLs of its own**, as any
+repository content does.
 
 ## The tools
 
@@ -204,18 +195,16 @@ any repository content.
 | Archive | `/admin/archive` | `deletion` | Operations | 30 |
 | Caught mail | `/admin/mail` | `email-catcher` | Operations | 40 |
 
-Caught mail is a development tool. It ships everywhere and is off until somebody switches
-it on; see [catching mail](notifications.md#catching-mail-in-development).
+Caught mail is a development tool. It ships everywhere and is off until somebody
+switches it on. See [catching mail](notifications.md#catching-mail-in-development).
 
 ## Future work
 
-A console widget is currently a React component, which is more than some tools need.
-Two lighter kinds are worth adding:
+A console widget is a React component, which is more than some tools need. Two lighter
+kinds would need none:
 
-- **A link and a label**, with no component — enough for a tool whose dashboard
-  presence is only a way in.
-- **A declared summary**, one line of the state a tool is responsible for: "45
-  registered users", "5 installed vocabularies, 2 with new versions available", "1
-  planned downtime active". That is what makes the console a status page rather than a
-  menu, and it is the contract each tool would implement.
+- **A link and a label**, for a tool whose widget is only a way in.
+- **A summary resource named on the widget node**, whose
+  [figures](#summary-figures) the dashboard shows by itself. Today a widget is a
+  component even when all it renders is a `WidgetStatList`.
 

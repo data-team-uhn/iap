@@ -28,9 +28,9 @@
   <artifactId>iap-admin-console</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Admin console</name>
-  <description>The extensible administration console: a landing page listing the available administrative
-    tools, the shared chrome wrapping each tool's page, and the application bar entry leading to it. Other
-    modules plug their tools in through the iap/adminDashboard/entry extension point.</description>
+  <description>The administration console at /admin: a landing page of the administrative tools, the frame of
+    each tool's page, and the application bar's button to it. A module adds a tool on the
+    iap/adminDashboard/entry extension point.</description>
 
   <dependencies>
     <dependency>
