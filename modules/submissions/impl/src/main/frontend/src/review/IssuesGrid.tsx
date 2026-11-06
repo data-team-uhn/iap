@@ -19,8 +19,9 @@
 import { useMemo } from "react";
 
 import { Link } from "@mui/material";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { DataGridPro, type GridColDef } from "@mui/x-data-grid-pro";
 
+import EntityGridToolbar from "@iap/frontend-commons/entityGrid/EntityGridToolbar";
 import TagChip from "@iap/tags/TagChip";
 
 import { SEVERITIES, type ReviewNote } from "./reviewData";
@@ -40,7 +41,8 @@ const SEVERITY_NAMES: Record<string, string> = {
 
 // PRETOTYPE. All of the reviewer's issues in one sortable grid, as they would list them in a spreadsheet: how serious,
 // under which risk, about what, and what it says, most serious first to start with. The severity and the risk are
-// changed in their cells, saved as the issue is; the text in the issue's own editor.
+// changed in their cells, saved as the issue is; the text in the issue's own editor. The toolbar is the entity grids':
+// a search over every column, and the columns and filters; shift and click sorts by several columns.
 export default function IssuesGrid({ issues, risks, about, onChange, onShow }: {
   issues: ReviewNote[];
   // The risks issues can be filed under, by path
@@ -81,8 +83,9 @@ export default function IssuesGrid({ issues, risks, about, onChange, onShow }: {
   ];
 
   return (
-    <DataGrid
-      rows={rows} columns={columns} density="compact" disableRowSelectionOnClick hideFooter={rows.length <= 100}
+    <DataGridPro
+      rows={rows} columns={columns} density="compact" disableRowSelectionOnClick hideFooter
+      showToolbar slots={{ toolbar: EntityGridToolbar }} slotProps={{ toolbar: { searchLabel: "Search your issues" } }}
       getRowHeight={() => "auto"}
       initialState={{ sorting: { sortModel: [ { field: "severity", sort: "asc" }, { field: "risk", sort: "asc" } ] } }}
       processRowUpdate={async (next: IssueRow, before: IssueRow) => {
@@ -92,7 +95,7 @@ export default function IssuesGrid({ issues, risks, about, onChange, onShow }: {
         return next;
       }}
       onProcessRowUpdateError={() => undefined}
-      localeText={{ noRowsLabel: "No issues raised yet" }}
+      localeText={{ noRowsLabel: "No issues raised yet", noResultsOverlayLabel: "No issue matches" }}
       sx={{ "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" }, bgcolor: "background.paper" }}
     />
   );
