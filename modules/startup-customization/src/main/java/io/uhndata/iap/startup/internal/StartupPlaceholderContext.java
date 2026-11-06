@@ -22,12 +22,11 @@ import org.osgi.service.servlet.context.ServletContextHelper;
 import org.osgi.service.servlet.whiteboard.HttpWhiteboardConstants;
 
 /**
- * A placeholder whiteboard servlet context at the root path. A whiteboard filter only runs inside a whiteboard
- * servlet context, and the main Sling one only appears once the repository is up, seconds into the startup — until
- * then requests would bypass the {@link StartupGateFilter} and get the raw container 404. This empty context exists
- * so the filter has somewhere to run from the very start; its rock-bottom ranking lets every real context take over
- * as it appears. Like the rest of the gate, this component is disabled by the {@link StartupGateFilter} once the
- * system is up, and enabled again by the next restart.
+ * An empty servlet context at the root path, for the {@link StartupGateFilter} to run in before Sling's own context
+ * exists. A whiteboard filter runs only inside a servlet context, and Sling registers its context only once the
+ * repository is up. Without this context, a request before then would get the servlet container's raw 404. This
+ * context has the lowest ranking, so Sling's context takes over as soon as it appears. The gate disables this
+ * component when it retires.
  *
  * @version $Id$
  * @since 0.1.0

@@ -24,8 +24,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
- * Gives the tests the expected startup page, so that they assert on what the gate serves rather than on the page's
- * wording, which is free to change.
+ * Gives the tests the startup page to expect, so they compare what the gate serves with the page itself, not with
+ * its wording.
  *
  * @version $Id$
  * @since 0.1.0
@@ -38,10 +38,10 @@ final class StartupPageFixture
     }
 
     /**
-     * The startup page as the tested components see it: read from the classpath, not from the sources, so that
-     * resource filtering can never make the expected and the actual page differ.
+     * Reads the startup page from the classpath, where the tested components read it. Resource filtering therefore
+     * cannot make the expected page differ from the one served.
      *
-     * @return the contents of the startup page
+     * @return the startup page, as HTML
      * @throws IOException if the startup page cannot be read from the classpath, which means a broken build
      */
     static String stubPage() throws IOException
