@@ -18,6 +18,8 @@
 
 import { createContext, useEffect, useState } from "react";
 
+import { Chip } from "@mui/material";
+
 // PRETOTYPE. The names people go by, read once per person and page: comments record who wrote them by user name.
 const names = new Map<string, Promise<string>>();
 
@@ -54,3 +56,16 @@ export function PersonName({ user }: { user: string }) {
 
 // The reviewer groups by principal name, as their approvals call them for short, such as "REB"
 export const GroupLabels = createContext<Map<string, string>>(new Map());
+
+// A reviewer group, small: the reviewer's own filled navy, another on a quiet tint
+export function GroupChip({ label, mine }: { label: string; mine: boolean }) {
+  return mine
+    ? <Chip size="small" color="primary" label={label} sx={{ height: 18, fontSize: "0.7rem", "& .MuiChip-label": { px: 0.75 } }} />
+    : (
+      <Chip
+        size="small" label={label}
+        sx={{ height: 18, fontSize: "0.7rem", color: "text.secondary", bgcolor: "action.selected",
+          "& .MuiChip-label": { px: 0.75 } }}
+      />
+    );
+}

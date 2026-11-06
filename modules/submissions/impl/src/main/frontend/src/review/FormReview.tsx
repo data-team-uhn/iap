@@ -21,13 +21,14 @@ import { useState, type ReactNode } from "react";
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
-import { Box, ButtonBase, Chip, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, ButtonBase, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 
 import { cutShort, getSelectedOutline, passageCard, passageLayer, passageTint } from "@iap/frontend-commons/pdfViewer/passageStyles";
 
 import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
 import NoteCard from "./NoteCard";
+import { GroupChip } from "./people";
 import { groupShortName, issueFrom, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
   type ReviewNote } from "./reviewData";
 import { Highlighted } from "./SearchHighlight";
@@ -70,19 +71,9 @@ export function GroupChips({ groups, mine }: { groups: ReviewGroup[] | undefined
   }
   return (
     <Stack direction="row" sx={{ gap: 0.5, flexWrap: "wrap" }}>
-      {[ ...groups ].sort((a, b) => Number(mine.includes(b.group)) - Number(mine.includes(a.group))).map(group =>
-        mine.includes(group.group) ? (
-          <Chip
-            key={group.name} size="small" color="primary" label={groupShortName(group.label)}
-            sx={{ height: 18, fontSize: "0.7rem", "& .MuiChip-label": { px: 0.75 } }}
-          />
-        ) : (
-          <Chip
-            key={group.name} size="small" label={groupShortName(group.label)}
-            sx={{ height: 18, fontSize: "0.7rem", color: "text.secondary", bgcolor: "action.selected",
-              "& .MuiChip-label": { px: 0.75 } }}
-          />
-        ))}
+      {[ ...groups ].sort((a, b) => Number(mine.includes(b.group)) - Number(mine.includes(a.group))).map(group => (
+        <GroupChip key={group.name} label={groupShortName(group.label)} mine={mine.includes(group.group)} />
+      ))}
     </Stack>
   );
 }

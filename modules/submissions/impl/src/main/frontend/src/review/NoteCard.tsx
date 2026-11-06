@@ -25,7 +25,7 @@ import { Box, Button, IconButton, Stack, Tooltip, Typography } from "@mui/materi
 import TagChip from "@iap/tags/TagChip";
 
 import Composer from "./Composer";
-import { GroupLabels, PersonName } from "./people";
+import { GroupChip, GroupLabels, PersonName } from "./people";
 import { kindInfo, type ReviewNote } from "./reviewData";
 
 function when(created: string): string {
@@ -94,6 +94,10 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
         <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
           {info.single}
         </Typography>
+        {/* An issue says whose group raised it, the reviewer's own as it is marked everywhere */}
+        {note.group && labels.has(note.group) && (
+          <GroupChip label={labels.get(note.group) ?? ""} mine={note.kind === "issue"} />
+        )}
         {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
         <Box sx={{ ml: "auto", display: "flex", mr: -0.75 }}>
           {note.mine && onEdit && (
@@ -118,9 +122,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
         </Typography>
       )}
       <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mb: 0.5 }}>
-        {note.kind !== "evidence" && <PersonName user={note.author} />}
-        {note.group && labels.has(note.group) && ` · ${labels.get(note.group)}`}
-        {note.kind !== "evidence" && " · "}{when(note.created)}
+        {note.kind !== "evidence" && <><PersonName user={note.author} /> · </>}{when(note.created)}
       </Typography>
       {note.kind === "evidence" ? (
         <>
