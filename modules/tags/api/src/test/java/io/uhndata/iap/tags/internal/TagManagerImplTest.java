@@ -18,6 +18,7 @@
 package io.uhndata.iap.tags.internal;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -452,6 +453,40 @@ class TagManagerImplTest
 
         assertEquals(Set.of(Tag.Origin.AGGREGATED), aggregated.getOrigins());
         assertEquals(Set.of("/data/entity/part"), aggregated.getSources());
+    }
+
+    @Test
+    void hasTagStopsAtABoundaryContainer()
+    {
+        this.context.registerAdapter(Resource.class, Node.class,
+            (Function<Resource, Node>) TagManagerImplTest::asNode);
+        final Resource entity = this.context.create().resource(ENTITY_PATH, TYPE_PROPERTY, ENTITY_TYPE);
+        this.context.create().resource("/data/entity/listing", Map.of(
+            TYPE_PROPERTY, "data/EntityHomepage",
+            BOUNDARY, true));
+        this.context.create().resource("/data/entity/listing/inner", Map.of(
+            TYPE_PROPERTY, "data/EntityPart",
+            Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
+
+        assertFalse(this.taggable(entity).hasTag(INCOMPLETE));
+    }
+
+    @Test
+    void hasTagStopsWalkingAtTheFirstDescendantCarryingTheTag()
+    {
+        final List<String> classified = new ArrayList<>();
+        this.context.registerAdapter(Resource.class, Node.class, (Function<Resource, Node>) resource -> {
+            classified.add(resource.getPath());
+            return asNode(resource);
+        });
+        final Resource entity = this.context.create().resource(ENTITY_PATH, TYPE_PROPERTY, ENTITY_TYPE);
+        this.context.create().resource("/data/entity/first", Map.of(
+            TYPE_PROPERTY, "data/EntityPart",
+            Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
+        this.context.create().resource("/data/entity/second", TYPE_PROPERTY, "data/EntityPart");
+
+        assertTrue(this.taggable(entity).hasTag(INCOMPLETE));
+        assertFalse(classified.contains("/data/entity/second"));
     }
 
     @Test
