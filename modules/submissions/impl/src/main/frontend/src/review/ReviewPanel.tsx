@@ -22,29 +22,44 @@ import CheckCircle from "@mui/icons-material/CheckCircle";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import CircleOutlined from "@mui/icons-material/CircleOutlined";
+import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import ExpandLessOutlined from "@mui/icons-material/ExpandLessOutlined";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import ForwardToInboxOutlined from "@mui/icons-material/ForwardToInboxOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
+import OpenInFullOutlined from "@mui/icons-material/OpenInFullOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
-  Badge, Box, Button, ButtonBase, IconButton, LinearProgress, Link, Paper, Stack, Tooltip, Typography,
+  Badge, Box, Button, ButtonBase, Dialog, IconButton, LinearProgress, Link, Paper, Stack, Tooltip, Typography,
+  useMediaQuery, useTheme,
 } from "@mui/material";
 
 import { cutShort, passageCard } from "@iap/frontend-commons/pdfViewer/passageStyles";
 import TagChip from "@iap/tags/TagChip";
 
+import Composer from "./Composer";
 import NoteCard from "./NoteCard";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
 
-// One of the risks the reviewer's group weighs, as the review panel lists it
+// An answer the protocol contradicts, by the extracted answer read from it
+export interface Mismatch {
+  question: string;
+  answer: string;
+  protocol: string;
+  evidence: ReviewNote;
+}
+
+// One of the risks the reviewer's group weighs, as their review goes through it
 export interface RiskReview {
   topic: Topic;
-  // The AI pre-review's read of it, and what it raised under it that the reviewer has neither made an issue of nor
-  // dismissed
+  // The AI pre-review's read of it; what it raised under it, still open or settled by the reviewer; and the answers
+  // drawn on that the protocol contradicts
   assessment?: string;
   aiOpen: ReviewNote[];
+  aiSettled: ReviewNote[];
+  mismatches: Mismatch[];
   // The reviewer's own issues filed under it
   issues: ReviewNote[];
   considered: boolean;
@@ -57,43 +72,63 @@ export interface OthersRaised {
   shared: number;
 }
 
-const bySeverity = (notes: ReviewNote[]) =>
-  SEVERITIES.flatMap(severity => notes.filter(note => (note.severity ?? "medium") === severity));
+// What the reviewer can do from their review
+export interface ReviewDoing {
+  open: (note: ReviewNote) => void;
+  consider: (topic: string, considered: boolean) => Promise<void>;
+  makeIssue: (note: ReviewNote, text: string, severity?: string, topic?: string) => Promise<void>;
+  dismiss: (note: ReviewNote) => Promise<void>;
+  undismiss: (note: ReviewNote) => Promise<void>;
+  addIssue: (topic: string | undefined, text: string, severity?: string) => Promise<void>;
+  editIssue: (note: ReviewNote, text: string, severity?: string, topic?: string) => Promise<void>;
+  removeIssue: (note: ReviewNote) => Promise<void>;
+  showOthers: () => void;
+  decision?: { send: () => void; approve: () => void; approveBlocked?: string; board?: () => void };
+}
 
-const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
-
-// PRETOTYPE. The reviewer's review, beside whatever they are reading, as the risks their group weighs: for each, what
-// the AI pre-review made of it and what it raised that is still open, the reviewer's own issues filed under it, and
-// whether they have considered it, counted at the top. The AI's concerns can be made issues of or dismissed right
-// there, or stepped through one after the other. Under the risks, the reviewer's issues filed under none, and a line
-// on what other groups raised. At the bottom, the decision, and since when it waits on the reviewer. Folded, the
-// panel keeps the issue count and the actions.
-export default function ReviewPanel({ risks, unfiled, issueCount, aiSummary, others, about, open, onToggle, onOpen,
-  onConsider, onMakeIssue, onDismiss, onShowOthers, waitingSince, actions }: {
+interface ReviewProps {
   risks: RiskReview[];
   unfiled: ReviewNote[];
   issueCount: number;
   aiSummary?: string;
   others: OthersRaised[];
   about: (note: ReviewNote) => string;
-  open: boolean;
-  onToggle: () => void;
-  onOpen: (note: ReviewNote) => void;
-  onConsider: (topic: string, considered: boolean) => Promise<void>;
-  onMakeIssue: (note: ReviewNote, text: string, severity?: string, topic?: string) => Promise<void>;
-  onDismiss: (note: ReviewNote) => Promise<void>;
-  onShowOthers: () => void;
   waitingSince?: string;
-  actions?: { send: () => void; approve: () => void; approveBlocked?: string; board?: () => void };
-}) {
+  doing: ReviewDoing;
+}
+
+const bySeverity = (notes: ReviewNote[]) =>
+  SEVERITIES.flatMap(severity => notes.filter(note => (note.severity ?? "medium") === severity));
+
+const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+
+const anchored = (note: ReviewNote) => note.subjects.length > 0 || Boolean(note.passage);
+
+// "2 AI · 1 mismatch · 1 issue", what is under a risk
+function countsOf(risk: RiskReview): string {
+  return [
+    risk.aiOpen.length > 0 ? `${risk.aiOpen.length} AI` : "",
+    risk.mismatches.length > 0 ? plural(risk.mismatches.length, "mismatch", "mismatches") : "",
+    risk.issues.length > 0 ? plural(risk.issues.length, "issue") : "",
+  ].filter(Boolean).join(" · ");
+}
+
+// PRETOTYPE. The reviewer's review, beside whatever they are reading, as the risks their group weighs: for each, what
+// the AI pre-review made of it and everything it raised under it, the answers the protocol contradicts, the
+// reviewer's own issues, and whether they have considered it, counted at the top. Issues can be added under a risk
+// without pointing at an answer or a passage; the AI's concerns made issues of or dismissed, and dismissals taken
+// back. It opens in an almost full screen dialog to read it whole. At the bottom, the decision.
+export default function ReviewPanel(props: ReviewProps & { open: boolean; onToggle: () => void }) {
+  const { risks, issueCount, aiSummary, doing, open, onToggle } = props;
   const [ expanded, setExpanded ] = useState<string>();
   const [ summaryOpen, setSummaryOpen ] = useState(false);
   const [ lastConcern, setLastConcern ] = useState<string>();
-  const concerns = risks.flatMap(risk => bySeverity(risk.aiOpen).map(note => ({ note, risk: risk.topic.path })));
-  const considered = risks.filter(risk => risk.considered).length;
+  const [ whole, setWhole ] = useState(false);
+  const concerns = risks.flatMap(risk => bySeverity(risk.aiOpen).filter(anchored)
+    .map(note => ({ note, risk: risk.topic.path })));
 
   if (!open) {
-    return <Folded issueCount={issueCount} onToggle={onToggle} actions={actions} />;
+    return <Folded issueCount={issueCount} onToggle={onToggle} decision={doing.decision} />;
   }
 
   // The AI's next open concern after the last one stepped to, round to the first
@@ -102,7 +137,7 @@ export default function ReviewPanel({ risks, unfiled, issueCount, aiSummary, oth
     const next = concerns[(at + 1) % concerns.length];
     setLastConcern(next.note.id);
     setExpanded(next.risk);
-    onOpen(next.note);
+    doing.open(next.note);
   };
 
   return (
@@ -111,6 +146,11 @@ export default function ReviewPanel({ risks, unfiled, issueCount, aiSummary, oth
       bgcolor: "background.tinted", boxShadow: "none" }}>
       <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, pt: 0.75 }}>
         <Typography variant="panelTitle" sx={{ flex: 1 }}>Review</Typography>
+        <Tooltip title="Open the whole review" placement="left">
+          <IconButton size="small" aria-label="Open the whole review" onClick={() => setWhole(true)}>
+            <OpenInFullOutlined fontSize="small" />
+          </IconButton>
+        </Tooltip>
         <Tooltip title="Fold away" placement="left">
           <IconButton size="small" aria-label="Fold the review away" onClick={onToggle}>
             <ChevronRightOutlined />
@@ -118,18 +158,11 @@ export default function ReviewPanel({ risks, unfiled, issueCount, aiSummary, oth
         </Tooltip>
       </Stack>
       <Box sx={{ px: 1.5, pb: 1 }}>
-        <Typography variant="caption" sx={{ display: "block" }}>
-          {considered} of {plural(risks.length, "risk")} considered
-        </Typography>
-        <LinearProgress
-          variant="determinate" value={risks.length ? considered / risks.length * 100 : 0}
-          aria-label="Risks considered" sx={{ mt: 0.5, borderRadius: 1 }}
-        />
+        <Progress risks={risks} />
         {aiSummary && (
           <Box sx={{ mt: 1 }}>
             <Typography variant="body2" sx={{ color: "text.secondary", ...summaryOpen ? {} : cutShort(2) }}>
-              <Box component="span" sx={{ color: "assistant.main", fontWeight: "fontWeightBold" }}>AI pre-review. </Box>
-              {aiSummary}
+              <AiLabel>AI pre-review. </AiLabel>{aiSummary}
             </Typography>
             <Link component="button" variant="caption" onClick={() => setSummaryOpen(!summaryOpen)}>
               {summaryOpen ? "Less" : "More"}
@@ -144,130 +177,263 @@ export default function ReviewPanel({ risks, unfiled, issueCount, aiSummary, oth
       </Box>
       <PanelBody>
         {risks.map(risk => (
-          <RiskRow
-            key={risk.topic.path} risk={risk} open={expanded === risk.topic.path}
-            onExpand={() => setExpanded(expanded === risk.topic.path ? undefined : risk.topic.path)}
-            about={about} onOpen={onOpen} onConsider={onConsider} onMakeIssue={onMakeIssue} onDismiss={onDismiss}
-          />
-        ))}
-        {unfiled.length > 0 && (
-          <Box sx={{ borderTop: 1, borderColor: "divider", px: 1.5, py: 1 }}>
-            <Typography variant="caption" sx={{ display: "block", fontWeight: "fontWeightBold", mb: 0.5 }}>
-              Your issues under no risk ({unfiled.length})
-            </Typography>
-            <IssueList issues={unfiled} about={about} onOpen={onOpen} />
+          <Box key={risk.topic.path} sx={{ borderTop: 1, borderColor: "divider" }}>
+            <RiskHeading
+              risk={risk} doing={doing} open={expanded === risk.topic.path}
+              onClick={() => setExpanded(expanded === risk.topic.path ? undefined : risk.topic.path)}
+            />
+            {expanded === risk.topic.path && (
+              <Box sx={{ pl: 5, pr: 1.5, pb: 1.25 }}>
+                <RiskDetail risk={risk} dense about={props.about} doing={doing} onShow={doing.open} />
+              </Box>
+            )}
           </Box>
-        )}
-        {others.map(one => (
-          <Typography key={one.group} variant="caption"
-            sx={{ display: "block", px: 1.5, py: 1, borderTop: 1, borderColor: "divider", color: "text.secondary" }}>
-            {one.group} raised {plural(one.count, "issue")}
-            {one.shared > 0 ? `, ${one.shared} on what you also review` : ""}.{" "}
-            <Link component="button" variant="caption" onClick={onShowOthers}>Show them</Link>
-          </Typography>
         ))}
+        <Unfiled {...props} dense onShow={doing.open} />
+        <Others others={props.others} doing={doing} />
       </PanelBody>
-      {actions && (
-        <Stack spacing={1} sx={{ p: 1.5, borderTop: 1, borderColor: "divider" }}>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            {waitingSince ? `Waiting on your decision since ${waitingSince}` : "Not waiting on your decision now"}
-          </Typography>
-          <Button variant="outlined" size="small" startIcon={<ForwardToInboxOutlined />} onClick={actions.send}>
-            Request changes
-          </Button>
-          <Tooltip title={actions.approveBlocked ?? ""}>
-            <span>
-              <Button variant="contained" size="small" fullWidth startIcon={<TaskAltOutlined />}
-                disabled={Boolean(actions.approveBlocked)} onClick={actions.approve}>
-                Approve
-              </Button>
-            </span>
-          </Tooltip>
-          {actions.board && (
-            <Button variant="text" size="small" startIcon={<GroupsOutlined />} onClick={actions.board}>
-              Escalate to the board
-            </Button>
-          )}
-        </Stack>
-      )}
+      <Decision waitingSince={props.waitingSince} decision={doing.decision} />
+      <WholeReview {...props} open={whole} onClose={() => setWhole(false)} />
     </Paper>
   );
 }
 
-// A risk: its tick, its name and what is under it, opening onto the AI's read, its open concerns and the reviewer's
-// issues
-function RiskRow({ risk, open, onExpand, about, onOpen, onConsider, onMakeIssue, onDismiss }: {
-  risk: RiskReview;
-  open: boolean;
-  onExpand: () => void;
-  about: (note: ReviewNote) => string;
-  onOpen: (note: ReviewNote) => void;
-  onConsider: (topic: string, considered: boolean) => Promise<void>;
-  onMakeIssue: (note: ReviewNote, text: string, severity?: string, topic?: string) => Promise<void>;
-  onDismiss: (note: ReviewNote) => Promise<void>;
-}) {
-  const [ saving, setSaving ] = useState(false);
-  const counts = [
-    risk.aiOpen.length > 0 ? `${risk.aiOpen.length} AI` : "",
-    risk.issues.length > 0 ? plural(risk.issues.length, "issue") : "",
-  ].filter(Boolean).join(" · ");
+// The review whole, almost full screen: the risks down the side, the one chosen read in full beside them, with what
+// its schema says to look at
+function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }) {
+  const { risks, aiSummary, doing, open, onClose } = props;
+  const theme = useTheme();
+  const phone = useMediaQuery(theme.breakpoints.down("sm"));
+  const [ chosen, setChosen ] = useState<string>();
+  const risk = risks.find(one => one.topic.path === chosen);
+  // Showing where something was raised leaves the review for the page
+  const show = (note: ReviewNote) => {
+    onClose();
+    doing.open(note);
+  };
   return (
-    <Box sx={{ borderTop: 1, borderColor: "divider" }}>
-      <Stack direction="row" sx={{ alignItems: "flex-start" }}>
-        <Tooltip title={risk.considered ? "Considered. Click to unmark" : "Mark as considered"} placement="left">
-          <IconButton
-            size="small" disabled={saving} aria-pressed={risk.considered}
-            aria-label={`${risk.topic.label} considered`} sx={{ ml: 0.75, mt: 0.5 }}
-            onClick={() => {
-              setSaving(true);
-              void onConsider(risk.topic.path, !risk.considered).finally(() => setSaving(false));
-            }}
-          >
-            {risk.considered ? <CheckCircle fontSize="small" color="primary" /> : <CircleOutlined fontSize="small" />}
-          </IconButton>
-        </Tooltip>
-        <ButtonBase
-          onClick={onExpand} aria-expanded={open}
-          sx={theme => ({ flex: 1, minWidth: 0, justifyContent: "flex-start", textAlign: "start", py: 0.75, pl: 0.5,
-            pr: 1, "&:hover": { bgcolor: theme.alpha(theme.palette.background.paper, 0.5) } })}
-        >
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2"
-              sx={{ color: risk.considered ? "text.secondary" : "primary.main", fontWeight: "fontWeightMedium" }}>
-              {risk.topic.label}
-            </Typography>
-            {counts && <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>{counts}</Typography>}
-          </Box>
-          {open ? <ExpandLessOutlined fontSize="small" /> : <ExpandMoreOutlined fontSize="small" />}
-        </ButtonBase>
+    <Dialog
+      open={open} onClose={onClose} fullScreen={phone} maxWidth={false} aria-labelledby="whole-review-title"
+      slotProps={{ paper: { sx: { width: { sm: "calc(100% - 48px)" }, height: { sm: "calc(100% - 48px)" },
+        maxWidth: 1400, display: "flex", flexDirection: "column", bgcolor: "background.paper" } } }}
+    >
+      <Stack direction="row" sx={{ alignItems: "center", gap: 2, px: 2.5, py: 1.5, borderBottom: 1,
+        borderColor: "divider" }}>
+        <Typography id="whole-review-title" variant="h6" component="h2">Your review</Typography>
+        <Box sx={{ flex: 1, maxWidth: 360 }}><Progress risks={risks} /></Box>
+        <Box sx={{ flex: 1 }} />
+        <IconButton aria-label="Close" onClick={onClose}><CloseOutlined /></IconButton>
       </Stack>
-      {open && (
-        <Stack spacing={1} sx={{ pl: 5, pr: 1.5, pb: 1.25 }}>
-          {risk.assessment && (
-            <Typography variant="caption" sx={{ color: "text.secondary" }}>
-              <Box component="span" sx={{ color: "assistant.main", fontWeight: "fontWeightBold" }}>AI. </Box>
-              {risk.assessment}
-            </Typography>
+      <Stack direction={{ xs: "column", md: "row" }} sx={{ flex: 1, minHeight: 0 }}>
+        <Box sx={{ width: { md: 340 }, flexShrink: 0, overflowY: "auto", bgcolor: "background.tinted",
+          maxHeight: { xs: 240, md: "none" } }}>
+          <ButtonBase
+            onClick={() => setChosen(undefined)}
+            sx={{ display: "block", width: "100%", textAlign: "start", px: 2, py: 1,
+              bgcolor: chosen === undefined ? "background.paper" : undefined }}
+          >
+            <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>Overview</Typography>
+          </ButtonBase>
+          {risks.map(one => (
+            <Box key={one.topic.path} sx={{ borderTop: 1, borderColor: "divider",
+              bgcolor: chosen === one.topic.path ? "background.paper" : undefined }}>
+              <RiskHeading risk={one} doing={doing} onClick={() => setChosen(one.topic.path)} />
+            </Box>
+          ))}
+          <Box sx={{ borderTop: 1, borderColor: "divider",
+            bgcolor: chosen === UNFILED ? "background.paper" : undefined }}>
+            <ButtonBase onClick={() => setChosen(UNFILED)}
+              sx={{ display: "block", width: "100%", textAlign: "start", px: 2, py: 1 }}>
+              <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>
+                Under no risk
+              </Typography>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                {plural(props.unfiled.length, "issue")}
+              </Typography>
+            </ButtonBase>
+          </Box>
+          <Others others={props.others} doing={doing} />
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0, overflowY: "auto", px: { xs: 2, md: 4 }, py: 3 }}>
+          {risk && (
+            <Stack spacing={2} sx={{ maxWidth: 820 }}>
+              <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
+                <Typography variant="h6" component="h3" sx={{ flex: 1 }}>{risk.topic.label}</Typography>
+                <ConsideredButton risk={risk} doing={doing} />
+              </Stack>
+              <RiskDetail risk={risk} about={props.about} doing={doing} onShow={show} />
+            </Stack>
           )}
+          {chosen === UNFILED && (
+            <Stack spacing={2} sx={{ maxWidth: 820 }}>
+              <Typography variant="h6" component="h3">Under no risk</Typography>
+              <Unfiled {...props} onShow={show} />
+            </Stack>
+          )}
+          {chosen === undefined && (
+            <Stack spacing={2} sx={{ maxWidth: 820 }}>
+              <Typography variant="h6" component="h3">Overview</Typography>
+              {aiSummary && (
+                <Typography variant="body1"><AiLabel>AI pre-review. </AiLabel>{aiSummary}</Typography>
+              )}
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                {plural(risks.filter(one => !one.considered).length, "risk")} still to consider,{" "}
+                {plural(risks.reduce((sum, one) => sum + one.aiOpen.length, 0), "open AI concern")},{" "}
+                {plural(risks.reduce((sum, one) => sum + one.mismatches.length, 0), "answer", "answers")} the
+                protocol contradicts, and {plural(props.issueCount, "issue")} of yours. Choose a risk to go through it.
+              </Typography>
+            </Stack>
+          )}
+        </Box>
+      </Stack>
+      <Decision waitingSince={props.waitingSince} decision={doing.decision} wide />
+    </Dialog>
+  );
+}
+
+const UNFILED = "unfiled";
+
+function Progress({ risks }: { risks: RiskReview[] }) {
+  const considered = risks.filter(risk => risk.considered).length;
+  return (
+    <>
+      <Typography variant="caption" sx={{ display: "block" }}>
+        {considered} of {plural(risks.length, "risk")} considered
+      </Typography>
+      <LinearProgress
+        variant="determinate" value={risks.length ? considered / risks.length * 100 : 0}
+        aria-label="Risks considered" sx={{ mt: 0.5, borderRadius: 1 }}
+      />
+    </>
+  );
+}
+
+function AiLabel({ children }: { children: ReactNode }) {
+  return <Box component="span" sx={{ color: "assistant.main", fontWeight: "fontWeightBold" }}>{children}</Box>;
+}
+
+function ConsideredButton({ risk, doing }: { risk: RiskReview; doing: ReviewDoing }) {
+  const [ saving, setSaving ] = useState(false);
+  return (
+    <Tooltip title={risk.considered ? "Considered. Click to unmark" : "Mark as considered"} placement="left">
+      <IconButton
+        size="small" disabled={saving} aria-pressed={risk.considered} aria-label={`${risk.topic.label} considered`}
+        onClick={() => {
+          setSaving(true);
+          void doing.consider(risk.topic.path, !risk.considered).finally(() => setSaving(false));
+        }}
+      >
+        {risk.considered ? <CheckCircle fontSize="small" color="primary" /> : <CircleOutlined fontSize="small" />}
+      </IconButton>
+    </Tooltip>
+  );
+}
+
+// A risk's tick, its name and what is under it
+function RiskHeading({ risk, doing, open, onClick }: {
+  risk: RiskReview;
+  doing: ReviewDoing;
+  open?: boolean;
+  onClick: () => void;
+}) {
+  const counts = countsOf(risk);
+  return (
+    <Stack direction="row" sx={{ alignItems: "flex-start" }}>
+      <Box sx={{ ml: 0.75, mt: 0.5 }}><ConsideredButton risk={risk} doing={doing} /></Box>
+      <ButtonBase
+        onClick={onClick} aria-expanded={open}
+        sx={theme => ({ flex: 1, minWidth: 0, justifyContent: "flex-start", textAlign: "start", py: 0.75, pl: 0.5,
+          pr: 1, "&:hover": { bgcolor: theme.alpha(theme.palette.background.paper, 0.5) } })}
+      >
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography variant="body2"
+            sx={{ color: risk.considered ? "text.secondary" : "primary.main", fontWeight: "fontWeightMedium" }}>
+            {risk.topic.label}
+          </Typography>
+          {counts && <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>{counts}</Typography>}
+        </Box>
+        {open !== undefined && (open ? <ExpandLessOutlined fontSize="small" /> : <ExpandMoreOutlined fontSize="small" />)}
+      </ButtonBase>
+    </Stack>
+  );
+}
+
+// Everything under a risk: in full, what the schema says to look at; the AI's read; the answers the protocol
+// contradicts; what the AI raised, open then settled; the reviewer's issues; and a way to add one
+function RiskDetail({ risk, dense = false, about, doing, onShow }: {
+  risk: RiskReview;
+  dense?: boolean;
+  about: (note: ReviewNote) => string;
+  doing: ReviewDoing;
+  onShow: (note: ReviewNote) => void;
+}) {
+  const nothing = !risk.assessment && risk.aiOpen.length === 0 && risk.aiSettled.length === 0
+    && risk.mismatches.length === 0 && risk.issues.length === 0;
+  return (
+    <Stack spacing={dense ? 1 : 2}>
+      {!dense && risk.topic.description && (
+        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", color: "text.secondary" }}>
+          {risk.topic.description}
+        </Typography>
+      )}
+      {risk.assessment && (
+        <Typography variant={dense ? "caption" : "body2"}><AiLabel>AI. </AiLabel>{risk.assessment}</Typography>
+      )}
+      {risk.mismatches.length > 0 && (
+        <Section title="Answers the protocol contradicts" dense={dense}>
+          {risk.mismatches.map(mismatch => (
+            <Stack key={mismatch.evidence.id} direction="row" sx={{ gap: 0.75, alignItems: "flex-start" }}>
+              <ErrorOutlineOutlined sx={{ fontSize: "1rem", color: "warning.main", mt: 0.25 }} />
+              <Typography variant={dense ? "caption" : "body2"}>
+                {mismatch.question} The form says {mismatch.answer}; the protocol says {mismatch.protocol}.{" "}
+                <Link component="button" variant="inherit" onClick={() => onShow(mismatch.evidence)}>Show where</Link>
+              </Typography>
+            </Stack>
+          ))}
+        </Section>
+      )}
+      {risk.aiOpen.length > 0 && (
+        <Section title="Raised by the AI" dense={dense}>
           {bySeverity(risk.aiOpen).map(note => (
             <Card key={note.id} kind="assistant">
               <NoteCard
                 note={note}
-                onMakeIssue={(text, severity, topic) => onMakeIssue(note, text, severity, topic ?? risk.topic.path)}
-                onDismiss={() => onDismiss(note)}
+                onMakeIssue={(text, severity, topic) => doing.makeIssue(note, text, severity, topic ?? risk.topic.path)}
+                onDismiss={() => doing.dismiss(note)}
               />
-              <Link component="button" variant="caption" onClick={() => onOpen(note)}>Show where</Link>
+              {anchored(note) && (
+                <Link component="button" variant="caption" onClick={() => onShow(note)}>Show where</Link>
+              )}
             </Card>
           ))}
-          {risk.issues.length > 0 && <IssueList issues={risk.issues} about={about} onOpen={onOpen} />}
-          {!risk.assessment && risk.aiOpen.length === 0 && risk.issues.length === 0 && (
-            <Typography variant="caption" sx={{ color: "text.secondary" }}>
-              Nothing raised here yet. {risk.topic.description?.split("\n")[0]}
-            </Typography>
-          )}
-        </Stack>
+        </Section>
       )}
-    </Box>
+      {risk.aiSettled.length > 0 && (
+        <Section title="Settled AI concerns" dense={dense}>
+          {bySeverity(risk.aiSettled).map(note => <Settled key={note.id} note={note} doing={doing} onShow={onShow} />)}
+        </Section>
+      )}
+      <Section title={`Your issues (${risk.issues.length})`} dense={dense}>
+        <Issues issues={risk.issues} dense={dense} about={about} doing={doing} onShow={onShow} />
+        <AddIssue topic={risk.topic.path} doing={doing} />
+      </Section>
+      {nothing && dense && (
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          Nothing raised here yet. {risk.topic.description?.split("\n")[0]}
+        </Typography>
+      )}
+    </Stack>
+  );
+}
+
+function Section({ title, dense, children }: { title: string; dense: boolean; children: ReactNode }) {
+  return (
+    <Stack spacing={dense ? 0.75 : 1}>
+      <Typography variant={dense ? "caption" : "subtitle2"} component="h4" sx={{ fontWeight: "fontWeightBold" }}>
+        {title}
+      </Typography>
+      {children}
+    </Stack>
   );
 }
 
@@ -275,38 +441,187 @@ function Card({ kind, children }: { kind: "assistant" | "issue"; children: React
   return <Box sx={theme => ({ ...passageCard(theme, kind), px: 1.25, py: 1 })}>{children}</Box>;
 }
 
-// The reviewer's issues, each leading to where it was raised
-function IssueList({ issues, about, onOpen }: {
-  issues: ReviewNote[];
-  about: (note: ReviewNote) => string;
-  onOpen: (note: ReviewNote) => void;
+// An AI concern the reviewer settled, greyed: made into an issue, leading to it, or dismissed, which can be taken back
+function Settled({ note, doing, onShow }: {
+  note: ReviewNote;
+  doing: ReviewDoing;
+  onShow: (note: ReviewNote) => void;
 }) {
+  const dismissed = note.settled === "dismissed";
   return (
-    <Stack spacing={0.75}>
+    <Box sx={{ opacity: 0.75, borderInlineStart: 3, borderColor: "divider", pl: 1.25 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75 }}>
+        {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          {dismissed ? "Dismissed" : "Made into an issue"}
+        </Typography>
+        {dismissed
+          ? <Link component="button" variant="caption" onClick={() => void doing.undismiss(note)}>Undo</Link>
+          : anchored(note) && <Link component="button" variant="caption" onClick={() => onShow(note)}>Show where</Link>}
+      </Stack>
+      <Typography variant="body2" sx={{ ...cutShort(2), color: "text.secondary" }}>{note.text}</Typography>
+    </Box>
+  );
+}
+
+// The reviewer's issues: compact in the panel, leading to where they were raised; in full in the dialog, to change
+function Issues({ issues, dense, about, doing, onShow }: {
+  issues: ReviewNote[];
+  dense: boolean;
+  about: (note: ReviewNote) => string;
+  doing: ReviewDoing;
+  onShow: (note: ReviewNote) => void;
+}) {
+  if (dense) {
+    return (
+      <Stack spacing={0.75}>
+        {bySeverity(issues).map(issue => (
+          <ButtonBase key={issue.id} onClick={() => anchored(issue) && onShow(issue)}
+            sx={theme => ({ ...passageCard(theme, "issue"), display: "block", textAlign: "start", px: 1.25, py: 0.75,
+              cursor: anchored(issue) ? "pointer" : "default" })}>
+            <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mb: 0.25 }}>
+              <Typography variant="caption" sx={{ color: "issue.main", fontWeight: "fontWeightBold" }}>Issue</Typography>
+              {issue.severity && <TagChip tags={[ issue.severity ]} category="severity" />}
+            </Stack>
+            {about(issue) && (
+              <Typography variant="caption" sx={{ display: "block", color: "text.secondary", fontStyle: "italic" }}>
+                {about(issue)}
+              </Typography>
+            )}
+            <Typography variant="body2" sx={cutShort(2)}>{issue.text}</Typography>
+          </ButtonBase>
+        ))}
+      </Stack>
+    );
+  }
+  return (
+    <Stack spacing={1}>
       {bySeverity(issues).map(issue => (
-        <ButtonBase key={issue.id} onClick={() => onOpen(issue)}
-          sx={theme => ({ ...passageCard(theme, "issue"), display: "block", textAlign: "start", px: 1.25, py: 0.75 })}>
-          <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mb: 0.25 }}>
-            <Typography variant="caption" sx={{ color: "issue.main", fontWeight: "fontWeightBold" }}>Issue</Typography>
-            {issue.severity && <TagChip tags={[ issue.severity ]} category="severity" />}
-          </Stack>
+        <Card key={issue.id} kind="issue">
           {about(issue) && (
             <Typography variant="caption" sx={{ display: "block", color: "text.secondary", fontStyle: "italic" }}>
               {about(issue)}
             </Typography>
           )}
-          <Typography variant="body2" sx={cutShort(2)}>{issue.text}</Typography>
-        </ButtonBase>
+          <NoteCard
+            note={issue}
+            onEdit={(text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
+            onRemove={() => doing.removeIssue(issue)}
+          />
+          {anchored(issue) && <Link component="button" variant="caption" onClick={() => onShow(issue)}>Show where</Link>}
+        </Card>
       ))}
     </Stack>
   );
 }
 
-// Folded, the panel keeps the count of the reviewer's issues and what they can do with them
-function Folded({ issueCount, onToggle, actions }: {
+// An issue under a risk, pointing at no answer or passage
+function AddIssue({ topic, doing }: { topic?: string; doing: ReviewDoing }) {
+  const [ writing, setWriting ] = useState(false);
+  if (!writing) {
+    return (
+      <Button size="small" variant="text" sx={{ alignSelf: "flex-start", px: 0.75, ml: -0.75 }}
+        onClick={() => setWriting(true)}>
+        Add an issue
+      </Button>
+    );
+  }
+  return (
+    <Box sx={theme => ({ ...passageCard(theme, "draft"), px: 1.25, py: 1, outline: "2px solid",
+      outlineColor: theme.palette.draft.main, outlineOffset: "-2px" })}>
+      <Composer
+        kinds={[ "issue" ]} initialTopic={topic ?? ""}
+        onCancel={() => setWriting(false)}
+        onSave={async (_kind, text, severity, chosen) => {
+          await doing.addIssue(chosen === "" ? undefined : chosen, text, severity);
+          setWriting(false);
+        }}
+      />
+    </Box>
+  );
+}
+
+function Unfiled({ unfiled, about, doing, dense = false, onShow }: ReviewProps & {
+  dense?: boolean;
+  onShow: (note: ReviewNote) => void;
+}) {
+  if (dense && unfiled.length === 0) {
+    return null;
+  }
+  return (
+    <Box sx={dense ? { borderTop: 1, borderColor: "divider", px: 1.5, py: 1 } : undefined}>
+      {dense && (
+        <Typography variant="caption" sx={{ display: "block", fontWeight: "fontWeightBold", mb: 0.5 }}>
+          Your issues under no risk ({unfiled.length})
+        </Typography>
+      )}
+      {!dense && (
+        <Typography variant="body2" sx={{ color: "text.secondary", mb: 1 }}>
+          Issues not filed under one of your risks. Change one to file it.
+        </Typography>
+      )}
+      <Issues issues={unfiled} dense={dense} about={about} doing={doing} onShow={onShow} />
+      {!dense && <AddIssue doing={doing} />}
+    </Box>
+  );
+}
+
+function Others({ others, doing }: { others: OthersRaised[]; doing: ReviewDoing }) {
+  return others.map(one => (
+    <Typography key={one.group} variant="caption"
+      sx={{ display: "block", px: 1.5, py: 1, borderTop: 1, borderColor: "divider", color: "text.secondary" }}>
+      {one.group} raised {plural(one.count, "issue")}
+      {one.shared > 0 ? `, ${one.shared} on what you also review` : ""}.{" "}
+      <Link component="button" variant="caption" onClick={doing.showOthers}>Show them</Link>
+    </Typography>
+  ));
+}
+
+// The decision, and since when it waits on the reviewer
+function Decision({ waitingSince, decision, wide = false }: {
+  waitingSince?: string;
+  decision: ReviewDoing["decision"];
+  wide?: boolean;
+}) {
+  if (!decision) {
+    return null;
+  }
+  return (
+    <Stack direction={wide ? { xs: "column", sm: "row" } : "column"} spacing={1}
+      sx={{ p: 1.5, borderTop: 1, borderColor: "divider", alignItems: wide ? { sm: "center" } : undefined }}>
+      <Typography variant="caption" sx={{ color: "text.secondary", flex: wide ? 1 : undefined }}>
+        {waitingSince ? `Waiting on your decision since ${waitingSince}` : "Not waiting on your decision now"}
+      </Typography>
+      {wide && decision.board && (
+        <Button variant="text" size="small" startIcon={<GroupsOutlined />} onClick={decision.board}>
+          Escalate to the board
+        </Button>
+      )}
+      <Button variant="outlined" size="small" startIcon={<ForwardToInboxOutlined />} onClick={decision.send}>
+        Request changes
+      </Button>
+      <Tooltip title={decision.approveBlocked ?? ""}>
+        <span>
+          <Button variant="contained" size="small" fullWidth startIcon={<TaskAltOutlined />}
+            disabled={Boolean(decision.approveBlocked)} onClick={decision.approve}>
+            Approve
+          </Button>
+        </span>
+      </Tooltip>
+      {!wide && decision.board && (
+        <Button variant="text" size="small" startIcon={<GroupsOutlined />} onClick={decision.board}>
+          Escalate to the board
+        </Button>
+      )}
+    </Stack>
+  );
+}
+
+// Folded, the panel keeps the count of the reviewer's issues and the decision
+function Folded({ issueCount, onToggle, decision }: {
   issueCount: number;
   onToggle: () => void;
-  actions?: { send: () => void; approve: () => void; approveBlocked?: string; board?: () => void };
+  decision: ReviewDoing["decision"];
 }) {
   return (
     <Paper sx={{ width: 48, py: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
@@ -319,24 +634,24 @@ function Folded({ issueCount, onToggle, actions }: {
           </Badge>
         </IconButton>
       </Tooltip>
-      {actions && (
+      {decision && (
         <>
           <Tooltip title="Request changes" placement="left">
-            <IconButton size="small" aria-label="Request changes" color="primary" onClick={actions.send}>
+            <IconButton size="small" aria-label="Request changes" color="primary" onClick={decision.send}>
               <ForwardToInboxOutlined />
             </IconButton>
           </Tooltip>
-          <Tooltip title={actions.approveBlocked ?? "Approve"} placement="left">
+          <Tooltip title={decision.approveBlocked ?? "Approve"} placement="left">
             <span>
-              <IconButton size="small" aria-label="Approve" color="primary" disabled={Boolean(actions.approveBlocked)}
-                onClick={actions.approve}>
+              <IconButton size="small" aria-label="Approve" color="primary" disabled={Boolean(decision.approveBlocked)}
+                onClick={decision.approve}>
                 <TaskAltOutlined />
               </IconButton>
             </span>
           </Tooltip>
-          {actions.board && (
+          {decision.board && (
             <Tooltip title="Escalate to the board" placement="left">
-              <IconButton size="small" aria-label="Escalate to the board" onClick={actions.board}>
+              <IconButton size="small" aria-label="Escalate to the board" onClick={decision.board}>
                 <GroupsOutlined />
               </IconButton>
             </Tooltip>

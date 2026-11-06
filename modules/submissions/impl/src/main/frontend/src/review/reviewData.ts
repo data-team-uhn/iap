@@ -76,6 +76,8 @@ export interface ReviewNote {
   passage?: Passage;
   replies: Message[];
   severity?: string;
+  // An AI comment the reviewer settled: the issue they made of it, by path, or "dismissed"
+  settled?: string;
   // Another reviewer's issue: the reviewer group they raised it for, by principal name
   group?: string;
   // The risk an AI issue was raised under, or a reviewer's issue is filed under: its name, and its path
@@ -113,6 +115,8 @@ export interface ReviewData {
   answers: Map<string, ReviewedAnswer>;
   documents: Map<string, ReviewedDocument>;
   notes: ReviewNote[];
+  // The AI pre-review's comments this reviewer has made into issues or dismissed, kept apart from the notes shown
+  settledAi: ReviewNote[];
   // The schema part an answer or document UUID stands for
   partOf: Map<string, string>;
   // The AI pre-review: its overall read, and its read of each risk, by the risk's path
@@ -197,7 +201,8 @@ export function parseReview(submission: Node, schema: string, me: string, topics
   const partOf = new Map<string, string>();
   const notes: ReviewNote[] = [];
   // The AI pre-review comments this reviewer made into issues or dismissed, which they no longer need to see
-  const settled = new Set<string>();
+  // How each settled one was: the issue made of it, by path, or "dismissed"
+  const settled = new Map<string, string>();
   let aiSummary: string | undefined;
   const assessments = new Map<string, string>();
   let considered = new Set<string>();
@@ -239,7 +244,7 @@ export function parseReview(submission: Node, schema: string, me: string, topics
         }
         const comments = childrenOf(assessment, "sub:Comment");
         comments.filter(one => Array.isArray(one.dismissedBy) && one.dismissedBy.includes(me))
-          .forEach(one => settled.add(text(one["@path"])));
+          .forEach(one => settled.set(text(one["@path"]), "dismissed"));
         notes.push(...comments.map(one => comment(one, "aiIssue", me, topic)));
       }
       aiSummary = text(node.summary) || undefined;
@@ -248,7 +253,8 @@ export function parseReview(submission: Node, schema: string, me: string, topics
         considered = new Set(node.considered.map(String));
       }
       const comments = childrenOf(node, "sub:Comment");
-      comments.filter(one => one.author === me && text(one.from)).forEach(one => settled.add(text(one.from)));
+      comments.filter(one => one.author === me && text(one.from))
+        .forEach(one => settled.set(text(one.from), text(one["@path"])));
       const group = text(node.group) || undefined;
       notes.push(...comments.map(one => ({ ...comment(one, one.author === me ? "issue" : "otherIssue", me, undefined,
         topics), group })));
@@ -258,7 +264,10 @@ export function parseReview(submission: Node, schema: string, me: string, topics
       notes.push(...childrenOf(node, "sub:Comment").map(one => comment(one, "note", me)));
     }
   }
-  return { answers, documents, notes: notes.filter(note => !settled.has(note.id)), partOf, aiSummary, assessments,
+  const settledAi = notes.filter(note => settled.has(note.id))
+    .map(note => ({ ...note, settled: settled.get(note.id) }));
+  return { answers, documents, notes: notes.filter(note => !settled.has(note.id)), settledAi, partOf, aiSummary,
+    assessments,
     considered };
 }
 

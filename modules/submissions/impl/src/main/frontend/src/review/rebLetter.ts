@@ -27,17 +27,15 @@ export interface LetterInput {
   // What each issue is about, as the study team would recognize it
   about: (note: ReviewNote) => string;
   issues: ReviewNote[];
+  // The risks the issues are filed under, by path, in the order the review weighs them
+  risks: { path: string; label: string }[];
   reviewer: string;
   // The reviewer group writing, such as "Research ethics"
   group: string;
 }
 
-const HEADINGS: Record<string, string> = {
-  critical: "Must be resolved before the study can go ahead",
-  major: "Must be addressed before approval",
-  medium: "Should be addressed before approval",
-  minor: "Worth fixing",
-  suggestion: "Suggestions",
+const SEVERITY_NAMES: Record<string, string> = {
+  critical: "Critical", major: "Major", medium: "Medium", minor: "Minor", suggestion: "Suggestion",
 };
 
 // What an issue is about, leading into it: a question already ends a sentence
@@ -45,7 +43,9 @@ export function leadIn(where: string): string {
   return !where ? "" : /[?.!]$/.test(where) ? `${where} ` : `${where}. `;
 }
 
-export function draftLetter({ title, identifier, pi, about, issues, reviewer, group }: LetterInput): string {
+// The letter goes risk by risk, as the review weighs them, then the points filed under none; within each, the most
+// serious first, each saying how serious
+export function draftLetter({ title, identifier, pi, about, issues, risks, reviewer, group }: LetterInput): string {
   const date = new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
   const lines = [
     date,
@@ -57,16 +57,18 @@ export function draftLetter({ title, identifier, pi, about, issues, reviewer, gr
     `Thank you for your submission. The ${group} review has looked at it and asks that you respond to the `
       + "points below. Please answer each one, revise the submission where it applies, and send it back.",
   ];
+  const known = new Set(risks.map(risk => risk.path));
+  const sections = [
+    ...risks.map(risk => ({ heading: risk.label, issues: issues.filter(issue => issue.topicPath === risk.path) })),
+    { heading: "Other points", issues: issues.filter(issue => !issue.topicPath || !known.has(issue.topicPath)) },
+  ];
   let number = 1;
-  for (const severity of SEVERITIES) {
-    const these = issues.filter(issue => (issue.severity ?? "medium") === severity);
-    if (these.length === 0) {
-      continue;
-    }
-    lines.push("", HEADINGS[severity], "");
-    for (const issue of these) {
+  for (const section of sections.filter(one => one.issues.length > 0)) {
+    lines.push("", section.heading, "");
+    for (const issue of SEVERITIES.flatMap(severity =>
+      section.issues.filter(one => (one.severity ?? "medium") === severity))) {
       const where = about(issue);
-      lines.push(`${number}. ${leadIn(where)}${issue.text}`);
+      lines.push(`${number}. (${SEVERITY_NAMES[issue.severity ?? "medium"]}) ${leadIn(where)}${issue.text}`);
       if (issue.passage?.quote) {
         lines.push(`   The protocol says: "${issue.passage.quote}"`);
       }
