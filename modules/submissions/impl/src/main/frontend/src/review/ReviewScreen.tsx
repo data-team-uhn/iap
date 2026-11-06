@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import ChatBubbleOutlineOutlined from "@mui/icons-material/ChatBubbleOutlineOutlined";
+import CheckOutlined from "@mui/icons-material/CheckOutlined";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
@@ -63,7 +64,7 @@ import { ReviewerTopics, WRITTEN } from "./Composer";
 import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
-import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
+import FormReview, { answerText, GroupNames, type ReviewActions } from "./FormReview";
 import IssuesPanel from "./IssuesPanel";
 import LetterDialog from "./LetterDialog";
 import { usePersonName } from "./people";
@@ -611,7 +612,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                 {requirement.name === current?.name && requirement.description}
                 {!focused && (
                   <Box component="span" sx={{ display: "block", mt: 0.25 }}>
-                    <GroupChips groups={groupsOf(requirement)} mine={myGroups} />
+                    <GroupNames groups={groupsOf(requirement)} mine={myGroups} />
                   </Box>
                 )}
               </>}
@@ -744,6 +745,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                         variant={shown.has(info.kind) ? "filled" : "outlined"}
                         onClick={() => toggleKind(info.kind)}
                         aria-pressed={shown.has(info.kind)}
+                        icon={shown.has(info.kind) ? <CheckOutlined /> : undefined}
                         // Shown, filled in its colour; hidden, plain grey, so it reads as off
                         sx={theme => shown.has(info.kind)
                           ? { borderColor: theme.palette[info.mark].main,
