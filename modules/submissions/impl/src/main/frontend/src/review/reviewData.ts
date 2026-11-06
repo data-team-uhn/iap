@@ -43,7 +43,7 @@ export const NOTE_KINDS: NoteKindInfo[] = [
   { kind: "issue", label: "Your issues", single: "Your issue", mark: "issue" },
   { kind: "otherIssue", label: "Others' issues", single: "Issue", mark: "otherIssue" },
   { kind: "discussion", label: "Reviewer discussion", single: "Discussion", mark: "discussion" },
-  { kind: "note", label: "My notes", single: "My note", mark: "annotation" },
+  { kind: "note", label: "Your notes", single: "Your note", mark: "annotation" },
 ];
 
 export function kindInfo(kind: NoteKind): NoteKindInfo {
