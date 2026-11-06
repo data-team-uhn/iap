@@ -47,8 +47,8 @@ import org.mockito.Mockito;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
- * Unit tests for {@link ResourceToJsonAdapterFactory}, exercising the whole serialization process with the default
- * processors.
+ * Unit tests for {@link ResourceToJsonAdapterFactory}, run with the {@code properties}, {@code identify},
+ * {@code dereference} and {@code deep} processors unless a test sets others.
  *
  * @version $Id$
  * @since 0.1.0
@@ -102,7 +102,6 @@ public class ResourceToJsonAdapterFactoryTest
 
         final JsonObject result = this.factory.getAdapter(mockResource(node, ".json"), JsonObject.class);
 
-        // Serializing children requires explicitly enabling the `deep` processor
         Assertions.assertFalse(result.containsKey("child"));
     }
 
@@ -114,10 +113,9 @@ public class ResourceToJsonAdapterFactoryTest
 
         final JsonObject result = this.factory.getAdapter(mockResource(node, ".1.json"), JsonObject.class);
 
-        // A depth selector serializes children without needing the `deep` selector as well
         final JsonObject child = result.getJsonObject("child");
         Assertions.assertEquals("/parent/child", child.getString("@path"));
-        // The grandchild is past the requested depth, so only its path is serialized
+        // The grandchild is past depth 1
         Assertions.assertEquals("/parent/child/grandchild", child.getString("grandchild"));
     }
 
@@ -127,7 +125,7 @@ public class ResourceToJsonAdapterFactoryTest
     {
         final Node node = mockChain("parent", "child", "grandchild", "greatgrandchild");
 
-        // Selectors that aren't numbers are ignored, and out of the numbers the last one wins
+        // `deep` and `1b` are not depths, and `2` comes after `3`
         final JsonObject result = this.factory.getAdapter(mockResource(node, ".3.deep.2.1b.json"), JsonObject.class);
 
         final JsonObject grandchild = result.getJsonObject("child").getJsonObject("grandchild");
@@ -170,9 +168,8 @@ public class ResourceToJsonAdapterFactoryTest
 
         final JsonObject result = this.factory.getAdapter(mockResource(node, ".0.json"), JsonObject.class);
 
-        // Children aren't serialized at all, since a depth of 0 doesn't enable deep serialization
         Assertions.assertFalse(result.containsKey("child"));
-        // A referenced node would be nested in the output, so only its path is serialized
+        // A referenced node is nested too, so it is past depth 0
         Assertions.assertEquals("/target", result.getString("reference"));
     }
 
@@ -181,7 +178,7 @@ public class ResourceToJsonAdapterFactoryTest
         throws Exception
     {
         final Node node = mockNode("/parent", "parent");
-        // The node is its own child; instead of infinite recursion, the child must be output as its path
+        // The node is its own child
         final NodeIterator children = mockNodeIterator(node);
         Mockito.when(node.getNodes()).thenReturn(children);
 
@@ -215,7 +212,7 @@ public class ResourceToJsonAdapterFactoryTest
 
         final JsonObject result = this.factory.getAdapter(mockResource(node, ".-dereference.json"), JsonObject.class);
 
-        // With the dereference processor disabled, the raw UUID must be output instead of the referenced node
+        // The stored value, the target's `jcr:uuid`
         Assertions.assertEquals("uuid-of-target", result.getString("reference"));
     }
 
@@ -263,7 +260,7 @@ public class ResourceToJsonAdapterFactoryTest
     public void testCustomProcessorHooks()
         throws Exception
     {
-        // A processor that uses the serializeNode callback from enter, and skips properties by nulling their name
+        // Calls serializeNode from enter and leave, and leaves out the property named `secret`
         final ResourceJsonProcessor custom = new ResourceJsonProcessor()
         {
             @Override
@@ -303,14 +300,11 @@ public class ResourceToJsonAdapterFactoryTest
         final PropertyIterator properties = mockPropertyIterator(mockStringProperty("secret", "hidden"));
         Mockito.when(node.getProperties()).thenReturn(properties);
 
-        // The custom processor isn't enabled by default, so it must be requested by name
         final JsonObject result = this.factory.getAdapter(mockResource(node, ".custom.json"), JsonObject.class);
 
-        // The serializeNode callbacks received in enter() and leave() are usable; since the node is already being
-        // serialized, only its path is returned
+        // The node is still being serialized, so serializeNode gives its path
         Assertions.assertEquals("/parent", result.getString("fromEnter"));
         Assertions.assertEquals("/parent", result.getString("fromLeave"));
-        // The property whose name was nulled is skipped
         Assertions.assertFalse(result.containsKey("secret"));
     }
 
@@ -364,7 +358,6 @@ public class ResourceToJsonAdapterFactoryTest
 
         final JsonObject result = this.factory.getAdapter(mockResource(node, ".-properties.json"), JsonObject.class);
 
-        // With the properties processor disabled, no processor serializes property values
         Assertions.assertFalse(result.containsKey("title"));
         Assertions.assertEquals("/parent", result.getString("@path"));
     }
@@ -391,8 +384,7 @@ public class ResourceToJsonAdapterFactoryTest
         throws RepositoryException
     {
         final Node node = Mockito.mock(Node.class);
-        // The iterators must be created before stubbing starts, since creating them stubs other mocks,
-        // and Mockito doesn't allow interleaved stubbing
+        // Creating an iterator stubs its own mock, and Mockito refuses a stubbing started inside another one
         final PropertyIterator properties = mockPropertyIterator();
         final NodeIterator children = mockNodeIterator();
         Mockito.when(node.getPath()).thenReturn(path);
@@ -403,7 +395,7 @@ public class ResourceToJsonAdapterFactoryTest
     }
 
     /**
-     * Mock a chain of nodes, each one being the only child of the previous one.
+     * Mocks a chain of nodes, each one the only child of the one before.
      *
      * @param names the names of the nodes, starting with the topmost one
      * @return the topmost node
@@ -415,7 +407,7 @@ public class ResourceToJsonAdapterFactoryTest
         for (int i = names.length - 1; i >= 0; --i) {
             final Node node = mockNode("/" + String.join("/", Arrays.copyOf(names, i + 1)), names[i]);
             if (lastNode != null) {
-                // The iterator must be created before stubbing starts, since creating it stubs other mocks
+                // Created before the stubbing, as in mockNode
                 final NodeIterator children = mockNodeIterator(lastNode);
                 Mockito.when(node.getNodes()).thenReturn(children);
             }

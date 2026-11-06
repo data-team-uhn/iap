@@ -30,34 +30,39 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A service that can help serialize a node to JSON. Implementations of this interface will be invoked by
- * {@code ResourceToJsonAdapterFactory} when serializing a resource as JSON.
+ * Shapes part of the JSON a resource is served as. A chain of processors builds that JSON, and each one adds, changes
+ * or drops what the processors before it produced.
  *
  * <p>
- * Each implementation has a {@link #getName() name} that can be used to enable or disable it. Selecting which
- * processors to use when serializing a resource is done through the resource's selectors. This can be accomplished by
- * appending them in the request URL for a resource, for example
- * {@code http://server.example/path/to/resource.deep.simple.json}, or by appending them in the resource path when
- * using {@code ResourceResolver#resolve}, for example {@code resourceResolver.resolve("/path/to/resource.deep")}.
- * Some implementations are {@link #isEnabledByDefault(Resource) enabled by default} for all, or just some resources,
- * like the {@code properties} processor that serializes all property names. To disable some of these default
- * processors, prefix their name with {@code -} in the list of selectors, for example
- * {@code /path/to/resource.-dereference.json}.
+ * The selectors choose the processors by name: {@code /path/to/resource.deep.simple.json} enables {@code deep} and
+ * {@code simple}. Java code passes them in the path it resolves, as in
+ * {@code resourceResolver.resolve("/path/to/resource.deep.simple")}. Some processors are
+ * {@link #isEnabledByDefault(Resource) enabled by default}, such as {@code properties}, which writes the value of each
+ * property. A {@code -} before a name disables it: {@code /path/to/resource.-dereference.json}.
  * </p>
  *
  * <p>
- * The enabled processors will be called one after another, in ascending order of their {@link #getPriority()
- * priority}, receiving the serialized value computed by the previous processor, starting with {@code null}. If, at
- * the end of the process, the result is {@code null}, then that property or child is not included in the output. To
- * serialize a property or child as {@code null}, return {@code JsonValue.NULL}. The name under which a property or
- * child is serialized is its actual name by default, and this cannot be changed by the {@link #processProperty} or
- * {@link #processChild} methods. Changing the key names, or adding extra keys in the JSON, can be accomplished using
- * the {@link #leave} method.
+ * Several processors may share a name, and the name enables them all. A module can give a name such as
+ * {@code simple} a meaning for its own node types this way.
  * </p>
  *
  * <p>
- * For each serialized node, first all its properties are serialized using {@link #processProperty}, then all its
- * children using {@link #processChild}, then the output is post-processed using {@link #leave}.
+ * Each node is serialized in order: {@link #enter}, then each property through {@link #processProperty} and
+ * {@link #processPropertyName}, then each child through {@link #processChild}, then {@link #leave}. The enabled
+ * processors run in ascending order of {@link #getPriority() priority}. For a property or a child, each one receives
+ * the value the one before it returned, and the first receives {@code null}. A final {@code null} leaves the property
+ * or child out of the JSON. {@code JsonValue.NULL} writes it as {@code null}.
+ * </p>
+ *
+ * <p>
+ * A child's key is its node name, and a property's key is the name {@link #processPropertyName} gives it. Only
+ * {@link #enter} and {@link #leave} can write other keys.
+ * </p>
+ *
+ * <p>
+ * The {@code serializeNode} function each hook receives serializes another node within the same serialization. It
+ * returns the node's JSON object, or only its path for a node past the requested depth or already being serialized
+ * higher up. It returns {@code null} for a node it cannot read.
  * </p>
  *
  * @version $Id$
@@ -66,32 +71,33 @@ import org.jetbrains.annotations.Nullable;
 public interface ResourceJsonProcessor
 {
     /**
-     * The name that can be used to enable or disable this processor.
+     * The name the selectors enable or disable this processor by.
      *
-     * @return the name of this processor, a simple string
+     * @return the name, such as {@code deep}
      */
     @NotNull
     String getName();
 
     /**
-     * The priority of this processor. Processors with higher numbers are invoked after those with lower numbers,
-     * receiving their output as an input. Priority {@code 0} is considered the base priority, where the properties
-     * and children are serialized using a default method. Use higher numbers if you want to post-process the default
-     * serialization, or negative numbers if you want to provide a different base serialization.
+     * Where this processor runs in the chain. A processor runs after those with a lower priority, and receives what
+     * they returned. {@code properties} writes each property's stored value at priority {@code 0}. Run after it to
+     * change a value, or before it to write a value another way.
      *
-     * @return the priority of this processor, can be any number
+     * @return any {@code int}; processors of equal priority run in no defined order
      */
     int getPriority();
 
     /**
-     * Checks if the given resource can be serialized by this processor. This method is only invoked for the top level
-     * resource being serialized, not for each of its children/descendants. If this method returns {@code true}, this
-     * processor may be invoked, if selected. If this method returns {@code false}, this processor will not be invoked
-     * when serializing the resource, even if explicitly requested. The default implementation returns {@code true}
-     * for all resources, implementations must override it to select which resources can be processed.
+     * Whether this processor may run when serializing the given resource. A processor that cannot process the
+     * resource does not run, even if the selectors name it. The default allows every resource.
      *
-     * @param resource the resource being serialized
-     * @return {@code true} if this processor can be invoked when serializing this resource, {@code false} otherwise
+     * <p>
+     * It is asked about the requested resource only, never about the nodes inside it. A processor for a node type
+     * that can appear nested checks each node in its hooks instead.
+     * </p>
+     *
+     * @param resource the requested resource
+     * @return {@code true} if this processor may run
      */
     default boolean canProcess(@NotNull final Resource resource)
     {
@@ -99,12 +105,11 @@ public interface ResourceJsonProcessor
     }
 
     /**
-     * Reports whether this processor should be enabled by default for the given resource, even if not explicitly
-     * requested. The default implementation returns {@code false}.
+     * Whether this processor runs when the selectors do not name it. A {@code -} selector before its name still
+     * disables it. It is asked about the requested resource only. The default is {@code false}.
      *
-     * @param resource the resource being serialized
-     * @return {@code true} if this processor should be invoked when serializing the resource, even if not requested,
-     *         {@code false} otherwise
+     * @param resource the requested resource
+     * @return {@code true} if this processor runs unless the selectors disable it
      */
     default boolean isEnabledByDefault(@NotNull final Resource resource)
     {
@@ -112,10 +117,10 @@ public interface ResourceJsonProcessor
     }
 
     /**
-     * Called at the start of the serialization process for the topmost resource, in case the current processor needs
-     * to initialize some temporary state.
+     * Called once, before the requested resource is serialized. One instance serves every serialization, and
+     * serializations run concurrently.
      *
-     * @param resource the resource being serialized
+     * @param resource the requested resource
      */
     default void start(@NotNull final Resource resource)
     {
@@ -123,16 +128,12 @@ public interface ResourceJsonProcessor
     }
 
     /**
-     * Called when a node's serialization begins. The processors will receive as input the JSON representation for the
-     * node, starting with an empty JsonObjectBuilder, and modified by the previous processors, and any changes done
-     * to it will be seen by further processors. The default implementation simply returns, leaving the input
-     * unmodified.
+     * Called when a node's serialization begins, before its properties. The processors after this one see what it
+     * adds to the builder. The default does nothing.
      *
-     * @param node the node being serialized, may be other than the top resource
-     * @param input the JSON representation computed by the previous processors, may be an empty object but must not
-     *            be {@code null}
-     * @param serializeNode a function that can be invoked to serialize a new node, receiving a Node as input, and
-     *            returning a JSON representation
+     * @param node the node being serialized: the requested resource's node, or one nested in it
+     * @param input the node's JSON so far; empty for the first processor
+     * @param serializeNode serializes another node within this serialization, as the class description says
      */
     default void enter(@NotNull final Node node, @NotNull final JsonObjectBuilder input,
         @NotNull final Function<Node, JsonValue> serializeNode)
@@ -141,20 +142,14 @@ public interface ResourceJsonProcessor
     }
 
     /**
-     * Called for each property of a serialized node, allows processing the JSON serialization of a property. The
-     * first processor invoked will receive {@code null} as the JSON input, and each subsequent processor being
-     * invoked receives the output of the previous one. If at the end of the process the outcome is {@code null}, then
-     * the property is skipped from the parent node's serialization. Any processor may add, modify, or discard a
-     * representation, only the outcome of the last processor is taken into consideration when serializing the parent
-     * node. The default implementation simply returns the input unmodified.
+     * Called for each property of a serialized node, to give the property's JSON value. The default returns
+     * {@code input} unchanged.
      *
-     * @param node the node whose property is serialized, may be other than the top resource
-     * @param property the property being serialized
-     * @param input the JSON representation computed by the previous processors, may be {@code null}
-     * @param serializeNode a function that can be invoked to serialize a new node, receiving a Node as input, and
-     *            returning a JSON representation
-     * @return a JSON representation for the property value, may be {@code null} if the property should be skipped, or
-     *         any simple or complex JSON value, including arrays or objects
+     * @param node the node that has the property
+     * @param property the property
+     * @param input the value the processors before this one returned; {@code null} if they returned none
+     * @param serializeNode serializes another node within this serialization, as the class description says
+     * @return the property's value, of any JSON type; {@code null} to leave the property out
      */
     @Nullable
     default JsonValue processProperty(@NotNull final Node node, @NotNull final Property property,
@@ -164,18 +159,13 @@ public interface ResourceJsonProcessor
     }
 
     /**
-     * Called for each property of a serialized node, allows adjusting the name of the JSON serialized property. The
-     * first processor invoked will receive the property's original name as the input string, and each subsequent
-     * processor being invoked receives the output of the previous one. If at the end of the process the outcome is
-     * {@code null}, then the property is skipped from the parent node's serialization. Only the outcome of the last
-     * processor is taken into consideration when serializing the parent node. The default implementation simply
-     * returns the input unmodified.
+     * Called for each property of a serialized node, to give the key the property is written under. The first
+     * processor receives the property's name. The default returns {@code input} unchanged.
      *
-     * @param node the node whose property name is being determined
-     * @param property the property which is being named
-     * @param input the name determined by the previous processors, may be {@code null}
-     * @return the desired name for the property to be saved under in the JSON serialization, may be {@code null} if
-     *         the property should be skipped
+     * @param node the node that has the property
+     * @param property the property
+     * @param input the key the processors before this one returned; {@code null} if one of them left the property out
+     * @return the key; {@code null} to leave the property out
      */
     @Nullable
     default String processPropertyName(@NotNull final Node node, @NotNull final Property property,
@@ -185,20 +175,14 @@ public interface ResourceJsonProcessor
     }
 
     /**
-     * Called for each child node of a serialized node, allows processing the JSON serialization of a child node. The
-     * first processor invoked will receive {@code null} as the JSON input, and each subsequent processor being
-     * invoked receives the output of the previous one. If at the end of the process the outcome is {@code null}, then
-     * the child node is skipped from the parent node's serialization. Any processor may add, modify, or discard a
-     * representation, only the outcome of the last processor is taken into consideration when serializing the parent
-     * node. The default implementation simply returns the input unmodified.
+     * Called for each child of a serialized node, to give the child's JSON value. The default returns {@code input}
+     * unchanged.
      *
-     * @param node the node whose child is serialized, may be other than the top resource
-     * @param child the node being serialized
-     * @param input the JSON representation computed by the previous processors, may be {@code null}
-     * @param serializeNode a function that can be invoked to serialize a new node, receiving a Node as input, and
-     *            returning a JSON representation
-     * @return a JSON representation for the child node, may be {@code null} if the child should be skipped, or any
-     *         simple or complex JSON value, including arrays or objects
+     * @param node the node that has the child
+     * @param child the child node
+     * @param input the value the processors before this one returned; {@code null} if they returned none
+     * @param serializeNode serializes another node within this serialization, as the class description says
+     * @return the child's value, of any JSON type; {@code null} to leave the child out
      */
     @Nullable
     default JsonValue processChild(@NotNull final Node node, @NotNull final Node child,
@@ -208,16 +192,13 @@ public interface ResourceJsonProcessor
     }
 
     /**
-     * Called at the end of a node's serialization, allows further processing of the JSON serialization of a node. The
-     * processor will receive the JSON representation computed using {@link #enter}, {@link #processProperty} and
-     * {@link #processChild} as the JSON input, and any changes done to it will be seen by further processors. The
-     * default implementation simply returns, leaving the input unmodified.
+     * Called when a node's serialization ends, after its children. The builder holds the node's properties and
+     * children, and what the processors before this one added. The processors after this one see what it adds. The
+     * default does nothing.
      *
-     * @param node the node being serialized, may be other than the top resource
-     * @param json the JSON representation computed by the previous processors, may be an empty object but must not be
-     *            {@code null}
-     * @param serializeNode a function that can be invoked to serialize a new node, receiving a Node as input, and
-     *            returning a JSON representation
+     * @param node the node being serialized: the requested resource's node, or one nested in it
+     * @param json the node's JSON so far
+     * @param serializeNode serializes another node within this serialization, as the class description says
      */
     default void leave(@NotNull final Node node, @NotNull final JsonObjectBuilder json,
         @NotNull final Function<Node, JsonValue> serializeNode)
@@ -226,10 +207,10 @@ public interface ResourceJsonProcessor
     }
 
     /**
-     * Called at the end of the serialization process, in case the current processor needs to clean up any temporary
-     * state. It is called even when serializing failed, so whatever {@link #start} set up can always be released.
+     * Called once, after the requested resource is serialized, even if serializing it failed. Release here what
+     * {@link #start} set up.
      *
-     * @param resource the resource that was serialized
+     * @param resource the requested resource
      */
     default void end(@NotNull final Resource resource)
     {

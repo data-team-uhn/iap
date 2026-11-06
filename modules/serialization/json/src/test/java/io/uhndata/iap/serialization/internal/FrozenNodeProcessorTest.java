@@ -58,7 +58,6 @@ public class FrozenNodeProcessorTest
     public void testTheCopysOwnBookkeepingIsLeftOut() throws RepositoryException
     {
         final Node node = frozenNode();
-        // Both describe the copy rather than the content
         Assertions.assertNull(this.processor.processPropertyName(node, property("jcr:primaryType"), "jcr:primaryType"));
         Assertions.assertNull(this.processor.processPropertyName(node, property("jcr:uuid"), "jcr:uuid"));
         Assertions.assertNull(

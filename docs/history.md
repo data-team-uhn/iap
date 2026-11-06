@@ -211,9 +211,8 @@ and `jcr:frozenUuid`. The `simple` JSON processor drops both.
 `FrozenNodeProcessor` (the `frozen` processor, in `modules/serialization/json`) serves
 them as `jcr:primaryType` and `jcr:uuid`, and leaves out the copy's own type and
 identifier and the original's mixins. It is enabled by default when the resource
-requested is frozen, since nothing downstream could otherwise tell that what it reads is
-old. Serializing a version or a version history does not enable it for the frozen nodes
-inside: ask for the `frozen` selector.
+requested is frozen. Serializing a version or a version history does not enable it for
+the frozen nodes inside: ask for the `frozen` selector.
 
 ## Read markers
 

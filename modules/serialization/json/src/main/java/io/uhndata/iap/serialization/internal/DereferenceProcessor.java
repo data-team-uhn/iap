@@ -37,8 +37,18 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
- * Dereference properties of type {@code REFERENCE}, {@code WEAKREFERENCE} or {@code PATH}: instead of printing the
- * internal UUID, serialize the referenced node. The name of this processor is {@code dereference}.
+ * Writes the node a {@code REFERENCE}, {@code WEAKREFERENCE} or {@code PATH} property points to in place of the
+ * stored {@code jcr:uuid} or path. The name of this processor is {@code dereference}, and it is enabled by default.
+ *
+ * <p>
+ * A {@code jcr:} property, such as {@code jcr:baseVersion}, leads into version storage, so it is written as the
+ * target's path. A multi-valued {@code jcr:} {@code PATH} property is the exception, and is dereferenced.
+ * </p>
+ *
+ * <p>
+ * A target this session cannot read is left as stored. In a multi-valued {@code PATH} property, only that value keeps
+ * its stored path. In a multi-valued reference, every value keeps its stored {@code jcr:uuid}.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -92,20 +102,16 @@ public class DereferenceProcessor implements ResourceJsonProcessor
                 JsonValue result = input;
                 try {
                     final Node node = property.getNode();
-                    // Reference properties starting with "jcr:" deal with versioning,
-                    // and the version trees have cyclic references.
-                    // Also, the node history shouldn't be serialized.
                     if (property.getName().startsWith("jcr:")) {
                         result = Json.createValue(node.getPath());
                     } else {
                         result = serializeNode.apply(node);
                     }
                 } catch (RepositoryException e) {
-                    // If we can't access the node, just leave the input unmodified
+                    // The target cannot be read: leave the value as stored
                 }
                 yield result;
             }
-            // If this is not a reference property, just leave the input unmodified
             default -> input;
         };
     }
@@ -120,16 +126,12 @@ public class DereferenceProcessor implements ResourceJsonProcessor
             for (Value value : property.getValues()) {
                 try {
                     final Node node = property.getSession().getNodeByIdentifier(value.getString());
-                    // Reference properties starting with "jcr:" deal with versioning,
-                    // and the version trees have cyclic references.
-                    // Also, the node history shouldn't be serialized.
                     if (name.startsWith("jcr:")) {
                         arrayBuilder.add(node.getPath());
                     } else {
                         arrayBuilder.add(serializeNode.apply(node));
                     }
                 } catch (RepositoryException e) {
-                    // If we can't access the node, just leave the input unmodified
                     return input;
                 }
             }
@@ -141,12 +143,10 @@ public class DereferenceProcessor implements ResourceJsonProcessor
                         : property.getParent().getNode(path);
                     arrayBuilder.add(serializeNode.apply(node));
                 } catch (RepositoryException e) {
-                    // If we can't access a node, just add its path to the output
                     arrayBuilder.add(path);
                 }
             }
         } else {
-            // If this is not a reference property, just leave the input unmodified
             return input;
         }
         return arrayBuilder.build();

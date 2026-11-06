@@ -30,7 +30,7 @@
   <name>IAP - Serialization - Resources to JSON</name>
 
   <dependencies>
-    <!-- Nullability annotations for the exported API/SPI -->
+    <!-- Nullability annotations -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>

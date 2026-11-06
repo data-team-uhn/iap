@@ -27,21 +27,19 @@ import org.osgi.service.component.annotations.Component;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
- * Serialize only what a consumer of the content is likely to have asked for, leaving out the properties that describe
- * how the content is stored rather than what it holds. The name of this processor is {@code simple}.
+ * Leaves out the properties that say how content is stored rather than what it holds. The name of this processor is
+ * {@code simple}.
  *
  * <p>
- * Dropped are all {@code sling:} properties, which say which scripts render the resource, and all {@code jcr:}
- * properties except the few that identify content rather than administer it: its type, its identifier, and who
- * created and last changed it. On a versionable type the rest is a large share of every node, the version history,
- * base version, predecessors and checked-out flag are repeated on each one, so a tree of entities shrinks
- * considerably without losing anything a reader of the content would recognise.
+ * It drops every {@code sling:} property, {@code sling:resourceType} included. Of the {@code jcr:} properties, it
+ * keeps {@code jcr:primaryType}, {@code jcr:uuid}, and the four that say who created and last changed the content,
+ * and when. It drops the rest, such as {@code jcr:mixinTypes} and the {@code jcr:baseVersion} that every
+ * {@code mix:versionable} node carries.
  * </p>
  *
  * <p>
- * This is the general case. A node type whose bulk is elsewhere (in its children, or behind a reference) is
- * summarized by a processor of its own registered under this same name, which runs afterwards; see the
- * {@code ResourceJsonProcessor} contract for how processors of a name compose.
+ * A module can register its own {@code simple} processor at a higher priority, for a node type whose bulk is in its
+ * children or behind a reference.
  * </p>
  *
  * @version $Id$
@@ -50,9 +48,7 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 @Component(immediate = true)
 public class SimpleProcessor implements ResourceJsonProcessor
 {
-    /**
-     * The {@code jcr:} properties that describe the content itself, rather than the repository's bookkeeping for it.
-     */
+    /** The {@code jcr:} properties kept. */
     private static final Set<String> CONTENT_JCR_PROPERTIES = Set.of(
         "jcr:primaryType", "jcr:uuid", "jcr:created", "jcr:createdBy", "jcr:lastModified", "jcr:lastModifiedBy");
 
