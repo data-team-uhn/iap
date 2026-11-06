@@ -23,8 +23,8 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * What a {@link io.uhndata.iap.search.spi.QuickSearchEngine quick search engine} is asked for: the text to look for,
- * how many matches are wanted, which node types to look in, and on whose behalf. Build one with
+ * What a {@link io.uhndata.iap.search.spi.QuickSearchEngine quick search engine} is asked for. It holds the text to
+ * look for, how many matches are wanted, which node types to look in, and on whose behalf. Build one with
  * {@link SearchContextFactory}.
  *
  * <p>
@@ -38,34 +38,34 @@ import org.jetbrains.annotations.NotNull;
 public interface SearchContext
 {
     /**
-     * The text to look for, as the user typed it. It is not escaped. An engine placing it in a query escapes it
-     * first, with {@link SearchUtils}.
+     * The text to look for, as the user typed it. It is not escaped. An engine binds it into its query, or escapes
+     * it with {@link SearchUtils}.
      *
-     * @return a non-empty string
+     * @return a string that is not blank
      */
     @NotNull
     String getQuery();
 
     /**
-     * How many results the caller can use. An engine bounds its own query to this many; the caller discards the rest.
+     * How many results the caller can use. An engine bounds its own query to this many, and the caller reads no more.
      *
      * @return a strictly positive number
      */
     long getMaxResults();
 
     /**
-     * The node types to look in, in the {@code sub:Submission} format. Always a subset of the types the engine
-     * {@link io.uhndata.iap.search.spi.QuickSearchEngine#getSupportedTypes() declares support for}. An engine returns
-     * results of no other type.
+     * The node types to look in. They are always among the types the engine
+     * {@link io.uhndata.iap.search.spi.QuickSearchEngine#getSupportedTypes() supports}. An engine returns results of
+     * no other type.
      *
-     * @return a non-empty list of node type names
+     * @return node type names, such as {@code sub:Submission}; never empty
      */
     @NotNull
     List<String> getResourceTypes();
 
     /**
-     * The resource resolver of the user the search is run for. An engine reads through it, and only through it. The
-     * matches it returns are then the ones that user is allowed to see.
+     * The resource resolver of the user the search is run for. An engine reads through it and nothing else, so it
+     * returns only what that user may read.
      *
      * @return the requesting user's resource resolver, open for the duration of the search
      */

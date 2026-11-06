@@ -29,13 +29,12 @@ import java.util.stream.Collectors;
 import org.apache.sling.api.resource.Resource;
 
 /**
- * Assembles the JCR-SQL2 statement for a pagination request: nodes of one type under a scope path, optionally
- * filtered by their own properties and by those of descendant nodes, ordered by one of their properties.
+ * Builds the JCR-SQL2 statement that lists the entities under a homepage. The statement selects the nodes of one type
+ * under a scope path, filters them by their own properties and those of their descendants, and orders them.
  *
  * <p>
- * A requested value never reaches the statement. Each becomes a bind variable. A caller can still put a name into
- * the statement: a node type, a property, the property to order by. JCR-SQL2 cannot bind a name, so those are
- * checked against {@link #SAFE_NAME}.
+ * Every requested value becomes a bind variable. A request can also name a node type, a property, or the property
+ * to order by. JCR-SQL2 cannot bind a name, so each name is checked against {@link #SAFE_NAME} instead.
  * </p>
  *
  * @version $Id$
@@ -44,8 +43,8 @@ import org.apache.sling.api.resource.Resource;
 final class QueryBuilder
 {
     /**
-     * A safe JCR node type or property name: an optionally namespace-prefixed name with no characters that could
-     * break out of the surrounding query syntax.
+     * A node type or property name that is safe to write into a statement: word characters, dots and dashes, with an
+     * optional namespace prefix. Nothing in it can end the brackets around it.
      */
     private static final Pattern SAFE_NAME = Pattern.compile("[\\w.-]+(:[\\w.-]+)?");
 
@@ -64,13 +63,12 @@ final class QueryBuilder
     private boolean descending;
 
     /**
-     * Simple constructor.
+     * Starts a statement for the nodes of a type under a path.
      *
-     * @param nodeType the node type of the queried nodes, e.g. {@code sub:Submission}
-     * @param scopePath the repository path under which the nodes are looked for
+     * @param nodeType the node type of the listed nodes, such as {@code sub:Submission}
+     * @param scopePath the path the nodes are listed under, such as {@code /Submissions}
      * @throws IllegalArgumentException if the node type is not a valid name
-     * @throws NullPointerException if no scope path is given; a query with no scope would list the whole
-     *             repository, so this fails where the mistake is rather than where it would be noticed
+     * @throws NullPointerException if the scope path is {@code null}
      */
     QueryBuilder(final String nodeType, final String scopePath)
     {
@@ -79,9 +77,9 @@ final class QueryBuilder
     }
 
     /**
-     * Starts a query for the entities one homepage holds: nodes of its child type, under it.
+     * Starts a statement for the entities a homepage holds: the nodes of its child type, under it.
      *
-     * @param homepage the homepage whose entities are queried
+     * @param homepage the homepage whose entities are listed
      * @return a builder scoped to that homepage
      * @throws IllegalArgumentException if the homepage's child type is not a valid name
      */
@@ -95,7 +93,7 @@ final class QueryBuilder
      * derived from the resource type: {@code sub/SubmissionsHomepage} lists {@code sub:Submission}.
      *
      * @param homepage the homepage to read
-     * @return a node type name
+     * @return a node type name, such as {@code sub:Submission}
      */
     static String childNodeType(final Resource homepage)
     {
@@ -107,9 +105,9 @@ final class QueryBuilder
     }
 
     /**
-     * Adds conditions on properties of the queried nodes themselves.
+     * Sets the conditions on the properties of the listed nodes themselves.
      *
-     * @param newFilters the conditions to impose, may be empty
+     * @param newFilters the conditions; empty for none
      * @return this builder, for chaining
      */
     QueryBuilder withFilters(final List<Filter> newFilters)
@@ -119,14 +117,13 @@ final class QueryBuilder
     }
 
     /**
-     * Adds conditions on the properties of a descendant node. A queried node matches only if it has at least one
-     * descendant of the given type satisfying all the given conditions. Each distinct type adds a separate required
-     * descendant; repeating a type adds to that type's conditions. A {@code null} or blank type with no conditions
-     * is a no-op, and leaves previously added descendant conditions alone.
+     * Adds conditions on the properties of a descendant. A listed node matches only if it has a descendant of the
+     * given type that meets the conditions. Each type needs a descendant of its own. Calling this again with the
+     * same type adds to that type's conditions. A {@code null} or blank type with no conditions changes nothing.
      *
-     * @param newChildType the node type of the descendant, e.g. {@code sub:Review}; may be {@code null} or blank if
-     *            no descendant conditions are needed
-     * @param newChildFilters the conditions to impose on the descendant, may be {@code null} or empty
+     * @param newChildType the node type of the descendant, such as {@code sub:Review}; {@code null} or blank for
+     *            none
+     * @param newChildFilters the conditions on the descendant; {@code null} or empty for none
      * @return this builder, for chaining
      * @throws IllegalArgumentException if conditions are given without a descendant node type, or the type is not a
      *             valid name
@@ -145,9 +142,9 @@ final class QueryBuilder
     }
 
     /**
-     * Adds a full text search condition on the queried nodes.
+     * Sets a full-text condition on the listed nodes.
      *
-     * @param newFullText the text to search for, may be {@code null} or blank if no full text search is needed
+     * @param newFullText the full-text expression to look for; {@code null} or blank for none
      * @return this builder, for chaining
      */
     QueryBuilder withFullText(final String newFullText)
@@ -159,8 +156,8 @@ final class QueryBuilder
     /**
      * Sets the ordering of the results. By default results are ordered by creation date, oldest first.
      *
-     * @param newSortBy the property of the queried nodes to order by; may be {@code null} or blank to keep the
-     *            default {@code jcr:created}
+     * @param newSortBy the property of the listed nodes to order by; {@code null} or blank to keep the default,
+     *            {@code jcr:created}
      * @param newDescending {@code true} to reverse the order
      * @return this builder, for chaining
      * @throws IllegalArgumentException if the property to order by is not a valid name
@@ -175,9 +172,9 @@ final class QueryBuilder
     }
 
     /**
-     * Assembles the final JCR-SQL2 statement and the values to bind into it.
+     * Builds the statement and the values to bind into it.
      *
-     * @return a valid JCR-SQL2 statement together with the value of every bind variable it names
+     * @return the JCR-SQL2 statement, with the value of every bind variable it names
      */
     BoundStatement build()
     {
@@ -185,9 +182,9 @@ final class QueryBuilder
     }
 
     /**
-     * Assembles the statement without an ordering, for a caller that only counts the matches.
+     * Builds the statement without an ordering, to count the matches.
      *
-     * @return a valid JCR-SQL2 statement together with the value of every bind variable it names
+     * @return the JCR-SQL2 statement, with the value of every bind variable it names
      */
     BoundStatement buildCount()
     {
@@ -204,9 +201,8 @@ final class QueryBuilder
             query.append(" inner join [").append(childType).append("] as ").append(alias)
                 .append(" on isdescendantnode(").append(alias).append(", n)");
         }
-        // The scope path is the one value that has to stay in the statement: isdescendantnode takes a path, not a
-        // static operand, so JCR-SQL2 will not accept a bind variable there. It is the resolved path of the
-        // homepage being listed rather than anything a caller sends, and it is escaped for the literal it is.
+        // Written into the statement, not bound: isdescendantnode takes a path, not a static operand, and JCR-SQL2
+        // accepts no bind variable there. The path is the homepage's own, not anything the request sends.
         query.append(" where isdescendantnode(n, '").append(escape(this.scopePath)).append("')");
         appendConditions(query, "n", this.filters, bindings);
         childIndex = 0;
@@ -239,7 +235,7 @@ final class QueryBuilder
      *
      * @param bindings the values collected so far, extended by one
      * @param value the value to bind
-     * @return the bind variable reference to write into the statement, e.g. {@code $p0}
+     * @return the bind variable reference to write into the statement, such as {@code $p0}
      */
     private static String bind(final Map<String, String> bindings, final String value)
     {
@@ -249,11 +245,11 @@ final class QueryBuilder
     }
 
     /**
-     * Collects the filters into their groups: filters sharing a group id end up ORed together, while each ungrouped
-     * filter stands on its own. The order of the resulting groups follows the order in which they first appear.
+     * Collects the filters into their groups. Filters sharing a group are ORed together, and an ungrouped filter is
+     * a group of its own. A group takes the place of its first filter.
      *
      * @param filters the filters to group
-     * @return a list of non-empty filter groups
+     * @return the groups, none of them empty
      */
     private static List<List<Filter>> groupFilters(final List<Filter> filters)
     {
@@ -284,11 +280,10 @@ final class QueryBuilder
     }
 
     /**
-     * The value a filter compares against, as a string. A filter with no value compares against an empty one, which
-     * is what an absent request parameter used to mean once it had been escaped into the statement.
+     * The value a filter compares against. A filter with no value compares against the empty string.
      *
      * @param filter the filter whose value is wanted
-     * @return the value, never {@code null}
+     * @return the value; the empty string if the filter has none
      */
     private static String value(final Filter filter)
     {
@@ -296,11 +291,11 @@ final class QueryBuilder
     }
 
     /**
-     * Validates a node type or property name before it is interpolated into a query.
+     * Checks a node type or property name before it is written into a statement.
      *
-     * @param name the name to validate
-     * @return the name itself, if valid
-     * @throws IllegalArgumentException if the name contains characters that aren't part of a plain JCR name
+     * @param name the name to check
+     * @return the name itself
+     * @throws IllegalArgumentException if the name is {@code null}, or does not match {@link #SAFE_NAME}
      */
     private static String checkName(final String name)
     {
@@ -311,13 +306,8 @@ final class QueryBuilder
     }
 
     /**
-     * Escapes a literal value before it is interpolated into a query string. Doubling the quote is JCR-SQL2's only
-     * string escape. A backslash is an ordinary character in a string literal, and {@code \'} is a parse error.
-     *
-     * <p>
-     * Only the scope path is still written into the statement, every other value being bound instead, so this is
-     * the one place the escaping has to be right rather than one of several.
-     * </p>
+     * Escapes a value for a string literal in a statement. Doubling the quote is JCR-SQL2's only string escape. A
+     * backslash is an ordinary character in a string literal, and {@code \'} is a parse error.
      *
      * @param value the value to escape
      * @return the value with quotes doubled
@@ -328,25 +318,22 @@ final class QueryBuilder
     }
 
     /**
-     * Escapes a full text search term before it is bound into a {@code contains()} call. Binding removes the string
-     * literal's escaping, not this one. The full text grammar is applied to whatever the bind variable holds. The
-     * backslash escapes, and both quote characters open a phrase. A trailing backslash escapes the closing quote.
-     * An odd number of quotes leaves a phrase unterminated. Either fails the query to parse.
+     * Escapes a full-text term before it is bound into a {@code contains()} call. Binding needs no string literal
+     * escaping, but the full-text grammar applies to whatever the bind variable holds. In that grammar the backslash
+     * escapes, and both quote characters open a phrase. A trailing backslash or an odd number of quotes makes the
+     * expression fail to parse.
      *
      * <p>
-     * The grammar's <em>meaning</em> is left alone. A leading {@code -} still excludes a term, and {@code OR} still
-     * reads as the operator. Making them literal would remove the only way to ask for them.
+     * The operators are left alone. A leading {@code -} still excludes a term, and {@code OR} still joins two
+     * terms. There would be no other way to ask for them.
      * </p>
      *
      * <p>
-     * The term is stripped first. A full text expression has to start with a term. A leading space makes it fail to
-     * parse, and the whole listing comes back as a bad request. A trailing space, and any amount of space between
-     * the words, are already fine.
+     * The term is stripped first, since a full-text expression must start with a term.
      * </p>
      *
-     * @param value the value to escape, never {@code null} or blank; the only caller has already checked that there
-     *            is a term to search for
-     * @return the escaped search expression
+     * @param value the term to escape, neither {@code null} nor blank
+     * @return the escaped full-text expression
      */
     private static String escapeFullText(final String value)
     {

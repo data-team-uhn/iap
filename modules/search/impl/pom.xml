@@ -31,8 +31,8 @@
   <description>The servlet serving the /search endpoint.</description>
 
   <dependencies>
-    <!-- Not used here, but SearchContextFactory is annotated with it, and javac warns that it cannot read an
-         annotation whose class is absent — which -Werror turns into a failure -->
+    <!-- Not used here. SearchContextFactory is annotated with it, javac warns when an annotation's class is absent,
+         and -Werror makes the warning fail the build -->
     <dependency>
       <groupId>com.github.spotbugs</groupId>
       <artifactId>spotbugs-annotations</artifactId>
@@ -42,13 +42,12 @@
       <artifactId>iap-search-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- Who a filter value starting with `@` stands for. This servlet knows only that it names somebody -->
+    <!-- Resolves the filter values starting with `@`, such as `@me` -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-principals</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- `@me` resolves to the id the repository uses, not the spelling the login was typed with -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-java-utils</artifactId>
@@ -63,7 +62,7 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
     </dependency>
-    <!-- Only the tests name Jackrabbit's session: the main code asks UserIds what a session acts as -->
+    <!-- Test only: the tests mock a JackrabbitSession, and the main code never names one -->
     <dependency>
       <groupId>org.apache.jackrabbit</groupId>
       <artifactId>oak-jackrabbit-api</artifactId>
@@ -85,8 +84,8 @@
       <groupId>jakarta.servlet</groupId>
       <artifactId>jakarta.servlet-api</artifactId>
     </dependency>
-    <!-- Not used directly, but javax.servlet types appear in the signatures of the (deprecated) legacy halves of
-         Sling APIs like ResourceResolver.resolve, and javac needs them present to resolve method overloads -->
+    <!-- Not used directly. The deprecated overloads of Sling methods such as ResourceResolver.resolve take
+         javax.servlet types, and javac needs them to choose between the overloads -->
     <dependency>
       <groupId>javax.servlet</groupId>
       <artifactId>javax.servlet-api</artifactId>

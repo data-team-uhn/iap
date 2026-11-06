@@ -21,23 +21,19 @@
 
 //-----------------------------------------------------------------------------
 //
-// Search: the endpoint that runs queries against the repository.
+// Search: the node that /search.json, the search endpoint, is served from.
+// The endpoint is described in docs/search.md.
 //
-// A single node of this type is expected, at /search. It holds no data: it
-// exists only to give the search servlet a resource to be registered on, so
-// that the endpoint is a normal repository path, subject to normal access
-// control, rather than a path reserved by a servlet registration.
+// One node of this type sits at /search. It holds no data. It gives the
+// search servlet a resource type to register on, and a path that access
+// control applies to.
 //
-// Deliberately NOT a data:Content: the endpoint is plumbing, not content, so
-// it must not acquire tags, links, or the data/Content resource supertype,
-// which would hand /search itself to the content deletion endpoint and let a
-// DELETE archive the search endpoint. The archive types avoid the same trap,
-// for the same reason; see deletion.cnd.
+// The type does not extend data:Content. The endpoint is not content, so it
+// takes no tags or links, and the DELETE servlet for data/Content does not
+// serve it.
 //
 //-----------------------------------------------------------------------------
 
 [data:Search] > sling:Folder
-  // Properties:
-
-  // Hardcode the resource type, this is what the search servlet is registered on.
+  // The resource type the search servlet is registered on
   - sling:resourceType (STRING) = "data/Search" mandatory autocreated protected

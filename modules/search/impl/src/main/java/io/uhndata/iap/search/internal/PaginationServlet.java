@@ -56,59 +56,58 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
 import io.uhndata.iap.utils.UserIds;
 
 /**
- * Lists, in pages, the entities stored under an entity homepage. Registered on {@code data/EntityHomepage} with the
- * {@code paginate} selector. The {@code sling:resourceSuperType} chain of the concrete homepage types brings it e.g.
- * {@code /Submissions.paginate.json} and {@code /Schemas.paginate.json}.
+ * Lists, a page at a time, the entities stored under an entity homepage, such as
+ * {@code /Submissions.paginate.json}. It is registered on {@code data/EntityHomepage} with the {@code paginate}
+ * selector, and a homepage type reaches it through its {@code sling:resourceSuperType}.
  *
  * <p>
- * The type of the listed entities is derived from the homepage's resource type: {@code sub/SubmissionsHomepage}
- * lists {@code sub:Submission} nodes. A {@code childNodeType} property on the homepage node names another type
- * instead.
+ * The listed entities are the nodes of the homepage's {@code childNodeType} under it. A homepage with no
+ * {@code childNodeType} lists the type its resource type names: {@code sub/SubmissionsHomepage} lists
+ * {@code sub:Submission}.
  * </p>
  *
  * <p>
- * This servlet supports the following parameters:
+ * The parameters are:
  * </p>
  * <ul>
- * <li>{@code offset}: how many matching entities to skip, {@code 0} by default</li>
- * <li>{@code limit}: how many entities to include at most in the result, {@code 10} by default; {@code 0} only
- * counts the matches without returning any</li>
- * <li>{@code sortBy}: the property to order the results by, {@code jcr:created} by default</li>
- * <li>{@code descending}: if {@code true}, reverses the order of the results</li>
- * <li>{@code filter}: a full text search term that the entities must contain</li>
- * <li>{@code fieldName}, {@code fieldComparator}, {@code fieldValue}: repeatable triples imposing a condition on a
- * property of the entity itself, e.g. {@code status = draft}; the supported comparators are {@code =}, {@code <>},
- * {@code <}, {@code <=}, {@code >}, {@code >=}, {@code LIKE}, {@code NOT LIKE}, {@code ILIKE} (case-insensitive
- * {@code LIKE}), {@code NOT ILIKE}, {@code IS NULL} and {@code IS NOT NULL}; if no
- * comparators are sent, {@code =} is used; a value starting with {@code @} is a special name, see below</li>
- * <li>{@code fieldGroup}: optional group identifiers aligned with the field triples; conditions sharing a
- * (non-empty) group are ORed together, while distinct groups and ungrouped conditions are ANDed, e.g.
- * {@code status = a OR status = b} is two conditions sharing a group</li>
+ * <li>{@code offset}: how many matching entities to skip, {@code 0} by default.</li>
+ * <li>{@code limit}: how many entities to return at most, {@code 10} by default; {@code 0} only counts the
+ * matches.</li>
+ * <li>{@code sortBy}: the property to order the results by, {@code jcr:created} by default.</li>
+ * <li>{@code descending}: {@code true} to reverse the order.</li>
+ * <li>{@code filter}: a full-text expression the entities must match.</li>
+ * <li>{@code fieldName}, {@code fieldComparator}, {@code fieldValue}: repeatable triples, each a condition on a
+ * property of the entity, such as {@code createdBy = @me}. The comparators are {@code =}, {@code <>}, {@code <},
+ * {@code <=}, {@code >}, {@code >=}, {@code LIKE}, {@code NOT LIKE}, {@code ILIKE} (a {@code LIKE} that ignores
+ * case), {@code NOT ILIKE}, {@code IS NULL} and {@code IS NOT NULL}. A missing or unknown comparator means
+ * {@code =}. A value starting with {@code @} is a special name, described below.</li>
+ * <li>{@code fieldGroup}: optional group names, one per triple. Conditions in the same group are ORed together, and
+ * the groups and the ungrouped conditions are ANDed. Two conditions on {@code createdBy} in one group match an
+ * entity created by either person.</li>
  * <li>{@code childType}, {@code childFieldName}, {@code childFieldComparator}, {@code childFieldValue},
- * {@code childFieldGroup}: same, but the conditions apply to a descendant of the entity, e.g. only submissions
- * having a {@code sub:Review} descendant with {@code reviewer = @me}; multiple independent descendant conditions
- * may be sent as numbered families {@code childTypeN}, {@code childFieldNName}, {@code childFieldNComparator},
- * {@code childFieldNValue}, {@code childFieldNGroup}, where {@code N} is any number, each family requiring its own
- * matching descendant, e.g. {@code childType1=sub:Review&childField1Name=reviewer&childField1Value=@me}</li>
- * <li>{@code resourceSelectors}: extra selectors to apply when serializing each entity, e.g. {@code deep}</li>
- * <li>{@code req}: an opaque request identifier, echoed back in the response so that the client can discard
- * out-of-order responses</li>
+ * {@code childFieldGroup}: the same, for conditions on a descendant of the given type. An entity matches if it has
+ * such a descendant that meets the conditions, such as a {@code sub:Review} with {@code reviewer = @me}.</li>
+ * <li>{@code childTypeN}, {@code childFieldNName}, {@code childFieldNComparator}, {@code childFieldNValue},
+ * {@code childFieldNGroup}, where {@code N} is any number: more families of descendant conditions, such as
+ * {@code childType1=sub:Review&childField1Name=reviewer&childField1Value=@me}. Families naming different types each
+ * need a descendant of their own. Families naming the same type add to one descendant's conditions.</li>
+ * <li>{@code resourceSelectors}: extra selectors to serialize each entity with, such as {@code deep}.</li>
+ * <li>{@code req}: an opaque request identifier, echoed back so that the client can discard out-of-order
+ * responses.</li>
  * </ul>
  *
  * <p>
- * A filter value starting with {@code @} is a special name, resolved here into whoever it stands for in this
- * request rather than compared as written. {@link PrincipalService#ME_SPECIAL_NAME} is the person asking, under the id the
- * repository records. {@link PrincipalService#MY_PRINCIPALS} is everything they act as, which is how a property
- * naming who may act gets matched against a person. Whatever else a module taught the
- * {@link PrincipalService principals service} works here too, without this servlet learning it.
+ * A filter value starting with {@code @} is a special name, and the condition compares the property with whoever it
+ * stands for. {@link PrincipalService#ME_SPECIAL_NAME} is the person asking, under the user id the repository
+ * records. {@link PrincipalService#MY_PRINCIPALS} is everything they act as: their user id and every group they are
+ * in. It matches a property that names principals, such as a task's {@code performers}. The
+ * {@link PrincipalService principals service} resolves every other special name.
  * </p>
  *
  * <p>
- * A name standing for several principals becomes several conditions ORed together. A name standing for nobody
- * keeps its own spelling, so the condition matches nothing instead of disappearing and widening the listing to
- * everybody's. The client cannot do this: it would have to be told its own group memberships first, and that
- * answer belongs to the session. A listing is one query, so a name is resolved once against the request, and a
- * name whose answer would differ from one listed entity to the next has no meaning here.
+ * A name standing for several principals becomes several conditions ORed together. A name standing for nobody is
+ * compared as written, and matches nothing. Each name is resolved once for the whole listing, with the homepage as
+ * the resource it concerns: {@code @creator} stands for the creator of the homepage, not of each entity.
  * </p>
  *
  * @version $Id$
@@ -123,11 +122,11 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PaginationServlet.class);
 
-    /** Matches the parameter names of the descendant condition families, capturing the family's number. */
+    /** Matches the parameter names of the descendant condition families, and captures the family's number. */
     private static final Pattern CHILD_PARAMETER =
         Pattern.compile("childType(\\d*+)|childField(\\d*+)(?:Name|Comparator|Value|Group)");
 
-    /** Who the special filter values stand for; the one place in the platform that knows. */
+    /** Resolves the special filter values. */
     @Reference
     private transient PrincipalService principals;
 
@@ -149,12 +148,12 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * Builds the JCR query for the request: entities of the homepage's child type, under the homepage, restricted
-     * by the filters sent in the request.
+     * Builds the query for the request: the entities of the homepage's child type under the homepage, filtered as
+     * the request asks.
      *
      * @param request the current request, targeting an entity homepage
      * @return a query ready to be executed
-     * @throws RepositoryException if the resource resolver is not backed by a JCR session
+     * @throws RepositoryException if the resource resolver has no JCR session, or the statement is invalid
      * @throws IllegalArgumentException if the request parameters are invalid
      */
     private Query prepareQuery(final SlingJakartaHttpServletRequest request) throws RepositoryException
@@ -178,24 +177,23 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             .withFullText(request.getParameter("filter"))
             .withSort(request.getParameter("sortBy"), Boolean.parseBoolean(request.getParameter("descending")))
             .build();
-        // Only the statement is logged, never the bindings. The bindings are the caller's search terms.
         LOGGER.debug("Pagination query: {}", bound.statement());
         return bound.createQuery(session);
     }
 
     /**
-     * Collects the descendant condition families present in the request: the empty suffix for the plain
-     * {@code childType}/{@code childField*} parameters, and one numeric suffix per
-     * {@code childTypeN}/{@code childFieldN*} family. The suffixes come back in numeric order, the plain family
-     * first. The mapping of families onto query joins is then deterministic.
+     * Collects the descendant condition families the request sends: the empty suffix for the plain
+     * {@code childType}/{@code childField*} parameters, and one number per {@code childTypeN}/{@code childFieldN*}
+     * family. The suffixes come back in numeric order, the plain family first, so the same request always makes the
+     * same joins.
      *
      * @param request the current request
-     * @return the family suffixes present in the request, possibly empty
+     * @return the family suffixes; empty if the request sends no descendant conditions
      */
     private Collection<String> getChildFilterSuffixes(final SlingJakartaHttpServletRequest request)
     {
-        // Shorter digit strings are smaller numbers. Length then lexicographic is numeric order, without parsing
-        // untrusted numbers that may overflow.
+        // By length, then as text: numeric order for numbers without leading zeros, without parsing a number that
+        // may overflow
         final Set<String> suffixes =
             new TreeSet<>(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));
         for (final String name : request.getParameterMap().keySet()) {
@@ -208,14 +206,15 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * Parses one family of repeatable name/comparator/value filter parameters into a list of filters.
+     * Reads one family of repeatable name, comparator, value and group parameters as filters.
      *
      * @param request the current request
      * @param prefix the parameter name prefix, {@code field} for conditions on the entity itself, {@code childField}
      *            for conditions on a descendant node
-     * @param asking the situation the special values are resolved against: the listing, and who is asking for it
-     * @return a list of filters, empty if no filters with the given prefix are present in the request
-     * @throws IllegalArgumentException if the names, comparators, values and groups don't come in complete tuples
+     * @param asking what the special names are resolved against: the homepage, and who is asking
+     * @return the filters; empty if the request sends no names with the given prefix
+     * @throws IllegalArgumentException if the values are not sent once per name, or if the comparators or the
+     *             groups are sent, but not once per name
      */
     private List<Filter> parseFilters(final SlingJakartaHttpServletRequest request, final String prefix,
         final PrincipalContext asking)
@@ -236,7 +235,7 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             final String comparator = comparators == null ? "=" : comparators[i];
             final String group = groups == null || groups[i].isEmpty() ? null : groups[i];
             if (values[i].startsWith("@")) {
-                // Its own group, so the OR stands alone, unless the caller named a group to join
+                // A group of its own, so the OR stands alone, unless the request named a group to join
                 final String orGroup = group == null ? values[i] + i : group;
                 result.addAll(orOver(names[i], comparator, orGroup, whoIsMeant(values[i], request, asking)));
             } else {
@@ -247,16 +246,12 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * One condition per principal a special name stood for, all in the same group so that they are ORed
-     * together.
-     *
-     * <p>A property naming who may act, a task's {@code performers}, holds principals rather than user ids. So
-     * "waiting for me" is not one comparison but "any of the things I act as".</p>
+     * One condition per principal a special name stands for, all in the same group, so that they are ORed together.
      *
      * @param name the property to compare
-     * @param comparator the comparator to use for each condition
-     * @param group the group they all belong to
-     * @param who the principals the name stood for
+     * @param comparator the comparator of each condition, as the request sent it
+     * @param group the name of the group they all belong to
+     * @param who the principal names the special name stands for
      * @return the filters, one per principal
      */
     private static List<Filter> orOver(final String name, final String comparator, final String group,
@@ -268,20 +263,16 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * Who a special filter value stands for in this request.
+     * Who a special filter value stands for in this request. The session answers {@code @myPrincipals}, and the
+     * principals service resolves every other name.
      *
-     * <p>{@code @myPrincipals} is the one name a resolver could not answer, since only the live session knows
-     * what it is bound to; everything else is the principals service's vocabulary, so a module that teaches it a
-     * new name makes that name filterable here without touching this servlet.</p>
-     *
-     * <p>A name that stands for nobody keeps its own spelling. That is a typo, or a resolver with nothing to
-     * say about this listing. No stored property holds it, so the condition matches nothing, where contributing
-     * no condition would drop the filter and list everybody's work instead of theirs.</p>
+     * <p>A name that stands for nobody is kept as written, so the condition matches nothing. Dropping the condition
+     * instead would widen the listing to everybody's entities.</p>
      *
      * @param value the filter value, starting with {@code @}
      * @param request the current request, whose session {@code @myPrincipals} describes
-     * @param asking the situation the name is resolved against
-     * @return the principals to compare the property against, never empty
+     * @param asking what the name is resolved against: the homepage, and who is asking
+     * @return the principal names to compare the property with; the value itself if it stands for nobody
      */
     private List<String> whoIsMeant(final String value, final SlingJakartaHttpServletRequest request,
         final PrincipalContext asking)
@@ -293,13 +284,13 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * Reads one of the repeatable parameters accompanying the filter names, enforcing that, if present at all, it
-     * is present the same number of times as the names.
+     * Reads one of the repeatable parameters that go with the filter names. If it is sent at all, it must be sent
+     * once per name.
      *
      * @param request the current request
      * @param name the parameter name
      * @param expectedLength the number of filter names the parameter must align with
-     * @return the parameter values, or {@code null} if the parameter isn't present at all
+     * @return the parameter values; {@code null} if the request does not send the parameter
      * @throws IllegalArgumentException if the parameter is present a different number of times
      */
     private String[] getAlignedParameter(final SlingJakartaHttpServletRequest request, final String name,
@@ -314,13 +305,11 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * Writes the successful response: the requested page of serialized entities, followed by a summary of the
-     * pagination status.
+     * Writes the requested page of serialized entities, then the pagination summary.
      *
      * <p>
-     * The query has already run, but its result set is lazy. Reading the rows can still fail once part of the
-     * response has gone out. Such a failure is reported in the summary, not as an error response, which by then
-     * could only be appended to a body that already holds one.
+     * The query has already run, but its result set is lazy, so reading the rows can fail after part of the response
+     * has gone out. Such a failure is reported in the summary, and the response stays a well-formed document.
      * </p>
      *
      * @param request the current request
@@ -345,10 +334,7 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             try {
                 writeRows(page, rows, request);
             } catch (final RepositoryException | RuntimeException e) {
-                // Unchecked as much as checked. Oak signals much of what can go wrong while a lazy result set is
-                // read, such as a read or memory limit reached, with an unchecked exception. Letting one out here
-                // would abandon the response half-written: the generator closed on an incomplete document, with too
-                // much of the body already on the wire for an error status to replace it.
+                // Unchecked too: Oak reports a read or memory limit reached with an unchecked exception
                 LOGGER.warn("Failed to read the results of a pagination query: {}", e.getMessage(), e);
                 error = "Failed to read all the results";
             }
@@ -359,9 +345,9 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * Feeds the query results to the paginator, which writes the requested page and counts the matches. An Oak query
-     * cannot ask for distinct results. A descendant join returns the same entity once per matching descendant, and
-     * the paginator drops those duplicates by path.
+     * Offers the query results to the paginator, which writes the requested page and counts the matches. A
+     * descendant join returns the same entity once per matching descendant, and the paginator drops the duplicates
+     * by path.
      *
      * @param page the paginator for the requested page, positioned inside the {@code rows} array
      * @param rows the query results to paginate over
@@ -385,9 +371,9 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      *
      * @param resolver the current resource resolver
      * @param path the path of the entity to serialize
-     * @param selectors the extra serialization selectors requested by the client, may be an empty string
-     * @return the serialized entity, or {@code null} if the entity cannot be serialized; such entities are left out
-     *         of the response, though they still count towards the reported total
+     * @param selectors the extra serialization selectors the client asked for, such as {@code .deep}; empty for none
+     * @return the serialized entity; {@code null} if it cannot be serialized, and then it is left out of the page but
+     *         still counted
      */
     private JsonObject serializeRow(final ResourceResolver resolver, final String path, final String selectors)
     {
