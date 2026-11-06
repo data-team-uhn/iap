@@ -84,6 +84,8 @@ export interface PdfViewerProps {
   // Give the same function on every render, such as one from useCallback, or the passages are drawn again
   // each time a search counts its matches.
   renderMarkDetails?: (mark: Mark, selected: boolean) => ReactNode;
+  // PRETOTYPE: how many lines a passage not selected keeps of its quote and of its details beside the document
+  condensedMarks?: (mark: Mark) => { quote: number; details: number } | undefined;
   // What the marks are called where the viewer counts and steps through them, such as comments on a review
   // screen ("Comment 3 of 12"). Passages when absent. Changes are called changes, and counted apart. The
   // text a mark covers is still called a passage.
@@ -353,6 +355,7 @@ function PdfViewerSession(props: PdfViewerProps) {
           placeButton={placeButton}
           searchedOutside={outside !== undefined}
           annotateLabel={props.annotateLabel}
+          condensedMarks={props.condensedMarks}
           edgeToEdge={inDialog}
           onClose={onClose}
         />
@@ -399,6 +402,7 @@ interface ViewerBodyProps {
   // PRETOTYPE: searched from outside, so without a search field of its own
   searchedOutside: boolean;
   annotateLabel: string | undefined;
+  condensedMarks: PdfViewerProps["condensedMarks"];
   // In the dialog on a phone, the document spans the full screen width, past the dialog's padding.
   edgeToEdge: boolean;
   onClose: () => void;
@@ -408,7 +412,7 @@ function ViewerBody(props: ViewerBodyProps) {
   const { titleId, title, marks, markName, places, pagesRead, selectedId, onSelect, openError, onRetry, view } = props;
   const { renderMarkDetails, selectedText, onAnnotate, comparison, placeButton, edgeToEdge, onClose } = props;
   const plain = useContext(PlainViewer);
-  const { changeIds, searchedOutside, annotateLabel } = props;
+  const { changeIds, searchedOutside, annotateLabel, condensedMarks } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   const { search, find, findAgain } = view;
   const [body, setBody] = useState<HTMLElement | null>(null);
@@ -666,6 +670,7 @@ function ViewerBody(props: ViewerBodyProps) {
               renderBody={renderBody}
               describeBody={describeBody}
               renderDetails={renderMarkDetails}
+              condensed={condensedMarks}
               onSelect={showSelected}
             />
           )

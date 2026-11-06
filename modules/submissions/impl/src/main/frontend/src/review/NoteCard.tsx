@@ -178,3 +178,29 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
     </Box>
   );
 }
+
+// A note in brief, as a list shows one not selected: what kind it is and how serious, whose group raised an issue,
+// how many replies it has, then its own words
+export function NoteSummary({ note }: { note: ReviewNote }) {
+  const info = kindInfo(note.kind);
+  const labels = useContext(GroupLabels);
+  return (
+    <Box sx={{ px: 1.5, pb: 1 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: 24 }}>
+        <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
+          {info.single}
+        </Typography>
+        {note.group && labels.has(note.group) && (
+          <GroupChip label={labels.get(note.group) ?? ""} mine={note.kind === "issue"} />
+        )}
+        {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
+        {note.replies.length > 0 && (
+          <Typography variant="caption" sx={{ color: "text.secondary", ml: "auto" }}>
+            {note.replies.length === 1 ? "1 reply" : `${note.replies.length} replies`}
+          </Typography>
+        )}
+      </Stack>
+      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{note.text}</Typography>
+    </Box>
+  );
+}
