@@ -37,6 +37,7 @@ interface IssueRow {
   risk: string;
   about: string;
   text: string;
+  replies: number;
   issue: ReviewNote;
 }
 
@@ -64,7 +65,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   const rows: IssueRow[] = useMemo(() => [ ...issues, ...concerns ].map(issue => ({
     id: issue.id, ai: issue.kind === "aiIssue", severity: issue.severity ?? "medium",
     risk: risks.some(risk => risk.path === issue.topicPath) ? issue.topicPath ?? "" : "",
-    about: about(issue), text: issue.text, issue,
+    about: about(issue), text: issue.text, replies: issue.replies.length, issue,
   })), [ issues, concerns, risks, about ]);
   // A single click starts changing a cell, as in a spreadsheet, and leaves any other cell being changed
   const [ cellModes, setCellModes ] = useState<GridCellModesModel>({});
@@ -107,6 +108,12 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       field: "text", headerName: "Issue", flex: 1, minWidth: 220, editable: true,
       renderCell: ({ value }) => <Box sx={{ whiteSpace: "pre-wrap" }}>{String(value)}</Box>,
       renderEditCell: params => <TextEdit {...params} />,
+    },
+    {
+      field: "replies", headerName: "Replies", type: "number", width: 90,
+      description: "How many replies it has, from the study team or other reviewers",
+      // None said by leaving the cell empty
+      renderCell: ({ row }) => (row.replies > 0 ? row.replies : ""),
     },
     {
       field: "where", headerName: "", width: concerns.length > 0 ? 140 : 110, sortable: false, filterable: false,
