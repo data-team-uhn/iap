@@ -19,6 +19,7 @@
 import { useState, type ReactNode } from "react";
 
 import AddOutlined from "@mui/icons-material/AddOutlined";
+import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
@@ -31,6 +32,7 @@ import ExpandLessOutlined from "@mui/icons-material/ExpandLessOutlined";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import ForwardToInboxOutlined from "@mui/icons-material/ForwardToInboxOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
+import MenuBookOutlined from "@mui/icons-material/MenuBookOutlined";
 import OpenInFullOutlined from "@mui/icons-material/OpenInFullOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
@@ -168,12 +170,13 @@ export default function ReviewPanel(props: ReviewProps & { open: boolean; onTogg
         <Progress risks={risks} />
         {aiSummary && (
           <Box sx={{ mt: 1 }}>
-            <Typography variant="body2" sx={{ color: "text.secondary", ...summaryOpen ? {} : cutShort(2) }}>
-              <AiLabel>AI pre-review. </AiLabel>{aiSummary}
-            </Typography>
-            <Link component="button" variant="caption" onClick={() => setSummaryOpen(!summaryOpen)}>
-              {summaryOpen ? "Less" : "More"}
-            </Link>
+            <AiBlock dense>
+              <Typography variant="body2" sx={summaryOpen ? undefined : cutShort(2)}>{aiSummary}</Typography>
+              <Link component="button" variant="caption" sx={{ alignSelf: "flex-start" }}
+                onClick={() => setSummaryOpen(!summaryOpen)}>
+                {summaryOpen ? "Less" : "More"}
+              </Link>
+            </AiBlock>
           </Box>
         )}
         {concerns.length > 0 && (
@@ -319,7 +322,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
             <Stack spacing={2} sx={{ maxWidth: 820 }}>
               <Typography variant="h6" component="h3">Overview</Typography>
               {aiSummary && (
-                <Typography variant="body1"><AiLabel>AI pre-review. </AiLabel>{aiSummary}</Typography>
+                <AiBlock><Typography variant="body1">{aiSummary}</Typography></AiBlock>
               )}
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
                 {plural(risks.filter(one => !one.considered).length, "risk")} still to consider,{" "}
@@ -354,9 +357,6 @@ function Progress({ risks }: { risks: RiskReview[] }) {
   );
 }
 
-function AiLabel({ children }: { children: ReactNode }) {
-  return <Box component="span" sx={{ color: "assistant.main", fontWeight: "fontWeightBold" }}>{children}</Box>;
-}
 
 function ConsideredButton({ risk, doing }: { risk: RiskReview; doing: ReviewDoing }) {
   const [ saving, setSaving ] = useState(false);
@@ -413,19 +413,14 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
   doing: ReviewDoing;
   onShow: (note: ReviewNote) => void;
 }) {
-  const nothing = !risk.assessment && risk.aiOpen.length === 0 && risk.aiSettled.length === 0
-    && risk.mismatches.length === 0 && risk.issues.length === 0;
-  // What to go by: what the schema says to look at, the AI's read, and the answers the protocol contradicts
-  const context = (
-    <>
-      {!dense && risk.topic.description && (
-        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", color: "text.secondary" }}>
-          {risk.topic.description}
-        </Typography>
-      )}
-      {risk.assessment && (
-        <Typography variant={dense ? "caption" : "body2"}><AiLabel>AI. </AiLabel>{risk.assessment}</Typography>
-      )}
+  const aiSaid = Boolean(risk.assessment) || risk.mismatches.length > 0 || risk.aiOpen.length > 0
+    || risk.aiSettled.length > 0;
+  // From the app: what the schema says to look at for this risk
+  const guidance = risk.topic.description && <Guidance text={risk.topic.description} dense={dense} />;
+  // From the AI, all in its own frame: its read, the answers it read the protocol to contradict, what it raised
+  const ai = aiSaid && (
+    <AiBlock dense={dense}>
+      {risk.assessment && <Typography variant={dense ? "caption" : "body2"}>{risk.assessment}</Typography>}
       {risk.mismatches.length > 0 && (
         <Section title="Answers the protocol contradicts" dense={dense}>
           {risk.mismatches.map(mismatch => (
@@ -439,13 +434,8 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
           ))}
         </Section>
       )}
-    </>
-  );
-  // What to act on: the AI's concerns, open and settled, and the reviewer's issues
-  const work = (
-    <>
       {risk.aiOpen.length > 0 && (
-        <Section title="Raised by the AI" dense={dense}>
+        <Section title="Concerns" dense={dense}>
           <Rows>
             {bySeverity(risk.aiOpen).map(note => (
               <AiRow key={note.id} note={note} topic={risk.topic.path} dense={dense} about={about} doing={doing}
@@ -455,7 +445,7 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
         </Section>
       )}
       {risk.aiSettled.length > 0 && (
-        <Section title="Settled AI concerns" dense={dense}>
+        <Section title="Settled concerns" dense={dense}>
           <Rows>
             {bySeverity(risk.aiSettled).map(note => (
               <Settled key={note.id} note={note} dense={dense} doing={doing} onShow={onShow} />
@@ -463,33 +453,84 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
           </Rows>
         </Section>
       )}
-      <Section title={`Your issues (${risk.issues.length})`} dense={dense}>
-        <Issues issues={risk.issues} dense={dense} about={about} doing={doing} onShow={onShow} />
-        <AddIssue topic={risk.topic.path} doing={doing} />
-      </Section>
-    </>
+    </AiBlock>
+  );
+  // The reviewer's own
+  const yours = (
+    <Section title={`Your issues (${risk.issues.length})`} dense={dense}>
+      <Issues issues={risk.issues} dense={dense} about={about} doing={doing} onShow={onShow} />
+      <AddIssue topic={risk.topic.path} doing={doing} />
+    </Section>
   );
   if (dense) {
     return (
-      <Stack spacing={1}>
-        {context}
-        {work}
-        {nothing && (
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            Nothing raised here yet. {risk.topic.description?.split("\n")[0]}
-          </Typography>
-        )}
+      <Stack spacing={1.25}>
+        {guidance}
+        {ai}
+        {yours}
       </Stack>
     );
   }
-  // In full, side by side where the room allows, what to go by on a quiet surface beside what to act on; one above
-  // the other where it does not. Each column keeps to a readable width.
+  // In full, side by side where the room allows, the app's guidance as reference beside the AI's pre-review and the
+  // reviewer's issues; one above the other where it does not. Each column keeps to a readable width.
   return (
     <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 3, alignItems: "start",
       "@container (min-width: 900px)": { gridTemplateColumns: "minmax(0, 5fr) minmax(0, 7fr)", columnGap: 4 } }}>
-      <Stack spacing={2} sx={{ bgcolor: "background.muted", borderRadius: 1, p: 2, maxWidth: 720 }}>{context}</Stack>
-      <Stack spacing={2} sx={{ maxWidth: 820 }}>{work}</Stack>
+      <Box sx={{ maxWidth: 720 }}>{guidance}</Box>
+      <Stack spacing={3} sx={{ maxWidth: 820 }}>
+        {ai}
+        {yours}
+      </Stack>
     </Box>
+  );
+}
+
+// What the app says to look at for a risk, from its schema: reference, on a quiet surface, its first paragraph
+// shown and the rest a click away; in the panel, a single line that opens it
+function Guidance({ text, dense }: { text: string; dense: boolean }) {
+  const [ open, setOpen ] = useState(false);
+  const [ first, ...rest ] = text.split(/\n\s*\n/);
+  return (
+    <Box sx={{ bgcolor: "background.muted", borderRadius: 1, px: dense ? 1 : 2, py: dense ? 0.75 : 1.5 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mb: dense && !open ? 0 : 0.5 }}>
+        <MenuBookOutlined sx={{ fontSize: "1rem", color: "text.secondary" }} />
+        <Typography variant="caption" component="h4" sx={{ fontWeight: "fontWeightBold", color: "text.secondary",
+          flex: 1 }}>
+          What to look at
+        </Typography>
+        {(dense || rest.length > 0) && (
+          <Link component="button" variant="caption" onClick={() => setOpen(!open)}>{open ? "Less" : "More"}</Link>
+        )}
+      </Stack>
+      {(!dense || open) && (
+        <Typography variant={dense ? "caption" : "body2"} component="div"
+          sx={{ whiteSpace: "pre-wrap", color: "text.secondary" }}>
+          {open ? text : first}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+// What the AI pre-review says, in its frame: its colour down the side, its mark and its name, so nothing it says
+// reads as the app's or the reviewer's
+export function AiBlock({ dense = false, title = "AI pre-review", children }: {
+  dense?: boolean;
+  title?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Stack spacing={dense ? 1 : 1.5} sx={theme => ({ borderInlineStart: "3px solid", borderColor: "assistant.main",
+      bgcolor: theme.alpha(theme.palette.assistant.light, 0.12), borderRadius: 1, px: dense ? 1 : 2,
+      py: dense ? 0.75 : 1.5 })}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75 }}>
+        <AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />
+        <Typography variant="caption" component="h4" sx={{ fontWeight: "fontWeightBold", color: "assistant.main" }}>
+          {title}
+        </Typography>
+      </Stack>
+      {children}
+    </Stack>
   );
 }
 
