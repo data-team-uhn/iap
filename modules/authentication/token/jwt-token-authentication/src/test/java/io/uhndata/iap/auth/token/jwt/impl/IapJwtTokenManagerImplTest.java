@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.auth.token.jwt.impl;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.util.Base64;
@@ -204,6 +206,31 @@ public class IapJwtTokenManagerImplTest
     }
 
     @Test
+    public void aKeyIdCannotStartALogLineOfItsOwn()
+    {
+        final String forging = Jwts.builder()
+                .subject("attacker")
+                .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
+                .header().keyId("x\nFORGED").and()
+                .signWith(Jwts.SIG.RS256.keyPair().build().getPrivate())
+                .compact();
+
+        final String logged = loggedWhileParsing(forging);
+
+        Assertions.assertTrue(logged.contains("JWT refused"), logged);
+        Assertions.assertFalse(logged.contains("\nFORGED"), logged);
+    }
+
+    @Test
+    public void aHeaderValueQuotedInARefusalCannotStartALogLineOfItsOwn()
+    {
+        final String logged = loggedWhileParsing(signingInput("RS256\\nFORGED") + ".c2lnbmF0dXJl");
+
+        Assertions.assertTrue(logged.contains("?FORGED"), logged);
+        Assertions.assertFalse(logged.contains("\nFORGED"), logged);
+    }
+
+    @Test
     public void createThenParseRejectsInvalidAudience()
     {
         Set<String> fakeAudience = new HashSet<String>();
@@ -333,6 +360,25 @@ public class IapJwtTokenManagerImplTest
             + "."
             + base64Url("{\"iss\":\"" + SELF_ID + "\",\"aud\":[\"" + SELF_ID
                 + "\"],\"sub\":\"attacker\",\"exp\":" + expiry + "}");
+    }
+
+    /**
+     * Parses a token that must be refused, and returns what was logged meanwhile.
+     *
+     * @param token the token to parse
+     * @return what the test binding of SLF4J wrote to the standard error stream
+     */
+    private String loggedWhileParsing(final String token)
+    {
+        final PrintStream original = System.err;
+        final ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
+        try {
+            Assertions.assertNull(this.manager.parse(token));
+        } finally {
+            System.setErr(original);
+        }
+        return captured.toString(StandardCharsets.UTF_8);
     }
 
     private String selfFingerprint()
