@@ -1236,7 +1236,7 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-enforcer-plugin</artifactId>
           <!-- Lock down plugin version for build reproducibility -->
-          <version>3.6.3</version>
+          <version>3.7.0</version>
         </plugin>
         <!-- Apply checkstyle rules and fail the build in case of errors. The checkstyle config
              files are taken from the build-tools JAR module.-->
@@ -1249,7 +1249,7 @@
             <dependency>
               <groupId>com.puppycrawl.tools</groupId>
               <artifactId>checkstyle</artifactId>
-              <version>14.3.0</version>
+              <version>14.4.0</version>
             </dependency>
           </dependencies>
           <configuration>
