@@ -16,9 +16,13 @@
  * limitations under the License.
  */
 
-import { describeRequestFailure } from "@iap/frontend-commons/requestFailure";
+import { PdfWorkerFailure } from "@iap/frontend-commons/pdfjsClient";
+import { lastSegmentOf } from "@iap/frontend-commons/serializedNode";
 
 import type { MarkPlace } from "./marksModel";
+
+// What the viewer says about a document, its marks and a search of it, as plain data for any component
+// to show. No React, no fetch.
 
 // What a passage's note depends on besides the passage's place: why the document could not be opened,
 // and the page shown once it is open.
@@ -27,8 +31,12 @@ export interface ViewerStatus {
   page?: number;
 }
 
-// Why the document could not be opened, in the person's words.
-export function describeOpenFailure(error: unknown): string {
+// Why PDF.js could not open the document, in the person's words, or nothing when the failure was not
+// PDF.js's. Retry would reuse a worker that never started, so that one asks for a reload.
+export function describePdfFailure(error: unknown): string | undefined {
+  if (error instanceof PdfWorkerFailure) {
+    return "The document viewer could not start. Reload the page to try again.";
+  }
   const name = error instanceof Error ? error.name : undefined;
   if (name === "InvalidPDFException") {
     return "This file is not a PDF that can be read. It may be damaged, or be another kind of file.";
@@ -36,13 +44,13 @@ export function describeOpenFailure(error: unknown): string {
   if (name === "PasswordException") {
     return "This PDF is protected by a password, so it cannot be shown here.";
   }
-  return describeRequestFailure(error);
+  return undefined;
 }
 
 // The last segment of the URL's path, decoded, or the URL itself when it has none.
 export function getFileName(url: string): string {
   const path = url.replace(/[?#].*$/, "").replace(/\/+$/, "");
-  const name = path.slice(path.lastIndexOf("/") + 1);
+  const name = lastSegmentOf(path);
   if (name.length === 0) {
     return url;
   }

@@ -43,7 +43,6 @@ vi.mock("@iap/frontend-commons/assetManager", () => ({
   getAssetURL: (name: string) => Promise.resolve(published.get(name) ?? ""),
 }));
 vi.mock("pdfjs-dist/web/pdf_viewer.mjs", fakeViewer);
-vi.mock("pdfjs-dist/web/pdf_viewer.css", () => ({}));
 
 afterEach(() => {
   delete (globalThis as { pdfjsLib?: unknown }).pdfjsLib;

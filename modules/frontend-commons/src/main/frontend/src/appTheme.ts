@@ -133,34 +133,6 @@ declare module "@mui/material/styles" {
   }
 }
 
-declare module "@mui/material/Button" {
-  interface ButtonPropsColorOverrides {
-    assistant: true;
-    annotation: true;
-  }
-}
-
-declare module "@mui/material/Chip" {
-  interface ChipPropsColorOverrides {
-    assistant: true;
-    annotation: true;
-  }
-}
-
-declare module "@mui/material/IconButton" {
-  interface IconButtonPropsColorOverrides {
-    assistant: true;
-    annotation: true;
-  }
-}
-
-declare module "@mui/material/SvgIcon" {
-  interface SvgIconPropsColorOverrides {
-    assistant: true;
-    annotation: true;
-  }
-}
-
 declare module "@mui/material/Typography" {
   interface TypographyPropsVariantOverrides {
     pageTitle: true;
@@ -361,14 +333,6 @@ const appTheme = createTheme({
     },
   },
   components: {
-    // A stylesheet loaded later may set a color-scheme on :root, as PDF.js's does. These rules outrank
-    // it, so native controls and light-dark() colours keep following the app's scheme.
-    MuiCssBaseline: {
-      styleOverrides: {
-        "html.light": { colorScheme: "light" },
-        "html.dark": { colorScheme: "dark" },
-      },
-    },
     // Paper is outlined, not elevated
     MuiPaper: {
       defaultProps: {
