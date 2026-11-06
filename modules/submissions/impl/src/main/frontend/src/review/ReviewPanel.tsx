@@ -18,6 +18,7 @@
 
 import { useState, type ReactNode } from "react";
 
+import AddOutlined from "@mui/icons-material/AddOutlined";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
@@ -280,6 +281,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
             <Stack spacing={2} sx={{ height: "100%", minHeight: 360 }}>
               <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
                 <Typography variant="h6" component="h3" sx={{ flex: 1 }}>All your issues</Typography>
+                <AddIssue doing={doing} prominent />
                 <FormControlLabel
                   control={<Switch checked={withConcerns} onChange={event => setWithConcerns(event.target.checked)} />}
                   label={`Include open AI concerns (${risks.reduce((sum, one) => sum + one.aiOpen.length, 0)})`}
@@ -628,10 +630,14 @@ function Issues({ issues, dense, about, doing, onShow }: {
 }
 
 // An issue under a risk, pointing at no answer or passage
-function AddIssue({ topic, doing }: { topic?: string; doing: ReviewDoing }) {
+function AddIssue({ topic, doing, prominent = false }: { topic?: string; doing: ReviewDoing; prominent?: boolean }) {
   const [ writing, setWriting ] = useState(false);
   if (!writing) {
-    return (
+    return prominent ? (
+      <Button size="small" variant="outlined" startIcon={<AddOutlined />} onClick={() => setWriting(true)}>
+        Add an issue
+      </Button>
+    ) : (
       <Button size="small" variant="text" sx={{ alignSelf: "flex-start", px: 0.75, ml: -0.75 }}
         onClick={() => setWriting(true)}>
         Add an issue
@@ -639,7 +645,9 @@ function AddIssue({ topic, doing }: { topic?: string; doing: ReviewDoing }) {
     );
   }
   return (
+    // Beside the grid's heading, it opens over the full width under it
     <Box sx={theme => ({ ...passageCard(theme, "draft"), px: 1.25, py: 1, outline: "2px solid",
+      ...prominent ? { flexBasis: "100%", order: 1 } : {},
       outlineColor: theme.palette.draft.main, outlineOffset: "-2px" })}>
       <Composer
         kinds={[ "issue" ]} initialTopic={topic ?? ""}
