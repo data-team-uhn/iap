@@ -34,16 +34,19 @@ export interface NoteKindInfo {
   label: string;
   // What one of them is called on its card
   single: string;
+  // What it is called where the reviewer picks what to write, all of it being theirs
+  choice: string;
   mark: PassageKind;
 }
 
 export const NOTE_KINDS: NoteKindInfo[] = [
-  { kind: "evidence", label: "Extracted answers", single: "Extracted answer", mark: "evidence" },
-  { kind: "aiIssue", label: "AI pre-review", single: "AI pre-review", mark: "assistant" },
-  { kind: "issue", label: "Your issues", single: "Your issue", mark: "issue" },
-  { kind: "otherIssue", label: "Others' issues", single: "Issue", mark: "otherIssue" },
-  { kind: "discussion", label: "Reviewer discussion", single: "Discussion", mark: "discussion" },
-  { kind: "note", label: "Your notes", single: "Your note", mark: "annotation" },
+  { kind: "evidence", label: "Extracted answers", single: "Extracted answer", choice: "Extracted answer",
+    mark: "evidence" },
+  { kind: "aiIssue", label: "AI pre-review", single: "AI pre-review", choice: "AI pre-review", mark: "assistant" },
+  { kind: "issue", label: "Your issues", single: "Your issue", choice: "Issue", mark: "issue" },
+  { kind: "otherIssue", label: "Others' issues", single: "Issue", choice: "Issue", mark: "otherIssue" },
+  { kind: "discussion", label: "Reviewer discussion", single: "Discussion", choice: "Discussion", mark: "discussion" },
+  { kind: "note", label: "Your notes", single: "Your note", choice: "Note", mark: "annotation" },
 ];
 
 export function kindInfo(kind: NoteKind): NoteKindInfo {

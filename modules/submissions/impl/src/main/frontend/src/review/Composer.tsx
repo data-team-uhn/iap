@@ -99,10 +99,10 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
       {kinds.length > 1 && (
         <Stack direction="row" role="radiogroup" aria-label="What to write" sx={{ gap: 0.75, flexWrap: "wrap" }}>
           {kinds.map(one => {
-            const { mark, single } = kindInfo(one);
+            const { mark, choice } = kindInfo(one);
             return (
               <Chip
-                key={one} size="small" label={single} role="radio" aria-checked={kind === one}
+                key={one} size="small" label={choice} role="radio" aria-checked={kind === one}
                 icon={kind === one ? <CheckCircleOutlined /> : <CircleOutlined />}
                 variant="outlined" onClick={() => setKind(one)}
                 // The chosen one cannot be unchosen, so it does not answer the pointer
