@@ -99,7 +99,7 @@ class StatusReportNotificationTest
     @Test
     void aReportWithNothingMoreToSayThanItsStatusStillRenders()
     {
-        // StatusReport.getText() is allowed to be null, and a null would break the JSON builder
+        // The JSON builder throws on a null value
         this.reports.answer.add(new StatusReport("Uptime", StatusReport.Status.INFO, null));
 
         assertEquals("", this.notification.prepareMessages(Map.of()).get(0).getString("text"));
@@ -141,7 +141,7 @@ class StatusReportNotificationTest
     {
         this.notification.prepareMessages(Map.of(
             StatusReportNotification.TARGET_LEVEL, "warning",
-            // The blank entry in the middle is what a hand-edited configuration looks like
+            // A hand-edited list can hold a blank entry
             StatusReportNotification.INCLUDE_TAGS, " problems , , errors ",
             StatusReportNotification.UNPRIVILEGED_PARAMETER, "true"));
 
