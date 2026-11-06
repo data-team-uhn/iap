@@ -66,7 +66,7 @@ function SchemaNodeCreateAction({ parent, before, first, after, trigger }: Schem
   const [ menu, setMenu ] = useState<HTMLElement | null>(null);
   const [ chosen, setChosen ] = useState<CreatableType | null>(null);
   const [ atStart, setAtStart ] = useState(false);
-  // The identifier the user typed. Until there is one, the suggestion is sent.
+  // The identifier the user typed. Until there is one, the field shows the suggestion, and no name is sent.
   const [ identifier, setIdentifier ] = useState<string>();
   const send = useTreeEvent();
   const { moving } = useMoveMode();
@@ -153,8 +153,8 @@ function SchemaNodeCreateAction({ parent, before, first, after, trigger }: Schem
   );
 }
 
-// Adds to the end of a container, or to its start once it holds something. It is indented by `indent`, in theme
-// spacing, to line up with what it adds
+// Adds to the end of a container. Once the container holds something, the dialog also offers its start. The button
+// is indented by `indent`, in theme spacing, to line up with what it adds.
 export function AddAtEnd({ parent, first, indent }: { parent: SerializedNode; first?: string; indent: number }) {
   return (
     <SchemaNodeCreateAction

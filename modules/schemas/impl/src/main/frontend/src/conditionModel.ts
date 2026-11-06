@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-// The operand sources of a schema version's conditions. The schemas add their own `answer` source, whose operand
-// holds the answers to the question of the version it names. No React, no fetch.
+// The operand sources of a schema version's conditions. This module adds the `answer` source, whose operand holds
+// the answers to the question of the version it names. No React, no fetch.
 
 import {
   type Choice, type OperandShape, type OperandSource, ownPropertySource, propertySource, tagsSource,
@@ -28,7 +28,7 @@ import { isNode, type SerializedNode } from "@iap/frontend-commons/serializedNod
 import { nameOf, pathOf } from "./schemaModel";
 import { headingOf, optionLabelOf, optionsOf, type QuestionIndex, strings } from "./schemaVersionTreeModel";
 
-// The comparison types of the question data types; a file has none
+// The comparison type of each question data type
 const VALUE_TYPES: Record<string, ValueType | undefined> = {
   text: "text",
   long: "long",
@@ -51,8 +51,8 @@ export function itemChoicesOf(node: SerializedNode): Choice[] {
     ]);
 }
 
-// What the answers to a question hold: its type, one or several of them, and its options. These are the ones it
-// lists, or else the items it takes its options from, once they are loaded.
+// What the answers to a question hold: their type, whether there may be several, and the options. The options are
+// the ones the question lists, or else the items it takes its options from, once they are loaded.
 export function answerShapeOf(question: SerializedNode, items: ItemChoices = {}): OperandShape {
   const listed = optionsOf(question).map(option => ({
     value: strings(option.value).at(0) ?? "",
@@ -96,10 +96,10 @@ export const offeredOf = (sources: OperandSource[]): OperandSource[] =>
 export const questionsFor = (part: SerializedNode, index: QuestionIndex): SerializedNode[] => index.questions
   .filter(question => pathOf(question) !== pathOf(part) && !pathOf(question).startsWith(`${pathOf(part)}/`));
 
-// A condition in a form two versions can compare: what it stores, without the repository's bookkeeping. The questions
-// it compares the answers of go by their identifiers in the version, which a copy keeps and a move does not change. The
-// repository's own identifiers would not do, since a copy changes them. A question whose identifier another shares goes
-// by its path within the version. Keys are sorted, so that the order they were written in does not count.
+// A condition in a form two versions can compare: what it stores, without the repository's bookkeeping. A question
+// it reads goes by its identifier, which a copy keeps and a move does not change. Its `jcr:uuid` would not do, since
+// a copy changes it. A question whose identifier another question shares goes by its path within the version. Keys
+// are sorted, so the order they were written in does not count.
 export function conditionKeyOf(condition: SerializedNode, index: QuestionIndex, version: string): string {
   const keyOf = (question: SerializedNode) =>
     (index.questions.filter(other => nameOf(other) === nameOf(question)).length === 1

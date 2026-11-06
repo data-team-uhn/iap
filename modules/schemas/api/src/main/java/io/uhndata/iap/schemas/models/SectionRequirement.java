@@ -29,9 +29,9 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * A Sling Model wrapping a {@code sch:SectionRequirement} node: a section a {@link DocumentRequirement document} is
- * expected to contain, e.g. the funding section of a study protocol. It lets a {@link Topic} point at the part of a
- * long document worth reading, rather than at the whole document. Nothing is uploaded for it: it is
- * found in the document uploaded for the requirement it belongs to.
+ * expected to contain, such as the funding section of a study protocol. A {@link Topic} can point at it rather than at
+ * the whole document. Nothing is uploaded for it: it is looked for in the document of the requirement it belongs
+ * to.
  *
  * @version $Id$
  * @since 0.1.0
@@ -43,7 +43,7 @@ public class SectionRequirement extends Requirement
     /** The {@code sling:resourceType} of a {@code sch:SectionRequirement} node. */
     public static final String RESOURCE_TYPE = "sch/SectionRequirement";
 
-    // Defaulted here too: the node type's default only reaches nodes created through JCR
+    // Defaulted here too: the node type's default reaches only nodes created through JCR
     @ValueMapValue
     @Default(booleanValues = true)
     private boolean required;
@@ -57,7 +57,7 @@ public class SectionRequirement extends Requirement
     /**
      * Whether the document must contain this section.
      *
-     * @return {@code true} if a document without this section falls short of its requirement
+     * @return {@code true} if the section is required
      */
     public boolean isRequired()
     {
@@ -65,9 +65,9 @@ public class SectionRequirement extends Requirement
     }
 
     /**
-     * The headings this section usually goes by, e.g. "Funding", "Budget" and "Sources of support".
+     * The headings this section usually goes by, such as "Funding", "Budget" and "Sources of support".
      *
-     * @return a list of headings, empty if none are listed
+     * @return the headings; empty if there are none
      */
     @NotNull
     public List<String> getHeadings()
@@ -79,7 +79,7 @@ public class SectionRequirement extends Requirement
      * The prompt an LLM is given to find where this section starts, when none of the document's headings is one of
      * the {@link #getHeadings() expected ones}.
      *
-     * @return a prompt, or {@code null} if this section is only found by its headings
+     * @return the prompt; {@code null} if this section is looked for by its headings only
      */
     @Nullable
     public String getLocationPrompt()
@@ -90,7 +90,7 @@ public class SectionRequirement extends Requirement
     /**
      * The subsections this section is expected to contain.
      *
-     * @return a list of section requirements in their stored order, empty if there are none
+     * @return the section requirements, in stored order; empty if there are none
      */
     @NotNull
     public List<SectionRequirement> getSections()
@@ -101,7 +101,7 @@ public class SectionRequirement extends Requirement
     /**
      * The document this section is part of, through any number of enclosing sections.
      *
-     * @return the document requirement, or {@code null} if this section is not stored under one
+     * @return the document requirement; {@code null} if this section is not stored under one
      */
     @Nullable
     public DocumentRequirement getDocument()

@@ -23,8 +23,7 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
- * A rule a schema version must follow to be published: something a submitter or a condition will lean on once the
- * version can no longer change.
+ * A rule a schema version must follow before it is published.
  *
  * @version $Id$
  * @since 0.1.0

@@ -27,7 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import io.uhndata.iap.entities.models.EntityHomepage;
 
 /**
- * A Sling Model wrapping a {@code sch:SchemasHomepage} node, the root container of the {@code /Schemas} tree.
+ * A Sling Model wrapping a {@code sch:SchemasHomepage} node: the {@code /Schemas} homepage.
  *
  * @version $Id$
  * @since 0.1.0
@@ -40,9 +40,9 @@ public class SchemasHomepage extends EntityHomepage
     public static final String RESOURCE_TYPE = "sch/SchemasHomepage";
 
     /**
-     * The schemas defined under this homepage.
+     * The schemas under this homepage.
      *
-     * @return a list of schemas, empty if none
+     * @return the schemas, in stored order; empty if there are none
      */
     @NotNull
     public List<Schema> getSchemas()

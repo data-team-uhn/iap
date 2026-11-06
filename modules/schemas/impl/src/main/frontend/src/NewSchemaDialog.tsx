@@ -33,8 +33,8 @@ interface NewSchemaDialogProps {
   onCreated: (path: string) => void;
 }
 
-// Starting a schema: a title, and a label for its first version, which begins as a draft, empty or as a copy of
-// any schema's version.
+// Creates a schema from its title and the label of its first version. That version starts as a draft, empty or as
+// a copy of any schema's version.
 function NewSchemaDialog({ onClose, onCreate, onCreated }: NewSchemaDialogProps) {
   const [ title, setTitle ] = useState("");
   const [ version, setVersion ] = useState("1.0");

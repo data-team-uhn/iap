@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/SchemaVersion",
-    "description": "Closes an active version to new submissions; the submissions filed under it keep referencing it.",
+    "description": "Closes an active version to new submissions.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

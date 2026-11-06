@@ -20,9 +20,8 @@ import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
 
 import { SCHEMAS_ROOT } from "./schemaModel";
 
-// The administration console widget summarizing the schemas: how many versions are active or in draft, and how
-// many schemas are retired. The way through to the full tool is the frame's own "Manage" action, from the
-// extension node.
+// The administration console's summary of the schemas: how many versions of open schemas are active, how many
+// versions are drafts, and how many schemas are retired.
 function SchemasWidget() {
   return <WidgetStatList url={SCHEMAS_ROOT} name="schemas" />;
 }

@@ -35,7 +35,7 @@ import type { SchemaActionProps } from "./SchemaActions";
 
 interface NewVersionActionProps extends SchemaActionProps {
   label: string;
-  // The version it starts as a copy of, unless another is chosen: by default the one made last
+  // The version the new one copies unless the user picks another. By default, the one created last.
   source?: SerializedNode;
 }
 

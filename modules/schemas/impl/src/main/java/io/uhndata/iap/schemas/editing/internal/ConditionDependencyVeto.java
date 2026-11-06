@@ -69,7 +69,7 @@ public class ConditionDependencyVeto implements DeletionVeto
             return null;
         }
         final Node version = AnswerDependencies.entityOf(node);
-        // By path, so each part is named once
+        // Keyed by path, so a part with several such operands is named once
         final Map<String, String> dependents = new TreeMap<>();
         for (final Node operand : operands) {
             final Node part = AnswerDependencies.conditionedBy(operand);
@@ -80,11 +80,11 @@ public class ConditionDependencyVeto implements DeletionVeto
     }
 
     /**
-     * How the refusal names a part.
+     * How the refusal names a part, as {@link PartNames} does.
      *
-     * @param part a part
-     * @param version the version it is in
-     * @return its name
+     * @param part the part whose condition depends on the deleted question
+     * @param version the schema version holding the part
+     * @return the part's text, label or title in quotes, or else its path within the version
      * @throws RepositoryException when it cannot be read
      */
     private static String nameOf(final Node part, final Node version) throws RepositoryException

@@ -28,9 +28,8 @@ import org.jetbrains.annotations.NotNull;
 import io.uhndata.iap.entities.models.Entity;
 
 /**
- * A Sling Model wrapping a {@code sch:Schema} node, a named institutional schema required for approving
- * submissions. The schema itself is only a container identifying the schema; the actual requirements live in its
- * {@code sch:SchemaVersion} children.
+ * A Sling Model wrapping a {@code sch:Schema} node: a named schema. It only identifies the schema, and its
+ * {@link SchemaVersion versions} hold what a submission is asked for.
  *
  * @version $Id$
  * @since 0.1.0
@@ -46,9 +45,9 @@ public class Schema extends Entity
     private String title;
 
     /**
-     * The human-readable name of the schema.
+     * The schema's name, as people read it.
      *
-     * @return a title
+     * @return the title
      */
     @NotNull
     public String getTitle()
@@ -57,9 +56,9 @@ public class Schema extends Entity
     }
 
     /**
-     * The defined versions of this schema.
+     * The versions of this schema.
      *
-     * @return a list of schema versions, empty if none
+     * @return the versions, in stored order; empty if there are none
      */
     @NotNull
     public List<SchemaVersion> getVersions()

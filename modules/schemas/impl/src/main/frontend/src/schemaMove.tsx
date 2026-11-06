@@ -46,7 +46,7 @@ export type Way = "up" | "down";
 
 interface MoveModeValue {
   moving?: Moving;
-  // The path of what the last move moved, until it has been marked
+  // The path of what the last move moved, while it stays marked
   moved?: string;
   // Whether that move was an option's step
   stepped: boolean;
@@ -76,7 +76,7 @@ const MoveModeContext = createContext<MoveModeValue>({
 
 export const useMoveMode = () => useContext(MoveModeContext);
 
-// How long what was moved stays marked
+// How long what was moved stays marked, in milliseconds
 const SHOWN_FOR = 3000;
 
 const placeOf = (parent: SerializedNode, before?: SerializedNode): string => `${pathOf(parent)}/${before ? nameOf(before) : ""}`;
@@ -302,7 +302,7 @@ export function MoveSpot({ parent, before, item, onChoose }: MoveSpotProps) {
           className="iap-move-spot-label"
           sx={{ display: "inline-flex", alignItems: "baseline", gap: 0.75, minWidth: 0, whiteSpace: "nowrap" }}
         >
-          {/* The name after it is cut short first. This shrinks too, far less, rather than run off a narrow screen. */}
+          {/* The name after it is cut short first. This shrinks too, far less, so it does not run off a narrow screen. */}
           <Box component="span" sx={{ minWidth: 0, flexShrink: 0.1, overflow: "hidden", textOverflow: "ellipsis" }}>
             {said}
           </Box>

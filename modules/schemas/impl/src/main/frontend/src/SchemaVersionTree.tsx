@@ -64,11 +64,10 @@ interface PartCardProps {
   siblings: SerializedNode[];
 }
 
-// One requirement, section or question, with what it contains nested inside. Containers start open and
-// questions closed, so the outline of a version reads first and the detail is a click away. When it
-// applies stays in view either way: it is what the outline is made of. While something is moving, a closed part
-// offers a place at its end, under its heading. Choosing it opens the part to show what went there. Opening the part
-// shows the other places.
+// One requirement, section or question, with what it contains nested inside. A part holding other parts starts
+// open, and any other part starts closed. When the part applies shows either way. While something is moving, a
+// closed part offers a place at its end, under its heading. Choosing it opens the part to show what went there.
+// Opening the part shows the other places.
 function PartCard({ part, parent, siblings }: PartCardProps) {
   const type = schemaPartTypeOf(resourceTypeOf(part));
   const children = partsOf(part);

@@ -20,7 +20,7 @@ import NewVersionAction from "./NewVersionAction";
 
 import type { SchemaActionProps } from "./SchemaActions";
 
-// Adds a version to a schema, by default a copy of the one made last, and opens it.
+// Adds a version to a schema, by default a copy of the one created last, and opens it.
 function SchemaNewVersionAction(props: SchemaActionProps) {
   return <NewVersionAction {...props} label="New version" />;
 }

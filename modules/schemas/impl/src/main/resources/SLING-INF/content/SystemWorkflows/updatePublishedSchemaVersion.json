@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sch/SchemaVersion",
-    "description": "Changes only the wording of a version that has been published, since submissions may depend on the rest.",
+    "description": "Changes only the wording of a published version.",
     "notice": "Only the wording of this version can be corrected. Anything else needs a new version.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",

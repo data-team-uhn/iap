@@ -41,7 +41,8 @@ import {
 export type SchemaPartChip = string | { label: string };
 
 // How one type of schema part is shown: what it is called, its icon and accent, the facts worth seeing
-// at a glance, and what else it says once opened. A type not listed here is still shown, as itself.
+// at a glance, and what else it says once opened. A type with no entry here is shown under its resource
+// type, with a generic icon.
 export interface SchemaPartType {
   label: string;
   Icon: ComponentType<SvgIconProps>;

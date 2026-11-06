@@ -37,12 +37,11 @@ import io.uhndata.iap.utils.summary.AdminSummaryServlet;
 import io.uhndata.iap.utils.summary.SummaryUnavailableException;
 
 /**
- * Counts the schemas for the console widget: {@code GET /Schemas.adminSummary.json} answers with how many versions
- * of schemas still open are active, how many drafts are in progress, and how many schemas are retired.
+ * Counts the schemas for the administration console: {@code GET /Schemas.adminSummary.json} answers with how many
+ * versions of open schemas are active, how many versions are drafts, and how many schemas are retired.
  *
  * <p>
- * Each figure counts the schemas or versions carrying that lifecycle tag themselves. The children are read
- * directly, so the counts are exact.
+ * Each figure counts the schemas or versions that carry that lifecycle tag themselves.
  * </p>
  *
  * {@snippet lang=json :
@@ -80,7 +79,7 @@ public class SchemasSummaryServlet extends AdminSummaryServlet
         final List<Schema> schemas = homepage.getSchemas();
         final List<SchemaVersion> versions = schemas.stream().flatMap(schema -> schema.getVersions().stream())
             .toList();
-        // A retired schema takes no new submissions, whatever its versions say
+        // A retired schema takes no new submissions, whatever tags its versions carry
         final List<SchemaVersion> open = schemas.stream()
             .filter(schema -> !carries(schema, "retired"))
             .flatMap(schema -> schema.getVersions().stream())
@@ -92,11 +91,10 @@ public class SchemasSummaryServlet extends AdminSummaryServlet
     }
 
     /**
-     * How many of some schemas or versions carry a tag themselves, whether their {@code tags} property holds one
-     * value or several.
+     * How many of some schemas or versions carry a tag themselves.
      *
      * @param nodes the schemas or versions to count among
-     * @param tag the tag name
+     * @param tag the tag name, such as {@code active}
      * @return how many carry it
      */
     private static long tagged(final List<? extends Content> nodes, final String tag)
@@ -105,10 +103,10 @@ public class SchemasSummaryServlet extends AdminSummaryServlet
     }
 
     /**
-     * Whether a schema or version carries a tag itself.
+     * Whether a schema or version carries a tag itself, whether its {@code tags} property holds one value or several.
      *
      * @param node the schema or version
-     * @param tag the tag name
+     * @param tag the tag name, such as {@code retired}
      * @return {@code true} if its own {@code tags} property holds the tag
      */
     private static boolean carries(final Content node, final String tag)

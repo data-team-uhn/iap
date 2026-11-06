@@ -60,8 +60,8 @@ function SchemaManager() {
         schema,
         reload: () => setRefreshToken(token => token + 1),
       };
-      // Kept from the row, whose click opens the schema: a click on an action, or inside its dialog,
-      // is not a request to navigate
+      // A click on an action, or inside its dialog, stays out of the row, whose click opens the schema or the
+      // version
       return (
         <Box onClick={event => event.stopPropagation()}>
           { version

@@ -21,7 +21,7 @@
       "start-order": "27"
     },
     {
-      // After the workflow engine, whose handler SPI it implements
+      // After the workflow engine (26) and the deletion service (27), whose SPIs it implements
       "id": "${project.groupId}:${project.artifactId}:${project.version}",
       "start-order": "28"
     }
@@ -31,10 +31,8 @@
       "service.ranking:Integer": 300,
       "scripts": [
         "create path (sch:SchemasHomepage) /Schemas",
-        // Schemas are readable by everyone, the way the other definition trees are: a person cannot choose what
-        // to submit against without seeing what is on offer, and cannot read a submission they are involved in
-        // without the schema version that says how its answers are grouped. What may be *done* with a schema
-        // still goes through the workflow engine; this only opens reading.
+        // Everyone may read the schemas. A person chooses what to submit against from them, and reads a submission
+        // through its schema version. Every change still goes through the workflow engine.
         "set ACL on /Schemas \n allow jcr:read for everyone \n end"
       ]
     }

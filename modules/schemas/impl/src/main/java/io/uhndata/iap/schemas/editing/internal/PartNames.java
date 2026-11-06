@@ -21,9 +21,9 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * How messages name a part of a schema version, so every message calls a part the same way. A part is named by
- * what submitters read: the first of its text, label and title that is not blank, in quotes. Without one, it is
- * named by its path within the version.
+ * How messages name a part of a schema version, so every message calls a part the same way. A part is named by what
+ * people read: the first of its text, label and title that is not blank, in quotes. Without one, it is named by its
+ * path within the version, such as {@code form/age}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -41,9 +41,9 @@ public final class PartNames
     /**
      * How a message names a part.
      *
-     * @param propertyOf reads one of the part's text properties, {@code null} when it does not have it
-     * @param pathInVersion the part's path relative to its version
-     * @return the first name that is not blank, quoted, or else the path
+     * @param propertyOf reads one of the part's properties by name, returning {@code null} if the part does not have it
+     * @param pathInVersion the part's path relative to its version, such as {@code form/age}
+     * @return the first name that is not blank, in quotes; else the path
      */
     public static String of(final Function<String, String> propertyOf, final String pathInVersion)
     {
@@ -58,9 +58,9 @@ public final class PartNames
     /**
      * A path relative to one of its ancestors.
      *
-     * @param path the path of a node
-     * @param ancestorPath the path of an ancestor of that node
-     * @return the part of the path below the ancestor
+     * @param path the absolute path of a node
+     * @param ancestorPath the absolute path of one of its ancestors
+     * @return the path below the ancestor, without a leading {@code /}
      */
     public static String pathIn(final String path, final String ancestorPath)
     {

@@ -38,21 +38,15 @@ import io.uhndata.iap.schemas.models.SchemasHomepage;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
- * Leaves closed schemas and schema versions out of the schema tree's serialization: a schema carrying the
- * {@code retired} lifecycle tag, and a version not carrying {@code active}. The name of this processor is
- * {@code active}, and it is enabled by default; ask for {@code -active} to see everything.
+ * Leaves out of a schema listing what takes no new submissions: a schema that carries the {@code retired} lifecycle
+ * tag, and a version that does not carry {@code active}. Creating a submission refuses both. The processor is named
+ * {@code active} and is on by default, and {@code -active} turns it off to list everything.
  *
- * <p>Anyone choosing what to submit against reads this tree, and a retired schema is not something they may
- * choose: the server refuses a submission against one. Listing it only offers a choice that will be taken away
- * again. Filtering here rather than in each reader states the rule once, on the side that knows it.</p>
+ * <p>It leaves out children only, so a retired schema or version requested by its own path still serializes.</p>
  *
- * <p>It filters <em>children</em>, so a retired schema requested directly still serializes. Whoever asked for
- * it by path already knows which one they want, and somebody has to be able to read one in order to bring it
- * back. What disappears is the retired schema in a listing, and the retired version in a listing of versions.</p>
- *
- * <p>Only the tags placed on the child itself count. A schema is open unless retired, so one without lifecycle
- * tags is kept; a version is closed until made active, so one without them is left out. A version also inherits
- * its schema's retirement, but a retired schema is already gone from any listing that would hold it.</p>
+ * <p>Only the tags placed on the child itself count. A schema without lifecycle tags is kept, and a version without
+ * them is left out. A version also inherits its schema's retirement, but a retired schema is already left out of any
+ * listing that would hold its versions.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -60,7 +54,7 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 @Component(immediate = true)
 public class ActiveSchemasProcessor implements ResourceJsonProcessor
 {
-    /** Where this applies: a listing of schemas, or of one schema's versions. */
+    /** The resource types whose serialization this applies to: a listing of schemas, or of a schema's versions. */
     private static final List<String> SERIALIZED_TREES =
         List.of(SchemasHomepage.RESOURCE_TYPE, Schema.RESOURCE_TYPE, SchemaVersion.RESOURCE_TYPE);
 
@@ -86,8 +80,7 @@ public class ActiveSchemasProcessor implements ResourceJsonProcessor
     @Override
     public int getPriority()
     {
-        // After `deep` (10), which is what turns a child into JSON in the first place.
-        // Discarding it has to be the later word, or the child would be serialized back in after being left out.
+        // After `deep` (10), which serializes the children, or `deep` would put a discarded child back
         return 20;
     }
 
@@ -112,15 +105,14 @@ public class ActiveSchemasProcessor implements ResourceJsonProcessor
     }
 
     /**
-     * Whether a child belongs in the serialization. Everything that is not a schema or a version is not filtered.
-     * A schema is discarded if it is retired, and a version unless it is active.
+     * Whether a child belongs in the serialization. A schema is left out if it is retired, and a version unless it
+     * is active. Anything else is kept.
      *
-     * <p>A child that cannot be read is kept. Hiding a schema that is in fact open would leave a submitter
-     * with nothing to choose and no way to tell why. Keeping a retired one costs at most a refusal from the
-     * server, which enforces this properly rather than relying on what a listing showed.</p>
+     * <p>A child whose type or tags cannot be read is kept. A retired schema shown by mistake costs a refusal when
+     * a submission is created against it. An open schema hidden by mistake cannot be chosen at all.</p>
      *
      * @param child the child node being serialized
-     * @return {@code true} if it should appear
+     * @return {@code true} if it belongs in the serialization
      */
     private static boolean isOffered(final Node child)
     {
@@ -138,7 +130,8 @@ public class ActiveSchemasProcessor implements ResourceJsonProcessor
     }
 
     /**
-     * Whether a tag is placed on a node itself, read from its {@code tags} property, multivalued or not.
+     * Whether a tag is placed on a node itself, read from its {@code tags} property, whether it holds one value or
+     * several.
      *
      * @param node the node to look at
      * @param tag the tag name

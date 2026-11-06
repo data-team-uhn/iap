@@ -51,8 +51,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Checks the fields the shipped update workflows list against the node types they target or create. The engine
- * silently leaves out a listed field that no such type declares, so a misspelt one would never be offered. A create
- * workflow cannot share a draft update's fields, so it also checks that the two copies agree.
+ * leaves out a listed field that no such type declares, and reports nothing, so a misspelt one would never be offered.
+ * A create workflow lists its own copy of a draft update's fields, so this also checks that the two copies agree.
  *
  * @version $Id$
  * @since 0.1.0
@@ -60,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class UpdateFieldsTest
 {
-    // The node types content of each targeted resource type may have
+    // The node types that the content of each targeted resource type may have
     private static final Map<String, List<String>> NODE_TYPES = Map.of(
         "sch/Schema", List.of("sch:Schema"),
         "sch/SchemaVersion", List.of("sch:SchemaVersion"),
@@ -68,7 +68,7 @@ class UpdateFieldsTest
             "sch:Section", "sch:Question"),
         "sch/AnswerOption", List.of("sch:AnswerOption"));
 
-    // For each type a create workflow makes, the draft update whose fields it must list too
+    // For each node type a create workflow makes, the draft update whose fields it must list too
     private static final Map<String, String> DRAFT_UPDATES = Map.of(
         "sch:FormRequirement", "updateDraftSchemaPart.json",
         "sch:DocumentRequirement", "updateDraftSchemaPart.json",
@@ -77,7 +77,7 @@ class UpdateFieldsTest
         "sch:Question", "updateDraftSchemaPart.json",
         "sch:AnswerOption", "updateDraftAnswerOption.json");
 
-    // The property types updateContent edits
+    // The property types `updateContent` edits
     private static final Set<Integer> EDITABLE = Set.of(PropertyType.STRING, PropertyType.LONG, PropertyType.DOUBLE,
         PropertyType.BOOLEAN, PropertyType.REFERENCE, PropertyType.WEAKREFERENCE);
 
@@ -163,7 +163,7 @@ class UpdateFieldsTest
      * The activity of a workflow that creates content, if it has one.
      *
      * @param version a workflow version
-     * @return its createContent activity, or {@code null}
+     * @return its {@code createContent} activity; {@code null} if it has none
      */
     private static JsonObject creating(final JsonObject version)
     {

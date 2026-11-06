@@ -29,7 +29,7 @@ import io.uhndata.iap.conditions.api.Operator;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
- * Check that every condition uses known comparators and aggregators.
+ * Checks that every condition uses known comparators and aggregators.
  *
  * @version $Id$
  * @since 0.1.0

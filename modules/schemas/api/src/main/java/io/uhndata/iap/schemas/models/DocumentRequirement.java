@@ -28,8 +28,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A Sling Model wrapping a {@code sch:DocumentRequirement} node: a document that the submitter is expected to
- * provide, e.g. the patient consent form, in an expected format described by this requirement.
+ * A Sling Model wrapping a {@code sch:DocumentRequirement} node: a document the submitter provides, such as the patient
+ * consent form.
  *
  * @version $Id$
  * @since 0.1.0
@@ -41,7 +41,7 @@ public class DocumentRequirement extends Requirement
     /** The {@code sling:resourceType} of a {@code sch:DocumentRequirement} node. */
     public static final String RESOURCE_TYPE = "sch/DocumentRequirement";
 
-    // Defaulted here too: the node type's default only reaches nodes created through JCR
+    // Defaulted here too: the node type's default reaches only nodes created through JCR
     @ValueMapValue
     @Default(booleanValues = true)
     private boolean required;
@@ -53,10 +53,9 @@ public class DocumentRequirement extends Requirement
     private String aiCheckPrompt;
 
     /**
-     * Whether the document must be attached before the submission is complete. An optional one is still asked,
-     * but leaving it out blocks nothing.
+     * Whether the submission is incomplete without this document. An optional document is still asked for.
      *
-     * @return {@code true} if the submission is incomplete without this document
+     * @return {@code true} if the document is required
      */
     public boolean isRequired()
     {
@@ -64,9 +63,9 @@ public class DocumentRequirement extends Requirement
     }
 
     /**
-     * The accepted MIME types for the uploaded document, e.g. {@code application/pdf}.
+     * The media types the document may have, such as {@code application/pdf}.
      *
-     * @return an unmodifiable list of MIME types, empty if any type is accepted
+     * @return an unmodifiable list of media types; empty if any type is accepted
      */
     @NotNull
     public List<String> getAcceptedFileTypes()
@@ -75,10 +74,9 @@ public class DocumentRequirement extends Requirement
     }
 
     /**
-     * The prompt for an AI agent that pre-checks whether the document provided by the submitter meets this
-     * requirement.
+     * The prompt an AI agent is given to check whether the provided document meets this requirement.
      *
-     * @return a prompt, or {@code null} if not set
+     * @return the prompt; {@code null} if none is set
      */
     @Nullable
     public String getAiCheckPrompt()
@@ -87,9 +85,9 @@ public class DocumentRequirement extends Requirement
     }
 
     /**
-     * An optional blank template document offered to submitters.
+     * A template of the document, offered to submitters.
      *
-     * @return the template file resource, or {@code null} if none was provided
+     * @return the {@code nt:file} resource; {@code null} if there is no template
      */
     @Nullable
     public Resource getTemplate()
@@ -100,7 +98,7 @@ public class DocumentRequirement extends Requirement
     /**
      * The sections the document is expected to contain.
      *
-     * @return a list of section requirements in their stored order, empty if there are none
+     * @return the section requirements, in stored order; empty if there are none
      */
     @NotNull
     public List<SectionRequirement> getSections()

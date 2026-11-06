@@ -34,9 +34,9 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Adds an empty version to the target schema, labelled with the event's {@code version}, and reports it as what
- * the execution created, so the steps after it act on the new version. It is numbered by the platform's rule for
- * versions, {@link VersionNumbers}.
+ * Adds an empty version to the target schema, and reports it as what the execution created, so the steps after it
+ * act on the new version. {@link VersionNumbers} names and numbers it. Its label is the event's {@code version}, or
+ * else its number followed by {@code .0}, such as {@code 3.0}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -47,7 +47,7 @@ public class CreateSchemaVersionHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "createSchemaVersion";
 
-    /** The payload entry labelling the version. */
+    /** The payload entry holding the version's label. */
     static final String VERSION_PARAMETER = "version";
 
     @Override
@@ -71,12 +71,12 @@ public class CreateSchemaVersionHandler implements ServiceTaskHandler
     }
 
     /**
-     * The version label the event asks for, or the next whole number.
+     * The label the event asks for, trimmed, or the default label for the version's number.
      *
      * @param context the executing task's context
-     * @param number the number the version is named with
-     * @return a non-blank label
-     * @throws InvalidPayloadException when a label is given but is not usable
+     * @param number the number the version is named with, such as 3 for {@code v3}
+     * @return a label that is not blank, such as {@code 3.0}
+     * @throws InvalidPayloadException if the event gives a label that is blank or is not a single text value
      */
     private static String label(final WorkflowTaskContext context, final int number) throws InvalidPayloadException
     {

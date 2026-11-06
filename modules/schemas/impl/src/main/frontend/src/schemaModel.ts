@@ -19,16 +19,16 @@
 import { childrenOf, stringsOf, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { nextVersionLabel as labelAfter } from "@iap/frontend-commons/versionNumbers";
 
-// Reading schemas and versions straight from the repository's JSON serialization, which is the one
-// description of their shape. Where each stands is its tags; what may be done with it is the events
-// the server offers on it; what may be edited is the fields it describes. No React, no fetch.
+// Reading schemas and their versions from their JSON serialization. Where each stands is its lifecycle
+// tags. What may be done with it is the `@events` the server offers on it, and what may be edited is its
+// `@fields`. No React, no fetch.
 
 export const SCHEMAS_ROOT = "/Schemas";
 
-// How listings read schemas and versions. `simple` drops the repository's bookkeeping, and with a
-// version its content too. `events` and `fields` add what the current user may do with each node, and
-// which of its fields an update would change. `-active` keeps the drafts and the retired, which the
-// schema serialization leaves out of a listing by default.
+// The selectors for reading schemas and versions in a list. `simple` leaves out the repository's
+// bookkeeping, and the content of each version. `events` and `fields` add the events the current user
+// may send to each node, and the fields an update would change. `-active` keeps the drafts and the
+// retired, which the schema serialization leaves out of a list by default.
 export const listing = (depth: number): string => `${depth}.simple.events.fields.-active`;
 
 const isOfType = (value: unknown, primaryType: string): value is SerializedNode =>
@@ -48,10 +48,10 @@ export const tagsOf = (node: SerializedNode): string[] => stringsOf(node.tags);
 
 export const nameOf = (node: SerializedNode): string => String(node["@name"]);
 
-// The names of what a node holds
+// The names of a node's children
 export const childNamesOf = (node: SerializedNode): string[] => childrenOf(node).map(nameOf);
 
-// The name of a node, if there is one, such as the sibling after the last
+// The name of a node, or undefined for no node, such as the sibling after the last one
 export const nameIfAny = (node?: SerializedNode): string | undefined => node && nameOf(node);
 
 export const titleOf = (schema: SerializedNode): string => text(schema, "title") ?? nameOf(schema);
@@ -60,15 +60,15 @@ export const labelOf = (version: SerializedNode): string => text(version, "versi
 
 export const descriptionOf = (version: SerializedNode): string | undefined => text(version, "description");
 
-// In label order, numbers compared as numbers: a schema does not order its versions itself
+// A schema's versions by label, with numbers compared as numbers. A schema does not keep its versions in order.
 export const versionsOf = (schema: SerializedNode): SerializedNode[] => Object.values(schema)
   .filter(value => isOfType(value, "sch:SchemaVersion"))
   .sort((one, other) => labelOf(one).localeCompare(labelOf(other), undefined, { numeric: true }));
 
-// When a version was made, or the earliest possible time if that is not known
+// When a version was created, in milliseconds since 1970, or 0 when that is not known
 export const createdOf = (version: SerializedNode): number => Date.parse(text(version, "jcr:created") ?? "") || 0;
 
-// The version made most recently, which a new version is most likely a revision of
+// The version created last. Of versions created at the same time, or at no known time, the last by label.
 export const latestVersion = (schema: SerializedNode): SerializedNode | undefined => versionsOf(schema)
   .reduce<SerializedNode | undefined>((latest, version) =>
     latest && createdOf(latest) > createdOf(version) ? latest : version, undefined);
@@ -80,7 +80,7 @@ export const nextVersionLabel = (schema: SerializedNode): string =>
 export const schemasOf = (homepage: SerializedNode): SerializedNode[] =>
   Object.values(homepage).filter(value => isOfType(value, "sch:Schema"));
 
-// What the update that would run says it allows, in words
+// What the update workflow that would run on the node says about it, such as that only its wording can change
 export const noticeOf = (node: SerializedNode): string | undefined => text(node, "@notice");
 
 // The names a path holds: a schema's, then its version's if there is one. A page's path and the
@@ -90,12 +90,12 @@ function namesIn(path: string): string[] {
   return segments.slice(segments[0] === "admin" ? 2 : 1);
 }
 
-// The name of the schema a path leads to, e.g. clinicalStudy.
+// The name of the schema a path leads to, such as clinicalStudy.
 export function schemaNameFromRoute(path: string): string {
   return namesIn(path)[0] ?? "";
 }
 
-// The name of the version a path leads to, if it leads to one, e.g. v2.
+// The name of the version a path leads to, if it leads to one, such as v2.
 export function versionNameFromRoute(path: string): string | undefined {
   return namesIn(path)[1];
 }

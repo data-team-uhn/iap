@@ -24,7 +24,8 @@ import { readJson } from "@iap/frontend-commons/requestFailure";
 import { type ItemChoices, itemChoicesOf } from "./conditionModel";
 import { type QuestionIndex, strings } from "./schemaVersionTreeModel";
 
-// The items the version's questions take their options from, each path loaded once. An unreadable path gives none.
+// The items the version's questions take their options from, by path. Each path is read once, however many
+// questions name it. A path that cannot be read gives no items.
 export function useOptionsFrom(index: QuestionIndex): ItemChoices {
   const doFetch = useAuthenticatedFetch();
   const [ items, setItems ] = useState<ItemChoices>({});

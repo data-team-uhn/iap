@@ -37,9 +37,8 @@ export interface ConditionEditor {
   dialog: ReactNode;
 }
 
-// Sets when a part applies. Its condition is built from the answers to the version's other questions, how a
-// submission is tagged, and its properties, and is written whole in one event. A card opens the dialog from its
-// actions, and from the line saying when the part applies.
+// Sets when a part applies. The condition compares the answers to the version's other questions, the submission's
+// tags and the submission's properties. It is sent whole, in one `condition` event.
 export function useConditionEditor(node: SerializedNode, what: string): ConditionEditor {
   const [ editing, setEditing ] = useState(false);
   const { index, offered } = useVersionConditions();

@@ -45,8 +45,6 @@ const listed = (words: string[]): string => (words.length < 2 ? words.join("")
 function summaryOf({ added, removed, changed, moved }: ComparisonSummary, version: LabelledDifference[]): string {
   const counted = ([ [ added, "added" ], [ removed, "removed" ], [ changed, "changed" ], [ moved, "moved" ] ] as const)
     .filter(([ count ]) => count !== 0)
-    // Only the first count names what is counted, so the sentence reads "3 parts added, 1 removed", not
-    // "3 parts added, 1 part removed"
     .map(([ count, what ], at) => (at === 0
       ? `${count} ${count === 1 ? "part" : "parts"} ${what}`
       : `${count} ${what}`));

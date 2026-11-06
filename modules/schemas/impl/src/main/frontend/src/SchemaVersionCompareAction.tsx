@@ -35,7 +35,8 @@ import type { SchemaVersionActionProps } from "./SchemaVersionActions";
 
 // Compares this version with another, chosen from the schema's other versions. The one the rules choose by default
 // comes first. The active version, the one this was copied from and the previous version each say which they are.
-// What this version was copied from is read when the choice is opened. Offered only when there is another version.
+// What this version was copied from is read when the choice is opened. Offered only when the schema has another
+// version.
 function SchemaVersionCompareAction({ schema, version, comparisonDefaults = [] }: SchemaVersionActionProps) {
   const navigate = useNavigate();
   const doFetch = useAuthenticatedFetch();

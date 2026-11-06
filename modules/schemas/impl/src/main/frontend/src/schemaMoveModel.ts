@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-// Where a part of a draft may move to. The new parent must be allowed to hold its type, must not be inside it, and the
-// move must change where it stands. No React, no fetch.
+// Where a part of a draft may move to. The new parent must accept the part's type, and must be neither the part nor
+// inside it. The move must also change where the part stands. No React, no fetch.
 
 import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
 import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
