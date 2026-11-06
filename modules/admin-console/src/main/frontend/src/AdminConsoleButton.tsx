@@ -19,12 +19,11 @@
 import { Button } from "@mui/material";
 import { useNavigate } from "react-router";
 
-// The application bar entry leading to the administration console, registered on the
-// `iap/appBar/entry` extension point (end section). A worded button rather than an icon: any
-// glyph generic enough for "administration" (a gear, ...) reads as personal settings to the
-// users who see it next to their own controls. The component itself performs no permission
-// check: its extension node lives under the access-restricted /Extensions/Admin folder, so the
-// button is only ever served to users who can read it.
+// The application bar's button to the administration console. It is a word, not an icon: a gear
+// beside the user's own controls reads as their personal settings.
+//
+// It checks no permission. Its extension node is under /Extensions/Admin, and a user who cannot
+// read that is not served the button.
 function AdminConsoleButton() {
   const navigate = useNavigate();
 

@@ -45,8 +45,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 @ExtendWith(SlingContextExtension.class)
 class AdminViewResourceProviderTest
 {
-    // A real resolver rather than a mock: ResourceResolver extends java.io.Closeable, and Byte
-    // Buddy cannot instrument a hierarchy reaching into java.base.
     private final SlingContext slingContext = new SlingContext();
 
     private AdminViewResourceProvider provider;
@@ -76,19 +74,13 @@ class AdminViewResourceProviderTest
         this.stored = Mockito.mock(Resource.class);
     }
 
-    /**
-     * Nothing is stored at the requested path, and there is a repository below to say so.
-     * The two parent getters are declared with wildcards, which thenReturn cannot be given a
-     * concrete value for, so they are stubbed the untyped way.
-     */
+    /** The repository below holds nothing but the console node, which the caller can read. */
     private void withNothingStored()
     {
         Mockito.doReturn(this.repository).when(this.context).getParentResourceProvider();
         Mockito.doReturn(this.parentContext).when(this.context).getParentResolveContext();
         Mockito.when(this.repository.getResource(ArgumentMatchers.any(), ArgumentMatchers.any(),
             ArgumentMatchers.any(), ArgumentMatchers.any())).thenReturn(null);
-        // The console itself is readable, which is what the synthesized pages borrow their
-        // readability from
         Mockito.when(this.repository.getResource(ArgumentMatchers.any(),
             ArgumentMatchers.eq(AdminViewResourceProvider.ADMIN_ROOT), ArgumentMatchers.any(),
             ArgumentMatchers.any())).thenReturn(this.stored);
@@ -104,8 +96,6 @@ class AdminViewResourceProviderTest
             final Resource result = this.provider.getResource(this.context, path, this.resourceContext, null);
 
             assertEquals(path, result.getPath());
-            // The console's own type, so the shell's script renders it and the client-side router
-            // decides what the path means
             assertEquals(AdminViewResourceProvider.VIEW_RESOURCE_TYPE, result.getResourceType());
             assertSame(this.resolver, result.getResourceResolver());
         }
@@ -116,9 +106,6 @@ class AdminViewResourceProviderTest
     {
         withNothingStored();
 
-        // Answering these is what would loop: the shell's extension-less script includes the
-        // relative path ".html" to render its own HTML form, so declining lets resolution fall
-        // back to the dot-free path plus an "html" extension, which is what should render
         for (String path : new String[] { "/admin/users.html", "/admin/users/.html",
             "/admin/groups/reviewers.html", "/admin/users.print.html" }) {
             assertNull(this.provider.getResource(this.context, path, this.resourceContext, null));
@@ -131,7 +118,6 @@ class AdminViewResourceProviderTest
         withNothingStored();
         Mockito.when(this.context.getResourceResolver()).thenReturn(this.resolver);
 
-        // Only the last segment decides; a dot further up is somebody else's business
         assertEquals("/admin/a.b/users",
             this.provider.getResource(this.context, "/admin/a.b/users", this.resourceContext, null).getPath());
     }
@@ -141,7 +127,6 @@ class AdminViewResourceProviderTest
     {
         withNothingStored();
 
-        // The console is real content; it is never synthesized, only passed through
         assertSame(this.stored, this.provider.getResource(this.context, "/admin", this.resourceContext, null));
     }
 
@@ -150,12 +135,10 @@ class AdminViewResourceProviderTest
     {
         Mockito.doReturn(this.repository).when(this.context).getParentResourceProvider();
         Mockito.doReturn(this.parentContext).when(this.context).getParentResolveContext();
-        // Nothing at all is readable, the console included
+        // Nothing is readable, the console included
         Mockito.when(this.repository.getResource(ArgumentMatchers.any(), ArgumentMatchers.any(),
             ArgumentMatchers.any(), ArgumentMatchers.any())).thenReturn(null);
 
-        // A synthetic resource has no access control of its own, so handing one out here would be
-        // a wider door than the repository nodes it stands in for
         assertNull(this.provider.getResource(this.context, "/admin/users", this.resourceContext, null));
     }
 
@@ -181,8 +164,6 @@ class AdminViewResourceProviderTest
         final Resource result =
             this.provider.getResource(this.context, "/admin/categories", this.resourceContext, null);
 
-        // Real content keeps its own type, properties and access control, rather than being
-        // replaced by a synthetic stand-in
         assertSame(this.stored, result);
         assertFalse(result instanceof SyntheticResource);
     }
@@ -203,8 +184,6 @@ class AdminViewResourceProviderTest
     @Test
     void synthesizesNothingWithoutARepositoryToVouchForTheConsole()
     {
-        // No repository under this provider at all, e.g. a resolver built from providers alone:
-        // nothing can say the console is readable, so nothing below it is served
         Mockito.doReturn(null).when(this.context).getParentResourceProvider();
 
         assertNull(this.provider.getResource(this.context, "/admin/users", this.resourceContext, null));
@@ -213,8 +192,6 @@ class AdminViewResourceProviderTest
     @Test
     void synthesizesNothingWhenTheRepositoryBelowHasNoContextToAskIn()
     {
-        // A provider without a resolve context of its own cannot be asked whether the console is
-        // readable, so it is treated as if it were not
         Mockito.doReturn(this.repository).when(this.context).getParentResourceProvider();
         Mockito.doReturn(null).when(this.context).getParentResolveContext();
 
@@ -225,8 +202,6 @@ class AdminViewResourceProviderTest
     @Test
     void doesNotEnumerateWhatOnlyExistsWhenAskedFor()
     {
-        // Returning an empty iterator would claim the console has no children at all, hiding the
-        // stored ones; returning null leaves the listing to the repository below
         assertNull(this.provider.listChildren(this.context, this.stored));
     }
 }
