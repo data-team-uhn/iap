@@ -44,7 +44,6 @@ import TagChip from "@iap/tags/TagChip";
 import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
 import { Thread } from "./NoteCard";
-import { pulseWhenThere } from "./pulse";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
 
@@ -216,11 +215,6 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
   const [ withConcerns, setWithConcerns ] = useState(false);
   const risk = risks.find(one => one.topic.path === chosen);
   // Showing where something was raised leaves the review for the page
-  // An issue's thread, under it on its risk's page, or with those under no risk
-  const showThread = (issue: ReviewNote) => {
-    setChosen(risks.some(one => one.topic.path === issue.topicPath) ? issue.topicPath : UNFILED);
-    pulseWhenThere(() => document.getElementById(`review-issue-${issue.id}`), true);
-  };
   const show = (note: ReviewNote) => {
     onClose();
     doing.open(note);
@@ -302,7 +296,10 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
                   issues={[ ...risks.flatMap(one => one.issues), ...props.unfiled ]}
                   concerns={withConcerns ? risks.flatMap(one => one.aiOpen) : []}
                   risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
-                  about={props.about} onShow={show} onShowReplies={showThread}
+                  about={props.about} onShow={show}
+                  onRemove={issue => doing.removeIssue(issue)} onReply={(issue, text) => doing.reply(issue, text)}
+                  onEditReply={(reply, text) => doing.editReply(reply, text)}
+                  onRemoveReply={reply => doing.removeReply(reply)}
                   onChange={(issue, text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
                   onMakeIssue={concern => doing.makeIssue(concern,
                     concern.suggestion ? `${concern.text}\n\n${concern.suggestion}` : concern.text,
