@@ -78,6 +78,8 @@ export interface PdfViewerProps {
   // Told the passage the person selected in the document, when they press the Comment button the viewer
   // offers under it. Without it, there is no Comment button.
   onAnnotate?: (anchor: TextAnchor) => void;
+  // PRETOTYPE: what the button under a selected passage says; Comment when absent
+  annotateLabel?: string;
   // What to show under a passage, such as the comments on it, given the mark and whether it is selected.
   // Give the same function on every render, such as one from useCallback, or the passages are drawn again
   // each time a search counts its matches.
@@ -350,6 +352,7 @@ function PdfViewerSession(props: PdfViewerProps) {
             : { ...comparing, olderView: olderShownView, olderLabel: compareWith?.label, newerLabel: props.label }}
           placeButton={placeButton}
           searchedOutside={outside !== undefined}
+          annotateLabel={props.annotateLabel}
           edgeToEdge={inDialog}
           onClose={onClose}
         />
@@ -395,6 +398,7 @@ interface ViewerBodyProps {
   placeButton: ReactNode;
   // PRETOTYPE: searched from outside, so without a search field of its own
   searchedOutside: boolean;
+  annotateLabel: string | undefined;
   // In the dialog on a phone, the document spans the full screen width, past the dialog's padding.
   edgeToEdge: boolean;
   onClose: () => void;
@@ -404,7 +408,7 @@ function ViewerBody(props: ViewerBodyProps) {
   const { titleId, title, marks, markName, places, pagesRead, selectedId, onSelect, openError, onRetry, view } = props;
   const { renderMarkDetails, selectedText, onAnnotate, comparison, placeButton, edgeToEdge, onClose } = props;
   const plain = useContext(PlainViewer);
-  const { changeIds, searchedOutside } = props;
+  const { changeIds, searchedOutside, annotateLabel } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   const { search, find, findAgain } = view;
   const [body, setBody] = useState<HTMLElement | null>(null);
@@ -565,6 +569,7 @@ function ViewerBody(props: ViewerBodyProps) {
         : (
           <CommentButton
             at={selectedText.selected}
+            label={annotateLabel}
             onPress={selectedText.hold}
             onComment={spans => void onAnnotate(spans)}
           />
