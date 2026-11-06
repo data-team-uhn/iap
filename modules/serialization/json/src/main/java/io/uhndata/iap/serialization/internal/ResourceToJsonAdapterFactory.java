@@ -19,6 +19,7 @@ package io.uhndata.iap.serialization.internal;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -268,7 +269,7 @@ public class ResourceToJsonAdapterFactory
             .filter(p -> requestedProcessors.contains(p.getName()))
             .filter(p -> p.canProcess(resource))
             .collect(Collectors.toList());
-        enabled.sort((o1, o2) -> o1.getPriority() - o2.getPriority());
+        enabled.sort(Comparator.comparingInt(ResourceJsonProcessor::getPriority));
 
         return enabled;
     }

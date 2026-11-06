@@ -119,35 +119,48 @@ public class DereferenceProcessor implements ResourceJsonProcessor
     private JsonValue serializeMultiValuedProperty(final Property property, final JsonValue input,
         final Function<Node, JsonValue> serializeNode) throws RepositoryException
     {
-        final JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
-        final String name = property.getName();
+        return switch (property.getType()) {
+            case PropertyType.REFERENCE, PropertyType.WEAKREFERENCE -> serializeReferences(property, input,
+                serializeNode);
+            case PropertyType.PATH -> serializePaths(property, serializeNode);
+            default -> input;
+        };
+    }
 
-        if (property.getType() == PropertyType.REFERENCE || property.getType() == PropertyType.WEAKREFERENCE) {
-            for (Value value : property.getValues()) {
-                try {
-                    final Node node = property.getSession().getNodeByIdentifier(value.getString());
-                    if (name.startsWith("jcr:")) {
-                        arrayBuilder.add(node.getPath());
-                    } else {
-                        arrayBuilder.add(serializeNode.apply(node));
-                    }
-                } catch (RepositoryException e) {
+    private JsonValue serializeReferences(final Property property, final JsonValue input,
+        final Function<Node, JsonValue> serializeNode) throws RepositoryException
+    {
+        final JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
+        final boolean asPaths = property.getName().startsWith("jcr:");
+        for (Value value : property.getValues()) {
+            try {
+                final Node node = property.getSession().getNodeByIdentifier(value.getString());
+                final JsonValue serialized = asPaths ? Json.createValue(node.getPath()) : serializeNode.apply(node);
+                if (serialized == null) {
                     return input;
                 }
+                arrayBuilder.add(serialized);
+            } catch (RepositoryException e) {
+                return input;
             }
-        } else if (property.getType() == PropertyType.PATH) {
-            for (Value value : property.getValues()) {
-                final String path = value.getString();
-                try {
-                    final Node node = path.charAt(0) == '/' ? property.getSession().getNode(path)
-                        : property.getParent().getNode(path);
-                    arrayBuilder.add(serializeNode.apply(node));
-                } catch (RepositoryException e) {
-                    arrayBuilder.add(path);
-                }
+        }
+        return arrayBuilder.build();
+    }
+
+    private JsonValue serializePaths(final Property property, final Function<Node, JsonValue> serializeNode)
+        throws RepositoryException
+    {
+        final JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
+        for (Value value : property.getValues()) {
+            final String path = value.getString();
+            try {
+                final Node node = path.charAt(0) == '/' ? property.getSession().getNode(path)
+                    : property.getParent().getNode(path);
+                final JsonValue serialized = serializeNode.apply(node);
+                arrayBuilder.add(serialized == null ? Json.createValue(path) : serialized);
+            } catch (RepositoryException e) {
+                arrayBuilder.add(path);
             }
-        } else {
-            return input;
         }
         return arrayBuilder.build();
     }
