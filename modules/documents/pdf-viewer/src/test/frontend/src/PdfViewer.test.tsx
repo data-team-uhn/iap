@@ -40,7 +40,6 @@ import {
 
 vi.mock("pdfjs-dist", async () => (await import("./pdfjs.fixture")).createPdfjsModule());
 vi.mock("pdfjs-dist/web/pdf_viewer.mjs", async () => (await import("./pdfjs.fixture")).createViewerModule());
-vi.mock("pdfjs-dist/web/pdf_viewer.css", () => ({}));
 vi.mock("@iap/frontend-commons/assetManager", async () => ({
   getAssetURL: (await import("./pdfjs.fixture")).getAssetURL,
 }));
@@ -304,6 +303,13 @@ describe("PdfViewer", () => {
     it("opens at the first page when none is given, or the one given is not in the document", async () => {
       fakePdf.pages = [ "Contents.", "More contents.", "The end." ];
       show({ page: 9 });
+
+      expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
+    });
+
+    it.each([ 0, 2.5 ])("opens at the first page when given %s, which is no page's number", async page => {
+      fakePdf.pages = [ "Contents.", "More contents.", "The end." ];
+      show({ page });
 
       expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
     });

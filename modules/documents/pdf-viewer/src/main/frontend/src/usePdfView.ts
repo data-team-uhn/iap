@@ -210,7 +210,9 @@ export function usePdfView(
     eventBus.on("pagesinit", () => {
       if (locationRef.current?.of !== doc) {
         viewer.currentScaleValue = "page-width";
-        const first = openAt !== undefined && openAt <= doc.numPages ? openAt : 1;
+        const first = openAt !== undefined && Number.isInteger(openAt) && openAt >= 1 && openAt <= doc.numPages
+          ? openAt
+          : 1;
         viewer.currentPageNumber = first;
         setPages({ of: doc, count: doc.numPages, shown: first });
       } else {
