@@ -277,9 +277,21 @@ public final class IapJwtTokenManagerImpl implements TokenManager
                 return new IapJwtTokenImpl(jwt, loginToken);
             }
         } catch (JwtException e) {
-            // Not recorded through error tracking: the message can quote the token's header and claims
-            LOGGER.error("JWT validation failed: {}", e.getMessage());
+            // Anyone can send a token, so a refusal is not a fault of this instance. Not recorded through error
+            // tracking: the message can quote the token's header and claims, which are the sender's text
+            LOGGER.info("JWT refused: {}", printable(e.getMessage()));
         }
         return null;
+    }
+
+    /**
+     * Makes text from a token safe to put in a log line, so that a sender cannot start a line of their own.
+     *
+     * @param text the text, possibly {@code null}
+     * @return the text, with each control character replaced by {@code ?}
+     */
+    static String printable(final String text)
+    {
+        return text == null ? "" : text.replaceAll("\\p{Cntrl}", "?");
     }
 }

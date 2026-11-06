@@ -102,7 +102,7 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
         final Pattern pattern = Pattern.compile("\\P{Alnum}");
         // The key ID is appended to a path, so it must not be able to address another node
         if (pattern.matcher(keyID).find()) {
-            throw new JwtException(String.format("Unsafe peer key: %s", keyID));
+            throw new JwtException("The key ID holds characters other than ASCII letters and digits");
         }
 
         final String resourcePath = IapJwtTokenManagerImpl.KEY_ROOT + "/" + keyID;
