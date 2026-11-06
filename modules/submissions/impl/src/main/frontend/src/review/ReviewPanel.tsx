@@ -293,7 +293,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
                   concerns={withConcerns ? risks.flatMap(one => one.aiOpen) : []}
                   risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
                   about={props.about} onShow={show}
-                  onChange={(issue, severity, topic) => doing.editIssue(issue, issue.text, severity, topic)}
+                  onChange={(issue, text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
                   onMakeIssue={concern => doing.makeIssue(concern,
                     concern.suggestion ? `${concern.text}\n\n${concern.suggestion}` : concern.text,
                     concern.severity, concern.topicPath)}
