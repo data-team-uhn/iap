@@ -1,0 +1,79 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Receive a submission from another site",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/SubmissionsHomepage",
+    "description": "Takes in a submission another site handed over, on behalf of its submitter, and puts it under its workflow here. Only another instance can send this.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Submission handed over",
+      "messageName": "receive",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toReceive": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toReceive",
+        "targetRef": "receive"
+      }
+    },
+    "receive": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "receive",
+      "label": "Rebuild the submission",
+      "handler": "receiveSubmission",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toParts": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toParts",
+        "targetRef": "parts"
+      }
+    },
+    "parts": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "parts",
+      "label": "Give each item asked for a part of its own",
+      "handler": "createParts",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "mark"
+      }
+    },
+    "mark": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "mark",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toStart": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toStart",
+        "targetRef": "start"
+      }
+    },
+    "start": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "start",
+      "label": "Put it under its workflow",
+      "handler": "startWorkflow",
+      "workflowFrom": "schemaVersion/workflow",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Submission received",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

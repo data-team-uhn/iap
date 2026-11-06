@@ -123,6 +123,17 @@
       <groupId>org.apache.jackrabbit</groupId>
       <artifactId>oak-jackrabbit-api</artifactId>
     </dependency>
+    <!-- Sending a submission to another instance: a token it trusts, and a request to carry it -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-token-authentication-support</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-http-requests</artifactId>
+      <version>${project.version}</version>
+    </dependency>
 
     <dependency>
       <groupId>org.junit.jupiter</groupId>
