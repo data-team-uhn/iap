@@ -20,11 +20,21 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import CircleOutlined from "@mui/icons-material/CircleOutlined";
-import { Button, Chip, Divider, MenuItem, Stack, TextField } from "@mui/material";
+import { Button, Chip, Divider, MenuItem, Stack, TextField, type Theme } from "@mui/material";
 
+import { chipStyle } from "@iap/frontend-commons/chipStyle";
+import type { PassageKind } from "@iap/frontend-commons/pdfViewer/marksModel";
 import { loadTagDefinitions, type TagDefinition } from "@iap/tags/tagDefinitions";
 
 import { kindInfo, SEVERITIES, type NoteKind, type Topic } from "./reviewData";
+
+// A chip for a kind of note chosen, styled as a tag of its colour is: a soft tint, a readable shade of the colour for
+// the text, a border mixing the two; kept under the pointer. Outlined like an unchosen one, so it keeps its size.
+export function kindChip(theme: Theme, mark: PassageKind) {
+  const style = chipStyle(theme, theme.palette[mark].light);
+  const border = style?.border?.replace(/^1px solid /, "");
+  return { ...style, border: undefined, borderColor: border, "&:hover": { backgroundColor: style?.backgroundColor } };
+}
 
 // What a reviewer can write themselves
 export const WRITTEN: NoteKind[] = [ "issue", "discussion", "note" ];
@@ -96,13 +106,9 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
                 icon={kind === one ? <CheckCircleOutlined /> : <CircleOutlined />}
                 variant="outlined" onClick={() => setKind(one)}
                 // The chosen one cannot be unchosen, so it does not answer the pointer
-                sx={theme => {
-                  const fill = theme.alpha(theme.palette[mark].light, 0.45);
-                  // Outlined either way, the chosen one's outline see-through, so choosing does not change its size
-                  return kind === one
-                    ? { borderColor: "transparent", bgcolor: fill, cursor: "default", "&:hover": { bgcolor: fill } }
-                    : { borderColor: theme.palette[mark].main };
-                }}
+                sx={theme => ({ "& .MuiChip-icon": { color: "inherit" },
+                  ...kind === one ? { ...kindChip(theme, mark), cursor: "default" }
+                    : { borderColor: kindChip(theme, mark).borderColor } })}
               />
             );
           })}
