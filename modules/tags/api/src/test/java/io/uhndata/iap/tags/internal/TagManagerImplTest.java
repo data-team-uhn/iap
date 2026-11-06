@@ -455,6 +455,22 @@ class TagManagerImplTest
     }
 
     @Test
+    void hasTagStopsAtABoundaryContainer()
+    {
+        this.context.registerAdapter(Resource.class, Node.class,
+            (Function<Resource, Node>) TagManagerImplTest::asNode);
+        final Resource entity = this.context.create().resource(ENTITY_PATH, TYPE_PROPERTY, ENTITY_TYPE);
+        this.context.create().resource("/data/entity/listing", Map.of(
+            TYPE_PROPERTY, "data/EntityHomepage",
+            BOUNDARY, true));
+        this.context.create().resource("/data/entity/listing/inner", Map.of(
+            TYPE_PROPERTY, "data/EntityPart",
+            Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
+
+        assertFalse(this.taggable(entity).hasTag(INCOMPLETE));
+    }
+
+    @Test
     void aResourceThatCannotBeClassifiedCountsAsOrdinaryContent()
     {
         this.context.registerAdapter(Resource.class, Node.class,

@@ -214,18 +214,8 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
                 }
             }
         }
-        if (definition.isAggregated()) {
-            final Deque<Resource> toVisit = new ArrayDeque<>();
-            resource.getChildren().forEach(toVisit::add);
-            while (!toVisit.isEmpty()) {
-                final Resource descendant = toVisit.removeFirst();
-                if (ownTags(descendant).contains(name)) {
-                    return true;
-                }
-                descendant.getChildren().forEach(toVisit::add);
-            }
-        }
-        return false;
+        return definition.isAggregated()
+            && aggregationSources(resource).stream().anyMatch(descendant -> ownTags(descendant).contains(name));
     }
 
     @Override
@@ -463,18 +453,30 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     private void collectAggregated(final Resource resource, final Map<String, TagDefinition> definitions,
         final Map<String, TagOccurrences> found)
     {
+        aggregationSources(resource).forEach(descendant -> ownTags(descendant).stream()
+            .filter(name -> isAggregated(definitions.get(name)))
+            .forEach(name -> record(found, name, Tag.Origin.AGGREGATED, descendant.getPath())));
+    }
+
+    /**
+     * Lists the descendants whose aggregated tags reach a resource: all of them, down to the nearest boundaries.
+     *
+     * @param resource the resource being described
+     * @return the descendants, breadth first; a {@code tag:Boundary} and everything inside it are left out
+     */
+    private List<Resource> aggregationSources(final Resource resource)
+    {
+        final List<Resource> sources = new ArrayList<>();
         final Deque<Resource> toVisit = new ArrayDeque<>();
         resource.getChildren().forEach(toVisit::add);
         while (!toVisit.isEmpty()) {
             final Resource descendant = toVisit.removeFirst();
-            if (isBoundary(descendant)) {
-                continue;
+            if (!isBoundary(descendant)) {
+                sources.add(descendant);
+                descendant.getChildren().forEach(toVisit::add);
             }
-            ownTags(descendant).stream()
-                .filter(name -> isAggregated(definitions.get(name)))
-                .forEach(name -> record(found, name, Tag.Origin.AGGREGATED, descendant.getPath()));
-            descendant.getChildren().forEach(toVisit::add);
         }
+        return sources;
     }
 
     /**

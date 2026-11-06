@@ -119,7 +119,7 @@ public class Taggable extends Content
      *
      * @param name a tag name
      * @return {@code true} if the tag belongs to this content, placed on it or computed for it, or is inherited from
-     *         an ancestor, or is aggregated from a descendant
+     *         an ancestor, or is aggregated from a descendant outside any {@code tag:Boundary}
      */
     public boolean hasTag(@NotNull final String name)
     {
