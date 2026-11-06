@@ -65,7 +65,7 @@ import { kindChip, ReviewerTopics, WRITTEN } from "./Composer";
 import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
-import FormReview, { answerText, GroupNames, type ReviewActions } from "./FormReview";
+import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
 import IssuesPanel from "./IssuesPanel";
 import LetterDialog from "./LetterDialog";
 import { usePersonName } from "./people";
@@ -613,7 +613,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                 {requirement.name === current?.name && requirement.description}
                 {!focused && (
                   <Box component="span" sx={{ display: "block", mt: 0.25 }}>
-                    <GroupNames groups={groupsOf(requirement)} mine={myGroups} />
+                    <GroupChips groups={groupsOf(requirement)} mine={myGroups} />
                   </Box>
                 )}
               </>}

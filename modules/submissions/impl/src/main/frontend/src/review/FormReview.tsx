@@ -16,12 +16,12 @@
  * limitations under the License.
  */
 
-import { Fragment, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
-import { Box, ButtonBase, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, ButtonBase, Chip, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 
 import { cutShort, getSelectedOutline, passageCard, passageLayer, passageTint } from "@iap/frontend-commons/pdfViewer/passageStyles";
 
@@ -63,25 +63,27 @@ export function disagrees(question: FormQuestion, extracted: string | undefined)
   return normal(extracted.split(";")) !== normal(question.value);
 }
 
-// The reviewer groups something matters to, as plain words rather than chips, which are kept for what can be
-// clicked: the reviewer's own first, in bold, the others muted
-export function GroupNames({ groups, mine }: { groups: ReviewGroup[] | undefined; mine: string[] }) {
+// The reviewer groups something matters to: the reviewer's own first and filled, the others on a quiet tint
+export function GroupChips({ groups, mine }: { groups: ReviewGroup[] | undefined; mine: string[] }) {
   if (!groups?.length) {
     return null;
   }
-  const sorted = [ ...groups ].sort((a, b) => Number(mine.includes(b.group)) - Number(mine.includes(a.group)));
   return (
-    <Typography variant="caption" component="span" sx={{ color: "text.secondary" }}>
-      {sorted.map((group, index) => (
-        <Fragment key={group.name}>
-          {index > 0 && " · "}
-          <Box component="span"
-            sx={mine.includes(group.group) ? { color: "primary.main", fontWeight: "fontWeightBold" } : undefined}>
-            {groupShortName(group.label)}
-          </Box>
-        </Fragment>
-      ))}
-    </Typography>
+    <Stack direction="row" sx={{ gap: 0.5, flexWrap: "wrap" }}>
+      {[ ...groups ].sort((a, b) => Number(mine.includes(b.group)) - Number(mine.includes(a.group))).map(group =>
+        mine.includes(group.group) ? (
+          <Chip
+            key={group.name} size="small" color="primary" label={groupShortName(group.label)}
+            sx={{ height: 18, fontSize: "0.7rem", "& .MuiChip-label": { px: 0.75 } }}
+          />
+        ) : (
+          <Chip
+            key={group.name} size="small" label={groupShortName(group.label)}
+            sx={{ height: 18, fontSize: "0.7rem", color: "text.secondary", bgcolor: "action.selected",
+              "& .MuiChip-label": { px: 0.75 } }}
+          />
+        ))}
+    </Stack>
   );
 }
 
@@ -122,7 +124,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
           <Typography variant="body2" sx={{ fontWeight: "fontWeightBold" }}>
             <Highlighted text={question.text} question={question.path} field="question" />
           </Typography>
-          <GroupNames groups={groups.get(question.path)} mine={myGroups} />
+          <GroupChips groups={groups.get(question.path)} mine={myGroups} />
         </Stack>
         <Stack direction="row" sx={{ minWidth: 0, gap: 1, alignItems: "flex-start" }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
