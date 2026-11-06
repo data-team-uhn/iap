@@ -91,11 +91,11 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     }
     // Not selected, what a reviewer wrote shows by its own words, the passage cut to a line above them
     if (!selected && WRITTEN_KINDS.has(note.kind)) {
-      return <NoteSummary note={note} />;
+      return <Box data-note={note.id}><NoteSummary note={note} /></Box>;
     }
     const asked = note.kind === "evidence" ? questionLabel(note.question, note.extracted) : undefined;
     return (
-      <Box sx={{ px: 1.5, pb: 1 }}>
+      <Box data-note={note.id} sx={{ px: 1.5, pb: 1 }}>
         {asked && <Box sx={{ typography: "body2", color: "text.secondary", mb: 0.5 }}>{asked.text}</Box>}
         <NoteCard
           note={note} answerLabel={asked?.answer}

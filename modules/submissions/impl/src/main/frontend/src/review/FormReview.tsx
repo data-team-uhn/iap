@@ -197,7 +197,7 @@ function SideCard({ note, kind, onOpen, children }: {
 }) {
   const mark = kindInfo(kind).mark;
   return (
-    <Box sx={theme => ({ ...passageCard(theme, mark), overflow: "hidden" })}>
+    <Box data-note={note.id} sx={theme => ({ ...passageCard(theme, mark), overflow: "hidden" })}>
       {note.passage && onOpen && (
         <ButtonBase
           onClick={onOpen}

@@ -68,6 +68,7 @@ import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, disagrees, GroupChips, type ReviewActions } from "./FormReview";
 import LetterDialog from "./LetterDialog";
 import { GroupLabels, usePersonName } from "./people";
+import { pulseWhenThere } from "./pulse";
 import { draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { groupShortName, issueFrom, isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics,
@@ -352,9 +353,24 @@ export default function ReviewScreen({ path }: { path: string }) {
     }
   };
 
+  // What "Show where" leads to is shown, whatever the filters hide, and pulses once there: a note's kind is shown
+  // again, and a question outside the reviewer's focus brings the whole submission back
+  const reveal = (note: ReviewNote, question?: string) => {
+    setShown(kinds => kinds.has(note.kind) ? kinds : storeKinds(new Set([ ...kinds, note.kind ])));
+    if (question && focused && !minePart(question)) {
+      setFocused(false);
+    }
+    pulseWhenThere(() => {
+      const card = document.querySelector<HTMLElement>(`[data-note="${CSS.escape(note.id)}"]`);
+      return card?.closest<HTMLElement>("li") ?? card
+        ?? (question ? document.getElementById(`question-${question}`) : null);
+    });
+  };
+
   const openEvidence = (note: ReviewNote) => {
     const document = [ ...data?.documents.entries() ?? [] ].find(([ , one ]) => one.version === note.passage?.source
       || one.uuid === note.passage?.source)?.[0] ?? "protocol";
+    reveal(note);
     go(document, { id: note.id, page: note.passage?.page });
   };
 
@@ -504,8 +520,10 @@ export default function ReviewScreen({ path }: { path: string }) {
       return;
     }
     if (source || data?.documents.has(part)) {
+      reveal(note);
       go(part, { id: note.id, page: note.passage?.page });
     } else {
+      reveal(note, part);
       go(part.split("/")[0], { question: part });
     }
   };

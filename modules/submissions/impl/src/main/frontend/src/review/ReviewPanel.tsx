@@ -44,7 +44,7 @@ import TagChip from "@iap/tags/TagChip";
 import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
 import { Thread } from "./NoteCard";
-import { pulse } from "./pulse";
+import { pulseWhenThere } from "./pulse";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
 
@@ -222,8 +222,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
     setTimeout(() => {
       const element = document.getElementById(`review-issue-${issue.id}`);
       element?.scrollIntoView({ behavior: "smooth", block: "start" });
-      // Once it has come into view
-      setTimeout(() => pulse(element), 350);
+      pulseWhenThere(() => element);
     }, 100);
   };
   const show = (note: ReviewNote) => {

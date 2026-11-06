@@ -16,18 +16,32 @@
  * limitations under the License.
  */
 
-// PRETOTYPE. Draws the eye to what the reader was just taken to, such as an issue's thread: a tint of the theme's
-// primary colour that comes and goes twice, or fades once for a reader who asked for less motion.
+// PRETOTYPE. Draws the eye to what the reader was just taken to, such as an issue's thread or the note "Show where"
+// led to: a ring and a tint of the theme's primary colour that come and go twice; for a reader who asked for less
+// motion, a steady highlight that holds, then fades.
 export function pulse(element: HTMLElement | null) {
   if (!element) {
     return;
   }
-  const channel = getComputedStyle(element).getPropertyValue("--mui-palette-primary-mainChannel").trim() || "37 92 170";
-  const tint = (alpha: number) => `rgb(${channel} / ${alpha})`;
+  const channel = getComputedStyle(element).getPropertyValue("--mui-palette-primary-mainChannel").trim() || "25 41 88";
+  const on = { backgroundColor: `rgb(${channel} / 0.14)`, boxShadow: `0 0 0 3px rgb(${channel} / 0.45)` };
+  const off = { backgroundColor: `rgb(${channel} / 0)`, boxShadow: `0 0 0 3px rgb(${channel} / 0)` };
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  element.animate(still
-    ? [ { backgroundColor: tint(0.14) }, { backgroundColor: tint(0) } ]
-    : [ { backgroundColor: tint(0) }, { backgroundColor: tint(0.16) }, { backgroundColor: tint(0.02) },
-      { backgroundColor: tint(0.16) }, { backgroundColor: tint(0) } ],
-  { duration: still ? 1200 : 1600, easing: "ease-in-out" });
+  element.animate(still ? [ on, { ...on, offset: 0.7 }, off ] : [ off, on, off, on, off ],
+    { duration: still ? 2000 : 1800, easing: "ease-in-out" });
+}
+
+// Pulses what is found, once it is there and the page has had a moment to bring it into view; looks for it a few
+// seconds, as the page it is on may still be opening
+export function pulseWhenThere(find: () => HTMLElement | null) {
+  const until = Date.now() + 4000;
+  const look = () => {
+    const found = find();
+    if (found) {
+      setTimeout(() => pulse(found), 600);
+    } else if (Date.now() < until) {
+      setTimeout(look, 100);
+    }
+  };
+  setTimeout(look, 100);
 }
