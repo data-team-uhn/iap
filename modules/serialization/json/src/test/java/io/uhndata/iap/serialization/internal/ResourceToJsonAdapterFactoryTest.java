@@ -349,6 +349,19 @@ public class ResourceToJsonAdapterFactoryTest
     }
 
     @Test
+    public void testProcessorsRunInPriorityOrderAcrossTheWholeIntRange()
+        throws Exception
+    {
+        final List<String> entered = new ArrayList<>();
+        injectProcessors(new PropertiesProcessor(), enteringProcessor("last", Integer.MAX_VALUE, entered),
+            enteringProcessor("first", Integer.MIN_VALUE, entered));
+
+        this.factory.getAdapter(mockResource(mockNode("/parent", "parent"), ".last.first.json"), JsonObject.class);
+
+        Assertions.assertEquals(List.of("first", "last"), entered);
+    }
+
+    @Test
     public void testPropertiesCanBeDisabled()
         throws Exception
     {
@@ -360,6 +373,33 @@ public class ResourceToJsonAdapterFactoryTest
 
         Assertions.assertFalse(result.containsKey("title"));
         Assertions.assertEquals("/parent", result.getString("@path"));
+    }
+
+    /** A processor that adds its name to {@code entered} each time it enters a node. */
+    private static ResourceJsonProcessor enteringProcessor(final String name, final int priority,
+        final List<String> entered)
+    {
+        return new ResourceJsonProcessor()
+        {
+            @Override
+            public String getName()
+            {
+                return name;
+            }
+
+            @Override
+            public int getPriority()
+            {
+                return priority;
+            }
+
+            @Override
+            public void enter(final Node node, final JsonObjectBuilder input,
+                final Function<Node, JsonValue> serializeNode)
+            {
+                entered.add(name);
+            }
+        };
     }
 
     private void injectProcessors(final ResourceJsonProcessor... processors)
