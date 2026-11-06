@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
+import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import ReplyOutlined from "@mui/icons-material/ReplyOutlined";
@@ -146,6 +147,11 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       field: "ai", headerName: "Raised by", width: 100, type: "singleSelect" as const,
       valueOptions: [ { value: false, label: "You" }, { value: true, label: "AI" } ],
       valueFormatter: (value: boolean) => (value ? "AI" : "You"),
+      renderCell: ({ row }: { row: IssueRow }) => (row.ai ? (
+        <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, color: "assistant.main" }}>
+          <AutoAwesomeOutlined sx={{ fontSize: "1rem" }} />AI
+        </Stack>
+      ) : "You"),
     } ] : [],
     { field: "about", headerName: "About", width: 180 },
     {

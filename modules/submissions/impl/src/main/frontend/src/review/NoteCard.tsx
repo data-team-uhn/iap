@@ -18,6 +18,7 @@
 
 import { useContext, useState } from "react";
 
+import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import { Box, Button, IconButton, Stack, Tooltip, Typography } from "@mui/material";
@@ -96,6 +97,10 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
       {/* What it is, with the tools on the same line; under it the risk it is filed under, then who wrote it, for
           which group, and when */}
       <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: 28 }}>
+        {/* What the AI says carries its mark */}
+        {(note.kind === "aiIssue" || note.kind === "evidence") && (
+          <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />
+        )}
         <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
           {info.single}
         </Typography>
