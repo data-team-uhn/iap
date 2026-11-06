@@ -26,7 +26,7 @@ import type { DocumentSearch } from "@iap/frontend-commons/pdfViewer/pdfViewerMo
 
 import { toFileUrl } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
-import NoteCard from "./NoteCard";
+import NoteCard, { NoteSummary } from "./NoteCard";
 import { issueFrom, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewedDocument } from "./reviewData";
 
 import type { ReviewActions } from "./FormReview";
@@ -36,6 +36,9 @@ const DRAFT = "draft";
 // PRETOTYPE. A document, whole, with everything written about its passages marked on it: where the AI read
 // answers, what its pre-review raised, the reviewers' issues and discussion, and the reviewer's own notes.
 // Selecting a passage offers to write about it.
+// What reviewers write, which matters more than the passage it is on
+const WRITTEN_KINDS = new Set<NoteKind>([ "issue", "otherIssue", "discussion", "note" ]);
+
 export default function DocumentReview({ document, data, shown, selected, onSelect, page, actions, questionLabel,
   search, onSearch, onClose }: {
   document: ReviewedDocument;
@@ -65,7 +68,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     ...draft ? [ { id: DRAFT, kind: "draft" as const, anchor: draft } ] : [],
   ], [ notes, draft, adopting ]);
 
-  const renderMarkDetails = useCallback((mark: Mark) => {
+  const renderMarkDetails = useCallback((mark: Mark, selected: boolean) => {
     if (mark.id === DRAFT && draft) {
       return (
         <Box sx={{ px: 1.5, pb: 1 }}>
@@ -86,6 +89,10 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     if (!note) {
       return null;
     }
+    // Not selected, what a reviewer wrote shows by its own words, the passage cut to a line above them
+    if (!selected && WRITTEN_KINDS.has(note.kind)) {
+      return <NoteSummary note={note} />;
+    }
     const asked = note.kind === "evidence" ? questionLabel(note.question, note.extracted) : undefined;
     return (
       <Box sx={{ px: 1.5, pb: 1 }}>
@@ -105,6 +112,11 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     );
   }, [ notes, draft, actions, document, questionLabel, adopting, data.partOf ]);
 
+  const condensed = useCallback((mark: Mark) => {
+    const note = notes.find(one => one.id === mark.id);
+    return note && WRITTEN_KINDS.has(note.kind) ? { quote: 1, details: 4 } : undefined;
+  }, [ notes ]);
+
   return (
     <>
       {/* On a wide screen, the rest of the page's height, which matches the window's */}
@@ -123,6 +135,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         }}
         renderMarkDetails={renderMarkDetails}
         container={place}
+        condensedMarks={condensed}
         annotateLabel="Write about this"
         search={search}
         onSearch={onSearch}
