@@ -33,8 +33,8 @@ import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
 import OpenInFullOutlined from "@mui/icons-material/OpenInFullOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
-  Badge, Box, Button, ButtonBase, Dialog, IconButton, LinearProgress, Link, Paper, Stack, Tooltip, Typography,
-  useMediaQuery, useTheme,
+  Badge, Box, Button, ButtonBase, Dialog, FormControlLabel, IconButton, LinearProgress, Link, Paper, Stack, Switch,
+  Tooltip, Typography, useMediaQuery, useTheme,
 } from "@mui/material";
 
 import { cutShort, passageCard } from "@iap/frontend-commons/pdfViewer/passageStyles";
@@ -207,6 +207,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down("sm"));
   const [ chosen, setChosen ] = useState<string>();
+  const [ withConcerns, setWithConcerns ] = useState(false);
   const risk = risks.find(one => one.topic.path === chosen);
   // Showing where something was raised leaves the review for the page
   const show = (note: ReviewNote) => {
@@ -277,13 +278,24 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
           )}
           {chosen === ALL_ISSUES && (
             <Stack spacing={2} sx={{ height: "100%", minHeight: 360 }}>
-              <Typography variant="h6" component="h3">All your issues</Typography>
+              <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+                <Typography variant="h6" component="h3" sx={{ flex: 1 }}>All your issues</Typography>
+                <FormControlLabel
+                  control={<Switch checked={withConcerns} onChange={event => setWithConcerns(event.target.checked)} />}
+                  label={`Include open AI concerns (${risks.reduce((sum, one) => sum + one.aiOpen.length, 0)})`}
+                />
+              </Stack>
               <Box sx={{ flex: 1, minHeight: 0 }}>
                 <IssuesGrid
                   issues={[ ...risks.flatMap(one => one.issues), ...props.unfiled ]}
+                  concerns={withConcerns ? risks.flatMap(one => one.aiOpen) : []}
                   risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
                   about={props.about} onShow={show}
                   onChange={(issue, severity, topic) => doing.editIssue(issue, issue.text, severity, topic)}
+                  onMakeIssue={concern => doing.makeIssue(concern,
+                    concern.suggestion ? `${concern.text}\n\n${concern.suggestion}` : concern.text,
+                    concern.severity, concern.topicPath)}
+                  onDismiss={concern => doing.dismiss(concern)}
                 />
               </Box>
             </Stack>
