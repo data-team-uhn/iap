@@ -50,7 +50,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * AI pre-review comment names it as {@code from}; with {@code dismiss} naming one, the reviewer sets it aside, and
  * it is recorded on the AI comment, in {@code dismissedBy}, since another reviewer may still want it. An issue is
  * filed under the risk {@code topic} names, by path, when it names one; editing it with an empty one unfiles it. The
- * reviewer group the issues are raised for, {@code group}, is kept on the review.
+ * reviewer group the issues are raised for, {@code group}, is kept on the review, and so are the risks the reviewer
+ * has considered: {@code consider} or {@code unconsider} naming one marks it, or unmarks it.
  *
  * <p>The notes are kept apart from the review and the discussion, in an {@code irv:Notes} node per reviewer. They
  * are not hidden from the other reviewers by an access rule yet: the pages only show a reviewer their own.</p>
@@ -73,6 +74,8 @@ public class ReviewCommentHandler implements ServiceTaskHandler
 
     private static final String ISSUE_KIND = "issue";
 
+    private static final String CONSIDERED_PROPERTY = "considered";
+
     @Override
     public String getName()
     {
@@ -84,6 +87,9 @@ public class ReviewCommentHandler implements ServiceTaskHandler
     {
         final Resource submission = ExecutionHost.of(context);
         final String actor = context.getActor();
+        if (considering(context, submission, actor)) {
+            return;
+        }
         final String dismissed = Payloads.text(context.getEvent(), "dismiss");
         if (dismissed != null) {
             dismiss(within(submission, dismissed), actor);
@@ -107,10 +113,38 @@ public class ReviewCommentHandler implements ServiceTaskHandler
         }
     }
 
+    // A risk the reviewer marks as considered, or no longer, with consider or unconsider naming it: kept on their
+    // review, made if they have none yet, as their progress through their group's risks
+    private static boolean considering(final WorkflowTaskContext context, final Resource submission, final String actor)
+        throws WorkflowException, PersistenceException
+    {
+        final String consider = Payloads.text(context.getEvent(), "consider");
+        final String unconsider = Payloads.text(context.getEvent(), "unconsider");
+        if (consider == null && unconsider == null) {
+            return false;
+        }
+        final Resource review = holder(submission, ISSUE_KIND, actor);
+        keepGroup(context, review);
+        final ModifiableValueMap values = writable(review);
+        final List<String> considered = new ArrayList<>(Arrays.asList(values.get(CONSIDERED_PROPERTY, new String[0])));
+        if (consider != null && !considered.contains(consider)) {
+            considered.add(topic(submission, consider));
+        }
+        if (unconsider != null) {
+            considered.remove(unconsider);
+        }
+        values.put(CONSIDERED_PROPERTY, considered.toArray(String[]::new));
+        return true;
+    }
+
+    private static ModifiableValueMap writable(final Resource resource)
+    {
+        return Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class), "The engine can write here");
+    }
+
     private static void dismiss(final Resource comment, final String actor)
     {
-        final ModifiableValueMap values = Objects.requireNonNull(comment.adaptTo(ModifiableValueMap.class),
-            "Writable");
+        final ModifiableValueMap values = writable(comment);
         final List<String> by = new ArrayList<>(Arrays.asList(values.get(DISMISSED_PROPERTY, new String[0])));
         if (!by.contains(actor)) {
             by.add(actor);
@@ -121,15 +155,14 @@ public class ReviewCommentHandler implements ServiceTaskHandler
     private static void edit(final WorkflowTaskContext context, final Resource comment, final String text)
         throws PersistenceException, InvalidPayloadException
     {
-        Objects.requireNonNull(comment.adaptTo(ModifiableValueMap.class), "Writable").put(TEXT_PROPERTY, text);
+        writable(comment).put(TEXT_PROPERTY, text);
         final String severity = Payloads.text(context.getEvent(), "severity");
         if (severity != null) {
             Objects.requireNonNull(comment.adaptTo(Taggable.class), "Taggable").tagReplacing(severity, false);
         }
         if (context.getEvent().getPayload().containsKey(TOPIC_PROPERTY)) {
             final String topic = Payloads.text(context.getEvent(), TOPIC_PROPERTY);
-            final ModifiableValueMap values = Objects.requireNonNull(comment.adaptTo(ModifiableValueMap.class),
-                "Writable");
+            final ModifiableValueMap values = writable(comment);
             if (topic == null) {
                 values.remove(TOPIC_PROPERTY);
             } else {
@@ -206,7 +239,7 @@ public class ReviewCommentHandler implements ServiceTaskHandler
     private static void keepGroup(final WorkflowTaskContext context, final Resource review)
     {
         final String group = Payloads.text(context.getEvent(), "group");
-        final ModifiableValueMap values = Objects.requireNonNull(review.adaptTo(ModifiableValueMap.class), "Writable");
+        final ModifiableValueMap values = writable(review);
         if (group != null && !values.containsKey("group")) {
             values.put("group", group);
         }

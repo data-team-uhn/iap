@@ -66,13 +66,13 @@ import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
-import IssuesPanel from "./IssuesPanel";
 import LetterDialog from "./LetterDialog";
 import { GroupLabels, usePersonName } from "./people";
 import { draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
-import { groupShortName, isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics, type NoteKind,
-  type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
+import { groupShortName, issueFrom, isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics,
+  type NoteKind, type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
+import ReviewPanel, { type OthersRaised, type RiskReview } from "./ReviewPanel";
 import { SearchContext } from "./SearchHighlight";
 import { documentText, formMatches, pageCounts } from "./searchSubmission";
 import { PANEL_HEIGHT, PanelBody, panelPlacement } from "./sidePanel";
@@ -511,7 +511,7 @@ export default function ReviewScreen({ path }: { path: string }) {
   };
 
   // The reviewer's own review task: the open one their groups perform
-  const myTask = (): string | undefined => {
+  const myTaskNode = (): Node | undefined => {
     const instances = loaded?.submission["wf:instances"];
     for (const instance of Object.values(typeof instances === "object" && instances ? instances : {})) {
       for (const task of Object.values(typeof instance === "object" && instance ? instance as Node : {})) {
@@ -519,12 +519,13 @@ export default function ReviewScreen({ path }: { path: string }) {
         const performers = Array.isArray(node?.performers) ? node.performers.map(String) : [];
         if (node?.["jcr:primaryType"] === "wf:TaskInstance" && [ "created", "active" ].includes(text(node.status))
           && performers.some(one => myGroups.includes(one))) {
-          return text(node["@path"]);
+          return node;
         }
       }
     }
     return undefined;
   };
+  const myTask = (): string | undefined => text(myTaskNode()?.["@path"]) || undefined;
   // Completes the reviewer's task with a decision, through the workflow
   const decide = async (outcome: string, note?: string) => {
     const task = myTask();
@@ -556,6 +557,23 @@ export default function ReviewScreen({ path }: { path: string }) {
   const submission = loaded.submission;
   // The reviewer's own issues: what their panel lists, and what their letter and escalation are made of
   const myIssues = data.notes.filter(note => note.kind === "issue" && note.mine);
+  // The review, risk by risk: the AI's read and open concerns, the reviewer's issues, and whether considered
+  const risks: RiskReview[] = reviewerTopics.mine.map(topic => ({
+    topic, assessment: data.assessments.get(topic.path),
+    aiOpen: data.notes.filter(note => note.kind === "aiIssue" && note.topicPath === topic.path),
+    issues: myIssues.filter(note => note.topicPath === topic.path),
+    considered: data.considered.has(topic.path),
+  }));
+  const unfiled = myIssues.filter(note => !reviewerTopics.mine.some(topic => topic.path === note.topicPath));
+  // What other reviewers raised, by group, and how much of it on what this reviewer also reviews
+  const othersRaised: OthersRaised[] = [ ...Map.groupBy(data.notes.filter(note => note.kind === "otherIssue"),
+    note => groupLabels.get(note.group ?? "") ?? "Another group") ].map(([ group, raised ]) => ({
+    group, count: raised.length,
+    shared: raised.filter(note => note.subjects.some(subject => minePart(data.partOf.get(subject) ?? ""))).length,
+  }));
+  const taskCreated = text(myTaskNode()?.["jcr:created"]);
+  const waitingSince = taskCreated
+    ? new Date(taskCreated).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : undefined;
   const waiting = myTask() !== undefined;
   const reviewActions = {
     send: () => setDialog("letter"),
@@ -809,11 +827,17 @@ export default function ReviewScreen({ path }: { path: string }) {
           </ReviewerTopics.Provider>
         </GroupLabels.Provider>
         <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", ...panelPlacement, flexShrink: 0 }}>
-          <IssuesPanel
-            issues={myIssues} about={about}
+          <ReviewPanel
+            risks={risks} unfiled={unfiled} issueCount={myIssues.length} aiSummary={data.aiSummary}
+            others={othersRaised} about={about}
             open={issuesOpen ?? !(current && isDocumentRequirement(current))}
             onToggle={() => setIssuesOpen(!(issuesOpen ?? !(current && isDocumentRequirement(current))))}
-            onOpenIssue={openIssue}
+            onOpen={openIssue}
+            onConsider={(topic, considered) => actions.write(considered ? { consider: topic } : { unconsider: topic })}
+            onMakeIssue={(note, said, severity, topic) => actions.write(issueFrom(note, said, severity, topic))}
+            onDismiss={note => actions.write({ dismiss: note.id })}
+            onShowOthers={() => setShown(kinds => storeKinds(new Set([ ...kinds, "otherIssue" ])))}
+            waitingSince={waitingSince}
             actions={reviewActions}
           />
         </Box>
