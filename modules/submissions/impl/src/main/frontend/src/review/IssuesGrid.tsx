@@ -18,7 +18,7 @@
 
 import { useMemo } from "react";
 
-import { Link } from "@mui/material";
+import { Link, Stack } from "@mui/material";
 import { DataGridPro, type GridColDef } from "@mui/x-data-grid-pro";
 
 import EntityGridToolbar from "@iap/frontend-commons/entityGrid/EntityGridToolbar";
@@ -28,6 +28,8 @@ import { SEVERITIES, type ReviewNote } from "./reviewData";
 
 interface IssueRow {
   id: string;
+  // Whether it is one of the AI's open concerns rather than the reviewer's issue
+  ai: boolean;
   severity: string;
   risk: string;
   about: string;
@@ -42,25 +44,30 @@ const SEVERITY_NAMES: Record<string, string> = {
 // PRETOTYPE. All of the reviewer's issues in one sortable grid, as they would list them in a spreadsheet: how serious,
 // under which risk, about what, and what it says, most serious first to start with. The severity and the risk are
 // changed in their cells, saved as the issue is; the text in the issue's own editor. The toolbar is the entity grids':
-// a search over every column, and the columns and filters; shift and click sorts by several columns.
-export default function IssuesGrid({ issues, risks, about, onChange, onShow }: {
+// a search over every column, and the columns and filters; shift and click sorts by several columns. The AI's open
+// concerns can be listed among them, greyed, to triage everything in one list: made issues of as they are, or
+// dismissed.
+export default function IssuesGrid({ issues, concerns = [], risks, about, onChange, onShow, onMakeIssue, onDismiss }: {
   issues: ReviewNote[];
+  concerns?: ReviewNote[];
   // The risks issues can be filed under, by path
   risks: { path: string; label: string }[];
   about: (note: ReviewNote) => string;
   onChange: (issue: ReviewNote, severity: string, topic: string) => Promise<void>;
   onShow?: (issue: ReviewNote) => void;
+  onMakeIssue?: (concern: ReviewNote) => Promise<void>;
+  onDismiss?: (concern: ReviewNote) => Promise<void>;
 }) {
-  const rows: IssueRow[] = useMemo(() => issues.map(issue => ({
-    id: issue.id, severity: issue.severity ?? "medium",
+  const rows: IssueRow[] = useMemo(() => [ ...issues, ...concerns ].map(issue => ({
+    id: issue.id, ai: issue.kind === "aiIssue", severity: issue.severity ?? "medium",
     risk: risks.some(risk => risk.path === issue.topicPath) ? issue.topicPath ?? "" : "",
     about: about(issue), text: issue.text, issue,
-  })), [ issues, risks, about ]);
+  })), [ issues, concerns, risks, about ]);
   const riskLabel = (path: string) => risks.find(risk => risk.path === path)?.label ?? "No risk";
 
   const columns: GridColDef<IssueRow>[] = [
     {
-      field: "severity", headerName: "Severity", width: 140, editable: true, type: "singleSelect",
+      field: "severity", headerName: "Severity", width: 130, editable: true, type: "singleSelect",
       valueOptions: SEVERITIES.map(value => ({ value, label: SEVERITY_NAMES[value] })),
       // By how serious, not by name
       sortComparator: (a: string, b: string) =>
@@ -68,16 +75,31 @@ export default function IssuesGrid({ issues, risks, about, onChange, onShow }: {
       renderCell: ({ value }) => <TagChip tags={[ String(value) ]} category="severity" />,
     },
     {
-      field: "risk", headerName: "Risk", width: 220, editable: true, type: "singleSelect",
+      field: "risk", headerName: "Risk", width: 180, editable: true, type: "singleSelect",
       valueOptions: [ { value: "", label: "No risk" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ],
       valueFormatter: (value: string) => riskLabel(value),
     },
-    { field: "about", headerName: "About", width: 240 },
-    { field: "text", headerName: "Issue", flex: 1, minWidth: 260 },
+    ...concerns.length > 0 ? [ {
+      field: "ai", headerName: "Raised by", width: 100, type: "singleSelect" as const,
+      valueOptions: [ { value: false, label: "You" }, { value: true, label: "AI" } ],
+      valueFormatter: (value: boolean) => (value ? "AI" : "You"),
+    } ] : [],
+    { field: "about", headerName: "About", width: 180 },
+    { field: "text", headerName: "Issue", flex: 1, minWidth: 220 },
     {
-      field: "where", headerName: "", width: 110, sortable: false, filterable: false,
-      renderCell: ({ row }) => onShow && (row.issue.subjects.length > 0 || row.issue.passage) && (
-        <Link component="button" variant="body2" onClick={() => onShow(row.issue)}>Show where</Link>
+      field: "where", headerName: "", width: concerns.length > 0 ? 140 : 110, sortable: false, filterable: false,
+      renderCell: ({ row }) => (
+        <Stack sx={{ alignItems: "flex-start" }}>
+          {row.ai && onMakeIssue && (
+            <Link component="button" variant="body2" onClick={() => void onMakeIssue(row.issue)}>Make it an issue</Link>
+          )}
+          {row.ai && onDismiss && (
+            <Link component="button" variant="body2" onClick={() => void onDismiss(row.issue)}>Dismiss</Link>
+          )}
+          {onShow && (row.issue.subjects.length > 0 || row.issue.passage) && (
+            <Link component="button" variant="body2" onClick={() => onShow(row.issue)}>Show where</Link>
+          )}
+        </Stack>
       ),
     },
   ];
@@ -87,7 +109,11 @@ export default function IssuesGrid({ issues, risks, about, onChange, onShow }: {
       rows={rows} columns={columns} density="compact" disableRowSelectionOnClick hideFooter
       showToolbar slots={{ toolbar: EntityGridToolbar }} slotProps={{ toolbar: { searchLabel: "Search your issues" } }}
       getRowHeight={() => "auto"}
-      initialState={{ sorting: { sortModel: [ { field: "severity", sort: "asc" }, { field: "risk", sort: "asc" } ] } }}
+      // The AI's concerns are greyed, and are not changed in place: they become issues first
+      isCellEditable={({ row }: { row: IssueRow }) => !row.ai}
+      getRowClassName={({ row }) => (row.ai ? "ai-concern" : "")}
+      initialState={{ sorting: { sortModel: [ { field: "severity", sort: "asc" }, { field: "risk", sort: "asc" } ] },
+        pinnedColumns: { right: [ "where" ] } }}
       processRowUpdate={async (next: IssueRow, before: IssueRow) => {
         if (next.severity !== before.severity || next.risk !== before.risk) {
           await onChange(next.issue, next.severity, next.risk);
@@ -96,7 +122,8 @@ export default function IssuesGrid({ issues, risks, about, onChange, onShow }: {
       }}
       onProcessRowUpdateError={() => undefined}
       localeText={{ noRowsLabel: "No issues raised yet", noResultsOverlayLabel: "No issue matches" }}
-      sx={{ "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" }, bgcolor: "background.paper" }}
+      sx={{ "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" }, bgcolor: "background.paper",
+        "& .ai-concern": { color: "text.secondary", bgcolor: "background.muted" } }}
     />
   );
 }
