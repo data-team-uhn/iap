@@ -46,9 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link TagRepairServiceImpl}. The repair itself writes one property per node and lets the propagation
- * editor do the recomputing, so what these check is which nodes get marked, which edge they are marked on, and what
- * happens when the repository will not cooperate.
+ * Tests for {@link TagRepairServiceImpl}: which nodes get marked, with what value, and what happens when a node or a
+ * save is refused. The recomputation is the propagation editor's, tested on its own.
  *
  * @version $Id$
  * @since 0.1.0
@@ -96,7 +95,7 @@ class TagRepairServiceImplTest
         assertEquals(1, this.commits);
     }
 
-    /** The ordinary case for a node a processor failed on: `failed` becomes `recomputing`, which is a real change. */
+    /** A node a processor failed on goes from {@code failed} to {@code recomputing}. */
     @Test
     void asksAFailedNodeToBeRecomputed() throws Exception
     {
@@ -108,11 +107,7 @@ class TagRepairServiceImplTest
         assertEquals(TagManager.STATE_RECOMPUTING, state("/content/broken"));
     }
 
-    /**
-     * The anomaly: `recomputing` is written and consumed inside one commit, so finding it at rest means a commit was
-     * interrupted in between. Writing it again would be no change and would strand the node for good, so the property
-     * is cleared instead — which reaches the editor just as well, since it recomputes a node marked before the commit.
-     */
+    /** A node found at {@code recomputing} has the mark removed, since writing the same value changes nothing. */
     @Test
     void rescuesANodeStrandedByAnInterruptedCommit() throws Exception
     {
@@ -215,7 +210,7 @@ class TagRepairServiceImplTest
         assertEquals(0, report.failed());
     }
 
-    /** Injects the OSGi reference the way the rest of the repo's tests do: DS metadata does not exist here. */
+    /** Injects the OSGi reference by hand, since the DS metadata does not exist at test time. */
     private void inject(final ResourceResolverFactory factory) throws Exception
     {
         final Field reference = TagRepairServiceImpl.class.getDeclaredField("resolverFactory");
@@ -262,7 +257,7 @@ class TagRepairServiceImplTest
             @Override
             public void revert()
             {
-                // MockSession.refresh throws, and rollback is the repository's job to prove, not this test's
+                // MockSession.refresh throws
             }
         };
     }

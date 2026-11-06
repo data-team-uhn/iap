@@ -33,14 +33,8 @@ import io.uhndata.iap.tags.api.TagRepairService;
 import io.uhndata.iap.tags.api.TagRepairService.RepairReport;
 
 /**
- * Sweeps up the content whose tags could not be computed, on a schedule.
- *
- * <p>
- * Only the failures: they are few, they are indexed, and leaving them alone means a node keeps tags that are quietly
- * out of date. Repairing the content affected by an edited tag <em>definition</em> is deliberately not automatic —
- * it can touch a large part of the repository, and doing that as a side effect of someone saving a definition is a
- * surprise nobody asked for.
- * </p>
+ * Repairs the content marked as stale, on a schedule. The content affected by an edited tag definition is repaired
+ * only on request, through {@link TagRepairService#repair(String)}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,7 +43,7 @@ import io.uhndata.iap.tags.api.TagRepairService.RepairReport;
 @Designate(ocd = TagRepairConfiguration.class)
 public class ScheduledTagRepair
 {
-    /** Names the job among all the scheduled ones. */
+    /** The name of the scheduled job. */
     static final String JOB_NAME = "iap-tag-repair-sweep";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ScheduledTagRepair.class);
@@ -70,15 +64,14 @@ public class ScheduledTagRepair
         try {
             final ScheduleOptions options = this.scheduler.EXPR(config.schedule());
             options.name(JOB_NAME);
-            // One sweep at a time: a second one would find the same nodes and fight the first for them
+            // Two sweeps at once would find and mark the same nodes
             options.canRunConcurrently(false);
             this.scheduler.schedule((Runnable) this::sweep, options);
             LOGGER.info("Scheduled the tag repair sweep: {}", config.schedule());
         } catch (final RuntimeException e) {
-            // An unusable schedule must not stop the module from starting; repair stays available on demand
+            // The component still starts, and repair on request still works
             LOGGER.error("Could not schedule the tag repair sweep: {}", e.getMessage(), e);
-            // One line at startup is the only trace that automatic repair silently never runs again, and nothing
-            // afterwards looks any different from a repository that simply never needed repairing
+            // Recorded, since nothing else shows that the sweep never runs
             ErrorLogger.logError(e, ErrorContext.of(ScheduledTagRepair.class, "scheduleSweep")
                 .with("schedule", config.schedule()));
         }
@@ -91,8 +84,7 @@ public class ScheduledTagRepair
     }
 
     /**
-     * One sweep. Reports only when it did something, so that a healthy repository stays quiet in the logs and the
-     * lines that do appear are worth reading.
+     * One sweep. It logs a line only when it marked a node or failed to mark one.
      */
     void sweep()
     {

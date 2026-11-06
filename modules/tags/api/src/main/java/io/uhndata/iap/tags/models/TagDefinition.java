@@ -37,10 +37,10 @@ import io.uhndata.iap.autodoc.api.DocumentedItem;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * A Sling Model wrapping an {@code tag:Definition} node, the definition of one tag: what it means, where it may be
- * placed, and how it behaves. The tag itself is stored on tagged nodes as a plain string in their {@code tags}
- * property, matching this definition's {@link #getName() name}. Each definition documents itself as an entry of the
- * vocabulary's {@link TagsHomepage catalogue}, spelling out its behaviors and placement restrictions.
+ * The definition of one tag, a {@code tag:Definition} node: what the tag means, where it may be placed, and how it
+ * behaves. Tagged content stores the tag as a plain string in its {@code tags} property, equal to the definition's
+ * {@link #getName() name}. Each definition is an entry of the {@link TagsHomepage tag catalogue}, which lists its
+ * behaviors and where it may be placed.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,12 +49,12 @@ import io.uhndata.iap.content.models.Content;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class TagDefinition extends Content implements DocumentedItem
 {
-    /** The {@code sling:resourceType} of an {@code tag:Definition} node. */
+    /** The {@code sling:resourceType} of a {@code tag:Definition} node. */
     public static final String RESOURCE_TYPE = "tag/Definition";
 
     /**
-     * Sorts tag definitions in their intended display sequence: by their explicit {@link #getOrder() order} first,
-     * definitions without an order last, ties broken by comparing tag names.
+     * Sorts tag definitions in display order: by their {@link #getOrder() order}, those without one last, and by name
+     * when the order is the same.
      */
     public static final Comparator<TagDefinition> DISPLAY_ORDER =
         Comparator.comparing(TagDefinition::getOrder, Comparator.nullsLast(Comparator.naturalOrder()))
@@ -97,9 +97,9 @@ public class TagDefinition extends Content implements DocumentedItem
     private boolean system;
 
     /**
-     * The name of the tag, the exact string stored in the {@code tags} property of tagged nodes. This is the
-     * definition node's own name, unless overridden by an explicit {@code name} property, which allows tag strings
-     * that would be awkward as node names.
+     * The name of the tag, the exact string stored in the {@code tags} property of tagged content. It is the
+     * definition node's name, unless the definition sets a {@code name} property for a string that would be awkward
+     * as a node name.
      *
      * @return the tag name
      */
@@ -111,9 +111,9 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * The human-readable name displayed in the UI, falling back to the tag name when no explicit label is set.
+     * The tag's name as people read it.
      *
-     * @return the display label
+     * @return the {@code label} property, or the tag name if it is not set
      */
     @NotNull
     public String getLabel()
@@ -122,7 +122,7 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * A longer explanation of what this tag means and when it applies.
+     * What this tag means and when it applies.
      *
      * @return the description, or {@code null} if not set
      */
@@ -134,9 +134,9 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * The categories this tag belongs to, e.g. {@code lifecycle} or {@code review}, used for grouping and filtering
-     * tags in listings. Placing this tag {@link Taggable#tagReplacing(String, boolean) in place of others} retires the
-     * content's tags sharing any of these categories.
+     * The categories this tag belongs to, such as {@code lifecycle} or {@code review}. Listings group and filter tags
+     * by category. Placing this tag {@link Taggable#tagReplacing(String, boolean) in place of others} removes the
+     * content's tags that share any of these categories.
      *
      * @return the categories, an empty list if none are set
      */
@@ -147,8 +147,8 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * Whether content under a tagged node implicitly carries this tag too, e.g. every answer inside a "sensitive"
-     * submission is itself sensitive.
+     * Whether the content under a tagged node carries this tag too. Every version of a {@code retired} schema is
+     * retired.
      *
      * @return {@code true} if this tag is passed down to the descendants of a tagged node
      */
@@ -158,8 +158,8 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * Whether a node implicitly carries this tag when any of its descendants explicitly does, e.g. a submission with
-     * an "incomplete" answer is itself incomplete.
+     * Whether a node carries this tag when content below it does, up to the nearest {@code tag:Boundary}. A
+     * submission with an {@code incomplete} answer is incomplete.
      *
      * @return {@code true} if this tag is passed up from tagged nodes to their ancestors
      */
@@ -169,8 +169,8 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * The {@code sling:resourceType} values of the resources this tag may be placed on, including their subtypes.
-     * When empty, the tag may be placed on any content.
+     * The resource types of the content this tag may be placed on, subtypes included, such as
+     * {@code sub/Submission}. When empty, the tag may be placed on any content.
      *
      * @return the accepted resource types, an empty list if the tag is unrestricted
      */
@@ -181,8 +181,8 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * An optional color used when displaying this tag, as a CSS color value; the chip's background, text and border
-     * are all derived from it, according to the {@link #getVariant() variant}.
+     * The color the UI shows this tag in, as a CSS color. The chip's background, text and border all derive from it,
+     * as the {@link #getVariant() variant} says.
      *
      * @return the color, or {@code null} if not set
      */
@@ -193,12 +193,11 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * How this tag is displayed: {@code soft} (the default when absent) tints the background with the
-     * {@link #getColor() color} and clamps the color into a readable text, {@code outlined} draws only that readable
-     * text and a matching border on a transparent background, and {@code filled} uses the color as a loud fill under
-     * contrasting text.
+     * How the UI shows this tag. {@code soft} tints the background with the {@link #getColor() color} and makes the
+     * text a readable shade of it. {@code outlined} shows that text and a matching border on no background.
+     * {@code filled} fills the chip with the color, under black or white text.
      *
-     * @return the variant, or {@code null} if not set, meaning the default soft display
+     * @return the variant, or {@code null} if not set, which shows the tag as {@code soft}
      */
     @Nullable
     public String getVariant()
@@ -207,8 +206,8 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * An optional icon displayed next to this tag's label, as a MUI icon name, e.g. {@code EditOutlined}. Names
-     * outside the UI's curated icon set display no icon.
+     * The icon shown next to this tag's label, as a MUI icon name such as {@code EditOutlined}. A name the UI does
+     * not list shows no icon.
      *
      * @return the icon name, or {@code null} if not set
      */
@@ -219,8 +218,7 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * The optional explicit position of this tag in listings; tags with a lower order are displayed first, tags
-     * without an order are displayed last.
+     * The position of this tag in listings, lowest first. Tags without one come last.
      *
      * @return the order, or {@code null} if not set
      */
@@ -231,10 +229,10 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * Whether this tag is managed by the platform itself, which prevents adding or removing it through the regular
-     * user-facing APIs.
+     * Whether only the code managing this tag may add or remove it. The {@link Taggable} methods refuse it unless
+     * their {@code allowSystem} is {@code true}.
      *
-     * @return {@code true} if this tag may only be managed by the platform
+     * @return {@code true} if this is a system tag
      */
     public boolean isSystem()
     {
@@ -242,12 +240,12 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * Checks whether this tag may be placed on the given content, according to the definition's
-     * {@link #getTargetResourceTypes() accepted resource types}.
+     * Checks whether this tag may be placed on the given content, by its
+     * {@link #getTargetResourceTypes() target resource types}.
      *
-     * @param target candidate content to be tagged
-     * @return {@code true} if the content is of (a subtype of) one of the accepted resource types, or if this
-     *         definition doesn't restrict its targets
+     * @param target the content that would be tagged
+     * @return {@code true} if the content is of one of the target resource types or a subtype, or if this definition
+     *         has none
      */
     public boolean appliesTo(@NotNull final Content target)
     {
@@ -302,7 +300,7 @@ public class TagDefinition extends Content implements DocumentedItem
             getTargetResourceTypes().forEach(targets::add);
             json.add("targetResourceTypes", targets);
         }
-        // Optional fields are left out of the JSON entirely rather than serialized as null
+        // An unset field is left out, not written as null
         Optional.ofNullable(getColor()).ifPresent(value -> json.add("color", value));
         Optional.ofNullable(getVariant()).ifPresent(value -> json.add("variant", value));
         Optional.ofNullable(getIcon()).ifPresent(value -> json.add("icon", value));

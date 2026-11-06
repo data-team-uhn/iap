@@ -37,12 +37,9 @@ import SendOutlined from "@mui/icons-material/SendOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
 
-// The icons a tag definition may name in its `icon` property, as ready-made (static, hence
-// freely shared) elements. MUI icons are individual React components, so a fully
-// content-driven lookup would mean bundling the whole icon set; this curated map keeps the
-// bundle lean at the cost of a one-line addition when a definition wants an icon not yet
-// listed. Beyond the icons the shipped tags use, their likely alternatives are included, so
-// swapping a tag's icon usually needs no code change at all.
+// The icons a tag definition may name in its `icon` property, as elements shared by every chip.
+// Each MUI icon is a component of its own, and only the ones listed here are bundled. A
+// definition naming another icon needs it added here.
 const TAG_ICONS: Record<string, ReactElement | undefined> = {
   AssignmentReturnOutlined: <AssignmentReturnOutlined />,
   BlockOutlined: <BlockOutlined />,
@@ -64,10 +61,8 @@ const TAG_ICONS: Record<string, ReactElement | undefined> = {
   VisibilityOutlined: <VisibilityOutlined />,
 };
 
-// The icon element a definition names, or undefined for unknown (or absent) names — a tag
-// with an unrecognized icon simply shows none, consistent with how tags degrade elsewhere.
-// hasOwn, so that a name like "constructor" cannot dredge up an inherited Object.prototype
-// member and pass it off as an element.
+// The icon element a definition names, or undefined if the name is absent or not listed. hasOwn
+// keeps "constructor" from returning an inherited Object.prototype member.
 export function tagIcon(name?: string): ReactElement | undefined {
   return name !== undefined && Object.hasOwn(TAG_ICONS, name) ? TAG_ICONS[name] : undefined;
 }

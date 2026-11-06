@@ -52,7 +52,7 @@
   </build>
 
   <dependencies>
-    <!-- Nullability annotations for the exported API/SPI -->
+    <!-- Nullability annotations -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
@@ -89,7 +89,7 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.commons.scheduler</artifactId>
     </dependency>
-    <!-- isNodeType, which is what sees a boundary mixin whether a node carries it or its primary type declares it -->
+    <!-- Node.isNodeType, which recognizes a tag:Boundary whether the node carries the mixin or its type declares it -->
     <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>
@@ -122,7 +122,7 @@
       <version>${project.version}</version>
     </dependency>
 
-    <!-- Contributing to content copies -->
+    <!-- JSON responses, and the SPI for taking part in content copies -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-java-utils</artifactId>
@@ -140,7 +140,6 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
     </dependency>
-    <!-- The mock resolver has no node types, so the node behind a resource is stood in for -->
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>

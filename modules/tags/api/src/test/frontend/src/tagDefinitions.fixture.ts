@@ -18,8 +18,7 @@
 
 import type { TagDefinition } from "@iap/tags/tagDefinitions";
 
-// The lifecycle and review tag definitions as the instance would serve them, all shipped by
-// the submissions module.
+// Tag definitions of the lifecycle and review categories, as /Tags.search.json serves them
 export const TAG_DEFINITIONS: (TagDefinition & { category: string[] })[] = [
   { name: "draft", label: "Draft", color: "#4c5670", icon: "EditOutlined", order: 10, category: ["lifecycle"] },
   { name: "submitted", label: "Submitted", color: "#1b4f8f", icon: "SendOutlined",
@@ -36,15 +35,15 @@ export const TAG_DEFINITIONS: (TagDefinition & { category: string[] })[] = [
     order: 70, category: ["lifecycle", "review"] },
 ];
 
-// A successful response carrying the given JSON body. Build every stand-in response through this:
-// besides `ok` and `json`, useAuthenticatedFetch reads `url` to tell a real answer from a redirect
-// to the login page, and a stub missing it makes every request throw and resolve to no definitions.
+// A successful response carrying the given JSON body. Build every stand-in response through this.
+// Besides `ok` and `json`, useAuthenticatedFetch reads `url` to tell a real answer from a redirect
+// to the login page. A stub without it makes every request throw, and so give no definitions.
 export function jsonResponse(body: unknown): Promise<Response> {
   return Promise.resolve({ ok: true, url: "", json: () => Promise.resolve(body) } as unknown as Response);
 }
 
-// A fetch stand-in that answers the tag definition search like the TagListServlet (filtered by
-// the category parameter, in definition order), and every other URL with the given payload.
+// A fetch stand-in that answers /Tags.search.json with the definitions of the requested
+// category, in their order, and every other URL with the given payload.
 export function tagAwareFetch(payload: unknown): (url: string) => Promise<Response> {
   return url => {
     let body: unknown = payload;

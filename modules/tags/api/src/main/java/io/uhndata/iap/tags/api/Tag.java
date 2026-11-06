@@ -29,9 +29,9 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.tags.models.TagDefinition;
 
 /**
- * One tag effectively carried by a piece of content: the tag name, its definition, and how the tag reached it —
- * explicitly placed on it, computed for it from its own content, inherited from a tagged ancestor, or aggregated
- * from a tagged descendant. Instances are immutable snapshots computed by the {@link TagManager}.
+ * One tag a piece of content carries: its name, its definition, and how it reached the content. It may be placed on
+ * the content, computed from the content, inherited from an ancestor, or aggregated from a descendant. Instances are
+ * immutable, and {@link io.uhndata.iap.tags.models.Taggable#getEffectiveTags()} builds them.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,10 +45,10 @@ public final class Tag
      */
     public enum Origin
     {
-        /** The tag is explicitly present in the content's own {@code tags} property. */
+        /** The tag is in the content's own {@code tags} property. */
         EXPLICIT,
 
-        /** The tag was computed by a tag processor from the content itself. */
+        /** A {@code LOCAL} tag processor computed the tag from the content itself. */
         COMPUTED,
 
         /** The tag is {@link TagDefinition#isInheritable() inherited} from a tagged ancestor. */
@@ -69,10 +69,10 @@ public final class Tag
     /**
      * Basic constructor.
      *
-     * @param name the tag name
-     * @param definition the tag's definition, may be {@code null} for a tag string with no matching definition
+     * @param name the tag name, as stored in a {@code tags} property
+     * @param definition the tag's definition, {@code null} if no definition under {@code /Tags} has this name
      * @param origins how the tag reached the content, at least one origin
-     * @param sources the paths of the content explicitly carrying the tag
+     * @param sources the paths of the content the tag belongs to, as {@link #getSources()} lists them
      */
     public Tag(@NotNull final String name, @Nullable final TagDefinition definition,
         @NotNull final Set<Origin> origins, @NotNull final Set<String> sources)
@@ -96,10 +96,9 @@ public final class Tag
     }
 
     /**
-     * The definition of the tag. A tag string present on a node without a matching definition under {@code /Tags},
-     * e.g. left behind after its definition was deleted, has no definition.
+     * The definition of the tag. A tag string can outlive its definition, when the definition is deleted.
      *
-     * @return the tag definition, or {@code null} if the tag is undefined
+     * @return the tag definition, or {@code null} if no definition under {@code /Tags} has this name
      */
     @Nullable
     public TagDefinition getDefinition()
@@ -118,8 +117,8 @@ public final class Tag
     }
 
     /**
-     * How the tag reached the content. A tag may have more than one origin, e.g. both explicitly placed on the
-     * content itself and inherited from an ancestor.
+     * How the tag reached the content. A tag may have more than one origin, such as placed on the content and also
+     * inherited from an ancestor.
      *
      * @return the origins, a non-empty read-only set
      */
@@ -130,9 +129,9 @@ public final class Tag
     }
 
     /**
-     * The paths of the content the tag belongs to: the described content itself for an {@link Origin#EXPLICIT} or
-     * {@link Origin#COMPUTED} tag, the tagged ancestors for an {@link Origin#INHERITED} one, the tagged descendants
-     * for an {@link Origin#AGGREGATED} one.
+     * The paths of the content the tag belongs to. For an {@link Origin#EXPLICIT} or {@link Origin#COMPUTED} tag,
+     * that is the described content itself. For an {@link Origin#INHERITED} tag, they are the tagged ancestors, and
+     * for an {@link Origin#AGGREGATED} one, the tagged descendants.
      *
      * @return the source paths, a non-empty read-only set
      */

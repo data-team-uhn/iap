@@ -34,16 +34,13 @@ import io.uhndata.iap.tags.spi.TagDefinitions;
 import io.uhndata.iap.tags.spi.TagProcessor;
 
 /**
- * Copies {@link TagDefinitions#isAggregated aggregated} tags up the tree: a node's {@code aggregatedTags} property
- * holds every aggregated tag placed on any of its descendants, materialized by chaining each child's own tags — the
- * explicit ones and the ones a {@link Phase#LOCAL} processor computed for it — with what that child already
- * aggregated from its own descendants.
+ * Copies {@link TagDefinitions#isAggregated aggregated} tags up the tree. A node's {@code aggregatedTags} property
+ * holds every aggregated tag that belongs to a descendant below the nearest {@code tag:Boundary}. Each child passes
+ * up its own tags, placed or computed by a {@link Phase#LOCAL} processor, and what it already aggregated.
  *
  * <p>
- * The chain is what carries a tag up, so it is also where the climb has to end: aggregating over
- * {@link TagContext#getAggregationSources() the children that may contribute} rather than over all of them is what
- * makes an {@code tag:Boundary} opaque from above. Reading a boundary child's own chain link would carry its
- * content's tags straight past it.
+ * It reads only {@link TagContext#getAggregationSources() the children that may contribute}, never the whole child
+ * list. Reading a boundary child would carry its content's tags past it.
  * </p>
  *
  * @version $Id$
@@ -55,10 +52,7 @@ public class TagAggregationProcessor implements TagProcessor
     /** The name of the property holding the tags aggregated from descendants. */
     public static final String AGGREGATED_TAGS_PROPERTY = Phase.BOTTOM_UP.getPropertyName();
 
-    /**
-     * The child properties an aggregated tag can reach this node through: the tags belonging to the child itself,
-     * and the chain of what the child aggregated from its own descendants.
-     */
+    /** The properties of a child that its aggregated tags come from: its own tags, and what it aggregated. */
     private static final List<String> SOURCE_PROPERTIES =
         List.of(TagManager.TAGS_PROPERTY, Phase.LOCAL.getPropertyName(), AGGREGATED_TAGS_PROPERTY);
 
@@ -78,8 +72,7 @@ public class TagAggregationProcessor implements TagProcessor
     public Set<String> computeTags(final TagContext context)
     {
         final TagDefinitions definitions = context.getDefinitions();
-        // The chained values were already filtered when the child's own properties were computed, but re-filtering
-        // sheds values left over from a definition that stopped being aggregated
+        // Filtered by the current definitions, which also drops the copies of a tag that stopped being aggregated
         return StreamSupport.stream(context.getAggregationSources().spliterator(), false)
             .map(ChildNodeEntry::getNodeState)
             .flatMap(TagAggregationProcessor::sourceTags)
@@ -88,10 +81,10 @@ public class TagAggregationProcessor implements TagProcessor
     }
 
     /**
-     * All the tags of one child node that can be aggregated further up, whatever property they are stored in.
+     * All the tags of one child that may be aggregated further up, from every property they are stored in.
      *
      * @param child the state of a child node
-     * @return the child's own and already aggregated tag names, unfiltered
+     * @return the child's own tag names and those it aggregated, not yet filtered by definition
      */
     private static Stream<String> sourceTags(final NodeState child)
     {
