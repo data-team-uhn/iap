@@ -40,9 +40,9 @@ import io.jsonwebtoken.Locator;
 import io.jsonwebtoken.io.Decoders;
 
 /**
- * Implementation of a {@link Locator} for JWT validation key lookup. A fresh instance is used per token: while
- * locating the signature verification key it also records the expected issuer for that signer, so the caller can
- * validate the {@code iss} claim without a second repository lookup.
+ * Finds the public key to verify a token's signature with, from the token's {@code kid} header: this instance's own
+ * key, or a registered peer's. It also remembers the issuer registered for that key, for the {@code iss} check.
+ * Use one instance per token.
  *
  * @version $Id$
  * @since 0.1.0
@@ -61,12 +61,12 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
     private String resolvedIssuer;
 
     /**
-     * Create a locator that resolves the key used to verify an inbound JWT's signature.
+     * Create a locator for one token.
      *
-     * @param verificationKey our own public key, used for tokens signed by this instance
-     * @param resolver the resource resolver factory used to look up trusted peers' keys
-     * @param selfID the fingerprint identifying tokens signed by this instance
-     * @param selfIssuer the expected issuer for tokens signed by this instance
+     * @param verificationKey this instance's own public key
+     * @param resolver supplies the service user that reads the peers' key nodes
+     * @param selfID the fingerprint of this instance's public key, which its tokens carry as {@code kid}
+     * @param selfIssuer this instance's identity, the {@code iss} of the tokens it signs
      */
     public IapJwtVerificationLocatorImpl(final PublicKey verificationKey, final ResourceResolverFactory resolver,
         final String selfID, final String selfIssuer)
@@ -78,10 +78,10 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
     }
 
     /**
-     * The verification details for a trusted peer, read from the repository within a single session.
+     * What is registered for a peer.
      *
-     * @param verificationKey the peer's public key, used to verify the JWT signature
-     * @param issuer the peer's expected {@code iss} claim value
+     * @param verificationKey the peer's public key
+     * @param issuer the {@code iss} claim the peer's tokens must carry
      * @version $Id$
      * @since 0.1.0
      */
@@ -90,25 +90,23 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
     }
 
     /**
-     * In an instance where the JWT does not belong to us, look up the peer's verification details in
-     * {@code /jcr:system/iap-jwt/}. Everything needed is read while the session is open, so the returned value is
-     * safe to use after the session closes.
+     * Read a peer's public key and issuer from its node under {@code /jcr:system/iap-jwt/}.
      *
-     * @param keyID The ID under which to find the key
-     * @return the peer's public key and expected issuer
-     * @throws JwtException if the peer is unknown, its key is missing/unreadable, or the key ID is unsafe
+     * @param keyID the token's {@code kid} header, the fingerprint of the peer's public key
+     * @return the peer's public key and issuer
+     * @throws JwtException if the key ID holds anything but ASCII letters and digits, or no readable key and issuer
+     *     are registered under it
      */
     private PeerKeyDetails lookupPeerDetails(final String keyID)
     {
         final Pattern pattern = Pattern.compile("\\P{Alnum}");
-        // Ensure the keyID is sanitized, disallow usage and return nothing if not
+        // The key ID is appended to a path, so it must not be able to address another node
         if (pattern.matcher(keyID).find()) {
             throw new JwtException(String.format("Unsafe peer key: %s", keyID));
         }
 
         final String resourcePath = IapJwtTokenManagerImpl.KEY_ROOT + "/" + keyID;
         try (ResourceResolver resolver = this.rrf.getServiceResourceResolver(null)) {
-            // Grab the appropriate key node, if it exists
             final Resource res = resolver.resolve(resourcePath);
             final Node keyNode = res.adaptTo(Node.class);
             if (keyNode == null) {
@@ -134,19 +132,18 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
         } catch (LoginException e) {
             throw new JwtException(String.format("Service access not granted: %s", e.getMessage()));
         } catch (GeneralSecurityException e) {
-            // Should not happen, this is to catch java.security.NoSuchAlgorithmException
-            // or java.security.spec.InvalidKeySpecException, but KeyFactory should be able to load RSA
-            throw new JwtException(String.format("Failed to load decryption algorithm: %s", e.getMessage()));
+            // The stored key is not an X.509-encoded RSA public key
+            throw new JwtException(String.format("Failed to read the peer's verification key: %s", e.getMessage()));
         } catch (RepositoryException e) {
             throw new JwtException(String.format("Failed to load JWT Verification key: %s", e.getMessage()));
         }
     }
 
     /**
-     * Extracts the `kid` header from a given JWT Header.
+     * The {@code kid} of a token's header.
      *
-     * @param header The JWT Header
-     * @return The `kid` header, or {@code null} if the given header does not correspond to a JwsHeader/JweHeader
+     * @param header the token's header
+     * @return the key ID, or {@code null} if the header has none, or belongs to neither a JWS nor a JWE
      */
     private static String getKey(final Header header)
     {
@@ -159,9 +156,9 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
     }
 
     /**
-     * The expected issuer for the signer resolved by the most recent {@link #locate(Header)} call.
+     * The issuer registered for the key the most recent {@link #locate(Header)} call found.
      *
-     * @return the expected {@code iss} claim value, or {@code null} if no signed token has been located
+     * @return the {@code iss} the token must carry, or {@code null} if no key has been found
      */
     public String getResolvedIssuer()
     {
@@ -174,7 +171,7 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
         final String keyID = getKey(header);
 
         if (keyID == null) {
-            // No key ID means we cannot identify the signer, so there is no key to verify against.
+            // Without a key ID the signer is unknown, and the token cannot be verified
             return null;
         }
 

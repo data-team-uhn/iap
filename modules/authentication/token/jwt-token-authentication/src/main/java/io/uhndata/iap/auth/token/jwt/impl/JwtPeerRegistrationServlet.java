@@ -47,8 +47,10 @@ import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.UserIds;
 
 /**
- * Trusting another IAP instance, which is what every token arriving from one depends on: {@code POST} a peer's
- * public key and the issuer it will claim, and this instance will verify that peer's tokens from then on.
+ * Registers another IAP instance as a trusted peer. The {@code admin} user posts the peer's public key and the
+ * issuer its tokens carry. From then on, this instance accepts the tokens that peer signs.
+ *
+ * <p>Registration only adds. A key that is already registered is refused with {@code 409}.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -57,14 +59,14 @@ import io.uhndata.iap.utils.UserIds;
 @SlingServletPaths(value = JwtPeerRegistrationServlet.ENDPOINT_PATH)
 public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
 {
-    /** Where an administrator registers a peer. */
+    /** The path the {@code admin} user posts a peer to. */
     public static final String ENDPOINT_PATH = "/system/jwt/peers";
 
     private static final long serialVersionUID = -4495178994673175377L;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(JwtPeerRegistrationServlet.class);
 
-    /** The subservice whose user may add a peer, but not read or rewrite our own signing key. */
+    /** The subservice mapped to the service user that may add a peer, but cannot touch this instance's keys. */
     private static final String SUBSERVICE_NAME = "peers";
 
 
@@ -76,7 +78,7 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
     /**
      * Activate the component.
      *
-     * @param resolverFactory supplies the service user that writes the peer's key node
+     * @param resolverFactory supplies the service user that writes the peers' key nodes
      */
     @Activate
     public JwtPeerRegistrationServlet(@Reference final ResourceResolverFactory resolverFactory)
@@ -114,8 +116,7 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
         try {
             key = JwtPeerKey.parse(submitted);
         } catch (final GeneralSecurityException e) {
-            // The administrator is watching, and the key they pasted is theirs to see, so say what was wrong
-            // with it rather than making them read the log
+            // Only the admin user gets here, and the message describes the key they sent
             JsonResponses.writeError(response, HttpServletResponse.SC_BAD_REQUEST,
                 "`key` is not an X.509-encoded RSA public key: " + e.getMessage());
             return;
@@ -125,10 +126,10 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Store the peer and answer with what it is now known as.
+     * Store the peer, and answer with its key ID or with why it could not be stored.
      *
      * @param response the HTTP response to write into
-     * @param key the validated key, which names its own node
+     * @param key the parsed key, whose fingerprint names the peer's node
      * @param issuer the validated {@code iss} claim the peer's tokens must carry
      * @throws IOException when the response cannot be written
      */
@@ -148,7 +149,6 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
                 return;
             }
 
-            // Store + reply success
             resolver.create(parent, key.fingerprint(), Map.of(
                 "jcr:primaryType", "rep:Unstructured",
                 IapJwtTokenManagerImpl.VERIFY_PROP, key.encoded(),
@@ -158,8 +158,7 @@ public class JwtPeerRegistrationServlet extends SlingJakartaAllMethodsServlet
             JsonResponses.write(response, HttpServletResponse.SC_CREATED, "registered",
                 Json.createObjectBuilder().add("kid", key.fingerprint()));
         } catch (final LoginException | PersistenceException e) {
-            // Not recorded through error tracking: an administrator triggered this by hand and is reading the
-            // answer, so there is nobody who would only find out hours later
+            // Not recorded through error tracking: the admin user who asked reads the answer
             LOGGER.error("Could not register JWT peer {}: {}", issuer, e.getMessage(), e);
             JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "The peer could not be stored");

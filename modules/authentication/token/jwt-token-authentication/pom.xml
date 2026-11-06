@@ -31,12 +31,8 @@
 
   <properties>
     <jjwt.version>0.13.0</jjwt.version>
-    <!-- Module-aggregate (BUNDLE-scoped) minimum instruction coverage enforced by jacoco:check.
-         Only the JWT create/parse classes and the peer registration endpoint are built here (the Oak
-         and Sling authentication integration classes are not ported yet); this floor sits just under
-         the measured coverage of that slice. -->
     <coverage.instructionRatio>0.75</coverage.instructionRatio>
-    <!-- RSA signing and key generation run 4x slower without C2 -->
+    <!-- Lets the test JVM use the C2 compiler, which speeds up RSA key generation and signing -->
     <tests.jitArgs></tests.jitArgs>
   </properties>
 
@@ -100,8 +96,7 @@
       <artifactId>org.apache.sling.api</artifactId>
     </dependency>
     <dependency>
-      <!-- Both servlet APIs appear in Sling ResourceResolver method signatures; needed to compile against it
-           and for Mockito to instrument it in tests. -->
+      <!-- ResourceResolver's deprecated methods take a javax.servlet request -->
       <groupId>javax.servlet</groupId>
       <artifactId>javax.servlet-api</artifactId>
       <scope>provided</scope>
@@ -131,8 +126,6 @@
       <version>${project.version}</version>
       <scope>provided</scope>
     </dependency>
-    <!-- Not used by this module's own (unexported) code, but SpotBugs needs the annotation classes on the
-         analysis classpath to check this implementation against the annotated TokenManager contract. -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>

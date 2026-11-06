@@ -29,19 +29,19 @@ import io.jsonwebtoken.io.DecodingException;
 import io.jsonwebtoken.io.Encoders;
 
 /**
- * A peer's public key, as submitted for registration and as it will be stored.
+ * A peer's RSA public key, in the form it is stored in.
  *
- * @param encoded the key in the canonical BASE64 form stored in the {@code verify} property
+ * @param encoded the key's X.509 encoding in BASE64, as stored in the {@code verify} property
  * @param fingerprint the key's fingerprint, which is both the node name and the {@code kid} tokens carry
  * @version $Id$
  * @since 0.1.0
  */
 record JwtPeerKey(String encoded, String fingerprint)
 {
-    /** PEM armour and every kind of whitespace, all of which a pasted key file carries and BASE64 does not. */
+    /** PEM armour lines and ASCII whitespace, which a pasted key file carries and BASE64 does not. */
     private static final Pattern PEM_ARMOUR_PATTERN = Pattern.compile("-----[A-Z ]+-----|\\s");
 
-    /** JJWT refuses shorter RSA keys for RS256. */
+    /** JJWT refuses an RSA key shorter than this. */
     private static final int MIN_KEY_BITS = 2048;
 
     /**
@@ -49,7 +49,8 @@ record JwtPeerKey(String encoded, String fingerprint)
      *
      * @param submitted the key as the caller sent it, BASE64 with or without PEM armour
      * @return the key in the form it will be stored, with its fingerprint
-     * @throws GeneralSecurityException if the text is not BASE64, or not an X.509-encoded RSA public key
+     * @throws GeneralSecurityException if the text is not BASE64, not an X.509-encoded RSA public key, or a key
+     *     shorter than 2048 bits
      */
     static JwtPeerKey parse(final String submitted) throws GeneralSecurityException
     {

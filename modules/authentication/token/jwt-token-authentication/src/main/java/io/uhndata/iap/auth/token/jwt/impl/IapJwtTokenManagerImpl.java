@@ -53,7 +53,15 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
- * Implementation of the {@link TokenManager} service using JWT tokens.
+ * Issues and verifies the signed JWTs that IAP instances authenticate to each other with.
+ *
+ * <p>This instance signs with RS256 and its own RSA key pair, kept on the node at {@link #KEY_PATH}. The first
+ * activation creates the pair. A token names its signer in its {@code kid} header, as the fingerprint of the
+ * signer's public key.</p>
+ *
+ * <p>{@link TokenManager#parse(String) parse} accepts a token signed by this instance or by a registered peer. The
+ * token must not have expired, must name this instance's identity in {@code aud}, and must carry the {@code iss}
+ * registered for its signer. A token with no {@code exp} claim is refused.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,19 +70,19 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 @Designate(ocd = IapJwtTokenManagerConfiguration.class)
 public final class IapJwtTokenManagerImpl implements TokenManager
 {
-    /** JCR property containing our signing key. */
+    /** The property holding this instance's private key, PKCS#8-encoded in BASE64. */
     public static final String SIGNING_KEY_PROP = "key";
 
-    /** JCR property containing a verification key. */
+    /** The property holding a public key, X.509-encoded in BASE64: this instance's own, or a peer's. */
     public static final String VERIFY_PROP = "verify";
 
-    /** JCR property containing a peer's expected 'issuer' ID. */
+    /** The property of a peer's node holding the {@code iss} its tokens must carry. */
     public static final String ISSUER_PROP = "iss";
 
-    /** JCR path under which every key node lives: our own, and one per trusted peer named by its fingerprint. */
+    /** The JCR path under which every key node lives: this instance's own, and one per peer named by fingerprint. */
     public static final String KEY_ROOT = "/jcr:system/iap-jwt";
 
-    /** JCR path to the node where we keep our signing/verification keys. */
+    /** The JCR path of the node holding this instance's own key pair. */
     public static final String KEY_PATH = KEY_ROOT + "/JWTRSA256Key";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(IapJwtTokenManagerImpl.class);
@@ -83,21 +91,23 @@ public final class IapJwtTokenManagerImpl implements TokenManager
 
     private final PublicKey verificationKey;
 
-    /** Our own identity: the `iss` of every token we mint, and the `aud` a token must name for us to accept it. */
+    /** This instance's identity: the {@code iss} of every token it mints, and the {@code aud} it accepts. */
     private final String identity;
 
-    /** Our own fingerprint, used to identify tokens that are signed by us. */
+    /** The fingerprint of this instance's public key, which its tokens carry as {@code kid}. */
     private final String selfID;
 
     private final ResourceResolverFactory rrf;
 
     /**
-     * Activate the component, loading (or generating) the signing/verification keys from the repository.
+     * Load this instance's key pair, or create and store one if the key node holds none. If the key node cannot be
+     * read, the component does not activate. If the service user cannot log in, or the keys cannot be decoded or
+     * stored, it activates but neither mints nor accepts tokens.
      *
-     * @param rrf the resource resolver factory used to read the JWT key node
+     * @param rrf supplies the service user that reads and writes the key nodes
      * @param config this instance's identity
-     * @throws IllegalArgumentException if the configured identity is not usable, which leaves the component
-     *     unactivated rather than minting tokens no peer could ever accept
+     * @throws IllegalArgumentException if the configured identity is not usable; the component then does not
+     *     activate
      */
     @Activate
     public IapJwtTokenManagerImpl(@Reference final ResourceResolverFactory rrf,
@@ -140,7 +150,6 @@ public final class IapJwtTokenManagerImpl implements TokenManager
             }
         } catch (LoginException e) {
             LOGGER.error("Service access not granted: {}", e.getMessage());
-            // Recorded here and deliberately NOT where a token is parsed, since its error message quotes the token
             ErrorLogger.logError(e, ErrorContext.of(IapJwtTokenManagerImpl.class, "serviceLogin"));
         } catch (Exception e) {
             LOGGER.error("Failed to load JWT Signing key from node: {}", e.getMessage(), e);
@@ -152,11 +161,11 @@ public final class IapJwtTokenManagerImpl implements TokenManager
     }
 
     /**
-     * Read a BASE64-encoded key from the given property of the given node.
+     * Read a BASE64-encoded key from a property of a key node.
      *
-     * @param keyNode The node to extract a key from
-     * @param propName The property containing the key
-     * @return A byte array from the BASE64-encoded key
+     * @param keyNode the node holding the key
+     * @param propName the name of the property holding the key, {@link #SIGNING_KEY_PROP} or {@link #VERIFY_PROP}
+     * @return the decoded key bytes
      */
     private byte[] readKey(final Node keyNode, final String propName) throws RepositoryException
     {
@@ -166,10 +175,11 @@ public final class IapJwtTokenManagerImpl implements TokenManager
     }
 
     /**
-     * Obtain a fingerprint from the given public key.
+     * The fingerprint of a public key, which names a peer's key node and fills the {@code kid} header.
      *
-     * @param publicKey The key to obtain a fingerprint for
-     * @return A string hash that should uniquely identify the given public key
+     * @param publicKey the key, or {@code null}
+     * @return the hexadecimal SHA-256 of the key's X.509 encoding in BASE64, or {@code null} if the key is
+     *     {@code null}
      */
     public static String getFingerprint(final PublicKey publicKey)
     {
@@ -185,24 +195,23 @@ public final class IapJwtTokenManagerImpl implements TokenManager
     public IapJwtTokenImpl create(final String userId, final Calendar expiration,
         final Map<String, String> extraData)
     {
-        // Assume our own audience if none is given
+        // Addressed to this instance itself
         return create(userId, expiration, extraData, Set.of(this.identity));
     }
 
     /**
-     * Create a JWT with the given specifications.
+     * Mint a token addressed to the given instances.
      *
-     * @param userId The user ID to assign as a subject
-     * @param expiration An expiration time for the JWT
-     * @param extraData Additional data to include in the JWT payload
-     * @param audiences A set of audiences that the JWT is meant for
-     * @return A IapJwtTokenImpl corresponding to a newly minted JWT with the given parameters.
+     * @param userId the username the token authenticates, its {@code sub} claim
+     * @param expiration the time after which the token is no longer valid, its {@code exp} claim
+     * @param extraData extra claims to sign into the token, as names and values; empty for none
+     * @param audiences the identities of the instances that should accept the token, its {@code aud} claim
+     * @return the new token, or {@code null} if no key pair was loaded at activation
      */
     public IapJwtTokenImpl create(final String userId, final Calendar expiration,
         final Map<String, String> extraData, final Set<String> audiences)
     {
         if (this.signingKey == null || this.verificationKey == null) {
-            // Should not happen
             return null;
         }
         String jws = Jwts.builder()
@@ -218,29 +227,25 @@ public final class IapJwtTokenManagerImpl implements TokenManager
     }
 
     /**
-     * Validate JWT claims against expected issuer/audience constraints. The expected issuer is taken from the
-     * signer the {@code locator} resolved while verifying the signature, so no additional repository lookup is
-     * needed here.
+     * Check the claims of a token whose signature has been verified. The token must have an {@code exp} claim, name
+     * this instance in {@code aud}, and carry the {@code iss} registered for the key that signed it.
      *
-     * @param jwt the parsed JWT to validate
-     * @param locator the locator that resolved the signing key for this token
-     * @return {@code true} if all required claims are valid, {@code false} otherwise
-     * @throws JwtException if the JWT claims are malformed or invalid
+     * @param jwt the parsed JWT
+     * @param locator the locator that found the key the signature was verified with
+     * @return always {@code true}; a check that fails throws instead
+     * @throws JwtException if the payload is not a set of claims, or a check fails
      */
     private boolean areClaimsValid(final Jwt<?, ?> jwt, final IapJwtVerificationLocatorImpl locator)
         throws JwtException
     {
-        // Double check claims in the payload:
         Object payload = jwt.getPayload();
         if (payload instanceof Claims claims) {
             String expectedIssuer = locator.getResolvedIssuer();
 
-            // Double-check that we're the intended audience for this JWT, and that it came from the expected issuer
             if (claims.getExpiration() == null) {
                 // A token with no expiry is valid forever, and a JWT cannot be revoked
                 throw new JwtException("The given JWT is missing an `exp` claim.");
             } else if (claims.getAudience() == null) {
-                // No audience found, reject
                 throw new JwtException("The given JWT is missing an `aud` claim.");
             } else if (!claims.getAudience().contains(this.identity)) {
                 throw new JwtException("Our server (" + this.identity
@@ -268,11 +273,11 @@ public final class IapJwtTokenManagerImpl implements TokenManager
                 .build()
                 .parseSignedClaims(loginToken);
 
-            // Double check claims in the payload:
             if (areClaimsValid(jwt, locator)) {
                 return new IapJwtTokenImpl(jwt, loginToken);
             }
         } catch (JwtException e) {
+            // Not recorded through error tracking: the message can quote the token's header and claims
             LOGGER.error("JWT validation failed: {}", e.getMessage());
         }
         return null;

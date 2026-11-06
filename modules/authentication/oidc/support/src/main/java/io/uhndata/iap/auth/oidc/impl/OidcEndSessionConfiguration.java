@@ -27,13 +27,11 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
  * @since 0.1.0
  */
 @ObjectClassDefinition(name = "IAP OIDC End Session Servlet",
-    description = "Redirects to the OIDC provider's end-session endpoint to complete a logout. The fallback for when "
-        + "the logout handler could not end the provider session back-channel.")
+    description = "Redirects to the OIDC provider's end-session endpoint to complete a logout. The logout handler "
+        + "sends the browser here when it could not end the provider session back-channel.")
 public @interface OidcEndSessionConfiguration
 {
-    /**
-     * Logout path for the End Session Servlet, corresponding to the path the servlet lives.
-     */
+    /** The path of the end-session servlet, where the logout handler sends the browser when it falls back. */
     String POST_LOGOUT_URI = "/system/sling/oauth/logout";
 
     /**
@@ -52,8 +50,8 @@ public @interface OidcEndSessionConfiguration
      * @return the {@code client_id} sent on the end-session request
      */
     @AttributeDefinition(name = "Client ID",
-        description = "The client_id IAP is registered as with the provider; the end-session endpoint requires it "
-            + "when a post-logout redirect URI is supplied.")
+        description = "The client_id IAP is registered as with the provider. It is sent with the post-logout "
+            + "redirect URI.")
     String clientId() default "";
 
     /**
@@ -62,8 +60,8 @@ public @interface OidcEndSessionConfiguration
      * @return the {@code post_logout_redirect_uri}, which must be registered on the provider client
      */
     @AttributeDefinition(name = "Post-logout redirect URI",
-        description = "Absolute URL the provider returns the browser to after logout; must be registered as a valid "
-            + "post-logout redirect URI on the provider client.")
+        description = "Absolute URL the provider returns the browser to after logout. It must be registered as a "
+            + "valid post-logout redirect URI on the provider client.")
     String postLogoutRedirectUri() default "";
 
     /**

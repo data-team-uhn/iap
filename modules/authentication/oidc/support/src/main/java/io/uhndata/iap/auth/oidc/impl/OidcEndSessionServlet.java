@@ -37,20 +37,16 @@ import org.slf4j.LoggerFactory;
  * Completes an OIDC logout by redirecting the browser to the provider's end-session endpoint.
  *
  * <p>
- * The fallback path. {@link OidcLogoutAuthenticationHandler} normally ends the provider's session
- * itself, server to server, and only steers Sling's post-logout redirect here when that could not be
- * done -- because it cannot issue the cross-host redirect itself (see that class). This servlet then
- * redirects the now-anonymous browser to the provider's {@code end_session_endpoint}, passing a
- * {@code client_id} and a registered {@code post_logout_redirect_uri}, so the provider ends its own
- * SSO session and returns the browser to the landing page. It is reachable without authentication
- * because the caller has already been logged out by the time it runs.
+ * {@link OidcLogoutAuthenticationHandler} sends the browser here when it could not end the
+ * provider's session itself. The redirect carries the {@code client_id} and the
+ * {@code post_logout_redirect_uri}. The provider ends its SSO session and returns the browser to
+ * that URI. The caller has already been logged out, so the servlet requires no authentication.
  * </p>
  *
  * <p>
- * Carrying the logout in the browser is weaker than the back-channel call: without an
- * {@code id_token_hint} the provider asks the user to confirm, and closing the tab at that point
- * leaves the SSO session alive. The ID token is never persisted by the OAuth client, so it cannot be
- * supplied here.
+ * Without an {@code id_token_hint} the provider asks the user to confirm the logout. A user who
+ * closes the tab at that point keeps the SSO session. The OAuth client does not store the ID token,
+ * so the hint cannot be sent.
  * </p>
  *
  * @version $Id$
@@ -87,7 +83,7 @@ public class OidcEndSessionServlet extends SlingJakartaSafeMethodsServlet
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
-        // If reached directly (instead of via Sling logout), clear the cookie.
+        // Expired here too, for a request that did not come through Sling's logout
         response.addCookie(OidcLogoutAuthenticationHandler.expiredSessionCookie(this.cookieName, request.isSecure()));
 
         if (this.endSessionEndpoint == null || !(this.endSessionEndpoint.startsWith("http://")
