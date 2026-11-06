@@ -82,7 +82,7 @@ import { useCurrentUser } from "./useCurrentUser";
 type Node = Record<string, unknown>;
 
 // Renamed when the default changed, so every reviewer starts from it once
-const KINDS_KEY = "iap.review.shownNotes";
+const KINDS_KEY = "iap.review.notesShown";
 const CONTENTS_OPEN_KEY = "iap.review.contentsOpen";
 const ISSUES_OPEN_KEY = "iap.review.issuesOpen";
 const FOCUSED_KEY = "iap.review.focused";
@@ -129,9 +129,10 @@ function useStoredFlag(key: string): [ boolean | undefined, (open: boolean) => v
   return [ flag, store ];
 }
 
-// Every kind but the extracted answers, until the reviewer chooses: those agreeing with the answer add little, and
-// those that do not are said under the answer anyway
-const DEFAULT_KINDS: NoteKind[] = NOTE_KINDS.map(info => info.kind).filter(kind => kind !== "evidence");
+// Every kind until the reviewer chooses, but the extracted answers, since those agreeing with the answer add little
+// and those that do not are said under the answer anyway; and other reviewers' issues, which are theirs to pursue
+const DEFAULT_KINDS: NoteKind[] = NOTE_KINDS.map(info => info.kind)
+  .filter(kind => kind !== "evidence" && kind !== "otherIssue");
 
 function storedKinds(): Set<NoteKind> {
   try {
