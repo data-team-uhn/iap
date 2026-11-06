@@ -61,7 +61,7 @@ import {
   isFormRequirement,
   isQuestion,
 } from "../submissionForm";
-import { ReviewerTopics, WRITTEN } from "./Composer";
+import { kindChip, ReviewerTopics, WRITTEN } from "./Composer";
 import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
@@ -747,10 +747,10 @@ export default function ReviewScreen({ path }: { path: string }) {
                         onClick={() => toggleKind(info.kind)}
                         aria-pressed={shown.has(info.kind)}
                         icon={shown.has(info.kind) ? <CheckCircleOutlined /> : <CircleOutlined />}
-                        // Shown, filled in its colour; hidden, plain grey, so it reads as off
-                        sx={theme => shown.has(info.kind)
-                          ? { borderColor: "transparent", bgcolor: theme.alpha(theme.palette[info.mark].light, 0.45) }
-                          : { borderColor: "divider", color: "text.disabled", "& .MuiChip-icon": { color: "inherit" } }}
+                        // Shown, softly tinted in its colour as a tag is; hidden, plain grey, so it reads as off
+                        sx={theme => ({ "& .MuiChip-icon": { color: "inherit" },
+                          ...shown.has(info.kind) ? kindChip(theme, info.mark)
+                            : { borderColor: "divider", color: "text.disabled" } })}
                       />
                     ))}
                   </Stack>
