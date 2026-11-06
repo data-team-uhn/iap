@@ -1,0 +1,80 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Transfer a submission to another site",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Hands the submission over to another site, which owns it from then on, and archives this copy. Nothing changes here unless the other site takes it.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Transfer requested",
+      "messageName": "transfer",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "excludes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "tags"
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["transferred"]
+        }
+      },
+      "toSend": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toSend",
+        "targetRef": "send"
+      }
+    },
+    "send": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "send",
+      "label": "Send it to the other site",
+      "handler": "transferSubmission",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "mark"
+      }
+    },
+    "mark": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "mark",
+      "label": "Mark it as transferred",
+      "handler": "addTag",
+      "tag": "transferred",
+      "replaceExisting": true,
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toArchive": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toArchive",
+        "targetRef": "archive"
+      }
+    },
+    "archive": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "archive",
+      "label": "Archive this copy",
+      "handler": "delete",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Submission transferred",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Transferred",
+  "description": "The record was handed over to another site, which owns it from now on. This copy is kept for the record.",
+  "category": ["lifecycle"],
+  "system": true,
+  "color": "#5f6b7a",
+  "icon": "ForwardOutlined",
+  "order": 80
+}

@@ -84,6 +84,29 @@ final class TransferFormat
     static final Set<String> USER_PROPERTIES =
         Set.of(CREATED_BY_PROPERTY, "author", "reviewer", "checkedBy", "jcr:lastModifiedBy");
 
+    // ------------------------------------------------------------------------------------------- the exchange
+
+    /** Where an instance takes submissions in, below its identity. */
+    static final String ENDPOINT_PATH = "/system/remote/submissions";
+
+    /** The part, and the receiving event's payload entry, carrying the manifest. */
+    static final String MANIFEST_PART = "manifest";
+
+    /** The receiving event's payload entry naming the instance a submission came from, as its token says. */
+    static final String ORIGIN_PARAMETER = "origin";
+
+    /** Where a received submission keeps the instance it came from. */
+    static final String ORIGIN_PROPERTY = "origin";
+
+    /** The key of a refusal's machine-readable reason. */
+    static final String REASON_KEY = "reason";
+
+    /** The reason given for a submission that is already here, sent by the instance now sending it again. */
+    static final String ALREADY_RECEIVED = "alreadyReceived";
+
+    /** The key of a refusal's human-readable message. */
+    static final String ERROR_KEY = "error";
+
     private TransferFormat()
     {
         // Constants only
