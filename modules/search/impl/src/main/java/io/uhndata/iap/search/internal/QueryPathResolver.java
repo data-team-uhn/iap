@@ -36,22 +36,22 @@ import org.slf4j.LoggerFactory;
  * Lets a JCR-SQL2 statement name a node by its path where a UUID is expected.
  *
  * <p>
- * A reference property stores the UUID of the node it points to, and a UUID is generated when the node is created, so
- * it differs between instances. A statement kept in the sources cannot spell one out. It names the node by its path
- * instead, as in {@code select * from [sub:Answer] as a where a.question = '/Schemas/Consent/1.0/hasCapacity'}, and
- * this turns that path into the UUID the property holds.
+ * A reference property stores the UUID of the node it points to. The UUID is generated when the node is created, so
+ * it differs between instances, and a statement kept in the sources cannot spell one out. It names the node by its
+ * path instead, as in {@code select * from [sub:Answer] as a where a.question = '/Schemas/consent/v1/hasCapacity'}.
+ * This class turns that path into the UUID the property holds.
  * </p>
  *
  * <p>
- * Only a literal compared against a property that its node type declares as a {@code REFERENCE} or
+ * Only a literal compared with a property that its node type declares as a {@code REFERENCE} or
  * {@code WEAKREFERENCE} is translated. A property holding a path as its own value is left alone, as is a path passed
  * to a function such as {@code isdescendantnode(n, '/Submissions')}.
  * </p>
  *
  * <p>
- * Anything this cannot make sense of is left as it was, and a statement it does not understand runs exactly as it was
- * sent: an unknown node type, an ambiguous unqualified property, a path with no node at it, a target that is not
- * referenceable. The last three are logged. The statement then matches nothing, and the response does not say why.
+ * Whatever this cannot resolve is left as it was. That is an unknown node type, an unqualified property in a
+ * statement with several selectors, a path with no node at it, or a target that is not referenceable. The last two
+ * are logged. The statement then matches nothing, and the response does not say why.
  * </p>
  *
  * @version $Id$
@@ -60,16 +60,15 @@ import org.slf4j.LoggerFactory;
 final class QueryPathResolver
 {
     /**
-     * Matches a selector the statement declares, capturing its node type and, if present, its alias. The keywords are
-     * matched wherever they appear, so a statement with {@code from} inside a string literal contributes a selector
-     * that does not exist. That costs nothing: an unregistered node type is never translated against.
+     * Matches a selector the statement declares, and captures its node type and its alias, if it has one. The
+     * keywords are matched anywhere, so a {@code from [...]} inside a string literal is collected as a selector too.
      */
     private static final Pattern QUERY_SELECTOR = Pattern.compile(
         "\\b(?:from|join)\\s++\\[([^\\]]++)\\]\\s*+(?:\\bas\\s++(\\[[^\\]]++\\]|[\\w:]++))?", Pattern.CASE_INSENSITIVE);
 
     /**
-     * Matches a property compared to a string literal holding a path, capturing the selector, the property and the
-     * literal. Only a comparison is matched, which is what leaves a path passed to a function alone.
+     * Matches a property compared with a string literal holding a path, and captures the selector, the property and
+     * the literal. A path passed to a function is not a comparison, and is not matched.
      */
     private static final Pattern PROPERTY_COMPARISON = Pattern.compile(
         "(?<!\\[)(?:(\\[[^\\]]++\\]|[\\w:]++)\\.)?(\\[[^\\]]++\\]|[\\w:]++)\\s*(?:=|<>|!=)\\s*+'(/(?:[^']|'')*+)'");
@@ -78,15 +77,15 @@ final class QueryPathResolver
 
     private QueryPathResolver()
     {
-        // This is a utility class, it should not be instantiated
+        // Utility class
     }
 
     /**
      * Replaces the node paths a statement compares reference properties to with the UUID of the node at each path.
      *
-     * @param session the session to look the node types and the referenced nodes up with, never {@code null}
-     * @param statement a JCR-SQL2 statement, which may compare reference properties to paths
-     * @return the same statement, with those paths replaced by the UUID of the node they point to; a path that
+     * @param session the session to look up the node types and the referenced nodes with
+     * @param statement a JCR-SQL2 statement, which may compare reference properties with paths
+     * @return the same statement, with each of those paths replaced by the UUID of the node at it; a path that
      *         cannot be resolved is left as it is
      * @throws RepositoryException if the node types cannot be read
      */
@@ -105,7 +104,7 @@ final class QueryPathResolver
             if (!isReferenceProperty(nodeTypes, selectorTypes, comparisons.group(1), comparisons.group(2))) {
                 continue;
             }
-            // A literal escapes an apostrophe by doubling it. Undo that before treating the value as a path.
+            // A literal escapes an apostrophe by doubling it. Undo that to read the path.
             final String uuid = getUuid(session, comparisons.group(3).replace("''", "'"));
             if (uuid == null) {
                 continue;
@@ -117,7 +116,7 @@ final class QueryPathResolver
     }
 
     /**
-     * Collects the selectors a statement declares, so that a property can be looked for in the right node type.
+     * Collects the selectors a statement declares, to find the node type a property belongs to.
      *
      * @param statement a JCR-SQL2 statement
      * @return the node type each selector selects, keyed by the selector's name, which is its alias when it has one
@@ -140,7 +139,7 @@ final class QueryPathResolver
      *
      * @param nodeTypes the node type manager to look the definition up in
      * @param selectorTypes the node type selected by each of the statement's selectors
-     * @param selector the selector the property was qualified with, may be {@code null} for an unqualified property
+     * @param selector the selector the property is qualified with; {@code null} for an unqualified property
      * @param property the name of the compared property
      * @return {@code true} if the node type declares this property as a reference
      * @throws RepositoryException if the node types cannot be read
@@ -149,7 +148,7 @@ final class QueryPathResolver
         final Map<String, String> selectorTypes, final String selector, final String property)
         throws RepositoryException
     {
-        // An unqualified property only says which node type it belongs to when the statement declares one selector
+        // An unqualified property belongs to a known node type only if the statement declares one selector
         final String nodeType = selector != null ? selectorTypes.get(unquoteName(selector))
             : selectorTypes.size() == 1 ? selectorTypes.values().iterator().next() : null;
         if (nodeType == null || !nodeTypes.hasNodeType(nodeType)) {
@@ -163,17 +162,12 @@ final class QueryPathResolver
     }
 
     /**
-     * Looks up the UUID of the node at a path.
-     *
-     * <p>
-     * A path that leads nowhere, and a node that cannot be referenced at all, are both left for the statement to run
-     * into on its own. It then matches nothing, the same answer it would give for a UUID that is not in use. Neither
-     * is visible in the response, so both are logged.
-     * </p>
+     * Looks up the UUID of the node at a path, and logs why if there is none.
      *
      * @param session the session to look the node up with
      * @param path the path of the referenced node
-     * @return the UUID of that node, or {@code null} if there is nothing usable at that path
+     * @return the node's UUID; {@code null} if there is no node at the path, if it is not referenceable, or if it
+     *         cannot be read
      */
     private static String getUuid(final Session session, final String path)
     {
@@ -192,8 +186,7 @@ final class QueryPathResolver
             }
             return node.getIdentifier();
         } catch (final RepositoryException | RuntimeException e) {
-            // Unchecked as much as checked: a malformed path is the client's to send, and Oak is entitled to reject
-            // one without wrapping its complaint
+            // Unchecked too: the path comes from the client, and a malformed one must not fail the search
             LOGGER.warn("Failed to read the identifier of [{}]: {}", QueryPlanChecker.forLog(path), e.getMessage(), e);
             return null;
         }

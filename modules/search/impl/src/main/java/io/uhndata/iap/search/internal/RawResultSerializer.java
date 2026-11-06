@@ -31,8 +31,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Turns a query result row into the object the {@code rawResults} mode of the search endpoint returns: the path of
- * each selector, and the value of each selected column, instead of the matched nodes.
+ * Turns a query result row into the object that {@code rawResults} asks {@code /search.json} for: the path of each
+ * selector, and the value of each selected column.
  *
  * @version $Id$
  * @since 0.1.0
@@ -40,8 +40,8 @@ import org.slf4j.LoggerFactory;
 final class RawResultSerializer
 {
     /**
-     * What a column holding a binary reports instead of its contents. Not {@code null}, which means the row has no
-     * value for the column at all.
+     * What a column holding a binary reports instead of its contents. A {@code null} means the row has no value for
+     * the column.
      */
     static final String BINARY_PLACEHOLDER = "BINARY_VALUE";
 
@@ -49,7 +49,7 @@ final class RawResultSerializer
 
     private RawResultSerializer()
     {
-        // This is a utility class, it should not be instantiated
+        // Utility class
     }
 
     /**
@@ -58,7 +58,7 @@ final class RawResultSerializer
      * @param row the row to serialize
      * @param selectors the selector names of the query
      * @param columns the column names of the query
-     * @return the serialized row, or {@code null} if it cannot be read
+     * @return the serialized row; {@code null} if it cannot be read
      */
     static JsonObject serialize(final Row row, final String[] selectors, final String[] columns)
     {
@@ -79,12 +79,11 @@ final class RawResultSerializer
     }
 
     /**
-     * Converts one selected column into the value that goes into the response.
+     * Converts the value of one column into JSON.
      *
-     * @param value the value of the column in the current row, may be {@code null} for a column the row has no value
-     *            for
-     * @return the value as JSON, {@link JsonValue#NULL} for a column that has none to give, or
-     *         {@value #BINARY_PLACEHOLDER} for one holding a binary
+     * @param value the value of the column in the current row; {@code null} if the row has none
+     * @return the value as a JSON string; {@link JsonValue#NULL} if the row has no value, and
+     *         {@value #BINARY_PLACEHOLDER} for a binary
      * @throws RepositoryException if the value cannot be read
      */
     private static JsonValue columnValue(final Value value) throws RepositoryException
@@ -93,7 +92,7 @@ final class RawResultSerializer
             return JsonValue.NULL;
         }
         // Reading a binary as a string reads all of it, and a statement can select the data of every file in the
-        // repository. The response names the column as holding a binary. Its contents are fetched from the node.
+        // repository. The client fetches the contents from the node.
         if (value.getType() == PropertyType.BINARY) {
             return Json.createValue(BINARY_PLACEHOLDER);
         }

@@ -18,9 +18,9 @@
 package io.uhndata.iap.search.internal;
 
 /**
- * One property condition parsed from a pagination request: a property name, a comparator, and, unless the comparator
- * is a valueless one like {@code IS NULL}, a value to compare against. A condition may also name a group: conditions
- * sharing a group are ORed together in the final query, while distinct groups are ANDed.
+ * One condition on a property, from a pagination request. It holds the property name, a comparator, and a value to
+ * compare against, unless the comparator takes none, as {@code IS NULL} does. A condition may also name a group.
+ * Conditions in the same group are ORed together, and groups are ANDed.
  *
  * @version $Id$
  * @since 0.1.0
@@ -36,11 +36,11 @@ final class Filter
     private final String group;
 
     /**
-     * Simple constructor for an ungrouped condition.
+     * Creates a condition in no group.
      *
-     * @param name the property name; only validated later, when the condition is added to a query
-     * @param comparator the requested comparator; {@code =} is used instead if this isn't a supported comparator
-     * @param value the value to compare against, ignored for valueless comparators
+     * @param name the property name; checked only when the condition is written into a statement
+     * @param comparator the requested comparator, such as {@code <=}; {@code =} if it names none
+     * @param value the value to compare against; ignored by a comparator that takes none
      */
     Filter(final String name, final String comparator, final String value)
     {
@@ -48,12 +48,12 @@ final class Filter
     }
 
     /**
-     * Simple constructor.
+     * Creates a condition.
      *
-     * @param name the property name; only validated later, when the condition is added to a query
-     * @param comparator the requested comparator; {@code =} is used instead if this isn't a supported comparator
-     * @param value the value to compare against, ignored for valueless comparators
-     * @param group the group this condition is ORed within, or {@code null} for a standalone condition
+     * @param name the property name; checked only when the condition is written into a statement
+     * @param comparator the requested comparator, such as {@code <=}; {@code =} if it names none
+     * @param value the value to compare against; ignored by a comparator that takes none
+     * @param group the name of the group this condition is ORed within; {@code null} for none
      */
     Filter(final String name, final String comparator, final String value, final String group)
     {
@@ -76,7 +76,7 @@ final class Filter
     /**
      * The comparator to use in the condition.
      *
-     * @return one of the supported operators
+     * @return the operator
      */
     Operator getComparator()
     {
@@ -86,7 +86,7 @@ final class Filter
     /**
      * The value to compare the property against.
      *
-     * @return a value, may be {@code null} for valueless comparators
+     * @return the value as sent; {@code null} if none was sent
      */
     String getValue()
     {
@@ -94,10 +94,9 @@ final class Filter
     }
 
     /**
-     * The group this condition belongs to. Conditions sharing a group are ORed together; distinct groups (and
-     * conditions with no group at all) are ANDed.
+     * The group this condition belongs to.
      *
-     * @return an opaque group identifier, or {@code null} for a standalone condition
+     * @return the group's name, as the request sent it; {@code null} if the condition is in no group
      */
     String getGroup()
     {
@@ -105,9 +104,9 @@ final class Filter
     }
 
     /**
-     * Whether the comparator stands on its own, without comparing against a value, like {@code IS NULL}.
+     * Whether the comparator takes no value, as {@code IS NULL} does.
      *
-     * @return {@code true} if the comparator doesn't need a value
+     * @return {@code true} if the comparator takes no value
      */
     boolean isValueless()
     {

@@ -60,12 +60,12 @@
   </build>
 
   <dependencies>
-    <!-- @SuppressFBWarnings on the two members that deliberately share the caller's live resource resolver -->
+    <!-- @SuppressFBWarnings, on the two members that hand out the caller's own resource resolver -->
     <dependency>
       <groupId>com.github.spotbugs</groupId>
       <artifactId>spotbugs-annotations</artifactId>
     </dependency>
-    <!-- Nullability annotations for the exported API/SPI -->
+    <!-- Nullability annotations -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>

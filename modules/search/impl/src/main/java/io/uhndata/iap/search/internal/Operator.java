@@ -22,12 +22,12 @@ import java.util.function.BinaryOperator;
 import java.util.function.UnaryOperator;
 
 /**
- * The comparison operators accepted in a pagination request, each knowing how to serialize itself into a JCR-SQL2
- * condition given a property reference and the name of the bind variable holding the value to compare against.
+ * The comparators a pagination request can use. Each writes a JCR-SQL2 condition from a property reference and the
+ * bind variable holding the value to compare against.
  *
  * <p>
- * No operator writes the value into the statement. An operator needing the value in a different form declares a
- * transformation, applied to what is bound.
+ * No operator writes the value into the statement. An operator that needs the value in another form, such as in
+ * lower case, transforms what is bound.
  * </p>
  *
  * @version $Id$
@@ -39,9 +39,8 @@ enum Operator
     EQ("="),
 
     /**
-     * Negated equality. A literal {@code x <> y} is evaluated on each entry of a multi-valued property and never
-     * matches an empty one, while {@code not x = y} behaves intuitively for both single and multi-valued
-     * properties, so the latter is used.
+     * Negated equality, written {@code not x = y}. On a multi-valued property, {@code x <> y} would match when any one
+     * value differs, and it never matches a property that is not set.
      */
     NEQ("<>", (property, variable) -> "not " + property + " = " + variable),
 
@@ -63,10 +62,10 @@ enum Operator
     /** Negated pattern matching. */
     NOT_LIKE("NOT LIKE", (property, variable) -> "not " + property + " LIKE " + variable),
 
-    /** Case-insensitive pattern matching, which JCR-SQL2 doesn't have natively: lowercase both sides. */
+    /** Pattern matching that ignores case. JCR-SQL2 has no such operator, so both sides are lowercased. */
     ILIKE("ILIKE", (property, variable) -> "LOWER(" + property + ") LIKE " + variable, Operator::lowercase),
 
-    /** Negated case-insensitive pattern matching. */
+    /** Negated pattern matching that ignores case. */
     NOT_ILIKE("NOT ILIKE", (property, variable) -> "not LOWER(" + property + ") LIKE " + variable,
         Operator::lowercase),
 
@@ -79,17 +78,17 @@ enum Operator
     /** How the operator is spelled in a request. */
     private final String symbol;
 
-    /** Whether the operator stands on its own, without comparing against a value. */
+    /** Whether the operator takes no value. */
     private final boolean valueless;
 
-    /** Turns a property reference and a bind variable reference into a JCR-SQL2 condition. */
+    /** Writes the JCR-SQL2 condition from a property reference and a bind variable reference. */
     private final BinaryOperator<String> serializer;
 
-    /** Puts the requested value into the form this operator compares against. */
+    /** Turns the requested value into the form this operator compares against. */
     private final UnaryOperator<String> valuePreparation;
 
     /**
-     * Constructor for a plain binary operator whose JCR-SQL2 spelling is {@code property symbol $variable}.
+     * Creates an operator written {@code property symbol $variable}.
      *
      * @param symbol how the operator is spelled in a request
      */
@@ -99,11 +98,11 @@ enum Operator
     }
 
     /**
-     * Constructor for an operator using the default JCR-SQL2 spelling, {@code property symbol $variable} for a
-     * binary operator or just {@code property symbol} for a valueless one.
+     * Creates an operator written {@code property symbol $variable}, or {@code property symbol} if it takes no
+     * value.
      *
      * @param symbol how the operator is spelled in a request
-     * @param valueless whether the operator stands on its own, without comparing against a value
+     * @param valueless whether the operator takes no value
      */
     Operator(final String symbol, final boolean valueless)
     {
@@ -116,10 +115,10 @@ enum Operator
     }
 
     /**
-     * Constructor for a binary operator needing a custom JCR-SQL2 serialization.
+     * Creates an operator that writes its condition its own way.
      *
      * @param symbol how the operator is spelled in a request
-     * @param serializer turns a property reference and a bind variable reference into a JCR-SQL2 condition
+     * @param serializer writes the JCR-SQL2 condition from a property reference and a bind variable reference
      */
     Operator(final String symbol, final BinaryOperator<String> serializer)
     {
@@ -127,11 +126,11 @@ enum Operator
     }
 
     /**
-     * Constructor for a binary operator that also needs the value in a different form from the one requested.
+     * Creates an operator that also transforms the requested value before it is bound.
      *
      * @param symbol how the operator is spelled in a request
-     * @param serializer turns a property reference and a bind variable reference into a JCR-SQL2 condition
-     * @param valuePreparation puts the requested value into the form this operator compares against
+     * @param serializer writes the JCR-SQL2 condition from a property reference and a bind variable reference
+     * @param valuePreparation turns the requested value into the form this operator compares against
      */
     Operator(final String symbol, final BinaryOperator<String> serializer,
         final UnaryOperator<String> valuePreparation)
@@ -143,9 +142,9 @@ enum Operator
     }
 
     /**
-     * Whether the operator stands on its own, without comparing against a value, like {@code IS NULL}.
+     * Whether the operator takes no value, as {@code IS NULL} does.
      *
-     * @return {@code true} if the operator doesn't need a value
+     * @return {@code true} if the operator takes no value
      */
     boolean isValueless()
     {
@@ -153,11 +152,11 @@ enum Operator
     }
 
     /**
-     * Serializes a condition applying this operator.
+     * Writes a condition applying this operator.
      *
-     * @param property the property reference to compare, e.g. {@code n.[status]}
-     * @param variable a reference to the bind variable holding the value to compare against, e.g. {@code $p0},
-     *            ignored by valueless operators
+     * @param property the property reference to compare, such as {@code n.[createdBy]}
+     * @param variable the bind variable holding the value to compare against, such as {@code $p0}; ignored by an
+     *            operator that takes no value
      * @return a JCR-SQL2 condition
      */
     String apply(final String property, final String variable)
@@ -166,8 +165,8 @@ enum Operator
     }
 
     /**
-     * Puts a requested value into the form this operator compares against. For most operators that is the value
-     * itself. It is applied to what gets bound; the statement never holds the value.
+     * Turns a requested value into the form this operator compares against. For most operators that is the value
+     * itself.
      *
      * @param value the value as it was requested
      * @return the value to bind
@@ -180,8 +179,8 @@ enum Operator
     /**
      * Converts the comparator sent in a request into an operator.
      *
-     * @param symbol the requested comparator, may be {@code null}
-     * @return the matching operator, or {@link #EQ} if the symbol isn't a supported comparator
+     * @param symbol the requested comparator, such as {@code ILIKE}; {@code null} if none was sent
+     * @return the matching operator; {@link #EQ} if the symbol names none
      */
     static Operator parse(final String symbol)
     {
@@ -194,10 +193,10 @@ enum Operator
     }
 
     /**
-     * Lowercases a value for the case-insensitive operators.
+     * Lowercases a value for the operators that ignore case.
      *
      * @param value the value to lowercase
-     * @return the value in lowercase
+     * @return the value in lower case
      */
     private static String lowercase(final String value)
     {

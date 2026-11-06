@@ -28,9 +28,8 @@ import javax.jcr.query.Query;
  * A JCR-SQL2 statement and the values of the bind variables it names.
  *
  * <p>
- * A generated statement carries no caller value. The search text is bound, never written into a string literal.
- * Such a statement depends on the shape of a request, not its content. Log the statement, not the bindings. A
- * statement the caller sent whole carries its own values and binds nothing.
+ * A statement this module builds writes no value from the request into its text. Every value is bound. Log the
+ * statement, never the bindings, which hold what the user typed. A statement the client sent whole binds nothing.
  * </p>
  *
  * @param statement the statement, which may name bind variables
@@ -47,7 +46,7 @@ record BoundStatement(String statement, Map<String, String> bindings)
      *
      * @param session the session to create the query in
      * @return a query ready to execute
-     * @throws RepositoryException if the statement is invalid, or names a variable with no value here
+     * @throws RepositoryException if the statement is invalid
      */
     Query createQuery(final Session session) throws RepositoryException
     {
@@ -55,12 +54,12 @@ record BoundStatement(String statement, Map<String, String> bindings)
     }
 
     /**
-     * Creates the query that reports this statement's plan instead of running it. The values are bound here too.
-     * A statement with unbound variables does not run, and its plan comes back empty.
+     * Creates the query that reports this statement's plan instead of running it. The values are bound here too:
+     * the explain of a statement with an unbound variable fails, as running the statement would.
      *
      * @param session the session to plan the query in
-     * @return a query that, executed, yields the plan
-     * @throws RepositoryException if the decorated statement is invalid
+     * @return a query whose single row holds the plan
+     * @throws RepositoryException if the statement is invalid
      */
     Query explain(final Session session) throws RepositoryException
     {

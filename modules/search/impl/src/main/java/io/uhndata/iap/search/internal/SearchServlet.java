@@ -57,50 +57,47 @@ import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.PaginatedJsonResponse;
 
 /**
- * A servlet running a query and returning the results as JSON. It is registered on the {@code data/Search} resource
- * type with the {@code json} extension, so it serves {@code /search.json}.
+ * Searches the repository and returns the results as JSON. It is registered on the {@code data/Search} resource type
+ * with the {@code json} extension, so it serves {@code /search.json}.
  *
  * <p>
- * What to look for is taken from the request parameters, one of:
+ * One of these parameters says what to look for:
  * </p>
  * <ul>
- * <li>{@code query}, a full query in the JCR-SQL2 syntax</li>
- * <li>{@code fulltext}, a text to look for anywhere in the content, Oak's own {@code /jcr:system} bookkeeping and
- * the {@code /SystemWorkflows} excepted</li>
- * <li>{@code quick}, a text to be matched by the registered
- * {@link QuickSearchEngine quick search engines}</li>
+ * <li>{@code query}: a JCR-SQL2 statement.</li>
+ * <li>{@code fulltext}: a text to look for anywhere in the content, except in Oak's own {@code /jcr:system} and in
+ * {@code /SystemWorkflows}.</li>
+ * <li>{@code quick}: a text for the registered {@link QuickSearchEngine quick search engines} to match.</li>
  * </ul>
  *
  * <p>
- * If more than one of these is sent, the first one, in the order above, that is not empty is used and the others are
- * ignored. If none is sent, an empty result is returned. The other parameters are:
+ * If more than one is sent, the first that is not blank, in the order above, is used. If none is sent, the result is
+ * empty. The other parameters are:
  * </p>
  * <ul>
- * <li>{@code offset}, {@code limit}, {@code resourceSelectors} and {@code req}: as for every paginated response, see
- * {@link PaginatedJsonResponse}</li>
- * <li>{@code rawResults=true}: return the columns the query selected, as they are, instead of serializing the nodes
- * the query matched; only meaningful together with {@code query}, and used whether or not it was asked for when the
- * query reports on itself, which leaves no nodes to serialize</li>
- * <li>{@code doNotEscapeQuery=true}: treat the {@code fulltext} input as a full-text expression written by the user,
- * operators and all, instead of as a text to be found verbatim</li>
- * <li>{@code allowedResourceTypes}: repeatable, the node types a {@code quick} search may return; by default every
- * type the registered engines can search</li>
+ * <li>{@code offset}, {@code limit}, {@code resourceSelectors} and {@code req}, as for every paginated response; see
+ * {@link PaginatedJsonResponse}.</li>
+ * <li>{@code rawResults=true}: return the columns the query selected instead of the matched nodes, for a
+ * {@code query} or a {@code fulltext} search. A query that reports on itself matches no nodes, and always gets raw
+ * results.</li>
+ * <li>{@code doNotEscapeQuery=true}: read {@code fulltext} as a full-text expression, operators and all, instead of
+ * as a text to find as it is.</li>
+ * <li>{@code allowedResourceTypes}: repeatable, the node types a {@code quick} search may return; by default, every
+ * type the registered engines can search.</li>
  * </ul>
  *
  * <p>
- * The query runs in the session of the user making the request. A search never returns content that user could not
- * read anyway.
+ * The query runs in the session of the user making the request, so a search returns only what that user may read.
  * </p>
  *
  * <p>
- * {@code GET} and {@code POST} serve the same search, with the parameters read the same way from the query string or
- * from a form-encoded body. A search changes nothing. {@code POST} is offered because search terms can be as
- * sensitive as what they find, and a query string is written to access logs and kept in browser history.
+ * {@code GET} and {@code POST} run the same search, with the parameters in the query string or in a form-encoded
+ * body. A search changes nothing. {@code POST} keeps the search terms out of access logs and browser history.
  * </p>
  *
  * <p>
- * A {@code query} may name a referenced node by its path where the UUID it holds is expected, for example
- * {@code a.question = '/Schemas/Consent/1.0/hasCapacity'}; see {@link QueryPathResolver}. It may also start with
+ * A {@code query} may name a referenced node by its path where the property holds a UUID, as in
+ * {@code a.question = '/Schemas/consent/v1/hasCapacity'}; see {@link QueryPathResolver}. It may also start with
  * {@code explain} or {@code measure}, which report on the query instead of running it.
  * </p>
  *
@@ -108,8 +105,8 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
  * @since 0.1.0
  */
 @Component(service = { Servlet.class })
-// The extension is required. Without it this registers as GET.servlet, and Sling's default renderer takes
-// .json requests: the search node serializes itself instead of answering the query.
+// The extension is required. Without it the servlet registers as GET.servlet, and Sling's default JSON renderer
+// answers /search.json with the search node itself.
 @SlingServletResourceTypes(resourceTypes = { "data/Search" }, methods = { "GET", "POST" },
     extensions = { "json" })
 public class SearchServlet extends SlingJakartaAllMethodsServlet
@@ -122,41 +119,34 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     private static final String NODE_SELECTOR = "n";
 
     /**
-     * The tree Oak keeps its own bookkeeping in, left out of a generated search.
-     *
-     * <p>
-     * Much of it is a copy of content that is searchable anyway. Checking a node in leaves a frozen copy of all its
-     * properties under {@code /jcr:system/jcr:versionStorage}, so a submission edited twenty times would answer a
-     * search for its own text twenty-one times over. The node type registry puts every property definition it
-     * declares in front of a search for an ordinary word. None of these paths is one the client can use.
-     * </p>
+     * The tree Oak keeps its own records in, such as version storage and the node type registry. A full-text search
+     * leaves it out.
      */
     private static final String SYSTEM_TREE = "/jcr:system";
 
     /**
-     * The tree the platform keeps its own behaviour in, also left out of a generated search. Everyone may read the
-     * system workflows, since a user interface offers actions from them, but they are machinery rather than content:
-     * their labels, such as "Create the workflow", would answer searches for the words people look for content by.
+     * The system workflows, which define how the platform handles its own content. A full-text search leaves them
+     * out.
      */
     private static final String SYSTEM_WORKFLOWS = "/SystemWorkflows";
 
     /**
-     * Keeps a generated statement out of the {@link #SYSTEM_TREE} and the {@link #SYSTEM_WORKFLOWS}. Each tree's own
-     * node is named separately from its descendants: {@code isdescendantnode} does not match the node itself, and
-     * {@code /jcr:system} carries a primary type that answers a search for "system".
+     * Keeps a full-text search out of the {@link #SYSTEM_TREE} and the {@link #SYSTEM_WORKFLOWS}. Each tree's own node
+     * is excluded as well as its descendants: {@code isdescendantnode} does not match the node itself, and
+     * {@code /jcr:system} has a primary type that answers a search for "system".
      */
     private static final String OUTSIDE_MACHINERY = outside(SYSTEM_TREE) + outside(SYSTEM_WORKFLOWS);
 
     /**
-     * The characters that mean something other than themselves in a full-text expression. The apostrophe is one of
-     * them: it opens a quoted phrase. An unescaped one leaves the full-text parser looking for a phrase that
-     * never ends. Binding does not help. The grammar is applied to whatever the variable holds.
+     * The characters with a meaning of their own in a full-text expression. The apostrophe is one: it opens a quoted
+     * phrase, as the double quote does. The grammar applies to whatever the bind variable holds, so binding does not
+     * make escaping unnecessary.
      */
     private static final Pattern FULL_TEXT_SPECIAL = Pattern.compile("([\\\\+\\-&|!(){}\\[\\]^\"'~*?:/])");
 
     /**
      * Matches a statement that reports on itself instead of matching nodes: {@code explain} gives the plan Oak would
-     * run, {@code measure} how much it had to scan. Either may precede any statement, and both together are allowed.
+     * run, and {@code measure} how much it had to scan. Both together are written {@code explain measure}.
      */
     private static final Pattern REPORTING_QUERY =
         Pattern.compile("^\\s*+(explain|measure)\\s", Pattern.CASE_INSENSITIVE);
@@ -164,7 +154,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     /** The bind variable a generated full-text statement holds its expression in. */
     private static final String FULL_TEXT_VARIABLE = "text";
 
-    /** Transient because a servlet is serializable and a bound service is not. SCR sets it again on activation. */
+    /** The registered quick search engines. Transient: a servlet is serializable, and a service is not. */
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
         policyOption = ReferencePolicyOption.GREEDY)
     private transient volatile List<QuickSearchEngine> searchEngines;
@@ -184,7 +174,8 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Runs the search a request asks for, whichever method it arrived by, and reports whatever it could not do.
+     * Runs the search a request asks for, whichever method it uses, and answers with an error if the query cannot
+     * run.
      *
      * @param request the current request
      * @param response the HTTP response to write into
@@ -199,8 +190,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
             JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
                 "Invalid query: " + e.getMessage());
         } catch (final IllegalArgumentException e) {
-            // What Oak raises for a query it parsed but cannot make sense of, notably a malformed full-text
-            // expression. The client sent it, so the client hears about it.
+            // What Oak throws for a malformed full-text expression, among others
             JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
                 "Invalid query: " + e.getMessage());
         } catch (final RepositoryException e) {
@@ -212,12 +202,11 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
 
     /**
      * Runs the requested search and writes the results. The query is executed before anything is written, so a query
-     * that cannot run at all is reported as an error rather than as a half-written response.
+     * that cannot run is answered with an error status.
      *
      * <p>
-     * Executing a query is not reading it. Oak hands back a lazy result set, and a read can still fail once rows are
-     * being pulled from it, by which time the beginning of the response may already have gone out. Such a failure
-     * ends the results and is reported in the summary, leaving a document the client can still parse.
+     * Oak returns a lazy result set, so reading the rows can still fail after part of the response has gone out. Such
+     * a failure ends the results and is reported in the summary, and the response stays a well-formed document.
      * </p>
      *
      * @param request the current request
@@ -242,8 +231,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
             String error = null;
             try {
                 if (found.results() != null) {
-                    // The rows of a reporting query describe the query. There is no node to serialize, and raw
-                    // output is the only rendering left
+                    // The rows of a reporting query describe the query, and hold no node to serialize
                     if (found.reporting() || "true".equals(request.getParameter("rawResults"))) {
                         writeRawResults(page, found.results());
                     } else {
@@ -253,11 +241,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
                     writeQuickResults(page, request, quick);
                 }
             } catch (final RepositoryException | RuntimeException e) {
-                // Unchecked as much as checked. A result set is lazy, and Oak signals much of what can go wrong
-                // while it is being read with an unchecked exception: a read or memory limit reached, an index
-                // failing under it. Letting one out here would abandon the response half-written, with the generator
-                // closed on an incomplete document and too much of the body already on the wire to replace it with
-                // an error status.
+                // Unchecked too: Oak reports a read or memory limit reached with an unchecked exception
                 LOGGER.warn("Failed to read the results of a search: {}", e.getMessage(), e);
                 error = "Failed to read all the results";
             }
@@ -272,7 +256,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      * {@code fulltext}.
      *
      * @param request the current request
-     * @return what the query found, with {@code null} results if the request names neither
+     * @return what the query found; its results are {@code null} if the request names neither
      * @throws RepositoryException if the query is invalid or cannot be executed
      */
     private Found runRequestedQuery(final SlingJakartaHttpServletRequest request) throws RepositoryException
@@ -282,8 +266,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
             final Session session = session(request);
             final String statement = QueryPathResolver.resolveReferencePaths(session, jcrQuery);
             final boolean reporting = REPORTING_QUERY.matcher(statement).find();
-            // Asking for the plan of a statement that is itself about a plan is either the same question again or,
-            // for an explain, not something Oak will parse
+            // A reporting query gets no plan check. Oak does not parse the explain of an explain.
             return new Found(this.runQuery(session, new BoundStatement(statement, Map.of()), !reporting), reporting);
         }
         final String fullText = request.getParameter("fulltext");
@@ -298,7 +281,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      *
      * @param request the current request
      * @return the session behind the request's resource resolver
-     * @throws RepositoryException if the resource resolver is not backed by a JCR session
+     * @throws RepositoryException if the resource resolver has no JCR session
      */
     private static Session session(final SlingJakartaHttpServletRequest request) throws RepositoryException
     {
@@ -314,15 +297,14 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      *
      * @param session the session to run the statement in
      * @param bound the statement to execute, with the values of any variables it names
-     * @param checkPlan whether to report the statement if it has no index to work with
+     * @param checkPlan whether to report the statement if it has no index to use
      * @return the query results
      * @throws RepositoryException if the statement is invalid
      */
     private QueryResult runQuery(final Session session, final BoundStatement bound, final boolean checkPlan)
         throws RepositoryException
     {
-        // Parsed first, so the error a client gets back is about the statement it sent, not about the decorated one
-        // the plan is asked for below
+        // Parsed before the plan check, so a syntax error quotes the client's statement, not the explain built on it
         final Query query = bound.createQuery(session);
         if (checkPlan) {
             QueryPlanChecker.warnIfUnindexed(session, bound);
@@ -331,35 +313,24 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Builds the statement looking for a text anywhere in the repository.
+     * Builds the statement that looks for a text in every node type, outside the {@link #SYSTEM_TREE} and the
+     * {@link #SYSTEM_WORKFLOWS}.
      *
      * <p>
-     * The text is stripped first. A full-text expression must start with a term. A leading space, which a paste or
-     * an autocompletion routinely leaves in front of what the user typed, makes the expression fail to parse and
-     * turns good input into a bad request. A trailing space, and any amount of space between the words, are already
-     * fine.
-     * </p>
-     *
-     * <p>
-     * This is the only statement in the endpoint that spans every node type, and the only one that reaches Oak's own
-     * {@link #SYSTEM_TREE bookkeeping} and the {@link #SYSTEM_WORKFLOWS system workflows}, which it is kept out of.
-     * A typed query cannot get to the bookkeeping on its own: a frozen node stores the type it was a copy of in a
-     * property and takes {@code nt:frozenNode} as its own, so it never matches the type its original would.
+     * The text is stripped first, since a full-text expression must start with a term.
      * </p>
      *
      * @param request the current request
      * @param query the text to look for, not blank
-     * @return a JCR-SQL2 statement
+     * @return the JCR-SQL2 statement, with the expression bound
      */
     private BoundStatement fullTextStatement(final SlingJakartaHttpServletRequest request, final String query)
     {
         final String text = query.strip();
-        // Whether the input is a full-text expression the user wrote, or a text to be found as it is
+        // Whether to find the text as it is, rather than read it as a full-text expression
         final boolean verbatim = !"true".equals(request.getParameter("doNotEscapeQuery"));
-        // The full-text grammar is applied to whatever the variable holds, so escaping it is still this method's
-        // job. What binding takes away is the layer around that one: the expression is no longer written into a
-        // string literal, so there is no longer a literal for a quote to close and a client to continue past --
-        // which is what makes doNotEscapeQuery safe to offer rather than safe only while one escape stays correct.
+        // The expression is bound, never written into a string literal, so even an unescaped one cannot end the
+        // literal and continue the statement
         final String expression = verbatim ? FULL_TEXT_SPECIAL.matcher(text).replaceAll("\\\\$1") : text;
         return new BoundStatement(
             String.format("select %1$s.* from [nt:base] as %1$s where contains(%1$s.*, $%2$s)%3$s", NODE_SELECTOR,
@@ -368,7 +339,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * The condition keeping the matched node out of a tree, the tree's own node included.
+     * The condition that keeps the matched node out of a tree, the tree's own node included.
      *
      * @param tree the path of the tree's root
      * @return a condition to append to a statement's {@code where} clause
@@ -392,15 +363,15 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     {
         final String selectors = PaginatedJsonResponse.getResourceSelectors(request);
         final ResourceResolver resolver = request.getResourceResolver();
-        // Asking a row for a path without naming a selector throws as soon as the query has more than one, which a
-        // join always has. The first selector is the node the query is about.
+        // Asking a row for a path without naming a selector throws when the query has more than one, as every join
+        // has. The first selector is the node the query is about.
         final String[] selectorNames = results.getSelectorNames();
         final String selector = selectorNames.length <= 1 ? null : selectorNames[0];
         final RowIterator rows = results.getRows();
         boolean more = true;
         while (rows.hasNext() && more) {
             // The path alone is cheaper than loading the node. A join returns the same node once per matching
-            // combination, and many of the paths read here are duplicates the page drops.
+            // combination, and the page drops the duplicates.
             final String path = readPath(rows.nextRow(), selector);
             if (path == null) {
                 continue;
@@ -410,13 +381,13 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Reads the path of the node a result row is about. One unreadable row is not a reason to fail the whole search,
-     * so it is left out and the rest of the results are returned.
+     * Reads the path of the node a result row is about. A row whose path cannot be read is left out, and the search
+     * goes on.
      *
      * @param row the row to read
-     * @param selector the name of the selector holding the node, or {@code null} when the query has only one
-     * @return the path of the matched node, or {@code null} if the row has no node to return, either because it
-     *         cannot be read or because the selector matched nothing, as an outer join allows
+     * @param selector the name of the selector holding the node; {@code null} if the query has only one
+     * @return the path of the matched node; {@code null} if the row cannot be read, or if the selector matched
+     *         nothing, as an outer join allows
      */
     private String readPath(final Row row, final String selector)
     {
@@ -430,14 +401,13 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
 
     /**
      * Writes the query results as they are: one object per row, holding the path of each selector and the value of
-     * each column the query asked for. A client that only needs a few properties, or the result of an aggregation,
-     * uses this instead of paying for the serialization of whole nodes.
+     * each column the query selected.
      *
      * <p>
-     * The columns are read <em>after</em> the rows, and the order is load-bearing. For a query that reports on
-     * itself, Oak answers {@code getColumnNames()} with the columns of the statement being reported on until the rows
-     * have been asked for, and only then with the ones its rows actually hold. Asking first yields names no row has a
-     * value for, which drops every row.
+     * The columns are read <em>after</em> the rows. For a query that reports on itself, Oak's
+     * {@code getColumnNames()} names the columns of the statement being reported on until the rows have been asked
+     * for. Only then does it name the columns its rows hold. No row has a value for the first set, and every row
+     * would be dropped.
      * </p>
      *
      * @param page the paginator for the requested page
@@ -453,25 +423,18 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
         boolean more = true;
         while (rows.hasNext() && more) {
             final Row row = rows.nextRow();
-            // The client asked for rows. Unlike two whole nodes, two identical rows are not a duplicate to drop:
-            // the query may have meant to return both.
+            // No duplicate check: two identical rows may both be meant
             more = page.offer(null, () -> RawResultSerializer.serialize(row, selectors, columns));
         }
     }
 
     /**
-     * Writes the matches found by the quick search engines. Every engine that can search at least one of the
-     * requested node types is asked, until enough results have been collected.
+     * Writes the matches found by the quick search engines. It asks each engine that supports a requested node type,
+     * until the page wants no more results. Several engines can search the same type.
      *
      * <p>
-     * A node type may be searched by more than one engine, and every one of them is asked. Engines are an extension
-     * point, not a partition of the content: two of them can know different things about the same type, one matching
-     * a submission's own answers and another the text extracted from the files attached to it.
-     * </p>
-     *
-     * <p>
-     * The results are not deduplicated against each other, and cannot be: an engine returns a serialized match rather
-     * than the path of one, so there is nothing here to compare. Two engines that find the same node both report it.
+     * An engine returns serialized matches, not paths, so the matches of different engines are not compared. Two
+     * engines that find the same node both report it.
      * </p>
      *
      * @param page the paginator for the requested page
@@ -491,9 +454,8 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
             if (page.isFull()) {
                 break;
             }
-            // An engine is code this module knows nothing about. Every call into one is inside this guard, the type
-            // questions as much as the search itself, so a misbehaving engine costs its own results and not the
-            // whole response.
+            // Every call into an engine is inside this guard, the questions about its types included, so a failing
+            // engine loses only its own results
             try {
                 askEngine(page, request, query, engine, requested);
             } catch (final RuntimeException e) {
@@ -509,7 +471,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      * @param request the current request
      * @param query the text to look for
      * @param engine the engine to ask
-     * @param requested the node types the client restricted the search to, or {@code null} for no restriction
+     * @param requested the node types the client restricted the search to; {@code null} for no restriction
      */
     private void askEngine(final PaginatedJsonResponse page, final SlingJakartaHttpServletRequest request,
         final String query, final QuickSearchEngine engine, final String[] requested)
@@ -528,16 +490,13 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
             .build();
         QuickSearchEngine.Results results = null;
         try {
-            // The method is declared never to return null. An engine that returns one anyway is broken, and the
-            // NullPointerException lands in the same guard as every other way of misbehaving.
+            // An engine that returns null fails here with a NullPointerException, caught with its other failures
             results = engine.quickSearch(context);
             boolean more = true;
             while (results.hasNext() && more) {
                 more = page.offer(null, results::next, results::skip);
             }
         } finally {
-            // Closed whether the results were read to the end or not. Stopping early is the ordinary outcome for a
-            // search with more matches than fit on a page, and an engine holding a session needs to hear about it.
             close(engine, results);
         }
     }
@@ -546,7 +505,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      * Releases an engine's results, whatever happened while they were being read.
      *
      * @param engine the engine the results came from, for the log message
-     * @param results the results to release, may be {@code null} if the engine never returned any
+     * @param results the results to release; {@code null} if the engine returned none
      */
     private static void close(final QuickSearchEngine engine, final QuickSearchEngine.Results results)
     {
@@ -566,9 +525,9 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      *
      * @param resolver the current resource resolver
      * @param path the path of the node to serialize
-     * @param selectors the extra serialization selectors requested by the client, may be an empty string
-     * @return the serialized node, or {@code null} if it cannot be serialized; such nodes are left out of the
-     *         response, though they still count towards the reported total
+     * @param selectors the extra serialization selectors the client asked for, such as {@code .deep}; empty for none
+     * @return the serialized node; {@code null} if it cannot be serialized, and then it is left out of the page but
+     *         still counted
      */
     private JsonObject serializeNode(final ResourceResolver resolver, final String path, final String selectors)
     {
@@ -583,8 +542,8 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     /**
      * What the query a request names found.
      *
-     * @param results the rows, or {@code null} if the request names no query
-     * @param reporting whether the query is a reporting query, whose rows describe the query itself rather than nodes
+     * @param results the rows; {@code null} if the request names no query
+     * @param reporting whether the query reports on itself, so that its rows describe the query and not nodes
      * @version $Id$
      * @since 0.1.0
      */

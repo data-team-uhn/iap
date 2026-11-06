@@ -44,9 +44,9 @@ import io.uhndata.iap.utils.summary.AdminSummaryServlet;
 import io.uhndata.iap.utils.summary.SummaryUnavailableException;
 
 /**
- * Counts what an entity homepage holds, for an administration dashboard widget.
- * {@code GET /Workflows.adminSummary.json} answers with one figure per homepage of the same kind that the caller can
- * read, the queried one first.
+ * Counts the entities an entity homepage holds, for a widget on the administration dashboard.
+ * {@code GET /Workflows.adminSummary.json} answers with one figure for each homepage of the same kind that the caller
+ * can read, the queried one first.
  *
  * <p>
  * The answer is keyed by homepage path:
@@ -55,7 +55,7 @@ import io.uhndata.iap.utils.summary.SummaryUnavailableException;
  * {@snippet lang=json :
  * {
  *   "/Workflows": {"label": "Workflows", "value": 12, "path": "/Workflows"},
- *   "/SystemWorkflows": {"label": "System workflows", "value": 8, "approximate": true, "path": "/SystemWorkflows"}
+ *   "/SystemWorkflows": {"label": "System workflows", "value": 8, "path": "/SystemWorkflows"}
  * }
  * }
  *
@@ -69,8 +69,8 @@ import io.uhndata.iap.utils.summary.SummaryUnavailableException;
  * </p>
  *
  * <p>
- * A homepage that cannot be counted keeps its figure, with a {@code null} value. The summary fails only when none
- * can be.
+ * A homepage that cannot be counted keeps its figure, with a {@code null} value. The summary fails only if none can
+ * be counted.
  * </p>
  *
  * @version $Id$
@@ -109,7 +109,7 @@ public class EntityHomepageSummaryServlet extends AdminSummaryServlet
             childType = QueryBuilder.childNodeType(homepage);
             peers = peers(resolver, homepage.getPath(), childType);
         } catch (final RuntimeException e) {
-            // A homepage naming an invalid child type, or Oak hitting a read limit while the homepages are walked
+            // A homepage naming an invalid child type, or Oak reaching a read limit while the homepages are read
             throw new SummaryUnavailableException(UNCOUNTABLE_MESSAGE, e);
         }
         final JsonObjectBuilder summary = Json.createObjectBuilder();
@@ -120,8 +120,8 @@ public class EntityHomepageSummaryServlet extends AdminSummaryServlet
                 figure = describe(peer, childType, session);
                 anyCounted = true;
             } catch (final RepositoryException | RuntimeException e) {
-                // One homepage failing to count loses only its own figure. Oak reports a read or memory limit
-                // with an unchecked exception while the rows are walked.
+                // A homepage that fails to count loses only its own figure. Oak reports a read or memory limit
+                // reached with an unchecked exception.
                 LOGGER.warn("Failed to count the entities in {}: {}", peer.getPath(), e.getMessage(), e);
                 figure = unknown(title(peer));
             }
@@ -163,7 +163,7 @@ public class EntityHomepageSummaryServlet extends AdminSummaryServlet
      * @param homepage the homepage to count
      * @param childType the node type to count under it
      * @param session the caller's own session, so entities they cannot read go uncounted
-     * @return a JSON object builder holding the figure
+     * @return the figure, as a JSON object builder
      * @throws RepositoryException if the count query cannot be run
      */
     private static JsonObjectBuilder describe(final Resource homepage, final String childType,

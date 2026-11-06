@@ -30,10 +30,10 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
- * Reports a search that has no index to work with and will walk the repository instead.
+ * Reports a search that has no index to use, and walks the repository instead.
  *
  * <p>
- * Diagnostic only. Nothing here fails a request the repository would have served.
+ * It only reports. Nothing here fails a request the repository would have served.
  * </p>
  *
  * @version $Id$
@@ -42,9 +42,9 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 final class QueryPlanChecker
 {
     /**
-     * What an unindexed query is recorded as. The phrase is fixed in code, never built from the statement. The
-     * component, the operation and this phrase decide whether two records are the same fault. A statement here would
-     * mint a permanent record per distinct search.
+     * The phrase an unindexed query is recorded under. Two records are the same fault if their component, operation
+     * and phrase match. The phrase never quotes the statement, or each distinct search would leave a record of its
+     * own.
      */
     static final String UNINDEXED_PROBLEM = "A search query has no index to use and walks the repository";
 
@@ -55,16 +55,12 @@ final class QueryPlanChecker
 
     private QueryPlanChecker()
     {
-        // Utility class, not to be instantiated
+        // Utility class
     }
 
     /**
-     * Logs a warning if the query has no index to work with. Oak logs its own traversal warnings, but only once the
-     * read is under way, and without naming the request that asked.
-     *
-     * <p>
-     * This plans the query a second time. A plan is cheap next to the traversal it reports.
-     * </p>
+     * Logs a warning and records a problem if the query has no index to use. This plans the query a second time,
+     * which is cheap next to the traversal it reports.
      *
      * @param session the session to plan the query in
      * @param bound the statement about to be executed, already known to parse
@@ -80,8 +76,7 @@ final class QueryPlanChecker
             if (columns.length > 0 && Strings.CI.contains(columns[0].getString(), "traverse")) {
                 LOGGER.warn("The search query [{}] has no index to use and will walk the repository: {}",
                     forLog(bound.statement()), columns[0].getString());
-                // A problem, not a failure: the query is served. Recorded as well as logged because a missing index
-                // is a standing fact about the instance, and the statements collected here say which index to add.
+                // A problem, not a failure: the query is served. The recorded statements say which index to add.
                 ErrorLogger.logProblem(UNINDEXED_PROBLEM,
                     ErrorContext.of(QueryPlanChecker.class, "checkQueryPlan")
                         .actingFor(session.getUserID())
@@ -89,19 +84,16 @@ final class QueryPlanChecker
                         .with("plan", columns[0].getString()));
             }
         } catch (final RepositoryException | RuntimeException e) {
-            // Everything here is diagnostics; never fail a request the repository would have served. The unchecked
-            // exceptions matter as much as the repository's own: a malformed full-text expression reaches the
-            // repository's parser as an IllegalArgumentException, and a request that only asks for a plan it cannot
-            // have is still a request that can be answered.
+            // Unchecked too: Oak throws an IllegalArgumentException for a malformed full-text expression. A plan
+            // that cannot be had fails nothing.
             LOGGER.debug("Could not obtain the plan of the search query [{}]: {}", forLog(bound.statement()),
                 e.getMessage(), e);
         }
     }
 
     /**
-     * Prepares a statement for a log message. A statement the client sent whole is logged as it is. A line break in
-     * it would let a client write log entries of its own choosing. A generated statement carries nothing the user
-     * typed. Only the length cap applies to one.
+     * Prepares a statement for a log message. A client can send a whole statement, and a line break in it would let
+     * the client write log entries of its own.
      *
      * @param statement the statement to log
      * @return the statement on a single line, no longer than {@value #MAX_LOGGED_STATEMENT} characters

@@ -104,13 +104,13 @@ public class SearchServletTest
 
     private static final String SCHEMA_UUID = "d1f5a0e2-4b0a-4a3a-9f6b-0c2d1e3f4a5b";
 
-    /** The statement a full-text search generates, whatever the caller sent: the text is bound. */
+    /** The statement every full-text search generates. The text is bound, and does not change it. */
     private static final String FULL_TEXT_QUERY =
         "select n.* from [nt:base] as n where contains(n.*, $text)";
 
     /**
-     * The exclusions every generated full-text statement carries.
-     * {@link #aFullTextSearchStaysOutOfTheMachinery()} spells them out in full instead of using this.
+     * The exclusions every full-text statement carries. {@link #aFullTextSearchStaysOutOfTheMachinery()} spells
+     * them out instead of using this.
      */
     private static final String OUTSIDE_MACHINERY =
         " and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')"
@@ -215,7 +215,7 @@ public class SearchServletTest
     @Test
     public void aPostReportsAnInvalidQueryTheSameWay() throws Exception
     {
-        // An error answers before any result is written, which is where a shared handler is easiest to get wrong
+        // An error is answered before any result is written
         withParameter(QUERY, "this is not a query");
         Mockito.when(this.queryManager.createQuery(Mockito.anyString(), Mockito.eq(Query.JCR_SQL2)))
             .thenThrow(new InvalidQueryException("Syntax error"));
@@ -251,8 +251,6 @@ public class SearchServletTest
     @Test
     public void aQueryMayNameAReferencedNodeByItsPath() throws Exception
     {
-        // A reference property holds a UUID, and a UUID differs between instances. A statement kept in the sources
-        // names its target by path.
         withReferenceProperty();
         withReferencedNode(SCHEMA_PATH, SCHEMA_UUID);
         withParameter(QUERY, "select * from [sub:Answer] as a where a.question = '" + SCHEMA_PATH + "'");
@@ -276,8 +274,6 @@ public class SearchServletTest
     @Test
     public void anExplainQueryReturnsThePlanItAskedFor() throws Exception
     {
-        // Such a row is about the query, not about a node. Asking it for a path fails, and the columns the result
-        // set declares are the ones the explained statement would have returned, which the row does not hold.
         withParameter(QUERY, EXPLAIN_QUERY);
         mockReportingResults(Map.of("plan", "[sub:Submission] as [n] /* traverse */",
             "statement", SUBMISSION_QUERY));
@@ -301,7 +297,6 @@ public class SearchServletTest
     @Test
     public void aReportingQueryNeedsNoRawResultsParameter() throws Exception
     {
-        // A reporting query has no nodes to serialize, so the raw output is the only rendering there is
         withParameter(QUERY, EXPLAIN_QUERY);
         withParameter("rawResults", "false");
         mockReportingResults(Map.of("plan", "p", "statement", SUBMISSION_QUERY));
@@ -312,8 +307,6 @@ public class SearchServletTest
     @Test
     public void aReportingQueryIsNotAskedForAPlanOfItsOwn() throws Exception
     {
-        // An explain in front of a client's explain is not a statement Oak parses, and the plan of a measure is the
-        // plan it already reports on
         withParameter(QUERY, EXPLAIN_QUERY);
         mockReportingResults(Map.of("plan", "p", "statement", SUBMISSION_QUERY));
         this.servlet.doGet(this.request, this.response);
@@ -323,8 +316,6 @@ public class SearchServletTest
     @Test
     public void theColumnsOfAReportOnlyArriveOnceItsRowsHaveBeenAskedFor() throws Exception
     {
-        // Reading the columns before the rows names the ones the reported-on statement would have returned. No row
-        // of the report holds those, and every row is then dropped for a column it cannot produce.
         withParameter(QUERY, EXPLAIN_QUERY);
         mockReportingResults(Map.of("plan", "p", "statement", SUBMISSION_QUERY));
         this.servlet.doGet(this.request, this.response);
@@ -438,9 +429,6 @@ public class SearchServletTest
     @Test
     public void aFullTextSearchStaysOutOfTheMachinery() throws Exception
     {
-        // /jcr:system holds the frozen copies left by checking a versionable node in, and the node type registry,
-        // which answers an ordinary word with every property definition declaring it. /SystemWorkflows is readable
-        // by everyone, but it is how the platform behaves, not content anybody searches for
         withParameter("fulltext", TERM);
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
@@ -453,8 +441,6 @@ public class SearchServletTest
     @Test
     public void aQueryIsRunAsItWasSentEvenIntoTheSystemTree() throws Exception
     {
-        // The exclusion goes into the statement this endpoint builds, not into one the client wrote. A client
-        // naming version storage in its own JCR-SQL2 asked for it on purpose.
         withParameter(QUERY, "select * from [nt:frozenNode]");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
@@ -464,9 +450,8 @@ public class SearchServletTest
     @Test
     public void thePlanIsAskedForWithTheValuesBoundAsWell() throws Exception
     {
-        // A statement naming a variable with no value does not run at all, so a plan asked for without the values
-        // would fail for every generated query -- and fail silently, since a plan that cannot be had is only logged
-        // at debug level, leaving the traversal warning this whole check exists for to simply never fire again
+        // An explain with an unbound variable fails, and the plan check logs that only at debug level. The
+        // traversal warning would never fire.
         withParameter("fulltext", TERM);
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
@@ -476,8 +461,6 @@ public class SearchServletTest
     @Test
     public void aFullTextSearchIgnoresSurroundingWhitespace() throws Exception
     {
-        // A full-text expression has to start with a term. A leading space, which a paste routinely leaves in front
-        // of what the user typed, makes the whole request a bad one.
         withParameter("fulltext", "  diabetes \t");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
@@ -508,8 +491,7 @@ public class SearchServletTest
     @Test
     public void aQuoteCannotReachTheStatementAtAll() throws Exception
     {
-        // Even when the client asks for its full-text operators to be kept. Binding removes the string literal. A
-        // quote has nothing left to end, and the apostrophe reaches the full-text parser as the client sent it.
+        // Even with the full-text operators kept, the apostrophe is bound as sent and has no literal to end
         withParameter("fulltext", "it's");
         withParameter("doNotEscapeQuery", "true");
         mockNodeResults();
@@ -536,7 +518,7 @@ public class SearchServletTest
         withParameter(QUERY, "select * from [nt:base]");
         mockNodeResults(SUBMISSION_PATH);
         this.servlet.doGet(this.request, this.response);
-        // The query still runs, the warning is only a warning
+        // The query still runs
         Assertions.assertEquals(1, getResponseJson().getJsonArray(ROWS).size());
     }
 
@@ -567,7 +549,7 @@ public class SearchServletTest
     @Test
     public void anIndexedQueryRecordsNothing() throws Exception
     {
-        // The negative control for the above: without it, a recorder that fired on every query would pass
+        // Without this, a recorder that fired on every query would pass the test above
         withParameter(QUERY, SUBMISSION_QUERY);
         mockNodeResults(SUBMISSION_PATH);
         final ErrorLoggerService recorder = recordInto();
@@ -763,8 +745,6 @@ public class SearchServletTest
     @Test
     public void aJoinReadsThePathOfTheFirstSelector() throws Exception
     {
-        // Asking a row for its path without naming a selector throws as soon as the query has more than one, which
-        // every join has
         withParameter(QUERY, "select * from [sub:Submission] as a inner join [sub:Review] as b on"
             + " isdescendantnode(b, a)");
         mockJoinResults("a", SUBMISSION_PATH, SUBMISSION_PATH, "/Submissions/s2");
@@ -783,7 +763,7 @@ public class SearchServletTest
         mockNodeResults(SUBMISSION_PATH, null, "/Submissions/s2");
         this.servlet.doGet(this.request, this.response);
         final JsonObject result = getResponseJson();
-        // The unreadable row is left out, and the rest of the results are still served
+        // The unreadable row is left out, and the rest are served
         Assertions.assertEquals(2, result.getJsonArray(ROWS).size());
         Assertions.assertEquals(2, result.getInt(TOTAL));
     }
@@ -804,7 +784,6 @@ public class SearchServletTest
     @Test
     public void aBinaryColumnIsNotReadIntoTheResponse() throws Exception
     {
-        // Reading a binary as a string reads all of it, and a statement may select the data of every file there is
         withParameter(QUERY, "select f.[jcr:data] from [nt:resource] as f");
         withParameter("rawResults", "true");
         final Row row = Mockito.mock(Row.class);
@@ -826,8 +805,7 @@ public class SearchServletTest
     @Test
     public void aColumnWithNoValueIsStillNull() throws Exception
     {
-        // The counterpart of the placeholder above: a column with no value stays distinguishable from one holding a
-        // binary
+        // A column with no value stays distinct from one holding a binary
         withParameter(QUERY, "select f.category from [sub:Submission] as f");
         withParameter("rawResults", "true");
         final Row row = Mockito.mock(Row.class);
@@ -858,7 +836,7 @@ public class SearchServletTest
         mockResults(rows, new String[] { "n" }, new String[] { "n.jcr:path" });
 
         this.servlet.doGet(this.request, this.response);
-        // Whatever was read before the failure is still a response the client can parse, and it says it is partial
+        // What was read before the failure is still well-formed JSON, and says it is partial
         final JsonObject result = getResponseJson();
         Assertions.assertEquals(1, result.getJsonArray(ROWS).size());
         Assertions.assertTrue(result.getBoolean("partial"));
@@ -868,7 +846,7 @@ public class SearchServletTest
     @Test
     public void aQueryTheRepositoryCannotMakeSenseOfIsABadRequest() throws Exception
     {
-        // What Oak raises for a full-text expression it parsed but cannot interpret
+        // What Oak throws for a malformed full-text expression
         withParameter(QUERY, "select * from [nt:base] as n where contains(n.*, '\"')");
         mockNodeResults();
         Mockito.when(this.queryManager.createQuery(Mockito.anyString(), Mockito.eq(Query.JCR_SQL2)))
@@ -880,8 +858,6 @@ public class SearchServletTest
     @Test
     public void anApostropheIsEscapedOutOfTheFullTextExpression() throws Exception
     {
-        // An apostrophe opens a quoted phrase for the full-text parser. Binding does not help. The grammar is
-        // applied to whatever the variable holds, and the escaping that parser needs is still done here.
         withParameter("fulltext", "'tis");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
@@ -908,8 +884,7 @@ public class SearchServletTest
     @Test
     public void anEngineReturningNoResultsAtAllIsPassedOver() throws Exception
     {
-        // The SPI declares the results never null. An engine returning one is broken, and lands in the same guard as
-        // any other misbehaviour.
+        // The SPI declares the results never null
         withParameter("quick", TERM);
         final QuickSearchEngine broken = Mockito.mock(QuickSearchEngine.class);
         Mockito.when(broken.getSupportedTypes()).thenReturn(List.of(SUBMISSION));
@@ -945,8 +920,6 @@ public class SearchServletTest
     @Test
     public void resultsAreClosedEvenWhenNotReadToTheEnd() throws Exception
     {
-        // Stopping early happens for any search with more matches than fit on a page, not only when the results run
-        // out
         withParameter("quick", TERM);
         withParameter("limit", "1");
         // More matches than the paginator counts for a page this size, so the reading stops part-way
@@ -984,7 +957,6 @@ public class SearchServletTest
     @Test
     public void aTypeIsSearchedByEveryEngineThatClaimsIt() throws Exception
     {
-        // Two engines can know different things about one type. Both are asked, and both sets of matches come back.
         withParameter("quick", TERM);
         final StubEngine first = new StubEngine(List.of(SUBMISSION), "found");
         final StubEngine second = new StubEngine(List.of(SUBMISSION), "found again");
@@ -1032,8 +1004,7 @@ public class SearchServletTest
     @Test
     public void anEngineSearchesThroughTheRequestingUsersResolver() throws Exception
     {
-        // A quick search's whole access control: an engine reads through the resolver the context carries, and it
-        // has to be the requesting user's
+        // An engine's access control is the resolver it reads through
         withParameter("quick", TERM);
         final StubEngine engine = new StubEngine(List.of(SUBMISSION), "found");
         withEngines(engine);
@@ -1043,7 +1014,7 @@ public class SearchServletTest
     }
 
     /**
-     * The statement the servlet actually ran, as opposed to the decorated one it asked the plan for.
+     * The statement the servlet ran, not the explain it asked for the plan with.
      *
      * @return a JCR-SQL2 statement
      */
@@ -1134,9 +1105,8 @@ public class SearchServletTest
     }
 
     /**
-     * Mocks the query infrastructure for a statement that reports on itself: one row carrying the given columns,
-     * and nothing that would answer a request for a path or for a declared column, as Oak behaves for such a
-     * statement.
+     * Mocks the query infrastructure for a statement that reports on itself, as Oak answers one. Its single row
+     * carries the given columns, and answers nothing for a path or for a declared column.
      *
      * @param columns the value of each column the row holds
      */
@@ -1155,9 +1125,7 @@ public class SearchServletTest
 
         final QueryResult result = Mockito.mock(QueryResult.class);
         Mockito.when(result.getSelectorNames()).thenReturn(new String[] { "n" });
-        // Oak's own order dependency, reproduced so that reading the columns before the rows fails here too: until
-        // the rows are taken, the columns named are those of the statement being reported on, which no row of the
-        // report has a value for
+        // Oak's order dependency, reproduced so that reading the columns before the rows fails here too
         final AtomicBoolean rowsTaken = new AtomicBoolean();
         Mockito.when(result.getRows()).thenAnswer(invocation -> {
             rowsTaken.set(true);
@@ -1264,8 +1232,8 @@ public class SearchServletTest
     }
 
     /**
-     * An engine returning a fixed list of results, recording what it was asked for and which results were actually
-     * read, so that a test can tell a served result from a skipped one.
+     * An engine returning a fixed list of results. It records what it was asked for and which results were read, so
+     * that a test can tell a served result from a skipped one.
      *
      * @since 0.1.0
      */
