@@ -45,10 +45,9 @@ class UptimeStatusReporterTest
 
         assertEquals("System Started", report.getName());
         assertEquals(StatusReport.Status.INFO, report.getStatus());
-        // The reported time is a valid ISO timestamp, not later than the present
         final ZonedDateTime started = ZonedDateTime.parse(report.getText(), DateTimeFormatter.ISO_OFFSET_DATE_TIME);
         assertFalse(started.isAfter(ZonedDateTime.now()));
-        // The startup time is not sensitive, the same report is served in unprivileged mode
+        // A privileged reader gets the same time
         assertEquals(report.getText(), this.reporter.report(false).getText());
     }
 

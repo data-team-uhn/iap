@@ -35,9 +35,9 @@ import io.uhndata.iap.status.spi.StatusReport;
 import io.uhndata.iap.status.spi.StatusReporter;
 
 /**
- * Default implementation of {@link StatusReportManager}, collecting the reports of all the registered
- * {@link StatusReporter} services. A misbehaving reporter doesn't break the whole report: its exception is turned
- * into an {@link StatusReport.Status#ERROR} report.
+ * Gathers the reports of the registered {@link StatusReporter} services. If a reporter's {@code report} throws an
+ * unchecked exception, an {@link StatusReport.Status#ERROR} report takes its place, and the other reporters still
+ * report. That report has the reporter's name, and its text quotes the exception's message.
  *
  * @version $Id$
  * @since 0.1.0
@@ -47,7 +47,6 @@ public class StatusReportManagerImpl implements StatusReportManager
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(StatusReportManagerImpl.class);
 
-    /** A list of all available reporters. */
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, fieldOption = FieldOption.REPLACE,
         policy = ReferencePolicy.DYNAMIC)
     private volatile List<StatusReporter> reporters;
@@ -69,11 +68,12 @@ public class StatusReportManagerImpl implements StatusReportManager
     }
 
     /**
-     * Invokes one reporter, isolating its failures.
+     * Asks one reporter for its report.
      *
-     * @param reporter the reporter to invoke
-     * @param unprivileged whether the report must not include sensitive information
-     * @return the reporter's report, or an {@code ERROR} report if the reporter threw an exception
+     * @param reporter the reporter to ask
+     * @param unprivileged {@code true} to ask for a report without confidential details
+     * @return the reporter's report; {@code null} if it has nothing to report; an {@code ERROR} report if it threw an
+     *         unchecked exception
      */
     private StatusReport report(final StatusReporter reporter, final boolean unprivileged)
     {

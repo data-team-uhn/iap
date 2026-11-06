@@ -28,7 +28,7 @@
   <artifactId>iap-status</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Status Reporting</name>
-  <description>Support for reporting the status of the application</description>
+  <description>Short reports on the state of an instance, gathered from pluggable reporters and served at /system/status</description>
 
   <build>
     <plugins>
@@ -46,8 +46,8 @@
       <artifactId>iap-java-utils</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- Nullability annotations for the exported API/SPI -->
     <dependency>
+      <!-- The nullability annotations on the exported API and SPI -->
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
     </dependency>
