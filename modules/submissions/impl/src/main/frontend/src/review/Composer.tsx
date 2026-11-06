@@ -94,14 +94,14 @@ export default function Composer({ kinds, initialKind, initialText = "", initial
               <Chip
                 key={one} size="small" label={single} role="radio" aria-checked={kind === one}
                 icon={kind === one ? <CheckCircleOutlined /> : <CircleOutlined />}
-                variant={kind === one ? "filled" : "outlined"} onClick={() => setKind(one)}
+                variant="outlined" onClick={() => setKind(one)}
                 // The chosen one cannot be unchosen, so it does not answer the pointer
                 sx={theme => {
                   const fill = theme.alpha(theme.palette[mark].light, 0.45);
-                  return {
-                    borderColor: theme.palette[mark].main,
-                    ...kind === one ? { bgcolor: fill, cursor: "default", "&:hover": { bgcolor: fill } } : {},
-                  };
+                  // Outlined either way, the chosen one's outline see-through, so choosing does not change its size
+                  return kind === one
+                    ? { borderColor: "transparent", bgcolor: fill, cursor: "default", "&:hover": { bgcolor: fill } }
+                    : { borderColor: theme.palette[mark].main };
                 }}
               />
             );

@@ -743,14 +743,13 @@ export default function ReviewScreen({ path }: { path: string }) {
                         key={info.kind}
                         size="small"
                         label={info.label}
-                        variant={shown.has(info.kind) ? "filled" : "outlined"}
+                        variant="outlined"
                         onClick={() => toggleKind(info.kind)}
                         aria-pressed={shown.has(info.kind)}
                         icon={shown.has(info.kind) ? <CheckCircleOutlined /> : <CircleOutlined />}
                         // Shown, filled in its colour; hidden, plain grey, so it reads as off
                         sx={theme => shown.has(info.kind)
-                          ? { borderColor: theme.palette[info.mark].main,
-                            bgcolor: theme.alpha(theme.palette[info.mark].light, 0.45) }
+                          ? { borderColor: "transparent", bgcolor: theme.alpha(theme.palette[info.mark].light, 0.45) }
                           : { borderColor: "divider", color: "text.disabled", "& .MuiChip-icon": { color: "inherit" } }}
                       />
                     ))}
