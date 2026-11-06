@@ -39,11 +39,11 @@ import io.uhndata.iap.submissions.models.Submission;
 public interface AnswerValidator
 {
     /**
-     * Decide whether the answers, as they now stand, may be saved.
+     * Decides whether the answers, as they now stand, may be saved.
      *
      * @param submission the submission being answered, already carrying the answers this save writes
-     * @param actor the user whose save this is
-     * @return a reason to refuse, shown to the submitter on the answer they just gave, or {@code null} to accept
+     * @param actor the user id of whoever is saving
+     * @return a reason to refuse, shown to the submitter on the answer they just gave; {@code null} to accept
      */
     @Nullable
     String validate(@NotNull Submission submission, @NotNull String actor);

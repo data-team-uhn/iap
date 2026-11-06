@@ -21,13 +21,13 @@ import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons
 import TagChip from "@iap/tags/TagChip";
 import { tagValueOptions } from "@iap/tags/tagDefinitions";
 
-// The entity type listed by submission grids, as registered with the entity grid registry.
+// The resource type of a submission, under which the submission grid is registered
 export const SUBMISSION_TYPE = "sub/Submission";
 
-// Renders the "Schema" cell: the serialized submission carries its dereferenced `schemaVersion`
-// node, whose own properties hold the version label, while the owning schema's name is the
-// second-to-last segment of its path (/Schemas/<schema>/<version>).
-// TODO: display the schema's title instead of its node name, once the serialization can embed it.
+// The text of the "Schema" cell, such as "timeOffRequest 1.0": the schema's node name, read from the
+// version's path (/Schemas/<schema>/<version>), then the version's label. Empty when the
+// `schemaVersion` reference is not dereferenced.
+// TODO: display the schema's title, which the submission's dereferenced `schema` reference carries.
 export function schemaLabel(schemaVersion: unknown): string {
   if (!schemaVersion || typeof schemaVersion !== "object") {
     return "";
@@ -38,10 +38,9 @@ export function schemaLabel(schemaVersion: unknown): string {
   return [schemaName, version.version].filter(Boolean).join(" ");
 }
 
-// The columns shared by all grids listing submissions. Fields named after an entity property are
-// sorted server-side by that property; the schema column is computed from a referenced node, so
-// it is not sortable. The card* properties compose the narrow-screen card: title and status chip
-// leading, schema and modification day on the caption line, nothing else.
+// The columns of every grid of submissions. The server sorts a column by the entity property it is
+// named after. On the narrow-screen card, the title and the status lead, and the schema and the
+// modification day make the caption line.
 const SUBMISSION_COLUMNS: EntityGridColumn[] = [
   {
     field: "title",
@@ -49,8 +48,7 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     flex: 2,
     minWidth: 160,
     cardSlot: "title",
-    // Unlike a grid cell, the card cannot leave an untitled submission blank: the title is the
-    // card's identity and its tap target, so it falls back to the node name
+    // The card is tapped by its title, so an untitled submission shows its node name there
     cardValue: row => (row.title as string | undefined) ?? (row["@name"] as string | undefined),
   },
   {
@@ -58,8 +56,7 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     headerName: "Schema",
     flex: 1,
     minWidth: 120,
-    // Computed from the referenced schema version node, which the server can neither order by
-    // nor filter on
+    // Computed from the referenced schema version, which the server can neither sort nor filter by
     sortable: false,
     filterable: false,
     valueGetter: value => schemaLabel(value),
@@ -70,11 +67,10 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     headerName: "Status",
     width: 130,
     type: "singleSelect",
-    // The filterable choices come from the lifecycle tag definitions under /Tags (the values
-    // are the tag names the filter sends to the servlet; an equality filter on the multivalued
-    // `tags` property matches submissions carrying that tag among others)
+    // The lifecycle tags defined under /Tags. Filtering on one matches a submission that carries it
+    // among others.
     valueOptions: tagValueOptions("lifecycle"),
-    // Ordering by a multivalued property has no meaningful semantics
+    // A multi-valued property has no order to sort by
     sortable: false,
     renderCell: params => <TagChip tags={params.row.tags} category="lifecycle" />,
     cardSlot: "badge",
@@ -85,7 +81,7 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     width: 160,
     type: "dateTime",
     valueGetter: value => dateValue(value),
-    // The modification day already dates the card; a second timestamp would just crowd it
+    // The modification day already dates the card
     cardSlot: "omit",
   },
   {
@@ -95,13 +91,13 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     type: "dateTime",
     valueGetter: value => dateValue(value),
     cardSlot: "caption",
-    // The full timestamp shown in the grid is too long for the caption line; the day is enough
+    // The day alone, which fits the caption line
     cardValue: row => dayOf(row["jcr:lastModified"]),
   },
 ];
 
-// Registering at import time means any component importing anything from this file can render an
-// EntityDataGrid for submissions.
+// Registered on import, so that a module importing anything from this file can draw an
+// EntityDataGrid of submissions.
 registerEntityType(SUBMISSION_TYPE, {
   homepage: "/Submissions",
   columns: SUBMISSION_COLUMNS,

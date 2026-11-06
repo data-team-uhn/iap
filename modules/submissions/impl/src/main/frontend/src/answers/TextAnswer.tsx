@@ -24,7 +24,7 @@ import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
-// Typed-in text. Several values are typed one per line. A question that offers its answers is a ChoiceAnswer instead.
+// Typed-in text, one value per line where several are allowed.
 function TextAnswer({ question, values, disabled, onChange, onAnswered }: AnswerComponentProps) {
   const many = isMultiple(question);
   const helperText = many
@@ -43,10 +43,9 @@ function TextAnswer({ question, values, disabled, onChange, onAnswered }: Answer
       slotProps={{ inputLabel: { shrink: true } }}
       helperText={helperText}
       onChange={event => onChange(many ? event.target.value.split("\n") : [ event.target.value ])}
-      // Blank lines and a blank field are not answers; dropping them here is what makes clearing a
-      // field store nothing rather than store an empty string. Trimmed first, because the server
-      // judges blankness the same way -- without it a field holding only spaces saves nothing,
-      // reports Saved, and goes on sending the same non-answer every time it is left.
+      // Blank lines and a blank field are not answers, so a cleared field sends no values. Each value
+      // is trimmed, since the server drops a blank one. Untrimmed, a field of spaces would be sent
+      // again each time it is left.
       onBlur={event => onAnswered(many
         ? event.target.value.split("\n").map(value => value.trim()).filter(Boolean)
         : [ event.target.value.trim() ].filter(Boolean))}

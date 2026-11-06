@@ -26,9 +26,8 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sub:Context} node: the context a quote comes from, a passage of a document or an
- * answer. It backs an {@link Extraction} or a {@link Comment}, or marks where a {@link Passage} starts or ends. Kept as
- * a node rather than a plain string, so the quote stays linked to the page and section it was taken from.
+ * A Sling Model wrapping a {@code sub:Context} node: a quote, and where it comes from, a passage of a document or an
+ * answer. It backs an {@link Extraction} or a {@link Comment}, or marks where a {@link Passage} starts or ends.
  *
  * @version $Id$
  * @since 0.1.0
@@ -61,7 +60,7 @@ public class Context extends EntityPart
     /**
      * The document revision or the answer the quote comes from. The link is weak, so one removed since is skipped.
      *
-     * @return the source, or {@code null} if not recorded or no longer there
+     * @return the source; {@code null} if none is recorded, it has been removed, or this session cannot read it
      */
     @Nullable
     public EntityPart getSource()
@@ -72,7 +71,7 @@ public class Context extends EntityPart
     /**
      * The quoted text.
      *
-     * @return the quote, or {@code null} if not set
+     * @return the quote; {@code null} if none is set
      */
     @Nullable
     public String getQuote()
@@ -84,7 +83,7 @@ public class Context extends EntityPart
      * A little of the text just before the quote, so the passage can still be found when the same words occur more
      * than once.
      *
-     * @return the text before the quote, or {@code null} if not recorded
+     * @return the text before the quote; {@code null} if none is recorded
      */
     @Nullable
     public String getPrefix()
@@ -93,10 +92,9 @@ public class Context extends EntityPart
     }
 
     /**
-     * A little of the text just after the quote, so the passage can still be found when the same words occur more
-     * than once.
+     * A little of the text just after the quote, as the {@link #getPrefix() prefix} holds the text just before it.
      *
-     * @return the text after the quote, or {@code null} if not recorded
+     * @return the text after the quote; {@code null} if none is recorded
      */
     @Nullable
     public String getSuffix()
@@ -105,9 +103,9 @@ public class Context extends EntityPart
     }
 
     /**
-     * The nearest header above the quoted text, so a citation can name the section it came from.
+     * The nearest heading above the quoted text, which names the section it came from.
      *
-     * @return a header, or {@code null} if none was detected
+     * @return the heading; {@code null} if none was found
      */
     @Nullable
     public String getHeader()
@@ -116,10 +114,10 @@ public class Context extends EntityPart
     }
 
     /**
-     * The page of the source PDF this passage was quoted from, when known. Absent for documents that carry no page
-     * markers, e.g. anything that came in as DOCX.
+     * The page of the source PDF the quote was taken from.
      *
-     * @return a page number, or {@code null} if unknown
+     * @return the page number; {@code null} if it is unknown, as for a document with no page markers, such as one
+     *         uploaded as DOCX
      */
     @Nullable
     public Long getPage()

@@ -19,15 +19,12 @@
 import { type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { readJson } from "@iap/frontend-commons/requestFailure";
 
-// The form a submitter fills in, as the server projects it, and the one way to change it.
-//
-// Neither half of this decides anything. What to show is decided server-side, where the
-// conditions are resolved, so a question absent from this document is one that does not currently
-// apply. What a change means is decided by a workflow. Nothing here evaluates a condition or writes
-// to the repository.
+// The form a submitter fills in, as the server serves it at `<submission>.form.json`, and the
+// events that change the submission. The server resolves the conditions, so a question absent from
+// the form does not apply now.
 
-// The resource types the projection reports. It names the schema's own types rather than a
-// vocabulary of its own, so a requirement kind added later arrives here without a release.
+// The resource types the form reports, which are the schema's own. A requirement kind that another
+// module adds reports its own type.
 export const FORM_REQUIREMENT_TYPE = "sch/FormRequirement";
 export const DOCUMENT_REQUIREMENT_TYPE = "sch/DocumentRequirement";
 export const APPROVAL_REQUIREMENT_TYPE = "sch/ApprovalRequirement";
@@ -35,7 +32,7 @@ export const SECTION = "sch/Section";
 export const QUESTION = "sch/Question";
 
 // One of the answers a question offers. The value is what an answer stores and what a condition
-// compares against; the label is only what the submitter reads.
+// compares against. The label is what the submitter reads.
 export interface FormAnswerOption {
   value: string;
   label: string;
@@ -44,28 +41,27 @@ export interface FormAnswerOption {
 export interface FormQuestion {
   name: string;
   type: string;
-  // Where this question's answer is posted, relative to the schema version. Given by the server so
-  // that only one side of the exchange decides how a question is addressed.
+  // The question's path relative to the schema version, such as `details/duration`. A save names the
+  // question by it.
   path: string;
   text: string;
   description?: string;
-  // One of text, long, double, boolean, date, file
+  // The type of value an answer holds, such as text, long, double, boolean or date
   dataType: string;
-  // How many values an answer takes, as the schema stores it. A positive minimum is what "required"
-  // means, a maximum other than 1 allows several values, and zero or less leaves that end open.
+  // How many values an answer takes, as the schema stores it. A positive minimum makes the question
+  // required, and a maximum other than 1 allows several values. Zero or less leaves that end open.
   // Read it through isRequired, isMultiple and answerCap.
   minAnswers: number;
   maxAnswers: number;
-  // Hard bounds for numeric answers, present only where the schema states them. The save enforces
-  // them; here they become the input's own hints.
+  // The bounds of a numeric answer, present only where the schema states them. The save refuses a
+  // value outside them.
   minValue?: number;
   maxValue?: number;
   // A regular expression every value must match in full, and what to tell the submitter when one
-  // does not. The save enforces it, and its refusal carries the message.
+  // does not. The save refuses a value that does not match, with the message.
   pattern?: string;
   patternMessage?: string;
-  // The answers this question offers, empty when it is answered freely, which is how most question
-  // types are answered
+  // The answers the question offers; empty when it is answered freely
   options: FormAnswerOption[];
   value: string[];
 }
@@ -83,37 +79,33 @@ export type FormItem = FormQuestion | FormSection;
 // Anything a schema version asks of a submission, whatever form that takes.
 export interface Requirement {
   name: string;
-  // The repository path, which is what an attached document's `fulfills` points at
+  // The requirement's repository path. An attached document's `fulfills` points at it.
   path: string;
   type: string;
   label: string;
   description?: string;
 }
 
-// The one kind answered by filling questions in. A document or an approval is satisfied some other
-// way and carries no items, which is why they are not this type.
+// A requirement answered by filling questions in. Only this kind holds items.
 export interface FormRequirement extends Requirement {
   items: FormItem[];
 }
 
-// The kind answered by attaching a file.
+// A requirement answered by attaching a file.
 export interface DocumentRequirement extends Requirement {
-  // Whether the submission is incomplete without it. An optional one is still asked, since whether it
-  // is asked at all was decided on the server, but skipping it blocks nothing.
+  // Whether the submission is incomplete without a file for it
   required: boolean;
-  // Empty means no restriction, which is why the key is there at all: a reader has to tell "takes
-  // anything" from "takes nothing".
+  // The MIME types a file may have, such as `application/pdf`; empty when any type is accepted
   acceptedFileTypes: string[];
-  // A document to start from, where the requirement offers one
+  // The path of a document to start from, when the requirement offers one
   template?: string;
   // The name to save the template under, since its node is always called `template`
   templateName?: string;
-  // What has been attached already. Present so that reopening the form shows a document that is
-  // there rather than an empty control implying it is not.
+  // The documents attached for it; empty when none is
   attached: AttachedDocument[];
 }
 
-// The kind somebody else grants, carrying where it stands.
+// A requirement somebody else grants, with where it stands.
 export interface ApprovalRequirement extends Requirement {
   // The group whose members decide, empty when it is not narrowed to one
   approverGroup: string;
@@ -128,7 +120,8 @@ export interface ApprovalDecision {
   at?: string;
 }
 
-// A document attached for a requirement. The path is its newest file's, absent until a file lands.
+// A document attached for a requirement: its title, and the path of its newest file. The path is
+// absent until a file is uploaded.
 export interface AttachedDocument {
   title: string;
   path?: string;
@@ -142,7 +135,7 @@ export function toFileUrl(path: string): string {
 export interface SubmissionForm {
   path: string;
   title: string;
-  // Whether this reader may still answer, as the server decided it
+  // Whether the reader may still change the submission: they raised it, and it is still a draft
   editable: boolean;
   requirements: Requirement[];
 }
@@ -168,13 +161,12 @@ export function describeNothingAttached(requirement: DocumentRequirement): strin
   return requirement.required ? "Nothing attached yet" : "Nothing attached yet — optional";
 }
 
-// Whether an answer must be given before submitting: the reading of the answer-count pair the
-// server makes too.
+// Whether the question must be answered: its minimum is positive.
 export function isRequired(question: FormQuestion): boolean {
   return question.minAnswers > 0;
 }
 
-// Whether more than one value may be given: the other reading of the pair.
+// Whether more than one value may be given: its maximum is not 1.
 export function isMultiple(question: FormQuestion): boolean {
   return question.maxAnswers !== 1;
 }
@@ -184,8 +176,8 @@ export function answerCap(question: FormQuestion): number | undefined {
   return question.maxAnswers > 0 ? question.maxAnswers : undefined;
 }
 
-// How many values a question taking several wants, as a sentence starting with `verb`, or nothing
-// when it wants any number.
+// How many values a question taking several wants, in sentences starting with `verb`, such as
+// "Choose at least 2. Choose up to 3."; empty when it takes any number.
 export function countGuidance(question: FormQuestion, verb: string): string {
   const cap = answerCap(question);
   return [
@@ -194,8 +186,8 @@ export function countGuidance(question: FormQuestion, verb: string): string {
   ].filter(Boolean).join(" ");
 }
 
-// Reads the form for a submission: what its schema asks, what it already answers, and nothing that
-// does not currently apply.
+// Reads the form of a submission: what its schema asks, and the answers it holds, leaving out what
+// does not apply now.
 export async function fetchForm(doFetch: AuthenticatedFetch, path: string): Promise<SubmissionForm> {
   const response = await doFetch(`${path}.form.json`);
   if (!response.ok) {
@@ -204,22 +196,15 @@ export async function fetchForm(doFetch: AuthenticatedFetch, path: string): Prom
   return await readJson<SubmissionForm>(response);
 }
 
-// Records one answer, by posting it to the submission as a `save` event: filling a request in is a
-// workflow event and not a write, so a refusal arrives as the engine's own reason rather than as a
-// repository error. The selector names the event outright, though a bare POST to a submission means
-// `save` too.
+// Saves one answer, as a `save` event on the submission. A refusal rejects with the engine's reason.
 export async function saveAnswer(
   doFetch: AuthenticatedFetch, path: string, question: string, values: string[]): Promise<void> {
   const body = new URLSearchParams();
-  // A question that may hold several values is answered by repeating it, which is what the handler
-  // reads back as a multi-valued answer
+  // Several values repeat the question's parameter
   values.forEach(value => body.append(question, value));
   if (values.length === 0) {
-    // Clearing an answer still has to name the question, with one empty value: the handler walks the
-    // questions the payload mentions, so a question left out of it is not cleared but *untouched*.
-    // The widgets report no values at all for a blank field, which without this reads as "nothing to
-    // say about this question" -- the old answer survives, and the request goes on counting as
-    // complete when it no longer is.
+    // A cleared answer names the question with one empty value. The handler changes only the
+    // questions the payload names, and drops the blank values.
     body.append(question, "");
   }
   const response = await doFetch(`${path}.save.json`, { method: "POST", body });
@@ -229,13 +214,11 @@ export async function saveAnswer(
   }
 }
 
-// Attaches a file to the requirement it answers, as an `attachDocument` event on the submission:
-// uploading is a workflow step for the same reason answering is, so what may be attached and until
-// when is the handler's answer rather than a permission on the folder. A file for a requirement that
-// already has one becomes a new version of that document.
+// Attaches a file for a requirement, named by its node name or its path, as an `attachDocument`
+// event on the submission. A file for a requirement that already has one becomes a new version of
+// its document. A refusal rejects with the engine's reason.
 //
-// `FormData` rather than a query string, and deliberately without a `Content-Type`: the browser has
-// to set it, because only it knows the multipart boundary it just generated.
+// The request sets no `Content-Type`. The browser sets it, with the multipart boundary it generated.
 export async function attachDocument(
   doFetch: AuthenticatedFetch, path: string, requirement: string, file: File): Promise<void> {
   const body = new FormData();

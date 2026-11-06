@@ -43,12 +43,12 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * {@code incomplete} tag.
  *
  * <p>Every registered {@link CompletenessEvaluator} judges its own kind of part. The parts they report are tagged,
- * and the submission's other parts lose the tag. So does the submission itself, which an evaluator reports when an
- * item has no part. The tag is aggregated, so the submission carries it while any of its parts does.</p>
+ * and the submission's other parts lose the tag. So does the submission itself, unless an evaluator reports it, which
+ * it does when an item has no part. The tag is aggregated, so the submission carries it while any of its parts
+ * does.</p>
  *
  * <p>It acts on the submission an earlier step of the run created, if there is one, and otherwise on the event's
- * target. So the create workflow marks a new submission from the start, and the save and attach workflows mark the
- * submission they changed.</p>
+ * target.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -59,7 +59,7 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "markCompleteness";
 
-    /** The tag saying that something a part of a submission is asked for has not been supplied. */
+    /** The tag saying that something a part of a submission asks for has not been supplied. */
     public static final String INCOMPLETE_TAG = "incomplete";
 
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
@@ -83,7 +83,7 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
                 taggable(part).tag(INCOMPLETE_TAG, true);
             }
         }
-        // The submission itself is reported when an item it is asked has no part at all
+        // The submission and its parts. The submission is reported when an item it is asked has no part.
         final List<Resource> marked = new ArrayList<>(List.of(target));
         target.getChildren().forEach(marked::add);
         for (final Resource part : marked) {

@@ -72,8 +72,9 @@ export const REQUIREMENT_COMPONENT_POINT = "RequirementComponent";
 
 const loader = createExtensionLoader(REQUIREMENT_COMPONENT_POINT, "requirement components");
 
-// Loads every requirement component other modules declare, once
+// Loads every requirement component declared on the point. A load that succeeded is not repeated.
 export const loadRequirementComponents = loader.load;
 
-// Whether the requirement components other modules declare are available yet
+// Whether the load of the requirement components other modules declare has settled, whether or not it
+// succeeded
 export const useRequirementComponents = loader.useLoaded;

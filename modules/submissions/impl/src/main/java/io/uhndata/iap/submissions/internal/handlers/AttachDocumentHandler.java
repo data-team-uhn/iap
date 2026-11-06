@@ -47,19 +47,14 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that attaches an uploaded file to the requirement it answers.
+ * The service task that attaches an uploaded file to the document requirement it answers. Each upload adds a version
+ * to the requirement's document.
  *
- * <p>Attaching a document is a workflow step rather than a write, for the same reason answering a question is: a
- * submitter is granted read on their own submission and nothing else, so there is no path by which they could put
- * a file there themselves. What a submitter may attach, and when, is decided here rather than by an ACL.</p>
+ * <p>What a submitter may attach, and when, is decided here, not by an ACL. The rule is the one saving answers
+ * follows: only the person who raised the request, and only while it is a draft.</p>
  *
- * <p>The rule is the save workflow's own, and asked of it: the person who raised the request, while it is still a
- * draft. A document is part of what is being said, so it stops being changeable at exactly the moment the answers
- * do; a reviewer wanting more evidence sends the request back rather than editing it in place.</p>
- *
- * <p>An accepted type is checked before the content is read, because refusing early costs nothing and the check is
- * against what the caller claims. It is not a guarantee about the bytes: whoever needs to know that a document
- * really is what it says it is has to look, which is what {@code aiCheckPrompt} is eventually for.</p>
+ * <p>The type is checked before the content is read, and it is the type the caller claims. Nothing here checks
+ * that the bytes are of that type.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -77,8 +72,8 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     static final String FILE_PARAMETER = "file";
 
     /**
-     * The largest file taken, since the document pipeline later holds a whole file in memory to parse it. The
-     * browser's check keeps its own copy, {@code MAX_FILE_SIZE} in frontend-commons' {@code fileValidation.ts}.
+     * The largest file taken. The browser checks against its own copy, {@code MAX_FILE_SIZE} in frontend-commons'
+     * {@code fileValidation.ts}.
      */
     static final long MAX_FILE_BYTES = 50L * 1024 * 1024;
 
@@ -94,7 +89,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     private static final String GENERIC_TYPE = "application/octet-stream";
 
     /**
-     * Types a browser may not know and send untyped, by the extension that names them. The browser's check keeps
+     * Types a browser may not know and send untyped, by the extension that names them. The browser checks against
      * its own copy, {@code MIME_TYPE_BY_EXTENSION} in frontend-commons' {@code fileValidation.ts}.
      */
     private static final Map<String, String> TYPE_BY_EXTENSION = Map.of(
@@ -133,7 +128,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         VersioningUtils.checkOut(target);
         final ResourceResolver resolver = context.getResourceResolver();
         final Resource document = findOrCreateDocument(target, submission, requirement, file, resolver);
-        // Not named by its number, which is its position among the document's versions
+        // Not named by its number, which is its position among the document's versions and is not stored
         final Resource version = resolver.create(document, UUID.randomUUID().toString(),
             Map.of(PRIMARY_TYPE, "sub:DocumentVersion"));
         final Resource stored = resolver.create(version, FILE_NODE, Map.of(PRIMARY_TYPE, "sub:File"));
@@ -143,10 +138,8 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     }
 
     /**
-     * The requirement the file answers, which has to be one this submission's own schema asks for.
-     *
-     * <p>Resolved through the schema version rather than by trusting the path: a caller naming a requirement of
-     * some other schema would otherwise attach a document that nothing on this submission ever asked for.</p>
+     * The requirement the file answers. It is looked up among the requirements of this submission's own schema
+     * version, so a path into another schema is refused.
      *
      * @param submission the submission being attached to
      * @param context the executing task's context
@@ -169,13 +162,11 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      * The document requirement of the submission's own schema version that a caller names, by path or by name.
      *
      * @param submission the submission
-     * @param named the requirement's path or name, as the caller sent it
-     * @return the requirement, or empty when the schema version has no such document requirement
+     * @param named the requirement's absolute path or node name, as the caller sent it
+     * @return the requirement; empty when the schema version has no such document requirement
      */
     static Optional<DocumentRequirement> findRequirement(final Submission submission, final String named)
     {
-        // The node type makes the reference mandatory and the model declares it non-null, so a submission always
-        // knows what it is answering
         return submission.getSchemaVersion().getRequirements().stream()
             .filter(DocumentRequirement.class::isInstance)
             .map(DocumentRequirement.class::cast)
@@ -184,8 +175,8 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     }
 
     /**
-     * The document answering the requirement, created by the first upload for it. A later upload is a new version
-     * of the same document, so the document's title follows the newest file.
+     * The document answering the requirement, created here when the submission has none for it yet. Each upload
+     * names the document after its file, so the title follows the newest file.
      *
      * @param target the submission's resource
      * @param submission the submission being attached to
@@ -210,8 +201,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
                 "A document read through a writing resolver is always modifiable").put(TITLE_PROPERTY, title);
             return existing;
         }
-        // A UUID rather than the file's name: two documents may legitimately be called the same thing, and a name
-        // taken from what somebody uploaded is a name chosen by them for a node in our tree
+        // A UUID, since the uploader chooses the title, and two documents may share one
         final Resource document = resolver.create(target, UUID.randomUUID().toString(),
             Map.of(PRIMARY_TYPE, "sub:Document", TITLE_PROPERTY, title));
         ReferenceUtils.setReference(document, FULFILLS_PROPERTY, requirement);
@@ -223,7 +213,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
      * the file's extension decides, since browsers often do not know the Office types.
      *
      * @param file the uploaded file
-     * @return the type, or {@code null} when none was sent and the extension is not a known one
+     * @return the media type; {@code null} when none was sent and the extension is not a known one
      */
     private static String getMimeType(final EventAttachment file)
     {
@@ -250,8 +240,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         throws InvalidPayloadException
     {
         final List<String> accepted = requirement.getAcceptedFileTypes();
-        // Accepting nothing in particular means accepting anything: a requirement that has not said what it wants
-        // is not one that wants nothing
+        // A requirement that lists no type accepts any
         if (accepted.isEmpty()) {
             return;
         }
@@ -278,10 +267,8 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     }
 
     /**
-     * Stores the uploaded bytes as the {@code uploadedFile} of a {@code sub:File}.
-     *
-     * <p>Written through the JCR API rather than the resolver, because a binary is a {@code jcr:data} property on an
-     * {@code nt:resource} child and streaming into it is what keeps the file out of the heap.</p>
+     * Stores the uploaded bytes as the {@code uploadedFile} of a {@code sub:File}. The content is streamed into a JCR
+     * binary.
      *
      * @param stored the {@code sub:File} node to store the upload under
      * @param file the uploaded file
@@ -296,8 +283,7 @@ public class AttachDocumentHandler implements ServiceTaskHandler
             final Node resource = fileNode.addNode("jcr:content", "nt:resource");
             resource.setProperty("jcr:data",
                 fileNode.getSession().getValueFactory().createBinary(content));
-            // Recorded because the repository has to serve the file back with a type, and it is the only statement
-            // about what this is that anybody has made
+            // The type the file is served back with
             resource.setProperty("jcr:mimeType", Objects.requireNonNullElse(mimeType, GENERIC_TYPE));
         } catch (final RepositoryException | IOException e) {
             throw new PersistenceException("Could not store the uploaded file", e);

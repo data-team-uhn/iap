@@ -32,8 +32,8 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sub:Comment} node: a comment or question raised in some feedback, a concern the AI
- * found among them, with what it is about and the context that shows it.
+ * A Sling Model wrapping a {@code sub:Comment} node: a comment or a question raised in some feedback, such as a
+ * concern the AI found. It holds what it is about and the context that shows it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -66,7 +66,7 @@ public class Comment extends EntityPart
     /**
      * The comment text.
      *
-     * @return the comment text
+     * @return the text
      */
     @NotNull
     public String getText()
@@ -75,11 +75,10 @@ public class Comment extends EntityPart
     }
 
     /**
-     * Identifies who wrote this comment. Not necessarily the same as {@code jcr:createdBy}: comments
-     * and replies can originate from an external site, created here by an integration service user on the actual
-     * author's behalf.
+     * Who wrote this comment. It can differ from {@code jcr:createdBy}: a comment or a reply can come from an
+     * external site, created here by a service user on the author's behalf.
      *
-     * @return a principal name, or an external identifier
+     * @return a user id for a local author, or an identifier the external site gives
      */
     @NotNull
     public String getAuthor()
@@ -91,7 +90,7 @@ public class Comment extends EntityPart
      * What this comment is about: answers or documents of the submission, or the questions and requirements of its
      * schema. The link is weak, so one removed since is skipped.
      *
-     * @return the parts concerned, empty for a general comment or when none of them resolve
+     * @return the parts concerned; empty for a general comment, or when none of them resolve
      */
     @NotNull
     public List<EntityPart> getSubjects()
@@ -106,9 +105,9 @@ public class Comment extends EntityPart
     }
 
     /**
-     * What kind of point this comment makes, e.g. a gap, a conflict or a concern.
+     * What kind of point this comment makes, such as a gap, a conflict or a concern.
      *
-     * @return the kind, or {@code null} if not said
+     * @return the kind; {@code null} if none is set
      */
     @Nullable
     public String getKind()
@@ -119,7 +118,7 @@ public class Comment extends EntityPart
     /**
      * What would address this comment, when its author can say.
      *
-     * @return a suggestion, or {@code null} if there is none
+     * @return the suggestion; {@code null} if there is none
      */
     @Nullable
     public String getSuggestion()
@@ -130,7 +129,7 @@ public class Comment extends EntityPart
     /**
      * The context that shows what this comment is about, in the order it was quoted.
      *
-     * @return a list of context, empty if none
+     * @return the quotes; empty if there are none
      */
     @NotNull
     public List<Context> getContext()
@@ -149,9 +148,9 @@ public class Comment extends EntityPart
     }
 
     /**
-     * The discussion thread attached to this comment, in chronological order.
+     * The discussion thread attached to this comment, in the order the replies were added.
      *
-     * @return a list of replies, empty if none
+     * @return the replies; empty if there are none
      */
     @NotNull
     public List<Reply> getReplies()

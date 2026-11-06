@@ -108,16 +108,14 @@ class SubmissionTest
     }
 
     /**
-     * Creates a schema version with one {@code FormRequirement} (a nested section holding one question, plus a
-     * direct question), one {@code DocumentRequirement} and one {@code ApprovalRequirement}, and mocks a JCR
-     * session resolving {@link #SCHEMA_VERSION_ID}/{@link #QUESTION_1_ID}/{@link #QUESTION_2_ID}/
-     * {@link #CONSENT_ID}/{@link #REB_ID} to their respective resources.
+     * Creates a schema version with a {@code FormRequirement}, a {@code DocumentRequirement} and an
+     * {@code ApprovalRequirement}. The form holds one question in a section and one directly. A mocked JCR session
+     * resolves each of their identifiers, and the version's, to its resource.
      */
     private void createSchemaVersionWithRequirements()
         throws RepositoryException
     {
-        // sling:resourceSuperType is mandatory/autocreated on sch:Requirement and sch:FormItem in the real CND;
-        // sling-mock doesn't know about the CND, so it must be set explicitly here for getChildren() to match.
+        // The CND sets sling:resourceSuperType, and sling-mock does not read the CND
         this.context.create().resource("/Schemas/schema/1.0", SLING_RESOURCE_TYPE, SchemaVersion.RESOURCE_TYPE);
         this.context.create().resource("/Schemas/schema/1.0/form", Map.of(
             SLING_RESOURCE_TYPE, FormRequirement.RESOURCE_TYPE, "sling:resourceSuperType", Requirement.RESOURCE_TYPE,
@@ -209,8 +207,6 @@ class SubmissionTest
     @Test
     void adaptsToParentModels()
     {
-        // A submission node can also be wrapped by the parent models, letting callers work with it
-        // through the base models when they only need the generic properties.
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE,
             "jcr:uuid", "9c8b7a65-4d3e-2f10-b1a2-0123456789ab"));
@@ -229,16 +225,14 @@ class SubmissionTest
     @Test
     void toleratesMissingOptionalProperties()
     {
-        // The title property is mandatory at the JCR level, but the model itself must not fail
-        // on a resource that lacks it, or that carries no tags at all.
+        // The CND makes the title mandatory, and the model still reads a node without one
         final Resource resource = this.context.create().resource("/Submissions/bare",
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
         final Submission submission = resource.adaptTo(Submission.class);
 
         assertNotNull(submission);
         assertNull(submission.getTitle());
-        // The schema version is different: the mandatory reference is part of the model's contract,
-        // so resolving it fails fast instead of quietly returning null
+        // The schema version is part of the model's contract, so a missing one fails
         assertThrows(NullPointerException.class, submission::getSchemaVersion);
     }
 
@@ -299,8 +293,8 @@ class SubmissionTest
     @Test
     void reportsNotApprovedWithoutTheTagsService()
     {
-        // Nothing registers the Taggable view here, which is what a repository without the tags bundle looks like:
-        // the lifecycle state cannot be read, and an unreadable state is not an approval
+        // Nothing registers the Taggable view here, as in a repository without the tags bundle. A lifecycle state
+        // that cannot be read is not an approval.
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "approved" });
         final Submission submission = resource.adaptTo(Submission.class);
@@ -434,7 +428,6 @@ class SubmissionTest
     void exposesTheSchemaItAnswersAsWellAsTheVersion()
         throws RepositoryException
     {
-        // Both are written when the submission is created, so that "everything against this schema" needs no join
         this.context.create().resource("/Schemas/schema",
             SLING_RESOURCE_TYPE, Schema.RESOURCE_TYPE, "title", "A schema");
         this.context.create().resource("/Schemas/schema/1.0",
@@ -639,8 +632,6 @@ class SubmissionTest
     @Test
     void listsTheWorkflowsRunningOverIt()
     {
-        // The instances live in the container the wf:WorkflowAttachable mixin autocreates, inside the submission
-        // they drive, rather than being pointed at from it
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/wf:instances",
@@ -671,7 +662,7 @@ class SubmissionTest
     @Test
     void listsNoWorkflowsWhenTheContainerIsMissing()
     {
-        // The container is autocreated in the real repository, but the model must not fall over without it
+        // Oak autocreates the container, and sling-mock does not
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
 
@@ -681,8 +672,6 @@ class SubmissionTest
     @Test
     void doesNotMistakeAnUnrelatedChildForTheWorkflowContainer()
     {
-        // The node type accepts arbitrary children for extensibility, so the name alone does not say that what it
-        // finds is the container; without a type check the unrelated node would still adapt to the model
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/wf:instances",

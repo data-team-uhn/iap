@@ -30,8 +30,8 @@ import NewSubmissionDialog from "./NewSubmissionDialog";
 import SubmissionActions from "./SubmissionActions";
 import { SUBMISSION_TYPE } from "./submissionGrid";
 
-// The submissions the current user raised; `@me` is resolved server-side. `createdBy` is the person the
-// engine acted for. `jcr:createdBy` names the engine itself.
+// The submissions the current user raised. The server resolves `@me`. `createdBy` is the person the
+// engine acted for, while `jcr:createdBy` names the engine's service user.
 const MY_SUBMISSIONS: PropertyFilter[] = [{ name: "createdBy", value: "@me" }];
 
 // One dashboard widget extension, as the dashboard hands it to the widget it renders.
@@ -46,17 +46,12 @@ interface MySubmissionsWidgetProps {
   extension?: WidgetExtension;
 }
 
-// The dashboard widget listing the current user's own submissions, newest activity first,
-// registered on the `iap/dashboard/widget` extension point.
-//
-// It draws its own header, asked for by the extension's `ext:widgetHideHeader`. That puts the
-// action for raising a submission on the title's line. There it reads as something the widget
-// offers, not as a band floating above the table. Title and subtitle still come
-// from the extension, so they are declared in exactly one place.
+// The dashboard widget listing the submissions the current user raised, the most recently modified
+// first. It draws its own header, with the action for raising a submission on the title's line. The
+// title and subtitle come from the extension, which sets `ext:widgetHideHeader`.
 function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
   const [ dialogOpen, setDialogOpen ] = useState(false);
-  // Bumped when a row is deleted, which is a change to what the listing should say that the grid
-  // has no way of noticing on its own
+  // Bumped to have the grid read the listing again, after a deletion or a creation it cannot see
   const [ refreshToken, setRefreshToken ] = useState(0);
   const navigate = useNavigate();
 
@@ -67,8 +62,7 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
     // Not a property of the entity, so there is nothing for the server to sort or filter on
     sortable: false,
     filterable: false,
-    // The narrow-screen card is a tap target that opens the submission; a row of controls inside
-    // one would compete with it
+    // The narrow-screen card opens the submission when tapped, so it carries no controls
     cardSlot: "omit",
     renderCell: params => (
       <SubmissionActions
@@ -79,9 +73,7 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
     ),
   } ], []);
 
-  // The listing has changed whether or not there is somewhere to send the submitter, and the grid
-  // never unmounted, so it is told either way. Without that, a submission raised with no redirect
-  // to follow is indistinguishable from nothing having happened.
+  // The grid reads the listing again whether or not there is a submission to open
   const created = (path: string) => {
     setDialogOpen(false);
     setRefreshToken(current => current + 1);
@@ -92,11 +84,10 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
 
   return (
     <Stack spacing={1}>
-      {/* The title and the action share a line, with the subtitle under the title where the
-          dashboard's own header would have put it */}
+      {/* The title and the action share a line, with the subtitle under the title */}
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          {/* Only when there is one: an empty heading is markup a screen reader still announces */}
+          {/* Only when there is one, since a screen reader announces an empty heading */}
           { text(extension, "ext:name") && (
             <Typography variant="h6">{text(extension, "ext:name")}</Typography>
           ) }
@@ -116,8 +107,8 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
         emptyMessage="No submissions"
         noResultsMessage="No matching submissions"
       />
-      { /* Mounted only while open, so each opening reads what is on offer afresh and never
-           reopens onto a half-filled attempt */ }
+      { /* Mounted only while open, so that each opening reads the schemas on offer again and starts
+           empty */ }
       { dialogOpen && <NewSubmissionDialog onClose={() => setDialogOpen(false)} onCreated={created} /> }
     </Stack>
   );

@@ -29,7 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link MaxAnswersConstraint}: the ceiling refuses, the floor does not, and blanks get no say.
+ * Unit tests for {@link MaxAnswersConstraint}: more values than the maximum are refused, and a maximum of 0 takes any
+ * number.
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,7 +63,7 @@ class MaxAnswersConstraintTest
             this.fixture.verdictOn(Map.of(MAX_ANSWERS, 2L), "a", "b", "c"));
     }
 
-    // The pair's declared default is one value, and it must hold even where nothing was stored
+    // The maximum defaults to 1, also where nothing is stored
     @Test
     void refusesASecondValueWhereNoMaximumWasStored() throws Exception
     {

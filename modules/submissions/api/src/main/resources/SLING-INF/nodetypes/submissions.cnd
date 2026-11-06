@@ -24,17 +24,16 @@
 //
 // Submissions: what submitters file.
 //
-// A submission is created against a specific sch:SchemaVersion, and its
-// content mirrors what that schema version asks for: answers referencing
-// the schema's questions, documents fulfilling the schema's document
-// requirements, and reviews addressing the schema's approval requirements.
-// Only the submitted values are stored here; the display and validation
-// metadata is read live from the referenced schema parts.
+// A submission is filed against one sch:SchemaVersion, and holds what that
+// version asks for: answers to its questions, documents for its document
+// requirements, and reviews of its approval requirements. Only the submitted
+// values are stored here. How a part is shown and checked is read from the
+// schema part it references.
 //
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Homepage node for the /Submissions root path.
+// The /Submissions homepage.
 [sub:SubmissionsHomepage] > data:EntityHomepage
   - sling:resourceType (STRING) = "sub/SubmissionsHomepage" mandatory autocreated protected
   - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
@@ -43,58 +42,55 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // The prefix tree's sling:Folder buckets hold the submissions; this admits one placed directly too
+  // The submissions. They are filed in the sling:Folder buckets of a prefix
+  // tree, and one can also be placed here directly.
   + * (sub:Submission) = sub:Submission
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A submission filed by a submitter against a specific schema version. The
-// workflow instances driving its lifecycle live inside it, in the wf:instances
-// child that the wf:WorkflowAttachable mixin autocreates.
+// What a submitter files against one schema version. The workflow instances
+// it goes through live inside it, in the wf:instances child that the
+// wf:WorkflowAttachable mixin autocreates.
 [sub:Submission] > data:Entity, wf:WorkflowAttachable, tag:Boundary
   - sling:resourceType (STRING) = "sub/Submission" mandatory autocreated protected
 
-  // Title of the submission
+  // The submission's title, as people read it
   - title (STRING) mandatory
 
   // The sch:SchemaVersion this submission answers
   - schemaVersion (REFERENCE) mandatory
 
-  // The sch:Schema that version belongs to, written beside it by the system workflow that
-  // creates the submission. It repeats schemaVersion's parent so that "every submission
-  // against this schema, whichever version" needs no join.
+  // The sch:Schema that version belongs to. It repeats the version's parent,
+  // so that finding every submission against a schema needs no join.
   - schema (REFERENCE) mandatory
 
-  // The lifecycle state (draft, submitted, in-review, approved, rejected) is not a dedicated
-  // property: it is a `lifecycle`-category tag in the inherited `tags` property, defined under
-  // /Tags and managed by the attached user workflow. Whoever creates a submission is expected
-  // to tag it `draft`.
+  // Its state is its `lifecycle` tag, such as `draft`, `submitted`,
+  // `in-review`, `approved` or `rejected`. A submission is created as a
+  // draft, and its workflow moves it on.
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // The submitter's answers to the schema questions
+  // The submitter's answers to the schema's questions
   + * (sub:Answer) = sub:Answer
 
-  // Attached documents, e.g. the signed patient consent
+  // The attached documents, such as the signed patient consent
   + * (sub:Document) = sub:Document
 
-  // Feedback on the submission: binding reviews, AI screenings and discussions
+  // Feedback on the submission: reviews, AI screenings and discussions
   + * (sub:Feedback)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// The answer to a single schema question. Only simple storage: the value's
-// expected type and meaning are dictated by the referenced question.
-// Referenceable so that comments can target it.
+// The answer to one question of the schema. The question says what type the
+// value has and what it means. Comments reference it.
 [sub:Answer] > data:EntityPart, mix:referenceable, mix:lastModified
-  // The extraction runs are orderable, so they are presented in the order they
-  // ran, the newest last.
+  // The extraction runs are kept in the order they ran, the newest last
   orderable
 
   - sling:resourceType (STRING) = "sub/Answer" mandatory autocreated protected
@@ -102,9 +98,9 @@
   // The sch:Question this answers
   - question (REFERENCE) mandatory
 
-  // The submitted value(s): only what the submitter typed or approved. An
-  // extracted answer stays in its extraction until they accept or edit it, so
-  // that no answer is ever attributed to a submitter who never saw it.
+  // The value or values the submitter typed or accepted. An extracted answer
+  // stays in its extraction until the submitter accepts or edits it, so no
+  // answer is attributed to a submitter who never saw it.
   - value (UNDEFINED)
   - value (UNDEFINED) multiple
 
@@ -120,22 +116,21 @@
 
 //-----------------------------------------------------------------------------
 // One extraction run against one answer: what a model read out of the submitted
-// documents, and what it read to get there. The run's own existence is the
-// record that extraction happened, so a run that found nothing is a node
-// without an extractedAnswer rather than a flag, and jcr:created is when it ran.
+// documents, and which documents it read. The node is the record that the run
+// happened. A run that found nothing has no extractedAnswer, and jcr:created is
+// when it ran.
 [sub:Extraction] > data:EntityPart
   - sling:resourceType (STRING) = "sub/Extraction" mandatory autocreated protected
 
   // The document revisions this run read, whether or not it found an answer in
-  // them. A revision is what a submitter replaces, so this is what tells a
-  // later reader that an extraction is stale.
+  // them. A newer revision of one of them makes the run stale.
   - sources (REFERENCE) multiple
 
-  // The answer the model read out of the documents, absent when the run found
+  // The answer the model read out of the documents; absent when the run found
   // nothing
   - extractedAnswer (STRING)
 
-  // How sure the model is, 0..1
+  // How sure the model is, from 0 to 1
   - confidence (DOUBLE)
 
   // The model's explanation of how it got there
@@ -143,9 +138,8 @@
 
   // How far the submitter's own value ended up from extractedAnswer: the raw
   // edit distance, and that distance as a percentage of the extracted answer's
-  // own length. Written when the submitter accepts or edits the extracted
-  // answer, and absent until then, since an extraction nobody has acted on has
-  // nothing to be compared against.
+  // length. Both are written when the submitter accepts or edits the extracted
+  // answer, and are absent until then.
   - editDistance (LONG)
   - percentageDistance (DOUBLE)
 
@@ -160,10 +154,10 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// The context a quote comes from: a passage of a document, or an answer. It
+// A quote, and where it comes from: a passage of a document, or an answer. It
 // backs an extracted answer or a comment, or marks where a section's passage
-// starts or ends. A node rather than a plain string, so the quote stays linked
-// to where it came from and the UI can send the reader to that spot.
+// starts or ends. The quote stays linked to its source, so a reader can be
+// sent to that spot.
 [sub:Context] > data:EntityPart
   - sling:resourceType (STRING) = "sub/Context" mandatory autocreated protected
 
@@ -179,11 +173,11 @@
   - prefix (STRING)
   - suffix (STRING)
 
-  // The nearest detected header of the quoted text
+  // The nearest heading above the quoted text
   - header (STRING)
 
-  // Page in the source PDF, when known. Absent for documents that carry no
-  // page markers, e.g. anything that came in as DOCX.
+  // The page of the source PDF, when known. Absent for a document with no page
+  // markers, such as one uploaded as DOCX.
   - page (LONG)
 
   // Allow any other properties for extensibility
@@ -194,25 +188,25 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A document attached to the submission, e.g. the signed patient consent.
-// Referenceable so that comments can target it.
+// A document of the submission, such as the signed patient consent. It is
+// empty until something is uploaded into it. Comments reference it.
 [sub:Document] > data:EntityPart, mix:referenceable, mix:lastModified
-  // The list of versions is orderable, so the history is presented in a
-  // deliberate (chronological) sequence.
+  // The versions are kept in the order they were uploaded
   orderable
 
   - sling:resourceType (STRING) = "sub/Document" mandatory autocreated protected
 
-  // Human-readable name for this document
+  // The document's name, as people read it
   - title (STRING)
 
-  // Optional description of what this document contains
+  // What the document contains
   - description (STRING)
 
-  // The sch:Requirement (typically a sch:DocumentRequirement) this document fulfills
+  // The sch:Requirement this document fulfills, usually a
+  // sch:DocumentRequirement
   - fulfills (REFERENCE)
 
-  // The revisions of this document; the uploads themselves live under a version
+  // The revisions of this document, each holding one upload
   + * (sub:DocumentVersion) = sub:DocumentVersion
 
   // Allow any other properties for extensibility
@@ -223,16 +217,15 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One revision of a document: exactly one uploaded file, and everything the
-// parsing pipeline made of it. Uploading a replacement adds a version instead
-// of overwriting the file a reviewer has already read. A revision's number is
-// its position in the document's ordered list of versions, so it is not stored.
+// One revision of a document: one uploaded file, and everything parsing made
+// of it. Uploading a replacement adds a version, and leaves the file a
+// reviewer has already read as it was. A revision's number is its position
+// among the document's versions, and is not stored.
 [sub:DocumentVersion] > data:EntityPart, mix:referenceable, mix:lastModified
   - sling:resourceType (STRING) = "sub/DocumentVersion" mandatory autocreated protected
 
-  // The one file this revision consists of. Not declared mandatory, so the
-  // version node can be created before the upload lands, but a version without
-  // it is incomplete.
+  // The file this revision consists of. It is not mandatory, so the version
+  // can be created before the upload is stored.
   + file (sub:File) = sub:File
 
   // Where the sections the requirement expects are found in this revision
@@ -246,27 +239,23 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A single uploaded file plus everything the parsing pipeline derived from it.
-// Referenceable so that comments and extracted answers can point at the
-// document they were read from.
+// One uploaded file, and everything parsing derived from it.
 [sub:File] > data:EntityPart, mix:referenceable, mix:lastModified
   - sling:resourceType (STRING) = "sub/File" mandatory autocreated protected
 
-  // Where the parse got to: queued, active, completed or failed. Kept here as
-  // well as on the parse job so that a file that failed parsing does not look
-  // like one that was never parsed.
+  // How far parsing got: queued, active, completed or failed; and, when it
+  // failed, why
   - parseStatus (STRING)
   - parseError (STRING)
 
-  // Token count of the Markdown. A cheap character heuristic, len(md) // 4;
-  // no ML tokenizer is involved.
+  // The token count of the Markdown, estimated as its length in characters
+  // divided by 4
   - tokens (LONG)
 
   // The upload, exactly as it was received
   + uploadedFile (nt:file) = nt:file
 
-  // The renditions LibreOffice and Docling produced: the .md and other
-  // versions of the document created during the parsing process
+  // The renditions parsing produced, such as the Markdown
   + * (nt:file) = nt:file
 
   // Allow any other properties for extensibility
@@ -278,13 +267,12 @@
 
 //-----------------------------------------------------------------------------
 // Where a section a document is expected to contain is found in one revision
-// of it, e.g. the funding section of a study protocol. Kept per revision,
-// because each upload is parsed into Markdown of its own. A section that was
-// looked for and not found is a section with no passages; one that was never
-// looked for has no node.
+// of it, such as the funding section of a study protocol. Each upload is
+// parsed into Markdown of its own, so sections are kept per revision. A
+// section that was looked for and not found has no passages. One that was
+// never looked for has no node.
 [sub:Section] > data:EntityPart, mix:referenceable
-  // The passages are orderable, so they are kept in the order the document
-  // presents them.
+  // The passages are kept in the order the document presents them
   orderable
   - sling:resourceType (STRING) = "sub/Section" mandatory autocreated protected
 
@@ -294,11 +282,12 @@
   // How the passages were found: "heading" when one of the requirement's
   // headings matched, "model" when an LLM located them, "pickedHeading" when a
   // person named the heading that holds the section, "selectedText" when a
-  // person selected the text itself. A selection follows no heading, so it may
-  // be a deviation from the expected protocol.
+  // person selected the text itself. A selection follows no heading, so the
+  // document may not follow the expected protocol.
   - method (STRING)
 
-  // How sure the model that found the section is, 0..1. Only set by "model".
+  // How sure the model that found the section is, from 0 to 1; set only with
+  // "model"
   - confidence (DOUBLE)
 
   // The person who checked where the section is: who picked or selected it,
@@ -306,7 +295,7 @@
   - checkedBy (STRING)
 
   // The stretches of the document the section consists of: usually one, and
-  // several when it is split, e.g. a budget table moved to an appendix
+  // several when it is split, such as a budget table moved to an appendix
   + * (sub:Passage) = sub:Passage
 
   // Allow any other properties for extensibility
@@ -337,17 +326,16 @@
 //-----------------------------------------------------------------------------
 // Feedback on a submission, of one of three kinds: a reviewer's binding
 // sub:Review, the AI's sub:Screening, or a sub:Discussion that binds nothing.
-// Referenceable so that comments can target it.
+// Comments reference it. It is abstract, and concrete node types extend it.
 [sub:Feedback] > data:EntityPart, mix:referenceable, mix:lastModified
   abstract
 
-  // The comments and assessments are orderable, so the feedback is presented
-  // in a deliberate (chronological) sequence.
+  // The comments and assessments are kept in the order they were added
   orderable
 
   - sling:resourceSuperType (STRING) = "sub/Feedback" mandatory autocreated protected
 
-  // Whether this feedback decides anything. Each kind sets it, so that a new
+  // Whether this feedback decides anything. Each kind sets it, so a new
   // binding kind counts without code naming it.
   - binding (BOOLEAN) = 'false' mandatory autocreated protected
 
@@ -371,20 +359,20 @@
 
   - binding (BOOLEAN) = 'true' mandatory autocreated protected
 
-  // Principal name of the reviewer
+  // The reviewer's user id
   - reviewer (STRING) mandatory
 
-  // The sch:Requirement (typically a sch:ApprovalRequirement) this review addresses
+  // The sch:Requirement this review addresses, usually a
+  // sch:ApprovalRequirement
   - requirement (REFERENCE)
 
-  // The review's state (in-progress, changes-requested, approved, rejected) is not a dedicated
-  // property: it is a `review`-category tag in the inherited `tags` property, defined under
-  // /Tags. Whoever opens a review is expected to tag it `in-progress`; a review whose tags name
-  // no final decision (approved/rejected) counts as still open.
+  // Its state is its `review` tag: `in-progress`, `changes-requested`,
+  // `approved` or `rejected`. A review that is neither approved nor rejected
+  // is still open.
 
 //-----------------------------------------------------------------------------
-// The AI's feedback: a first look at what the submission says, shown to the
-// submitter while the request is being written and to the reviewers beside
+// The AI's feedback: a first look at what the submission says, for the
+// submitter while the request is being written and for the reviewers beside
 // their own. It is a guide, never a decision. jcr:created is when it ran.
 [sub:Screening] > sub:Feedback
   - sling:resourceType (STRING) = "sub/Screening" mandatory autocreated protected
@@ -399,11 +387,10 @@
   - sling:resourceType (STRING) = "sub/Discussion" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
-// One assessment of a single sch:Topic, in a reviewer's review or
-// in the AI's feedback. Referenceable so that comments can target it.
+// One assessment of one sch:Topic, in a reviewer's review or in the AI's
+// screening. Comments reference it.
 [sub:Assessment] > data:EntityPart, mix:referenceable, mix:lastModified
-  // The comments are orderable, so they are shown in the order they were
-  // raised.
+  // The comments are kept in the order they were raised
   orderable
 
   - sling:resourceType (STRING) = "sub/Assessment" mandatory autocreated protected
@@ -411,8 +398,7 @@
   // The sch:Topic this assesses
   - topic (REFERENCE) mandatory
 
-  // The reviewer's verdict on the topic. Its shape, a few fixed choices or a
-  // yes/no, is still to be decided.
+  // The verdict on the topic
   - value (STRING)
 
   // A short summary of this assessment
@@ -423,7 +409,7 @@
   // without first deleting the assessments that read it.
   - sources (WEAKREFERENCE) multiple
 
-  // How sure an automated assessment is, 0..1
+  // How sure an automated assessment is, from 0 to 1
   - confidence (DOUBLE)
 
   // The comments raised about this topic, the AI's concerns among them
@@ -437,12 +423,11 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A comment or question raised in some feedback, a concern the AI found among
-// them, with what it is about and the context that shows it. Either may be
-// empty: something missing quotes nothing.
+// A comment or a question raised in some feedback, such as a concern the AI
+// found, with what it is about and the context that shows it. Either may be
+// empty, since something missing quotes nothing.
 [sub:Comment] > data:EntityPart, mix:lastModified
-  // The replies and the context are orderable, so they are presented in a
-  // deliberate (chronological) sequence.
+  // The replies and the context are kept in the order they were added
   orderable
 
   - sling:resourceType (STRING) = "sub/Comment" mandatory autocreated protected
@@ -450,19 +435,18 @@
   // The comment text
   - text (STRING) mandatory
 
-  // Identifies who wrote this comment. Not necessarily the
-  // same as jcr:createdBy: comments and replies can originate from an
-  // external site, created here by an integration service user on the
-  // actual author's behalf.
+  // Who wrote this comment. It can differ from jcr:createdBy: a comment or a
+  // reply can come from an external site, created here by a service user on
+  // the author's behalf.
   - author (STRING) mandatory
 
   // What this comment is about: answers or documents of the submission, or
-  // the questions and requirements of its schema. Something missing points at
-  // the question or requirement where it belongs. Weak, so a part can be
-  // removed without first unlinking it from every comment.
+  // the questions and requirements of its schema. A comment about something
+  // missing points at the question or requirement that asks for it. Weak, so
+  // a part can be removed without first unlinking it from every comment.
   - subjects (WEAKREFERENCE) multiple
 
-  // What kind of point it makes, e.g. a gap, a conflict or a concern
+  // What kind of point it makes, such as a gap, a conflict or a concern
   - kind (STRING)
 
   // What would address it, when the author can say
@@ -486,17 +470,16 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A single message in the discussion thread attached to a comment,
-// e.g. the submitter responding to a reviewer's question, or the reviewer
-// following up.
+// One message in the discussion thread attached to a comment, such as the
+// submitter answering a reviewer's question, or the reviewer following up.
 [sub:Reply] > data:EntityPart, mix:lastModified
   - sling:resourceType (STRING) = "sub/Reply" mandatory autocreated protected
 
   // The reply text
   - text (STRING) mandatory
 
-  // Identifies who wrote this reply (the reviewer or the submitter). Not
-  // necessarily the same as jcr:createdBy: see sub:Comment.author.
+  // Who wrote this reply. It can differ from jcr:createdBy, as a comment's
+  // author can.
   - author (STRING) mandatory
 
   // Allow any other properties for extensibility

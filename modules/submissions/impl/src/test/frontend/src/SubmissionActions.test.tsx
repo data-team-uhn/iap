@@ -44,7 +44,7 @@ describe("SubmissionActions", () => {
 
     expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
-    // DeleteItem's own trigger, which it labels for itself
+    // DeleteItem's trigger, which it labels itself
     expect(screen.getByRole("button", { name: /Delete/i })).toBeInTheDocument();
   });
 
@@ -57,8 +57,6 @@ describe("SubmissionActions", () => {
   });
 
   it("opens the submission for editing, at its own address", async () => {
-    // The same page asked for by extension, the way every other view here is addressed. Whether it
-    // can actually be edited is the server's answer, given by the form it serves.
     renderActions();
 
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));

@@ -24,8 +24,7 @@ import org.apache.sling.models.annotations.Model;
 import io.uhndata.iap.entities.models.EntityHomepage;
 
 /**
- * A Sling Model wrapping a {@code sub:SubmissionsHomepage} node, the root container of the {@code /Submissions}
- * tree.
+ * A Sling Model wrapping a {@code sub:SubmissionsHomepage} node: the {@code /Submissions} homepage.
  *
  * @version $Id$
  * @since 0.1.0

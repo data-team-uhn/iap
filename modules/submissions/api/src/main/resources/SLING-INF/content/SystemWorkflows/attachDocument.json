@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Stores a file a submitter uploads for something their schema asks for, as a document recording which requirement it fulfills.",
+    "description": "Attaches a file the submitter uploads for a document requirement.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

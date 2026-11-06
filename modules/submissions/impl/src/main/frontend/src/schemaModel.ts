@@ -16,37 +16,36 @@
  * limitations under the License.
  */
 
-// What a schema listing says, and how to read a submitter's choices out of it. No React, no fetch:
-// everything here is a pure function of its arguments. The I/O that uses it is in useSchemas.
+// Reading the schemas a submitter may choose from out of a `/Schemas` listing. No React, no fetch.
 
 /**
- * What is read, and how deep. Depth 2 reaches the schemas and their versions, and `simple` drops
- * what a picker never shows: every version's requirement subtree, and the `mix:versionable`
- * bookkeeping each node repeats.
+ * The listing of the schemas and their versions. Depth 2 reaches the versions. `simple` leaves out
+ * the repository's bookkeeping, each version's requirements, and the workflow version each version
+ * would inline.
  */
 export const SCHEMAS_URL = "/Schemas.2.simple.json";
 
 /**
- * One serialized node: its own properties, plus its children under their node names. The
- * `@path`/`@name` keys are what the serializer's identification step adds, and what tells a child
- * node apart from an ordinary property value.
+ * One serialized node: its own properties, plus its children under their node names. A child node
+ * carries the `@path` and `@name` keys, which tell it apart from a property value.
  */
 export type JsonNode = Record<string, unknown>;
 
 /**
- * What the submitter picks: a schema that is open for submissions, together with the version their
- * submission will actually answer.
+ * What the submitter picks: a schema open for submissions, with the version a submission against it
+ * answers.
  */
 export interface SchemaChoice {
-  /** The active version's path, which is what raising a submission is asked for. */
+  /** The active version's path, which raising a submission takes as its `schemaVersion`. */
   path: string;
-  /** The schema's human-readable name. */
+  /** The schema's title, or its node name when the title is empty or missing. */
   title: string;
   /**
-   * The version's own label, shown because two submissions against the same schema can answer
-   * different versions of it, and which one applies is not a detail.
+   * The version's label, such as 1.0. Two submissions against the same schema can answer different
+   * versions of it.
    */
   version: string;
+  /** The version's description, if it has one. */
   description?: string;
 }
 
@@ -54,9 +53,8 @@ const SCHEMA_PRIMARY_TYPE = "sch:Schema";
 
 const SCHEMA_VERSION_PRIMARY_TYPE = "sch:SchemaVersion";
 
-// The children of the given primary type. Both node types end their definition with `+ * (nt:base)`
-// for extensibility. So the homepage's children are not all schemas, nor a schema's children all
-// versions, and the type is what says which are which.
+// The child nodes of the given primary type. The homepage and a schema both accept any child node,
+// so not every child is a schema or a version.
 function childNodes(node: JsonNode, primaryType: string): JsonNode[] {
   return Object.values(node)
     .filter((value): value is JsonNode =>
@@ -65,27 +63,25 @@ function childNodes(node: JsonNode, primaryType: string): JsonNode[] {
         && (value as JsonNode)["jcr:primaryType"] === primaryType);
 }
 
-// Lifecycle states are tags placed on the node itself
+// Whether a tag, such as a lifecycle state, is placed on the node itself
 function hasTag(node: JsonNode, tag: string): boolean {
   const tags = node.tags;
   return Array.isArray(tags) && tags.includes(tag);
 }
 
-// An empty string is not a value here. `title` is mandatory in the CND and Oak still permits it,
-// so a caller's `?? fallback` has to fire on one.
+// A string property; undefined when it is missing or empty. Oak accepts an empty value for a
+// mandatory property such as `title`.
 function text(node: JsonNode, key: string): string | undefined {
   const value = node[key];
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 /**
- * The schemas a submission may be raised against: those not retired, each paired with its active
- * version. Both halves have to be open: a retired version of a live schema is no more open than a
- * live version of a retired one.
+ * The schemas a submission may be raised against: each schema not retired, paired with its active
+ * version. A schema with no active version is left out.
  *
- * The server already leaves retired ones out, so this normally has nothing to do. It is checked
- * again because that filtering is a serialization default, switchable off per request. Reading the
- * tags we were given beats assuming which processors ran.
+ * The serialization leaves out retired schemas and inactive versions by default. The `-active`
+ * selector turns that off, so the tags are checked here as well.
  *
  * @param tree a `/Schemas` listing, serialized to the depth `SCHEMAS_URL` asks for
  * @returns what may be picked, in the order the schemas were served
@@ -101,8 +97,6 @@ export function schemaChoices(tree: JsonNode): SchemaChoice[] {
       }
       return [ {
         path: version["@path"] as string,
-        // A schema's title is mandatory, so the node name is a fallback for content that predates
-        // the constraint rather than an expected case
         title: text(schema, "title") ?? text(schema, "@name") ?? "",
         version: text(version, "version") ?? "",
         description: text(version, "description"),

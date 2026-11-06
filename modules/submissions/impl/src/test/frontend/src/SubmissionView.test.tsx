@@ -124,7 +124,7 @@ const DEEP_SUBMISSION = {
     },
     "ExtraForm": {
       "@path": "/Schemas/ClinicalTrial/1.0/ExtraForm",
-      // No label or description: the form's section falls back to the node name, no subtitle
+      // No label or description: the form's panel is headed by its node name, with no subtitle
       "sling:resourceType": "sch/FormRequirement",
       "@name": "ExtraForm",
     },
@@ -254,8 +254,8 @@ function version(documentPath: string, name: string) {
   };
 }
 
-// The form projection as the SubmissionFormServlet would serve it, asking nothing. Enough to tell
-// the editor apart from the read-only page, without restating what the editor's own tests cover.
+// The form as the server would serve it, asking nothing. It is enough to tell the editor from the
+// read-only page.
 const EMPTY_FORM: SubmissionForm = {
   path: "/Submissions/demo-1",
   title: "Test my drug",
@@ -263,8 +263,8 @@ const EMPTY_FORM: SubmissionForm = {
   requirements: [],
 };
 
-// Answers the tag definitions, the submission's serializations and the form projection alike, so that a
-// test can move between the page's two modes the way a reader does.
+// Answers the tag definitions, the submission's serializations and the form alike, so that a test can
+// move between the page's two modes as a reader does.
 function bothModes(submission: unknown = DEEP_SUBMISSION, form: SubmissionForm = EMPTY_FORM) {
   const otherwise = tagAwareFetch(submission);
   return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
@@ -319,8 +319,8 @@ describe("SubmissionView", () => {
     expect(screen.getByText(/ClinicalTrial 1.0/)).toBeInTheDocument();
     expect(screen.getByText(/by admin/)).toBeInTheDocument();
 
-    // The submission itself was fetched with the deep serialization. It need not be the first request:
-    // the header also asks what the request is waiting for, and a child's effect runs first
+    // The submission was read with the deep serialization. It need not be the first request: the header
+    // also asks what the request is waiting for, and a child's effect runs first.
     expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json");
 
     // The form requirement, its section, and its questions, with and without answers
@@ -331,16 +331,16 @@ describe("SubmissionView", () => {
     expect(screen.getByText("What is the contact email?")).toBeInTheDocument();
     expect(screen.getAllByText("Not answered yet").length).toBeGreaterThan(0);
 
-    // Answer values are formatted per type: multi-values joined, booleans worded, numbers
-    // stringified, and nested nodes treated as not answered
+    // Answer values are written out by type: several values joined, booleans as words, numbers as
+    // text, and a nested node as no answer
     expect(screen.getByText("pharmacology, Yes")).toBeInTheDocument();
     expect(screen.getByText("No")).toBeInTheDocument();
     expect(screen.getByText("36")).toBeInTheDocument();
     expect(screen.getAllByText("Not answered yet").length).toBe(2);
 
-    // Four fallbacks at once. A question with no text takes its node name, non-question schema
-    // children are skipped, a nested section shows its description a level deeper, and untitled
-    // sections and forms take their node names
+    // Four fallbacks at once. A question with no text takes its node name, and a child that is
+    // neither a question nor a section is skipped. A nested section shows its description a level
+    // deeper. Untitled sections and forms take their node names.
     expect(screen.getByText("Duration")).toBeInTheDocument();
     expect(screen.queryByText("Fill this form carefully")).toBeNull();
     expect(screen.getByText("Mailing address")).toBeInTheDocument();
@@ -348,8 +348,7 @@ describe("SubmissionView", () => {
     expect(screen.getByText("Fax")).toBeInTheDocument();
     expect(screen.getByText("ExtraForm")).toBeInTheDocument();
 
-    // What the request is asked for comes from the projection, empty here; those sections have their
-    // own group of tests
+    // The documents come from the form, which asks for none here
     expect(screen.getByText("This request asks for no documents")).toBeInTheDocument();
 
     // The review with its threaded comment ("jdoe" appears as reviewer and as comment author);
@@ -394,8 +393,8 @@ describe("SubmissionView", () => {
     expect(screen.queryByText(/Created/)).toBeNull();
     expect(screen.queryByText(/Last modified/)).toBeNull();
 
-    // The document with metadata: title, requirement, description, and a link to its newest file,
-    // saved under the title since the stored file is always called `uploadedFile`
+    // The document with its title, requirement and description, and a link to its newest file, saved
+    // under the title
     expect(await screen.findByText(/— fulfills "Study protocol"/)).toBeInTheDocument();
     expect(screen.getByText("The full protocol")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Protocol document" });
@@ -474,7 +473,7 @@ describe("SubmissionView", () => {
 
     renderAt("/Submissions/nonexistent");
 
-    // The shared vocabulary for a status, rather than wording this view invented for itself
+    // The shared wording for a status
     expect(await screen.findByText(/It could not be found on the server/)).toBeInTheDocument();
   });
 
@@ -517,8 +516,6 @@ describe("SubmissionView", () => {
     }
 
     it("lists what the request is being asked for, and says nothing answers it yet", async () => {
-      // From the projection rather than from the schema this page already holds: a document
-      // requirement can be conditional, and conditions are resolved on the server
       vi.stubGlobal("fetch", serving(projection()));
 
       renderAt("/Submissions/demo-1");
@@ -537,7 +534,6 @@ describe("SubmissionView", () => {
     });
 
     it("never offers to attach one, whoever is reading", async () => {
-      // Attaching belongs to the editor, so there is only ever one control for it
       vi.stubGlobal("fetch", serving(projection()));
 
       renderAt("/Submissions/demo-1");
@@ -572,12 +568,12 @@ describe("SubmissionView", () => {
 
       renderAt("/Submissions/demo-1");
 
-      // The requirement first: what is attached comes from the submission and what it answers comes
-      // from the projection, so the grouping is only settled once both have arrived
+      // The requirement first: the documents come from the submission and the requirements from the
+      // form, so the grouping is settled only once both have arrived
       expect(await screen.findByRole("heading", { name: "Study protocol" })).toBeInTheDocument();
       expect(await screen.findByRole("link", { name: "protocol.pdf" })).toBeInTheDocument();
       await waitFor(() => expect(screen.queryByText("Nothing attached yet")).toBeNull());
-      // The grouping already says which requirement it answers, so the document does not repeat it
+      // Under its requirement, the document does not name the requirement again
       expect(screen.queryByText(/fulfills/)).toBeNull();
     });
 
@@ -595,8 +591,8 @@ describe("SubmissionView", () => {
     });
 
     it("still shows a document whose requirement no longer applies", async () => {
-      // A condition that held when the file was attached, and no longer does: the requirement is
-      // gone from the projection, but the file is still somebody's evidence
+      // A condition held when the file was attached, and no longer does, so the form leaves the
+      // requirement out
       vi.stubGlobal("fetch", serving(projection([]), { ...DEEP_SUBMISSION, d1: attachment("note.pdf") }));
 
       renderAt("/Submissions/demo-1");
@@ -612,7 +608,7 @@ describe("SubmissionView", () => {
       expect(await screen.findByText("This request asks for no documents")).toBeInTheDocument();
     });
 
-    // Answers the submission, and the projection however `projectionAnswer` says
+    // Answers the submission, and the form however `projectionAnswer` says
     function withAProjection(projectionAnswer: () => Promise<Response>, submission: unknown = DEEP_SUBMISSION) {
       const otherwise = tagAwareFetch(submission);
       return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
@@ -627,7 +623,6 @@ describe("SubmissionView", () => {
       renderAt("/Submissions/demo-1");
 
       expect(await screen.findAllByText("What this request asks for could not be read")).toHaveLength(1);
-      // What is attached comes from the submission itself, so it is still shown
       expect(screen.getByText("note.pdf")).toBeInTheDocument();
       expect(screen.queryByText("This request asks for no documents")).toBeNull();
     });
@@ -715,7 +710,7 @@ describe("SubmissionView", () => {
     // The submission's own workflow, parked on a step with nothing to decide
     const WAITING = waitingOn("/Submissions/demo-1", { fillIn: SEND });
 
-    // A request one of whose parts the save workflow has marked as still missing something
+    // A request with a part that still lacks something
     const INCOMPLETE = { ...DEEP_SUBMISSION, aggregatedTags: [ "incomplete" ] };
 
     // A form asking one question, which is all that stands between the request and sending it
@@ -728,10 +723,10 @@ describe("SubmissionView", () => {
       path: "/Submissions/demo-1", title: "Test my drug", editable: true, requirements: [ DETAILS ],
     };
 
-    // What the page reads: the submission's serializations, the form projection, the tag definitions, and
-    // the workflow, parked on the step until it is completed. `submission` says what the request reads as
-    // at each moment. Saving an answer answers once `save` settles, then calls `onSaved`, and completing the
-    // step answers once `completion` settles.
+    // What the page reads: the submission's serializations, the form, the tag definitions, and the
+    // workflow, parked on the step until it is completed. `submission` says what the request reads as at
+    // each moment. A save is answered once `save` settles, and then calls `onSaved`. Completing the step
+    // is answered once `completion` settles.
     function withATaskWaiting({ completion = Promise.resolve(), save = Promise.resolve(), onSaved, submission, form }: {
       completion?: Promise<void>;
       save?: Promise<void>;
@@ -761,7 +756,7 @@ describe("SubmissionView", () => {
     const completed = (fetchMock: ReturnType<typeof withATaskWaiting>) =>
       fetchMock.mock.calls.filter(([ url ]) => url.endsWith(".complete.json"));
 
-    // A request missing its one answer until the save of that answer has been answered
+    // A request that lacks its one answer until the save of that answer is answered
     function completedBy(save: Promise<void>) {
       let stored = false;
       return withATaskWaiting({
@@ -901,8 +896,6 @@ describe("SubmissionView", () => {
       await waitFor(() => expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json"));
     });
 
-    // The editor used to be a dead end: reachable only from a listing, with nothing on it leading
-    // anywhere. Going back also re-reads, since the editor saves as it goes.
     it("comes back out of the editor, reading the submission afresh", async () => {
       const fetchMock = bothModes();
       vi.stubGlobal("fetch", fetchMock);

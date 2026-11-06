@@ -31,8 +31,8 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
- * A Sling Model wrapping a {@code sub:Answer} node: the answer to a single schema question. Only simple storage;
- * the value's expected type and meaning are dictated by the referenced question.
+ * A Sling Model wrapping a {@code sub:Answer} node: the answer to one question of the schema. The question says what
+ * type the value has and what it means.
  *
  * @version $Id$
  * @since 0.1.0
@@ -53,7 +53,7 @@ public class Answer extends EntityPart implements Referenceable
     /**
      * The question this answers.
      *
-     * @return a question, or {@code null} if not set or unresolvable
+     * @return the question; {@code null} if none is set, or this session cannot resolve it
      */
     @Nullable
     public Question getQuestion()
@@ -62,22 +62,21 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * The submitted value(s): what the submitter typed or approved. An extracted answer is not one of them until
-     * the submitter accepts or edits it, so that no answer is ever attributed to a submitter who never saw it.
+     * The value or values the submitter typed or accepted. An extracted answer is not one of them until the
+     * submitter accepts or edits it.
      *
-     * @return a copy of the stored value(s), or {@code null} if not yet answered
+     * @return a copy of the stored values; {@code null} if the answer holds no value
      */
     @Nullable
     public String[] getValue()
     {
-        // A copy, since arrays are mutable and callers must not be able to alter the model's own state
         return this.value == null ? null : this.value.clone();
     }
 
     /**
-     * Every extraction run against this question, in the order they ran.
+     * Every extraction run against this answer, in the order they ran.
      *
-     * @return a list of runs, empty if extraction has never run
+     * @return the runs; empty if extraction has never run
      */
     @NotNull
     public List<Extraction> getExtractions()
@@ -86,9 +85,9 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * The most recent extraction run, which is the one a submitter is shown.
+     * The most recent extraction run against this answer.
      *
-     * @return the newest run, or {@code null} if extraction has never run
+     * @return the newest run; {@code null} if extraction has never run
      */
     @Nullable
     public Extraction getLatestExtraction()

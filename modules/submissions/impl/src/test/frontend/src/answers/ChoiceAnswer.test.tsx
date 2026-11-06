@@ -65,8 +65,6 @@ describe("ChoiceAnswer", () => {
       expect(screen.getByRole("radio", { name: option.label })).toBeInTheDocument());
   });
 
-  // The label is what the submitter reads. The value is what an answer means, and what a condition
-  // compares against, so rewording a label must not change any answer already recorded
   it("stores the value behind the label, not the label", async () => {
     const onAnswered = renderChoice();
 
@@ -124,7 +122,6 @@ describe("ChoiceAnswer", () => {
       expect(onAnswered).toHaveBeenCalledWith([ "full-day" ]);
     });
 
-    // Two people answering the same way should store the same thing, whatever order they clicked in
     it("keeps the answers in the order they are offered, not the order they were picked", async () => {
       const onAnswered = renderChoice({ maxAnswers: 0 }, [ "multiple-days" ]);
 
@@ -151,7 +148,7 @@ describe("ChoiceAnswer", () => {
       renderChoice({ maxAnswers: 2 }, [ "half-day", "full-day" ]);
 
       expect(screen.getByRole("checkbox", { name: "Several days" })).toBeDisabled();
-      // The picked ones stay live, so the choice can still be changed
+      // The picked ones stay enabled, so that the choice can still be changed
       expect(screen.getByRole("checkbox", { name: "Half day" })).toBeEnabled();
     });
 

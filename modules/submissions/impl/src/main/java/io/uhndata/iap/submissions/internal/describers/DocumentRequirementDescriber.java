@@ -39,8 +39,8 @@ import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.RequirementDescriber;
 
 /**
- * What a document requirement adds to a form: whether it is required, the types it takes, its blank if it offers
- * one, and what is already attached. An upload control cannot be drawn without them.
+ * What a document requirement adds to a form: whether it is required, the types it takes, its template if it offers
+ * one, and what is already attached.
  *
  * @version $Id$
  * @since 0.1.0
@@ -92,7 +92,7 @@ public class DocumentRequirementDescriber implements RequirementDescriber
      * The file types a requirement takes.
      *
      * @param asked the document requirement
-     * @return the MIME types it accepts; empty when it accepts any type
+     * @return the media types it accepts; empty when it accepts any type
      */
     private static JsonArrayBuilder acceptedFileTypes(final DocumentRequirement asked)
     {
@@ -102,8 +102,8 @@ public class DocumentRequirementDescriber implements RequirementDescriber
     }
 
     /**
-     * Adds the blank a requirement offers to start from, if it offers one: where it downloads from, and the name it
-     * is saved under.
+     * Adds the template a requirement offers to start from, if it offers one: where it downloads from, and the name
+     * it is saved under.
      *
      * @param json the requirement's object in the form's JSON
      * @param asked the document requirement
@@ -118,7 +118,7 @@ public class DocumentRequirementDescriber implements RequirementDescriber
     }
 
     /**
-     * What has been attached for a requirement, named, so that a reopened form says which document is there.
+     * What has been attached for a requirement, by name.
      *
      * @param asked the document requirement
      * @param submission the submission holding the documents
@@ -139,7 +139,7 @@ public class DocumentRequirementDescriber implements RequirementDescriber
      * One attached document: its title, and the path of its newest file, which is where it downloads from.
      *
      * @param document the attached document
-     * @return the document's JSON, without a path when no file has landed yet
+     * @return the document's JSON, without a path when no file is stored yet
      */
     private static JsonObjectBuilder describeAttachment(final Document document)
     {

@@ -117,8 +117,7 @@ class RecordReviewHandlerTest
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
         this.context.create().resource(VERSION_PATH, Map.of(
             TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "tags", new String[] {"active"}));
-        // Decoys before the requirement decided, so finding it is a choice rather than taking the first: another
-        // approval, and a requirement of another kind
+        // Another approval and a requirement of another kind come first, so taking the first requirement fails
         this.context.create().resource(VERSION_PATH + "/budget", Map.of(
             TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Budget approval"));
         this.context.create().resource(VERSION_PATH + "/details", Map.of(
@@ -205,7 +204,7 @@ class RecordReviewHandlerTest
     @Test
     void checksOutTheRequestBeforeRecordingTheDecision() throws Exception
     {
-        // The Sling POST servlet checks in whatever it creates, and a checked-in request takes no reviews
+        // A checked-in request takes no reviews
         final Session session = Mockito.mock(Session.class);
         final Workspace workspace = Mockito.mock(Workspace.class);
         final VersionManager versions = Mockito.mock(VersionManager.class);

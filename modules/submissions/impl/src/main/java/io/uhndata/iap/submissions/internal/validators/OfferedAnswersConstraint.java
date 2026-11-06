@@ -32,8 +32,8 @@ import io.uhndata.iap.submissions.spi.AnswerConstraint;
  * Refuses a value a question offering a fixed set of answers does not offer. A question offering none is answered
  * freely, in whatever its data type accepts.
  *
- * <p>The form offers only those answers, so a value from outside them did not come from it. And an option's value
- * is what conditions compare against: a stray one would make the request go on to ask questions nobody chose.</p>
+ * <p>An option's value is what conditions compare against, so a value outside the options would make the request
+ * ask questions nobody chose.</p>
  *
  * @version $Id$
  * @since 0.1.0

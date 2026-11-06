@@ -159,7 +159,7 @@ final class ConstraintFixture
     /**
      * What the validator says about the question carrying these constraints, answered with these values.
      *
-     * @param constraints the constraint properties to declare on the question, e.g. {@code maxAnswers}
+     * @param constraints the constraint properties to declare on the question, such as {@code maxAnswers}
      * @param values the values the answer holds; none at all leaves the question unanswered
      * @return the validator's refusal, or {@code null} when it accepts
      * @throws Exception when the fixture cannot be written

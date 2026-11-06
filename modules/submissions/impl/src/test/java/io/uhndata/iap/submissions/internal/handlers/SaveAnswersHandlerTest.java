@@ -218,7 +218,7 @@ class SaveAnswersHandlerTest
     @Test
     void checksOutTheRequestBeforeAnsweringIt() throws Exception
     {
-        // The Sling POST servlet checks in whatever it creates, and a checked-in request takes no answers
+        // A checked-in request takes no answers
         final Session session = Mockito.mock(Session.class);
         final Workspace workspace = Mockito.mock(Workspace.class);
         final VersionManager versions = Mockito.mock(VersionManager.class);
@@ -251,8 +251,7 @@ class SaveAnswersHandlerTest
     @Test
     void updatesTheAnswerAlreadyThereRatherThanAddingAnother() throws Exception
     {
-        // The whole point of finding the existing answer by its reference: a form saved twice is one answer with
-        // the later value, not two answers disagreeing
+        // A form saved twice leaves one answer, with the later value
         this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
         stampAnswers();
         this.handler.execute(context(Map.of(START_DATE, "2026-10-13")));
@@ -263,15 +262,13 @@ class SaveAnswersHandlerTest
     @Test
     void clearsAnAnswerAlreadyGiven() throws Exception
     {
-        // Emptying a field is a change like any other, and the request has to stop counting the question as
-        // answered -- otherwise it goes on looking complete when it is not
+        // Emptying a field clears its answer, so the question stops counting as answered
         this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
         stampAnswers();
 
         this.handler.execute(context(Map.of(START_DATE, "")));
 
-        // Stored as holding nothing rather than as holding the empty string: an empty value is how the form says
-        // "this question is no longer answered", not a value in its own right
+        // Stored as holding no value, not as holding the empty string
         assertEquals(List.of(), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
     }
 
@@ -291,7 +288,7 @@ class SaveAnswersHandlerTest
     @Test
     void refusesSomebodyElsesRequest()
     {
-        // Has to be checked here: the engine executes privileged, so whatever a handler does not refuse is allowed
+        // The engine runs the handler privileged, so the handler has to refuse it
         final NotAuthorizedException refusal = assertThrows(NotAuthorizedException.class,
             () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06"), "somebody-else")));
 
@@ -322,7 +319,7 @@ class SaveAnswersHandlerTest
     @Test
     void refusesSomethingThatIsNotAQuestion()
     {
-        // The path resolves, which is the interesting case: a section is not something one answers
+        // The path resolves, to a section
         assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(context(Map.of("details", "whatever"))));
     }
@@ -330,8 +327,7 @@ class SaveAnswersHandlerTest
     @Test
     void refusesWhenTheSchemaVersionCannotBeRead()
     {
-        // Its reference is mandatory, so what can go wrong is not that it is missing but that this session cannot
-        // see what it points at
+        // The reference is set, and the resolver the save writes with cannot read its target
         final ResourceResolver blind = new ResourceResolverWrapper(this.context.resourceResolver())
         {
             @Override
@@ -348,10 +344,9 @@ class SaveAnswersHandlerTest
     @Test
     void translatesAFailedReferenceIntoAPersistenceFailure()
     {
-        // The answer is created but cannot be adapted to a node, so the reference to its question cannot be
-        // written. That has to reach the engine as a persistence problem it knows how to translate rather than as
-        // a raw repository error escaping a handler. Sabotaged at creation because that is the one resource the
-        // handler obtains through the resolver it was handed; everything else it reads comes from a resource's own.
+        // The answer is created, but reads as a node that fails on any use, so its reference to its question cannot
+        // be written. That has to reach the engine as a persistence problem it can translate, and not as a raw
+        // repository error.
         final Node explosive = Mockito.mock(Node.class, invocation -> {
             throw new RepositoryException("boom");
         });
@@ -378,9 +373,8 @@ class SaveAnswersHandlerTest
     }
 
     /**
-     * Stamps the {@code sling:resourceType} that a real repository autocreates from the node type and a mock
-     * repository does not, which is what makes an answer recognisable as one. The runtime cannot do this itself —
-     * the property is protected — so a test that wants to see what it wrote has to stand in for the node type.
+     * Stamps the {@code sling:resourceType} that Oak autocreates from the node type and a mock repository does not,
+     * which is what makes an answer read as one. The handler cannot set it, since the property is protected.
      */
     private void stampAnswers()
     {
@@ -444,8 +438,8 @@ class SaveAnswersHandlerTest
         }
     }
 
-    // Adaptation is not a type filter -- a model registered for one type adapts a resource of another -- so a
-    // definition pointed at the wrong target has to be refused on the resource, not on what it adapts to
+    // A model registered for one type adapts a resource of another, so the wrong target is refused by its resource
+    // type
     @Test
     void refusesATargetThatIsNotASubmission() throws Exception
     {
@@ -456,8 +450,7 @@ class SaveAnswersHandlerTest
             () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06"))));
     }
 
-    // A payload key is a path, and an absolute one ignores the version it is meant to be relative to. Without a
-    // containment check an answer could name a question of a schema the submitter cannot even read.
+    // An absolute key ignores the schema version it is meant to be relative to
     @Test
     void refusesAQuestionOutsideThisSchemaVersion()
     {
@@ -473,8 +466,7 @@ class SaveAnswersHandlerTest
     @Test
     void refusesAPayloadValueThatIsNotText()
     {
-        // The payload is a Map<String, Object> and public API, so what arrives is checked rather than coerced:
-        // String.valueOf would store a List as the single literal answer "[a, b]"
+        // What arrives is checked, not coerced. String.valueOf would store a list as the single answer "[a, b]".
         assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(context(Map.of(START_DATE, List.of("a", "b")))));
     }
@@ -484,8 +476,7 @@ class SaveAnswersHandlerTest
     {
         assertDoesNotThrow(() -> this.handler.execute(context(Map.of(START_DATE, ""))));
 
-        // An answer storing nothing would still count towards what the submission reports, and would hold its
-        // question against deletion for ever
+        // The createParts task creates the empty answer, not this one
         assertTrue(submission().getAnswers().isEmpty());
     }
 
@@ -498,8 +489,7 @@ class SaveAnswersHandlerTest
         assertEquals(List.of("a", "c"), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
     }
 
-    // Mandatory in the CND is a rule about the content, not a promise to every reader: a reference whose
-    // target has gone resolves to nothing, which is a payload the handler has to refuse rather than fail on
+    // A schema version reference that resolves to nothing is refused, and does not fail the handler
     @Test
     void refusesWhenTheSchemaVersionReferenceDangles() throws Exception
     {

@@ -62,15 +62,13 @@ function RequirementBody(props: RequirementComponentProps) {
   return createElement(Body, props);
 }
 
-// Filling a submission in.
+// The editor of a submission. It saves each answer once it is finished, and then reads the form
+// again. Which questions apply depends on the answers, and only the server decides it. A question
+// that stops applying is absent from the next read.
 //
-// There is no Save button. An answer is saved when it is finished, meaning a field left or a box
-// ticked, and the form is then read again. That is what keeps the questions on screen correct, because
-// which of them apply depends on the answers, and the server is the only thing that decides it.
-// Nothing here evaluates a condition; a question that stops applying simply stops being sent.
 // `onSaving` hears of each save as it starts, for whatever must wait until the answers are stored.
-// `onChanged` hears that a save or an attachment went through, so a page reading the submission
-// itself, such as what it is still missing, can read it again.
+// `onChanged` hears that a save or an attachment went through, so that the page can read the
+// submission again.
 function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
   path: string;
   onSaving?: (save: Promise<unknown>) => void;
@@ -78,15 +76,15 @@ function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
 }) {
   const [ form, setForm ] = useState<SubmissionForm>();
   const [ error, setError ] = useState<string>();
-  // Absent until a field has been saved at least once, so reading one may find nothing
+  // The save state of each field, by question path; absent until the field is first saved
   const [ states, setStates ] = useState<Record<string, FieldState | undefined>>({});
-  // Which read is the current one. Answers finished in quick succession are saved in the order they
-  // were given, but their reads can land out of order. An older form would put back what was just
-  // replaced.
+  // The token of the newest read of the form. Answers finished in quick succession each read the form
+  // again, and the reads can land out of order. Only the newest is applied, or an older form would put
+  // back what a newer one replaced.
   const latestFormRead = useRef(0);
   const doFetch = useAuthenticatedFetch();
-  // A requirement drawn by another module's component waits for that component to load, or it would
-  // first show as something that cannot be completed here
+  // A requirement drawn by another module's component waits for that component to load. Until then
+  // it would show as something that cannot be completed here.
   const componentsReady = useRequirementComponents();
 
   const reload = useCallback((token: number) => fetchForm(doFetch, path).then(next => {
@@ -108,9 +106,8 @@ function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
     const save = saveAnswer(doFetch, path, question.path, values);
     onSaving(save);
     save
-      // The field's own outcome, whether or not a later answer has overtaken this one. A save that
-      // succeeded is not reported as still saving because something else happened after it. Settled
-      // in this handler rather than in a trailing catch, so that only the read below reaches one
+      // The field's own outcome, applied even when a later answer has overtaken this one. Handled
+      // here rather than in the trailing catch, which is for the read alone.
       .then(
         () => {
           setStates(current => ({ ...current, [question.path]: { state: "saved" } }));
@@ -119,15 +116,15 @@ function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
         (e: unknown) => setStates(current => (
           { ...current, [question.path]: { state: "failed", error: message(e) } })),
       )
-      // Read again whichever way the save went. This answer already holds the newest token, so
-      // skipping the read after a refusal would leave the form waiting for one that never comes
+      // Read again whichever way the save went. This save holds the newest token, so no other read
+      // would be applied.
       .then(() => reload(token))
-      // A read that fails says nothing about the answer, which is why it is reported against the
-      // form rather than against the field
+      // A failed read is reported for the form, not for the field
       .catch((e: unknown) => setError(message(e)));
   }, [ doFetch, path, reload, onSaving, onChanged ]);
 
-  // The form again: a requirement may now be answered, and the request no longer incomplete
+  // Reads the form again after a requirement's component changed the submission, such as by
+  // attaching a file
   const changed = useCallback(() => {
     const token = latestFormRead.current + 1;
     latestFormRead.current = token;

@@ -69,17 +69,17 @@ function formatValue(value: unknown): string {
   if (typeof value === "boolean") {
     return value ? "Yes" : "No";
   }
-  // Anything else (nested objects, missing values) has no meaningful text form
+  // Anything else, such as a nested node or a missing value, reads as no answer
   return ["string", "number"].includes(typeof value) ? String(value) : "";
 }
 
-// Who raised this submission, as the engine recorded it. Seeded content has no `createdBy`, so its writer
-// is named instead.
+// Who raised the submission, as the engine recorded it. Content the engine did not create has no
+// `createdBy`, and its writer is named instead.
 function createdBy(submission: SerializedNode): unknown {
   return submission.createdBy ?? submission["jcr:createdBy"];
 }
 
-// What a stored value reads as: the label of the option it picks, where the question offers one.
+// What a stored value reads as: the label of the option it picks, when the question offers one.
 function labelled(question: SerializedNode, value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(entry => labelled(question, entry));
@@ -88,7 +88,7 @@ function labelled(question: SerializedNode, value: unknown): unknown {
   return option === undefined ? value : option.label ?? option.value;
 }
 
-// One question with its answer (or a placeholder when unanswered).
+// One question with its answer, or with a placeholder when it is unanswered.
 function QuestionRow({ question, answers }: { question: SerializedNode; answers: SerializedNode[] }) {
   const answer = answers.find(candidate =>
     isNode(candidate.question) && candidate.question["@path"] === question["@path"]);
@@ -133,20 +133,20 @@ function FormItems(
   );
 }
 
-// The `sub:File` of a document's newest version. Older versions are its history and stay unshown.
+// The `sub:File` of a document's newest version, which is its last; undefined until a file is
+// uploaded. The older versions are not shown.
 function currentFile(document: SerializedNode): SerializedNode | undefined {
   const file = childrenOfType(document, "sub/DocumentVersion").at(-1)?.file;
   return isNode(file) && isNode(file.uploadedFile) ? file : undefined;
 }
 
-// One attached document: what it is called, as a link to download its current file.
+// One attached document: its title, as a link to download its current file. When `named`, it also
+// says which requirement it fulfills.
 function Attachment({ document, named }: { document: SerializedNode; named: boolean }) {
   const requirement = isNode(document.fulfills) ? document.fulfills : undefined;
   const title = String(document.title ?? document["@name"]);
   const file = currentFile(document);
-  // A reference is serialized with whatever the referenced node holds, and a requirement need not
-  // carry a label. Worth saying only where the grouping does not already say it, and only where
-  // there is something to say: `fulfills "undefined"` is worse than nothing at all.
+  // A requirement need not carry a label
   const fulfills = named && typeof requirement?.label === "string" ? requirement.label : undefined;
   return (
     <Box>
@@ -164,8 +164,8 @@ function Attachment({ document, named }: { document: SerializedNode; named: bool
   );
 }
 
-// The form projection's answer, read as a form. The servlet always lists the requirements; reading a
-// missing list as empty keeps a malformed answer from taking the whole page down.
+// The served form, read as a form. A missing list of requirements reads as empty, so that a malformed
+// answer does not take the page down.
 function asForm(node: Record<string, unknown>): SubmissionForm {
   const requirements = Array.isArray(node.requirements) ? node.requirements as Requirement[] : [];
   return { ...node, requirements } as SubmissionForm;
@@ -183,8 +183,8 @@ function RequirementHeading({ requirement }: { requirement: Requirement }) {
   );
 }
 
-// What the schema asks for and what has been attached against it. Without the projection, what is
-// attached is still shown, since that comes from the submission itself.
+// The documents the request asks for, and what has been attached for each. Without the form, the
+// attached documents are still shown, since they come from the submission itself.
 function Documents({ form, loading, documents }: {
   form: SubmissionForm | undefined;
   loading: boolean;
@@ -196,8 +196,8 @@ function Documents({ form, loading, documents }: {
   const requirements = (form?.requirements ?? []).filter(isDocumentRequirement);
   const fulfilling = (requirement: DocumentRequirement) => documents.filter(document =>
     isNode(document.fulfills) && document.fulfills["@path"] === requirement.path);
-  // Anything whose requirement does not currently apply, is gone from the schema, or that never named
-  // one: still somebody's evidence, so shown rather than silently dropped
+  // A document fulfilling no requirement listed here, such as one that does not apply now, is still
+  // shown, after the requirements
   const claimed = new Set(requirements.flatMap(requirement =>
     fulfilling(requirement).map(document => document["@path"])));
   const unattributed = documents.filter(document => !claimed.has(document["@path"]));
@@ -251,10 +251,9 @@ function Approvals({ form }: { form: SubmissionForm | undefined }) {
   );
 }
 
-// The documents and approvals a request is asked for. Both come from the form projection rather than
-// from the submission this page holds: a requirement can be conditional, and the server resolves
-// conditions. The projection is read again whenever the page reads the submission again (`reloads`),
-// since whatever changed the one can change the other.
+// The documents and approvals a request is asked for. Both come from the form the server serves,
+// since a requirement can be conditional and the server resolves the conditions. The form is read
+// again whenever `reloads` changes, which is when the page reads the submission again.
 function DocumentsAndApprovals({ path, documents, reloads }: {
   path: string;
   documents: SerializedNode[];
@@ -277,7 +276,7 @@ function DocumentsAndApprovals({ path, documents, reloads }: {
       <Panel title="Documents">
         <Documents form={form} loading={loading} documents={documents} />
       </Panel>
-      {/* Without a projection there is nothing true to say about approvals */}
+      {/* Without the form, nothing is known about the approvals */}
       {loading || form
         ? <Panel title="Approvals"><Approvals form={form} /></Panel>
         : null}
@@ -321,8 +320,8 @@ function Reviews({ reviews }: { reviews: SerializedNode[] }) {
   );
 }
 
-// The system tag the save workflow places on a part of a submission that is still missing something,
-// and which reaches the submission by aggregation
+// The system tag on a part of a submission that still lacks something. It is aggregated, so the
+// submission carries it while any of its parts does.
 const INCOMPLETE_TAG = "incomplete";
 
 const INCOMPLETE_REASON = "Answer everything this request asks for first.";
@@ -332,31 +331,28 @@ function whyNotReady(submission: SerializedNode | undefined): string | undefined
   return carriesTag(submission, INCOMPLETE_TAG) ? INCOMPLETE_REASON : undefined;
 }
 
-// The read-only page displaying one submission, registered as a view on the `iap/coreUI/view`
-// extension point for `/Submissions/*`. The submission is fetched with the `deep` serialization,
-// which also expands the referenced schema version and its requirements. The answers can then be
-// grouped the way the schema's forms and sections define, alongside the attached documents and the
-// reviews.
+// The page of one submission: read-only, or the editor at `<path>.edit`. The read-only page groups
+// the answers by the schema's forms and sections, and shows the documents, the approvals and the
+// reviews. The submission is read with the `deep` serialization, which also expands the schema
+// version it answers.
 function SubmissionView() {
   const location = useLocation();
   const navigate = useNavigate();
-  // The page URL is the submission's repository path (a trailing .html is tolerated). A trailing
-  // `.edit` asks for the editor. Which view is shown is addressed the way every other view here is:
-  // by extension rather than by a query parameter. The server serves the same shell for it.
+  // The page URL is the submission's repository path, with an optional `.html`. A trailing `.edit`
+  // asks for the editor, and the server serves the same page for it.
   const address = location.pathname.replace(/\.html$/, "");
   const editing = address.endsWith(EDIT);
   const path = editing ? address.slice(0, -EDIT.length) : address;
   const [submission, setSubmission] = useState<SerializedNode>();
   const [error, setError] = useState<string>();
-  // Loading is derived, not toggled inside the fetch effect: the view is loading until the
-  // fetch for the currently displayed path has settled, one way or the other
+  // The page is loading until the read of the current path settles, one way or the other
   const [loadedPath, setLoadedPath] = useState<string>();
   const loading = loadedPath !== path;
   const fetchUtil = useAuthenticatedFetch();
   // The editor's saves still on their way, which completing a step must not overtake
   const { track: trackSave, allDone: savesDone } = usePendingWork();
-  // The submission on screen, or none once the page is gone: a step completed after the reader moved
-  // on must not bring them back
+  // The path of the submission on screen; undefined once the page is gone. A step completed after the
+  // reader moved on must not bring them back.
   const shownPath = useRef<string | undefined>(path);
   useEffect(() => {
     shownPath.current = path;
@@ -364,13 +360,13 @@ function SubmissionView() {
       shownPath.current = undefined;
     };
   }, [path]);
-  // Bumped when something else on the page changes the submission, so the fetch below runs again for
+  // Bumped when something on the page changes the submission, so that the read below runs again for
   // the same path
   const [reloads, setReloads] = useState(0);
   const readAgain = useCallback(() => setReloads(current => current + 1), []);
 
-  // Before a step is completed: the answers still being saved, then the submission read afresh, since
-  // they may change what it still lacks. A submission not ready refuses the step, with the reason.
+  // Waits for the answers still being saved, then reads the submission again, since they may change
+  // what it still lacks. Rejects with the reason when the submission is not ready for its next step.
   const readyForNextStep = useCallback(() => savesDone()
     .then(() => fetchUtil(`${path}.json`))
     .then(response => {
@@ -386,8 +382,8 @@ function SubmissionView() {
       }
     }), [ savesDone, fetchUtil, path ]);
 
-  // Read in both modes: whether the waiting step can be taken depends on what the request still lacks,
-  // which changes while it is filled in
+  // Read in both modes. Whether the waiting step can be taken depends on what the request still lacks,
+  // which changes while it is filled in.
   useEffect(() => {
     let cancelled = false;
     fetchUtil(`${path}.deep.json`)
@@ -418,15 +414,12 @@ function SubmissionView() {
     };
   }, [path, fetchUtil, reloads]);
 
-  // Reading and filling in are two modes of the same page, so the way between them belongs to the
-  // page rather than to either mode. It is rendered whatever the page is doing, because the states
-  // with nothing to show are exactly the ones somebody needs a way out of. Before this, the
-  // editor was reachable only from a listing and, once open, offered no way back at all.
+  // The way back, the steps the request is waiting for, and the switch between the two modes. It is
+  // shown in every state of the page. Loading and failure are where somebody most needs a way out.
   const header = (
     <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>
       <Link component={RouterLink} to="/">← Back to the dashboard</Link>
       <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
-        {/* What the process is waiting for, offered in both modes */}
         <SubmissionTasks
           path={path}
           readinessNote={whyNotReady(submission)}
@@ -435,7 +428,7 @@ function SubmissionView() {
             if (shownPath.current !== path) {
               return;
             }
-            // Back to reading it: a completed step usually leaves the submission read-only
+            // Back to the read-only page, read again
             readAgain();
             void navigate(path);
           }}
@@ -443,8 +436,8 @@ function SubmissionView() {
         <ToggleButtonGroup
           exclusive
           value={editing ? "edit" : "view"}
-          // An exclusive group reports null when the selected button is clicked again. That is a
-          // deselection, and there is no third mode to land in, so it leaves the page as it is.
+          // An exclusive group reports null when the selected button is pressed again, and the page
+          // then stays as it is
           onChange={(_event, next: string | null) => {
             if (next) {
               // Read again, so that leaving the editor shows what it changed
@@ -458,9 +451,8 @@ function SubmissionView() {
             <VisibilityIcon fontSize="small" sx={{ mr: 0.5 }} />
             View
           </ToggleButton>
-          {/* Offered to whoever is looking. Whether it can actually be edited is the server's answer,
-              given by the form it serves, and the editor says so plainly when it may not be — the same
-              rule the listing's Edit action follows. */}
+          {/* Offered to every reader. The form the server serves says whether this reader may edit,
+              and the editor says so when they may not. */}
           <ToggleButton value="edit">
             <EditIcon fontSize="small" sx={{ mr: 0.5 }} />
             Edit
@@ -474,8 +466,8 @@ function SubmissionView() {
     return (
       <Stack spacing={2}>
         {header}
-        {/* Keyed, so navigating to another submission builds a new editor rather than showing
-            the previous one's answers until the new form lands */}
+        {/* Keyed by path, so that another submission gets a new editor rather than showing the
+            previous one's answers until its form arrives */}
         <SubmissionEditor key={path} path={path} onSaving={trackSave} onChanged={readAgain} />
       </Stack>
     );

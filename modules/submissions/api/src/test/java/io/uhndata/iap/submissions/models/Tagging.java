@@ -49,7 +49,7 @@ public final class Tagging
     /**
      * Registers the {@code Taggable} view, so that content adapts to it the way it does with the tags bundle
      * installed. Without this, {@code as(Taggable.class)} answers {@code null} and a model reading tags reports
-     * none, which is the degradation these models are also expected to survive.
+     * none.
      *
      * @param context the mock context whose resources become taggable
      */
@@ -69,10 +69,6 @@ public final class Tagging
 
     /**
      * Teaches the mock to answer from, and write to, the resource's own {@code tags} property.
-     *
-     * <p>Placing is stubbed as well as reading, because the creation handler places a submission's {@code draft}
-     * tag: without it, raising a submission fails on the absent tags service rather than on anything the test
-     * is about.</p>
      *
      * @param taggable the mock standing in for the view
      * @param resource the resource it stands for
