@@ -1,9 +1,9 @@
 # Notifications
 
 IAP tells people about itself through **notification channels**. Something gathers what
-is worth saying; a channel delivers it. The two are separate modules on purpose, so a
-new channel reaches every existing source of messages and a new source reaches every
-channel.
+is worth saying; a channel delivers it. A workflow's notification is offered to every
+channel that delivers notifications. The chat webhook posts only what its own producers
+gather.
 
 | Channel | Module | Delivers |
 |---|---|---|
@@ -18,59 +18,59 @@ becomes one. A channel that calls a web service does so through
 
 ## Chat webhooks
 
-Each factory configuration of `Scheduled Slack Notifications` is one scheduled job, so
-an instance can run a nightly summary and a weekly digest to different channels.
+Each factory configuration of `Scheduled Slack Notifications` is one notification,
+posted on its own schedule. An instance can have several, such as a nightly one to one
+channel and a weekly one to another.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `name` | — | Names the notification and its job |
-| `schedule` | `%ENV%SLACK_NOTIFICATIONS_SCHEDULE` | Quartz expression — `0 0 0 * * ? *` nightly, `0 0 9 ? * MON *` Monday mornings |
-| `endpoint` | `%ENV%SLACK_NOTIFICATIONS_ENDPOINT` | The webhook address |
-| `title` | empty | An optional line above the attachments |
-| `include` | — | Which producers to use; empty means all |
-| `notificationParameters` | — | `key=value` strings passed to the producers |
-| `skipEmpty` | `true` | Post nothing when there is nothing to report, rather than "Nothing to report" |
+| `name` | — | The notification's name, which also names its job. Different for each notification |
+| `schedule` | `%ENV%SLACK_NOTIFICATIONS_SCHEDULE` | A Quartz cron expression, such as `0 0 0 * * ? *` for every night or `0 0 9 ? * MON *` for Monday mornings. Every night at midnight if it resolves to nothing |
+| `endpoint` | `%ENV%SLACK_NOTIFICATIONS_ENDPOINT` | The webhook URL |
+| `title` | empty | A line posted above the attachments |
+| `include` | — | The names of the producers to ask, such as `status`. Empty asks every one |
+| `notificationParameters` | — | `key=value` strings for the producers |
+| `skipEmpty` | `true` | Post nothing when no producer has an attachment. With `false`, post "Nothing to report" |
 
-A value starting with **`%ENV%`** names an environment variable to read instead of being
-used directly — `%ENV%SLACK_NOTIFICATIONS_ENDPOINT` reads `$SLACK_NOTIFICATIONS_ENDPOINT`.
-Both the schedule and the endpoint default to that form: a webhook address is a secret
-and belongs in the environment, not in a configuration file.
+A schedule or endpoint starting with **`%ENV%`** is read from the environment variable
+it names: `%ENV%SLACK_NOTIFICATIONS_ENDPOINT` reads `$SLACK_NOTIFICATIONS_ENDPOINT`.
+Both default to that form. A webhook URL is a secret, and belongs in the environment
+rather than in a configuration file.
 
-**A notification whose endpoint resolves to nothing is not scheduled at all**, and says
-so once in the log. Scheduling a job that could only ever fail would report the same
-failure every night forever.
+**A notification whose endpoint resolves to nothing is not scheduled.** Its activation
+logs and records that once, instead of a failed post every night.
 
 ### Providing messages
 
-What a chat notification says comes from producers, not from the channel. Implement
-`SlackNotificationProducer` (`…slacknotifications.spi`) as an OSGi component:
+A chat notification's attachments come from producers. A producer is an OSGi component
+implementing `SlackNotificationProducer` (`…slacknotifications.spi`):
 
 ```java
 @NotNull String           getName();
 @NotNull List<JsonObject> prepareMessages(@NotNull Map<String, String> extraParameters);
 ```
 
-The SPI also carries the attachment keys, `TITLE_KEY`, `TEXT_KEY` and `COLOR_KEY`, and
-the four colours to use, so producers agree on what a severity looks like:
+`getName()` is the name a configuration's `include` lists. The SPI also holds the
+attachment keys, `TITLE_KEY`, `TEXT_KEY` and `COLOR_KEY`, and one colour per severity:
 `INFO_COLOR` `999`, `SUCCESS_COLOR` `393`, `WARNING_COLOR` `BA0`, `ERROR_COLOR` `900`.
 
-**Return an empty list to say nothing.** That counts as silence, so a notification whose
-producers are all quiet posts nothing at all when `skipEmpty` is set.
+**Return an empty list to say nothing.** When every producer returns one and `skipEmpty`
+is set, nothing is posted. A producer must not throw: an exception loses the whole
+message, the other producers' attachments included.
 
 ### The status report producer
 
-`StatusReportNotification` (named `status`) turns the [status report](status.md) into
-attachments, one per report, coloured by level. Three extra parameters:
+`StatusReportNotification` (named `status`) turns the [status reports](status.md) into
+attachments, one per report, coloured by its level. It reads three extra parameters:
 
 | Parameter | Default | Means |
 |---|---|---|
-| `statusReport.targetStatusLevel` | `INFO` | The lowest level to include. An unrecognized level falls back to `INFO` rather than costing the whole notification |
-| `statusReport.includeTags` | all | Comma-separated status tags |
-| `statusReport.unprivileged` | `false` | Generate the report for an unprivileged audience |
+| `statusReport.targetStatusLevel` | `INFO` | The lowest level to include, in upper or lower case. An unknown level is logged, and `INFO` is used instead |
+| `statusReport.includeTags` | all | The tags of the reporters to include, comma-separated, such as `problems` |
+| `statusReport.unprivileged` | `false` | `true` asks the reporters to leave sensitive information out. With `false`, a report can quote error messages and stack traces |
 
-Because it goes through the status SPI it picks up every registered reporter
-automatically — including [error tracking](error-tracking.md) — with no coupling between
-those modules. A producer for another channel would get the same reports for free.
+It reads the reports through `StatusReportManager`, so it includes every registered
+reporter, such as the one [error tracking](error-tracking.md) registers.
 
 ## Workflow notifications
 

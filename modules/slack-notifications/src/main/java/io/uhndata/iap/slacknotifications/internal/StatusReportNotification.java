@@ -36,15 +36,15 @@ import io.uhndata.iap.status.api.StatusReportManager;
 import io.uhndata.iap.status.spi.StatusReport;
 
 /**
- * Sends the system status report to a chat webhook, one attachment per status message. See the status module for
- * what those reports contain. The following extra parameters are understood:
+ * Adds the instance's status reports to a chat message, one attachment per report, colored by its status. It reads
+ * these extra parameters:
  * <ul>
- * <li>{@code statusReport.targetStatusLevel}, the lowest {@link StatusReport.Status} to include, one of the known
- * levels; defaults to {@code INFO}</li>
- * <li>{@code statusReport.includeTags}, a comma-separated list of the status tags to include; defaults to all
- * tags</li>
- * <li>{@code statusReport.unprivileged}, whether the report should be generated for an unprivileged audience;
- * defaults to {@code false}</li>
+ * <li>{@code statusReport.targetStatusLevel}: the lowest {@link StatusReport.Status} to include, such as
+ * {@code WARNING} or {@code warning}; {@code INFO} if not set</li>
+ * <li>{@code statusReport.includeTags}: the tags of the reporters to include, comma-separated, such as
+ * {@code problems}; every reporter if not set</li>
+ * <li>{@code statusReport.unprivileged}: {@code true} to ask the reporters to leave sensitive information out;
+ * {@code false} if not set</li>
  * </ul>
  *
  * @version $Id$
@@ -59,7 +59,7 @@ public class StatusReportNotification implements SlackNotificationProducer
     /** The extra parameter naming the status tags to include. */
     static final String INCLUDE_TAGS = "statusReport.includeTags";
 
-    /** The extra parameter asking for a report fit for an unprivileged audience. */
+    /** The extra parameter asking the reporters to leave sensitive information out. */
     static final String UNPRIVILEGED_PARAMETER = "statusReport.unprivileged";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StatusReportNotification.class);
@@ -83,16 +83,15 @@ public class StatusReportNotification implements SlackNotificationProducer
     }
 
     /**
-     * Renders one status report as a webhook attachment.
+     * Renders one status report as an attachment.
      *
      * @param report the report to render
-     * @return a JSON object respecting the attachment API
+     * @return an attachment with the report's name as its title, its text, and the color of its status
      */
     private JsonObject asAttachment(final StatusReport report)
     {
         return Json.createObjectBuilder()
             .add(TITLE_KEY, report.getName())
-            // A report with nothing more to say than its status has no body at all
             .add(TEXT_KEY, report.getText() == null ? "" : report.getText())
             .add(COLOR_KEY, colorOf(report.getStatus()))
             .build();
@@ -109,11 +108,10 @@ public class StatusReportNotification implements SlackNotificationProducer
     }
 
     /**
-     * The lowest status level to include. A configuration naming a level that does not exist falls back to the
-     * default rather than costing the whole notification.
+     * The lowest status level to include. A level that does not exist is logged, and {@code INFO} is used instead.
      *
-     * @param extraParameters the configured extra parameters
-     * @return a status level, {@code INFO} unless another valid one was configured
+     * @param extraParameters the notification's extra parameters, by name
+     * @return the configured level, or {@code INFO} if none is configured or it does not exist
      */
     private StatusReport.Status targetLevel(final Map<String, String> extraParameters)
     {
