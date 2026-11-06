@@ -104,8 +104,9 @@ function toMatch(page: { offsets: number[] }, at: number, length: number): Quote
   return { index: start, length: page.offsets[at + length - 1] + 1 - start };
 }
 
-// The text with no spaces, case or accents, and no hyphens except a minus before a digit. PDF.js
-// guesses spaces and line ends from the layout, and its guesses often differ from the quote.
+// The text with no spaces, case or accents, and no hyphen or dash except one before a digit, as in a
+// negative number. PDF.js guesses spaces and line ends from the layout, and its guesses often differ
+// from the quote.
 export function prepareText(source: string): PreparedText {
   const chars: string[] = [];
   const sourceOffsets: number[] = [];

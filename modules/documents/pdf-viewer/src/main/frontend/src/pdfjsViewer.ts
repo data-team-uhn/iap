@@ -47,7 +47,7 @@ async function importViewer(pdfjs: Pdfjs) {
   (globalThis as { pdfjsLib?: unknown }).pdfjsLib = pdfjs;
   const [ components ] = await Promise.all([
     import("pdfjs-dist/web/pdf_viewer.mjs"),
-    import("pdfjs-dist/web/pdf_viewer.css"),
+    import("./pdfViewer.css"),
   ]);
   return components;
 }

@@ -22,8 +22,7 @@
     }
   ],
   "configurations":{
-    // PDF.js compiles its decoders as they download only when they are served as WebAssembly, which
-    // Sling's own MIME types do not list
+    // Serves .wasm files as WebAssembly, which Sling's own MIME types do not list
     "org.apache.sling.commons.mime.internal.MimeTypeServiceImpl":{
       "mime.types":["application/wasm wasm"]
     }

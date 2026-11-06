@@ -62,8 +62,9 @@ build did not pick up the config change.
 A package imported where a page starts joins the `vendor` chunk every page loads. One imported only
 with `import()` where a screen needs it gets chunks of its own instead, loaded the first time a
 screen asks for them, as PDF.js is. A worker the library runs is started with
-`new Worker(new URL("<package>/<script>", import.meta.url), { type: "module" })`, which webpack
-bundles the same way.
+`new Worker(/* webpackEntryOptions: { library: { type: "module" } } */ new URL("<package>/<script>",
+import.meta.url), { type: "module" })`, which webpack bundles the same way. The comment makes the
+worker a plain module, since webpack cannot build it as the project's own kind of library.
 
 Some libraries also fetch files by name at run time, like PDF.js's fonts and decoders. A module
 names the package folders they come from in its `package-folders.config`, beside `assets.config`:
@@ -227,8 +228,8 @@ Each mark has a `kind`: whose mark it is, an AI assistant's (`assistant`) or a p
 (`annotation`), or what a comparison found (`added`, `removed`), so it is coloured accordingly. Its
 place is given in one of three ways:
 
-- a `quote`, looked for from the mark's own `page` onwards. A passage is matched by ignoring spacing,
-  case, accents, typographic quotes and dashes, and line-end hyphens, and across a page break;
+- a `quote`, looked for from the mark's own `page` onwards. A passage is matched across a page break,
+  ignoring spacing, case, accents, typographic quotes, and any hyphen or dash not before a digit;
 - `spans`, when its place is known exactly, such as a change between two versions. Each span is a
   `page` and the `start` and `end` offsets the passage covers in that page's text, one span per page
   it runs over. A span whose `start` equals its `end` is a point between two characters. The viewer
@@ -517,8 +518,8 @@ using those extensions is what keeps a deployment's rebranding effective:
   only `main` and `line`, for what moved. So has `palette.diff.hunk`, for the band
   that stands in for unchanged content left out.
 - `assistant` for anything an AI assistant contributed, and `annotation` for what a person
-  marked. Both are full palette colours: `color="assistant"` on a `Chip`, `Button`,
-  `IconButton` or icon, `"assistant.main"` in `sx`.
+  marked. Both are full palette colours, read in `sx` as `"assistant.main"`. No component's
+  `color` prop takes them yet.
 - `highlight.assistant` and `highlight.annotation` for marks over a document's own content,
   `highlight.search` for the matches of a search, and `highlight.added` and `highlight.removed` for
   what a comparison found, each with a `…Current` variant for the one in focus, and the last two with a

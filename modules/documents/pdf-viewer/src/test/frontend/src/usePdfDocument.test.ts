@@ -23,7 +23,6 @@ import { fakePdf, FakeWorker, stubFetch } from "./pdfjs.fixture";
 
 vi.mock("pdfjs-dist", async () => (await import("./pdfjs.fixture")).createPdfjsModule());
 vi.mock("pdfjs-dist/web/pdf_viewer.mjs", async () => (await import("./pdfjs.fixture")).createViewerModule());
-vi.mock("pdfjs-dist/web/pdf_viewer.css", () => ({}));
 vi.mock("@iap/frontend-commons/assetManager", async () => ({
   getAssetURL: (await import("./pdfjs.fixture")).getAssetURL,
 }));
@@ -60,5 +59,21 @@ describe("usePdfDocument", () => {
     expect(result.current.pdf).toBeUndefined();
     await waitFor(() => expect(result.current.pdf).toBeDefined());
     expect(result.current.pdf).not.toBe(dropped);
+  });
+
+  // The worker is shared for good, so this one is started from fresh modules, apart from the other tests'
+  it("asks for a reload when PDF.js's worker never started, rather than opening for ever", async () => {
+    vi.resetModules();
+    const { loadPdfjs } = await import("@iap/frontend-commons/pdfjsClient");
+    const { usePdfDocument: freshPdfDocument } = await import("@iap/documents-pdf-viewer/usePdfDocument");
+    const { worker } = await loadPdfjs();
+    (worker.port as unknown as FakeWorker).fail();
+
+    const { result } = renderHook(() => freshPdfDocument(URL));
+
+    await waitFor(() => expect(result.current.openError).toBe(
+      "The document viewer could not start. Reload the page to try again.",
+    ));
+    expect(result.current.pdf).toBeUndefined();
   });
 });

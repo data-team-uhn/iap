@@ -66,6 +66,9 @@ def merge_webpack_files(root, dir_name, namespace, aggregated_frontend_dir, webp
                 line = line.replace("'./src/", "'./src/" + namespace + "/").replace('"./src/', '"./src/' + namespace + '/')
                 webpack_config_entries.append(line)
 
+# A line's leading quoted folder, whatever follows it
+QUOTED_FOLDER = re.compile(r'''\s*(['"])([^'"]+)\1''')
+
 # Collect the package folders a module lists in its package-folders.config, one quoted
 # '<package>/<folder>' a line, for the build to publish. A folder two modules list is published once.
 def merge_package_folders(root, dir_name, package_folders):
@@ -73,9 +76,9 @@ def merge_package_folders(root, dir_name, package_folders):
     if path.exists(fl):
         with open(fl, 'rt') as ins:
             for line in ins:
-                folder = line.strip().rstrip(',')
-                if folder.startswith(("'", '"')) and folder not in package_folders:
-                    package_folders.append(folder)
+                quoted = QUOTED_FOLDER.match(line)
+                if quoted and quoted.group(2) not in package_folders:
+                    package_folders.append(quoted.group(2))
 
 # Copy a module's UI files from src/<maven_source>/frontend/src into the module's own
 # subdirectory of the aggregated frontend, src/main/frontend/src/<module>/. Keeping each
@@ -205,7 +208,7 @@ def main(args=sys.argv[1:]):
         entry_line_number = lines.index('ENTRY_CONTENT\n')
         lines[entry_line_number] = lines[entry_line_number].replace('ENTRY_CONTENT\n', '    ' + '    '.join(webpack_config_entries))
         folders_line_number = lines.index('PACKAGE_FOLDERS_CONTENT\n')
-        lines[folders_line_number] = ''.join('  %s,\n' % folder for folder in package_folders)
+        lines[folders_line_number] = ''.join("  '%s',\n" % folder for folder in package_folders)
 
     with open(webpack_merged_file, "w") as f:
         for item in lines:
