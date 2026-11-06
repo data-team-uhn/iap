@@ -18,15 +18,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
-import { Box, InputBase, Link, Stack, Tooltip } from "@mui/material";
+import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+import EditOutlined from "@mui/icons-material/EditOutlined";
+import ReplyOutlined from "@mui/icons-material/ReplyOutlined";
+import { Box, IconButton, InputBase, Link, Stack, Tooltip } from "@mui/material";
 import {
-  DataGridPro, GridCellModes, type GridCellModesModel, type GridCellParams, type GridColDef,
-  type GridRenderEditCellParams, useGridApiContext,
+  DataGridPro, GRID_DETAIL_PANEL_TOGGLE_FIELD, GridCellModes, type GridCellModesModel, type GridCellParams,
+  type GridColDef, type GridRenderEditCellParams, type GridRowId, useGridApiContext,
 } from "@mui/x-data-grid-pro";
 
 import EntityGridToolbar from "@iap/frontend-commons/entityGrid/EntityGridToolbar";
 import TagChip from "@iap/tags/TagChip";
 
+import Composer from "./Composer";
+import { Thread } from "./NoteCard";
 import { SEVERITIES, type ReviewNote } from "./reviewData";
 
 interface IssueRow {
@@ -52,7 +57,7 @@ const SEVERITY_NAMES: Record<string, string> = {
 // concerns can be listed among them, greyed, to triage everything in one list: made issues of as they are, or
 // dismissed.
 export default function IssuesGrid({ issues, concerns = [], risks, about, onChange, onShow, onMakeIssue, onDismiss,
-  onShowReplies }: {
+  onRemove, onReply, onEditReply, onRemoveReply }: {
   issues: ReviewNote[];
   concerns?: ReviewNote[];
   // The risks issues can be filed under, by path
@@ -62,7 +67,10 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   onShow?: (issue: ReviewNote) => void;
   onMakeIssue?: (concern: ReviewNote) => Promise<void>;
   onDismiss?: (concern: ReviewNote) => Promise<void>;
-  onShowReplies?: (issue: ReviewNote) => void;
+  onRemove?: (issue: ReviewNote) => Promise<void>;
+  onReply?: (issue: ReviewNote, text: string) => Promise<void>;
+  onEditReply?: (reply: string, text: string) => Promise<void>;
+  onRemoveReply?: (reply: string) => Promise<void>;
 }) {
   const rows: IssueRow[] = useMemo(() => [ ...issues, ...concerns ].map(issue => ({
     id: issue.id, ai: issue.kind === "aiIssue", severity: issue.severity ?? "medium",
@@ -84,6 +92,40 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       return { ...viewing, [params.id]: { ...viewing[params.id], [params.field]: { mode: GridCellModes.Edit } } };
     });
   }, []);
+  // The issues whose thread is unfolded under them; one with no reply yet unfolds to write the first
+  const [ expanded, setExpanded ] = useState<Set<GridRowId>>(new Set());
+  const [ writingTo, setWritingTo ] = useState<GridRowId>();
+  const toggleThread = (id: GridRowId, write = false) => {
+    setExpanded(previous => {
+      const next = new Set(previous);
+      if (next.has(id) && !write) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    setWritingTo(write ? id : undefined);
+  };
+  const startEditingText = (id: GridRowId) => setCellModes({ [id]: { text: { mode: GridCellModes.Edit } } });
+  const thread = useCallback(({ row }: { row: IssueRow }) => (
+    <Box sx={{ pl: 6, pr: 2, pb: 1.5, bgcolor: "background.muted" }}>
+      <Thread replies={row.issue.replies} onEdit={onEditReply} onRemove={onRemoveReply} />
+      {writingTo === row.id && onReply ? (
+        <Box sx={{ mt: 1, maxWidth: 720 }}>
+          <Composer
+            kinds={[]} saveLabel="Reply" onCancel={() => setWritingTo(undefined)}
+            onSave={async (_kind, text) => {
+              await onReply(row.issue, text);
+              setWritingTo(undefined);
+            }}
+          />
+        </Box>
+      ) : onReply && (
+        <Link component="button" variant="caption" sx={{ mt: 0.5 }} onClick={() => setWritingTo(row.id)}>Reply</Link>
+      )}
+    </Box>
+  ), [ writingTo, onReply, onEditReply, onRemoveReply ]);
   const riskLabel = (path: string) => risks.find(risk => risk.path === path)?.label ?? "No risk";
 
   const columns: GridColDef<IssueRow>[] = [
@@ -114,17 +156,41 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     {
       field: "replies", headerName: "Replies", type: "number", width: 90,
       description: "How many replies it has, from the study team or other reviewers",
-      // None said by leaving the cell empty; some lead to the thread
+      // None said by leaving the cell empty; some unfold the thread under the issue, in the grid
       renderCell: ({ row }) => row.replies > 0 && (
-        <Tooltip title={`Read the ${row.replies === 1 ? "reply" : `${row.replies} replies`}`}>
-          <Link component="button" variant="body2" onClick={() => onShowReplies?.(row.issue)}>{row.replies}</Link>
+        <Tooltip title={`${expanded.has(row.id) ? "Fold" : "Read"} the ${row.replies === 1 ? "reply" : `${row.replies} replies`}`}>
+          <Link component="button" variant="body2" aria-expanded={expanded.has(row.id)}
+            onClick={() => toggleThread(row.id)}>
+            {row.replies}
+          </Link>
         </Tooltip>
       ),
     },
     {
-      field: "where", headerName: "", width: concerns.length > 0 ? 140 : 110, sortable: false, filterable: false,
+      field: "where", headerName: "", width: concerns.length > 0 ? 150 : 130, sortable: false, filterable: false,
       renderCell: ({ row }) => (
         <Stack sx={{ alignItems: "flex-start" }}>
+          {!row.ai && (
+            <Stack direction="row" sx={{ ml: -0.75 }}>
+              <Tooltip title="Change">
+                <IconButton size="small" aria-label="Change the issue" onClick={() => startEditingText(row.id)}>
+                  <EditOutlined fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Remove">
+                <IconButton size="small" aria-label="Remove the issue" onClick={() => void onRemove?.(row.issue)}>
+                  <DeleteOutlined fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              {!row.replies && onReply && (
+                <Tooltip title="Reply">
+                  <IconButton size="small" aria-label="Reply" onClick={() => toggleThread(row.id, true)}>
+                    <ReplyOutlined fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Stack>
+          )}
           {row.ai && onMakeIssue && (
             <Link component="button" variant="body2" onClick={() => void onMakeIssue(row.issue)}>Make it an issue</Link>
           )}
@@ -146,6 +212,10 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       getRowHeight={() => "auto"}
       // The AI's concerns are greyed, and are not changed in place: they become issues first
       isCellEditable={({ row }: { row: IssueRow }) => !row.ai}
+      getDetailPanelContent={thread} getDetailPanelHeight={() => "auto"}
+      detailPanelExpandedRowIds={expanded} onDetailPanelExpandedRowIdsChange={setExpanded}
+      // The replies count unfolds a thread, so the grid's own toggle column is left out
+      columnVisibilityModel={{ [GRID_DETAIL_PANEL_TOGGLE_FIELD]: false }}
       cellModesModel={cellModes} onCellModesModelChange={setCellModes} onCellClick={startEditing}
       getRowClassName={({ row }) => (row.ai ? "ai-concern" : "")}
       initialState={{ sorting: { sortModel: [ { field: "severity", sort: "asc" }, { field: "risk", sort: "asc" } ] },
