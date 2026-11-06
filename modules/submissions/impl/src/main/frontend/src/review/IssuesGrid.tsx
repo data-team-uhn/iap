@@ -16,10 +16,10 @@
  * limitations under the License.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
-import { Link, Stack } from "@mui/material";
-import { DataGridPro, type GridColDef } from "@mui/x-data-grid-pro";
+import { Box, InputBase, Link, Stack } from "@mui/material";
+import { DataGridPro, type GridColDef, type GridRenderEditCellParams, useGridApiContext } from "@mui/x-data-grid-pro";
 
 import EntityGridToolbar from "@iap/frontend-commons/entityGrid/EntityGridToolbar";
 import TagChip from "@iap/tags/TagChip";
@@ -43,7 +43,7 @@ const SEVERITY_NAMES: Record<string, string> = {
 
 // PRETOTYPE. All of the reviewer's issues in one sortable grid, as they would list them in a spreadsheet: how serious,
 // under which risk, about what, and what it says, most serious first to start with. The severity and the risk are
-// changed in their cells, saved as the issue is; the text in the issue's own editor. The toolbar is the entity grids':
+// changed in their cells, as is the text, saved as the issue is. The toolbar is the entity grids':
 // a search over every column, and the columns and filters; shift and click sorts by several columns. The AI's open
 // concerns can be listed among them, greyed, to triage everything in one list: made issues of as they are, or
 // dismissed.
@@ -53,7 +53,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   // The risks issues can be filed under, by path
   risks: { path: string; label: string }[];
   about: (note: ReviewNote) => string;
-  onChange: (issue: ReviewNote, severity: string, topic: string) => Promise<void>;
+  onChange: (issue: ReviewNote, text: string, severity: string, topic: string) => Promise<void>;
   onShow?: (issue: ReviewNote) => void;
   onMakeIssue?: (concern: ReviewNote) => Promise<void>;
   onDismiss?: (concern: ReviewNote) => Promise<void>;
@@ -85,7 +85,11 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       valueFormatter: (value: boolean) => (value ? "AI" : "You"),
     } ] : [],
     { field: "about", headerName: "About", width: 180 },
-    { field: "text", headerName: "Issue", flex: 1, minWidth: 220 },
+    {
+      field: "text", headerName: "Issue", flex: 1, minWidth: 220, editable: true,
+      renderCell: ({ value }) => <Box sx={{ whiteSpace: "pre-wrap" }}>{String(value)}</Box>,
+      renderEditCell: params => <TextEdit {...params} />,
+    },
     {
       field: "where", headerName: "", width: concerns.length > 0 ? 140 : 110, sortable: false, filterable: false,
       renderCell: ({ row }) => (
@@ -115,8 +119,11 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       initialState={{ sorting: { sortModel: [ { field: "severity", sort: "asc" }, { field: "risk", sort: "asc" } ] },
         pinnedColumns: { right: [ "where" ] } }}
       processRowUpdate={async (next: IssueRow, before: IssueRow) => {
-        if (next.severity !== before.severity || next.risk !== before.risk) {
-          await onChange(next.issue, next.severity, next.risk);
+        if (!next.text.trim()) {
+          return before;
+        }
+        if (next.text !== before.text || next.severity !== before.severity || next.risk !== before.risk) {
+          await onChange(next.issue, next.text.trim(), next.severity, next.risk);
         }
         return next;
       }}
@@ -124,6 +131,32 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       localeText={{ noRowsLabel: "No issues raised yet", noResultsOverlayLabel: "No issue matches" }}
       sx={{ "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" }, bgcolor: "background.paper",
         "& .ai-concern": { color: "text.secondary", bgcolor: "background.muted" } }}
+    />
+  );
+}
+
+// An issue's text changed in its cell, over as many lines as it needs: Enter keeps it, Shift and Enter starts a new
+// line, Escape leaves it as it was
+function TextEdit({ id, field, value }: GridRenderEditCellParams<IssueRow, string>) {
+  const api = useGridApiContext();
+  const input = useRef<HTMLTextAreaElement>(null);
+  // Into the text, at its end, as soon as the cell opens for it
+  useEffect(() => {
+    const field = input.current;
+    field?.focus();
+    field?.setSelectionRange(field.value.length, field.value.length);
+  }, []);
+  return (
+    <InputBase
+      multiline fullWidth inputRef={input} value={value ?? ""}
+      onChange={event => void api.current.setEditCellValue({ id, field, value: event.target.value })}
+      onKeyDown={event => {
+        if (event.key === "Enter" && event.shiftKey) {
+          event.stopPropagation();
+        }
+      }}
+      inputProps={{ "aria-label": "The issue" }}
+      sx={{ px: 1.25, py: 0.75, alignSelf: "stretch", typography: "body2" }}
     />
   );
 }
