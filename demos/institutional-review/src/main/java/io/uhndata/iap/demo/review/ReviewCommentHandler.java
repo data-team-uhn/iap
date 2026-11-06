@@ -48,7 +48,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * {@code replyTo} naming a comment, it is a reply to it instead; with {@code edit} naming one of the writer's own
  * comments, it changes that comment's text and severity; with {@code remove}, it removes it. An issue made from an
  * AI pre-review comment names it as {@code from}; with {@code dismiss} naming one, the reviewer sets it aside, and
- * it is recorded on the AI comment, in {@code dismissedBy}, since another reviewer may still want it. An issue is
+ * it is recorded on the AI comment, in {@code dismissedBy}, since another reviewer may still want it; with
+ * {@code undismiss}, the reviewer takes it back. An issue is
  * filed under the risk {@code topic} names, by path, when it names one; editing it with an empty one unfiles it. The
  * reviewer group the issues are raised for, {@code group}, is kept on the review, and so are the risks the reviewer
  * has considered: {@code consider} or {@code unconsider} naming one marks it, or unmarks it.
@@ -92,7 +93,12 @@ public class ReviewCommentHandler implements ServiceTaskHandler
         }
         final String dismissed = Payloads.text(context.getEvent(), "dismiss");
         if (dismissed != null) {
-            dismiss(within(submission, dismissed), actor);
+            dismiss(within(submission, dismissed), actor, true);
+            return;
+        }
+        final String undismissed = Payloads.text(context.getEvent(), "undismiss");
+        if (undismissed != null) {
+            dismiss(within(submission, undismissed), actor, false);
             return;
         }
         final String removed = Payloads.text(context.getEvent(), "remove");
@@ -142,14 +148,16 @@ public class ReviewCommentHandler implements ServiceTaskHandler
         return Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class), "The engine can write here");
     }
 
-    private static void dismiss(final Resource comment, final String actor)
+    // Sets an AI comment aside for the reviewer, or takes it back
+    private static void dismiss(final Resource comment, final String actor, final boolean aside)
     {
         final ModifiableValueMap values = writable(comment);
         final List<String> by = new ArrayList<>(Arrays.asList(values.get(DISMISSED_PROPERTY, new String[0])));
-        if (!by.contains(actor)) {
+        by.remove(actor);
+        if (aside) {
             by.add(actor);
-            values.put(DISMISSED_PROPERTY, by.toArray(String[]::new));
         }
+        values.put(DISMISSED_PROPERTY, by.toArray(String[]::new));
     }
 
     private static void edit(final WorkflowTaskContext context, final Resource comment, final String text)

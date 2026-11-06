@@ -65,14 +65,14 @@ import { kindChip, ReviewerTopics, WRITTEN } from "./Composer";
 import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
-import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
+import FormReview, { answerText, disagrees, GroupChips, type ReviewActions } from "./FormReview";
 import LetterDialog from "./LetterDialog";
 import { GroupLabels, usePersonName } from "./people";
 import { draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { groupShortName, issueFrom, isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics,
   type NoteKind, type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
-import ReviewPanel, { type OthersRaised, type RiskReview } from "./ReviewPanel";
+import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
 import { SearchContext } from "./SearchHighlight";
 import { documentText, formMatches, pageCounts } from "./searchSubmission";
 import { PANEL_HEIGHT, PanelBody, panelPlacement } from "./sidePanel";
@@ -558,9 +558,21 @@ export default function ReviewScreen({ path }: { path: string }) {
   // The reviewer's own issues: what their panel lists, and what their letter and escalation are made of
   const myIssues = data.notes.filter(note => note.kind === "issue" && note.mine);
   // The review, risk by risk: the AI's read and open concerns, the reviewer's issues, and whether considered
+  const asked = requirements.filter(isFormRequirement).flatMap(one => questions(one.items));
+  // The answers a risk draws on that the protocol contradicts, by what was read from it
+  const mismatchesOf = (topic: Topic): Mismatch[] => asked.filter(question => topic.sources.includes(question.path))
+    .flatMap(question => {
+      const evidence = data.notes.find(note => note.kind === "evidence" && note.question === question.path);
+      return evidence && disagrees(question, evidence.extracted) ? [ {
+        question: question.text, answer: answerText(question, question.value),
+        protocol: answerText(question, evidence.extracted?.split(";").map(one => one.trim()) ?? []), evidence,
+      } ] : [];
+    });
   const risks: RiskReview[] = reviewerTopics.mine.map(topic => ({
     topic, assessment: data.assessments.get(topic.path),
     aiOpen: data.notes.filter(note => note.kind === "aiIssue" && note.topicPath === topic.path),
+    aiSettled: data.settledAi.filter(note => note.topicPath === topic.path),
+    mismatches: mismatchesOf(topic),
     issues: myIssues.filter(note => note.topicPath === topic.path),
     considered: data.considered.has(topic.path),
   }));
@@ -571,6 +583,20 @@ export default function ReviewScreen({ path }: { path: string }) {
     group, count: raised.length,
     shared: raised.filter(note => note.subjects.some(subject => minePart(data.partOf.get(subject) ?? ""))).length,
   }));
+  // What the reviewer can do from their review
+  const doing: ReviewDoing = {
+    open: openIssue,
+    consider: (topic, considered) => actions.write(considered ? { consider: topic } : { unconsider: topic }),
+    makeIssue: (note, said, severity, topic) => actions.write(issueFrom(note, said, severity, topic)),
+    dismiss: note => actions.write({ dismiss: note.id }),
+    undismiss: note => actions.write({ undismiss: note.id }),
+    addIssue: (topic, said, severity) => actions.write({ kind: "issue", text: said, ...severity ? { severity } : {},
+      ...topic ? { topic } : {} }),
+    editIssue: (note, said, severity, topic) => actions.write({ edit: note.id, text: said,
+      ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {} }),
+    removeIssue: note => actions.write({ remove: note.id }),
+    showOthers: () => setShown(kinds => storeKinds(new Set([ ...kinds, "otherIssue" ]))),
+  };
   const taskCreated = text(myTaskNode()?.["jcr:created"]);
   const waitingSince = taskCreated
     ? new Date(taskCreated).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : undefined;
@@ -809,6 +835,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                   open issueCount={myIssues.length}
                   draft={draftLetter({ title: text(submission.title), identifier: text(submission.identifier),
                     pi: text(submission.pi), about, issues: myIssues,
+                    risks: reviewerTopics.mine.map(topic => ({ path: topic.path, label: topic.label })),
                     reviewer: myName, group: myGroupLabel.toLowerCase() })}
                   onSend={sendLetter} onClose={() => setDialog(undefined)}
                 />
@@ -824,23 +851,17 @@ export default function ReviewScreen({ path }: { path: string }) {
               )}
 
             </Paper>
+            <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", ...panelPlacement, flexShrink: 0 }}>
+              <ReviewPanel
+                risks={risks} unfiled={unfiled} issueCount={myIssues.length} aiSummary={data.aiSummary}
+                others={othersRaised} about={about} waitingSince={waitingSince}
+                doing={{ ...doing, decision: reviewActions }}
+                open={issuesOpen ?? !(current && isDocumentRequirement(current))}
+                onToggle={() => setIssuesOpen(!(issuesOpen ?? !(current && isDocumentRequirement(current))))}
+              />
+            </Box>
           </ReviewerTopics.Provider>
         </GroupLabels.Provider>
-        <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", ...panelPlacement, flexShrink: 0 }}>
-          <ReviewPanel
-            risks={risks} unfiled={unfiled} issueCount={myIssues.length} aiSummary={data.aiSummary}
-            others={othersRaised} about={about}
-            open={issuesOpen ?? !(current && isDocumentRequirement(current))}
-            onToggle={() => setIssuesOpen(!(issuesOpen ?? !(current && isDocumentRequirement(current))))}
-            onOpen={openIssue}
-            onConsider={(topic, considered) => actions.write(considered ? { consider: topic } : { unconsider: topic })}
-            onMakeIssue={(note, said, severity, topic) => actions.write(issueFrom(note, said, severity, topic))}
-            onDismiss={note => actions.write({ dismiss: note.id })}
-            onShowOthers={() => setShown(kinds => storeKinds(new Set([ ...kinds, "otherIssue" ])))}
-            waitingSince={waitingSince}
-            actions={reviewActions}
-          />
-        </Box>
       </Stack>
     </Stack>
   );
