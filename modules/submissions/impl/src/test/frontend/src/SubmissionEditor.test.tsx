@@ -21,7 +21,7 @@ import userEvent from "@testing-library/user-event";
 
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import { loadAnswerComponents } from "@iap/submissions/answers";
-// Imported rather than fetched: in a browser each answer component arrives as its own asset, named
+// Imported rather than fetched. In a browser each answer component arrives as its own asset, named
 // by an extension on the AnswerComponent point, and registers itself as it is evaluated.
 import "@iap/submissions/answers/BooleanAnswer";
 import "@iap/submissions/answers/ChoiceAnswer";
@@ -122,7 +122,7 @@ function serving(...reads: SubmissionForm[]) {
   });
 }
 
-// Refuses every save, as the server does once the request has been submitted in another tab.
+// Refuses every save, as the server does once the request is no longer a draft.
 function refusingSaves() {
   return vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
     ? json({ error: "This request has been submitted" }, { ok: false, status: 403 })
@@ -143,8 +143,7 @@ describe("SubmissionEditor", () => {
   });
 
   it("saves an answer and shows what the server then asks", async () => {
-    // Which questions apply depends on the answers, and the server decides it. The editor finds out
-    // by reading the form again: the return-date question simply appears in the next read.
+    // The return-date question arrives with the next read of the form
     const withEndDate = form({
       requirements: [ details([ duration([ "multiple days" ]), endDate() ]) ],
     });
@@ -172,7 +171,6 @@ describe("SubmissionEditor", () => {
   });
 
   it("reports a refused save on the field it belongs to", async () => {
-    // The field is where a refusal shows, since the rest of the form is untouched
     vi.stubGlobal("fetch", refusingSaves());
 
     render(<SubmissionEditor path={PATH} />);
@@ -204,7 +202,6 @@ describe("SubmissionEditor", () => {
   });
 
   it("shows a requirement it cannot complete, rather than dropping it", async () => {
-    // Leaving it out would say the request asks less than it does
     vi.stubGlobal("fetch", serving(form({
       requirements: [ {
         name: "ethics", path: "/Schemas/timeOffRequest/v1/ethics", type: "sch/EthicsRequirement", label: "Ethics"
@@ -257,7 +254,7 @@ describe("SubmissionEditor", () => {
 
       expect(saving).toHaveBeenCalledWith(A_SAVE);
       expect(changed).toHaveBeenCalledTimes(1);
-      // The form read again, since the kind changed the submission
+      // The form is read again
       await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     });
 
@@ -395,9 +392,8 @@ describe("SubmissionEditor", () => {
       const body = init.body as FormData;
       expect(body.get("requirement")).toBe("doctorsNote");
       expect((body.get("file") as File).name).toBe("note.pdf");
-      // No Content-Type of our own: only the browser knows the multipart boundary it generated
       expect(init.headers).toBeUndefined();
-      // What the server now says is attached, rather than what this page hoped
+      // From the form read after the upload
       expect(await screen.findByRole("link", { name: "note.pdf" })).toBeInTheDocument();
     });
 
@@ -414,7 +410,7 @@ describe("SubmissionEditor", () => {
       const body = (upload![1] as RequestInit).body as FormData;
       expect(body.get("requirement")).toBe("doctorsNote");
       expect((body.get("file") as File).name).toBe("note-v2.pdf");
-      // What the server now says is attached, rather than what this page hoped
+      // From the form read after the upload
       expect(await screen.findByRole("link", { name: "note-v2.pdf" })).toBeInTheDocument();
     });
 
@@ -427,8 +423,8 @@ describe("SubmissionEditor", () => {
     });
 
     it("says why the engine refused a file, in the engine's own words", async () => {
-      // The requirement takes anything, because `userEvent.upload` enforces `accept` as a real file
-      // dialog does. A type the control advertised as unacceptable would never reach the server.
+      // The requirement takes any type, since `userEvent.upload` drops a file that `accept` leaves out,
+      // as a real file dialog does
       vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
         options?.method === "POST"
           ? json({ error: "A image/gif is not accepted here" }, { ok: false, status: 400 })
@@ -486,8 +482,8 @@ describe("SubmissionEditor", () => {
       const input = await screen.findByLabelText(/Attach a file/);
       await userEvent.upload(input, pick());
       await screen.findByText("The server was busy");
-      // Cleared after each pick, so that the same file counts as a change and can be retried. A test
-      // environment fires the change whatever the value, which is why this is asserted outright.
+      // Cleared after each pick. The test environment fires the change whatever the value, so this is
+      // asserted outright.
       expect(input).toHaveValue("");
       await userEvent.click(screen.getByRole("button", { name: /Close/ }));
 
@@ -526,15 +522,13 @@ describe("SubmissionEditor", () => {
       vi.stubGlobal("fetch", fetchMock);
 
       render(<SubmissionEditor path={PATH} />);
-      // What a cancelled dialog looks like to the change handler, which `userEvent.upload` cannot
-      // express: it always has a file to give
+      // A dismissed dialog, which `userEvent.upload` cannot express, since it always gives a file
       fireEvent.change(await screen.findByLabelText(/Attach a file/), { target: { files: [] } });
 
       expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument.json`)).toBe(false);
     });
 
     it("cannot be attached to once the request is no longer the submitter's to change", async () => {
-      // The same field that disables the questions, so the control cannot outlive the permission
       vi.stubGlobal("fetch", serving(asked({}, { editable: false })));
 
       render(<SubmissionEditor path={PATH} />);
@@ -557,9 +551,7 @@ describe("SubmissionEditor", () => {
   });
 
   it("falls back on the name when a requirement or a section is unlabelled", async () => {
-    // The projection always carries a label and empties it rather than omitting it
-    // (`Objects.toString(getLabel(), "")`), so this is what an unlabelled block arrives as. It still
-    // has to be identifiable rather than headed by nothing
+    // The server sends an unlabelled requirement or section with an empty label, not without one
     vi.stubGlobal("fetch", serving(form({
       requirements: [ details(
         [ { name: "when", type: SECTION, label: "", items: [ endDate() ] } ], { label: "" }) ],
@@ -572,8 +564,6 @@ describe("SubmissionEditor", () => {
   });
 
   it("reports a save that failed without an Error to explain it", async () => {
-    // A rejection is not necessarily an Error, since a thrown string reaches the same handler, and
-    // the field still has to say what happened rather than "undefined"
     const fetchMock = vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
       ? Promise.reject("the request went nowhere")
       : json(form()));
@@ -629,7 +619,6 @@ describe("SubmissionEditor", () => {
     await waitFor(() => expect(screen.getByText("Newest")).toBeInTheDocument());
     resolveFirst(await json(form({ title: "Stale" })));
 
-    // The overtaken read is dropped rather than applied over the newer one
     await waitFor(() => expect(screen.queryByText("Stale")).not.toBeInTheDocument());
     expect(screen.getByText("Newest")).toBeInTheDocument();
   });

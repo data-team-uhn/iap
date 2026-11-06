@@ -26,8 +26,8 @@ import org.jetbrains.annotations.NotNull;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sub:Reply} node: a single message in the discussion thread attached to a
- * {@link Comment}, e.g. the submitter responding to a reviewer's question, or the reviewer following up.
+ * A Sling Model wrapping a {@code sub:Reply} node: one message in the discussion thread attached to a
+ * {@link Comment}. The submitter may be answering a reviewer's question, or the reviewer following up.
  *
  * @version $Id$
  * @since 0.1.0
@@ -48,7 +48,7 @@ public class Reply extends EntityPart
     /**
      * The reply text.
      *
-     * @return the reply text
+     * @return the text
      */
     @NotNull
     public String getText()
@@ -57,10 +57,10 @@ public class Reply extends EntityPart
     }
 
     /**
-     * Identifies who wrote this reply (the reviewer or the submitter). Not necessarily the same as
-     * {@code jcr:createdBy}: see {@link Comment#getAuthor()}.
+     * Who wrote this reply. It can differ from {@code jcr:createdBy}, as a {@link Comment#getAuthor() comment's
+     * author} can.
      *
-     * @return a principal name, or an external identifier
+     * @return a user id for a local author, or an identifier the external site gives
      */
     @NotNull
     public String getAuthor()

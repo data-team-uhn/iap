@@ -28,8 +28,8 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.submissions.spi.AnswerConstraint;
 
 /**
- * Refuses a numeric value outside a question's {@code minValue}/{@code maxValue} bounds. Both bounds are hard. A
- * value that is not a finite number is left to {@link NumericTypeConstraint}.
+ * Refuses a numeric value outside a question's {@code minValue} and {@code maxValue}. Both bounds are inclusive. A
+ * value that is not a number is left to {@link NumericTypeConstraint}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -54,7 +54,7 @@ public final class ValueRangeConstraint implements AnswerConstraint
      *
      * @param question the question, carrying the bounds
      * @param value one value of its answer
-     * @return a reason to refuse, or {@code null} when the value is in range or is not a finite number
+     * @return a reason to refuse; {@code null} when the value is in range or is not a number
      */
     private static String refusalFor(final Question question, final String value)
     {

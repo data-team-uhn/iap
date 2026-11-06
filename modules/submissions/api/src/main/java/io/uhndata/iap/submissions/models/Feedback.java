@@ -28,9 +28,9 @@ import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
- * The base of the Sling Models wrapping the kinds of {@code sub:Feedback} on a submission: a reviewer's binding
- * {@link Review}, the AI's {@link Screening}, and a {@link Discussion} that binds nothing. Each subtype adapts to
- * this class as well, so reading a node as {@code Feedback} gives the model of its own kind.
+ * The base of the Sling Models wrapping the kinds of {@code sub:Feedback} on a submission. A reviewer's
+ * {@link Review} binds, and the AI's {@link Screening} and a {@link Discussion} do not. Each subtype adapts to this
+ * class as well, so reading a node as {@code Feedback} gives the model of its own kind.
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,8 +44,8 @@ public abstract class Feedback extends EntityPart implements Referenceable
     private boolean binding;
 
     /**
-     * Whether this feedback decides anything, as a reviewer's review does. Each kind of feedback says so itself, so
-     * a new binding kind counts without code naming it.
+     * Whether this feedback decides anything, as a reviewer's review does. Each kind of feedback sets it in its node
+     * type.
      *
      * @return {@code true} for binding feedback
      */
@@ -55,9 +55,9 @@ public abstract class Feedback extends EntityPart implements Referenceable
     }
 
     /**
-     * Every comment raised in this feedback, in the order they were added.
+     * The comments raised in this feedback itself, in the order they were added.
      *
-     * @return a list of comments, empty if none
+     * @return the comments; empty if there are none
      */
     @NotNull
     public List<Comment> getComments()
@@ -69,7 +69,7 @@ public abstract class Feedback extends EntityPart implements Referenceable
      * The comments raised in this feedback, those on its assessments included, that the submitter has not yet
      * addressed.
      *
-     * @return a list of unresolved comments, empty if none
+     * @return the unresolved comments; empty if there are none
      */
     @NotNull
     public List<Comment> getUnresolvedComments()
@@ -84,7 +84,7 @@ public abstract class Feedback extends EntityPart implements Referenceable
     /**
      * The assessments of the topics the approval requirement lists, in the order they were added.
      *
-     * @return a list of assessments, empty if none
+     * @return the assessments; empty if there are none
      */
     @NotNull
     public List<Assessment> getAssessments()

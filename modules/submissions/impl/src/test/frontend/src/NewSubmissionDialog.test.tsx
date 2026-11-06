@@ -55,12 +55,11 @@ describe("NewSubmissionDialog", () => {
 
     expect(await screen.findByText("Time off request 1.0")).toBeInTheDocument();
     expect(screen.getByText("Asking for a day off")).toBeInTheDocument();
-    // The URL alone: the reauthenticating fetch forwards an init argument of its own
+    // The URL alone: the authenticated fetch always passes an `init` argument on, even an undefined one
     expect(fetchMock.mock.calls.map(call => call[0])).toContain(SCHEMAS_URL);
   });
 
   it("says when nothing is open for submissions, rather than showing an empty dialog", async () => {
-    // Indistinguishable from a dialog that failed to load if it is left blank
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}))));
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
@@ -91,7 +90,7 @@ describe("NewSubmissionDialog", () => {
     await waitFor(() => expect(created).toHaveBeenCalledWith("/Submissions/aLongWeekend"));
     const [ , options ] = fetchMock.mock.calls[1] as unknown as [ string, { method: string; body: URLSearchParams } ];
     expect(options.method).toBe("POST");
-    // The two things the system workflow that raises a submission asks for, and nothing else
+    // The two parameters the create workflow requires
     expect(options.body.get("title")).toBe("A long weekend");
     expect(options.body.get("schemaVersion")).toBe("/Schemas/timeOffRequest/v1");
   });
@@ -113,8 +112,8 @@ describe("NewSubmissionDialog", () => {
     expect(create).toBeEnabled();
   });
 
-  // fetch has already followed the redirect, so this status describes the page it landed on. A
-  // submitter with no read on /Submissions must not be told their submission was refused
+  // fetch has followed the redirect, so the 403 is the read of the created submission, not a refusal
+  // to create it
   it("reports where the submission went even when reading that page failed", async () => {
     const created = vi.fn();
     const fetchMock = vi.fn((url: string) => Promise.resolve(url === "/Submissions"
@@ -160,8 +159,6 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("shows the engine's own reason for refusing", async () => {
-    // A refusal carries why: no applicable workflow, not allowed, or a payload it will not take.
-    // Repeating that verbatim beats inventing a generic message over the top of it
     const fetchMock = vi.fn((url: string) => Promise.resolve(url === "/Submissions"
       ? jsonResponse({ error: "The user is not allowed to perform this action" }, { ok: false, status: 403 })
       : jsonResponse(SCHEMAS)));
@@ -190,7 +187,6 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("reports an empty path when the engine created nothing to open", async () => {
-    // Accepted without creating anything, so the dialog has nothing to hand back
     const created = vi.fn();
     const fetchMock = vi.fn((url: string) => Promise.resolve(
       url === "/Submissions" ? jsonResponse({}) : jsonResponse(SCHEMAS)));
@@ -227,8 +223,7 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("keeps quiet when it is closed while still loading", async () => {
-    // The dialog is unmounted the moment it is closed, so a list that arrives afterwards has
-    // nowhere to go. Setting it on a component that is gone is what has to be avoided
+    // A list that arrives after the dialog is gone must not be set on it
     let deliver: (value: unknown) => void = () => {};
     const inFlight = new Promise(resolve => {
       deliver = resolve;

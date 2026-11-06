@@ -26,8 +26,8 @@ import {
 const Stub = (() => null) as AnswerComponent;
 
 describe("the answer component registry", () => {
-  // The candidates live on the window, which outlives a file sharing its process: whatever another file imported
-  // registered itself there
+  // The candidates live on `window`, which the files in one process share, so another file's components may be
+  // there
   beforeEach(() => {
     clearAnswerComponents();
   });

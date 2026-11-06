@@ -101,7 +101,6 @@ describe("tasksFrom", () => {
   });
 
   it("reads nothing from a task serialized without the events the reader may send it", () => {
-    // Fail closed: a task the server said nothing about offers nothing
     expect(tasksFrom(holding({ "@path": INSTANCES + "/i/t", "status": OPEN_STATUS }))[0]["@events"]).toEqual([]);
   });
 

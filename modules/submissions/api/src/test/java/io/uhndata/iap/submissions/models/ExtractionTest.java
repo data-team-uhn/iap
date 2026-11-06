@@ -187,7 +187,7 @@ class ExtractionTest
         Mockito.when(targetNode.getPath()).thenReturn(VERSION_PATH);
         final Session session = Mockito.mock(Session.class);
         Mockito.when(session.getNodeByIdentifier(VERSION_ID)).thenReturn(targetNode);
-        // A real session says so rather than answering null, which is what the model has to survive
+        // A session throws for an identifier nothing has, and does not answer null
         Mockito.when(session.getNodeByIdentifier(GONE_ID)).thenThrow(new ItemNotFoundException(GONE_ID));
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
     }

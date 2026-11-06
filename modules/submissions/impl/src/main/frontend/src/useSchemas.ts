@@ -23,23 +23,18 @@ import { describeRequestFailure, readJson, RequestError } from "@iap/frontend-co
 
 import { type JsonNode, type SchemaChoice, SCHEMAS_URL, schemaChoices } from "./schemaModel";
 
-// Reading what a submission may be raised against, once. The parsing is in schemaModel.
-
 export interface SchemasOnOffer {
-  /** What may be picked, empty until the read has settled and whenever it failed. */
+  /** What may be picked; empty until the read has settled, and when it failed. */
   choices: SchemaChoice[];
   /** True until the read settles, one way or the other. */
   loading: boolean;
-  /** Why the read failed, in the submitter's terms, so a caller can say so rather than show an
-   * empty list. */
+  /** Why the read failed, in a sentence for the submitter; undefined unless it failed. */
   error?: string;
 }
 
 /**
- * The schemas on offer, read once when the caller mounts.
- *
- * Read once rather than kept current. A caller mounts this while asking the submitter to choose,
- * and a schema retired mid-choice is settled by the server when the submission is raised.
+ * The schemas open for submissions, read once when the caller mounts. A schema retired after the read
+ * is refused by the server when the submission is raised.
  *
  * @returns what may be picked, and how the read went
  */
@@ -47,7 +42,6 @@ export function useSchemas(): SchemasOnOffer {
   const doFetch = useAuthenticatedFetch();
   const [ choices, setChoices ] = useState<SchemaChoice[]>([]);
   const [ error, setError ] = useState<string>();
-  // Settled rather than loading, so that the initial state needs no separate "not started yet"
   const [ settled, setSettled ] = useState(false);
 
   useEffect(() => {

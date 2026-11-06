@@ -60,7 +60,6 @@ describe("schemaChoices", () => {
     expect(schemaChoices({ "jcr:primaryType": "sch:SchemasHomepage", "count": 3 })).toEqual([]);
   });
 
-  // Both node types allow any other child, so a listing carries more than schemas and versions
   it("passes over a child of the homepage that is not a schema", () => {
     const alien = {
       s: SCHEMAS.timeOffRequest,
@@ -86,8 +85,6 @@ describe("schemaChoices", () => {
     expect(schemaChoices(withNotes)).toEqual([]);
   });
 
-  // Oak permits an empty value for a mandatory property, and "" is not nullish, so the fallback has
-  // to fire on it rather than only on a missing title
   it("falls back to the node name for a schema whose title is empty", () => {
     const blank = { s: { ...SCHEMAS.timeOffRequest, title: "" } };
 
@@ -95,8 +92,6 @@ describe("schemaChoices", () => {
   });
 
   it("offers a nameless schema rather than dropping it", () => {
-    // Title and node name are both mandatory in practice. Content that somehow lacks them is still
-    // offered: a choice missing its label beats a missing choice
     const nameless = { s: { ...SCHEMAS.timeOffRequest, title: undefined, "@name": undefined } };
 
     expect(schemaChoices(nameless)[0]).toMatchObject({ title: "", path: "/Schemas/timeOffRequest/v1" });

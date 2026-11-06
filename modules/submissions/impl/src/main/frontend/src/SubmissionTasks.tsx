@@ -30,10 +30,10 @@ import { useSubmissionTasks } from "./useSubmissionTasks";
 
 // The tasks a submission is waiting for, as buttons labelled with each task's label.
 //
-// Only a task whose `@events` offers the reader `complete` is shown. Another person's task is absent, not
-// disabled. Tasks with outcome options are left out, since the button sends no outcome.
+// Only a task whose `@events` offers the reader `complete` is shown. Another person's task is absent,
+// not disabled. A task with outcome options is left out, since the button sends no outcome.
 // `beforeComplete` settles once anything a completion must not overtake is done, such as an answer
-// still being saved; when it fails, nothing is completed, and the reader is told why.
+// still being saved. When it rejects, nothing is completed, and the reader is told why.
 // `readinessNote`, when given, says what still stands between the submission and its next step.
 function SubmissionTasks({ path, readinessNote, beforeComplete, onCompleted }: {
   path: string;
@@ -53,7 +53,7 @@ function SubmissionTasks({ path, readinessNote, beforeComplete, onCompleted }: {
       onCompleted?.();
       return reload();
     })
-    // The engine's message: only the definition knows why it refused
+    // Says why: the engine's reason when it refused, or else why the step was not sent
     .catch((error: unknown) => notify({ title: `${task.label} did not go through`, message: messageOf(error) })));
 
   const offered = tasks.filter(task => offers(task, COMPLETE_EVENT) && task.outcomeOptions.length === 0);

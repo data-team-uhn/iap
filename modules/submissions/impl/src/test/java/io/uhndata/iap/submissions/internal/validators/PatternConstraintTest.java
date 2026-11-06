@@ -29,8 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link PatternConstraint}: the whole value must match, the schema's own words are preferred, and a
- * broken pattern is loud rather than silently unenforced.
+ * Unit tests for {@link PatternConstraint}: the whole value must match, the schema's own message is preferred, and a
+ * pattern that does not compile refuses the save.
  *
  * @version $Id$
  * @since 0.1.0

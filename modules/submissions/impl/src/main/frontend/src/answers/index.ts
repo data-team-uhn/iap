@@ -18,15 +18,15 @@
 
 import { createExtensionLoader } from "@iap/ui-extension/extensionLoader";
 
-// Finds the answer components by asking the repository which ones are declared. A deployment adds a
-// question type by registering an `ext:Extension` on this point and shipping the asset it names.
+// The extension point declaring the answer components. A deployment adds a question type by
+// registering an `ext:Extension` on this point and shipping the asset it names.
 export const ANSWER_COMPONENT_POINT = "AnswerComponent";
 
 const loader = createExtensionLoader(ANSWER_COMPONENT_POINT, "answer components");
 
-// Loads every declared answer component, once
+// Loads every answer component declared on the point. A load that succeeded is not repeated.
 export const loadAnswerComponents = loader.load;
 
-// Whether the answer components are available yet. They arrive over HTTP, so the first render of a
-// field happens before any of them is registered.
+// Whether the load of the answer components has settled, whether or not it succeeded. They arrive
+// over HTTP, so a field's first render comes before any of them is registered.
 export const useAnswerComponents = loader.useLoaded;

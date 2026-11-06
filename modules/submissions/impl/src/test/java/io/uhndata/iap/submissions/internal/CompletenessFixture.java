@@ -50,8 +50,8 @@ import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.Submission;
 
 /**
- * A submission and the schema it answers, for the tests of what a submission is still missing: a form asking for a
- * date, an optional note, and a reason one section down, and a document requirement.
+ * A submission and the schema it answers, for the tests of what a submission is still missing. The schema has a form
+ * asking for a date, an optional note, and a reason one section down, and a document requirement.
  *
  * @version $Id$
  * @since 0.1.0
@@ -74,7 +74,7 @@ public final class CompletenessFixture
 
     public static final String DOCTORS_NOTE = "doctorsNote";
 
-    /** Autocreated by a real repository from the node type, and by nothing in a mock one. */
+    /** Autocreated by Oak from the node type, and by nothing in a mock repository. */
     public static final String SUPER_TYPE = "sling:resourceSuperType";
 
     public static final String REQUIREMENT = "sch/Requirement";
@@ -230,8 +230,8 @@ public final class CompletenessFixture
     }
 
     /**
-     * The submission's children of one kind. A part the code under test created carries only its primary type: a
-     * real repository autocreates the resource type from the node type, and the mock one does not.
+     * The submission's children of one kind. A part the code under test created carries only its primary type: Oak
+     * autocreates the resource type from the node type, and the mock repository does not.
      */
     private static Stream<Resource> parts(final SlingContext context, final String resourceType,
         final String primaryType)
@@ -254,7 +254,8 @@ public final class CompletenessFixture
     }
 
     /**
-     * Sets a reference on a component under test, the house idiom: DS metadata only exists in the packaged bundle.
+     * Sets a reference field on a component under test, by reflection. The DS metadata exists only in the packaged
+     * bundle.
      *
      * @param component the component
      * @param field the field to set

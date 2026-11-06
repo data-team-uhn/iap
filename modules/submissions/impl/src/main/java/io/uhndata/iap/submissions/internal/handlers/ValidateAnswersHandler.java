@@ -36,9 +36,8 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that puts a save past the registered {@link AnswerValidator}s, once the answers are recorded.
- * A save must pass every one of them. The first to object stops it, with an {@link InvalidPayloadException}
- * carrying that validator's reason.
+ * The service task that checks a save against every registered {@link AnswerValidator}, once the answers are
+ * written. The first to object stops the save, with an {@link InvalidPayloadException} carrying its reason.
  *
  * @version $Id$
  * @since 0.1.0

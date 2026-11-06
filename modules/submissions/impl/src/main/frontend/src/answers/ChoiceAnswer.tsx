@@ -41,15 +41,14 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
   const { options } = question;
 
   if (isMultiple(question)) {
-    // A capped list stops offering at the cap instead of taking a pick the save would refuse. The
-    // unchecked boxes grey out, which shows the rule as well as enforcing it.
+    // At the cap, the unchecked boxes are disabled, since the save would refuse another pick
     const cap = answerCap(question);
     const atCap = cap !== undefined && values.length >= cap;
     const guidance = [ help, countGuidance(question, "Choose") ].filter(Boolean).join(" ");
     const toggle = (value: string, checked: boolean) =>
       onAnswered(checked
-        // Kept in the offered order rather than the order they were clicked, so that two people
-        // answering the same way store the same thing
+        // In the offered order, not the order of the clicks, so that the same picks store the same
+        // answer
         ? options.filter(option => option.value === value || values.includes(option.value))
           .map(option => option.value)
         : values.filter(current => current !== value));
@@ -94,7 +93,7 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
           />
         ))}
       </RadioGroup>
-      {/* A picked radio cannot be unpicked, so an optional answer needs its own way back to none */}
+      {/* A picked radio cannot be unpicked, so an optional answer gets a way back to none */}
       {!isRequired(question) && values.length > 0 && (
         <Button size="small" disabled={disabled} onClick={() => onAnswered([])} sx={{ alignSelf: "start" }}>
           Clear
@@ -105,8 +104,8 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
   );
 }
 
-// Offering a fixed set of answers says more about a question than its data type does, so this
-// outbids the component that would otherwise type the answer in
+// A question that offers answers is answered by picking, whatever its data type, so this outbids the
+// components chosen by data type
 export const choiceAnswerCandidate: AnswerComponentCandidate = question =>
   question.options.length > 0 ? [ ChoiceAnswer, 60 ] : null;
 

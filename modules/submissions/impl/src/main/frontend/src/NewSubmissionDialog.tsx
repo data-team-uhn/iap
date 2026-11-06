@@ -44,16 +44,13 @@ import { useSchemas } from "./useSchemas";
 
 interface NewSubmissionDialogProps {
   onClose: () => void;
-  // Called with the path of the submission that was raised, so the caller can open it
+  // Called with the path of the submission raised, or with an empty string when the engine created
+  // nothing to open
   onCreated: (path: string) => void;
 }
 
-// Raising a submission: pick what is being submitted against, name it, and let the workflow
-// engine do the rest. The POST goes to the /Submissions homepage rather than to any CRUD
-// endpoint.
-//
-// Mounted only while it is open, so each opening starts from nothing. What is on offer is read
-// afresh, and a half-filled attempt is not still sitting there next time.
+// Raises a submission. The submitter picks a schema open for submissions and gives a title, and the
+// dialog posts both to /Submissions as a `create` event. It reads the schemas on offer when it mounts.
 function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
   const doFetch = useAuthenticatedFetch();
   const { choices, loading, error: loadError } = useSchemas();
@@ -70,17 +67,15 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
       body: new URLSearchParams({ title: title.trim(), schemaVersion: selected }),
     })
       .then(async response => {
-        // Answered with a redirect to what it created, which fetch has already followed: this
-        // response describes that page, so a read that failed here says nothing about whether the
-        // submission exists. Asked before the status, or a created submission reads as refused.
+        // The engine redirects to the submission it created, and fetch has followed. The status is
+        // the created page's, and says nothing about the creation. Checked before the status, or a
+        // created submission could read as refused.
         if (response.redirected) {
           onCreated(new URL(response.url).pathname);
           return;
         }
         if (!response.ok) {
-          // The engine answers a refusal with the reason: no applicable workflow, not allowed to
-          // raise this, or a payload it will not accept. Its words are already in the submitter's
-          // terms, so they are shown as they stand rather than described
+          // A refusal carries the engine's reason, such as "A title is required", shown as it stands
           const body = (await response.json().catch(() => ({}))) as { error?: string };
           if (body.error) {
             setSubmitError(body.error);
@@ -109,8 +104,7 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
           </Box>
         ) }
         { loadError && <Alert severity="error">{loadError}</Alert> }
-        { /* Distinguished from a failed load on purpose: "nothing is open for submissions" is an
-             answer, and looks identical to a broken dialog if it is left blank */ }
+        { /* Said, since an empty dialog would look broken */ }
         { empty && (
           <DialogContentText>
             Nothing is currently open for submissions.
@@ -125,7 +119,7 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
                 value={selected}
                 onChange={event => {
                   setSelected(event.target.value);
-                  // A refusal was about the choice that was made, so it does not stand over a new one
+                  // A refusal was about the earlier choice, so a new choice clears it
                   setSubmitError(undefined);
                 }}
               >
@@ -162,8 +156,7 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
         <Button onClick={onClose} disabled={submitting}>Cancel</Button>
         <Button
           variant="contained"
-          // Both are required by the workflow that raises the submission, so a request that
-          // would certainly be refused is not offered
+          // The create workflow refuses a submission without both
           disabled={submitting || !selected || !title.trim()}
           onClick={submit}
         >

@@ -35,13 +35,12 @@ import io.uhndata.iap.submissions.spi.AnswerConstraint;
 import io.uhndata.iap.submissions.spi.AnswerValidator;
 
 /**
- * Refuses a save whose answers break a constraint their question carries, as judged by the registered
- * {@link AnswerConstraint}s: the answer count, the answers offered, the data type of a numeric answer, its bounds, a
- * pattern, and whatever other bundles add.
+ * Refuses a save whose answers break a constraint their question carries. The registered {@link AnswerConstraint}s
+ * judge them: the answer count, the answers offered, the data type of a numeric answer, its bounds, a pattern, and
+ * whatever other bundles add.
  *
- * <p>Only the questions the submitter is shown are judged, the same set the completeness marking judges. Falling
- * short of {@code minAnswers} is not judged here: answers arrive one at a time, so a shortfall is incompleteness,
- * not a reason to refuse a save.</p>
+ * <p>Only the questions the submitter is shown are judged. Falling short of {@code minAnswers} is not judged here:
+ * answers arrive one at a time, so a shortfall leaves the submission incomplete and does not refuse a save.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -50,8 +49,8 @@ import io.uhndata.iap.submissions.spi.AnswerValidator;
 public class AnswerConstraintsValidator implements AnswerValidator
 {
     /**
-     * In the order to consult them. The framework keeps a replaced list field sorted by ascending
-     * {@code service.ranking}, and re-sorts it as constraints come and go; a field updated in place would not be.
+     * The constraints, in the order to consult them. Declarative Services replaces this list as constraints come and
+     * go, and keeps it sorted by ascending {@code service.ranking}. A field updated in place would not be sorted.
      */
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
         policyOption = ReferencePolicyOption.GREEDY)

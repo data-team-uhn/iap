@@ -30,10 +30,10 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sub:Extraction} node: one run of answer extraction against one
- * {@link Answer} — what a model read out of the submitted documents, and which document revisions it read to get
- * there. The run's existence is the record that extraction happened, so a run that found nothing is one with no
- * {@link #getExtractedAnswer() extracted answer}, and {@link #getCreated()} is when it ran.
+ * A Sling Model wrapping a {@code sub:Extraction} node: one extraction run against one {@link Answer}. It holds what
+ * a model read out of the submitted documents, and which document revisions it read. The node is the record that the
+ * run happened. A run that found nothing has no {@link #getExtractedAnswer() extracted answer}, and
+ * {@link #getCreated()} is when it ran.
  *
  * @version $Id$
  * @since 0.1.0
@@ -64,10 +64,10 @@ public class Extraction extends EntityPart
     private Double percentageDistance;
 
     /**
-     * The document revisions this run read, whether or not it found an answer in them. A revision is what a
-     * submitter replaces, so this is what tells a later reader that the run is stale.
+     * The document revisions this run read, whether or not it found an answer in them. A newer revision of one of
+     * them makes the run stale.
      *
-     * @return a list of revisions, empty if none were recorded or none of them resolve
+     * @return the revisions; empty if none are recorded, or none of them resolve
      */
     @NotNull
     public List<DocumentVersion> getSources()
@@ -88,7 +88,7 @@ public class Extraction extends EntityPart
     /**
      * The answer the model read out of the documents.
      *
-     * @return an extracted answer, or {@code null} if this run found nothing
+     * @return the extracted answer; {@code null} if this run found nothing
      */
     @Nullable
     public String getExtractedAnswer()
@@ -97,9 +97,9 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * How sure the model is of the extracted answer, from 0 to 1.
+     * How sure the model is of the extracted answer.
      *
-     * @return a confidence, or {@code null} if the model reported none
+     * @return a value from 0 to 1; {@code null} if the model reported none
      */
     @Nullable
     public Double getConfidence()
@@ -110,7 +110,7 @@ public class Extraction extends EntityPart
     /**
      * The model's explanation of how it arrived at the extracted answer.
      *
-     * @return an explanation, or {@code null} if the model gave none
+     * @return the explanation; {@code null} if the model gave none
      */
     @Nullable
     public String getReasoning()
@@ -122,7 +122,7 @@ public class Extraction extends EntityPart
      * How far the submitter's own value ended up from the extracted answer, as a raw edit distance. Written when
      * the submitter accepts or edits the extracted answer.
      *
-     * @return an edit distance, or {@code null} while nobody has acted on this run
+     * @return the edit distance; {@code null} while nobody has acted on this run
      */
     @Nullable
     public Long getEditDistance()
@@ -132,9 +132,9 @@ public class Extraction extends EntityPart
 
     /**
      * How far the submitter's own value ended up from the extracted answer, as a percentage of the extracted
-     * answer's own length.
+     * answer's length.
      *
-     * @return a percentage, or {@code null} while nobody has acted on this run
+     * @return the percentage; {@code null} while nobody has acted on this run
      */
     @Nullable
     public Double getPercentageDistance()
@@ -145,7 +145,7 @@ public class Extraction extends EntityPart
     /**
      * The context backing the extracted answer.
      *
-     * @return a list of context, empty if the run cited nothing
+     * @return the quotes; empty if the run cited nothing
      */
     @NotNull
     public List<Context> getContext()
@@ -154,8 +154,8 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * Whether the submitter has acted on this run, which is what an edit distance records. A distance of zero
-     * means the extracted answer was accepted as it stood; anything higher means it was edited or replaced.
+     * Whether the submitter has acted on this run, which an edit distance records. A distance of zero means the
+     * extracted answer was accepted as it stood. Anything higher means it was edited or replaced.
      *
      * @return {@code true} once the submitter has accepted or edited the extracted answer
      */

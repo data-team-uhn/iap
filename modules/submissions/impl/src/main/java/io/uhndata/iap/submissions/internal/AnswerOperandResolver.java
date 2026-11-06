@@ -35,18 +35,16 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.submissions.models.Submission;
 
 /**
- * Resolves {@code answer} operands: the recorded answer to a question, e.g. a submission's answer to one of its
- * schema's questions. The operand value identifies the question, either by its UUID or by its path relative to the
- * entity holding the operand definition (e.g. the schema version), so questions with the same name in different
- * containers never collide. The question's own declared {@code dataType} is reported as the resolved operand's
- * type, steering the evaluator's comparison type unification.
+ * Resolves {@code answer} operands: the recorded answer to a question, such as a submission's answer to one of its
+ * schema's questions. The operand's value names the question, by its {@code jcr:uuid} or by its path relative to the
+ * entity holding the operand, such as the schema version. The question's {@code dataType} is the type of the
+ * resolved operand, which decides how the evaluator compares it.
  *
  * <p>
- * The answer itself is any node whose {@code question} property references the identified question. It is looked
- * up nearest-scope-first: the context's own subtree, then one ancestor at a time up to the submission holding the
- * context. When the same question is answered several times in repeated blocks, a condition evaluated inside one
- * block therefore sees that block's own answer, not an arbitrary one. A context outside any submission has no
- * answer.
+ * The answer is any node whose {@code question} property references that question. It is looked up nearest scope
+ * first: the context's own subtree, then one ancestor at a time up to the submission holding the context. A
+ * condition evaluated inside a node that holds its own answer to the question sees that answer, before any other in
+ * the submission. A context outside any submission has no answer.
  * </p>
  *
  * @version $Id$
@@ -58,15 +56,15 @@ public class AnswerOperandResolver implements OperandResolver
     /** The property through which an answer node references its question. */
     private static final String QUESTION_PROPERTY = "question";
 
-    /** The property holding an answer node's recorded value(s). */
+    /** The property holding an answer node's values. */
     private static final String VALUE_PROPERTY = "value";
 
-    /** The property holding a question node's declared data type. */
+    /** The property holding a question node's data type. */
     private static final String DATA_TYPE_PROPERTY = "dataType";
 
     /**
-     * An identifier as the repository writes it, in lower case. {@link AnswerDependencies} finds what depends on a
-     * question by that exact spelling, so no other spelling names a question.
+     * A {@code jcr:uuid} as Oak writes it, in lower case. {@link AnswerDependencies} finds what depends on a question
+     * by that exact spelling, so no other spelling names a question.
      */
     private static final Pattern UUID_FORMAT =
         Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
@@ -74,7 +72,7 @@ public class AnswerOperandResolver implements OperandResolver
     private static final Logger LOGGER = LoggerFactory.getLogger(AnswerOperandResolver.class);
 
     /**
-     * The identity and declared type of the question an operand references.
+     * The {@code jcr:uuid} and the data type of the question an operand names.
      *
      * @version $Id$
      * @since 0.1.0
@@ -136,12 +134,11 @@ public class AnswerOperandResolver implements OperandResolver
     private Question resolveQuestion(final String reference, final ConditionOperand operand, final Content context)
     {
         if (UUID_FORMAT.matcher(reference).matches()) {
-            // The identifier is usable as-is; the question node is only needed for its declared type,
-            // so failing to load it just leaves the type to be inferred from the answer values.
+            // The question node is read only for its type. When it cannot be read, the type is left unknown.
             return new Question(reference, declaredType(context.getReference(reference, Content.class)));
         }
-        // A relative reference is resolved against the entity the operand itself belongs to, e.g. the schema
-        // version, not against the context the condition is evaluated for
+        // A path is relative to the entity the operand belongs to, such as the schema version, not to the context the
+        // condition is evaluated for
         final Content base = OperandResolver.findEnclosingEntity(operand);
         final Content question = base == null ? null : base.getChild(reference, Content.class);
         if (question == null) {

@@ -240,7 +240,7 @@ class DetachDocumentHandlerTest
     @Test
     void leavesTheEmptyDocumentWaitingForARequirement()
     {
-        // As completeness keeps one for a requirement nothing has been uploaded for: there is still nothing to remove
+        // As createParts leaves one for a requirement nothing has been uploaded for. It holds nothing to remove.
         final Resource waiting = this.context.create().resource(SUBMISSION_PATH + "/waiting",
             Map.of(TYPE, Document.RESOURCE_TYPE, "jcr:primaryType", "sub:Document"));
         reference(waiting, NOTE_PATH, "fulfills");

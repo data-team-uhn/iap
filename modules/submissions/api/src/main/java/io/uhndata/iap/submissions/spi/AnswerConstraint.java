@@ -28,9 +28,9 @@ import io.uhndata.iap.schemas.models.Question;
  * A constraint a question may carry on the values its answer holds. Any bundle may register one, and a save is
  * refused with the first refusal any of them gives.
  *
- * <p>They are consulted in ascending order of their {@code service.ranking}, unranked ones counting as 0, so that a
- * submitter hears about the most basic fault first: a value that is not a number before one that is out of range.
- * The constraints shipped with submissions leave gaps between their rankings for others to fit in.</p>
+ * <p>They are consulted in ascending order of their {@code service.ranking}, unranked ones counting as 0. A
+ * submitter then hears about the most basic fault first, such as a value that is not a number before one that is out
+ * of range. The constraints shipped with submissions leave gaps between their rankings for others to fit in.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -41,8 +41,9 @@ public interface AnswerConstraint
      * Judges the values one question's answer holds.
      *
      * @param question a question the submitter is shown
-     * @param values the values its answer holds, possibly none
-     * @return a reason to refuse, or empty when the question carries no such constraint or the values fit it
+     * @param values the values its answer holds, as stored; empty if it holds none
+     * @return a reason to refuse, shown to the submitter; empty if the question carries no such constraint, or the
+     *     values fit it
      */
     @NotNull
     Optional<String> refusal(@NotNull Question question, @NotNull List<String> values);

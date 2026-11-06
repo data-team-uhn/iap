@@ -70,7 +70,7 @@ public class Section extends EntityPart
     /**
      * The section requirement this section fulfills.
      *
-     * @return a section requirement, or {@code null} if not set or unresolvable
+     * @return the section requirement; {@code null} if none is set, or this session cannot resolve it
      */
     @Nullable
     public SectionRequirement getFulfills()
@@ -79,9 +79,9 @@ public class Section extends EntityPart
     }
 
     /**
-     * How the passages were found: one of the {@code *_METHOD} constants of this class.
+     * How the passages were found.
      *
-     * @return a method, or {@code null} if the section was not found
+     * @return one of the {@code *_METHOD} constants of this class; {@code null} if none is recorded
      */
     @Nullable
     public String getMethod()
@@ -90,9 +90,9 @@ public class Section extends EntityPart
     }
 
     /**
-     * How sure the model that found this section is, from 0 to 1.
+     * How sure the model that found this section is.
      *
-     * @return a confidence, or {@code null} unless an LLM located the section
+     * @return a value from 0 to 1; {@code null} unless an LLM located the section
      */
     @Nullable
     public Double getConfidence()
@@ -104,7 +104,7 @@ public class Section extends EntityPart
      * The person who checked where the section is: who picked or selected it, or who confirmed that a section not
      * found is indeed missing.
      *
-     * @return a user id, or {@code null} if nobody has checked
+     * @return a user id; {@code null} if nobody has checked
      */
     @Nullable
     public String getCheckedBy()
@@ -115,7 +115,7 @@ public class Section extends EntityPart
     /**
      * The stretches of the document this section consists of, in the order the document presents them.
      *
-     * @return a list of passages, empty if the section was not found
+     * @return the passages; empty if the section was not found
      */
     @NotNull
     public List<Passage> getPassages()

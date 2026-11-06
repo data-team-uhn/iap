@@ -31,9 +31,8 @@ import {
   toFileUrl
 } from "./submissionForm";
 
-// Taken out of the page without being taken out of the document: the file input is the real control,
-// so it has to remain focusable and nameable. `hidden` or `display: none` would drop it out of the
-// tab order and leave the label naming nothing, which is the usual way this pattern breaks.
+// Keeps the file input out of sight. It is the real control, so it stays focusable and named.
+// `hidden` or `display: none` would take it out of the tab order and leave the label naming nothing.
 const OFFSCREEN = {
   position: "absolute" as const,
   width: 1,
@@ -62,7 +61,7 @@ function FileButton({ label, ariaLabel, accepted, disabled, onPick }: FileButton
         type="file"
         sx={OFFSCREEN}
         aria-label={ariaLabel}
-        // Only a hint for the file dialog. The server checks the type
+        // Only a hint for the file dialog. The type is checked before sending, and again by the server.
         accept={accepted.length > 0 ? accepted.join(",") : undefined}
         disabled={disabled}
         onChange={(event: ChangeEvent<HTMLInputElement>) => {
@@ -70,8 +69,8 @@ function FileButton({ label, ariaLabel, accepted, disabled, onPick }: FileButton
           if (file) {
             onPick(file);
           }
-          // Cleared so that picking the same file again is still a change. Without this, one
-          // failed upload cannot be retried with the file that failed.
+          // Cleared, so that picking the same file again is a change, and a failed upload can be
+          // retried
           event.target.value = "";
         }}
       />
@@ -79,20 +78,20 @@ function FileButton({ label, ariaLabel, accepted, disabled, onPick }: FileButton
   );
 }
 
-// How long the browser may look at a file before sending it unchecked. The check only advises, and
-// the server checks again.
+// How long the browser check of a file may take, in milliseconds. Past it, the file is sent unchecked,
+// and the server still checks its type and size.
 const CHECK_TIMEOUT_MS = 30_000;
 
 export interface DocumentUploadProps {
   path: string;
   requirement: DocumentRequirement;
-  // Whether this reader may still change the request at all, which is the server's `editable`
+  // Whether the reader may no longer change the request: the form's `editable`, negated
   disabled: boolean;
   onAttached: () => void;
 }
 
-// Answering a document requirement: what has been attached for it, and a way to attach a file. A file
-// is never removed: a newer upload for the same requirement becomes a new version of the document.
+// Answers a document requirement: what has been attached for it, and a way to attach a file. It
+// offers no removal. A newer upload for the same requirement becomes a new version of the document.
 function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUploadProps) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
@@ -102,7 +101,7 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
   const name = requirement.label || requirement.name;
 
   // Leaving the page aborts an upload still on its way, so the browser asks first. Moving within the
-  // app does not abort it, and the file still arrives.
+  // app does not abort it.
   useEffect(() => {
     if (!busy) {
       return undefined;
@@ -112,7 +111,6 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
     return () => window.removeEventListener("beforeunload", warn);
   }, [busy]);
 
-  // Reloads the form on success, since what it asks and what is attached may have changed
   const upload = (file: File) => {
     setBusy(true);
     setFailure(undefined);
@@ -128,7 +126,7 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
       },
       (error: unknown) => {
         setBusy(false);
-        // Why the browser check or the engine refused the file, such as a type it would not take
+        // Why the browser check or the engine refused the file, or why the request failed
         setFailure(messageOf(error));
       }
     );

@@ -60,7 +60,6 @@ describe("the answer-count pair", () => {
   it("reads any maximum but one as taking several values", () => {
     expect(isMultiple(counts(0, 1))).toBe(false);
     expect(isMultiple(counts(0, 4))).toBe(true);
-    // Zero or negative means no cap at all
     expect(isMultiple(counts(0, 0))).toBe(true);
   });
 
@@ -81,8 +80,6 @@ describe("fetchForm", () => {
     const fetchMock = vi.fn(() => response(form));
 
     expect(await fetchForm(fetchMock, PATH)).toEqual(form);
-    // The projection, not the node: it merges the schema's questions with this submission's answers
-    // and leaves out whatever does not currently apply
     expect(fetchMock).toHaveBeenCalledWith(`${PATH}.form.json`);
   });
 
@@ -107,7 +104,6 @@ describe("saveAnswer", () => {
   });
 
   it("repeats a question that holds several values", async () => {
-    // Which is what the handler reads back as a multi-valued answer
     const fetchMock = vi.fn(() => response({}));
 
     await saveAnswer(fetchMock, PATH, "details/days", [ "Monday", "Tuesday" ]);
@@ -117,8 +113,6 @@ describe("saveAnswer", () => {
   });
 
   it("names the question even when it is being cleared", async () => {
-    // The handler walks the questions the payload mentions, so an emptied field that sent nothing at
-    // all would leave its old answer in place -- and the request would go on counting as complete
     const fetchMock = vi.fn(() => response({}));
 
     await saveAnswer(fetchMock, PATH, "details/startDate", []);
@@ -128,8 +122,6 @@ describe("saveAnswer", () => {
   });
 
   it("reports the engine's own reason for refusing", async () => {
-    // A refusal carries why: not the submitter's request, or no longer a draft. Repeating that
-    // verbatim beats inventing a message over the top of it
     const fetchMock = vi.fn(() => response(
       { error: "This request has been submitted and can no longer be changed" },
       { ok: false, status: 409 }));

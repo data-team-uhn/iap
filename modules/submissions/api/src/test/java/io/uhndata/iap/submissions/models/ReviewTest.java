@@ -205,8 +205,8 @@ class ReviewTest
     @Test
     void reportsNotApprovedWithoutTheTagsService()
     {
-        // Nothing registers the Taggable view here, which is what a repository without the tags bundle looks like:
-        // the state cannot be read, and an unreadable state is not an approval
+        // Nothing registers the Taggable view here, as in a repository without the tags bundle. A state that cannot
+        // be read is not an approval.
         final Resource resource = this.context.create().resource(REVIEW_PATH,
             SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "tags", new String[] { "approved" });
         final Review review = resource.adaptTo(Review.class);
