@@ -154,10 +154,10 @@ function passageOf(node: Node): Passage | undefined {
   };
 }
 
-function replies(node: Node): Message[] {
+function replies(node: Node, me: string): Message[] {
   return childrenOf(node, "sub:Reply").map(reply => ({
     path: text(reply["@path"]), text: text(reply.text), author: text(reply.author),
-    created: text(reply["jcr:created"]), replies: [],
+    created: text(reply["jcr:created"]), replies: [], mine: reply.author === me,
   }));
 }
 
@@ -187,7 +187,7 @@ function comment(node: Node, kind: NoteKind, me: string, topic?: Node, topics?: 
     mine: author === me,
     subjects: Array.isArray(node.subjects) ? node.subjects.map(uuidOf).filter(Boolean) : [],
     passage: passageOf(node),
-    replies: replies(node),
+    replies: replies(node, me),
     severity: severityOf(node),
     topic: (topic ? text(topic.text) : topics?.get(topicPath)?.label ?? "") || undefined,
     topicPath: topicPath || undefined,

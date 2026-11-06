@@ -43,7 +43,7 @@ import TagChip from "@iap/tags/TagChip";
 
 import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
-import { PersonName } from "./people";
+import { Thread } from "./NoteCard";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
 
@@ -87,6 +87,8 @@ export interface ReviewDoing {
   editIssue: (note: ReviewNote, text: string, severity?: string, topic?: string) => Promise<void>;
   removeIssue: (note: ReviewNote) => Promise<void>;
   reply: (note: ReviewNote, text: string) => Promise<void>;
+  editReply: (reply: string, text: string) => Promise<void>;
+  removeReply: (reply: string) => Promise<void>;
   showOthers: () => void;
   decision?: { send: () => void; approve: () => void; approveBlocked?: string; board?: () => void };
 }
@@ -614,17 +616,9 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
       )} />
       <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", ...dense ? cutShort(3) : {} }}>{issue.text}</Typography>
       {/* In full, its thread under it: the study team's and other reviewers' replies, and the reviewer's own */}
-      {!dense && replies > 0 && (
-        <Stack spacing={1} sx={{ mt: 1, pl: 1.5, borderInlineStart: 2, borderColor: "divider" }}>
-          {issue.replies.map(reply => (
-            <Box key={reply.path}>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                <PersonName user={reply.author} /> · {when(reply.created)}
-              </Typography>
-              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{reply.text}</Typography>
-            </Box>
-          ))}
-        </Stack>
+      {!dense && (
+        <Thread replies={issue.replies} onEdit={(reply, text) => doing.editReply(reply, text)}
+          onRemove={reply => doing.removeReply(reply)} />
       )}
       {replying && (
         <Box sx={{ mt: 1 }}>
@@ -652,10 +646,6 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
   );
 }
 
-function when(created: string): string {
-  const date = new Date(created);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 // An AI concern the reviewer settled, greyed: made into an issue, leading to it, or dismissed, which can be taken back
 function Settled({ note, dense, doing, onShow }: {

@@ -154,6 +154,8 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
               <NoteCard
                 note={note} answerLabel={note.kind === "evidence" ? extracted : undefined}
                 onReply={text => actions.write({ replyTo: note.id, text })}
+                onEditReply={(reply, text) => actions.write({ edit: reply, text })}
+                onRemoveReply={reply => actions.write({ remove: reply })}
                 onEdit={(text, severity, topic) => actions.write({ edit: note.id, text, ...severity ? { severity } : {},
                   ...topic !== undefined ? { topic } : {} })}
                 onRemove={() => actions.write({ remove: note.id })}
