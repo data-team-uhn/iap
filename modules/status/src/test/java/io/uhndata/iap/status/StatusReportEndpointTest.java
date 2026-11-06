@@ -99,7 +99,7 @@ class StatusReportEndpointTest
         final MockSlingJakartaHttpServletResponse response = get("txt", Map.of());
 
         assertEquals("text/plain;charset=UTF-8", response.getContentType());
-        // Texts are joined by blank lines, and missing texts don't print as "null"
+        // Blank lines separate the texts, and a report without a text prints as an empty one
         assertEquals("All day long\n\n\n\nSomething is off", response.getOutputAsString());
     }
 
@@ -123,7 +123,7 @@ class StatusReportEndpointTest
         final MockSlingJakartaHttpServletResponse response = get(null, Map.of("targetStatus", "LOUDER"));
 
         assertEquals(400, response.getStatus());
-        // The accepted values, not the rejected one handed back
+        // The error lists the levels, and does not repeat the rejected value
         assertTrue(response.getOutputAsString().contains("targetStatus must be one of DEBUG, INFO"));
         assertFalse(response.getOutputAsString().contains("LOUDER"));
         Mockito.verifyNoInteractions(this.manager);
@@ -159,9 +159,8 @@ class StatusReportEndpointTest
     }
 
     /**
-     * A request from a named caller. Who that is comes from the session, not from the request's remote user: a
-     * login resolves case-insensitively, so the remote user is the spelling that was typed while only the
-     * repository's answer identifies an account.
+     * A request from the given user. The endpoint reads who that is from the resource resolver, not from the
+     * request's remote user.
      */
     private MockSlingJakartaHttpServletRequest request(final String extension, final Map<String, Object> parameters,
         final String user)

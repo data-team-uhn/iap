@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for the {@link StatusReport} value object.
+ * Unit tests for {@link StatusReport}.
  *
  * @version $Id$
  * @since 0.1.0
