@@ -88,31 +88,40 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   }
   return (
     <Box>
-      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap", mb: 0.5 }}>
+      {/* What it is, with the tools on the same line; under it the risk it is filed under, then who wrote it, for
+          which group, and when */}
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: 28 }}>
         <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
           {info.single}
-          {note.kind === "otherIssue" && note.group && labels.has(note.group) && ` · ${labels.get(note.group)}`}
         </Typography>
         {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
-        {note.topic && <Typography variant="caption" sx={{ color: "text.secondary" }}>{note.topic}</Typography>}
-        <Typography variant="caption" sx={{ color: "text.secondary", ml: "auto" }}>
-          {note.kind !== "evidence" && <><PersonName user={note.author} />, </>}{when(note.created)}
-        </Typography>
-        {note.mine && onEdit && (
-          <Tooltip title="Change">
-            <IconButton size="small" aria-label="Change" onClick={() => setEditing(true)}>
-              <EditOutlined fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
-        {note.mine && onRemove && (
-          <Tooltip title="Remove">
-            <IconButton size="small" aria-label="Remove" onClick={() => void onRemove()}>
-              <DeleteOutlined fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
+        <Box sx={{ ml: "auto", display: "flex", mr: -0.75 }}>
+          {note.mine && onEdit && (
+            <Tooltip title="Change">
+              <IconButton size="small" aria-label="Change" onClick={() => setEditing(true)}>
+                <EditOutlined fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          {note.mine && onRemove && (
+            <Tooltip title="Remove">
+              <IconButton size="small" aria-label="Remove" onClick={() => void onRemove()}>
+                <DeleteOutlined fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
       </Stack>
+      {note.topic && (
+        <Typography variant="caption" sx={{ display: "block", color: "text.secondary", fontStyle: "italic" }}>
+          {note.topic}
+        </Typography>
+      )}
+      <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mb: 0.5 }}>
+        {note.kind !== "evidence" && <PersonName user={note.author} />}
+        {note.group && labels.has(note.group) && ` · ${labels.get(note.group)}`}
+        {note.kind !== "evidence" && " · "}{when(note.created)}
+      </Typography>
       {note.kind === "evidence" ? (
         <>
           <Typography variant="body2"><b>{answerLabel ?? note.extracted}</b></Typography>
