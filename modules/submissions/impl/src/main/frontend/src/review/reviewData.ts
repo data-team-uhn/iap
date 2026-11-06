@@ -25,7 +25,8 @@ import type { Message } from "./reviewModel";
 
 type Node = Record<string, unknown>;
 
-export type NoteKind = "evidence" | "aiIssue" | "issue" | "discussion" | "note";
+// An issue is the reviewer's own, what their letter holds; another reviewer's, of their group or another, is apart
+export type NoteKind = "evidence" | "aiIssue" | "issue" | "otherIssue" | "discussion" | "note";
 
 export interface NoteKindInfo {
   kind: NoteKind;
@@ -39,7 +40,8 @@ export interface NoteKindInfo {
 export const NOTE_KINDS: NoteKindInfo[] = [
   { kind: "evidence", label: "Extracted answers", single: "Extracted answer", mark: "evidence" },
   { kind: "aiIssue", label: "AI pre-review", single: "AI pre-review", mark: "assistant" },
-  { kind: "issue", label: "Issues", single: "Issue", mark: "issue" },
+  { kind: "issue", label: "Your issues", single: "Your issue", mark: "issue" },
+  { kind: "otherIssue", label: "Others' issues", single: "Issue", mark: "otherIssue" },
   { kind: "discussion", label: "Reviewer discussion", single: "Discussion", mark: "discussion" },
   { kind: "note", label: "My notes", single: "My note", mark: "annotation" },
 ];
@@ -71,6 +73,8 @@ export interface ReviewNote {
   passage?: Passage;
   replies: Message[];
   severity?: string;
+  // Another reviewer's issue: the reviewer group they raised it for, by principal name
+  group?: string;
   // The risk an AI issue was raised under, or a reviewer's issue is filed under: its name, and its path
   topic?: string;
   topicPath?: string;
@@ -227,7 +231,9 @@ export function parseReview(submission: Node, schema: string, me: string, topics
     } else if (type === "sub/Review") {
       const comments = childrenOf(node, "sub:Comment");
       comments.filter(one => one.author === me && text(one.from)).forEach(one => settled.add(text(one.from)));
-      notes.push(...comments.map(one => comment(one, "issue", me, undefined, topics)));
+      const group = text(node.group) || undefined;
+      notes.push(...comments.map(one => ({ ...comment(one, one.author === me ? "issue" : "otherIssue", me, undefined,
+        topics), group })));
     } else if (type === "sub/Discussion") {
       notes.push(...childrenOf(node, "sub:Comment").map(one => comment(one, "discussion", me)));
     } else if (type === "irv/Notes" && node.owner === me) {

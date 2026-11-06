@@ -68,7 +68,7 @@ import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, GroupChips, type ReviewActions } from "./FormReview";
 import IssuesPanel from "./IssuesPanel";
 import LetterDialog from "./LetterDialog";
-import { usePersonName } from "./people";
+import { GroupLabels, usePersonName } from "./people";
 import { draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { groupShortName, isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics, type NoteKind,
@@ -82,7 +82,7 @@ import { useCurrentUser } from "./useCurrentUser";
 type Node = Record<string, unknown>;
 
 // Renamed when the default changed, so every reviewer starts from it once
-const KINDS_KEY = "iap.review.noteKinds";
+const KINDS_KEY = "iap.review.shownNotes";
 const CONTENTS_OPEN_KEY = "iap.review.contentsOpen";
 const ISSUES_OPEN_KEY = "iap.review.issuesOpen";
 const FOCUSED_KEY = "iap.review.focused";
@@ -255,6 +255,9 @@ export default function ReviewScreen({ path }: { path: string }) {
     [ loaded, schema ]);
   const data: ReviewData | undefined = useMemo(() => loaded && me ? parseReview(loaded.submission, schema, me, topics)
     : undefined, [ loaded, schema, me, topics ]);
+  // Each reviewer group as its approval calls it for short, to say whose another reviewer's issue is
+  const groupLabels = useMemo(() => new Map((loaded?.approvals ?? []).map(approval =>
+    [ text(approval.approverGroup), groupShortName(text(approval.label)) ] as const)), [ loaded ]);
   // The risks the reviewer's groups weigh, which their issues are filed under
   const reviewerTopics = useMemo(() => {
     const approvals = new Set((loaded?.approvals ?? [])
@@ -305,9 +308,12 @@ export default function ReviewScreen({ path }: { path: string }) {
   }, [ data ]);
 
 
+  // The reviewer group the reviewer reviews this submission for
+  const myGroup = (loaded?.approvals ?? []).map(approval => text(approval.approverGroup))
+    .find(group => myGroups.includes(group));
   const actions: ReviewActions = useMemo(() => ({
     write: async fields => {
-      await writeComment(doFetch, path, fields);
+      await writeComment(doFetch, path, fields.kind === "issue" && myGroup ? { ...fields, group: myGroup } : fields);
       // A new note of a kind the reviewer hides shows that kind again, rather than vanishing as it is added
       const written = WRITTEN.find(kind => kind === fields.kind);
       if (written) {
@@ -315,7 +321,7 @@ export default function ReviewScreen({ path }: { path: string }) {
       }
       load();
     },
-  }), [ doFetch, path, load ]);
+  }), [ doFetch, path, load, myGroup ]);
 
   const questionLabel = useCallback((question: string | undefined, extracted: string | undefined) => {
     const asked = requirements.filter(isFormRequirement).flatMap(one => questions(one.items))
@@ -723,82 +729,84 @@ export default function ReviewScreen({ path }: { path: string }) {
         )}
         {/* At least as tall as the panels, so the contents' tab always meets it; a document fills it exactly */}
         {/* A form gets more room around its questions than a document, whose viewer brings its own */}
-        <ReviewerTopics.Provider value={reviewerTopics}>
-          <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%", alignSelf: { md: "stretch" },
-            ...current && isFormRequirement(current) ? { px: { md: 4 }, py: { md: 3 } } : {},
-            minHeight: { md: PANEL_HEIGHT },
-            ...!narrow && current && isDocumentRequirement(current)
-              ? { height: PANEL_HEIGHT, display: "flex", flexDirection: "column" } : {},
-            ...railOpen && !narrow ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: "none" } : {} }}>
-            {current && (
-              <>
-                <Stack direction="row" sx={{ alignItems: "center", columnGap: 2, rowGap: 1, flexWrap: "wrap", mb: 0.5 }}>
-                  <Typography variant="h6" component="h2" sx={{ mr: "auto" }}>{current.label}</Typography>
-                  {/* Over the notes they filter: on the right, where a document lists its notes */}
-                  <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap", justifyContent: "flex-end" }}
-                    role="group" aria-label="Which notes to show">
-                    <Typography variant="caption" sx={{ color: "text.secondary", mr: 0.25 }}>Show</Typography>
-                    {NOTE_KINDS.map(info => (
-                      <Chip
-                        key={info.kind}
-                        size="small"
-                        label={info.label}
-                        variant="outlined"
-                        onClick={() => toggleKind(info.kind)}
-                        aria-pressed={shown.has(info.kind)}
-                        icon={shown.has(info.kind) ? <CheckCircleOutlined /> : <CircleOutlined />}
-                        // Shown, softly tinted in its colour as a tag is; hidden, plain grey, so it reads as off
-                        sx={theme => ({ "& .MuiChip-icon": { color: "inherit" },
-                          ...shown.has(info.kind) ? kindChip(theme, info.mark)
-                            : { borderColor: "divider", color: "text.disabled" } })}
-                      />
-                    ))}
+        <GroupLabels.Provider value={groupLabels}>
+          <ReviewerTopics.Provider value={reviewerTopics}>
+            <Paper sx={{ px: 2, py: 1.5, flex: 1, minWidth: 0, width: "100%", alignSelf: { md: "stretch" },
+              ...current && isFormRequirement(current) ? { px: { md: 4 }, py: { md: 3 } } : {},
+              minHeight: { md: PANEL_HEIGHT },
+              ...!narrow && current && isDocumentRequirement(current)
+                ? { height: PANEL_HEIGHT, display: "flex", flexDirection: "column" } : {},
+              ...railOpen && !narrow ? { borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: "none" } : {} }}>
+              {current && (
+                <>
+                  <Stack direction="row" sx={{ alignItems: "center", columnGap: 2, rowGap: 1, flexWrap: "wrap", mb: 0.5 }}>
+                    <Typography variant="h6" component="h2" sx={{ mr: "auto" }}>{current.label}</Typography>
+                    {/* Over the notes they filter: on the right, where a document lists its notes */}
+                    <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, flexWrap: "wrap", justifyContent: "flex-end" }}
+                      role="group" aria-label="Which notes to show">
+                      <Typography variant="caption" sx={{ color: "text.secondary", mr: 0.25 }}>Show</Typography>
+                      {NOTE_KINDS.map(info => (
+                        <Chip
+                          key={info.kind}
+                          size="small"
+                          label={info.label}
+                          variant="outlined"
+                          onClick={() => toggleKind(info.kind)}
+                          aria-pressed={shown.has(info.kind)}
+                          icon={shown.has(info.kind) ? <CheckCircleOutlined /> : <CircleOutlined />}
+                          // Shown, softly tinted in its colour as a tag is; hidden, plain grey, so it reads as off
+                          sx={theme => ({ "& .MuiChip-icon": { color: "inherit" },
+                            ...shown.has(info.kind) ? kindChip(theme, info.mark)
+                              : { borderColor: "divider", color: "text.disabled" } })}
+                        />
+                      ))}
+                    </Stack>
                   </Stack>
-                </Stack>
-                {isFormRequirement(current) && (
-                  <SearchContext.Provider value={searchContext}>
-                    <FormReview
-                      items={current.items} data={data} groups={focused ? othersGroups : groups}
-                      myGroups={myGroups} shown={shown}
-                      onEvidence={openEvidence} actions={actions}
-                    />
-                  </SearchContext.Provider>
-                )}
-                {isDocumentRequirement(current) && shownDocument && (
-                  <Box sx={{ mt: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-                    <DocumentReview
-                      key={current.name}
-                      document={shownDocument} data={data} shown={shown} selected={mark.id}
-                      onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
-                      actions={actions} questionLabel={questionLabel}
-                      search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}
-                      onClose={() => go(listed.find(isFormRequirement)?.name ?? current.name)}
-                    />
-                  </Box>
-                )}
-              </>
-            )}
-            {dialog === "letter" && (
-              <LetterDialog
-                open issueCount={myIssues.length}
-                draft={draftLetter({ title: text(submission.title), identifier: text(submission.identifier),
-                  pi: text(submission.pi), about, issues: myIssues,
-                  reviewer: myName, group: myGroupLabel.toLowerCase() })}
-                onSend={sendLetter} onClose={() => setDialog(undefined)}
-              />
-            )}
-            {dialog === "board" && (
-              <EscalateDialog
-                open title={text(submission.title)} identifier={text(submission.identifier)} pi={text(submission.pi)}
-                summary={data.answers.get("study/summary")?.values.at(0) ?? ""}
-                parts={listed.map(one => ({ name: one.name, label: one.label }))}
-                issues={myIssues} about={about}
-                onClose={() => setDialog(undefined)}
-              />
-            )}
+                  {isFormRequirement(current) && (
+                    <SearchContext.Provider value={searchContext}>
+                      <FormReview
+                        items={current.items} data={data} groups={focused ? othersGroups : groups}
+                        myGroups={myGroups} shown={shown}
+                        onEvidence={openEvidence} actions={actions}
+                      />
+                    </SearchContext.Provider>
+                  )}
+                  {isDocumentRequirement(current) && shownDocument && (
+                    <Box sx={{ mt: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                      <DocumentReview
+                        key={current.name}
+                        document={shownDocument} data={data} shown={shown} selected={mark.id}
+                        onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
+                        actions={actions} questionLabel={questionLabel}
+                        search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}
+                        onClose={() => go(listed.find(isFormRequirement)?.name ?? current.name)}
+                      />
+                    </Box>
+                  )}
+                </>
+              )}
+              {dialog === "letter" && (
+                <LetterDialog
+                  open issueCount={myIssues.length}
+                  draft={draftLetter({ title: text(submission.title), identifier: text(submission.identifier),
+                    pi: text(submission.pi), about, issues: myIssues,
+                    reviewer: myName, group: myGroupLabel.toLowerCase() })}
+                  onSend={sendLetter} onClose={() => setDialog(undefined)}
+                />
+              )}
+              {dialog === "board" && (
+                <EscalateDialog
+                  open title={text(submission.title)} identifier={text(submission.identifier)} pi={text(submission.pi)}
+                  summary={data.answers.get("study/summary")?.values.at(0) ?? ""}
+                  parts={listed.map(one => ({ name: one.name, label: one.label }))}
+                  issues={myIssues} about={about}
+                  onClose={() => setDialog(undefined)}
+                />
+              )}
 
-          </Paper>
-        </ReviewerTopics.Provider>
+            </Paper>
+          </ReviewerTopics.Provider>
+        </GroupLabels.Provider>
         <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", ...panelPlacement, flexShrink: 0 }}>
           <IssuesPanel
             issues={myIssues} about={about}
