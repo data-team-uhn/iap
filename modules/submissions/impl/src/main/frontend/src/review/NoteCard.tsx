@@ -28,6 +28,8 @@ import Composer from "./Composer";
 import { GroupChip, GroupLabels, PersonName } from "./people";
 import { kindInfo, type ReviewNote } from "./reviewData";
 
+import type { Message } from "./reviewModel";
+
 function when(created: string): string {
   const date = new Date(created);
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -38,7 +40,7 @@ function when(created: string): string {
 // changed or removed. An AI pre-review note can be made into an issue, worded and rated as the reviewer sees fit,
 // or dismissed; whoever shows the card says whether it is being made into an issue, to colour it as one meanwhile.
 export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove, onMakeIssue, onDismiss, adopting,
-  onAdopting }: {
+  onAdopting, onEditReply, onRemoveReply }: {
   note: ReviewNote;
   // The extracted answer as the question's options call it
   answerLabel?: string;
@@ -47,6 +49,9 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   onRemove?: () => Promise<void>;
   onMakeIssue?: (text: string, severity?: string, topic?: string) => Promise<void>;
   onDismiss?: () => Promise<void>;
+  // Changing or removing one of the reader's own replies, by its path
+  onEditReply?: (reply: string, text: string) => Promise<void>;
+  onRemoveReply?: (reply: string) => Promise<void>;
   adopting?: boolean;
   onAdopting?: (adopting: boolean) => void;
 }) {
@@ -138,18 +143,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
       {note.suggestion && (
         <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>Suggestion. {note.suggestion}</Typography>
       )}
-      {note.replies.length > 0 && (
-        <Stack spacing={1} sx={{ mt: 1, pl: 1.5, borderLeft: 2, borderColor: "divider" }}>
-          {note.replies.map(reply => (
-            <Box key={reply.path}>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                <PersonName user={reply.author} />, {when(reply.created)}
-              </Typography>
-              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{reply.text}</Typography>
-            </Box>
-          ))}
-        </Stack>
-      )}
+      <Thread replies={note.replies} onEdit={onEditReply} onRemove={onRemoveReply} />
       {canAdopt && (
         <Stack direction="row" sx={{ ml: -0.75, mt: 0.25 }}>
           <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
@@ -202,5 +196,57 @@ export function NoteSummary({ note }: { note: ReviewNote }) {
       </Stack>
       <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{note.text}</Typography>
     </Box>
+  );
+}
+
+// The replies to a note, under it: who wrote each and when, and what it says; the reader's own can be changed or
+// removed in place
+export function Thread({ replies, onEdit, onRemove }: {
+  replies: Message[];
+  onEdit?: (reply: string, text: string) => Promise<void>;
+  onRemove?: (reply: string) => Promise<void>;
+}) {
+  const [ editing, setEditing ] = useState<string>();
+  if (replies.length === 0) {
+    return null;
+  }
+  return (
+    <Stack spacing={1} sx={{ mt: 1, pl: 1.5, borderInlineStart: 2, borderColor: "divider" }}>
+      {replies.map(reply => (
+        <Box key={reply.path}>
+          <Stack direction="row" sx={{ alignItems: "center", minHeight: 26 }}>
+            <Typography variant="caption" sx={{ color: "text.secondary", flex: 1 }}>
+              <PersonName user={reply.author} /> · {when(reply.created)}
+            </Typography>
+            {reply.mine && onEdit && editing !== reply.path && (
+              <Tooltip title="Change">
+                <IconButton size="small" aria-label="Change the reply" onClick={() => setEditing(reply.path)}>
+                  <EditOutlined fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            {reply.mine && onRemove && (
+              <Tooltip title="Remove">
+                <IconButton size="small" aria-label="Remove the reply" sx={{ mr: -0.75 }}
+                  onClick={() => void onRemove(reply.path)}>
+                  <DeleteOutlined fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Stack>
+          {editing === reply.path && onEdit ? (
+            <Composer
+              kinds={[]} initialText={reply.text} saveLabel="Save" onCancel={() => setEditing(undefined)}
+              onSave={async (_kind, text) => {
+                await onEdit(reply.path, text);
+                setEditing(undefined);
+              }}
+            />
+          ) : (
+            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{reply.text}</Typography>
+          )}
+        </Box>
+      ))}
+    </Stack>
   );
 }

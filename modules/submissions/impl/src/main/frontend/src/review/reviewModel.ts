@@ -59,6 +59,8 @@ export interface Message {
   author: string;
   created: string;
   replies: Message[];
+  // PRETOTYPE: whether the person reading wrote it, when that is known
+  mine?: boolean;
 }
 
 type Node = Record<string, unknown>;
