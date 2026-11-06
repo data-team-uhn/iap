@@ -219,11 +219,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
   // An issue's thread, under it on its risk's page, or with those under no risk
   const showThread = (issue: ReviewNote) => {
     setChosen(risks.some(one => one.topic.path === issue.topicPath) ? issue.topicPath : UNFILED);
-    setTimeout(() => {
-      const element = document.getElementById(`review-issue-${issue.id}`);
-      element?.scrollIntoView({ behavior: "smooth", block: "start" });
-      pulseWhenThere(() => element);
-    }, 100);
+    pulseWhenThere(() => document.getElementById(`review-issue-${issue.id}`), true);
   };
   const show = (note: ReviewNote) => {
     onClose();
