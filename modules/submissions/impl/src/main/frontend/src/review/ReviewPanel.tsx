@@ -41,6 +41,7 @@ import { cutShort, passageCard } from "@iap/frontend-commons/pdfViewer/passageSt
 import TagChip from "@iap/tags/TagChip";
 
 import Composer from "./Composer";
+import IssuesGrid from "./IssuesGrid";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
 
@@ -235,6 +236,15 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
           >
             <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>Overview</Typography>
           </ButtonBase>
+          <ButtonBase
+            onClick={() => setChosen(ALL_ISSUES)}
+            sx={{ display: "block", width: "100%", textAlign: "start", px: 2, py: 1, borderTop: 1, borderColor: "divider",
+              bgcolor: chosen === ALL_ISSUES ? "background.paper" : undefined }}
+          >
+            <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>
+              All your issues ({props.issueCount})
+            </Typography>
+          </ButtonBase>
           {risks.map(one => (
             <Box key={one.topic.path} sx={{ borderTop: 1, borderColor: "divider",
               bgcolor: chosen === one.topic.path ? "background.paper" : undefined }}>
@@ -265,6 +275,19 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
               <RiskDetail risk={risk} about={props.about} doing={doing} onShow={show} />
             </Stack>
           )}
+          {chosen === ALL_ISSUES && (
+            <Stack spacing={2} sx={{ height: "100%", minHeight: 360 }}>
+              <Typography variant="h6" component="h3">All your issues</Typography>
+              <Box sx={{ flex: 1, minHeight: 0 }}>
+                <IssuesGrid
+                  issues={[ ...risks.flatMap(one => one.issues), ...props.unfiled ]}
+                  risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
+                  about={props.about} onShow={show}
+                  onChange={(issue, severity, topic) => doing.editIssue(issue, issue.text, severity, topic)}
+                />
+              </Box>
+            </Stack>
+          )}
           {chosen === UNFILED && (
             <Stack spacing={2} sx={{ maxWidth: 820 }}>
               <Typography variant="h6" component="h3">Under no risk</Typography>
@@ -293,6 +316,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
 }
 
 const UNFILED = "unfiled";
+const ALL_ISSUES = "all";
 
 function Progress({ risks }: { risks: RiskReview[] }) {
   const considered = risks.filter(risk => risk.considered).length;
