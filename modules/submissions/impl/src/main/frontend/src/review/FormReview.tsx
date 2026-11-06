@@ -63,9 +63,9 @@ export function disagrees(question: FormQuestion, extracted: string | undefined)
   return normal(extracted.split(";")) !== normal(question.value);
 }
 
-// The reviewer groups something matters to: the reviewer's own first and filled, the others muted
+// The reviewer groups something matters to: the reviewer's own first and filled, the others on a quiet tint
 export function GroupChips({ groups, mine }: { groups: ReviewGroup[] | undefined; mine: string[] }) {
-  if (!groups) {
+  if (!groups?.length) {
     return null;
   }
   return (
@@ -78,8 +78,8 @@ export function GroupChips({ groups, mine }: { groups: ReviewGroup[] | undefined
           />
         ) : (
           <Chip
-            key={group.name} size="small" variant="outlined" label={groupShortName(group.label)}
-            sx={{ height: 18, fontSize: "0.7rem", color: "text.secondary", borderColor: "divider",
+            key={group.name} size="small" label={groupShortName(group.label)}
+            sx={{ height: 18, fontSize: "0.7rem", color: "text.secondary", bgcolor: "action.selected",
               "& .MuiChip-label": { px: 0.75 } }}
           />
         ))}
