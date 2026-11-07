@@ -875,6 +875,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", ...panelPlacement, flexShrink: 0 }}>
               <ReviewPanel
                 identifier={text(submission.identifier)} risks={risks} unfiled={unfiled} issueCount={myIssues.length}
+                countdown={<Countdown due={submission.reviewDue} pausedAt={submission.reviewPausedAt} />}
                 others={othersRaised} about={about} waitingSince={waitingSince}
                 doing={{ ...doing, decision: reviewActions }}
                 open={issuesOpen ?? !(current && isDocumentRequirement(current))}
