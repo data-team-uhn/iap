@@ -27,7 +27,7 @@ import io.uhndata.iap.submissions.models.Answer;
 
 /**
  * Resolves {@code decision} operands. A decision operand gives the answer to a question. If the submitter gave a
- * value, it uses that value. If not, it uses the value that a reading suggested.
+ * value, it uses that value. If not, it uses the suggestion of the newest reading.
  *
  * <p>A reading never saves its result in the answer value. It only adds a suggestion. Some workflow steps must act
  * before any person has checked the suggestion. For example, a step that checks if a document is a proposal. These

@@ -77,7 +77,7 @@ class ExtractionTest
         assertNotNull(resource.adaptTo(Extraction.class));
     }
 
-    // A verdict on the quote behind the answer, which says nothing about the answer itself
+    // A note about the quote behind the answer; it does not accept or reject the answer
     @Test
     void keepsTheSubmittersVerdictOnTheEvidence()
     {

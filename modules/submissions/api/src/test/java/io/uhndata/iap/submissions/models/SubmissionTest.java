@@ -478,7 +478,7 @@ class SubmissionTest
 
     private void registerConditionEvaluator()
     {
-        // Applies what carries no condition, so a test hides an item by giving it one
+        // Only items without a condition apply, so a test hides an item by giving it a condition
         final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
         Mockito.when(conditions.applies(Mockito.any(), Mockito.any()))
             .thenAnswer(call -> call.<Conditionable>getArgument(0).getCondition() == null);
@@ -496,7 +496,7 @@ class SubmissionTest
     void listsTheQuestionsCurrentlyAsked()
         throws RepositoryException
     {
-        // Both questions, and only the questions: the document and approval requirements ask for other things
+        // Only the two questions: the other requirements are not forms
         this.createSchemaVersionWithRequirements();
         final Submission submission = this.createBareSubmission();
 
@@ -507,7 +507,7 @@ class SubmissionTest
     void asksOnlyTheQuestionsWhoseConditionHolds()
         throws RepositoryException
     {
-        // A question that is not shown is not asked, so nothing downstream should judge its answer
+        // A question that is not shown is not asked, so nothing should judge its answer
         this.registerConditionEvaluator();
         this.createSchemaVersionWithRequirements();
         this.context.create().resource("/Schemas/schema/1.0/form/q2/cond:condition", Map.of(
@@ -521,8 +521,7 @@ class SubmissionTest
     void asksOneRequirementByName()
         throws RepositoryException
     {
-        // A schema says which questions belong together by putting them in one requirement, and reading a
-        // document in stages means asking for a stage by name rather than re-deriving the grouping
+        // A requirement groups questions, so the extraction can ask for one group by its name
         this.createSchemaVersionWithRequirements();
         final Submission submission = this.createBareSubmission();
 
@@ -545,8 +544,7 @@ class SubmissionTest
     void asksNothingOfARequirementThatIsNotBeingAsked()
         throws RepositoryException
     {
-        // The whole point of naming a stage: a stage whose turn has not come yields nothing rather than
-        // being asked anyway
+        // A requirement that does not apply yet gives no questions, so it is not asked too early
         this.registerConditionEvaluator();
         this.createSchemaVersionWithRequirements();
         this.context.create().resource("/Schemas/schema/1.0/form/cond:condition", Map.of(
@@ -560,7 +558,7 @@ class SubmissionTest
     void asksNothingOfARequirementThatAsksNoQuestions()
         throws RepositoryException
     {
-        // The document and approval requirements ask for other things, and a name nobody carries is not a form
+        // A requirement that is not a form, and a name no requirement has, give no questions
         this.createSchemaVersionWithRequirements();
         final Submission submission = this.createBareSubmission();
 

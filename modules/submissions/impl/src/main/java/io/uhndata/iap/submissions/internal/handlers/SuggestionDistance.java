@@ -27,9 +27,9 @@ import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Extraction;
 
 /**
- * How far a submitter's answer ended up from the suggestion they were shown, written on that suggestion's run the
- * first time they answer. A distance of zero is a suggestion taken as it stood, anything higher one edited or
- * replaced, so what the submitter did with it needs no flag of its own. A run measured once keeps that measure.
+ * Measures how far a submitter's answer is from the suggestion they were shown, and writes it on that suggestion's
+ * run the first time they answer. Zero means they took the suggestion as it was; more means they edited or
+ * replaced it, so no separate flag is needed. A run is measured only once.
  *
  * @version $Id$
  * @since 0.1.0
@@ -48,7 +48,8 @@ final class SuggestionDistance
     }
 
     /**
-     * Measure an answer against the suggestion it was given, if it was given one nobody has acted on yet.
+     * Measures an answer against the newest run's suggestion. Does nothing when there is no run, the run found
+     * nothing, or the run was already measured.
      *
      * @param answer the answer just saved
      * @param values what it now holds; clearing a field is not answering it, so an empty answer measures nothing
@@ -60,7 +61,7 @@ final class SuggestionDistance
         if (shown == null || shown.isActedOn() || shown.getExtractedAnswer() == null) {
             return;
         }
-        // Compared as the form shows them: the suggestion split and matched the way the answer is stored
+        // Compare values, not the raw reply: the suggestion is split and matched to options the way answers are saved
         final String suggested = String.join(", ", model.getSuggestedValues());
         final int distance = LevenshteinDistance.getDefaultInstance().apply(suggested, String.join(", ", values));
         final Resource run = Objects.requireNonNull(answer.getResourceResolver().getResource(shown.getPath()),

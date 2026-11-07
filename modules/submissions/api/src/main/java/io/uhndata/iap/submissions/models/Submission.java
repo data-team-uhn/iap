@@ -269,8 +269,8 @@ public class Submission extends Entity
     }
 
     /**
-     * The questions this submission is asked now: every question of every form requirement that applies, with
-     * conditions resolved, in schema order.
+     * Returns the questions this submission asks now: every question of every form requirement that applies, in
+     * schema order. Requirements, sections and questions whose conditions do not apply are left out.
      *
      * @return the questions asked, empty when none apply
      */
@@ -281,8 +281,8 @@ public class Submission extends Entity
     }
 
     /**
-     * The questions one named requirement asks, on the same terms as {@link #getQuestions()}. A model reading a
-     * document in stages asks for one stage by its requirement's name.
+     * Returns the questions of one requirement, chosen by name, with the same rules as {@link #getQuestions()}.
+     * The extraction uses it to read a document one requirement at a time.
      *
      * @param name the requirement's node name, or its full path
      * @return its questions, empty when it does not apply, is not a form, or does not exist

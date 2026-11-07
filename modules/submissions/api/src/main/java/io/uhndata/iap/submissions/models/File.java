@@ -32,7 +32,7 @@ import io.uhndata.iap.utils.Referenceable;
 
 /**
  * A Sling Model wrapping a {@code sub:File} node: a single uploaded file, plus everything the parsing pipeline
- * derived from it — the Markdown and the PDF.
+ * derived from it: the Markdown and the PDF.
  *
  * @version $Id$
  * @since 0.1.0
@@ -47,12 +47,12 @@ public class File extends EntityPart implements Referenceable
     /** The name of the child node holding the upload as it was received. */
     public static final String UPLOADED_FILE_CHILD = "uploadedFile";
 
-    /** The name of the child node holding the Markdown the parse produced, whatever the parse called it. */
+    /** The name of the child node holding the Markdown the parse produced, whatever name the parse gave it. */
     public static final String MARKDOWN_CHILD = "markdownFile";
 
     /**
-     * The name of the child node holding the PDF LibreOffice rendered from an office document. Absent when the
-     * upload was already a PDF: that one is the PDF, and a second copy of it is dead weight.
+     * The name of the child node holding the PDF LibreOffice made from an office document. Absent when the
+     * upload is already a PDF, since one copy is enough.
      */
     public static final String PDF_CHILD = "pdfFile";
 
@@ -85,8 +85,8 @@ public class File extends EntityPart implements Referenceable
     }
 
     /**
-     * Where the parse got to: queued, completed or failed. Only the parse job record is ever active. Kept here as
-     * well as on the job so that a file that failed parsing does not look like one that was never parsed.
+     * Where the parse got to: queued, completed or failed. Only the parse job record uses "active". Kept here as
+     * well as on the job, so that a file that failed parsing does not look like one that was never parsed.
      *
      * @return one of {@code queued}, {@code active}, {@code completed} and {@code failed}; {@code null} if none is
      *         recorded
@@ -142,10 +142,10 @@ public class File extends EntityPart implements Referenceable
     }
 
     /**
-     * The PDF of this document: the upload when it was a PDF, otherwise the PDF LibreOffice rendered beside the
-     * office file. Kept for showing the document back to a reviewer at the page a quote came from.
+     * Returns the PDF of this document: the upload when it is a PDF, otherwise the PDF LibreOffice made from the
+     * office file. It is kept so a reviewer can see the document at the page a quote came from.
      *
-     * <p>A PDF upload is stored once, as the upload. Callers ask for the PDF and get it either way.
+     * <p>A PDF upload is stored only once, as the upload, so callers get the PDF from here either way.
      *
      * @return the PDF file, or {@code null} if there is no PDF of this document
      */
@@ -160,7 +160,7 @@ public class File extends EntityPart implements Referenceable
     }
 
     /**
-     * Whether the upload arrived as a PDF, which is what decides where the PDF of this document lives.
+     * Whether the upload is a PDF, by its MIME type. This decides where the PDF of this document is stored.
      *
      * @return {@code true} if the upload is a PDF
      */
@@ -172,8 +172,8 @@ public class File extends EntityPart implements Referenceable
     }
 
     /**
-     * Every rendition stored on this file: the Markdown and the PDF, plus any other file child, which is allowed
-     * for other renditions though the pipeline stores none today. The upload itself is not one of them.
+     * Every rendition stored on this file: the Markdown, the PDF, and any other file child. The node type allows
+     * other renditions, but the pipeline stores none today. The upload itself is not a rendition.
      *
      * @return the {@code nt:file} resources; empty if nothing has been rendered yet
      */

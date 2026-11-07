@@ -122,8 +122,8 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * Whether the submitter said the quoted passage does not support the answer. A verdict on the evidence, not on
-     * the answer, so it settles nothing.
+     * Whether the submitter said the quoted passage does not support the answer. It is a note about the evidence
+     * only: it does not accept or reject the answer.
      *
      * @return {@code true} if the passage was reported as wrong
      */

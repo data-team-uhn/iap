@@ -35,7 +35,7 @@ import { useSubmissionTasks } from "./useSubmissionTasks";
 // `beforeComplete` settles once anything a completion must not overtake is done, such as an answer
 // still being saved. When it rejects, nothing is completed, and the reader is told why.
 // `readinessNote`, when given, says what still stands between the submission and its next step.
-// `blocked` holds the step back until something under way has finished, such as a document being read.
+// `blocked` turns the step buttons off while something is still running, such as a document being read.
 function SubmissionTasks({ path, readinessNote, blocked = false, beforeComplete, onCompleted }: {
   path: string;
   readinessNote?: string;

@@ -70,8 +70,8 @@
   // `in-review`, `approved` or `rejected`. A submission is created as a
   // draft, and its workflow moves it on.
 
-  // Where reading answers out of the attached documents got to: running, done or
-  // failed - with a short message for the person looking at it.
+  // How far reading answers out of the attached documents has got: running,
+  // done or failed, and a short message for the person looking at it.
   // Set by the extraction module's steps and its reading job.
   - extractionStatus (STRING)
   - extractionMessage (STRING)
@@ -143,7 +143,7 @@
   - reasoning (STRING)
 
   // Whether the submitter said the quoted passage does not support the
-  // answer: a verdict on the evidence, not on the answer, so it settles nothing
+  // answer. A note about the evidence only: it does not accept or reject the answer
   - evidenceRejected (BOOLEAN)
 
   // How far the submitter's own value ended up from extractedAnswer: the raw
@@ -175,9 +175,9 @@
   // can be removed without first deleting every quote taken from it.
   - source (WEAKREFERENCE)
 
-  // The quoted text. Every one stored was found in the document: a quote that
-  // could not be found is not evidence, so it is dropped rather than kept.
-  // The answer still pays for it, through a lower confidence.
+  // The quoted text. Every stored quote was found in the document. A quote that
+  // was not found is not evidence, so it is dropped, and the answer's
+  // confidence goes down instead.
   - quote (STRING)
 
   // A little of the text just before and after the quote, so the passage can
@@ -188,7 +188,7 @@
   // The nearest heading above the quoted text
   - header (STRING)
 
-  // The page the model gave for the quote; not checked. Absent for documents
+  // The page the model gave for the quote; it is not checked. Absent for documents
   // that carry no page markers, e.g. anything that came in as DOCX.
   - page (LONG)
 
@@ -256,13 +256,13 @@
   - sling:resourceType (STRING) = "sub/File" mandatory autocreated protected
 
   // Where the parse got to: queued, completed or failed. Only the parse job
-  // record is ever active. Kept here as well as on the job so that a file that
+  // record uses "active". Kept here as well as on the job, so that a file that
   // failed parsing does not look like one that was never parsed.
   - parseStatus (STRING)
   - parseError (STRING)
-  // The parse job the file was queued under, and where the upload was staged for
-  // the daemon on the shared volume. The job record is deleted once its outcome
-  // has been read in, so these are what is left to trace a parse by.
+  // The parse job the file was queued under, and where the upload was put on
+  // the shared volume for the daemon. The job record is deleted once its
+  // outcome has been read in, so these are what is left to trace a parse.
   - parseJobId (STRING)
   - sharedPath (STRING)
 
@@ -273,11 +273,10 @@
   // The upload, exactly as it was received
   + uploadedFile (nt:file) = nt:file
 
-  // What the parse produced and is worth keeping: the Markdown the extraction
-  // reads, and the PDF of this document. pdfFile is only there when
-  // LibreOffice rendered one beside an office file; a PDF upload is the PDF,
-  // kept once as uploadedFile. The .docx and anything else made along the way
-  // is not kept.
+  // What the parse produced that is kept: the Markdown the extraction reads,
+  // and the PDF of this document. pdfFile exists only when LibreOffice made a
+  // PDF from an office file; a PDF upload is kept once, as uploadedFile. The
+  // .docx and anything else made along the way is not kept.
   + markdownFile (nt:file) = nt:file
   + pdfFile (nt:file) = nt:file
 

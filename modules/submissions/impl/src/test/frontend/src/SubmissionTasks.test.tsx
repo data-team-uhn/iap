@@ -99,7 +99,7 @@ describe("SubmissionTasks", () => {
     expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeEnabled();
   });
 
-  // Something under way, such as a document being read, has to finish before the step can be taken
+  // Something still running, such as a document being read, must finish before the step can be taken
   it("holds the step back while it is blocked", async () => {
     vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND })));
 

@@ -128,7 +128,8 @@ public class AnswerOperandResolver implements OperandResolver
     }
 
     /**
-     * What an answer found for the operand holds, as the operand compares it.
+     * Returns the values of the answer found for the operand. A subclass can read something else, such as a
+     * suggestion.
      *
      * @param answer the answer node
      * @return its recorded value(s), or {@code null} when it holds none

@@ -329,10 +329,10 @@ const INCOMPLETE_REASON = "Answer everything this request asks for first.";
 
 const READING_REASON = "Wait until the document has been read.";
 
-// How often a request whose document is being read is read again, to see the reading end
+// How often to fetch the submission again while a document is being read, to see when the reading ends
 const READING_RECHECK_MILLISECONDS = 3000;
 
-// Whether a reading is filling the request in, which holds the next step back until it ends
+// Whether a document is being read for answers. The next step waits until the reading ends.
 function isReading(submission: SerializedNode | undefined): boolean {
   return isBeingRead(submission?.extractionStatus);
 }
@@ -428,8 +428,7 @@ function SubmissionView() {
     };
   }, [path, fetchUtil, reloads]);
 
-  // A reading ends on the server, with nobody on the page to say so, so the request is read again
-  // until it has
+  // The server does not tell the page when a reading ends, so fetch the submission again until it has
   const reading = isReading(submission);
   useEffect(() => {
     if (!reading) {

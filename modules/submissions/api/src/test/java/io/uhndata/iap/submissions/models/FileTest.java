@@ -194,7 +194,7 @@ class FileTest
         assertEquals(12000L, file.getTokens());
     }
 
-    // An unparsed document reads as one whose size is unknown, not as an empty one
+    // An unparsed document has no token count, not a count of zero
     @Test
     void hasNoSizeWhenTheDocumentWasNeverParsed()
     {

@@ -120,7 +120,7 @@ class AnswerTest
         assertNull(answer.getLatestExtraction());
     }
 
-    // Only the newest run counts: an older run is never shown, however sure it was
+    // Only the newest run is shown, even when an older run was surer
     @Test
     void showsTheNewestRunWhateverTheOlderRunsSaid()
     {
@@ -195,7 +195,7 @@ class AnswerTest
             Answer.splitAnswer("St Michael's, Sunnybrook", false));
     }
 
-    // A model may name an option by what it is called rather than by its value, in any case
+    // A model may name an option by its label instead of its value, in any case
     @Test
     void readsAReplyAsTheOptionItNames()
     {
@@ -208,7 +208,7 @@ class AnswerTest
         assertEquals(List.of("maybe"), Answer.readAnswer("maybe", question), "no option, so the reply stays");
     }
 
-    // A stray space would keep the reply from matching the option it names
+    // A stray space would stop the reply from matching the option it names
     @Test
     void trimsASingleValuedReply()
     {
@@ -216,7 +216,7 @@ class AnswerTest
         assertEquals(List.of("  "), Answer.splitAnswer("  ", false), "a blank reply is kept as it came");
     }
 
-    // The model is asked for several values as one comma-separated string, so this is how many it gave
+    // The model gives several values as one comma-separated string
     @Test
     void splitsAMultiValuedReplyIntoAValueEach()
     {
@@ -224,14 +224,14 @@ class AnswerTest
             Answer.splitAnswer("St Michael's,  Sunnybrook , Mount Sinai", true));
     }
 
-    // A model that answered with punctuation only still said something, and storing nothing would lose it
+    // A reply of only commas and spaces is kept whole, so what the model said is not lost
     @Test
     void keepsAReplyThatSplitsIntoNothingWholeInstead()
     {
         assertEquals(List.of(" , , "), Answer.splitAnswer(" , , ", true));
     }
 
-    // A step routing on a reading before anybody looked at it sees the suggestion; a value typed since wins
+    // A step that routes on a reading before anyone checks it sees the suggestion; a value the submitter saves wins
     @Test
     void standsForTheSuggestionUntilTheSubmitterGivesAValue() throws RepositoryException
     {
@@ -247,7 +247,7 @@ class AnswerTest
         assertEquals(List.of("no"), readAnswer(unanswered).getValueOrSuggestion());
     }
 
-    // What the form will compare against the stored values, so it has to be split the same way they were stored
+    // A multi-valued suggestion is split into values, so it can be compared with the values a submitter saves
     @Test
     void suggestsTheSameValuesAMultiValuedAnswerIsStoredAs() throws RepositoryException
     {
@@ -274,8 +274,8 @@ class AnswerTest
         assertEquals(List.of(), createAnswer("valueless", 1, null).getSuggestedValues());
     }
 
-    // A question that has gone from the schema leaves its answer behind; it is single-valued as far as anybody
-    // can now tell, which is the reading that cannot split something nobody can check
+    // An answer whose question is gone from the schema is read as one value, since nobody can tell whether the
+    // question took several
     @Test
     void suggestsWholeWhenTheQuestionCannotBeRead()
     {
@@ -287,8 +287,8 @@ class AnswerTest
         assertEquals(List.of("one, two"), resource.adaptTo(Answer.class).getSuggestedValues());
     }
 
-    // A model names an option as a person reads it. What is stored, ticked and compared is the option's value,
-    // so the reply is matched to the option it names, by label or value and whatever the case.
+    // A model names an option by its label, but the saved value is the option's value, so each part of the reply
+    // is matched to an option by value or label, ignoring case
     @Test
     void suggestsTheOptionAReplyNames() throws RepositoryException
     {
@@ -300,8 +300,8 @@ class AnswerTest
             "a language the question does not offer is kept as the model said it");
     }
 
-    // Two categories can end up sharing a label after a rename; resolving to whichever happens to come
-    // first would risk silently storing the wrong one, so neither is picked
+    // Two categories can share a label, for example after a rename. Picking the first one could save the wrong
+    // category, so neither is picked
     @Test
     void keepsAReplyWhoseLabelMatchesMoreThanOneOption() throws RepositoryException
     {
@@ -320,7 +320,7 @@ class AnswerTest
     }
 
     /**
-     * An answer to a question of the given cardinality, carrying one extraction run.
+     * Creates an answer to a question of the given cardinality, with one extraction run under it.
      *
      * @param name what to call the question and the answer
      * @param maxAnswers the most values the question takes; 0 for any number
@@ -349,7 +349,7 @@ class AnswerTest
         return resource.adaptTo(Answer.class);
     }
 
-    /** The answer read afresh, since a model keeps the values it was adapted with. */
+    /** Adapts the answer again, since a model keeps the values it had when it was adapted. */
     private Answer readAnswer(final Answer answer)
     {
         return this.context.resourceResolver().getResource(answer.getPath()).adaptTo(Answer.class);

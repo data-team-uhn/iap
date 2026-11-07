@@ -709,7 +709,7 @@ describe("SubmissionView", () => {
     // A request with a part that still lacks something
     const INCOMPLETE = { ...DEEP_SUBMISSION, aggregatedTags: [ "incomplete" ] };
 
-    // A request whose document is being read, which fills its answers in
+    // A request whose document is being read for answers
     const READING = { ...DEEP_SUBMISSION, extractionStatus: "running" };
 
     // A form asking one question, which is all that stands between the request and sending it
@@ -785,7 +785,7 @@ describe("SubmissionView", () => {
       expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeDisabled();
     });
 
-    // An answer typed while the reading fills the form in would collide with it
+    // The reading adds suggestions to the questions, so an answer saved meanwhile could clash with it
     it("hides the questions until the document has been read, then shows what it filled in", async () => {
       await loadAnswerComponents();
       let reading = true;

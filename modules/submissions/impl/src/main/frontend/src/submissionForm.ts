@@ -159,8 +159,8 @@ export function isApprovalRequirement(requirement: Requirement): requirement is 
 // The `extractionStatus` of a submission whose documents are being read for answers
 export const READING_STATUS = "running";
 
-// Whether a reading is filling the answers in, read from the submission's `extractionStatus`. Until it
-// ends, the answers are not the submitter's to change and the request is not ready to send.
+// Whether the submission's documents are being read for answers, from its `extractionStatus`. Until the
+// reading ends, the submitter cannot change the answers and the request is not ready to send.
 export function isBeingRead(extractionStatus: unknown): boolean {
   return extractionStatus === READING_STATUS;
 }

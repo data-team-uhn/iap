@@ -88,8 +88,8 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * The newest extraction run. This is the run the submitter is shown, and the one the review step and the
-     * suggestion distance use, so they all mean the same run. Older runs are kept but never shown.
+     * Returns the newest extraction run. The submitter is shown this run, and the review step and the suggestion
+     * distance use it too, so they all mean the same run. Older runs are kept but not shown.
      *
      * @return the newest run; {@code null} if extraction has never run
      */
@@ -108,14 +108,13 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * What the extraction suggested, as the values this answer would hold if nobody touched it.
+     * Returns the newest run's suggestion, as the values this answer would hold if the submitter took it as it is.
      *
-     * <p>Not the model's reply as it came: a question that takes several values is asked for them as one
-     * comma-separated string, so a suggestion of "St Michael's, Sunnybrook" is two values and not one. Split so
-     * the form will be able to compare it against the stored values to tell an untouched suggestion from a
-     * corrected one.</p>
+     * <p>For a question that takes several values, the model gives them as one comma-separated string, so
+     * "St Michael's, Sunnybrook" is two values. The reply is read with {@link #readAnswer}, so the suggestion can
+     * be compared with saved values.</p>
      *
-     * @return the suggested values, empty when nothing suggested an answer here
+     * @return the suggested values, empty when there is no run or the newest run found nothing
      */
     @NotNull
     public List<String> getSuggestedValues()
@@ -129,9 +128,9 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * What this answer stands for while the submitter has not answered it: the values they gave, or failing those,
-     * what a reading suggested. A step that acts on a reading before anybody has looked at it, such as one routing
-     * on whether a document is a proposal, reads this; the form and every other rule read {@link #getValue()}.
+     * Returns the submitter's values, or, when they gave none, the newest run's suggestion. A workflow step that
+     * must act on a reading before anyone checks it reads this, for example to route on whether a document is a
+     * proposal. The form and form conditions read {@link #getValue()} instead.
      *
      * @return the non-blank values given, or else the suggested values; empty when there is neither
      */
@@ -144,16 +143,16 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * One reply from the model, as the values to store for a question: split by {@link #splitAnswer}, and for a
-     * question that offers options, each part matched to an option. A model names an option the way a person
-     * reads it - "English" - while what is stored and compared is the option's value, "english". A part that
-     * matches no option is kept as the model gave it, so what it said is still there to see.
+     * Reads one reply from the model as values for a question. The reply is split by {@link #splitAnswer}. When
+     * the question offers options, each part is matched to an option by value or label, ignoring case: a model
+     * writes an option's label, "English", but the saved value is the option's value, "english". A part that
+     * matches no option is kept as the model wrote it, so the submitter can still see what it said.
      *
-     * <p>Shared by what the extraction writes down and the suggestion the form will show, for the reason
-     * {@link #splitAnswer} gives.</p>
+     * <p>The suggestion and the classification step's check of its pick both use this, so they read a reply the
+     * same way.</p>
      *
      * @param answer the model's reply
-     * @param question the question it answers, or {@code null} when it can no longer be read
+     * @param question the question it answers, or {@code null} to read the reply as one value with no options
      * @return the values
      */
     @NotNull
@@ -168,7 +167,7 @@ public class Answer extends EntityPart implements Referenceable
             .toList();
     }
 
-    /** The value of the option a reply part names, by value or by label, ignoring case; or the part itself. */
+    /** Returns the value of the option a reply part names, by value first, then by label; or else the part. */
     private static String matchOption(final String value, final List<OfferedOption> options)
     {
         final String byValue = findUniqueMatch(options, option -> value.equalsIgnoreCase(option.value()));
@@ -180,13 +179,12 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * The value of the one option matching {@code test}, or {@code null} when none does or more than one does.
+     * Returns the value of the one option matching {@code test}, or {@code null} when none matches or options
+     * with different values match.
      *
-     * <p>Options are not always curated by hand with uniqueness in mind -- a classification's categories, for
-     * one, come from an editable tree that nothing stops two of from ending up with the same label. Two options
-     * that read the same leave nothing in the reply to tell them apart, so a tie is treated like no match at
-     * all: picking one of them would risk silently storing the wrong category, which is worse than leaving the
-     * model's own words in place for a human to correct.</p>
+     * <p>Nothing stops two options from having the same label, for example two categories in an editable tree.
+     * The reply cannot tell them apart, so a tie counts as no match: guessing could save the wrong category,
+     * while the model's own words are easy for a person to correct.</p>
      */
     private static String findUniqueMatch(final List<OfferedOption> options, final Predicate<OfferedOption> test)
     {
@@ -203,14 +201,13 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * One reply from the model, as the values it stands for.
+     * Splits one reply from the model into values: trimmed, and for a question that takes several values, split
+     * on commas.
      *
-     * <p>The one place this rule lives, so it cannot drift: what the extraction writes down and the suggestion
-     * the form will show have to be the same list, or a submitter would be told they corrected an answer they
-     * never touched.</p>
+     * <p>Keep this the only place a reply is split. If two readers split it differently, a suggestion taken as it
+     * is could be measured as an edit.</p>
      *
-     * <p>A reply that splits into nothing is kept whole. That is a model that answered with punctuation only, and
-     * storing the question as unanswered would lose what it did say.</p>
+     * <p>A reply that is blank, or only commas and spaces, is kept whole, so what the model said is not lost.</p>
      *
      * @param answer the model's reply, as it came
      * @param multiple whether the question takes more than one value

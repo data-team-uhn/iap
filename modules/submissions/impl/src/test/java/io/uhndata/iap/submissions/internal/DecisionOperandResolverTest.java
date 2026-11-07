@@ -83,7 +83,7 @@ class DecisionOperandResolverTest
         assertEquals("decision", this.resolver.getSource());
     }
 
-    // A reading never writes into the value, so a step routing on its pick reads the suggestion
+    // A reading never writes the value, so a step that routes on its pick reads the suggestion
     @Test
     void readsTheSuggestionToAQuestionNobodyHasAnswered()
     {

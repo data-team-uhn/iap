@@ -99,7 +99,7 @@ class SaveAnswersHandlerTest
 
     private static final String EDIT_DISTANCE = "editDistance";
 
-    /** What a reading suggested for the start date, in the tests measuring an answer against it. */
+    /** What a reading suggested for the start date, in the tests that measure an answer against it. */
     private static final String SUGGESTED_DATE = "2026-10-06";
 
     // JCR-backed rather than the plain mock: the handler writes a real REFERENCE through the JCR API
@@ -264,7 +264,7 @@ class SaveAnswersHandlerTest
         assertEquals(List.of("2026-10-13"), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
     }
 
-    // What the submitter did with a suggestion is read from how far their answer moved from it
+    // How far the answer moved from the suggestion shows what the submitter did with it
     @Test
     void measuresAnAnswerAgainstTheSuggestionItWasShown() throws Exception
     {
@@ -286,7 +286,7 @@ class SaveAnswersHandlerTest
         assertEquals(0L, run.getValueMap().get(EDIT_DISTANCE, Long.class));
     }
 
-    // The first answer is what the submitter made of the suggestion; later changes are their own
+    // Only the first answer responds to the suggestion; later changes are the submitter's own
     @Test
     void keepsTheFirstMeasureOfASuggestion() throws Exception
     {
@@ -449,7 +449,7 @@ class SaveAnswersHandlerTest
     }
 
     /**
-     * An empty answer to the start date, as the form leaves one, with a reading's run under it.
+     * Creates an empty answer to the start date, as the form leaves one, with a reading's run under it.
      *
      * @param suggested what the run read, or {@code null} for a run that found nothing
      * @return the run
