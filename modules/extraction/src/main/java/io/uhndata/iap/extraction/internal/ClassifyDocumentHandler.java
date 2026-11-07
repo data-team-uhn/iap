@@ -198,7 +198,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
     }
 
     /**
-     * The classifications still to be made, grouped by the document requirement they read. A classification
+     * Finds the classification requirements whose question has no answer yet, grouped by document. A classification
      * whose condition does not hold, that holds no question, or whose question is already answered is left out.
      */
     private static Map<String, List<ClassificationRequirement>> getOpen(final Submission submission)
