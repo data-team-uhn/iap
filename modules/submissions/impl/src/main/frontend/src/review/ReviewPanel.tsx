@@ -294,9 +294,24 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
             </Stack>
           )}
           {chosen === UNFILED && (
-            <Stack spacing={2} sx={{ maxWidth: 820 }}>
-              <Typography variant="h6" component="h3">Under no risk</Typography>
-              <Unfiled {...props} onShow={show} />
+            <Stack spacing={2}>
+              <Stack direction="row" sx={{ alignItems: "center", gap: 2 }}>
+                <Typography variant="h6" component="h3" sx={{ flex: 1 }}>Under no risk</Typography>
+                <AddIssue doing={doing} prominent />
+              </Stack>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Issues not filed under one of your risks. Choose a risk in the Risk column to file one there.
+              </Typography>
+              {/* The grid of all the reviewer's issues, narrowed to these, its Risk kept to file them */}
+              <IssuesGrid
+                compact keepRisk issues={props.unfiled}
+                risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
+                about={props.about} onShow={show} onRemove={issue => doing.removeIssue(issue)}
+                onReply={(issue, text) => doing.reply(issue, text)}
+                onEditReply={(reply, text) => doing.editReply(reply, text)}
+                onRemoveReply={reply => doing.removeReply(reply)}
+                onChange={(issue, text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
+              />
             </Stack>
           )}
         </Box>
