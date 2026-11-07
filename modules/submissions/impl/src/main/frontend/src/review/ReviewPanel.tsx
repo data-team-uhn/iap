@@ -312,45 +312,25 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
             </Stack>
           )}
           {chosen === ALL_ISSUES && (
-            <Stack spacing={2} sx={{ height: "100%", minHeight: 360 }}>
-              <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+            <IssueTable
+              fill issues={[ ...risks.flatMap(one => one.issues), ...props.unfiled ]}
+              risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
+              about={props.about} doing={doing} onShow={show}
+              heading={<>
                 <RateReviewOutlined sx={{ color: "issue.main" }} />
                 <Typography variant="h6" component="h3" sx={{ flex: 1 }}>Your issues</Typography>
-                <AddIssue doing={doing} prominent />
-              </Stack>
-              <Box sx={{ flex: 1, minHeight: 0 }}>
-                <IssuesGrid
-                  issues={[ ...risks.flatMap(one => one.issues), ...props.unfiled ]}
-                  risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
-                  about={props.about} onShow={show}
-                  onRemove={issue => doing.removeIssue(issue)} onReply={(issue, text) => doing.reply(issue, text)}
-                  onEditReply={(reply, text) => doing.editReply(reply, text)}
-                  onRemoveReply={reply => doing.removeReply(reply)}
-                  onChange={(issue, text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
-                />
-              </Box>
-            </Stack>
+              </>}
+            />
           )}
           {chosen === UNFILED && (
-            <Stack spacing={2}>
-              <Stack direction="row" sx={{ alignItems: "center", gap: 2 }}>
-                <Typography variant="h6" component="h3" sx={{ flex: 1 }}>Under no risk</Typography>
-                <AddIssue doing={doing} prominent />
-              </Stack>
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Issues not filed under one of your risks. Choose a risk in the Risk column to file one there.
-              </Typography>
-              {/* The grid of all the reviewer's issues, narrowed to these, its Risk kept to file them */}
-              <IssuesGrid
-                compact keepRisk issues={props.unfiled}
-                risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
-                about={props.about} onShow={show} onRemove={issue => doing.removeIssue(issue)}
-                onReply={(issue, text) => doing.reply(issue, text)}
-                onEditReply={(reply, text) => doing.editReply(reply, text)}
-                onRemoveReply={reply => doing.removeReply(reply)}
-                onChange={(issue, text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
-              />
-            </Stack>
+            // The grid of all the reviewer's issues, narrowed to these, its Risk kept to file them
+            <IssueTable
+              compact keepRisk issues={props.unfiled}
+              risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
+              about={props.about} doing={doing} onShow={show}
+              heading={<Typography variant="h6" component="h3" sx={{ flex: 1 }}>Under no risk</Typography>}
+              note="Issues not filed under one of your risks. Choose a risk in the Risk column to file one there."
+            />
           )}
         </Box>
       </Stack>
@@ -501,21 +481,57 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
         {guidance ?? <Box />}
         {ai || <Box />}
       </Box>
-      <Stack spacing={1}>
-        <Stack direction="row" sx={{ alignItems: "center", gap: 2 }}>
+      <IssueTable
+        compact issues={risk.issues} risks={[ { path: risk.topic.path, label: risk.topic.label } ]}
+        defaultRisk={risk.topic.path} about={about} doing={doing} onShow={onShow}
+        heading={(
           <Typography variant="subtitle2" component="h4" sx={{ fontWeight: "fontWeightBold", flex: 1 }}>
             Your issues ({risk.issues.length})
           </Typography>
-          <AddIssue topic={risk.topic.path} doing={doing} prominent />
-        </Stack>
-        <IssuesGrid
-          compact issues={risk.issues} risks={[ { path: risk.topic.path, label: risk.topic.label } ]} about={about}
-          onShow={onShow} onRemove={issue => doing.removeIssue(issue)}
-          onReply={(issue, text) => doing.reply(issue, text)}
-          onEditReply={(reply, text) => doing.editReply(reply, text)} onRemoveReply={reply => doing.removeReply(reply)}
-          onChange={(issue, text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
-        />
+        )}
+      />
+    </Stack>
+  );
+}
+
+// The reviewer's issues as a table under a heading, with a way to add one in a row of its own at the table's top;
+// filling the height it is given, or as tall as its rows
+function IssueTable({ heading, note, issues, risks, defaultRisk, compact = false, keepRisk = false, fill = false,
+  about, doing, onShow }: {
+  heading: ReactNode;
+  note?: string;
+  issues: ReviewNote[];
+  risks: { path: string; label: string }[];
+  defaultRisk?: string;
+  compact?: boolean;
+  keepRisk?: boolean;
+  fill?: boolean;
+  about: (note: ReviewNote) => string;
+  doing: ReviewDoing;
+  onShow: (note: ReviewNote) => void;
+}) {
+  const [ adding, setAdding ] = useState(false);
+  const grid = (
+    <IssuesGrid
+      compact={compact} keepRisk={keepRisk} issues={issues} risks={risks} about={about} onShow={onShow}
+      onRemove={issue => doing.removeIssue(issue)} onReply={(issue, text) => doing.reply(issue, text)}
+      onEditReply={(reply, text) => doing.editReply(reply, text)} onRemoveReply={reply => doing.removeReply(reply)}
+      onChange={(issue, text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
+      adding={adding} defaultRisk={defaultRisk} onAddingDone={() => setAdding(false)}
+      onAdd={(text, severity, topic) => doing.addIssue(topic || undefined, text, severity)}
+    />
+  );
+  return (
+    <Stack spacing={fill ? 2 : 1} sx={fill ? { height: "100%", minHeight: 360 } : undefined}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+        {heading}
+        <Button size="small" variant="contained" startIcon={<AddOutlined />} disabled={adding}
+          onClick={() => setAdding(true)}>
+          Add an issue
+        </Button>
       </Stack>
+      {note && <Typography variant="body2" sx={{ color: "text.secondary" }}>{note}</Typography>}
+      {fill ? <Box sx={{ flex: 1, minHeight: 0 }}>{grid}</Box> : grid}
     </Stack>
   );
 }
@@ -787,15 +803,11 @@ function Issues({ issues, dense, about, doing, onShow }: {
   );
 }
 
-// An issue under a risk, pointing at no answer or passage
-function AddIssue({ topic, doing, prominent = false }: { topic?: string; doing: ReviewDoing; prominent?: boolean }) {
+// An issue under a risk, pointing at no answer or passage, written in the panel
+function AddIssue({ topic, doing }: { topic?: string; doing: ReviewDoing }) {
   const [ writing, setWriting ] = useState(false);
   if (!writing) {
-    return prominent ? (
-      <Button size="small" variant="contained" startIcon={<AddOutlined />} onClick={() => setWriting(true)}>
-        Add an issue
-      </Button>
-    ) : (
+    return (
       <Button size="small" variant="text" sx={{ alignSelf: "flex-start", px: 0.75, ml: -0.75 }}
         onClick={() => setWriting(true)}>
         Add an issue
@@ -803,9 +815,7 @@ function AddIssue({ topic, doing, prominent = false }: { topic?: string; doing: 
     );
   }
   return (
-    // Beside the grid's heading, it opens over the full width under it
     <Box sx={theme => ({ ...passageCard(theme, "draft"), px: 1.25, py: 1, outline: "2px solid",
-      ...prominent ? { flexBasis: "100%", order: 1 } : {},
       outlineColor: theme.palette.draft.main, outlineOffset: "-2px" })}>
       <Composer
         kinds={[ "issue" ]} initialTopic={topic ?? ""}

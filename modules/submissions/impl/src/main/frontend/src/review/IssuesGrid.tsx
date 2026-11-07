@@ -16,16 +16,17 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import ReplyOutlined from "@mui/icons-material/ReplyOutlined";
-import { Box, IconButton, InputBase, Link, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, Button, IconButton, InputBase, Link, MenuItem, Stack, TextField, Tooltip, Typography } from "@mui/material";
 import {
   DataGridPro, GRID_DETAIL_PANEL_TOGGLE_FIELD, GridCellModes, type GridCellModesModel, type GridCellParams,
-  type GridColDef, type GridRenderEditCellParams, type GridRowId, gridColumnPositionsSelector,
+  type GridColDef, type GridRenderCellParams, type GridRenderEditCellParams, type GridRowId,
+  gridColumnPositionsSelector,
   gridVisibleColumnDefinitionsSelector, useGridApiContext, useGridSelector,
 } from "@mui/x-data-grid-pro";
 
@@ -34,6 +35,7 @@ import TagChip from "@iap/tags/TagChip";
 
 import Composer from "./Composer";
 import { Thread } from "./NoteCard";
+import { pulseWhenThere } from "./pulse";
 import { SEVERITIES, type ReviewNote } from "./reviewData";
 
 interface IssueRow {
@@ -61,7 +63,8 @@ const SEVERITY_NAMES: Record<string, string> = {
 // concerns can be listed among them, greyed, to triage everything in one list: made issues of as they are, or
 // dismissed.
 export default function IssuesGrid({ issues, concerns = [], risks, about, onChange, onShow, onMakeIssue, onDismiss,
-  onRemove, onReply, onEditReply, onRemoveReply, compact = false, keepRisk = false }: {
+  onRemove, onReply, onEditReply, onRemoveReply, compact = false, keepRisk = false, adding = false, defaultRisk = "",
+  onAdd, onAddingDone }: {
   issues: ReviewNote[];
   concerns?: ReviewNote[];
   // The risks issues can be filed under, by path
@@ -79,6 +82,11 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   // where the issues are under none, to file them
   compact?: boolean;
   keepRisk?: boolean;
+  // A new issue being written, in a row of its own pinned at the top: saved under the risk chosen in it, or given up
+  adding?: boolean;
+  defaultRisk?: string;
+  onAdd?: (text: string, severity: string, topic: string) => Promise<void>;
+  onAddingDone?: () => void;
 }) {
   const rows: IssueRow[] = useMemo(() => [ ...issues, ...concerns ].map(issue => ({
     id: issue.id, ai: issue.kind === "aiIssue", severity: issue.severity ?? "medium",
@@ -216,8 +224,79 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     },
   ];
 
+  // The new issue's row: what it is, about nothing on the page, and its text, with saving and giving up as its actions
+  const [ draft, setDraft ] = useState({ severity: "medium", risk: defaultRisk, text: "" });
+  const [ saving, setSaving ] = useState(false);
+  const known = useRef<Set<string>>(undefined);
+  const stopAdding = () => {
+    setDraft({ severity: "medium", risk: defaultRisk, text: "" });
+    onAddingDone?.();
+  };
+  const save = async () => {
+    if (!draft.text.trim() || !onAdd) {
+      return;
+    }
+    setSaving(true);
+    try {
+      known.current = new Set(rows.map(row => row.id));
+      await onAdd(draft.text.trim(), draft.severity, draft.risk);
+      stopAdding();
+    } finally {
+      setSaving(false);
+    }
+  };
+  // Once it is in the list, the new issue is brought into view and pulses, so the reviewer sees where it went
+  useEffect(() => {
+    const before = known.current;
+    const added = before && rows.find(row => !before.has(row.id));
+    if (added) {
+      known.current = undefined;
+      pulseWhenThere(() => document.querySelector<HTMLElement>(`[role="row"][data-id="${CSS.escape(added.id)}"]`), true);
+    }
+  }, [ rows ]);
+  const draftRow: IssueRow = { id: DRAFT, ai: false, severity: draft.severity, risk: draft.risk, about: "",
+    text: draft.text, replies: 0, created: undefined, issue: DRAFT_NOTE };
+  const draftCell = (field: string) => {
+    switch (field) {
+      case "severity":
+        return (
+          <DraftSelect label="Severity" value={draft.severity} onChange={severity => setDraft({ ...draft, severity })}
+            options={SEVERITIES.map(value => ({ value, label: SEVERITY_NAMES[value] }))} />
+        );
+      case "risk":
+        return (
+          <DraftSelect label="Risk" value={draft.risk} onChange={risk => setDraft({ ...draft, risk })}
+            options={[ { value: "", label: "No risk" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ]} />
+        );
+      case "text":
+        return <DraftText value={draft.text} onChange={text => setDraft({ ...draft, text })} onSave={save}
+          onCancel={stopAdding} />;
+      case "where":
+        return (
+          <Stack sx={{ gap: 0.5, alignItems: "flex-end", width: "100%" }}>
+            <Button size="small" variant="contained" disabled={saving || !draft.text.trim()} onClick={() => void save()}>
+              Save
+            </Button>
+            <Button size="small" onClick={stopAdding}>Cancel</Button>
+          </Stack>
+        );
+      default:
+        return null;
+    }
+  };
+  // Every column draws the new issue's row with its editors, the others as they would
+  const shown = columns.map(column => ({
+    ...column,
+    renderCell: (params: GridRenderCellParams<IssueRow>) => {
+      if (params.row.id === DRAFT) {
+        return draftCell(column.field);
+      }
+      return column.renderCell ? column.renderCell(params) : params.formattedValue as ReactNode;
+    },
+  }));
+
   // Nothing to list: a plain box saying so, rather than an empty table
-  if (rows.length === 0) {
+  if (rows.length === 0 && !adding) {
     return (
       <Box sx={{ borderRadius: 1, px: 2, py: 2, bgcolor: "background.muted", textAlign: "center" }}>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>No issues raised yet</Typography>
@@ -226,7 +305,8 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   }
   return (
     <DataGridPro
-      rows={rows} columns={columns} density="compact" disableRowSelectionOnClick hideFooter
+      rows={rows} columns={shown} density="compact" disableRowSelectionOnClick hideFooter
+      pinnedRows={{ top: adding ? [ draftRow ] : [] }}
       showToolbar={!compact} slots={{ toolbar: EntityGridToolbar }}
       slotProps={{ toolbar: { searchLabel: "Search your issues" } }} autoHeight={compact}
       getRowHeight={() => "auto"}
@@ -331,5 +411,58 @@ export function WhereLink({ text, onClick }: { text: string; onClick: () => void
     <Link component="button" variant="body2" onClick={onClick} sx={{ textAlign: "start", whiteSpace: "normal" }}>
       {text}
     </Link>
+  );
+}
+
+const DRAFT = "new-issue";
+const DRAFT_NOTE: ReviewNote = { id: DRAFT, kind: "issue", text: "", author: "", created: "", mine: true, subjects: [],
+  replies: [] };
+
+// A choice in the new issue's row, as a cell's own list would be
+function DraftSelect({ label, value, options, onChange }: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <TextField
+      select fullWidth size="small" variant="standard" value={value} onChange={event => onChange(event.target.value)}
+      onKeyDown={event => event.stopPropagation()}
+      slotProps={{ htmlInput: { "aria-label": label }, select: { displayEmpty: true } }}
+    >
+      {options.map(option => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
+    </TextField>
+  );
+}
+
+// The new issue's text, written in its cell as a changed one is: Enter keeps it, Shift and Enter starts a new line,
+// Escape gives it up
+function DraftText({ value, onChange, onSave, onCancel }: {
+  value: string;
+  onChange: (value: string) => void;
+  onSave: () => Promise<void>;
+  onCancel: () => void;
+}) {
+  const input = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    input.current?.focus();
+  }, []);
+  return (
+    <InputBase
+      multiline fullWidth inputRef={input} value={value} placeholder="What the study team needs to address"
+      onChange={event => onChange(event.target.value)}
+      onKeyDown={event => {
+        event.stopPropagation();
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          void onSave();
+        } else if (event.key === "Escape") {
+          onCancel();
+        }
+      }}
+      inputProps={{ "aria-label": "The new issue" }}
+      sx={{ typography: "body2", py: 0.25 }}
+    />
   );
 }
