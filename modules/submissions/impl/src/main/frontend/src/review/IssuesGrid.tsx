@@ -21,7 +21,6 @@ import {
 } from "react";
 
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import ReplyOutlined from "@mui/icons-material/ReplyOutlined";
 import { Box, Button, IconButton, InputBase, Link, MenuItem, Stack, TextField, Tooltip, Typography } from "@mui/material";
@@ -37,6 +36,7 @@ import TagChip from "@iap/tags/TagChip";
 import Composer from "./Composer";
 import { Thread } from "./NoteCard";
 import { pulseWhenThere } from "./pulse";
+import RemoveButton from "./RemoveButton";
 import { SEVERITIES, type ReviewNote } from "./reviewData";
 
 interface IssueRow {
@@ -209,11 +209,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
                   <EditOutlined fontSize="small" />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Remove">
-                <IconButton size="small" aria-label="Remove the issue" onClick={() => void onRemove?.(row.issue)}>
-                  <DeleteOutlined fontSize="small" />
-                </IconButton>
-              </Tooltip>
+              {onRemove && <RemoveButton what="issue" text={row.text} onRemove={() => onRemove(row.issue)} />}
             </Stack>
           )}
           {row.ai && onMakeIssue && (
