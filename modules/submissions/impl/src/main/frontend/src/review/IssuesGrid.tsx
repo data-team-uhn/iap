@@ -16,7 +16,9 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import {
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode,
+} from "react";
 
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
@@ -256,34 +258,11 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   }, [ rows ]);
   const draftRow: IssueRow = { id: DRAFT, ai: false, severity: draft.severity, risk: draft.risk, about: "",
     text: draft.text, replies: 0, created: undefined, issue: DRAFT_NOTE };
-  const draftCell = (field: string) => {
-    switch (field) {
-      case "severity":
-        return (
-          <DraftSelect label="Severity" value={draft.severity} onChange={severity => setDraft({ ...draft, severity })}
-            options={SEVERITIES.map(value => ({ value, label: SEVERITY_NAMES[value] }))} />
-        );
-      case "risk":
-        return (
-          <DraftSelect label="Risk" value={draft.risk} onChange={risk => setDraft({ ...draft, risk })}
-            options={[ { value: "", label: "No risk" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ]} />
-        );
-      case "text":
-        return <DraftText value={draft.text} onChange={text => setDraft({ ...draft, text })} onSave={save}
-          onCancel={stopAdding} />;
-      case "where":
-        return (
-          <Stack sx={{ gap: 0.5, alignItems: "flex-end", width: "100%" }}>
-            <Button size="small" variant="contained" disabled={saving || !draft.text.trim()} onClick={() => void save()}>
-              Save
-            </Button>
-            <Button size="small" onClick={stopAdding}>Cancel</Button>
-          </Stack>
-        );
-      default:
-        return null;
-    }
-  };
+  // The new issue's cells read it from one place, since the grid redraws a cell only when its own value changes
+  const drafting = { draft, setDraft, save, stop: stopAdding, saving,
+    severities: SEVERITIES.map(value => ({ value, label: SEVERITY_NAMES[value] })),
+    risks: [ { value: "", label: "No risk" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ] };
+  const draftCell = (field: string) => <DraftCell field={field} />;
   // Every column draws the new issue's row with its editors, the others as they would
   const shown = columns.map(column => ({
     ...column,
@@ -304,42 +283,44 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     );
   }
   return (
-    <DataGridPro
-      rows={rows} columns={shown} density="compact" disableRowSelectionOnClick hideFooter
-      pinnedRows={{ top: adding ? [ draftRow ] : [] }}
-      showToolbar={!compact} slots={{ toolbar: EntityGridToolbar }}
-      slotProps={{ toolbar: { searchLabel: "Search your issues" } }} autoHeight={compact}
-      getRowHeight={() => "auto"}
-      // The AI's concerns are greyed, and are not changed in place: they become issues first
-      isCellEditable={({ row }: { row: IssueRow }) => !row.ai}
-      getDetailPanelContent={thread} getDetailPanelHeight={() => "auto"}
-      detailPanelExpandedRowIds={expanded} onDetailPanelExpandedRowIdsChange={setExpanded}
-      // The replies count unfolds a thread, so the grid's own toggle column is left out
-      columnVisibilityModel={{ [GRID_DETAIL_PANEL_TOGGLE_FIELD]: false,
-        ...compact && !keepRisk ? { risk: false } : {} }}
-      cellModesModel={cellModes} onCellModesModelChange={setCellModes} onCellClick={startEditing}
-      getRowClassName={({ row }) => (row.ai ? "ai-concern" : "")}
-      initialState={{ sorting: { sortModel: [ { field: "severity", sort: "asc" }, { field: "risk", sort: "asc" } ] },
-        pinnedColumns: { right: [ "where" ] } }}
-      processRowUpdate={async (next: IssueRow, before: IssueRow) => {
-        if (!next.text.trim()) {
-          return before;
-        }
-        if (next.text !== before.text || next.severity !== before.severity || next.risk !== before.risk) {
-          await onChange(next.issue, next.text.trim(), next.severity, next.risk);
-        }
-        return next;
-      }}
-      onProcessRowUpdateError={() => undefined}
-      localeText={{ noRowsLabel: "No issues raised yet", noResultsOverlayLabel: "No issue matches" }}
-      sx={{ "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" }, bgcolor: "background.paper",
-        "& .ai-concern": { color: "text.secondary", bgcolor: "background.muted" },
-        // A cell that changes on a click says so under the pointer, as a spreadsheet's does
-        "& .MuiDataGrid-cell--editable": { cursor: "pointer" },
-        "& .MuiDataGrid-cell--editable[data-field='text']": { cursor: "text" },
-        "& .MuiDataGrid-cell--editable:hover": { outline: "1px solid", outlineColor: "primary.light", outlineOffset: "-2px",
-          borderRadius: 0.5 } }}
-    />
+    <Drafting.Provider value={drafting}>
+      <DataGridPro
+        rows={rows} columns={shown} density="compact" disableRowSelectionOnClick hideFooter
+        pinnedRows={{ top: adding ? [ draftRow ] : [] }}
+        showToolbar={!compact} slots={{ toolbar: EntityGridToolbar }}
+        slotProps={{ toolbar: { searchLabel: "Search your issues" } }} autoHeight={compact}
+        getRowHeight={() => "auto"}
+        // The AI's concerns are greyed, and are not changed in place: they become issues first
+        isCellEditable={({ row }: { row: IssueRow }) => !row.ai}
+        getDetailPanelContent={thread} getDetailPanelHeight={() => "auto"}
+        detailPanelExpandedRowIds={expanded} onDetailPanelExpandedRowIdsChange={setExpanded}
+        // The replies count unfolds a thread, so the grid's own toggle column is left out
+        columnVisibilityModel={{ [GRID_DETAIL_PANEL_TOGGLE_FIELD]: false,
+          ...compact && !keepRisk ? { risk: false } : {} }}
+        cellModesModel={cellModes} onCellModesModelChange={setCellModes} onCellClick={startEditing}
+        getRowClassName={({ row }) => (row.ai ? "ai-concern" : "")}
+        initialState={{ sorting: { sortModel: [ { field: "severity", sort: "asc" }, { field: "risk", sort: "asc" } ] },
+          pinnedColumns: { right: [ "where" ] } }}
+        processRowUpdate={async (next: IssueRow, before: IssueRow) => {
+          if (!next.text.trim()) {
+            return before;
+          }
+          if (next.text !== before.text || next.severity !== before.severity || next.risk !== before.risk) {
+            await onChange(next.issue, next.text.trim(), next.severity, next.risk);
+          }
+          return next;
+        }}
+        onProcessRowUpdateError={() => undefined}
+        localeText={{ noRowsLabel: "No issues raised yet", noResultsOverlayLabel: "No issue matches" }}
+        sx={{ "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" }, bgcolor: "background.paper",
+          "& .ai-concern": { color: "text.secondary", bgcolor: "background.muted" },
+          // A cell that changes on a click says so under the pointer, as a spreadsheet's does
+          "& .MuiDataGrid-cell--editable": { cursor: "pointer" },
+          "& .MuiDataGrid-cell--editable[data-field='text']": { cursor: "text" },
+          "& .MuiDataGrid-cell--editable:hover": { outline: "1px solid", outlineColor: "primary.light", outlineOffset: "-2px",
+            borderRadius: 0.5 } }}
+      />
+    </Drafting.Provider>
   );
 }
 
@@ -465,4 +446,52 @@ function DraftText({ value, onChange, onSave, onCancel }: {
       sx={{ typography: "body2", py: 0.25 }}
     />
   );
+}
+
+interface Draft {
+  severity: string;
+  risk: string;
+  text: string;
+}
+
+const Drafting = createContext<{
+  draft: Draft;
+  setDraft: (draft: Draft) => void;
+  save: () => Promise<void>;
+  stop: () => void;
+  saving: boolean;
+  severities: { value: string; label: string }[];
+  risks: { value: string; label: string }[];
+} | undefined>(undefined);
+
+// One cell of the new issue's row: its severity and risk lists, its text, or saving it and giving it up
+function DraftCell({ field }: { field: string }) {
+  const drafting = useContext(Drafting);
+  if (!drafting) {
+    return null;
+  }
+  const { draft, setDraft, save, stop, saving } = drafting;
+  switch (field) {
+    case "severity":
+      return <DraftSelect label="Severity" value={draft.severity} options={drafting.severities}
+        onChange={severity => setDraft({ ...draft, severity })} />;
+    case "risk":
+      return <DraftSelect label="Risk" value={draft.risk} options={drafting.risks}
+        onChange={risk => setDraft({ ...draft, risk })} />;
+    case "text":
+      return (
+        <DraftText value={draft.text} onChange={text => setDraft({ ...draft, text })} onSave={save} onCancel={stop} />
+      );
+    case "where":
+      return (
+        <Stack sx={{ gap: 0.5, alignItems: "flex-end", width: "100%" }}>
+          <Button size="small" variant="contained" disabled={saving || !draft.text.trim()} onClick={() => void save()}>
+            Save
+          </Button>
+          <Button size="small" onClick={stop}>Cancel</Button>
+        </Stack>
+      );
+    default:
+      return null;
+  }
 }
