@@ -36,13 +36,14 @@ import MenuBookOutlined from "@mui/icons-material/MenuBookOutlined";
 import OpenInFullOutlined from "@mui/icons-material/OpenInFullOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
-  Badge, Box, Button, ButtonBase, Dialog, IconButton, LinearProgress, Link, Paper, Stack, Tooltip, Typography,
-  useMediaQuery, useTheme,
+  Badge, Box, Button, ButtonBase, Dialog, FormControlLabel, IconButton, LinearProgress, Link, Paper, Stack, Switch,
+  Tooltip, Typography, useMediaQuery, useTheme,
 } from "@mui/material";
 
 import { cutShort, passageCard } from "@iap/frontend-commons/pdfViewer/passageStyles";
 import TagChip from "@iap/tags/TagChip";
 
+import AiGrid from "./AiGrid";
 import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
 import { Thread } from "./NoteCard";
@@ -201,8 +202,15 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
   const { risks, doing, open, onClose } = props;
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down("sm"));
-  // All the reviewer's issues to start with, the working view
-  const [ chosen, setChosen ] = useState<string>(ALL_ISSUES);
+  // What the AI pre-review found to start with, when it found anything; the reviewer's issues when it did not, as when
+  // it failed, or the submission left it nothing to say
+  const aiFound = risks.some(one => Boolean(one.assessment) || one.aiOpen.length > 0 || one.mismatches.length > 0
+    || one.aiSettled.length > 0);
+  const [ chosen, setChosen ] = useState<string>(aiFound ? AI_TAB : ALL_ISSUES);
+  const [ grouped, setGrouped ] = useState(true);
+  const [ withSettled, setWithSettled ] = useState(false);
+  const openFindings = risks.reduce((sum, one) => sum + one.aiOpen.length, 0)
+    + new Set(risks.flatMap(one => one.mismatches.map(mismatch => mismatch.evidence.id))).size;
   const risk = risks.find(one => one.topic.path === chosen);
   // Showing where something was raised leaves the review for the page
   const show = (note: ReviewNote) => {
@@ -225,13 +233,24 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
       <Stack direction={{ xs: "column", md: "row" }} sx={{ flex: 1, minHeight: 0 }}>
         <Box sx={{ width: { md: 340 }, flexShrink: 0, overflowY: "auto", bgcolor: "background.tinted",
           maxHeight: { xs: 240, md: "none" } }}>
+          {/* What cuts across the risks first: what the AI found, then what the reviewer wrote */}
+          <ButtonBase
+            onClick={() => setChosen(AI_TAB)}
+            sx={{ display: "flex", justifyContent: "flex-start", gap: 0.75, width: "100%", textAlign: "start", px: 2,
+              py: 1, bgcolor: chosen === AI_TAB ? "background.paper" : undefined }}
+          >
+            <AutoAwesomeOutlined sx={{ fontSize: "1rem", color: "assistant.main" }} />
+            <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>
+              AI pre-review ({openFindings})
+            </Typography>
+          </ButtonBase>
           <ButtonBase
             onClick={() => setChosen(ALL_ISSUES)}
-            sx={{ display: "block", width: "100%", textAlign: "start", px: 2, py: 1,
+            sx={{ display: "block", width: "100%", textAlign: "start", px: 2, py: 1, borderTop: 1, borderColor: "divider",
               bgcolor: chosen === ALL_ISSUES ? "background.paper" : undefined }}
           >
             <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>
-              All your issues ({props.issueCount})
+              Your issues ({props.issueCount})
             </Typography>
           </ButtonBase>
           {risks.map(one => (
@@ -264,18 +283,33 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
               <RiskDetail risk={risk} about={props.about} doing={doing} onShow={show} />
             </Stack>
           )}
+          {chosen === AI_TAB && (
+            <Stack spacing={2} sx={{ height: "100%", minHeight: 360 }}>
+              <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+                <AutoAwesomeOutlined sx={{ color: "assistant.main" }} />
+                <Typography variant="h6" component="h3" sx={{ flex: 1 }}>AI pre-review</Typography>
+                <FormControlLabel label="Group by risk"
+                  control={<Switch checked={grouped} onChange={event => setGrouped(event.target.checked)} />} />
+                <FormControlLabel label="Show settled"
+                  control={<Switch checked={withSettled} onChange={event => setWithSettled(event.target.checked)} />} />
+              </Stack>
+              {/* In the AI's colour down its side, as its frame is elsewhere */}
+              <Box sx={{ flex: 1, minHeight: 0, borderInlineStart: "3px solid", borderColor: "assistant.main",
+                borderRadius: 1 }}>
+                <AiGrid
+                  risks={risks} grouped={grouped} settled={withSettled} about={props.about} onShow={show}
+                  onMakeIssue={concern => doing.makeIssue(concern,
+                    concern.suggestion ? `${concern.text}\n\n${concern.suggestion}` : concern.text,
+                    concern.severity, concern.topicPath)}
+                  onDismiss={concern => doing.dismiss(concern)} onUndismiss={concern => doing.undismiss(concern)}
+                />
+              </Box>
+            </Stack>
+          )}
           {chosen === ALL_ISSUES && (
             <Stack spacing={2} sx={{ height: "100%", minHeight: 360 }}>
               <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-                <Typography variant="h6" component="h3" sx={{ flex: 1 }}>All your issues</Typography>
-              </Stack>
-              {/* As on a risk's page, what the AI raised in its own frame, apart from the reviewer's issues */}
-              <OpenConcerns risks={risks} about={props.about} doing={doing} onShow={show} />
-              {/* Adding sits by the table it adds to */}
-              <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-                <Typography variant="subtitle2" component="h4" sx={{ fontWeight: "fontWeightBold", flex: 1 }}>
-                  Your issues ({props.issueCount})
-                </Typography>
+                <Typography variant="h6" component="h3" sx={{ flex: 1 }}>Your issues</Typography>
                 <AddIssue doing={doing} prominent />
               </Stack>
               <Box sx={{ flex: 1, minHeight: 0 }}>
@@ -321,6 +355,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
 
 const UNFILED = "unfiled";
 const ALL_ISSUES = "all";
+const AI_TAB = "ai";
 
 // How far the review has gone: the risks considered, and, given room, what is left open across them
 function Progress({ risks, more = false }: { risks: RiskReview[]; more?: boolean }) {
@@ -476,42 +511,6 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
         />
       </Stack>
     </Stack>
-  );
-}
-
-// The AI's open concerns across the reviewer's risks, in its frame, folded under a line saying how many; each says
-// which risk it was raised under, and can be made an issue of, dismissed or shown where it was raised
-function OpenConcerns({ risks, about, doing, onShow }: {
-  risks: RiskReview[];
-  about: (note: ReviewNote) => string;
-  doing: ReviewDoing;
-  onShow: (note: ReviewNote) => void;
-}) {
-  const [ open, setOpen ] = useState(false);
-  const concerns = risks.flatMap(risk => bySeverity(risk.aiOpen).map(note => ({ note, risk })));
-  if (concerns.length === 0) {
-    return null;
-  }
-  return (
-    <AiBlock>
-      <Link component="button" variant="caption" onClick={() => setOpen(!open)} aria-expanded={open}
-        sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, alignSelf: "flex-start" }}>
-        {open ? <ExpandLessOutlined fontSize="small" /> : <ExpandMoreOutlined fontSize="small" />}
-        {plural(concerns.length, "open concern")}
-      </Link>
-      {open && (
-        <Rows>
-          {concerns.map(({ note, risk }) => (
-            <Box key={note.id}>
-              <Typography variant="caption" sx={{ display: "block", fontWeight: "fontWeightBold", pt: 1 }}>
-                {risk.topic.label}
-              </Typography>
-              <AiRow note={note} topic={risk.topic.path} dense={false} about={about} doing={doing} onShow={onShow} />
-            </Box>
-          ))}
-        </Rows>
-      )}
-    </AiBlock>
   );
 }
 
