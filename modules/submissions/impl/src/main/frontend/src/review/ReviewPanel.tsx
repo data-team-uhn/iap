@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useRef, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
@@ -196,7 +196,9 @@ function WholeReview(props: ReviewProps & {
   onPage: (page: string) => void;
 }) {
   const { risks, doing, open, onClose } = props;
-  const sideList = useRef<HTMLDivElement>(null);
+  // Measured once the list is there, which is only while the dialog is open
+  const [ sideElement, setSideElement ] = useState<HTMLDivElement | null>(null);
+  const sideList = useMemo(() => ({ current: sideElement }), [ sideElement ]);
   const sideEdges = useScrollEdges(sideList);
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down("sm"));
@@ -234,7 +236,7 @@ function WholeReview(props: ReviewProps & {
       </Stack>
       <Stack direction={{ xs: "column", md: "row" }} sx={{ flex: 1, minHeight: 0 }}>
         {/* No scrollbar between the list and the page beside it, as in the contents panel: the fade says there is more */}
-        <Box ref={sideList} sx={{ width: { md: 340 }, flexShrink: 0, overflowY: "auto", bgcolor: "background.tinted",
+        <Box ref={setSideElement} sx={{ width: { md: 340 }, flexShrink: 0, overflowY: "auto", bgcolor: "background.tinted",
           maxHeight: { xs: 240, md: "none" }, scrollbarWidth: "none", maskImage: fadeEdges(sideEdges) }}>
           {/* What cuts across the risks first: what the AI found, then what the reviewer wrote */}
           <ButtonBase
