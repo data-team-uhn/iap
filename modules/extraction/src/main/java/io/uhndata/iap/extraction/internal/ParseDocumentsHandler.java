@@ -46,8 +46,6 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * upload; today only the {@code retryParse} workflow runs it. The answers arrive later, through the
  * {@code documentParsed} and {@code extractAnswers} system workflows.
  *
- * <p>It is the whole of the {@code retryParse} system workflow, which is how a submitter asks again after a parse
- * failed. Nothing there is retry-specific: running this a second time sends exactly what still wants sending.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -97,11 +95,15 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         }
         int queued = 0;
         for (final File file : SubmissionFiles.getFilesToParse(submission)) {
-            if (!isParseWanted(file)) {
+            // Skip files that are already parsed
+            final String status = file.getParseStatus();
+            if (status != null && !ParsePropertyNames.STATUS_FAILED.equals(status)) {
                 continue;
             }
+            // Queue the file for parsing.
             final Resource resource = context.getResourceResolver().getResource(file.getPath());
             if (resource != null && queue(resource, file)) {
+                // Increment the number of queued files.
                 queued++;
             }
         }
@@ -111,22 +113,6 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
             ExtractionStatus.releaseClaim(target);
             LOGGER.info("Reading started: submission={} parsesQueued={}", target.getPath(), queued);
         }
-    }
-
-    /**
-     * Whether this upload is one to send: never sent, or sent and failed.
-     *
-     * <p>A parse is asked for once per upload, so one already queued or already read is left alone. A failed one
-     * is not, which is what makes asking again worth offering: what fails is usually the daemon being unreachable
-     * rather than the document, and the upload is still sitting there perfectly readable.</p>
-     *
-     * @param file the upload
-     * @return {@code true} when it should be staged and queued
-     */
-    private static boolean isParseWanted(final File file)
-    {
-        final String status = file.getParseStatus();
-        return status == null || ParsePropertyNames.STATUS_FAILED.equals(status);
     }
 
     /**
