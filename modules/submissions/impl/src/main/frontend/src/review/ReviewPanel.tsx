@@ -268,10 +268,16 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
             <Stack spacing={2} sx={{ height: "100%", minHeight: 360 }}>
               <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
                 <Typography variant="h6" component="h3" sx={{ flex: 1 }}>All your issues</Typography>
-                <AddIssue doing={doing} prominent />
               </Stack>
               {/* As on a risk's page, what the AI raised in its own frame, apart from the reviewer's issues */}
               <OpenConcerns risks={risks} about={props.about} doing={doing} onShow={show} />
+              {/* Adding sits by the table it adds to */}
+              <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+                <Typography variant="subtitle2" component="h4" sx={{ fontWeight: "fontWeightBold", flex: 1 }}>
+                  Your issues ({props.issueCount})
+                </Typography>
+                <AddIssue doing={doing} prominent />
+              </Stack>
               <Box sx={{ flex: 1, minHeight: 0 }}>
                 <IssuesGrid
                   issues={[ ...risks.flatMap(one => one.issues), ...props.unfiled ]}
