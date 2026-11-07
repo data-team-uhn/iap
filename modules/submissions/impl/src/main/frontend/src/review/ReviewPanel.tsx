@@ -34,6 +34,7 @@ import ForwardToInboxOutlined from "@mui/icons-material/ForwardToInboxOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
 import MenuBookOutlined from "@mui/icons-material/MenuBookOutlined";
 import OpenInFullOutlined from "@mui/icons-material/OpenInFullOutlined";
+import RateReviewOutlined from "@mui/icons-material/RateReviewOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
   Badge, Box, Button, ButtonBase, Dialog, FormControlLabel, IconButton, LinearProgress, Link, Paper, Stack, Switch,
@@ -246,9 +247,10 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
           </ButtonBase>
           <ButtonBase
             onClick={() => setChosen(ALL_ISSUES)}
-            sx={{ display: "block", width: "100%", textAlign: "start", px: 2, py: 1, borderTop: 1, borderColor: "divider",
-              bgcolor: chosen === ALL_ISSUES ? "background.paper" : undefined }}
+            sx={{ display: "flex", justifyContent: "flex-start", gap: 0.75, width: "100%", textAlign: "start", px: 2,
+              py: 1, borderTop: 1, borderColor: "divider", bgcolor: chosen === ALL_ISSUES ? "background.paper" : undefined }}
           >
+            <RateReviewOutlined sx={{ fontSize: "1rem", color: "issue.main" }} />
             <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "fontWeightMedium" }}>
               Your issues ({props.issueCount})
             </Typography>
@@ -307,6 +309,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
           {chosen === ALL_ISSUES && (
             <Stack spacing={2} sx={{ height: "100%", minHeight: 360 }}>
               <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+                <RateReviewOutlined sx={{ color: "issue.main" }} />
                 <Typography variant="h6" component="h3" sx={{ flex: 1 }}>Your issues</Typography>
                 <AddIssue doing={doing} prominent />
               </Stack>

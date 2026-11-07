@@ -82,7 +82,16 @@ export default function AiGrid({ risks, grouped, settled, about, onShow, onMakeI
       finding: risk.assessment ?? "" };
     // A risk the AI said nothing of is left out
     return grouped && (group.finding || findings.length > 0) ? [ group, ...findings ] : findings;
-  }), [ risks, grouped, settled, about ]);
+  }).reduce<AiRow[]>((all, row) => {
+    // Not grouped, a contradiction several risks draw on is one row, naming all of them
+    const same = grouped || row.kind !== "contradiction" ? undefined
+      : all.find(one => one.kind === "contradiction" && one.note?.id === row.note?.id);
+    if (same) {
+      same.risk = `${same.risk}, ${row.risk}`;
+      return all;
+    }
+    return [ ...all, row ];
+  }, []), [ risks, grouped, settled, about ]);
 
   const columns: GridColDef<AiRow>[] = [
     ...grouped ? [] : [ { field: "risk", headerName: "Risk", width: 150 } ],
@@ -146,9 +155,13 @@ export default function AiGrid({ risks, grouped, settled, about, onShow, onMakeI
         // The grid sets the colours of its pinned cells and its headers on themselves, so they are set there, its own
         // hover and selection shades following
         return { bgcolor: tint(10), "--DataGrid-containerBackground": tint(16),
-          "& .MuiDataGrid-cell--pinnedRight": { "--DataGrid-t-cell-background-pinned": tint(10) },
-          "& .MuiDataGrid-columnHeader, & .MuiDataGrid-columnHeaders, & .MuiDataGrid-filler": {
+          "& .MuiDataGrid-main": { "--DataGrid-t-color-background-base": tint(10),
+            "--DataGrid-t-cell-background-pinned": tint(10) },
+          "& .MuiDataGrid-cell--pinnedRight, & .MuiDataGrid-filler--pinnedRight": {
+            "--DataGrid-t-cell-background-pinned": tint(10), bgcolor: tint(10) },
+          "& .MuiDataGrid-columnHeader, & .MuiDataGrid-columnHeaders": {
             "--DataGrid-t-header-background-base": tint(16), bgcolor: tint(16) },
+          "& .MuiDataGrid-filler": { bgcolor: tint(10) },
           "& .MuiDataGrid-toolbar": { bgcolor: tint(16) },
           "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" },
           "& .ai-risk": { bgcolor: tint(22) },
