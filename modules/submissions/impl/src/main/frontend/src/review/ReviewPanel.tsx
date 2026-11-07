@@ -738,7 +738,7 @@ function AddIssue({ topic, doing, prominent = false }: { topic?: string; doing: 
   const [ writing, setWriting ] = useState(false);
   if (!writing) {
     return prominent ? (
-      <Button size="small" variant="outlined" startIcon={<AddOutlined />} onClick={() => setWriting(true)}>
+      <Button size="small" variant="contained" startIcon={<AddOutlined />} onClick={() => setWriting(true)}>
         Add an issue
       </Button>
     ) : (

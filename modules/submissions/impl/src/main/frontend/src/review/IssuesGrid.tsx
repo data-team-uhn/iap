@@ -216,7 +216,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   // Nothing to list: a plain box saying so, rather than an empty table
   if (rows.length === 0) {
     return (
-      <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, px: 2, py: 1.5, bgcolor: "background.paper" }}>
+      <Box sx={{ borderRadius: 1, px: 2, py: 2, bgcolor: "background.muted", textAlign: "center" }}>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>No issues raised yet</Typography>
       </Box>
     );
