@@ -46,7 +46,6 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * upload; today only the {@code retryParse} workflow runs it. The answers arrive later, through the
  * {@code documentParsed} and {@code extractAnswers} system workflows.
  *
- *
  * @version $Id$
  * @since 0.1.0
  */
@@ -95,15 +94,14 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         }
         int queued = 0;
         for (final File file : SubmissionFiles.getFilesToParse(submission)) {
-            // Skip files that are already parsed
+            // Send only an upload never sent, or one whose parse failed: a failure is usually the daemon being
+            // down, not the document. One queued, parsing or parsed is left alone.
             final String status = file.getParseStatus();
             if (status != null && !ParsePropertyNames.STATUS_FAILED.equals(status)) {
                 continue;
             }
-            // Queue the file for parsing.
             final Resource resource = context.getResourceResolver().getResource(file.getPath());
             if (resource != null && queue(resource, file)) {
-                // Increment the number of queued files.
                 queued++;
             }
         }
