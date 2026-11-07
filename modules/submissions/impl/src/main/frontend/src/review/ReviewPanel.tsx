@@ -98,8 +98,9 @@ export interface ReviewDoing {
 }
 
 interface ReviewProps {
-  // The submission's identifier, such as IA-00001, which names the review
+  // The submission's identifier, such as IA-00001, which names the review, and the time left on it
   identifier: string;
+  countdown?: ReactNode;
   risks: RiskReview[];
   unfiled: ReviewNote[];
   issueCount: number;
@@ -231,6 +232,8 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
         <Typography id="whole-review-title" variant="h6" component="h2">{props.identifier} review</Typography>
         <Box sx={{ flex: 1, maxWidth: 560 }}><Progress risks={risks} more /></Box>
         <Box sx={{ flex: 1 }} />
+        {/* The dialog covers the app bar, so it says the time left itself */}
+        {props.countdown}
         <IconButton aria-label="Close" onClick={onClose}><CloseOutlined /></IconButton>
       </Stack>
       <Stack direction={{ xs: "column", md: "row" }} sx={{ flex: 1, minHeight: 0 }}>
