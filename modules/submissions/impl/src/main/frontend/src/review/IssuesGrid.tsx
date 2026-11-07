@@ -149,7 +149,13 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
         </Stack>
       ) : "You"),
     } ] : [],
-    { field: "about", headerName: "About", width: 170 },
+    {
+      // What an issue is about leads to it, so it reads as a way there, not as something to change
+      field: "about", headerName: "About", width: 170,
+      renderCell: ({ row }) => onShow && (row.issue.subjects.length > 0 || row.issue.passage)
+        ? <WhereLink text={row.about} onClick={() => onShow(row.issue)} />
+        : row.about,
+    },
     {
       field: "text", headerName: "Issue", flex: 1, minWidth: 220, editable: true,
       renderCell: ({ value }) => <Box sx={{ whiteSpace: "pre-wrap" }}>{String(value)}</Box>,
@@ -205,9 +211,6 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
           {row.ai && onDismiss && (
             <Link component="button" variant="body2" onClick={() => void onDismiss(row.issue)}>Dismiss</Link>
           )}
-          {onShow && (row.issue.subjects.length > 0 || row.issue.passage) && (
-            <Link component="button" variant="body2" onClick={() => onShow(row.issue)}>Show where</Link>
-          )}
         </Stack>
       ),
     },
@@ -250,7 +253,12 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       onProcessRowUpdateError={() => undefined}
       localeText={{ noRowsLabel: "No issues raised yet", noResultsOverlayLabel: "No issue matches" }}
       sx={{ "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" }, bgcolor: "background.paper",
-        "& .ai-concern": { color: "text.secondary", bgcolor: "background.muted" } }}
+        "& .ai-concern": { color: "text.secondary", bgcolor: "background.muted" },
+        // A cell that changes on a click says so under the pointer, as a spreadsheet's does
+        "& .MuiDataGrid-cell--editable": { cursor: "pointer" },
+        "& .MuiDataGrid-cell--editable[data-field='text']": { cursor: "text" },
+        "& .MuiDataGrid-cell--editable:hover": { outline: "1px solid", outlineColor: "primary.light", outlineOffset: "-2px",
+          borderRadius: 0.5 } }}
     />
   );
 }
@@ -314,5 +322,14 @@ function ThreadPanel({ issue, writing, onWrite, onStop, onReply, onEditReply, on
         <Link component="button" variant="caption" sx={{ mt: 0.5, ml: "14px" }} onClick={onWrite}>Reply</Link>
       )}
     </Box>
+  );
+}
+
+// A way to where something was raised, in the words saying what it is about
+export function WhereLink({ text, onClick }: { text: string; onClick: () => void }) {
+  return (
+    <Link component="button" variant="body2" onClick={onClick} sx={{ textAlign: "start", whiteSpace: "normal" }}>
+      {text}
+    </Link>
   );
 }
