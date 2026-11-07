@@ -308,25 +308,24 @@ public class AnswerIntakeService
         final String value = ModelReplies.readString(read, "value");
         // A blank value written as found would hold the question against every later reading
         final boolean found = read.getBoolean("found_answer", false) && value != null && !value.isBlank();
-        final List<FieldResult.Passage> offered = readPassages(read);
-        final List<FieldResult.Passage> kept = verify(offered, document);
-        // The same quote given twice is one piece of evidence, not one that half failed
-        final long distinct = offered.stream().map(passage -> QuoteVerifier.normalize(passage.quote())).distinct()
+        final List<FieldResult.Passage> evidence = readPassages(read);
+        // top of a fraction: how many of those were actually found in the document
+        final List<FieldResult.Passage> confirmedEvidence = verify(evidence, document);
+        // bottom of a fraction: how many different quotes the model offered
+        final long distinct = evidence.stream().map(passage -> QuoteVerifier.normalize(passage.quote())).distinct()
             .count();
         // Scaled by how many quotes checked out. 2 of 2 keeps it, 1 of 2 takes off a quarter, 0 of 2 halves it.
         final double claimed = ModelReplies.readConfidence(read, "confidence");
-        final double confidence = found ? claimed * getEvidenceFactor(kept.size(), distinct) : claimed;
+        final double confidence = found ? claimed * getEvidenceFactor(confirmedEvidence.size(), distinct) : claimed;
         final String reasoning = ModelReplies.readString(read, "reasoning");
         return new FieldResult(name, found, confidence, found ? value : null, reasoning == null ? "" : reasoning,
-            kept);
+            confirmedEvidence);
     }
 
     /**
      * The quotes that are really in the document, each under the heading it sits below.
      *
-     * <p>A quote nobody can find is dropped rather than stored. It is not evidence, and showing it to a
-     * reviewer as though it were would be worse than showing none: they would read a sentence that is not in
-     * their document. The answer still pays for it, through the confidence.
+     * <p>A quote nobody can find is dropped rather than stored.
      */
     private static List<FieldResult.Passage> verify(final List<FieldResult.Passage> offered,
         final DocumentScan document)
@@ -360,6 +359,12 @@ public class AnswerIntakeService
         return UNVERIFIED_PENALTY + (1.0 - UNVERIFIED_PENALTY) * ((double) kept / offered);
     }
 
+    /**
+     * Takes evidence[], skips anything that isn't an object, and skips blank quotes.
+     *
+     * @param read the answer to read
+     * @return the passages that are evidence
+     */
     private static List<FieldResult.Passage> readPassages(final JsonObject read)
     {
         final List<FieldResult.Passage> passages = new ArrayList<>();
