@@ -58,7 +58,7 @@ const SEVERITY_NAMES: Record<string, string> = {
 // concerns can be listed among them, greyed, to triage everything in one list: made issues of as they are, or
 // dismissed.
 export default function IssuesGrid({ issues, concerns = [], risks, about, onChange, onShow, onMakeIssue, onDismiss,
-  onRemove, onReply, onEditReply, onRemoveReply }: {
+  onRemove, onReply, onEditReply, onRemoveReply, compact = false }: {
   issues: ReviewNote[];
   concerns?: ReviewNote[];
   // The risks issues can be filed under, by path
@@ -72,6 +72,8 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   onReply?: (issue: ReviewNote, text: string) => Promise<void>;
   onEditReply?: (reply: string, text: string) => Promise<void>;
   onRemoveReply?: (reply: string) => Promise<void>;
+  // Narrowed to one risk, under it: no toolbar nor risk column, and only as tall as its rows
+  compact?: boolean;
 }) {
   const rows: IssueRow[] = useMemo(() => [ ...issues, ...concerns ].map(issue => ({
     id: issue.id, ai: issue.kind === "aiIssue", severity: issue.severity ?? "medium",
@@ -214,14 +216,15 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   return (
     <DataGridPro
       rows={rows} columns={columns} density="compact" disableRowSelectionOnClick hideFooter
-      showToolbar slots={{ toolbar: EntityGridToolbar }} slotProps={{ toolbar: { searchLabel: "Search your issues" } }}
+      showToolbar={!compact} slots={{ toolbar: EntityGridToolbar }}
+      slotProps={{ toolbar: { searchLabel: "Search your issues" } }} autoHeight={compact}
       getRowHeight={() => "auto"}
       // The AI's concerns are greyed, and are not changed in place: they become issues first
       isCellEditable={({ row }: { row: IssueRow }) => !row.ai}
       getDetailPanelContent={thread} getDetailPanelHeight={() => "auto"}
       detailPanelExpandedRowIds={expanded} onDetailPanelExpandedRowIdsChange={setExpanded}
       // The replies count unfolds a thread, so the grid's own toggle column is left out
-      columnVisibilityModel={{ [GRID_DETAIL_PANEL_TOGGLE_FIELD]: false }}
+      columnVisibilityModel={{ [GRID_DETAIL_PANEL_TOGGLE_FIELD]: false, ...compact ? { risk: false } : {} }}
       cellModesModel={cellModes} onCellModesModelChange={setCellModes} onCellClick={startEditing}
       getRowClassName={({ row }) => (row.ai ? "ai-concern" : "")}
       initialState={{ sorting: { sortModel: [ { field: "severity", sort: "asc" }, { field: "risk", sort: "asc" } ] },

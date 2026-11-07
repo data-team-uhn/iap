@@ -418,13 +418,7 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
         </Section>
       )}
       {risk.aiSettled.length > 0 && (
-        <Section title="Settled concerns" dense={dense}>
-          <Rows>
-            {bySeverity(risk.aiSettled).map(note => (
-              <Settled key={note.id} note={note} dense={dense} doing={doing} onShow={onShow} />
-            ))}
-          </Rows>
-        </Section>
+        <SettledConcerns concerns={risk.aiSettled} dense={dense} doing={doing} onShow={onShow} />
       )}
     </AiBlock>
   );
@@ -444,16 +438,56 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
       </Stack>
     );
   }
-  // In full, side by side where the room allows, the app's guidance as reference beside the AI's pre-review and the
-  // reviewer's issues; one above the other where it does not. Each column keeps to a readable width.
+  // In full, what the reviewer reads first, the app's guidance beside the AI's pre-review where the room allows; then,
+  // the whole width, what they write: their issues under the risk, in the grid of all their issues, narrowed to it
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 3, alignItems: "start",
-      "@container (min-width: 900px)": { gridTemplateColumns: "minmax(0, 5fr) minmax(0, 7fr)", columnGap: 4 } }}>
-      <Box sx={{ maxWidth: 720 }}>{guidance}</Box>
-      <Stack spacing={3} sx={{ maxWidth: 820 }}>
-        {ai}
-        {yours}
+    <Stack spacing={3}>
+      <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 3, alignItems: "start",
+        "@container (min-width: 900px)": { gridTemplateColumns: "minmax(0, 5fr) minmax(0, 7fr)", columnGap: 4 } }}>
+        {guidance ?? <Box />}
+        {ai || <Box />}
+      </Box>
+      <Stack spacing={1}>
+        <Stack direction="row" sx={{ alignItems: "center", gap: 2 }}>
+          <Typography variant="subtitle2" component="h4" sx={{ fontWeight: "fontWeightBold", flex: 1 }}>
+            Your issues ({risk.issues.length})
+          </Typography>
+          <AddIssue topic={risk.topic.path} doing={doing} prominent />
+        </Stack>
+        <IssuesGrid
+          compact issues={risk.issues} risks={[ { path: risk.topic.path, label: risk.topic.label } ]} about={about}
+          onShow={onShow} onRemove={issue => doing.removeIssue(issue)}
+          onReply={(issue, text) => doing.reply(issue, text)}
+          onEditReply={(reply, text) => doing.editReply(reply, text)} onRemoveReply={reply => doing.removeReply(reply)}
+          onChange={(issue, text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
+        />
       </Stack>
+    </Stack>
+  );
+}
+
+// The AI's concerns the reviewer has settled, folded under a line saying how many, since they are history
+function SettledConcerns({ concerns, dense, doing, onShow }: {
+  concerns: ReviewNote[];
+  dense: boolean;
+  doing: ReviewDoing;
+  onShow: (note: ReviewNote) => void;
+}) {
+  const [ open, setOpen ] = useState(false);
+  return (
+    <Box>
+      <Link component="button" variant="caption" onClick={() => setOpen(!open)} aria-expanded={open}
+        sx={{ display: "inline-flex", alignItems: "center", gap: 0.25 }}>
+        {open ? <ExpandLessOutlined fontSize="small" /> : <ExpandMoreOutlined fontSize="small" />}
+        {plural(concerns.length, "settled concern")}
+      </Link>
+      {open && (
+        <Rows>
+          {bySeverity(concerns).map(note => (
+            <Settled key={note.id} note={note} dense={dense} doing={doing} onShow={onShow} />
+          ))}
+        </Rows>
+      )}
     </Box>
   );
 }
