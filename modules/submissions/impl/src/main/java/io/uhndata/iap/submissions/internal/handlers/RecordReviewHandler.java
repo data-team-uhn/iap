@@ -17,10 +17,12 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
+import java.util.Calendar;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
@@ -73,7 +75,10 @@ public class RecordReviewHandler implements ServiceTaskHandler
     /** The review property pointing at the requirement it decides. */
     private static final String REQUIREMENT_PROPERTY = "requirement";
 
-    private static final String NOTE_NODE = "note";
+    /** The review property saying when it was last decided, and the comment property saying which decision. */
+    private static final String DECIDED_AT_PROPERTY = "decidedAt";
+
+    private static final String DECISION_PROPERTY = "decision";
 
     private static final String COMMENT_NODE_TYPE = "sub:Comment";
 
@@ -99,7 +104,7 @@ public class RecordReviewHandler implements ServiceTaskHandler
         final Resource review = recordReview(context, host, requirement, outcome);
         final String note = Payloads.text(context.getEvent(), NOTE_PARAMETER);
         if (note != null) {
-            commentOn(review, context.getActor(), note);
+            commentOn(review, context.getActor(), note, outcome);
         }
         context.recordRole(host, "reviewed as " + outcome);
     }
@@ -179,6 +184,8 @@ public class RecordReviewHandler implements ServiceTaskHandler
             tags.untag("in-progress", true);
             tags.untag("changes-requested", true);
             tags.tag(outcome, true);
+            Objects.requireNonNull(review.adaptTo(ModifiableValueMap.class), "A review can be written")
+                .put(DECIDED_AT_PROPERTY, Calendar.getInstance());
         } catch (final IllegalArgumentException e) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " records the outcome " + outcome + ", which names no state a review can be in");
@@ -186,10 +193,12 @@ public class RecordReviewHandler implements ServiceTaskHandler
         return review;
     }
 
-    private static void commentOn(final Resource review, final String author, final String note)
+    // PRETOTYPE: one per decision, since a review now outlives a request for changes, each saying which it explains
+    private static void commentOn(final Resource review, final String author, final String note, final String outcome)
         throws PersistenceException
     {
-        review.getResourceResolver().create(review, NOTE_NODE,
-            Map.of(PRIMARY_TYPE_PROPERTY, COMMENT_NODE_TYPE, AUTHOR_PROPERTY, author, TEXT_PROPERTY, note));
+        review.getResourceResolver().create(review, "decision-" + UUID.randomUUID(),
+            Map.of(PRIMARY_TYPE_PROPERTY, COMMENT_NODE_TYPE, AUTHOR_PROPERTY, author, TEXT_PROPERTY, note,
+                DECISION_PROPERTY, outcome));
     }
 }

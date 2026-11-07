@@ -47,7 +47,7 @@ import TagChip from "@iap/tags/TagChip";
 import AiGrid from "./AiGrid";
 import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
-import { Thread } from "./NoteCard";
+import NoteCard, { Thread } from "./NoteCard";
 import RemoveButton from "./RemoveButton";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
@@ -91,11 +91,26 @@ export interface ReviewDoing {
   addIssue: (topic: string | undefined, text: string, severity?: string) => Promise<void>;
   editIssue: (note: ReviewNote, text: string, severity?: string, topic?: string) => Promise<void>;
   removeIssue: (note: ReviewNote) => Promise<void>;
+  addNote: (text: string) => Promise<void>;
+  editNote: (note: ReviewNote, text: string) => Promise<void>;
   reply: (note: ReviewNote, text: string) => Promise<void>;
   editReply: (reply: string, text: string) => Promise<void>;
   removeReply: (reply: string) => Promise<void>;
   showOthers: () => void;
-  decision?: { send: () => void; approve: () => void; approveBlocked?: string; board?: () => void };
+  decision?: DecisionActions;
+}
+
+export interface DecisionActions {
+  // Whether the decision waits on the reviewer; when it does not, there is nothing to decide
+  waiting: boolean;
+  // What the reviewer last decided, as a sentence, and the letter they sent with it, to read again
+  decided?: string;
+  outcome?: string;
+  readLetter?: () => void;
+  send: () => void;
+  approve: () => void;
+  approveBlocked?: string;
+  board?: () => void;
 }
 
 interface ReviewProps {
@@ -104,6 +119,8 @@ interface ReviewProps {
   countdown?: ReactNode;
   risks: RiskReview[];
   unfiled: ReviewNote[];
+  // The reviewer's notes to self on the submission as a whole
+  notes: ReviewNote[];
   issueCount: number;
   others: OthersRaised[];
   about: (note: ReviewNote) => string;
@@ -150,12 +167,12 @@ export default function ReviewPanel(props: ReviewProps & { open: boolean; onTogg
       bgcolor: "background.tinted", boxShadow: "none" }}>
       <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, pt: 0.75 }}>
         <Typography variant="panelTitle" sx={{ flex: 1 }}>Review</Typography>
-        <Tooltip title="Open the whole review" placement="left">
+        <Tooltip disableInteractive title="Open the whole review" placement="left">
           <IconButton size="small" aria-label="Open the whole review" onClick={() => setWhole(true)}>
             <OpenInFullOutlined fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Tooltip title="Fold away" placement="left">
+        <Tooltip disableInteractive title="Fold away" placement="left">
           <IconButton size="small" aria-label="Fold the review away" onClick={onToggle}>
             <ChevronRightOutlined />
           </IconButton>
@@ -180,6 +197,7 @@ export default function ReviewPanel(props: ReviewProps & { open: boolean; onTogg
         ))}
         <Unfiled {...props} dense onShow={doing.open} />
         <Others others={props.others} doing={doing} />
+        <SelfNotes notes={props.notes} doing={doing} />
       </PanelBody>
       <Decision decision={doing.decision} />
       <WholeReview {...props} open={whole} onClose={() => setWhole(false)} page={wholePage} onPage={setWholePage} />
@@ -367,7 +385,7 @@ function Progress({ risks, more = false }: { risks: RiskReview[]; more?: boolean
 function ConsideredButton({ risk, doing }: { risk: RiskReview; doing: ReviewDoing }) {
   const [ saving, setSaving ] = useState(false);
   return (
-    <Tooltip title={risk.considered ? "Considered. Click to unmark" : "Mark as considered"} placement="left">
+    <Tooltip disableInteractive title={risk.considered ? "Considered. Click to unmark" : "Mark as considered"} placement="left">
       <IconButton
         size="small" disabled={saving} aria-pressed={risk.considered} aria-label={`${risk.topic.label} considered`}
         onClick={() => {
@@ -716,7 +734,7 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
     <Box id={`review-issue-${issue.id}`} sx={{ py: 1, px: 1, mx: -1, borderRadius: 1, scrollMarginTop: 16 }}>
       <RowHead note={issue} about={about} tools={(
         <Box sx={{ display: "flex", mr: -0.75 }}>
-          <Tooltip title="Change">
+          <Tooltip disableInteractive title="Change">
             <IconButton size="small" aria-label="Change" onClick={() => setEditing(true)}>
               <EditOutlined fontSize="small" />
             </IconButton>
@@ -860,6 +878,58 @@ function Others({ others, doing }: { others: OthersRaised[]; doing: ReviewDoing 
   ));
 }
 
+// The reviewer's notes to self on the submission as a whole, the ones the queue shows beside it
+function SelfNotes({ notes, doing }: { notes: ReviewNote[]; doing: ReviewDoing }) {
+  const [ writing, setWriting ] = useState(false);
+  return (
+    <Stack spacing={1} sx={{ borderTop: 1, borderColor: "divider", px: 1.5, py: 1 }}>
+      <Typography variant="caption" sx={{ fontWeight: "fontWeightBold" }}>
+        Notes to self{notes.length > 0 ? ` (${notes.length})` : ""}
+      </Typography>
+      {notes.map(note => (
+        <Box key={note.id} sx={theme => ({ ...passageCard(theme, "annotation"), px: 1.25, py: 0.75 })}>
+          <NoteCard
+            note={note} onEdit={said => doing.editNote(note, said)} onRemove={() => doing.removeIssue(note)}
+          />
+        </Box>
+      ))}
+      {writing ? (
+        <Box sx={theme => ({ ...passageCard(theme, "draft"), px: 1.25, py: 1, outline: "2px solid",
+          outlineColor: theme.palette.draft.main, outlineOffset: "-2px" })}>
+          <Composer
+            kinds={[ "note" ]}
+            onCancel={() => setWriting(false)}
+            onSave={async (_kind, said) => {
+              await doing.addNote(said);
+              setWriting(false);
+            }}
+          />
+        </Box>
+      ) : (
+        <Button size="small" variant="text" sx={{ alignSelf: "flex-start", px: 0.75, ml: -0.75 }}
+          onClick={() => setWriting(true)}>
+          Add a note to self
+        </Button>
+      )}
+    </Stack>
+  );
+}
+
+// What the reviewer decided, when it no longer waits on them, with the letter they sent
+function Decided({ decision, wide }: { decision: DecisionActions; wide: boolean }) {
+  return (
+    <Typography variant="caption" sx={{ color: "text.secondary", flex: wide ? 1 : undefined }}>
+      {decision.decided ?? "Not waiting on your decision now."}
+      {decision.readLetter && (
+        <>
+          {" "}
+          <Link component="button" variant="caption" onClick={decision.readLetter}>Read your letter</Link>
+        </>
+      )}
+    </Typography>
+  );
+}
+
 // The decision, and since when it waits on the reviewer
 function Decision({ waitingSince, decision, wide = false }: {
   waitingSince?: string;
@@ -869,15 +939,24 @@ function Decision({ waitingSince, decision, wide = false }: {
   if (!decision) {
     return null;
   }
+  if (!decision.waiting) {
+    return (
+      <Box sx={{ p: 1.5, borderTop: 1, borderColor: "divider" }}>
+        <Decided decision={decision} wide={wide} />
+      </Box>
+    );
+  }
   return (
     <Stack direction={wide ? { xs: "column", sm: "row" } : "column"} spacing={1}
       sx={{ p: 1.5, borderTop: 1, borderColor: "divider", alignItems: wide ? { sm: "center" } : undefined }}>
       {/* The whole review says since when the decision has waited; the panel keeps to the decision */}
-      {wide && (
+      {/* Back from the study team, it says what was asked of them */}
+      {!wide && decision.decided && <Decided decision={decision} wide={false} />}
+      {wide && (decision.decided ? <Decided decision={decision} wide /> : (
         <Typography variant="caption" sx={{ color: "text.secondary", flex: 1 }}>
           {waitingSince ? `Waiting on your decision since ${waitingSince}` : "Not waiting on your decision now"}
         </Typography>
-      )}
+      ))}
       {wide && decision.board && (
         <Button variant="text" size="small" startIcon={<GroupsOutlined />} onClick={decision.board}>
           Escalate to the board
@@ -886,7 +965,7 @@ function Decision({ waitingSince, decision, wide = false }: {
       <Button variant="outlined" size="small" startIcon={<ForwardToInboxOutlined />} onClick={decision.send}>
         Request changes
       </Button>
-      <Tooltip title={decision.approveBlocked ?? ""}>
+      <Tooltip disableInteractive title={decision.approveBlocked ?? ""}>
         <span>
           <Button variant="contained" size="small" fullWidth startIcon={<TaskAltOutlined />}
             disabled={Boolean(decision.approveBlocked)} onClick={decision.approve}>
@@ -912,7 +991,7 @@ function Folded({ issueCount, onToggle, decision }: {
   return (
     <Paper sx={{ width: 48, py: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
       bgcolor: "background.tinted", boxShadow: "none" }}>
-      <Tooltip title="Show the review" placement="left">
+      <Tooltip disableInteractive title="Show the review" placement="left">
         <IconButton size="small" aria-label="Show the review" onClick={onToggle}>
           <Badge badgeContent={issueCount} showZero
             sx={{ "& .MuiBadge-badge": { bgcolor: "issue.main", color: "issue.contrastText" } }}>
@@ -920,14 +999,21 @@ function Folded({ issueCount, onToggle, decision }: {
           </Badge>
         </IconButton>
       </Tooltip>
-      {decision && (
+      {decision && !decision.waiting && (
+        <Tooltip disableInteractive title={decision.decided ?? "Not waiting on your decision now."} placement="left">
+          {decision.outcome === "changes-requested"
+            ? <ForwardToInboxOutlined fontSize="small" sx={{ color: "text.disabled", my: 0.5 }} />
+            : <TaskAltOutlined fontSize="small" sx={{ color: "text.disabled", my: 0.5 }} />}
+        </Tooltip>
+      )}
+      {decision?.waiting && (
         <>
-          <Tooltip title="Request changes" placement="left">
+          <Tooltip disableInteractive title="Request changes" placement="left">
             <IconButton size="small" aria-label="Request changes" color="primary" onClick={decision.send}>
               <ForwardToInboxOutlined />
             </IconButton>
           </Tooltip>
-          <Tooltip title={decision.approveBlocked ?? "Approve"} placement="left">
+          <Tooltip disableInteractive title={decision.approveBlocked ?? "Approve"} placement="left">
             <span>
               <IconButton size="small" aria-label="Approve" color="primary" disabled={Boolean(decision.approveBlocked)}
                 onClick={decision.approve}>
@@ -936,7 +1022,7 @@ function Folded({ issueCount, onToggle, decision }: {
             </span>
           </Tooltip>
           {decision.board && (
-            <Tooltip title="Escalate to the board" placement="left">
+            <Tooltip disableInteractive title="Escalate to the board" placement="left">
               <IconButton size="small" aria-label="Escalate to the board" onClick={decision.board}>
                 <GroupsOutlined />
               </IconButton>
