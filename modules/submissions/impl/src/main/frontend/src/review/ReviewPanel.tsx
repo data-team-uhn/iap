@@ -136,6 +136,9 @@ export default function ReviewPanel(props: ReviewProps & { open: boolean; onTogg
   const [ expanded, setExpanded ] = useState<string>();
   const [ lastConcern, setLastConcern ] = useState<string>();
   const [ whole, setWhole ] = useState(false);
+  // The whole review's page the reviewer last had open, kept while they stay on the submission, so reopening it, as
+  // after showing where something was raised, brings them back there
+  const [ wholePage, setWholePage ] = useState<string>();
   const concerns = risks.flatMap(risk => bySeverity(risk.aiOpen).filter(anchored)
     .map(note => ({ note, risk: risk.topic.path })));
 
@@ -195,22 +198,29 @@ export default function ReviewPanel(props: ReviewProps & { open: boolean; onTogg
         <Others others={props.others} doing={doing} />
       </PanelBody>
       <Decision waitingSince={props.waitingSince} decision={doing.decision} />
-      <WholeReview {...props} open={whole} onClose={() => setWhole(false)} />
+      <WholeReview {...props} open={whole} onClose={() => setWhole(false)} page={wholePage} onPage={setWholePage} />
     </Paper>
   );
 }
 
 // The review whole, almost full screen: the risks down the side, the one chosen read in full beside them, with what
 // its schema says to look at
-function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }) {
+function WholeReview(props: ReviewProps & {
+  open: boolean;
+  onClose: () => void;
+  page: string | undefined;
+  onPage: (page: string) => void;
+}) {
   const { risks, doing, open, onClose } = props;
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down("sm"));
-  // What the AI pre-review found to start with, when it found anything; the reviewer's issues when it did not, as when
-  // it failed, or the submission left it nothing to say
+  // Whether the AI pre-review found anything: it may have failed, or the submission left it nothing to say
   const aiFound = risks.some(one => Boolean(one.assessment) || one.aiOpen.length > 0 || one.mismatches.length > 0
     || one.aiSettled.length > 0);
-  const [ chosen, setChosen ] = useState<string>(aiFound ? AI_TAB : ALL_ISSUES);
+  // Until the reviewer has chosen a page: what the AI found while they have raised nothing yet, to triage first; their
+  // issues once they have, or when the AI found nothing
+  const chosen = props.page ?? (aiFound && props.issueCount === 0 ? AI_TAB : ALL_ISSUES);
+  const setChosen = props.onPage;
   const [ grouped, setGrouped ] = useState(false);
   const [ withSettled, setWithSettled ] = useState(false);
   const openFindings = risks.reduce((sum, one) => sum + one.aiOpen.length, 0)
