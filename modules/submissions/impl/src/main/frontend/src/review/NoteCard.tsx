@@ -19,7 +19,6 @@
 import { useContext, useState } from "react";
 
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import { Box, Button, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 
@@ -27,6 +26,7 @@ import TagChip from "@iap/tags/TagChip";
 
 import Composer from "./Composer";
 import { GroupChip, GroupLabels, PersonName } from "./people";
+import RemoveButton from "./RemoveButton";
 import { kindInfo, type ReviewNote } from "./reviewData";
 
 import type { Message } from "./reviewModel";
@@ -35,6 +35,9 @@ function when(created: string): string {
   const date = new Date(created);
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
+
+// What each kind of note the reviewer writes is called, where they are asked before removing one
+const WHAT: Partial<Record<ReviewNote["kind"], string>> = { issue: "issue", discussion: "message", note: "note to self" };
 
 // PRETOTYPE. One note as a card: what kind it is, who wrote it and when, and what it says; for an extracted
 // answer, what the AI read and how sure it is. Discussion and issues can be answered; the reviewer's own can be
@@ -118,11 +121,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
             </Tooltip>
           )}
           {note.mine && onRemove && (
-            <Tooltip title="Remove">
-              <IconButton size="small" aria-label="Remove" onClick={() => void onRemove()}>
-                <DeleteOutlined fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <RemoveButton what={WHAT[note.kind] ?? "note"} text={note.text} onRemove={onRemove} />
           )}
         </Box>
       </Stack>
@@ -231,12 +230,7 @@ export function Thread({ replies, onEdit, onRemove }: {
               </Tooltip>
             )}
             {reply.mine && onRemove && (
-              <Tooltip title="Remove">
-                <IconButton size="small" aria-label="Remove the reply" sx={{ mr: -0.75 }}
-                  onClick={() => void onRemove(reply.path)}>
-                  <DeleteOutlined fontSize="small" />
-                </IconButton>
-              </Tooltip>
+              <RemoveButton what="reply" text={reply.text} onRemove={() => onRemove(reply.path)} sx={{ mr: -0.75 }} />
             )}
           </Stack>
           {editing === reply.path && onEdit ? (

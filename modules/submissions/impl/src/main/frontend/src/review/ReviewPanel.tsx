@@ -25,7 +25,6 @@ import ChevronLeftOutlined from "@mui/icons-material/ChevronLeftOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import CircleOutlined from "@mui/icons-material/CircleOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import ExpandLessOutlined from "@mui/icons-material/ExpandLessOutlined";
@@ -48,6 +47,7 @@ import AiGrid from "./AiGrid";
 import Composer from "./Composer";
 import IssuesGrid from "./IssuesGrid";
 import { Thread } from "./NoteCard";
+import RemoveButton from "./RemoveButton";
 import { SEVERITIES, type ReviewNote, type Topic } from "./reviewData";
 import { PANEL_HEIGHT, PanelBody } from "./sidePanel";
 
@@ -722,11 +722,7 @@ function IssueRow({ issue, dense, about, doing, onShow }: {
               <EditOutlined fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Remove">
-            <IconButton size="small" aria-label="Remove" onClick={() => void doing.removeIssue(issue)}>
-              <DeleteOutlined fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <RemoveButton what="issue" text={issue.text} onRemove={() => doing.removeIssue(issue)} />
         </Box>
       )} />
       <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", ...dense ? cutShort(3) : {} }}>{issue.text}</Typography>
