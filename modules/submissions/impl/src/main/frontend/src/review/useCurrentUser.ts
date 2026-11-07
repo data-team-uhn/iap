@@ -31,3 +31,18 @@ export function useCurrentUser(): string | undefined {
   }, [ doFetch ]);
   return user;
 }
+
+// The groups someone belongs to, by principal name, once known
+export function useMyGroups(me: string | undefined): string[] {
+  const doFetch = useAuthenticatedFetch();
+  const [ groups, setGroups ] = useState<string[]>([]);
+  useEffect(() => {
+    if (!me) {
+      return;
+    }
+    void doFetch(`/system/userManager/user/${encodeURIComponent(me)}.json`)
+      .then(response => (response.ok ? response.json() : {}) as Promise<{ memberOf?: string[] }>)
+      .then(user => setGroups((user.memberOf ?? []).map(group => group.split("/").at(-1) ?? group)));
+  }, [ doFetch, me ]);
+  return groups;
+}
