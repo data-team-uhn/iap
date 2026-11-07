@@ -27,6 +27,7 @@ import {
 import EntityGridToolbar from "@iap/frontend-commons/entityGrid/EntityGridToolbar";
 import TagChip from "@iap/tags/TagChip";
 
+import { WhereLink } from "./IssuesGrid";
 import { SEVERITIES, type ReviewNote } from "./reviewData";
 
 import type { RiskReview } from "./ReviewPanel";
@@ -104,7 +105,12 @@ export default function AiGrid({ risks, grouped, settled, about, onShow, onMakeI
       field: "kind", headerName: "Finding", width: 110,
       valueFormatter: (value: Kind) => KIND_NAMES[value],
     } ],
-    { field: "about", headerName: "About", width: 170 },
+    {
+      field: "about", headerName: "About", width: 170,
+      renderCell: ({ row }) => row.note && (row.note.subjects.length > 0 || row.note.passage)
+        ? <WhereLink text={row.about} onClick={() => row.note && onShow(row.note)} />
+        : row.about,
+    },
     {
       field: "finding", headerName: "What the AI says", flex: 1, minWidth: 240,
       renderCell: ({ row }) => (
@@ -114,7 +120,7 @@ export default function AiGrid({ risks, grouped, settled, about, onShow, onMakeI
     {
       field: "actions", headerName: "", width: 140, sortable: false, filterable: false,
       renderCell: ({ row }) => row.note && (
-        <FindingActions kind={row.kind} note={row.note} onShow={onShow} onMakeIssue={onMakeIssue} onDismiss={onDismiss}
+        <FindingActions kind={row.kind} note={row.note} onMakeIssue={onMakeIssue} onDismiss={onDismiss}
           onUndismiss={onUndismiss} />
       ),
     },
@@ -185,12 +191,10 @@ function kindOf(note: ReviewNote): Kind {
   return note.settled === "dismissed" ? "dismissed" : "adopted";
 }
 
-// What can be done with a finding, from its row: a concern made an issue of or dismissed, a dismissal taken back,
-// and where it was raised shown
-function FindingActions({ kind, note, onShow, onMakeIssue, onDismiss, onUndismiss }: {
+// What can be done with a finding, from its row: a concern made an issue of or dismissed, a dismissal taken back
+function FindingActions({ kind, note, onMakeIssue, onDismiss, onUndismiss }: {
   kind: Kind;
   note: ReviewNote;
-  onShow: (note: ReviewNote) => void;
   onMakeIssue: (concern: ReviewNote) => Promise<void>;
   onDismiss: (concern: ReviewNote) => Promise<void>;
   onUndismiss: (concern: ReviewNote) => Promise<void>;
@@ -205,9 +209,6 @@ function FindingActions({ kind, note, onShow, onMakeIssue, onDismiss, onUndismis
       )}
       {kind === "dismissed" && (
         <Link component="button" variant="body2" onClick={() => void onUndismiss(note)}>Undo</Link>
-      )}
-      {(note.subjects.length > 0 || note.passage) && (
-        <Link component="button" variant="body2" onClick={() => onShow(note)}>Show where</Link>
       )}
     </Stack>
   );
