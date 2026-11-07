@@ -25,7 +25,8 @@ import ReplyOutlined from "@mui/icons-material/ReplyOutlined";
 import { Box, IconButton, InputBase, Link, Stack, Tooltip, Typography } from "@mui/material";
 import {
   DataGridPro, GRID_DETAIL_PANEL_TOGGLE_FIELD, GridCellModes, type GridCellModesModel, type GridCellParams,
-  type GridColDef, type GridRenderEditCellParams, type GridRowId, useGridApiContext,
+  type GridColDef, type GridRenderEditCellParams, type GridRowId, gridColumnPositionsSelector,
+  gridVisibleColumnDefinitionsSelector, useGridApiContext, useGridSelector,
 } from "@mui/x-data-grid-pro";
 
 import EntityGridToolbar from "@iap/frontend-commons/entityGrid/EntityGridToolbar";
@@ -44,6 +45,8 @@ interface IssueRow {
   about: string;
   text: string;
   replies: number;
+  // When it was raised
+  created: Date | undefined;
   issue: ReviewNote;
 }
 
@@ -78,7 +81,8 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   const rows: IssueRow[] = useMemo(() => [ ...issues, ...concerns ].map(issue => ({
     id: issue.id, ai: issue.kind === "aiIssue", severity: issue.severity ?? "medium",
     risk: risks.some(risk => risk.path === issue.topicPath) ? issue.topicPath ?? "" : "",
-    about: about(issue), text: issue.text, replies: issue.replies.length, issue,
+    about: about(issue), text: issue.text, replies: issue.replies.length,
+    created: issue.created ? new Date(issue.created) : undefined, issue,
   })), [ issues, concerns, risks, about ]);
   // A single click starts changing a cell, as in a spreadsheet, and leaves any other cell being changed
   const [ cellModes, setCellModes ] = useState<GridCellModesModel>({});
@@ -112,22 +116,10 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
   };
   const startEditingText = (id: GridRowId) => setCellModes({ [id]: { text: { mode: GridCellModes.Edit } } });
   const thread = useCallback(({ row }: { row: IssueRow }) => (
-    <Box sx={{ pl: 6, pr: 2, pb: 1.5, bgcolor: "background.muted" }}>
-      <Thread replies={row.issue.replies} onEdit={onEditReply} onRemove={onRemoveReply} />
-      {writingTo === row.id && onReply ? (
-        <Box sx={{ mt: 1, maxWidth: 720 }}>
-          <Composer
-            kinds={[]} saveLabel="Reply" onCancel={() => setWritingTo(undefined)}
-            onSave={async (_kind, text) => {
-              await onReply(row.issue, text);
-              setWritingTo(undefined);
-            }}
-          />
-        </Box>
-      ) : onReply && (
-        <Link component="button" variant="caption" sx={{ mt: 0.5 }} onClick={() => setWritingTo(row.id)}>Reply</Link>
-      )}
-    </Box>
+    <ThreadPanel
+      issue={row.issue} writing={writingTo === row.id} onWrite={() => setWritingTo(row.id)}
+      onStop={() => setWritingTo(undefined)} onReply={onReply} onEditReply={onEditReply} onRemoveReply={onRemoveReply}
+    />
   ), [ writingTo, onReply, onEditReply, onRemoveReply ]);
   const riskLabel = (path: string) => risks.find(risk => risk.path === path)?.label ?? "No risk";
 
@@ -141,7 +133,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       renderCell: ({ value }) => <TagChip tags={[ String(value) ]} category="severity" />,
     },
     {
-      field: "risk", headerName: "Risk", width: 180, editable: true, type: "singleSelect",
+      field: "risk", headerName: "Risk", width: 160, editable: true, type: "singleSelect",
       valueOptions: [ { value: "", label: "No risk" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ],
       valueFormatter: (value: string) => riskLabel(value),
     },
@@ -155,14 +147,19 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
         </Stack>
       ) : "You"),
     } ] : [],
-    { field: "about", headerName: "About", width: 180 },
+    { field: "about", headerName: "About", width: 170 },
     {
       field: "text", headerName: "Issue", flex: 1, minWidth: 220, editable: true,
       renderCell: ({ value }) => <Box sx={{ whiteSpace: "pre-wrap" }}>{String(value)}</Box>,
       renderEditCell: params => <TextEdit {...params} />,
     },
     {
-      field: "replies", headerName: "Replies", type: "number", width: 90,
+      field: "created", headerName: "Raised", type: "date", width: 90,
+      valueFormatter: (value: Date | undefined) =>
+        value ? value.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "",
+    },
+    {
+      field: "replies", headerName: "Replies", type: "number", width: 80,
       description: "How many replies it has, from the study team or other reviewers",
       // None said by leaving the cell empty; some unfold the thread under the issue, in the grid
       renderCell: ({ row }) => row.replies > 0 && (
@@ -277,5 +274,41 @@ function TextEdit({ id, field, value }: GridRenderEditCellParams<IssueRow, strin
       inputProps={{ "aria-label": "The issue" }}
       sx={{ px: 1.25, py: 0.75, alignSelf: "stretch", typography: "body2" }}
     />
+  );
+}
+
+// An issue's thread, unfolded under it in the grid, lined up under the issue's text wherever that column is: its
+// replies, and a reply being written or a way to write one
+function ThreadPanel({ issue, writing, onWrite, onStop, onReply, onEditReply, onRemoveReply }: {
+  issue: ReviewNote;
+  writing: boolean;
+  onWrite: () => void;
+  onStop: () => void;
+  onReply?: (issue: ReviewNote, text: string) => Promise<void>;
+  onEditReply?: (reply: string, text: string) => Promise<void>;
+  onRemoveReply?: (reply: string) => Promise<void>;
+}) {
+  const api = useGridApiContext();
+  const positions = useGridSelector(api, gridColumnPositionsSelector);
+  const shown = useGridSelector(api, gridVisibleColumnDefinitionsSelector);
+  const left = positions[shown.findIndex(column => column.field === "text")] ?? 0;
+  return (
+    // The cell's own padding, less the thread's line and its gap, so the replies' words start where the issue's do
+    <Box sx={{ pr: 2, pb: 1.5, bgcolor: "background.muted", pl: `${left + 10 - 12}px` }}>
+      <Thread replies={issue.replies} onEdit={onEditReply} onRemove={onRemoveReply} />
+      {writing && onReply ? (
+        <Box sx={{ mt: 1, maxWidth: 720 }}>
+          <Composer
+            kinds={[]} saveLabel="Reply" onCancel={onStop}
+            onSave={async (_kind, text) => {
+              await onReply(issue, text);
+              onStop();
+            }}
+          />
+        </Box>
+      ) : onReply && (
+        <Link component="button" variant="caption" sx={{ mt: 0.5, ml: "14px" }} onClick={onWrite}>Reply</Link>
+      )}
+    </Box>
   );
 }
