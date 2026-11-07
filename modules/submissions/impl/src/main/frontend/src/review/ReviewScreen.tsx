@@ -78,7 +78,7 @@ import { SearchContext } from "./SearchHighlight";
 import { documentText, formMatches, pageCounts } from "./searchSubmission";
 import { PANEL_HEIGHT, PanelBody, panelPlacement } from "./sidePanel";
 import SubmissionSearch from "./SubmissionSearch";
-import { useCurrentUser } from "./useCurrentUser";
+import { useCurrentUser, useMyGroups } from "./useCurrentUser";
 
 type Node = Record<string, unknown>;
 
@@ -156,19 +156,6 @@ function questions(items: FormItem[]): FormQuestion[] {
   return items.flatMap(item => isQuestion(item) ? [ item ] : questions(item.items));
 }
 
-function useMyGroups(me: string | undefined): string[] {
-  const doFetch = useAuthenticatedFetch();
-  const [ groups, setGroups ] = useState<string[]>([]);
-  useEffect(() => {
-    if (!me) {
-      return;
-    }
-    void doFetch(`/system/userManager/user/${encodeURIComponent(me)}.json`)
-      .then(response => (response.ok ? response.json() : {}) as Promise<{ memberOf?: string[] }>)
-      .then(user => setGroups((user.memberOf ?? []).map(group => group.split("/").at(-1) ?? group)));
-  }, [ doFetch, me ]);
-  return groups;
-}
 
 interface Loaded {
   submission: Node;

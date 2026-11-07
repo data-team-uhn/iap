@@ -18,6 +18,8 @@
 
 import { useMemo } from "react";
 
+import { Stack } from "@mui/material";
+
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { DescendantFilter } from "@iap/frontend-commons/entityGrid/pagination";
 import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry";
@@ -25,7 +27,8 @@ import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry
 import DiscussionCell from "./review/DiscussionCell";
 import NotesCell from "./review/NotesCell";
 import { REVIEW_QUEUE_TYPE } from "./review/reviewQueueGrid";
-import { useCurrentUser } from "./review/useCurrentUser";
+import { useCurrentUser, useMyGroups } from "./review/useCurrentUser";
+import WhoseTurn from "./review/WhoseTurn";
 
 // The submissions with a review assigned to the current user and not yet decided: a `sub:Review`
 // descendant whose reviewer is `@me`, and whose tags hold neither decision. On the multi-valued `tags`
@@ -43,8 +46,23 @@ const MY_OPEN_REVIEWS: DescendantFilter = {
 // draws its title.
 function MyReviewQueueWidget() {
   const me = useCurrentUser();
+  const myGroups = useMyGroups(me);
   // PRETOTYPE: the reviewer's own notes and the reviewers' discussion, at a glance, as in their spreadsheets
   const extraColumns: EntityGridColumn[] = useMemo(() => me ? [
+    {
+      // Whose move it is, read from the study's open tasks
+      field: "__turn__",
+      headerName: "Whose turn",
+      width: 190,
+      sortable: false,
+      filterable: false,
+      cardSlot: "badge",
+      renderCell: params => (
+        <Stack sx={{ justifyContent: "center", height: "100%" }}>
+          <WhoseTurn path={params.row["@path"] as string} myGroups={myGroups} />
+        </Stack>
+      ),
+    },
     {
       field: "__notes__",
       headerName: "My notes",
@@ -63,7 +81,7 @@ function MyReviewQueueWidget() {
         <DiscussionCell path={params.row["@path"] as string} me={me} title={typeof params.row.title === "string" ? params.row.title : ""} />
       ),
     },
-  ] : [], [ me ]);
+  ] : [], [ me, myGroups ]);
 
   return (
     <EntityDataGrid

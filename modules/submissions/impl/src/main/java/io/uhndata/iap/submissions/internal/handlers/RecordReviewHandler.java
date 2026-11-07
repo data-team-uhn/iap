@@ -139,16 +139,46 @@ public class RecordReviewHandler implements ServiceTaskHandler
      * @throws WorkflowDefinitionException when the outcome names no such state
      * @throws PersistenceException when the review cannot be written
      */
+    // The reviewer's review of the requirement not yet decided for good: being written, or sent back for changes
+    private static Resource openReview(final Resource host, final ApprovalRequirement requirement, final String actor)
+    {
+        for (final Resource child : host.getChildren()) {
+            final var values = child.getValueMap();
+            final boolean theirs = REVIEW_NODE_TYPE.equals(values.get(PRIMARY_TYPE_PROPERTY, String.class))
+                && actor.equals(values.get(REVIEWER_PROPERTY, String.class));
+            if (theirs && requirement.getIdentifier().equals(values.get(REQUIREMENT_PROPERTY, String.class))
+                && isOpen(child)) {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isOpen(final Resource review)
+    {
+        final Taggable tags = review.adaptTo(Taggable.class);
+        return tags != null && (tags.hasTag("in-progress") || tags.hasTag("changes-requested"));
+    }
+
     private static Resource recordReview(final WorkflowTaskContext context, final Resource host,
         final ApprovalRequirement requirement, final String outcome)
         throws WorkflowDefinitionException, PersistenceException
     {
-        // A UUID, since the same person may decide more than once
-        final Resource review = context.getResourceResolver().create(host, UUID.randomUUID().toString(),
-            Map.of(PRIMARY_TYPE_PROPERTY, REVIEW_NODE_TYPE, REVIEWER_PROPERTY, context.getActor()));
-        ReferenceUtils.setReference(review, REQUIREMENT_PROPERTY, requirement);
+        // PRETOTYPE: the decision closes the review the reviewer has open for the requirement, the one their issues
+        // are written in, so one review stands per reviewer; a new one only when they had none open
+        Resource review = openReview(host, requirement, context.getActor());
+        if (review == null) {
+            // A UUID rather than the reviewer's name: the same person may decide more than once
+            review = context.getResourceResolver().create(host, UUID.randomUUID().toString(),
+                Map.of(PRIMARY_TYPE_PROPERTY, REVIEW_NODE_TYPE, REVIEWER_PROPERTY, context.getActor()));
+            ReferenceUtils.setReference(review, REQUIREMENT_PROPERTY, requirement);
+        }
         try {
-            Objects.requireNonNull(review.adaptTo(Taggable.class), "A review can be tagged").tag(outcome, true);
+            final Taggable tags = Objects.requireNonNull(review.adaptTo(Taggable.class), "A review can be tagged");
+            // PRETOTYPE: what it was while open gives way to the decision
+            tags.untag("in-progress", true);
+            tags.untag("changes-requested", true);
+            tags.tag(outcome, true);
         } catch (final IllegalArgumentException e) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " records the outcome " + outcome + ", which names no state a review can be in");
