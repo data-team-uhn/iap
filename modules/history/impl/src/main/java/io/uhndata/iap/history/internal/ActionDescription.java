@@ -125,7 +125,7 @@ record ActionDescription(String name, Map<String, String> cause, String occurred
      */
     static Optional<ActionDescription> fromUserData(final Object userData)
     {
-        if (!(userData instanceof String text) || !text.contains(DESCRIPTION_KEY)) {
+        if (!(userData instanceof final String text) || !text.contains(DESCRIPTION_KEY)) {
             return Optional.empty();
         }
         try {

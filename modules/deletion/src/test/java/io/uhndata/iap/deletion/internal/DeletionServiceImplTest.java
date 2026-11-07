@@ -1025,5 +1025,4 @@ class DeletionServiceImplTest
         assertThrows(IllegalArgumentException.class,
             () -> this.service.checkPurge(this.resource(VICTIM_PATH)));
     }
-
 }

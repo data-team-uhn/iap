@@ -109,5 +109,4 @@ public class Review extends Feedback
         final Requirement reviewed = this.getRequirement();
         return reviewed != null && requirement.getPath().equals(reviewed.getPath());
     }
-
 }

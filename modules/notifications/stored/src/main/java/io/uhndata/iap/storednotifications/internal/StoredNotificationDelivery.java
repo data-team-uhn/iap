@@ -174,7 +174,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
         throws RepositoryException
     {
         final Session session = resolver.adaptTo(Session.class);
-        if (!(session instanceof JackrabbitSession jackrabbit)) {
+        if (!(session instanceof final JackrabbitSession jackrabbit)) {
             throw new RepositoryException("The session cannot manage access control");
         }
         final Authorizable account = jackrabbit.getUserManager().getAuthorizable(userId);
@@ -202,14 +202,14 @@ public class StoredNotificationDelivery implements NotificationDelivery
         throws RepositoryException
     {
         for (final AccessControlPolicy policy : manager.getPolicies(path)) {
-            if (policy instanceof AccessControlList list) {
+            if (policy instanceof final AccessControlList list) {
                 return list;
             }
         }
         for (final AccessControlPolicyIterator candidates = manager.getApplicablePolicies(path);
             candidates.hasNext();) {
             final AccessControlPolicy policy = candidates.nextAccessControlPolicy();
-            if (policy instanceof AccessControlList list) {
+            if (policy instanceof final AccessControlList list) {
                 return list;
             }
         }

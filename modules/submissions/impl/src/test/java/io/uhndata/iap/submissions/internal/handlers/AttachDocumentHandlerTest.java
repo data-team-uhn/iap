@@ -441,7 +441,7 @@ class AttachDocumentHandlerTest
     {
         final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
         Mockito.when(conditions.applies(Mockito.any(), Mockito.any())).thenAnswer(invocation ->
-            !(invocation.getArgument(0) instanceof DocumentRequirement requirement)
+            !(invocation.getArgument(0) instanceof final DocumentRequirement requirement)
                 || !NOTE_PATH.equals(requirement.getPath()));
         this.context.registerService(ConditionEvaluator.class, conditions);
 

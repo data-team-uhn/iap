@@ -292,7 +292,7 @@ public final class WorkflowDefinitionUtils
 
         final NodeList children = process.getChildNodes();
         for (int i = 0; i < children.getLength(); ++i) {
-            if (!(children.item(i) instanceof Element element) || !BPMN_NS.equals(element.getNamespaceURI())) {
+            if (!(children.item(i) instanceof final Element element) || !BPMN_NS.equals(element.getNamespaceURI())) {
                 continue;
             }
             final String id = element.getAttribute(ID_ATTRIBUTE);
@@ -703,7 +703,7 @@ public final class WorkflowDefinitionUtils
         final NodeList children = element.getChildNodes();
         return IntStream.range(0, children.getLength())
             .mapToObj(children::item)
-            .filter(child -> child instanceof Element candidate && SV_NS.equals(candidate.getNamespaceURI())
+            .filter(child -> child instanceof final Element candidate && SV_NS.equals(candidate.getNamespaceURI())
                 && localName.equals(candidate.getLocalName()))
             .map(Element.class::cast);
     }
@@ -967,7 +967,7 @@ public final class WorkflowDefinitionUtils
 
     private static boolean isBpmnElement(final Node node, final String localName)
     {
-        return node instanceof Element element && BPMN_NS.equals(element.getNamespaceURI())
+        return node instanceof final Element element && BPMN_NS.equals(element.getNamespaceURI())
             && localName.equals(element.getLocalName());
     }
 

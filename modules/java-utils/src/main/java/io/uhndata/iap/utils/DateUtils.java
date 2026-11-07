@@ -118,7 +118,7 @@ public final class DateUtils
             // The date string may or may not have a timezone offset, try both a zoned and a local datetime
             final TemporalAccessor result = format.parseBest(str, ZonedDateTime::from, LocalDateTime::from);
             // No timezone in the string means the system default
-            return result instanceof ZonedDateTime zoned ? zoned
+            return result instanceof final ZonedDateTime zoned ? zoned
                 : LocalDateTime.from(result).atZone(ZoneId.systemDefault());
         });
     }
