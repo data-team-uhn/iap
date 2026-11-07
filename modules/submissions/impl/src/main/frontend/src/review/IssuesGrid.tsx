@@ -291,7 +291,8 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
         slotProps={{ toolbar: { searchLabel: "Search your issues" } }} autoHeight={compact}
         getRowHeight={() => "auto"}
         // The AI's concerns are greyed, and are not changed in place: they become issues first
-        isCellEditable={({ row }: { row: IssueRow }) => !row.ai}
+        // The new issue's row has its own editors, which the grid's must not take over
+        isCellEditable={({ row }: { row: IssueRow }) => !row.ai && row.id !== DRAFT}
         getDetailPanelContent={thread} getDetailPanelHeight={() => "auto"}
         detailPanelExpandedRowIds={expanded} onDetailPanelExpandedRowIdsChange={setExpanded}
         // The replies count unfolds a thread, so the grid's own toggle column is left out
@@ -482,6 +483,8 @@ function DraftCell({ field }: { field: string }) {
       return (
         <DraftText value={draft.text} onChange={text => setDraft({ ...draft, text })} onSave={save} onCancel={stop} />
       );
+    case "created":
+      return new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
     case "where":
       return (
         <Stack sx={{ gap: 0.5, alignItems: "flex-end", width: "100%" }}>
