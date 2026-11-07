@@ -22,7 +22,7 @@ import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import ReplyOutlined from "@mui/icons-material/ReplyOutlined";
-import { Box, IconButton, InputBase, Link, Stack, Tooltip } from "@mui/material";
+import { Box, IconButton, InputBase, Link, Stack, Tooltip, Typography } from "@mui/material";
 import {
   DataGridPro, GRID_DETAIL_PANEL_TOGGLE_FIELD, GridCellModes, type GridCellModesModel, type GridCellParams,
   type GridColDef, type GridRenderEditCellParams, type GridRowId, useGridApiContext,
@@ -213,6 +213,14 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     },
   ];
 
+  // Nothing to list: a plain box saying so, rather than an empty table
+  if (rows.length === 0) {
+    return (
+      <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, px: 2, py: 1.5, bgcolor: "background.paper" }}>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>No issues raised yet</Typography>
+      </Box>
+    );
+  }
   return (
     <DataGridPro
       rows={rows} columns={columns} density="compact" disableRowSelectionOnClick hideFooter
