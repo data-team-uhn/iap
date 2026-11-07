@@ -143,10 +143,16 @@ export default function AiGrid({ risks, grouped, settled, about, onShow, onMakeI
         // Solid, mixed into the scheme's own paper, so pinned cells still hide what scrolls under them
         const paper = theme.vars?.palette.background.paper ?? theme.palette.background.paper;
         const tint = (share: number) => `color-mix(in srgb, ${theme.palette.assistant.light} ${share}%, ${paper})`;
-        return { bgcolor: tint(10), "--DataGrid-containerBackground": tint(16), "--DataGrid-pinnedBackground": tint(10),
-          "& .MuiDataGrid-toolbar, & .MuiDataGrid-columnHeader, & .MuiDataGrid-filler": { bgcolor: tint(16) },
+        // The grid sets the colours of its pinned cells and its headers on themselves, so they are set there, its own
+        // hover and selection shades following
+        return { bgcolor: tint(10), "--DataGrid-containerBackground": tint(16),
+          "& .MuiDataGrid-cell--pinnedRight": { "--DataGrid-t-cell-background-pinned": tint(10) },
+          "& .MuiDataGrid-columnHeader, & .MuiDataGrid-columnHeaders, & .MuiDataGrid-filler": {
+            "--DataGrid-t-header-background-base": tint(16), bgcolor: tint(16) },
+          "& .MuiDataGrid-toolbar": { bgcolor: tint(16) },
           "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" },
-          "& .ai-risk, & .ai-risk .MuiDataGrid-cell--pinnedRight": { bgcolor: tint(22) },
+          "& .ai-risk": { bgcolor: tint(22) },
+          "& .ai-risk .MuiDataGrid-cell--pinnedRight": { "--DataGrid-t-cell-background-pinned": tint(22) },
           "& .ai-settled": { color: "text.secondary", opacity: 0.75 },
           [`& [data-field="${GRID_TREE_DATA_GROUPING_FIELD}"]`]: { fontWeight: "fontWeightMedium" } };
       }}
