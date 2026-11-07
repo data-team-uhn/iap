@@ -36,8 +36,8 @@ import MenuBookOutlined from "@mui/icons-material/MenuBookOutlined";
 import OpenInFullOutlined from "@mui/icons-material/OpenInFullOutlined";
 import TaskAltOutlined from "@mui/icons-material/TaskAltOutlined";
 import {
-  Badge, Box, Button, ButtonBase, Dialog, FormControlLabel, IconButton, LinearProgress, Link, Paper, Stack, Switch,
-  Tooltip, Typography, useMediaQuery, useTheme,
+  Badge, Box, Button, ButtonBase, Dialog, IconButton, LinearProgress, Link, Paper, Stack, Tooltip, Typography,
+  useMediaQuery, useTheme,
 } from "@mui/material";
 
 import { cutShort, passageCard } from "@iap/frontend-commons/pdfViewer/passageStyles";
@@ -203,7 +203,6 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
   const phone = useMediaQuery(theme.breakpoints.down("sm"));
   // All the reviewer's issues to start with, the working view
   const [ chosen, setChosen ] = useState<string>(ALL_ISSUES);
-  const [ withConcerns, setWithConcerns ] = useState(false);
   const risk = risks.find(one => one.topic.path === chosen);
   // Showing where something was raised leaves the review for the page
   const show = (note: ReviewNote) => {
@@ -270,25 +269,18 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
               <Stack direction="row" sx={{ alignItems: "center", gap: 2, flexWrap: "wrap" }}>
                 <Typography variant="h6" component="h3" sx={{ flex: 1 }}>All your issues</Typography>
                 <AddIssue doing={doing} prominent />
-                <FormControlLabel
-                  control={<Switch checked={withConcerns} onChange={event => setWithConcerns(event.target.checked)} />}
-                  label={`Include open AI concerns (${risks.reduce((sum, one) => sum + one.aiOpen.length, 0)})`}
-                />
               </Stack>
+              {/* As on a risk's page, what the AI raised in its own frame, apart from the reviewer's issues */}
+              <OpenConcerns risks={risks} about={props.about} doing={doing} onShow={show} />
               <Box sx={{ flex: 1, minHeight: 0 }}>
                 <IssuesGrid
                   issues={[ ...risks.flatMap(one => one.issues), ...props.unfiled ]}
-                  concerns={withConcerns ? risks.flatMap(one => one.aiOpen) : []}
                   risks={risks.map(one => ({ path: one.topic.path, label: one.topic.label }))}
                   about={props.about} onShow={show}
                   onRemove={issue => doing.removeIssue(issue)} onReply={(issue, text) => doing.reply(issue, text)}
                   onEditReply={(reply, text) => doing.editReply(reply, text)}
                   onRemoveReply={reply => doing.removeReply(reply)}
                   onChange={(issue, text, severity, topic) => doing.editIssue(issue, text, severity, topic)}
-                  onMakeIssue={concern => doing.makeIssue(concern,
-                    concern.suggestion ? `${concern.text}\n\n${concern.suggestion}` : concern.text,
-                    concern.severity, concern.topicPath)}
-                  onDismiss={concern => doing.dismiss(concern)}
                 />
               </Box>
             </Stack>
@@ -478,6 +470,42 @@ function RiskDetail({ risk, dense = false, about, doing, onShow }: {
         />
       </Stack>
     </Stack>
+  );
+}
+
+// The AI's open concerns across the reviewer's risks, in its frame, folded under a line saying how many; each says
+// which risk it was raised under, and can be made an issue of, dismissed or shown where it was raised
+function OpenConcerns({ risks, about, doing, onShow }: {
+  risks: RiskReview[];
+  about: (note: ReviewNote) => string;
+  doing: ReviewDoing;
+  onShow: (note: ReviewNote) => void;
+}) {
+  const [ open, setOpen ] = useState(false);
+  const concerns = risks.flatMap(risk => bySeverity(risk.aiOpen).map(note => ({ note, risk })));
+  if (concerns.length === 0) {
+    return null;
+  }
+  return (
+    <AiBlock>
+      <Link component="button" variant="caption" onClick={() => setOpen(!open)} aria-expanded={open}
+        sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, alignSelf: "flex-start" }}>
+        {open ? <ExpandLessOutlined fontSize="small" /> : <ExpandMoreOutlined fontSize="small" />}
+        {plural(concerns.length, "open concern")}
+      </Link>
+      {open && (
+        <Rows>
+          {concerns.map(({ note, risk }) => (
+            <Box key={note.id}>
+              <Typography variant="caption" sx={{ display: "block", fontWeight: "fontWeightBold", pt: 1 }}>
+                {risk.topic.label}
+              </Typography>
+              <AiRow note={note} topic={risk.topic.path} dense={false} about={about} doing={doing} onShow={onShow} />
+            </Box>
+          ))}
+        </Rows>
+      )}
+    </AiBlock>
   );
 }
 
