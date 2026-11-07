@@ -135,7 +135,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
     }
 
     /**
-     * Put one document's classifications to the model and store what it picked.
+     * Build the classification prompt, call the model and store what it picked.
      *
      * @return {@code false} when the model was not asked or answered unreadably, which has been recorded
      */
