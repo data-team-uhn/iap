@@ -207,7 +207,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
   const aiFound = risks.some(one => Boolean(one.assessment) || one.aiOpen.length > 0 || one.mismatches.length > 0
     || one.aiSettled.length > 0);
   const [ chosen, setChosen ] = useState<string>(aiFound ? AI_TAB : ALL_ISSUES);
-  const [ grouped, setGrouped ] = useState(true);
+  const [ grouped, setGrouped ] = useState(false);
   const [ withSettled, setWithSettled ] = useState(false);
   const openFindings = risks.reduce((sum, one) => sum + one.aiOpen.length, 0)
     + new Set(risks.flatMap(one => one.mismatches.map(mismatch => mismatch.evidence.id))).size;
@@ -293,9 +293,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
                 <FormControlLabel label="Show settled"
                   control={<Switch checked={withSettled} onChange={event => setWithSettled(event.target.checked)} />} />
               </Stack>
-              {/* In the AI's colour down its side, as its frame is elsewhere */}
-              <Box sx={{ flex: 1, minHeight: 0, borderInlineStart: "3px solid", borderColor: "assistant.main",
-                borderRadius: 1 }}>
+              <Box sx={{ flex: 1, minHeight: 0 }}>
                 <AiGrid
                   risks={risks} grouped={grouped} settled={withSettled} about={props.about} onShow={show}
                   onMakeIssue={concern => doing.makeIssue(concern,
