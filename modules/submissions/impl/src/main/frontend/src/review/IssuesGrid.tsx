@@ -247,13 +247,16 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       setSaving(false);
     }
   };
-  // Once it is in the list, the new issue is brought into view and pulses, so the reviewer sees where it went
+  // Once an issue is saved, new or changed, it is brought into view and pulses, so the reviewer sees where it went
+  const changed = useRef<string>(undefined);
   useEffect(() => {
     const before = known.current;
-    const added = before && rows.find(row => !before.has(row.id));
-    if (added) {
+    const saved = before ? rows.find(row => !before.has(row.id))?.id : changed.current;
+    if (saved) {
       known.current = undefined;
-      pulseWhenThere(() => document.querySelector<HTMLElement>(`[role="row"][data-id="${CSS.escape(added.id)}"]`), true);
+      changed.current = undefined;
+      pulseWhenThere(() => document.querySelector<HTMLElement>(`[role="row"][data-id="${CSS.escape(saved)}"]`),
+        "nearest");
     }
   }, [ rows ]);
   const draftRow: IssueRow = { id: DRAFT, ai: false, severity: draft.severity, risk: draft.risk, about: "",
@@ -308,6 +311,8 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
           }
           if (next.text !== before.text || next.severity !== before.severity || next.risk !== before.risk) {
             await onChange(next.issue, next.text.trim(), next.severity, next.risk);
+            // Saved, it may have moved with the sorting: it pulses where it lands
+            changed.current = next.id;
           }
           return next;
         }}

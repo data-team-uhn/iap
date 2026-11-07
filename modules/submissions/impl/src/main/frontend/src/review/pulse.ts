@@ -33,13 +33,13 @@ export function pulse(element: HTMLElement | null) {
 
 // Pulses what is found, once it is there and the page has had a moment to bring it into view, bringing it there first
 // when asked; looks for it a few seconds, as the page it is on may still be opening
-export function pulseWhenThere(find: () => HTMLElement | null, bringIntoView = false) {
+export function pulseWhenThere(find: () => HTMLElement | null, bringIntoView: ScrollLogicalPosition | false = false) {
   const until = Date.now() + 4000;
   const look = () => {
     const found = find();
     if (found) {
       if (bringIntoView) {
-        found.scrollIntoView({ behavior: "smooth", block: "start" });
+        found.scrollIntoView({ behavior: "smooth", block: bringIntoView });
       }
       setTimeout(() => pulse(found), 600);
     } else if (Date.now() < until) {
