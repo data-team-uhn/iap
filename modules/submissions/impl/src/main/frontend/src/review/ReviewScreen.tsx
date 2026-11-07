@@ -498,6 +498,7 @@ export default function ReviewScreen({ path }: { path: string }) {
     badges: <><TagChip tags={header.tags} category="lifecycle" /><TagChip tags={header.tags} category="priority" /></>,
     end: <Countdown due={header.reviewDue} pausedAt={header.reviewPausedAt} variant="caption" />,
     tools: search(true),
+    workspace: true,
   });
 
   // What an issue is about, as the study team would recognize it: the question or the document

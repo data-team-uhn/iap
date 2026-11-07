@@ -30,6 +30,8 @@ export interface PageContext {
   // Tools for the page, such as its search, shown at the bar's far end on wide screens; the page shows them
   // itself on narrower ones
   tools?: ReactNode;
+  // Whether the page fills the window as a workspace, with nothing under it, such as the footer
+  workspace?: boolean;
 }
 
 // Kept on `window`, like the page crumbs, so the page and the bar share it whichever bundles they were loaded from.
