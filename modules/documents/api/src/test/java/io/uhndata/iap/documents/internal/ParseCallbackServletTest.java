@@ -316,7 +316,7 @@ class ParseCallbackServletTest
         assertTrue(parse(response).getString("error").contains("could not be recorded"));
     }
 
-    // A Stop deleted the job while this outcome was being recorded: the ordinary "no such job" answer
+    // The sweep deleted the job while this outcome was being recorded: the usual "no such job" answer
     @Test
     void aJobRemovedDuringTheCommitIsNotFound() throws Exception
     {
@@ -335,7 +335,7 @@ class ParseCallbackServletTest
         assertEquals(404, post(GOOD_AUTHORIZATION, SUCCESS_BODY).getStatus());
     }
 
-    // Whether the job is still there cannot be told, so the failure stays the server error it was
+    // It cannot tell whether the job is still there, so the failure stays a server error
     @Test
     void aFailedCommitStaysAServerErrorWhenTheJobCannotBeLookedUp() throws Exception
     {

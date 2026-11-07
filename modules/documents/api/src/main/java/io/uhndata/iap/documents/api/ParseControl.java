@@ -20,8 +20,7 @@ package io.uhndata.iap.documents.api;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Stopping a parse nobody needs any more. The job record is marked failed, then the daemon is asked to drop the
- * conversion. A job that already has an outcome is left alone, and the daemon is not asked.
+ * Stops a parse that nobody needs any more.
  *
  * @version $Id$
  * @since 0.1.0
@@ -29,19 +28,20 @@ import org.jetbrains.annotations.Nullable;
 public interface ParseControl
 {
     /**
-     * Stop one parse.
+     * Stops one parse that has not finished.
      *
-     * <p>A queued or running job is marked failed with the error {@code Stopped}, then the daemon is asked to drop
-     * the conversion, without waiting for its answer. The job keeps its target, so the sweep hands that failure to
-     * whoever still waits on the job, and later drops the record together with its staging folder. A job that
-     * already has an outcome is left as it is, and the daemon is not asked. A record that changes while it is being
-     * stopped is left as it is too, but the daemon is still asked, since the change may be the dispatch rather than
-     * an outcome. A valid identifier with no record is still sent to the daemon, which answers {@code unknown}; one
-     * that is not a job identifier sends nothing.</p>
+     * <p>A queued or active job is marked failed with the error {@code Stopped}. Then the daemon is asked to drop
+     * the conversion, without waiting for its answer. The job keeps its target, so the sweep later hands this
+     * failure to whoever still waits on the job, then deletes the record and its staging folder.</p>
      *
-     * @param jobId the identifier of the job to stop
-     * @return {@code true} only when no job record names the staging folder, so the caller may remove it;
-     *         {@code false} when a record does, or may, and the sweep removes the folder with it
+     * <p>A job that already has an outcome is left as it is, and the daemon is not asked. A record that changes
+     * while it is being stopped is also left as it is, but the daemon is still asked, because the change may be
+     * the dispatch and not an outcome. A valid job id with no record is still sent to the daemon, which answers
+     * {@code unknown}. Nothing is sent for {@code null} or for a value that is not a job id.</p>
+     *
+     * @param jobId the id of the job to stop, may be {@code null}
+     * @return {@code true} when no job record names the staging folder, so the caller should delete it;
+     *         {@code false} when a record names it, or may name it, and the sweep deletes the folder with the record
      */
     boolean abandon(@Nullable String jobId);
 }

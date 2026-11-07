@@ -47,10 +47,10 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
- * Stops a parse that has not finished: marks the job record failed, then asks the daemon to drop it. The record keeps
- * its target and its staging folder, so the sweep hands the stop to whoever still waits on the parse, and later
- * drops the record and the folder together. Kept off the dispatch consumer, which is already at the edge of what one
- * class should know.
+ * Stops a parse that has not finished: marks the job record failed, then asks the daemon to drop the parse. The record
+ * keeps its target and its staging folder, so the sweep later hands the failure to whoever still waits on the parse,
+ * then deletes the record and the folder together. This is a class of its own to keep {@link ParseJobConsumer}
+ * small.
  *
  * @version $Id$
  * @since 0.1.0
@@ -59,7 +59,7 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 @Designate(ocd = DaemonConnectionConfiguration.class)
 public class ParseAbandonment implements ParseControl
 {
-    /** What a stopped job records as its error. */
+    /** The error recorded on a stopped job. */
     static final String STOPPED_MESSAGE = "Stopped";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ParseAbandonment.class);
@@ -72,7 +72,7 @@ public class ParseAbandonment implements ParseControl
     private DaemonConnection daemon = DaemonConnection.read(Map.of(), name -> null);
 
     /**
-     * Read where the daemon listens, the same properties the dispatch uses.
+     * Reads how to reach the daemon, from the same shared configuration the dispatch uses.
      *
      * @param configuration the component configuration
      */
@@ -96,7 +96,7 @@ public class ParseAbandonment implements ParseControl
             if (jobNode == null) {
                 gone = true;
             } else if (isSettled(jobNode)) {
-                // The outcome is somebody's to take, and the sweep drops it with its folder
+                // Already has an outcome: a handler takes it, and the sweep deletes the record and its folder
                 settled = true;
             } else {
                 stopRecord(resolver, jobNode, jobId);
@@ -107,11 +107,11 @@ public class ParseAbandonment implements ParseControl
             ErrorLogger.logError(e, ErrorContext.of(ParseAbandonment.class, "abandon").with("job", jobId));
         }
         if (!settled) {
-            // Only once the record says stopped: a queued job is then never dispatched, and a cancel sent
-            // earlier could reach the daemon before a dispatch already under way, and be answered "unknown"
+            // Sent last: once the record says stopped, a queued job is never dispatched. Sent first, the cancel could
+            // reach the daemon before a dispatch already on its way, and get "unknown"
             askDaemonToCancel(jobId);
         }
-        // Unless the record is gone, it still names the folder: the sweep's to remove, not the caller's
+        // A record that still exists names the folder, so the sweep deletes it, not the caller
         return gone;
     }
 
@@ -122,11 +122,12 @@ public class ParseAbandonment implements ParseControl
     }
 
     /**
-     * Mark the job record stopped and commit it.
+     * Marks the job record stopped and commits it. When something else changed the record first, the stop is
+     * reverted and the record is left as it is.
      *
      * @param resolver the service session the record was read through
      * @param jobNode the job to stop
-     * @param jobId the job's identifier, for the log
+     * @param jobId the job's id, for the log
      */
     private static void stopRecord(final ResourceResolver resolver, final Resource jobNode, final String jobId)
     {
@@ -142,8 +143,8 @@ public class ParseAbandonment implements ParseControl
     }
 
     /**
-     * Record the stop as a failure. The target stays, since the caller's own change may yet be undone and the file
-     * would then still wait on this job.
+     * Records the stop as a failure and drops any outputs. The target stays: the caller's change may still be
+     * undone, and then the file still waits on this job.
      *
      * @param jobNode the job to stop
      */
@@ -158,8 +159,8 @@ public class ParseAbandonment implements ParseControl
     }
 
     /**
-     * Ask the daemon to drop a conversion, without waiting for its answer. Whatever it answers, a callback for a
-     * stopped job is refused by whoever the job was for.
+     * Asks the daemon to drop a parse, without waiting for its answer. Whatever it answers, a late callback for a
+     * stopped job is refused by the handler the job was for.
      *
      * @param jobId the job to cancel
      */
@@ -181,10 +182,10 @@ public class ParseAbandonment implements ParseControl
     }
 
     /**
-     * Send the cancel. Overridable so a test can stand in for the daemon.
+     * Sends the cancel request. Tests override this to stand in for the daemon.
      *
      * @param request the request to send
-     * @return the daemon's response, once it arrives
+     * @return the daemon's response, when it arrives
      */
     protected CompletableFuture<HttpResponse<String>> sendAsync(final HttpRequest request)
     {
@@ -192,10 +193,10 @@ public class ParseAbandonment implements ParseControl
     }
 
     /**
-     * Read an environment variable. Overridable so a test can supply one.
+     * Reads an environment variable. Tests override this to supply one.
      *
      * @param name the variable to read
-     * @return the value, or {@code null} when not set
+     * @return the value, or {@code null} when it is not set
      */
     protected String environment(final String name)
     {

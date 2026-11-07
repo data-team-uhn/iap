@@ -185,7 +185,7 @@ class ParseOutcomeDispatcherTest
         assertTrue(handler.seen.isEmpty());
     }
 
-    // The sweep shares one session across every record, so a failed delete must not stay in it
+    // The sweep uses one session for every record, so a failed delete must not stay in it
     @Test
     void keepsARecordItCannotDelete() throws PersistenceException
     {

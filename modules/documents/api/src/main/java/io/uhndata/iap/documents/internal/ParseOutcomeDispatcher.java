@@ -71,7 +71,7 @@ public class ParseOutcomeDispatcher
 
     /**
      * Tell the handlers how a job ended, and delete its record when one of them took the outcome. A record that
-     * cannot be deleted is left where it is, and the sweep offers it again; the handler sees it is already
+     * cannot be deleted stays, and the sweep offers it again; the handler then sees the outcome is already
      * recorded.
      *
      * @param resolver the session the job node was read through, which is also what deletes it
@@ -105,7 +105,7 @@ public class ParseOutcomeDispatcher
             resolver.commit();
         } catch (final PersistenceException e) {
             LOGGER.error("Cannot delete the record of parse job {}: {}", outcome.jobId(), e.getMessage(), e);
-            // The sweep goes on with this session, and a failed delete left in it would fail every later commit
+            // The sweep keeps using this session, and a failed delete left in it would fail every later commit
             resolver.revert();
         }
     }

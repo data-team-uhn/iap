@@ -68,9 +68,9 @@ def parse_document(
     @param docx_lock: optional lock serialising DOCX Docling conversion (daemon)
     @param docx_converter: optional warm DOCX converter (daemon)
     @param log: optional line logger
-    @param should_abandon: polled once LibreOffice is done, then while a PDF is converting;
-        see :func:`docling_pdf_parser._run_pdf_chunks`. A DOCX converts in one call with no
-        batch boundary to abandon at, so it is only checked before that call.
+    @param should_abandon: checked once LibreOffice is done, then while a PDF converts; see
+        :func:`docling_pdf_parser._run_pdf_chunks`. A DOCX converts in one call with no batch
+        to stop at, so it is checked only before that call.
     @return: summary ``{ok, markdown_path, tokens, logs, filename}``
     """
     source = Path(input_path)
@@ -98,7 +98,7 @@ def parse_document(
     docling_suffix = docling_input.suffix.lower()
     if docling_suffix not in SUPPORTED_SUFFIXES:
         raise ValueError(f"Docling cannot convert {docling_suffix!r} (from '{source.name}')")
-    # LibreOffice can take a while, and a stop that came meanwhile should not pay for the conversion
+    # LibreOffice can be slow, and a stop that came meanwhile should skip the conversion
     if should_abandon is not None and should_abandon():
         raise ParseAbandonedError(f"Stopped before converting '{source.name}'")
 

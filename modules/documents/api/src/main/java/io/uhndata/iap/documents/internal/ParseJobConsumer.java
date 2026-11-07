@@ -84,16 +84,16 @@ import org.slf4j.LoggerFactory;
  * </p>
  *
  * <p>
- * Where the daemon is, how long to wait for it to accept a dispatch, and its own access token are read by
- * {@link DaemonConnection} from its shared configuration; see {@link DaemonConnectionConfiguration}. Accepting is
- * quick, only the conversion is slow.
+ * The daemon URL, the response timeout and the daemon token come from the shared
+ * {@link DaemonConnectionConfiguration}. The timeout only covers accepting the dispatch, which is quick; the slow
+ * conversion reports back through the callback.
  * </p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Component(service = JobConsumer.class, property = { JobConsumer.PROPERTY_TOPICS + "=" + ParseJob.JOB_TOPIC },
-    // Its own configuration holds the callback token; where the daemon is comes from the shared one
+    // Its own configuration holds the callback token; how to reach the daemon comes from the shared one
     configurationPid = { "io.uhndata.iap.documents.internal.ParseJobConsumer", DaemonConnection.DAEMON_PID })
 public class ParseJobConsumer implements JobConsumer
 {

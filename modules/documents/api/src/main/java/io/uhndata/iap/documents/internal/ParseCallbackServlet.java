@@ -65,8 +65,8 @@ import io.uhndata.iap.utils.JsonResponses;
  * </p>
  *
  * <p>
- * A repeated delivery for the same job overwrites the same outcome, or gets a 404 once a handler took it and the
- * record is gone, so the daemon's retries are harmless.
+ * A repeated delivery for the same job overwrites the same outcome, or gets a 404 once the record is deleted. So the
+ * daemon's retries are harmless.
  * </p>
  *
  * @version $Id$
@@ -205,8 +205,8 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "The parse jobs storage is not accessible");
         } catch (final PersistenceException e) {
-            // The node existed when read above, but the sweep may have deleted it since: the ordinary "no such
-            // job". A record still there, such as one a stop just marked, gets a 500, and the daemon retries.
+            // The sweep may have deleted the record since it was read: answer the usual "no such job". A record
+            // still there, such as one a stop just marked, gets a 500, and the daemon retries.
             if (hasJob(jobId)) {
                 LOGGER.error("Cannot record the outcome of parse job {}: {}", jobId, e.getMessage(), e);
                 JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
@@ -219,8 +219,8 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Whether a job's record still exists, checked fresh after a commit failure -- the session that just failed
-     * to save is not reused, since a session with a failed commit is not trustworthy for a further read.
+     * Checks, with a new session, whether a job's record still exists. Used after a failed commit, whose session
+     * cannot be trusted for another read.
      *
      * @param jobId the job to check
      * @return {@code true} when the record exists, or when this cannot be determined
@@ -230,7 +230,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
         try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
             return resolver.getResource(ParseJob.nodePath(jobId)) != null;
         } catch (final LoginException e) {
-            // Unknown either way; do not let a guess mask the original commit failure with the wrong log level
+            // Cannot tell, so the commit failure stays a logged server error
             return true;
         }
     }

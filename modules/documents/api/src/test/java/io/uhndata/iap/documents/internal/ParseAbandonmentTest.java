@@ -116,7 +116,7 @@ class ParseAbandonmentTest
         this.abandonment.activate(Map.of());
     }
 
-    // The record keeps its target and its folder: the sweep hands the stop over, then drops both
+    // The record keeps its target and its folder: the sweep hands the stop over, then deletes both
     @Test
     void marksAnOpenParseStoppedAndKeepsItsRecord()
     {
@@ -125,7 +125,7 @@ class ParseAbandonmentTest
         assertFalse(this.abandonment.abandon(JOB_ID), "the record still names the folder");
 
         assertEquals("http://localhost:18765/cancel?job_id=" + JOB_ID, this.sent.uri().toString());
-        // A dispatch that claims the job after this finds it stopped, and does not dispatch it
+        // Marked first, so a dispatch that comes later finds the job stopped and does not send it
         assertEquals(ParseJob.STATUS_FAILED, this.statusWhenSent, "the record is marked before the daemon is asked");
         final ValueMap stopped = getRecord();
         assertEquals(ParseJob.STATUS_FAILED, stopped.get(ParseJob.PN_STATUS, String.class));
@@ -208,7 +208,7 @@ class ParseAbandonmentTest
         assertEquals("The daemon answered HTTP 500", getRecord().get(ParseJob.PN_ERROR, String.class));
     }
 
-    // The callback recorded an outcome between the read and the commit: a normal race, so nothing is recorded
+    // The callback recorded an outcome between the read and the commit: a normal race, so no error is logged
     @Test
     void givesWayToAnOutcomeThatGotThereFirst() throws Exception
     {
@@ -263,7 +263,7 @@ class ParseAbandonmentTest
         assertEquals("Bearer s3cret", this.sent.headers().firstValue("Authorization").orElseThrow());
     }
 
-    // Nothing names the folder any more, so it is the caller's to remove
+    // No record names the folder any more, so the caller deletes it
     @Test
     void handsTheFolderBackWhenTheRecordIsAlreadyGone()
     {

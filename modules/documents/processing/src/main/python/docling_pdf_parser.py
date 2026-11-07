@@ -134,24 +134,24 @@ class StuckWorkerError(RuntimeError):
 
 
 class ParseAbandonedError(RuntimeError):
-    """The caller cancelled this parse while it was still converting.
+    """The caller stopped this parse before it finished.
 
-    Raised instead of the conversion's own result, after :func:`_abandon_batches` has reclaimed
-    what it could -- the same best-effort reclaim a timeout gets, just triggered by a cancel
-    request instead of the clock.
+    Raised instead of a result: either before the conversion starts, or after
+    :func:`_abandon_batches` has reclaimed what it could, the same way as on a timeout.
     """
 
 
-# How often the page-batch loop checks ``should_abandon`` between completions. Short enough
-# that a cancel is noticed promptly; long enough not to spin while batches are converting.
+# How often the page-batch loop checks ``should_abandon`` while batches run. Short enough to
+# notice a cancel quickly, long enough not to spin.
 ABANDON_POLL_SECONDS = 2.0
 
 
 def get_cancel_wait_seconds() -> float:
-    """How long a cancel waits for running batches to stop before calling a worker wedged.
+    """Return how long a cancel waits for running batches before calling a worker stuck.
 
-    A healthy batch only stops at Docling's per-batch ``document_timeout``, which is far past
-    :data:`ABANDON_TIMEOUT_SECONDS`, so waiting less would restart a daemon that was fine.
+    A running batch cannot be interrupted. It can run until Docling's per-batch
+    ``document_timeout``, far past :data:`ABANDON_TIMEOUT_SECONDS`, so waiting less would
+    restart a daemon that was fine.
     """
     return (PDF_PIPELINE_OPTIONS.document_timeout or 0.0) + ABANDON_TIMEOUT_SECONDS
 
@@ -174,9 +174,9 @@ def _run_pdf_chunks(
     """Submit page batches to executor and collect results in page order.
 
     @param timeout: seconds allowed for the whole conversion, or ``None`` for no ceiling
-    @param should_abandon: polled every :data:`ABANDON_POLL_SECONDS` between batch
-        completions; abandons the conversion the same way a timeout does, once it starts
-        returning ``True``
+    @param should_abandon: checked at least every :data:`ABANDON_POLL_SECONDS` while
+        batches run; once it returns ``True`` the conversion is abandoned as on a timeout,
+        but running batches get :func:`get_cancel_wait_seconds` to stop
     @raise RuntimeError: when a batch failed, or the conversion outlasted ``timeout``
     @raise ParseAbandonedError: when ``should_abandon`` asked to stop
     @raise StuckWorkerError: when an abandoned batch could not be reclaimed
@@ -191,9 +191,8 @@ def _run_pdf_chunks(
         for chunk in chunks
     }
 
-    # One deadline for the lot, and it is the only one: a batch wedged inside a single page
-    # never comes back, so waiting on it held the daemon's one parse slot for good while
-    # /health kept answering 200.
+    # One deadline for the whole conversion. A batch stuck inside one page never returns, and
+    # without a deadline it would hold the parse slot for good while /health still answers 200.
     deadline = None if timeout is None else perf_counter() + timeout
     pending = set(future_to_chunk)
     while pending:

@@ -163,9 +163,8 @@ def _make_slow_chunk(seconds: float):
 class TestRunPdfChunksAbandonsOnCancel:
     """A cancelled parse drops the batches not yet started instead of running the whole conversion.
 
-    ``executor`` only needs ``.submit()``, so a ``ThreadPoolExecutor`` stands in for the real
-    ``ProcessPoolExecutor`` here: ``parse_pdf_chunk`` is monkeypatched, and a picklable
-    function is only required for an executor that actually forks.
+    A ``ThreadPoolExecutor`` stands in for the real ``ProcessPoolExecutor``: the monkeypatched
+    ``parse_pdf_chunk`` is a local function, and only a process pool needs one it can pickle.
     """
 
     def test_raises_once_should_abandon_says_stop(self, monkeypatch):
@@ -182,8 +181,8 @@ class TestRunPdfChunksAbandonsOnCancel:
                 )
 
     def test_a_cancel_waits_out_a_healthy_batch(self, monkeypatch):
-        # A batch runs until Docling's per-batch timeout, well past ABANDON_TIMEOUT_SECONDS;
-        # calling it wedged would restart the daemon and fail every parse queued behind it.
+        # A batch can run until Docling's per-batch timeout, well past ABANDON_TIMEOUT_SECONDS.
+        # Calling it stuck sooner would restart a healthy daemon.
         started = threading.Event()
 
         def slow(args):
@@ -603,7 +602,7 @@ class TestParseDocumentWritesTheMarkdown:
 
 
 class TestParseDocumentStopsBeforeConverting:
-    """A stop that comes while LibreOffice works is seen before the conversion is paid for."""
+    """A stop that comes while LibreOffice works skips the Docling conversion."""
 
     def test_a_stop_during_the_preparation_skips_the_conversion(self, monkeypatch, tmp_path):
         import docling_pdf_parser
@@ -623,7 +622,7 @@ class TestParseDocumentStopsBeforeConverting:
 
 
 class TestBackgroundParseStoppedWhileWaiting:
-    """A stop that comes while a parse waits for the slot leaves nothing to convert or report."""
+    """A parse stopped while it waits for the slot neither converts nor calls back."""
 
     def test_a_queued_parse_stopped_neither_converts_nor_calls_back(self, monkeypatch, tmp_path):
         import threading

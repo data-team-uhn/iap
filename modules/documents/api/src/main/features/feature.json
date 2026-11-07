@@ -33,22 +33,22 @@
         "io.uhndata.iap.documents-api:parse-jobs=[iap-documents]"
       ]
     },
-    // How to reach the daemon, read by everything that calls it: the dispatch and the stop. The
-    // daemon's own token and the response timeout go here too, as "daemonToken" and "responseTimeout".
-    // Where the daemon POSTs parse outcomes back to is configured on the daemon itself
+    // How to reach the daemon, read by both callers: the dispatch and the stop. The daemon's own
+    // token and the response timeout also go here, as "daemonToken" and "responseTimeout".
+    // Where the daemon POSTs parse outcomes is set on the daemon itself
     // (IAP_DOCLING_CALLBACK_URL), not sent with the dispatch: that call carries the shared token and
     // the daemon's port is unauthenticated. The callback is authenticated with the shared JWT both
-    // sides read from the IAP_DOCLING_CALLBACK_JWT environment variable (overridable with a
-    // "callbackToken" property on the ...internal.ParseCallbackServlet and ...internal.ParseJobConsumer
-    // configurations). Without it the consumer refuses to dispatch, since callbacks could not be accepted.
+    // sides read from the IAP_DOCLING_CALLBACK_JWT environment variable. A "callbackToken" property on
+    // the ...internal.ParseCallbackServlet and ...internal.ParseJobConsumer configurations overrides
+    // it. Without a token the consumer refuses to dispatch, since no callback could be accepted.
     "io.uhndata.iap.documents.internal.DaemonConnection":{
       "daemonUrl":"${docling.url}"
     },
-    // Only the daemon's callback, a refused dispatch or a stop ends a job, so a daemon killed mid-parse
-    // leaves one active for good, and everything waiting on it waits for good with it. The sweep gives up on
-    // such a job and takes its staging folder with it. Half an hour sits above the daemon's own quarter-hour
-    // ceiling on a PDF conversion (a Word document has none), with room for the queue in front of it; raise
-    // it if parses legitimately take longer.
+    // Only the daemon's callback, a failed dispatch or a stop ends a job, so a daemon killed mid-parse
+    // leaves a job active for good, and everything waiting on it waits for good too. The sweep fails
+    // such a job and deletes its staging folder. Half an hour is above the daemon's own quarter-hour
+    // limit on a PDF conversion (a Word document has none), with room for the queue in front of it.
+    // Raise it if parses really take longer.
     "io.uhndata.iap.documents.internal.StaleParseJobSweeper":{
       "maxAgeMinutes":30
     }

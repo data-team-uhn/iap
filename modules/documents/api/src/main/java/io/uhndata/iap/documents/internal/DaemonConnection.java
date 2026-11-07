@@ -31,21 +31,21 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
- * Where the document daemon listens and how to reach it, read from a component's configuration. Every component that
- * calls the daemon reads it from the one configuration {@link #PID}, so the settings are made once.
+ * Where the document daemon listens and how to call it. Every component that calls the daemon reads these settings
+ * from the one shared configuration, {@link #DAEMON_PID}, so they are set in one place.
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class DaemonConnection
 {
-    /** The configuration every component calling the daemon reads its settings from. */
+    /** The PID of the shared configuration that every component calling the daemon reads. */
     static final String DAEMON_PID = "io.uhndata.iap.documents.internal.DaemonConnection";
 
     /** Where the daemon listens when no {@code daemonUrl} is configured. */
     static final String DEFAULT_URL = "http://localhost:18765";
 
-    /** How long to wait for the daemon to answer when no {@code responseTimeout} is configured, in seconds. */
+    /** How many seconds to wait for the daemon to answer when no {@code responseTimeout} is configured. */
     static final long DEFAULT_RESPONSE_TIMEOUT = 30;
 
     /** How long to wait for the daemon to accept a connection. */
@@ -67,11 +67,12 @@ final class DaemonConnection
     }
 
     /**
-     * Read the daemon settings from a component's configuration.
+     * Reads the daemon settings from a component's configuration.
      *
      * @param configuration the component configuration, see {@link DaemonConnectionConfiguration}
-     * @param environment reads an environment variable, {@code null} when it is not set
-     * @return the settings, with a working default for each one missing or unusable
+     * @param environment returns an environment variable by name, or {@code null} when it is not set
+     * @return the settings; a missing or unusable URL or timeout gets its default, and with no token set no
+     *         {@code Authorization} header is sent
      */
     static DaemonConnection read(final Map<String, Object> configuration, final Function<String, String> environment)
     {
@@ -93,7 +94,7 @@ final class DaemonConnection
             token.isEmpty() ? null : "Bearer " + token);
     }
 
-    /** The daemon's own access token: the configured one, or the environment variable's. */
+    /** Returns the daemon's own token: the configured one, else the environment variable, else empty. */
     private static String getToken(final Map<String, Object> configuration,
         final Function<String, String> environment)
     {
@@ -107,9 +108,9 @@ final class DaemonConnection
     }
 
     /**
-     * A client for calling the daemon.
+     * Creates a client for calling the daemon.
      *
-     * @return a new client, which gives up on a connection the daemon does not accept in time
+     * @return a new client that gives up when the daemon does not accept the connection within 10 seconds
      */
     static HttpClient newClient()
     {
@@ -117,9 +118,9 @@ final class DaemonConnection
     }
 
     /**
-     * A POST to the daemon with no body, carrying the timeout and the token it wants.
+     * Builds a POST to the daemon with no body, the response timeout, and the token when one is set.
      *
-     * @param pathAndQuery what follows the base URL, already encoded, e.g. {@code /cancel?job_id=...}
+     * @param pathAndQuery the part after the base URL, already encoded, for example {@code /cancel?job_id=...}
      * @return the request
      */
     HttpRequest post(final String pathAndQuery)
@@ -134,9 +135,9 @@ final class DaemonConnection
     }
 
     /**
-     * Where the daemon listens, with no trailing slash.
+     * Returns where the daemon listens.
      *
-     * @return the base URL
+     * @return the base URL, without a trailing slash
      */
     String getUrl()
     {
@@ -144,7 +145,7 @@ final class DaemonConnection
     }
 
     /**
-     * How long to wait for the daemon to answer.
+     * Returns how long to wait for the daemon to answer.
      *
      * @return the timeout, always positive
      */
@@ -154,9 +155,9 @@ final class DaemonConnection
     }
 
     /**
-     * The {@code Authorization} header the daemon wants.
+     * Returns the {@code Authorization} header to send to the daemon.
      *
-     * @return the header value, or {@code null} when the daemon needs none
+     * @return the header value, or {@code null} when no daemon token is set
      */
     String getAuthorization()
     {

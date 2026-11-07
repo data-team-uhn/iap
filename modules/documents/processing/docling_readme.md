@@ -95,9 +95,10 @@ python modules/documents/processing/src/main/python/docling_daemon.py
   Deliberately carries no filesystem paths, since it is the one endpoint with no credential.
 - `POST http://localhost:18765/parse?path=/shared-docs/.../proto.pdf` —
   path under the shared root → summary JSON. LibreOffice prep + Docling.
-- `POST http://localhost:18765/cancel?job_id=...` — stops a background parse; one not started is
-  dropped (`cancelled`); one converting sends no callback, and a PDF stops at its next page-batch
-  check (`running`); a job the daemon does not hold is `unknown`.
+- `POST http://localhost:18765/cancel?job_id=...` - stops a background parse. One not started
+  is dropped (`cancelled`). One already started sends no callback, and a PDF stops at its next
+  check, once the page batches already running finish (`running`). A job the daemon does not
+  hold is `unknown`.
 - `POST http://localhost:18765/shutdown` — graceful stop; **served only with
   `--enable-shutdown`**, and answers 404 otherwise. A container is stopped with a signal, so the
   endpoint is useful only when the caller owns the daemon process and is a denial-of-service
@@ -114,9 +115,9 @@ Setting **`IAP_DOCLING_TOKEN`** additionally requires `Authorization: Bearer <to
 endpoints, so that reaching the port is not by itself authority to use it. `GET /health` stays
 open, so container probes need no credential. The generated deployment always sets it, to a random
 value it writes into `.env`; a hand-run daemon has no token unless you set one. IAP's own calls
-(`ParseJobConsumer` for `/parse`, `ParseAbandonment` for `/cancel`) read the same variable and
-present it back, so setting it on the daemon side means setting it on IAP's side too — see
-`modules/documents/api`.
+(`ParseJobConsumer` for `/parse`, `ParseAbandonment` for `/cancel`) read the same variable, or
+the `daemonToken` setting, and send it back. So when you set it on the daemon, set it on IAP's
+side too; see `modules/documents/api`.
 
 With no token set the port is the only boundary, and parsing is slow, which makes a reachable
 endpoint a cheap denial-of-service target. Two more ways to hold that line:

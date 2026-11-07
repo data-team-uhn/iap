@@ -31,7 +31,8 @@ Endpoints:
                      {"job_id", "ok": false, "error"}) to ``IAP_DOCLING_CALLBACK_URL``,
                      authenticated with the ``IAP_DOCLING_CALLBACK_JWT`` bearer token.
     POST /cancel   -> ?job_id=... -> {"job_id", "status"}: "cancelled" (had not started),
-                     "running" (converting; no callback will be sent) or "unknown"
+                     "running" (already started; it stops early where it can and sends no
+                     callback) or "unknown" (not a background parse this daemon holds)
     POST /shutdown -> graceful stop; served only with ``--enable-shutdown``
 
 The daemon and the main app share ``/shared-docs`` (env ``IAP_SHARED_DOCS``).
@@ -150,12 +151,13 @@ class DaemonState:
         # The background parses that have not delivered a callback yet, so a shutdown can
         # account for every one of them
         self.pending_parses: dict[Future, tuple[str, str, str]] = {}
-        # Reentrant: a successful Future.cancel() runs its done callback (_forget_parse)
-        # synchronously, on the same thread, before cancel() returns
+        # Reentrant: a successful Future.cancel() runs its done callback (_forget_parse) on the
+        # same thread, before cancel() returns
         self.pending_lock = threading.RLock()
-        # Jobs the caller asked to stop. A single page batch already converting cannot be
-        # killed, but between batches the PDF loop polls this and abandons the rest early, and
-        # the callback is skipped either way; the caller wipes the folder itself.
+        # Started jobs the caller asked to stop. A page batch already converting cannot be
+        # killed, but the PDF loop checks this every few seconds and drops the batches not
+        # started yet. The callback is skipped either way, and the caller deletes the staging
+        # folder itself.
         self.cancelled_jobs: set[str] = set()
         self.docx_lock = threading.Lock()
         # The DOCX converter lives in this process, not the pool, so it sits outside the
@@ -214,15 +216,15 @@ class DaemonState:
         future.add_done_callback(self._forget_parse)
 
     def cancel_parse(self, job_id: str) -> str:
-        """Stop one accepted parse.
+        """Stop one accepted background parse.
 
-        A parse that has not started is cancelled and forgotten. One already converting cannot
-        be killed; it is remembered so its callback is not sent, and the caller removes the
-        files it was writing.
+        A parse that has not started is cancelled and forgotten. One that has started, waiting
+        for the parse slot or converting, cannot be killed. It is marked so it stops where it
+        can and sends no callback. The caller deletes the files it was writing.
 
         @param job_id: the caller's identifier for the parse
         @return: ``cancelled`` when it had not started, ``running`` when it had, ``unknown``
-            when this daemon is not doing it
+            when this daemon holds no such parse
         """
         with self.pending_lock:
             match = None
@@ -233,8 +235,8 @@ class DaemonState:
             if match is None:
                 return "unknown"
             if match.cancel():
-                # Usually done by the done callback already; not when this cancel lands between
-                # submit_parse storing the future and registering that callback
+                # The done callback usually did this already, but not when the cancel comes
+                # between submit_parse storing the future and adding that callback
                 self.pending_parses.pop(match, None)
                 return "cancelled"
             self.cancelled_jobs.add(job_id)
@@ -250,7 +252,7 @@ class DaemonState:
         with self.pending_lock:
             entry = self.pending_parses.pop(future, None)
             if entry is not None:
-                # Its callback has been skipped by now, so the stop has nothing left to do
+                # The parse is over, so its stop mark is no longer needed
                 self.cancelled_jobs.discard(entry[0])
 
     def drain_parses(self, timeout: float = SHUTDOWN_DRAIN_SECONDS) -> None:
@@ -398,7 +400,7 @@ def _parse_and_call_back(
         return
     try:
         with _STATE.parse_slots:
-            # A stop can come while this waits for the slot, and then nothing is owed to anybody
+            # A stop may have come while this waited for the slot; then nobody wants the result
             if _STATE.is_cancelled(job_id):
                 _log_stderr(f"parse job={job_id} was stopped while it waited; not parsing")
                 return
@@ -417,8 +419,9 @@ def _parse_and_call_back(
         )
         payload = parse_callbacks.success_payload(job_id, summary)
     except ParseAbandonedError:
-        # Raised once the PDF batches already sent have stopped, which can take up to the
-        # document timeout plus two minutes, so the slot is free from then on, not at the stop
+        # Raised before the conversion starts, or once the PDF batches already running have
+        # stopped. That can take up to the document timeout plus two minutes, and the slot
+        # stays taken until then
         _log_stderr(f"parse job={job_id} was stopped; not calling back")
         return
     except (Exception, CancelledError) as exc:

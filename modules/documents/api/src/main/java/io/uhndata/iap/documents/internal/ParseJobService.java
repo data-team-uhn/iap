@@ -153,8 +153,8 @@ public class ParseJobService implements ParseService
             return true;
         } catch (final IOException e) {
             // Logged rather than thrown: whatever was worth reading has been read by now, and failing over a
-            // leftover would lose that. Returned so a caller that still holds the job record can keep it for the
-            // sweep to retry. A folder whose record is already gone is left behind.
+            // leftover would lose that. The result tells a caller that still has the job record to keep it, so the
+            // sweep tries again. A folder whose record is already gone stays on the volume.
             LOGGER.warn("Could not remove the staging folder {}: {}", folder, e.getMessage());
             return false;
         }

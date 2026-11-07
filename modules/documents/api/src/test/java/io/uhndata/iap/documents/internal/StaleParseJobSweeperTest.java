@@ -285,7 +285,7 @@ class StaleParseJobSweeperTest
         assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)));
     }
 
-    // The stop is reverted when the engine walk that asked for it fails, and the file still waits on the job
+    // The engine walk that asked for the stop failed and was rolled back, so the file still waits on the job
     @Test
     void handsAStoppedParseToAFileStillWaitingOnIt() throws Exception
     {
@@ -316,7 +316,7 @@ class StaleParseJobSweeperTest
         assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)), "taken");
     }
 
-    // The sweep goes on with the same session, so one failed delete must not fail the deletes after it
+    // The sweep keeps using the same session, so one failed delete must not fail the deletes after it
     @Test
     void dropsTheNextRecordAfterOneItCannotDelete() throws Exception
     {

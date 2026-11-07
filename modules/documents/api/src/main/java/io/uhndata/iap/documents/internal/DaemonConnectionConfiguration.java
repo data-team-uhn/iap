@@ -22,8 +22,8 @@ import org.osgi.service.metatype.annotations.AttributeType;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
 /**
- * How to reach the document daemon. Read by {@link DaemonConnection} from the one shared configuration,
- * {@link DaemonConnection#DAEMON_PID}.
+ * The settings for reaching the document daemon. {@link DaemonConnection} reads them from the one shared
+ * configuration, {@link DaemonConnection#DAEMON_PID}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,16 +44,16 @@ public @interface DaemonConnectionConfiguration
     /**
      * How long to wait for the daemon to answer.
      *
-     * @return a number of seconds
+     * @return a number of seconds; zero or less uses the default
      */
     @AttributeDefinition(name = "Response timeout",
         description = "Seconds to wait for the daemon to answer a request. Zero or less uses the default of 30.")
     long responseTimeout() default DaemonConnection.DEFAULT_RESPONSE_TIMEOUT;
 
     /**
-     * The daemon's own access token.
+     * The bearer token the daemon requires, when it requires one.
      *
-     * @return the token, empty to use the IAP_DOCLING_TOKEN environment variable
+     * @return the token, or empty to use the IAP_DOCLING_TOKEN environment variable
      */
     @AttributeDefinition(name = "Daemon token", type = AttributeType.PASSWORD,
         description = "The bearer token the daemon requires, when it requires one. Leave empty to use the "

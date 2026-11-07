@@ -147,14 +147,15 @@ huggingface.co and fail, and the container would report healthy until the first 
 weights are saved in `DOCLING_ARTIFACTS_PATH`, and `HF_HUB_OFFLINE` is set afterwards so that
 the runtime stays offline after downloading.
 
-`POST /shutdown` is not served unless the daemon is started with `--enable-shutdown`, and the
-mutating endpoints (`/parse`, `/cancel`, `/shutdown`) refuse requests carrying an `Origin` header so
-a page in the operator's browser cannot drive them. Set `IAP_DOCLING_TOKEN` to require a bearer
-token on top of that; `GET /health` stays open for probes. Otherwise the port is what keeps the
-daemon private. `tools/deploy/generate_compose.py --docling` publishes it as `127.0.0.1:18765:18765`
-— bound to loopback on the host, reachable from the host for local work but not from the network. If
-you change that mapping, keep the `127.0.0.1:` prefix. Drop the `ports:` block entirely if nothing
-on the host needs to call the daemon.
+`POST /shutdown` is not served unless the daemon is started with `--enable-shutdown`. The
+endpoints that change state (`/parse`, `/cancel`, `/shutdown`) refuse requests with an
+`Origin` header, so a page in the operator's browser cannot drive them. Set
+`IAP_DOCLING_TOKEN` to also require a bearer token; `GET /health` stays open for probes.
+Without a token, the port is what keeps the daemon private.
+`tools/deploy/generate_compose.py --docling` publishes it as `127.0.0.1:18765:18765`: bound
+to loopback, so the host can reach it for local work but the network cannot. If you change
+that mapping, keep the `127.0.0.1:` prefix. Drop the `ports:` block if nothing on the host
+needs to call the daemon.
 
 IAP reaches it as `http://docling:18765`: the generator puts both containers on the same `iap`
 network, where Compose resolves the service name. The parse outcomes travel the other way over that
