@@ -32,7 +32,6 @@ import javax.jcr.Value;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -46,7 +45,6 @@ import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.File;
-import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -235,121 +233,6 @@ class IntakeAnswersHandlerTest
         this.context.create().resource(SubmissionTree.VERSION_PATH + "/extra/sites", Map.of(
             "sling:resourceType", "sch/Question", "sling:resourceSuperType", "sch/FormItem",
             "text", "Which sites?", "dataType", "text", "extractionPrompt", "List the sites."));
-    }
-
-    /** A step that writes only when one named field came back as a given value. */
-    private WorkflowTaskContext createTaskRecordingWhen(final String gate)
-    {
-        return TaskContexts.of(this.submission, Map.of(), this.variables,
-            Map.of(IntakeAnswersHandler.RECORD_WHEN, gate));
-    }
-
-    // The model is still asked everything. A document that is not a proposal must not leave those
-    // answers behind, and the reading must still be marked done so the view does not spin.
-    @Test
-    void writesNothingWhenTheGatedAnswerIsNotTheExpectedValue() throws Exception
-    {
-        stubModelFinds(new FieldResult(AIMS, true, 0.9, "not-proposal", "", List.of()),
-            new FieldResult(TITLE, true, 0.9, "A title", "", List.of()));
-
-        this.handler.execute(createTaskRecordingWhen(AIMS + "=proposal"));
-
-        @SuppressWarnings("unchecked")
-        final ArgumentCaptor<List<ExtractionField>> fields = ArgumentCaptor.forClass(List.class);
-        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), fields.capture(), Mockito.any());
-        assertEquals(List.of(AIMS, TITLE),
-            fields.getValue().stream().map(ExtractionField::name).sorted().toList());
-        assertTrue(getAnswers().isEmpty());
-        assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-    }
-
-    @Test
-    void writesNothingWhenTheGatedAnswerWasNotFound() throws Exception
-    {
-        stubModelFinds(new FieldResult(AIMS, false, 0.0, null, "Not stated.", List.of()),
-            new FieldResult(TITLE, true, 0.9, "A title", "", List.of()));
-
-        this.handler.execute(createTaskRecordingWhen(AIMS + "=proposal"));
-
-        assertTrue(getAnswers().isEmpty());
-        assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-    }
-
-    @Test
-    void recordsWhenTheGatedAnswerMatches() throws Exception
-    {
-        stubModelFinds(new FieldResult(AIMS, true, 0.9, "proposal", "", List.of()),
-            new FieldResult(TITLE, true, 0.9, "A title", "", List.of()));
-
-        this.handler.execute(createTaskRecordingWhen(AIMS + "=proposal"));
-
-        assertEquals(2, getAnswers().size());
-        assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-    }
-
-    @Test
-    void recordsWhenNoWriteGateIsSet()
-    {
-        final Submission read = this.submission.adaptTo(Submission.class);
-        final ResourceResolver resolver = this.context.resourceResolver();
-        assertTrue(IntakeAnswersHandler.shouldRecord(null, Map.of(), read, resolver));
-        assertTrue(IntakeAnswersHandler.shouldRecord(" ", Map.of(), read, resolver));
-    }
-
-    @Test
-    void doesNotRecordWhenTheWriteGateIsMalformedOrUnanswered()
-    {
-        final Submission read = this.submission.adaptTo(Submission.class);
-        final ResourceResolver resolver = this.context.resourceResolver();
-        assertFalse(IntakeAnswersHandler.shouldRecord("no-equals", Map.of(), read, resolver));
-        assertFalse(IntakeAnswersHandler.shouldRecord("=proposal", Map.of(), read, resolver));
-        assertFalse(IntakeAnswersHandler.shouldRecord(AIMS + "=", Map.of(), read, resolver));
-        assertFalse(IntakeAnswersHandler.shouldRecord(AIMS + "= ", Map.of(), read, resolver));
-        assertFalse(IntakeAnswersHandler.shouldRecord(" =proposal", Map.of(), read, resolver));
-        assertFalse(IntakeAnswersHandler.shouldRecord(AIMS + "=proposal", Map.of(), read, resolver));
-    }
-
-    // A model names an option the way a person reads it; what counts is the value it stands for
-    @Test
-    void recordsWhenTheGatedAnswerNamesTheValueDifferently() throws Exception
-    {
-        stubModelFinds(new FieldResult(AIMS, true, 0.9, "Proposal", "", List.of()),
-            new FieldResult(TITLE, true, 0.9, "A title", "", List.of()));
-
-        this.handler.execute(createTaskRecordingWhen(AIMS + "=proposal"));
-
-        assertEquals(2, getAnswers().size());
-    }
-
-    // Reading again does not ask an answered question, so the gate is read from the answer it already has
-    @Test
-    void readsTheGateFromAnAnswerItNoLongerAsks() throws Exception
-    {
-        final Resource gate = this.context.create().resource(this.submission.getPath() + "/a1",
-            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
-                VALUE, new String[] { "proposal" }));
-        SubmissionTree.reference(gate, "question", this.aims);
-        stubModelFinds(new FieldResult(TITLE, true, 0.9, "A title", "", List.of()));
-
-        this.handler.execute(createTaskRecordingWhen(AIMS + "=proposal"));
-
-        assertEquals(2, getAnswers().size(), "the gate answer it had, and the title it read");
-    }
-
-    // The gate's own pick is only a suggestion, and the step routing on it reads it all the same
-    @Test
-    void readsTheGateFromASuggestionNobodyHasAnswered() throws Exception
-    {
-        final Resource gate = this.context.create().resource(this.submission.getPath() + "/a1",
-            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer"));
-        SubmissionTree.reference(gate, "question", this.aims);
-        this.context.create().resource(gate.getPath() + "/run", Map.of("jcr:primaryType", "sub:Extraction",
-            "sling:resourceType", "sub/Extraction", "extractedAnswer", "proposal", "confidence", 0.9));
-        stubModelFinds(new FieldResult(TITLE, true, 0.9, "A title", "", List.of()));
-
-        this.handler.execute(createTaskRecordingWhen(AIMS + "=proposal"));
-
-        assertEquals(2, getAnswers().size(), "the gate's answer, and the title it read");
     }
 
     // A step whose requirement is not being asked has nothing to do, and must not say the schema asks

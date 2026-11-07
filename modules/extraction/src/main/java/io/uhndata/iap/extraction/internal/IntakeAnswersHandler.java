@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
@@ -37,7 +36,6 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
 import io.uhndata.iap.schemas.models.Question;
-import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -84,14 +82,6 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      */
     static final String PROMPT_FROM = "promptFrom";
 
-    /**
-     * The activity property that decides whether this step writes what the model found. {@code path=value},
-     * for example {@code screening/kind=questionnaire}. The model is still asked every question; if that field
-     * did not come back as the value, nothing is recorded. When this step did not ask that field, the answer it
-     * already holds is compared instead.
-     */
-    static final String RECORD_WHEN = "recordWhen";
-
     private static final Logger LOGGER = LoggerFactory.getLogger(IntakeAnswersHandler.class);
 
     @Reference
@@ -137,8 +127,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      * <li>Pick the questions this step asks. Unless the document is a newer version, drop the ones that already
      * have an answer or a suggestion. None left: stop.</li>
      * <li>Ask the model all of them in one call. The call failed: record why and stop.</li>
-     * <li>The step's {@code recordWhen} does not hold: save nothing (see {@link #shouldRecord}).</li>
-     * <li>Otherwise save the answers, each as a new run under its question.</li>
+     * <li>Save the answers, each as a new run under its question.</li>
      * </ol>
      *
      * @param context the step
@@ -176,13 +165,6 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         if (result.degraded()) {
             ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED,
                 result.getMessage());
-            return;
-        }
-        if (!shouldRecord(context.getActivity().get(RECORD_WHEN, String.class), result.fields(), submission,
-            context.getResourceResolver())) {
-            ExtractionStatus.recordDone(target, null);
-            LOGGER.info("Reading step done: step=intake submission={} recorded=0 of={} ms={}",
-                target.getPath(), questions.size(), (System.nanoTime() - startedAt) / 1_000_000L);
             return;
         }
         ExtractionFields.write(context.getResourceResolver(), target, submission, questions, result.fields(),
@@ -300,59 +282,6 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
                 SubmissionFiles.describeNothingToRead(submission));
         }
         return parsed;
-    }
-
-    /**
-     * Whether to save the model's answers. The gate is the step's {@code recordWhen}, written as
-     * {@code path=value}, for example {@code isProposal=yes}.
-     *
-     * <ul>
-     * <li>No gate: save.</li>
-     * <li>The gate field holds the expected value: save.</li>
-     * <li>It holds something else, holds nothing, or the gate is badly written: save nothing. A document that is
-     * not a proposal must not leave answers behind.</li>
-     * </ul>
-     *
-     * <p>Where the gate field's value comes from:</p>
-     * <ul>
-     * <li>If this step asked the gate question, the model's new answer, matched to the question's options.</li>
-     * <li>If not, the submitter's answer, or if there is none, the suggestion from an earlier reading, such as
-     * the gate's own pick.</li>
-     * </ul>
-     *
-     * <p>Case is ignored.</p>
-     */
-    static boolean shouldRecord(final String gate, final Map<String, FieldResult> fields,
-        final Submission submission, final ResourceResolver resolver)
-    {
-        if (gate == null || gate.isBlank()) {
-            return true;
-        }
-        final int split = gate.indexOf('=');
-        if (split <= 0 || split == gate.length() - 1) {
-            return false;
-        }
-        final String name = gate.substring(0, split).strip();
-        final String expected = gate.substring(split + 1).strip();
-        if (name.isEmpty() || expected.isEmpty()) {
-            return false;
-        }
-        return getGateValues(name, fields, submission, resolver).stream().anyMatch(expected::equalsIgnoreCase);
-    }
-
-    /** What the gate field holds: what the model just read for it, or the answer it already had. */
-    private static List<String> getGateValues(final String name, final Map<String, FieldResult> fields,
-        final Submission submission, final ResourceResolver resolver)
-    {
-        final FieldResult field = fields.get(name);
-        if (field == null) {
-            return submission.getAnswerOrSuggestionTo(name);
-        }
-        if (!field.found()) {
-            return List.of();
-        }
-        final Resource question = resolver.getResource(submission.getSchemaVersion().getPath() + "/" + name);
-        return Answer.readAnswer(field.value(), question == null ? null : question.adaptTo(Question.class));
     }
 
     /**

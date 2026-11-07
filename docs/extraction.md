@@ -351,7 +351,7 @@ reading workflow's gateways. The pick is not in `value`, so a gateway reads it t
 the `decision` condition source (`DecisionOperandResolver`, submissions module): the
 submitter's value, or failing it, the suggestion (`Answer.getValueOrSuggestion`). A
 form's own conditions keep the `answer` source, so nothing the submitter sees changes on
-a pick they have not accepted. `recordWhen` (step 8) reads the gate the same way.
+a pick they have not accepted.
 
 ## Step 8: reading the answers (the intake)
 
@@ -364,12 +364,11 @@ Activity properties a reading workflow can set on this step:
 | `requirement` | One requirement name, or several (a list, or comma-separated). All are asked in one call, in that order. | Every question the schema asks |
 | `documents` | Document requirement names to read, in order. Each one's text goes under its own heading (`# Preamble` for `preamble`), and together they are one document to the model. | The first upload with a completed parse |
 | `promptFrom` | Extra system-prompt files from the bundle's `/prompts` folder, added in front of the intake prompt | No extra prompt |
-| `recordWhen` | `path=value`, the path being the question's path inside the schema version. The model is still asked everything, but answers are only saved when that field holds that value: the model's reply matched to the question's options, ignoring case, or, when this step did not ask that field, the submitter's answer to it, or failing that its suggestion (`Submission.getAnswerOrSuggestionTo`), such as the gate's pick. | Always save |
 
-In a diagram these are the service task's `iap:requirement`, `iap:documents`,
-`iap:promptFrom` and `iap:recordWhen` attributes. `documents` and `promptFrom` are
+In a diagram these are the service task's `iap:requirement`, `iap:documents` and
+`iap:promptFrom` attributes. `documents` and `promptFrom` are
 lists, written comma-separated. `requirement` is one string, which the handler splits on
-commas itself. This branch adds those four to the `properties` list of
+commas itself. This branch adds those three to the `properties` list of
 `ServiceTask.json`, with `iap:message` and `iap:blocks` (step 9) and
 `iap:replaceActive` (step 6); see
 [What an executable graph carries](workflows.md#what-an-executable-graph-carries) for
@@ -398,9 +397,7 @@ What the step does:
 4. **Ask** the model (see the next section).
 5. **Unreadable or unreachable:** `extractionStatus=failed` with the reason, and nothing
    is written.
-6. **`recordWhen` does not hold:** nothing is written, and `extractionStatus=done`
-   unless an earlier step of the reading already wrote `failed`.
-7. **Otherwise** every field asked gets a run, found or not (see "Writing an answer"),
+6. **Otherwise** every field asked gets a run, found or not (see "Writing an answer"),
    and `extractionStatus=done` unless an earlier step of the reading already wrote
    `failed`.
 
@@ -996,15 +993,12 @@ Keep in mind:
   [workflows.md](workflows.md)), so routing on the category needs the question's UUID.
   That ties the guard to one schema version: a version copied from it holds a copy of
   the question, with a UUID of its own.
-- `recordWhen` on `intakeAnswers` names its question by the path inside the schema
-  version, so it can gate what is saved without that tie.
 
 ## What is still missing
 
 | Gap | Effect |
 | --- | --- |
 | The `attachDocument` workflow does not run a `parseDocuments` step, and no schema sets `readingWorkflow` | No upload is parsed on its own. Only `retryParse` sends one, and only when the schema version names a reading workflow. |
-| A `recordWhen` gate on a question the same `intakeAnswers` step asks has no confidence threshold | An unsure intake answer can still open the gate |
 | The submission page only knows that a reading runs; the view that shows `extractionMessage` and the provenance of answers is not merged | Nobody sees why a reading failed, or which answers a model suggested |
 | Only the start and end of a long document are read | The middle of a document past the context window is never read, and the confidence does not say so |
 | Only the first parsed upload is read unless `documents` is set | Satellite files, such as a consent form or a covering letter, are ignored by default |
