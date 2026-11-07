@@ -173,10 +173,18 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     },
     {
       field: "where", headerName: "", width: concerns.length > 0 ? 150 : 130, sortable: false, filterable: false,
+      // Right-aligned, reply first, so change and remove line up with those of the replies unfolded under it
       renderCell: ({ row }) => (
-        <Stack sx={{ alignItems: "flex-start" }}>
+        <Stack sx={{ alignItems: "flex-end", width: "100%" }}>
           {!row.ai && (
-            <Stack direction="row" sx={{ ml: -0.75 }}>
+            <Stack direction="row">
+              {onReply && (
+                <Tooltip title="Reply">
+                  <IconButton size="small" aria-label="Reply" onClick={() => toggleThread(row.id, true)}>
+                    <ReplyOutlined fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
               <Tooltip title="Change">
                 <IconButton size="small" aria-label="Change the issue" onClick={() => startEditingText(row.id)}>
                   <EditOutlined fontSize="small" />
@@ -187,13 +195,6 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
                   <DeleteOutlined fontSize="small" />
                 </IconButton>
               </Tooltip>
-              {!row.replies && onReply && (
-                <Tooltip title="Reply">
-                  <IconButton size="small" aria-label="Reply" onClick={() => toggleThread(row.id, true)}>
-                    <ReplyOutlined fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
             </Stack>
           )}
           {row.ai && onMakeIssue && (
