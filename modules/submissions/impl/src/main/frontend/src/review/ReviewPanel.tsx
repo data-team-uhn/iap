@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
@@ -41,6 +41,7 @@ import {
 } from "@mui/material";
 
 import { cutShort, passageCard } from "@iap/frontend-commons/pdfViewer/passageStyles";
+import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 import TagChip from "@iap/tags/TagChip";
 
 import AiGrid from "./AiGrid";
@@ -212,6 +213,8 @@ function WholeReview(props: ReviewProps & {
   onPage: (page: string) => void;
 }) {
   const { risks, doing, open, onClose } = props;
+  const sideList = useRef<HTMLDivElement>(null);
+  const sideEdges = useScrollEdges(sideList);
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down("sm"));
   // Whether the AI pre-review found anything: it may have failed, or the submission left it nothing to say
@@ -247,8 +250,9 @@ function WholeReview(props: ReviewProps & {
         <IconButton aria-label="Close" onClick={onClose}><CloseOutlined /></IconButton>
       </Stack>
       <Stack direction={{ xs: "column", md: "row" }} sx={{ flex: 1, minHeight: 0 }}>
-        <Box sx={{ width: { md: 340 }, flexShrink: 0, overflowY: "auto", bgcolor: "background.tinted",
-          maxHeight: { xs: 240, md: "none" } }}>
+        {/* No scrollbar between the list and the page beside it, as in the contents panel: the fade says there is more */}
+        <Box ref={sideList} sx={{ width: { md: 340 }, flexShrink: 0, overflowY: "auto", bgcolor: "background.tinted",
+          maxHeight: { xs: 240, md: "none" }, scrollbarWidth: "none", maskImage: fadeEdges(sideEdges) }}>
           {/* What cuts across the risks first: what the AI found, then what the reviewer wrote */}
           <ButtonBase
             onClick={() => setChosen(AI_TAB)}
