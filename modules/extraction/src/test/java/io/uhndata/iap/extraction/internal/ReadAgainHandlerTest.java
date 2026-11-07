@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Unit tests for {@link ReadAgainHandler}.
+ * Unit tests for {@link ReadAgainHandler}: when the submitter can ask for a new reading, and how it is queued.
  *
  * @version $Id$
  * @since 0.1.0
@@ -89,7 +89,7 @@ class ReadAgainHandlerTest
         assertEquals("readAgain", this.handler.getName());
     }
 
-    // Queued like a parse queues it, so the reading has its claim, its progress and its stop
+    // Queued as a job, like after a parse, so the reading gets the same claim, progress and stop
     @Test
     void queuesTheReadingAsAJobAndSaysItIsRunning() throws Exception
     {

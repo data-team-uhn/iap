@@ -48,7 +48,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ExtractedAnswers}: an answer whose references cannot all be written leaves nothing behind.
+ * Unit tests for {@link ExtractedAnswers}: how a run is saved under an answer, and that a write that fails half
+ * way leaves nothing behind.
  *
  * @version $Id$
  * @since 0.1.0
@@ -87,7 +88,7 @@ class ExtractedAnswersTest
             createFoundResult(), List.of(this.file.adaptTo(File.class)));
     }
 
-    /** An empty answer to the question, as the form saves one, holding the given properties besides. */
+    /** Creates an empty answer to the question, the way the form saves one, with the given extra properties. */
     private Resource createEmptyAnswer(final Map<String, Object> properties)
     {
         final Map<String, Object> all = new HashMap<>(properties);
@@ -115,7 +116,10 @@ class ExtractedAnswersTest
         return false;
     }
 
-    /** A resolver that hands out {@code path} as a resource adapting to the given node. */
+    /**
+     * A resolver where the resource at {@code path} adapts to the given node; when {@code parent} is true, its
+     * parent does instead.
+     */
     private ResourceResolver createSwappingResolver(final String path, final Node node, final boolean parent)
     {
         final ResourceResolver real = this.context.resourceResolver();
@@ -182,7 +186,7 @@ class ExtractedAnswersTest
         assertFalse(hasAnswers());
     }
 
-    // A suggestion is not an answer until the submitter acts on it, so the value is never touched
+    // A suggestion is not an answer until the submitter acts on it, so the answer's value is not changed
     @Test
     void writesTheRunUnderAnEmptyAnswerAndLeavesItsValueAlone() throws Exception
     {
@@ -222,7 +226,7 @@ class ExtractedAnswersTest
         }
     }
 
-    // A run that found nothing is still the record that these versions were read for the question
+    // A run that found nothing still records that these versions were read for the question
     @Test
     void recordsARunThatFoundNothing() throws Exception
     {

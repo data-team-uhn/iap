@@ -52,7 +52,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link AnswerIntakeService}: what it sends, what it believes, and what it refuses to guess.
+ * Unit tests for {@link AnswerIntakeService}: what it sends to the model, how it scores the answers, and when it
+ * gives up instead of guessing.
  *
  * @version $Id$
  * @since 0.1.0
@@ -60,18 +61,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class AnswerIntakeServiceTest
 {
-    /** What separates one paragraph from the next, which is where a cut lands. */
+    /** A paragraph break. A long document is cut at one. */
     private static final String BREAK = "\n\n";
 
     private static final String FILE_PATH = "/Submissions/aa/proposal/v1/file";
 
     private static final String AIMS = "aims";
 
-    /** The document every test reads, with a heading a quote can be placed under. */
+    /** The document every test reads. It has a heading, so a quote can be placed under it. */
     private static final String DOCUMENT =
         "# Protocol\n\n## Objectives\n\nThe aim is to find out whether it works.\n";
 
-    /** A sentence that really is in {@link #DOCUMENT}. */
+    /** A sentence that is in {@link #DOCUMENT}. */
     private static final String REAL_QUOTE = "The aim is to find out whether it works.";
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
@@ -82,10 +83,10 @@ class AnswerIntakeServiceTest
 
     private IOException settingsFailure;
 
-    /** 0 means the model says nothing about its context window. */
+    /** The model's context window in tokens. 0 means the settings do not give one. */
     private long window;
 
-    /** Answers with whatever the test lined up, and remembers what it was asked. */
+    /** A fake model: returns the replies the test queued, and records what it was sent. */
     private static final class StubClient implements LLMClient
     {
         private final List<String> replies = new ArrayList<>();
@@ -162,7 +163,7 @@ class AnswerIntakeServiceTest
             false);
     }
 
-    /** One field's answer, as the model would send it. */
+    /** The aims field's answer as JSON, the way the model sends it. */
     private static String buildAnswer(final String value, final double confidence, final String evidence)
     {
         return "{\"" + AIMS + "\":{\"found_answer\":true,\"value\":\"" + value + "\",\"confidence\":"
@@ -174,7 +175,7 @@ class AnswerIntakeServiceTest
         return "{\"quote\":\"" + text + "\",\"page\":3}";
     }
 
-    /** The document as the service is handed it now: read and prepared once, not per quote. */
+    /** The document read and prepared once, the way the service gets it. */
     private DocumentScan scan() throws IOException
     {
         return new ParsedDocuments().scan(getFile());
@@ -213,7 +214,7 @@ class AnswerIntakeServiceTest
         assertEquals(3L, found.passages().get(0).page());
     }
 
-    // The heading a reader would say the quote sits under, so the form can show where it came from
+    // The form shows this heading next to the quote, so the reader can see where it came from
     @Test
     void placesAQuoteUnderTheHeadingAboveIt() throws IOException
     {
@@ -249,8 +250,8 @@ class AnswerIntakeServiceTest
         assertEquals(0.8 * 0.75, found.confidence(), 1e-9, "one of two quotes costs a quarter");
     }
 
-    // The same quote offered twice locates to the same spot both times; it must not count as two
-    // independent pieces of evidence, which would let repeating it alone buy back full confidence
+    // The same quote given twice is one piece of evidence. Otherwise a model could raise its score just by
+    // repeating a quote.
     @Test
     void doesNotCountTheSameQuoteTwice() throws IOException
     {
@@ -263,7 +264,7 @@ class AnswerIntakeServiceTest
         assertEquals(0.9, found.confidence(), 1e-9, "and it is not counted as a second quote that failed");
     }
 
-    // No evidence at all is treated exactly like evidence that all failed
+    // No quotes at all costs the same as quotes that were all not found: half the confidence
     @Test
     void discountsAnAnswerWithNoEvidenceAtAll() throws IOException
     {
@@ -357,7 +358,7 @@ class AnswerIntakeServiceTest
         assertEquals(500 + 400 * 2, this.client.options.get(0).getMaxOutputTokens());
     }
 
-    // A provider refuses a request asking for more than its model can write
+    // A provider refuses a request that asks for more output than its model can write
     @Test
     void asksForNoMoreRoomThanAModelCanWrite() throws IOException
     {
@@ -428,7 +429,7 @@ class AnswerIntakeServiceTest
         assertTrue(this.client.asked.get(1).contains("a key for each of 1 fields"), this.client.asked.get(1));
     }
 
-    // Two unreadable answers settle nothing: every field is left for the submitter rather than guessed at
+    // After two unreadable replies every field is left for the submitter to answer
     @Test
     void givesUpAfterTwoUnreadableAnswersWithoutGuessing() throws IOException
     {
@@ -480,7 +481,7 @@ class AnswerIntakeServiceTest
         assertTrue(run().fields().get(AIMS).found(), "a settings problem must not stop the reading");
     }
 
-    // The window holds the questions and the answer as well, so the document gets well under all of it
+    // The window must also hold the questions and the answer, so the document gets only part of it
     @Test
     void leavesTheModelRoomForTheQuestionsAndTheAnswer() throws IOException
     {
@@ -494,8 +495,8 @@ class AnswerIntakeServiceTest
         assertTrue(sent > 0 && sent <= 17_000, "the window less its margin, the answer and the questions");
     }
 
-    // Cutting the middle is what keeps a long document from being refused outright by the provider, and the end
-    // goes because that is where a protocol keeps what is asked about last
+    // Cutting the middle keeps the provider from refusing a long document. The end is kept because a protocol
+    // puts its appendices and signature page there.
     @Test
     void cutsTheMiddleOfADocumentTooLongForTheWindowAndKeepsBothEnds() throws IOException
     {
@@ -511,8 +512,8 @@ class AnswerIntakeServiceTest
         assertFalse(asked.contains("x".repeat(20_000)), "but not the whole middle");
     }
 
-    // A step that names extra instructions gets them in front of the intake prompt, so domain knowledge
-    // that is only worth sending for one schema is not added to every reading
+    // Extra instructions named on a step go before the intake prompt. Knowledge that only one schema needs is
+    // then not sent with every reading.
     @Test
     void prependsExtraInstructionsToTheIntakePrompt() throws IOException
     {

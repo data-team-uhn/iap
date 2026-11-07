@@ -26,8 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link Prompts}: that the bundle carries every prompt named on it, and says so plainly when it
- * does not.
+ * Unit tests for {@link Prompts}: a prompt is read only once, and a missing prompt gives an error that names it.
  *
  * @version $Id$
  * @since 0.1.0

@@ -32,7 +32,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link FinishReadingHandler}: the reading is over, and the view has to be able to tell.
+ * Unit tests for {@link FinishReadingHandler}: saving on the submission that the reading is over, so the view
+ * can show it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -74,8 +75,8 @@ class FinishReadingHandlerTest
         assertEquals("finishReading", this.handler.getName());
     }
 
-    // The case this step exists for: no category was picked, so neither set of questions applied and nothing
-    // else would ever have moved the submission off `running`
+    // The main reason for this step: no category was picked, so no questions were asked, and nothing else would
+    // move the submission off `running`
     @Test
     void endsAReadingThatAskedNothing() throws Exception
     {
@@ -99,7 +100,7 @@ class FinishReadingHandlerTest
         assertEquals("Confirm the classification to go on", getProperty(ExtractionStatus.MESSAGE_PROPERTY));
     }
 
-    // A document that is not what the request asks for: the request cannot go on, and the message says why
+    // The document is not what the request needs: the request cannot go on, and the message says why
     @Test
     void marksTheRequestBlockedWhenTheStepSaysSo() throws Exception
     {
@@ -124,7 +125,7 @@ class FinishReadingHandlerTest
         assertNull(getProperty(ExtractionStatus.BLOCKED_PROPERTY));
     }
 
-    // A step that already said how the reading ended knew something this one does not
+    // An earlier step already saved how the reading ended, and it knew more than this step does
     @Test
     void leavesAReadingThatAlreadyFailedAlone() throws Exception
     {

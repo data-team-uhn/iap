@@ -47,8 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ClassifyDocumentHandler}: which classifications are put to the model, what it is shown,
- * and what becomes of its picks.
+ * Unit tests for {@link ClassifyDocumentHandler}: which classifications are sent to the model, what it is shown,
+ * and which of its picks are saved.
  *
  * @version $Id$
  * @since 0.1.0
@@ -111,7 +111,7 @@ class ClassifyDocumentHandlerTest
                 "It has objectives and methods.", List.of())), degraded));
     }
 
-    /** What the run under an answer read, which is the suggestion the submitter is shown. */
+    /** The value the run under an answer suggested. This is what the submitter is shown. */
     private static String getPick(final Resource answer)
     {
         return answer.getChildren().iterator().next().getValueMap().get("extractedAnswer", String.class);
@@ -163,7 +163,7 @@ class ClassifyDocumentHandlerTest
         assertNull(getStatus(), "the reading goes on, so it is not marked done here");
     }
 
-    // The gate must never guess: an unsure pick is left for the submitter to make
+    // The gate never guesses: a pick below the confidence threshold is left for the submitter to make
     @Test
     void leavesTheQuestionUnansweredWhenThePickIsUnsure() throws Exception
     {
@@ -175,7 +175,7 @@ class ClassifyDocumentHandlerTest
         assertTrue(getAnswers().isEmpty());
     }
 
-    // Not every provider holds the reply to the schema's list, and a pick outside it is still a guess
+    // Not every provider keeps the reply to the list of options, and a pick off the list is still a guess
     @Test
     void leavesTheQuestionUnansweredWhenThePickNamesNoCategory() throws Exception
     {
@@ -187,7 +187,7 @@ class ClassifyDocumentHandlerTest
         assertTrue(getAnswers().isEmpty());
     }
 
-    // A model names a category the way a person reads it, and that still matches the option
+    // The model may write a category in a different case. It still matches the option.
     @Test
     void storesAPickNamingACategoryByItsLabel() throws Exception
     {
@@ -223,7 +223,7 @@ class ClassifyDocumentHandlerTest
         Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.isNull());
     }
 
-    // A pick a reading already found is not paid for again, though nobody has accepted it yet
+    // A pick an earlier reading suggested is not asked for again, even if nobody has accepted it yet
     @Test
     void leavesAClassificationAlreadySuggestedAlone() throws Exception
     {
@@ -238,7 +238,7 @@ class ClassifyDocumentHandlerTest
             .run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any());
     }
 
-    // When the reading runs again, a decision made or confirmed already is not paid for again
+    // When the reading runs again, a question that already has an answer is not asked again
     @Test
     void leavesAClassificationAlreadyAnsweredAlone() throws Exception
     {
@@ -253,7 +253,7 @@ class ClassifyDocumentHandlerTest
         Mockito.verifyNoInteractions(this.intake);
     }
 
-    // The form saves a field when it loses focus, so an empty answer is no decision at all
+    // The form saves a field when it loses focus, so an empty saved answer is not a decision
     @Test
     void stillAsksAClassificationTheFormSavedEmpty() throws Exception
     {
@@ -349,7 +349,6 @@ class ClassifyDocumentHandlerTest
         Mockito.verifyNoInteractions(this.intake);
     }
 
-    // A classification that names no document has nothing to read
     @Test
     void skipsAClassificationNamingNoDocument() throws Exception
     {
@@ -375,7 +374,7 @@ class ClassifyDocumentHandlerTest
         assertEquals(ExtractionStatus.STOPPED_MESSAGE, failure.getMessage());
     }
 
-    // A stop that lands after the model answered must still undo the step, and not stay set on the thread
+    // A stop that comes after the model answered must still undo the step, and must not stay set on the thread
     @Test
     void aStopAfterTheModelAnsweredAbortsTheStep() throws Exception
     {

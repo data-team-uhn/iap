@@ -42,8 +42,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ParsedDocuments}: the document is read once for a reading, not once per step, and a
- * re-parse is never served the text it replaced.
+ * Unit tests for {@link ParsedDocuments}: a document is read once per reading, not once per step, and after a
+ * new parse the old text is never returned.
  *
  * @version $Id$
  * @since 0.1.0
@@ -112,7 +112,7 @@ class ParsedDocumentsTest
         assertEquals(MARKDOWN, this.documents.scan(getFile()).getText());
     }
 
-    // The point of the whole class: four steps of one reading ask for the same document
+    // The main point of the class: all the steps of one reading ask for the same document
     @Test
     void handsBackTheSameReadingToEveryStepOfOne() throws IOException
     {
@@ -134,7 +134,7 @@ class ParsedDocumentsTest
         assertTrue(second.getText().contains("Something else entirely"));
     }
 
-    // Nothing to tell a re-parse from the parse it replaced, so the kept copy is never reused
+    // Without a write time, a new parse cannot be told apart from the old one, so the kept copy is never reused
     @Test
     void neverReusesADocumentTheRepositoryRecordsNoWriteTimeFor() throws IOException
     {

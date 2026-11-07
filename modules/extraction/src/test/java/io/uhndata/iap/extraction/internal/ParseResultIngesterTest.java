@@ -51,8 +51,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ParseResultIngester}: what a finished parse becomes in the repository, and that it
- * leaves the volume alone; clearing it is the committer's job.
+ * Unit tests for {@link ParseResultIngester}: how a finished parse is saved in the repository. Clearing the
+ * shared volume is left to whoever commits.
  *
  * @version $Id$
  * @since 0.1.0
@@ -64,14 +64,14 @@ class ParseResultIngesterTest
 
     private static final String MARKDOWN = "# Proposal\n\nThe whole document.\n";
 
-    /** Stands in for the PDF: the ingester copies bytes and never looks at them. */
+    /** Stands in for the PDF. The ingester copies the bytes and never reads them. */
     private static final String PDF = "%PDF-1.7 the whole document";
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
     private ParseResultIngester ingester;
 
-    /** What the ingester asked to have taken off the volume. */
+    /** The paths the ingester asked to remove from the volume. */
     private final List<String> discarded = new ArrayList<>();
 
     @TempDir
@@ -93,11 +93,10 @@ class ParseResultIngesterTest
     }
 
     /**
-     * An ingester whose volume is a list of what it asked to have removed.
+     * Creates an ingester whose parse service only records the paths it is asked to remove.
      *
-     * <p>Removing belongs to the documents module now: it staged the file and it is the only side that knows
-     * which root a path has to be under before anything is deleted recursively under it. So this records the
-     * request rather than touching a filesystem.</p>
+     * <p>The documents module does the real removing, because only it knows which root a path must be under
+     * before it deletes anything. So the test records the request instead of touching the filesystem.</p>
      */
     private static ParseResultIngester ingesterWith(final Consumer<String> onDiscard) throws Exception
     {
@@ -108,7 +107,7 @@ class ParseResultIngesterTest
         return built;
     }
 
-    /** A file node that refuses to be written, so the ingest has something real to fail on. */
+    /** A file node that cannot be written, so the ingest has a real reason to fail. */
     private static final class ReadOnlyResource extends ResourceWrapper
     {
         ReadOnlyResource(final Resource wrapped)
@@ -126,7 +125,7 @@ class ParseResultIngesterTest
         }
     }
 
-    /** Records what it was asked to take off the volume. */
+    /** A parse service that records what it is asked to remove from the volume. */
     private static final class RecordingParseService implements ParseService
     {
         private final Consumer<String> onDiscard;
@@ -158,7 +157,8 @@ class ParseResultIngesterTest
         @Override
         public boolean isStagedPath(final String path)
         {
-            // The real service answers from where the volume is mounted; here anything the test wrote is on it
+            // The real service checks where the volume is mounted. Here every path counts except one naming
+            // "elsewhere".
             return path != null && !path.contains("elsewhere");
         }
     }
@@ -173,7 +173,7 @@ class ParseResultIngesterTest
         return getFile().getValueMap();
     }
 
-    /** Stands the upload up on the node, as the attach handler does, so the ingester can see what was uploaded. */
+    /** Adds the upload to the file node, as the attach handler does, so the ingester can see its type. */
     private void setUploadType(final String mimeType) throws PersistenceException
     {
         final Resource upload = this.context.resourceResolver()
@@ -225,7 +225,7 @@ class ParseResultIngesterTest
         assertEquals("text/markdown", readMimeType(stored));
     }
 
-    // A re-parse of the same upload replaces the old rendition rather than failing on a child already there
+    // Parsing the same upload again replaces the old output instead of failing because it already exists
     @Test
     void writesOverWhatAnEarlierParseLeft() throws IOException
     {
@@ -280,8 +280,8 @@ class ParseResultIngesterTest
         assertNull(getFile().getChild("pdfFile"));
     }
 
-    // Reading in does not clear the volume: what has been read is in an open transaction, and a commit that
-    // failed after the delete would leave neither a parse nor the outputs to make one from again
+    // Reading in does not clear the volume. What was read is still in an open transaction, and if the commit
+    // failed after the delete, there would be no parse and no outputs to make one again.
     @Test
     void leavesTheStagingFolderWhereItIsUntilSomebodyHasCommitted() throws IOException
     {
@@ -304,8 +304,8 @@ class ParseResultIngesterTest
         assertNotNull(getFile().getChild("markdownFile"));
     }
 
-    // A parse that says it finished and names text the volume does not have has not finished. Recorded as
-    // completed it would send an empty document on to be judged, and the document would take the blame.
+    // A parse that says it finished, but names text the volume does not have, has not finished. Saved as
+    // completed, it would send an empty document on, and the document would be blamed.
     @Test
     void refusesToCallAParseDoneWhenItsTextIsNotThere() throws IOException
     {
@@ -314,7 +314,8 @@ class ParseResultIngesterTest
         this.ingester.ingest(getFile(), this.markdown, this.pdf, 12000L);
 
         assertEquals("failed", getProperties().get("parseStatus", String.class));
-        // On the volume, just not there: saying it is not on the volume would send somebody looking elsewhere
+        // The path is on the volume, the file is just missing. Saying "not on the volume" would send someone
+        // looking in the wrong place.
         assertEquals("The parse named " + this.markdown + ", which is not there",
             getProperties().get("parseError", String.class));
         assertNull(getFile().getChild("markdownFile"));
@@ -356,9 +357,8 @@ class ParseResultIngesterTest
         assertTrue(this.discarded.contains(null), "null is passed on as it is");
     }
 
-    // The paths come from the daemon, over a channel this side does not control the contents of. Deleting
-    // already refuses a path outside the shared root; reading has to refuse the same ones, or the two disagree
-    // about how far the daemon is trusted.
+    // The paths come from the daemon, and this side does not control what it sends. Deleting already refuses
+    // a path outside the shared root, so reading must refuse the same paths.
     @Test
     void refusesToReadTextFromOutsideTheSharedVolume() throws IOException
     {

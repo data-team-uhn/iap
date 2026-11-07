@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Unit tests for {@link StopProcessingHandler}.
+ * Unit tests for {@link StopProcessingHandler}: what stopping a reading drops, and what it keeps.
  *
  * @version $Id$
  * @since 0.1.0
@@ -83,7 +83,7 @@ class StopProcessingHandlerTest
         inject("parseService", this.parseService);
         inject("runs", this.runs);
         inject("jobManager", this.jobManager);
-        // A stop only does anything while a reading is going
+        // A stop only does something while a reading is running
         this.submission.adaptTo(ModifiableValueMap.class).put(ExtractionStatus.STATUS_PROPERTY,
             ExtractionStatus.STATUS_RUNNING);
         Mockito.when(this.parses.abandon(Mockito.any())).thenReturn(true);
@@ -115,7 +115,7 @@ class StopProcessingHandlerTest
             () -> this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of())));
     }
 
-    // The daemon already finished it, and the folder is being read in right now
+    // A job record still names the folder: the parse may have finished and be read in right now
     @Test
     void leavesTheFolderOfAParseThatAlreadyFinished() throws Exception
     {
@@ -130,7 +130,7 @@ class StopProcessingHandlerTest
         Mockito.verify(this.parseService, Mockito.never()).discardStaging(Mockito.any());
     }
 
-    // A folder no record names is one no sweep will ever find
+    // No job record names this folder, so no sweep would ever find it
     @Test
     void wipesTheFolderOfAParseWhoseRecordIsGone() throws Exception
     {
@@ -145,7 +145,7 @@ class StopProcessingHandlerTest
         assertEquals("failed", file.getValueMap().get("parseStatus", String.class));
     }
 
-    // Only the text the call was reading goes; another document's stays for the next try
+    // Only the text the stopped call was reading is deleted; other documents keep theirs for the next try
     @Test
     void deletesOnlyTheMarkdownTheStoppedStepWasReading() throws Exception
     {
@@ -186,7 +186,7 @@ class StopProcessingHandlerTest
             Mockito.eq(ExtractAnswersJobConsumer.JOB_TOPIC), Mockito.eq(0L), Mockito.anyMap()))
             .thenReturn(List.of(waiting));
 
-        // The record still names the folder, and the sweep removes the two together
+        // The record still names the folder, so the sweep removes both together
         Mockito.when(this.parses.abandon(JOB_ID)).thenReturn(false);
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of()));
@@ -202,7 +202,7 @@ class StopProcessingHandlerTest
             this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
-    // A claim left behind by a reading that ended, or by a restart, is not a model reading anything
+    // A claim left by a reading that ended, or by a restart, does not mean a model is reading anything
     @Test
     void keepsTheTextWhenNoReadingIsUnderWay() throws Exception
     {
@@ -218,7 +218,7 @@ class StopProcessingHandlerTest
         Mockito.verifyNoInteractions(this.parses);
     }
 
-    // A reading that has not reached a model call yet has read nothing
+    // A reading that has not reached a model call yet has read nothing, so the text stays
     @Test
     void keepsTheTextWhenTheReadingHasNotAskedYet() throws Exception
     {

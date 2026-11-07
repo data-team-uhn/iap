@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ExtractionField}: which questions are worth putting to a model, and what it is told
+ * Unit tests for {@link ExtractionField}: which questions are sent to the model, and what the model is told
  * about them.
  *
  * @version $Id$
@@ -97,8 +97,8 @@ class ExtractionFieldTest
         assertTrue(field.multiple());
     }
 
-    // A question that offers options is answered with their values, and the model has to be told them: left to
-    // its own words it names "English", which ticks nothing
+    // A question with options is answered with the option values, so the model must be told what they are.
+    // Left to its own words, it may write something that matches no option.
     @Test
     void tellsTheModelTheValuesAnOptionQuestionTakes()
     {
@@ -114,7 +114,7 @@ class ExtractionFieldTest
             ExtractionField.of(one, "kind").prompt());
     }
 
-    // A description goes with the label, so a category the model is choosing among can say what belongs there
+    // The option's description is sent with its label, so the model knows what belongs in each category
     @Test
     void tellsTheModelTheDescriptionAnOptionCarries()
     {

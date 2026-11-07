@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link IntakeAnswersHandler}: which questions go to the model, and how what it found is recorded.
+ * Unit tests for {@link IntakeAnswersHandler}: which questions go to the model, and how its answers are saved.
  *
  * @version $Id$
  * @since 0.1.0
@@ -70,7 +70,7 @@ class IntakeAnswersHandlerTest
 
     private static final String VALUE = "value";
 
-    /** A prompt file only the test classpath carries, so a step naming two prompts has two to name. */
+    /** A prompt file that only the tests have, so a test can name two prompts on one step. */
     private static final String REFERENCE_PROMPT = "test_reference.md";
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
@@ -115,7 +115,7 @@ class IntakeAnswersHandlerTest
         return TaskContexts.of(this.submission, Map.of(), this.variables);
     }
 
-    /** A step that says which requirement it reads, the way a diagram names one. */
+    /** A step that names the requirement it reads, the way a diagram does. */
     private WorkflowTaskContext createTaskAsking(final String requirement)
     {
         return TaskContexts.of(this.submission, Map.of(), this.variables,
@@ -173,8 +173,8 @@ class IntakeAnswersHandlerTest
         assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
     }
 
-    // A schema read in stages names a stage per step, so each call asks one requirement rather than
-    // everything the schema version holds
+    // A schema read in stages names one requirement per step, so each call asks about that requirement only,
+    // not the whole schema version
     @Test
     void asksOnlyTheRequirementTheStepNames() throws Exception
     {
@@ -189,8 +189,8 @@ class IntakeAnswersHandlerTest
             fields.getValue().stream().map(ExtractionField::name).sorted().toList());
     }
 
-    // A proposal is read once for what every proposal is asked and what its study type adds, in one call: the
-    // document is the expensive part
+    // One call can ask the common questions and the study type's extra questions together. Sending the document
+    // is the expensive part, so it is sent once.
     @Test
     void asksSeveralRequirementsInOneCall() throws Exception
     {
@@ -207,7 +207,7 @@ class IntakeAnswersHandlerTest
             fields.getValue().stream().map(ExtractionField::name).toList(), "in the order the requirements are named");
     }
 
-    // A diagram writes a list into this attribute as one comma-separated string
+    // A diagram writes a list in this attribute as one comma-separated string
     @Test
     void readsSeveralRequirementsFromACommaList() throws Exception
     {
@@ -224,7 +224,7 @@ class IntakeAnswersHandlerTest
             fields.getValue().stream().map(ExtractionField::name).toList());
     }
 
-    /** A second requirement, holding one question, to name beside {@code study}. */
+    /** Creates a second requirement with one question, to name next to {@code study}. */
     private void createExtraRequirement()
     {
         this.context.create().resource(SubmissionTree.VERSION_PATH + "/extra", Map.of(
@@ -235,8 +235,8 @@ class IntakeAnswersHandlerTest
             "text", "Which sites?", "dataType", "text", "extractionPrompt", "List the sites."));
     }
 
-    // A step whose requirement is not being asked has nothing to do, and must not say the schema asks
-    // nothing of the document: another step is asking plenty
+    // The step has nothing to do. It must not say the schema asks nothing of the document, because other steps
+    // may still ask plenty.
     @Test
     void doesNothingWhenTheRequirementItNamesIsNotThere() throws Exception
     {
@@ -277,7 +277,7 @@ class IntakeAnswersHandlerTest
             "nothing titles a quote the document gave no heading for");
     }
 
-    // The gate earlier in the same reading failed; the intake finishing must not hide that
+    // The gate failed earlier in the same reading; the intake finishing must not hide that
     @Test
     void keepsAFailureAnEarlierStepRecorded() throws Exception
     {
@@ -291,8 +291,8 @@ class IntakeAnswersHandlerTest
             this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
     }
 
-    // A question that takes several answers is asked for them as one comma-separated string, so storing
-    // that string whole would leave the answer as one value nobody asked for
+    // The model sends several answers as one comma-separated string, so the string is split into one value
+    // per name
     @Test
     void storesAMultiValuedAnswerAsOneValuePerName() throws Exception
     {
@@ -310,7 +310,7 @@ class IntakeAnswersHandlerTest
             "the model's answer is kept as it came");
     }
 
-    // Splitting it away would store the question as unanswered, losing what the model did say
+    // If splitting left no values, the question would look unanswered and what the model said would be lost
     @Test
     void keepsAMultiValuedAnswerThatSplitsIntoNothing() throws Exception
     {
@@ -323,7 +323,7 @@ class IntakeAnswersHandlerTest
         assertEquals(List.of(" , "), getAnswers().get(0).adaptTo(Answer.class).getSuggestedValues());
     }
 
-    // A run that found nothing is still the record that the question was asked of this file
+    // A run that found nothing still records that the question was asked of this file
     @Test
     void recordsWhatTheModelDidNotFindAsARunWithNoAnswer() throws Exception
     {
@@ -353,7 +353,7 @@ class IntakeAnswersHandlerTest
             getAnswers().get(0).getValueMap().get(VALUE, String[].class));
     }
 
-    // The form saves a field when it loses focus, so an empty answer is often just a field somebody clicked through
+    // The form saves a field when it loses focus, so an empty answer is often a field somebody just clicked past
     @Test
     void fillsAFieldTheFormSavedEmpty() throws Exception
     {
@@ -371,7 +371,7 @@ class IntakeAnswersHandlerTest
             getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class));
     }
 
-    // The submitter emptied what the model suggested, which says they do not want it back
+    // The submitter cleared what the model suggested, so they do not want it back
     @Test
     void leavesASuggestionTheSubmitterClearedEmpty() throws Exception
     {
@@ -388,7 +388,7 @@ class IntakeAnswersHandlerTest
         assertArrayEquals(new String[] { "" }, getAnswers().get(0).getValueMap().get(VALUE, String[].class));
     }
 
-    // Reading again fills the gaps, so a question already answered is not paid for a second time
+    // Reading again only fills the gaps, so a question that already has an answer is not asked again
     @Test
     void asksTheModelNothingWhenEveryQuestionIsAnswered() throws Exception
     {
@@ -410,7 +410,7 @@ class IntakeAnswersHandlerTest
     }
 
     /**
-     * An answer to the aims holding a value, read from the given version when a reading is given.
+     * Creates an answer to the aims question with a value, and a run under it when {@code read} is given.
      *
      * @param value what the answer holds
      * @param read what the reading suggested, or {@code null} for an answer no reading backs
@@ -446,7 +446,7 @@ class IntakeAnswersHandlerTest
         return extractions;
     }
 
-    // A newer file is read for every question, and what it says is a new suggestion, never a new answer
+    // A newer file is read for every question. What it says is a new suggestion, never a new answer.
     @Test
     void addsARunForANewerRevisionAndLeavesTheAnswerAlone() throws Exception
     {
@@ -465,7 +465,7 @@ class IntakeAnswersHandlerTest
             extractions.get(1).getValueMap().get("sources", String[].class));
     }
 
-    // Saying the same as before still records that the newer file was read, so it is not asked again
+    // A run that agrees with the answer still records that the newer file was read, so it is not asked again
     @Test
     void readsANewerRevisionOnceEvenWhenItAgreesWithTheAnswer() throws Exception
     {
@@ -486,7 +486,7 @@ class IntakeAnswersHandlerTest
             .anyMatch(field -> AIMS.equals(field.name()))).count(), "the aims are asked of the newer file once");
     }
 
-    // Finding nothing in the newer file is a run too: that file was read for this question
+    // Finding nothing in the newer file is still a run: the file was read for this question
     @Test
     void recordsANewerRevisionThatSaysNothing() throws Exception
     {
@@ -502,7 +502,7 @@ class IntakeAnswersHandlerTest
         assertNull(getExtractions(answer).get(1).getValueMap().get("extractedAnswer", String.class));
     }
 
-    // Each newer version counts on its own: one already read does not hide another nobody has read yet
+    // Each newer version counts on its own: one already read does not hide another one not read yet
     @Test
     void countsANewerVersionOfAnotherDocumentAsNewToo() throws Exception
     {
@@ -517,7 +517,7 @@ class IntakeAnswersHandlerTest
             List.of(newerProtocol.adaptTo(File.class))), "the version already read is not new");
     }
 
-    // Read again on the same revision: only the gaps are filled, and an answer it already read stays
+    // The newest version was already read for the aims, so only the gaps are filled and the answer stays
     @Test
     void readingANewerRevisionAgainOnlyFillsTheGaps() throws Exception
     {
@@ -533,7 +533,7 @@ class IntakeAnswersHandlerTest
         assertEquals(2, getAnswers().size(), "the title was a gap, and is filled");
     }
 
-    // A reading workflow need not gate: a schema whose document is only ever the one kind it asks for has
+    // A reading workflow does not need a gate. If a schema only ever gets one kind of document, there is
     // nothing to decide, and the step reads whatever the parse produced.
     @Test
     void readsTheParsedDocumentWhenNoGateRan() throws Exception
@@ -550,14 +550,14 @@ class IntakeAnswersHandlerTest
             getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class));
     }
 
-    /** A step that reads the named documents, in the order given. */
+    /** A step that reads the named documents, in the given order. */
     private WorkflowTaskContext createTaskReading(final String... documents)
     {
         return TaskContexts.of(this.submission, Map.of(), this.variables,
             Map.of(IntakeAnswersHandler.DOCUMENTS_PARAMETER, documents));
     }
 
-    /** The text the model was sent. */
+    /** Returns the document text the model was sent. */
     private String getSentText() throws IOException
     {
         final ArgumentCaptor<DocumentScan> sent = ArgumentCaptor.forClass(DocumentScan.class);
@@ -565,9 +565,9 @@ class IntakeAnswersHandlerTest
         return sent.getValue().getText();
     }
 
-    // A questionnaire comes with its preamble, and the model needs both to answer: what the questionnaire is
-    // for is said in the preamble, what it asks is in the questionnaire. They go as one text, in the order the
-    // step names them, each under a heading of its own.
+    // The model needs both documents: the preamble says what the questionnaire is for, and the questionnaire
+    // holds the questions. They are sent as one text, in the order the step names them, each under its own
+    // heading.
     @Test
     void sendsTheNamedDocumentsAsOneTextInTheOrderNamed() throws Exception
     {
@@ -588,7 +588,7 @@ class IntakeAnswersHandlerTest
             SubmissionTree.getIdentifier(questionnaire.getParent()) },
             getOnlyChild(getAnswers().get(0)).getValueMap().get("sources", String[].class),
             "read from both documents");
-        // Each quote is stored with the document it came from, so its link opens that one
+        // Each quote is saved with the document it came from, so its link opens that document
         final List<Resource> evidence = new ArrayList<>();
         getOnlyChild(getAnswers().get(0)).getChildren().forEach(evidence::add);
         assertEquals(SubmissionTree.getIdentifier(preamble.getParent()),
@@ -597,13 +597,13 @@ class IntakeAnswersHandlerTest
             evidence.get(1).getValueMap().get("source", String.class));
     }
 
-    // The preamble is optional. A step naming it reads what there is rather than refusing to read at all.
+    // The preamble is optional. A step that names it reads what was uploaded instead of refusing to read.
     @Test
     void readsTheNamedDocumentsThatWereUploaded() throws Exception
     {
         this.variables.clear();
         final Resource preamble = this.tree.createDocumentRequirement("preamble");
-        // Attached for it but nothing uploaded yet, and a document with no version at all
+        // One document for the preamble with no upload yet, and one with no version at all
         SubmissionTree.reference(this.tree.createEmptyDocument().getParent(), "fulfills", preamble);
         SubmissionTree.reference(this.context.create().resource(SubmissionTree.SUBMISSION_PATH + "/bare",
             Map.of("sling:resourceType", "sub/Document")), "fulfills", preamble);
@@ -615,8 +615,8 @@ class IntakeAnswersHandlerTest
         assertEquals("# Questionnaire\n\n1. How was your visit?", getSentText());
     }
 
-    // One of the named files failed to parse. Reading the other and calling the step done would hide that
-    // failure: the view shows nothing once a reading is done, so the person would never be offered a retry.
+    // One named file failed to parse. Reading the other and saying done would hide that: the view shows nothing
+    // once a reading is done, so the person would never be offered a retry.
     @Test
     void failsWhenANamedDocumentCouldNotBeRead() throws Exception
     {
@@ -649,8 +649,8 @@ class IntakeAnswersHandlerTest
         assertEquals("failed", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
     }
 
-    // An answer points at the document it was read from. One whose document has gone cannot say that, and is
-    // not written at all rather than written pointing at nothing.
+    // An answer points at the document it was read from. If that document is gone, the answer is not written
+    // at all, instead of pointing at nothing.
     @Test
     void refusesToRecordAnAnswerWhoseDocumentIsGone() throws Exception
     {
@@ -704,7 +704,7 @@ class IntakeAnswersHandlerTest
         assertTrue(getAnswers().isEmpty());
     }
 
-    // Recorded, not thrown: throwing would revert the answers earlier steps wrote and replace this reason with a
+    // Saved, not thrown: throwing would undo the answers earlier steps wrote and replace this reason with a
     // generic one
     @Test
     void recordsAnUnreachableModelAsAFailedReading() throws Exception
@@ -753,7 +753,7 @@ class IntakeAnswersHandlerTest
         assertEquals(ExtractionStatus.STOPPED_MESSAGE, failure.getMessage());
     }
 
-    // A stop that lands after the model answered must still undo the step, and not stay set on the thread
+    // A stop that comes after the model answered must still undo the step, and must not stay set on the thread
     @Test
     void aStopAfterTheModelAnsweredAbortsTheStep() throws Exception
     {
@@ -809,7 +809,7 @@ class IntakeAnswersHandlerTest
         assertTrue(getAnswers().isEmpty(), "nothing half made is left for the commit to refuse");
     }
 
-    // Domain knowledge that is only worth sending for one schema sits on the step, not on every reading
+    // Knowledge that only one schema needs is named on the step, so it is not sent with every reading
     @Test
     void prependsThePromptTheStepNames() throws Exception
     {

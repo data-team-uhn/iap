@@ -47,7 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ParseCompletionHandler}: how a finished parse reaches the engine.
+ * Unit tests for {@link ParseCompletionHandler}: how a finished parse is handed to the workflow engine, and when
+ * the staging folder is cleared.
  *
  * @version $Id$
  * @since 0.1.0
@@ -82,7 +83,7 @@ class ParseCompletionHandlerTest
         inject("engine", this.engine);
         inject("ingester", this.ingester);
         Mockito.when(this.ingester.discardStaging(Mockito.any())).thenReturn(true);
-        // No real waiting between looks at a file not yet waiting on the job
+        // Do not really wait between two looks at a file that does not name the job yet
         this.handler.setPause(() -> true);
     }
 
@@ -127,7 +128,7 @@ class ParseCompletionHandlerTest
         assertNull(event.getValue().get(ParseCompletionHandler.MARKDOWN_KEY));
     }
 
-    // Only once the engine has committed: until then the volume holds the only copy of the parse
+    // Cleared only after the engine has committed: until then the volume holds the only copy of the parse
     @Test
     void clearsTheStagingFolderAfterTheEngineHasTakenTheParse() throws Exception
     {
@@ -138,7 +139,7 @@ class ParseCompletionHandlerTest
         order.verify(this.ingester).discardStaging(Path.of("/shared-docs/x/proposal.md"));
     }
 
-    // A failed parse names no Markdown, so the folder to clear is the one the upload was staged in
+    // A failed parse names no Markdown file, so the folder to clear is the one the upload was staged in
     @Test
     void clearsTheStagingFolderOfAParseThatProducedNothing() throws Exception
     {
@@ -188,7 +189,7 @@ class ParseCompletionHandlerTest
         assertFalse(payload.containsKey(ParseCompletionHandler.PDF_KEY));
     }
 
-    // Left for the sweep, which hands it over again or drops it with its staging folder
+    // Left for the sweep, which either hands it over again or drops it with its staging folder
     @Test
     void leavesAnOutcomeForAFileThatIsGone() throws Exception
     {
@@ -207,7 +208,8 @@ class ParseCompletionHandlerTest
         Mockito.verifyNoInteractions(this.engine);
     }
 
-    // A daemon that cannot be reached settles the job before the walk that queued it commits
+    // An outcome can come back before the walk that queued the job commits, for example when the daemon
+    // cannot be reached. The handler looks at the file again until the file names the job.
     @Test
     void takesAnOutcomeThatArrivedBeforeTheFileNamedItsJob() throws Exception
     {
@@ -241,7 +243,7 @@ class ParseCompletionHandlerTest
         assertTrue(Thread.interrupted(), "the interrupt is kept for whoever runs the thread");
     }
 
-    // The file may be waiting on a newer job, or its own job may not be committed yet
+    // The file may be waiting for a newer job, or its own job may not be committed yet
     @Test
     void leavesAnOutcomeTheFileIsNotWaitingFor() throws Exception
     {
@@ -252,7 +254,7 @@ class ParseCompletionHandlerTest
         Mockito.verifyNoInteractions(this.engine, this.ingester);
     }
 
-    // Handed over a second time after it was already read in
+    // The same outcome handed over a second time, after it was already read in
     @Test
     void takesAnOutcomeAlreadyRecordedWithoutReadingItAgain() throws Exception
     {
@@ -264,7 +266,7 @@ class ParseCompletionHandlerTest
         Mockito.verify(this.ingester).discardStaging(Path.of("/shared-docs/x/proposal.md"));
     }
 
-    // The job record is all that names the folder, so it stays for the sweep to try again
+    // Only the job record names the folder, so the record stays for the sweep to try again
     @Test
     void keepsTheRecordWhileTheStagingFolderCannotBeRemoved() throws Exception
     {

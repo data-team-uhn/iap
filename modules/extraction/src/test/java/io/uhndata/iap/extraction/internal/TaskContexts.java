@@ -27,8 +27,8 @@ import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Stands in for the engine: a task context aimed at a resource, carrying an event and a bag of variables the
- * handlers can leave things in for each other.
+ * Stands in for the engine: builds a task context for a resource, with an event and a map of variables that
+ * handlers use to pass values to each other.
  *
  * @version $Id$
  * @since 0.1.0
@@ -37,15 +37,15 @@ final class TaskContexts
 {
     private TaskContexts()
     {
-        // Utility
+        // Utility class
     }
 
     /**
-     * A context for a service task that carries no properties of its own.
+     * Creates a context for a service task whose step has no properties.
      *
-     * @param target what the event is about
+     * @param target the resource the event is about
      * @param payload what the event carries
-     * @param variables what earlier steps left behind; filled in by what this step leaves
+     * @param variables the values earlier steps saved; this step adds its own
      * @return the context
      */
     static WorkflowTaskContext of(final Resource target, final Map<String, Object> payload,
@@ -55,18 +55,18 @@ final class TaskContexts
     }
 
     /**
-     * A context for a service task, including what the step itself says.
+     * Creates a context for a service task whose step has the given properties.
      *
-     * @param target what the event is about
+     * @param target the resource the event is about
      * @param payload what the event carries
-     * @param variables what earlier steps left behind; filled in by what this step leaves
-     * @param properties what the activity on the diagram carries, such as the requirement it names
+     * @param variables the values earlier steps saved; this step adds its own
+     * @param properties the properties of the step on the diagram, such as the requirement it names
      * @return the context
      */
     static WorkflowTaskContext of(final Resource target, final Map<String, Object> payload,
         final Map<String, Object> variables, final Map<String, Object> properties)
     {
-        // Built before it is stubbed in: Mockito rejects a mock created inside a when(...) argument
+        // Created before stubbing: Mockito refuses a mock created inside a when(...) call
         final Activity activity = createActivity(properties);
         final WorkflowTaskContext context = Mockito.mock(WorkflowTaskContext.class);
         Mockito.when(context.getActivity()).thenReturn(activity);
@@ -84,27 +84,27 @@ final class TaskContexts
     }
 
     /**
-     * The step on the diagram, answering the properties it was given and nothing for the rest. Never null: the
-     * engine always runs a handler from an activity, and the interface says so.
+     * Creates the step on the diagram. It returns the given properties, and null for any other name. The step
+     * itself is never null, because the engine always runs a handler from a step.
      */
     private static Activity createActivity(final Map<String, Object> properties)
     {
         final Activity activity = Mockito.mock(Activity.class);
-        // One stub per type a handler reads: a raw Class matcher would make the stubbing unchecked, which this
+        // One stub per type a handler reads. A raw Class matcher would make the stubbing unchecked, which this
         // build treats as an error.
         Mockito.when(activity.get(Mockito.anyString(), Mockito.eq(String.class)))
             .thenAnswer(invocation -> {
                 final Object value = properties.get(invocation.<String>getArgument(0));
                 return value instanceof String[] many ? (many.length == 0 ? null : many[0]) : value;
             });
-        // And the list form, for a property that names several things, such as the documents a step reads.
-        // A single value reads as a list of one, as a ValueMap converts it.
+        // The list form, for a property that names several things, such as the documents a step reads.
+        // A single value reads as a list of one, as a ValueMap would convert it.
         Mockito.when(activity.get(Mockito.anyString(), Mockito.eq(String[].class)))
             .thenAnswer(invocation -> {
                 final Object value = properties.get(invocation.<String>getArgument(0));
                 return value instanceof String one ? new String[] { one } : value;
             });
-        // And the Boolean form, for a flag such as finishReading's `blocks`. A diagram writes it as text, which a
+        // The Boolean form, for a flag such as finishReading's `blocks`. A diagram writes it as text, which a
         // ValueMap converts.
         Mockito.when(activity.get(Mockito.anyString(), Mockito.eq(Boolean.class)))
             .thenAnswer(invocation -> {

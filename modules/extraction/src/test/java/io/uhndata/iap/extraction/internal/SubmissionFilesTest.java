@@ -39,7 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link SubmissionFiles}.
+ * Unit tests for {@link SubmissionFiles}: finding a submission's latest uploads and their parse state, and the
+ * message shown when nothing can be read.
  *
  * @version $Id$
  * @since 0.1.0
@@ -113,14 +114,14 @@ class SubmissionFilesTest
         properties.put("parseError", reason);
     }
 
-    // Each case gets its own message rather than the generic fallback
+    // Each case has its own message, not the generic one
     @Test
     void saysNothingHasBeenUploadedWhenThereIsNothing()
     {
         assertEquals("No document has been uploaded", SubmissionFiles.describeNothingToRead(getModel()));
     }
 
-    // The daemon's reason names its address, paths and workers, which the submitter can do nothing about
+    // The daemon's error names its address, paths and workers, which the submitter cannot do anything about
     @Test
     void saysTheParseFailedWithoutTheDaemonsReason()
     {
@@ -138,7 +139,7 @@ class SubmissionFilesTest
         assertEquals("The document has not been read yet", SubmissionFiles.describeNothingToRead(getModel()));
     }
 
-    // Uploaded, neither queued nor failed nor finished: nothing more precise can be said than that
+    // Uploaded, but not queued, failed or finished: nothing more exact can be said
     @Test
     void fallsBackWhenNothingSaysWhy()
     {

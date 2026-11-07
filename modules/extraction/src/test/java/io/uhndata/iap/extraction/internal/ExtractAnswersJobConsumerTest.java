@@ -54,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ExtractAnswersJobConsumer}.
+ * Unit tests for {@link ExtractAnswersJobConsumer}: when a job reads a submission, waits, or gives up.
  *
  * @version $Id$
  * @since 0.1.0
@@ -114,7 +114,7 @@ class ExtractAnswersJobConsumerTest
         assertEquals(this.submission.getPath(), target.getValue().getPath());
         assertEquals("extractAnswers", event.getValue().getName());
         assertTrue(event.getValue().getPayload().isEmpty());
-        // This job's own id, so a racing job's write differs and one of the two commits is refused
+        // The claim holds this job's id, so when two jobs race their writes differ and one commit is refused
         assertEquals(JOB_ID, this.context.resourceResolver().getResource(this.submission.getPath()).getValueMap()
             .get(ExtractionStatus.READING_CLAIMED_BY, String.class));
     }
@@ -142,7 +142,7 @@ class ExtractAnswersJobConsumerTest
         Mockito.verifyNoInteractions(this.engine);
     }
 
-    // Queued before the walk asking for it commits, so the old claim may still be there
+    // The job can start before the walk that asked for it commits, so the old claim may still be there
     @Test
     void waitsForTheRequestToReadAgainToCommit() throws Exception
     {
@@ -180,7 +180,8 @@ class ExtractAnswersJobConsumerTest
         this.context.resourceResolver().commit();
     }
 
-    // Fired anyway, the reading would start nothing and the submission would show `running` for good
+    // If the event were fired anyway, the reading would start nothing and the submission would show `running`
+    // forever
     @Test
     void givesUpWhenTheSchemaNamesNoReadingWorkflow() throws Exception
     {
@@ -219,7 +220,7 @@ class ExtractAnswersJobConsumerTest
         assertGaveUpBeforeReading();
     }
 
-    // A schema version this job's session cannot reach: without giving up, the submission would stay `running`
+    // The job's session cannot read the schema version. Without giving up, the submission would stay `running`.
     @Test
     void givesUpWhenTheSchemaVersionCannotBeRead() throws Exception
     {
@@ -283,8 +284,8 @@ class ExtractAnswersJobConsumerTest
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
     }
 
-    // The engine reverts the whole walk, so the `running` the parse step committed is still standing and this
-    // job still holds the claim. Left alone that is a submission nothing can ever read again.
+    // The engine undoes the whole walk, so the `running` status and this job's claim are still there. Left
+    // alone, nothing could ever read the submission again.
     @Test
     void saysSoAndLetsTheClaimGoWhenTheReadingFails() throws Exception
     {
@@ -302,8 +303,8 @@ class ExtractAnswersJobConsumerTest
         assertNull(properties.get(ExtractionStatus.READING_CLAIMED_BY, String.class));
     }
 
-    // A malformed definition throws rather than returning. It must not go to Sling's retry: the claim is already
-    // let go, so a retry would claim the reading again and pay the model twice
+    // A broken definition throws instead of returning. Sling must not retry it: the claim is already released,
+    // so a retry would claim the reading again and pay the model twice.
     @Test
     void saysSoWhenTheReadingFailsWithSomethingUnchecked() throws Exception
     {
@@ -317,8 +318,8 @@ class ExtractAnswersJobConsumerTest
             this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
     }
 
-    // A stop that lands once the last model call is over has nothing to stop, and must not stay on the pooled
-    // thread for the next job to trip over
+    // A stop that comes after the last model call has nothing to stop. It must not stay on the pooled thread,
+    // or it would stop the next job.
     @Test
     void clearsAStopThatCameAfterTheLastModelCall() throws Exception
     {
@@ -397,10 +398,9 @@ class ExtractAnswersJobConsumerTest
         Mockito.verifyNoInteractions(this.engine);
     }
 
-    // Every parse that lands queues a job, so the first ones to arrive are for a submission that is not ready
-    // to be read yet. Retried rather than dropped: the job is queued from inside the walk that records the
-    // parse, so one starting quickly enough sees its own parse as unfinished, and a drop there would leave the
-    // submission at `running` for good.
+    // Each parse that lands queues a job, so early jobs find a submission that is not ready yet. The job is
+    // retried, not dropped: it is queued before the walk that records its parse commits, so it can see its own
+    // parse as unfinished. Dropping it would leave the submission at `running` forever.
     @Test
     void looksAgainWhileAParseIsStillGoing()
     {
@@ -413,7 +413,7 @@ class ExtractAnswersJobConsumerTest
         Mockito.verifyNoInteractions(this.engine);
     }
 
-    // The document is read once, however many parses landed at the same moment
+    // The document is read once, however many parses landed at the same time
     @Test
     void readsASubmissionOnlyOnce() throws Exception
     {
@@ -431,7 +431,7 @@ class ExtractAnswersJobConsumerTest
         Mockito.verify(this.engine, Mockito.times(1)).receiveEvent(Mockito.any(), Mockito.any());
     }
 
-    // New documents are a new reading to be had, so the claim the last one left is taken back down
+    // New documents need a new reading, so parsing them removes the claim the last reading left
     @Test
     void readsASubmissionAgainOnceItsClaimHasBeenTakenDown() throws Exception
     {
@@ -457,7 +457,7 @@ class ExtractAnswersJobConsumerTest
         Mockito.verifyNoInteractions(this.engine);
     }
 
-    // Checked in, a submission is read-only, and only a service user allowed to check it out can read it
+    // A checked-in submission is read-only. A service user that cannot check it out cannot read it.
     @Test
     void dropsTheJobWhenTheSubmissionCannotBeCheckedOut() throws Exception
     {
@@ -489,7 +489,7 @@ class ExtractAnswersJobConsumerTest
         assertNull(this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED, Boolean.class));
     }
 
-    // Two jobs both found everything settled and both wrote the claim; the repository refuses the second
+    // Two jobs both found every parse settled and both wrote the claim; the repository refuses the second
     @Test
     void dropsTheJobWhoseClaimTheRepositoryRefuses() throws Exception
     {
@@ -516,8 +516,8 @@ class ExtractAnswersJobConsumerTest
         Mockito.verifyNoInteractions(this.engine);
     }
 
-    // Giving up is the last thing that can help this submission, so when it cannot be written the job still ends
-    // rather than taking the failure somewhere nobody handles it
+    // Giving up is the last thing that can help this submission. When it cannot be saved, the job still ends
+    // instead of throwing an error that nobody handles.
     @Test
     void endsTheJobEvenWhenGivingUpCannotBeRecorded() throws Exception
     {
@@ -564,8 +564,8 @@ class ExtractAnswersJobConsumerTest
     }
 
     /**
-     * A session that lets the claim be written and then refuses every write after it, so that giving up meets a
-     * submission it cannot record anything on.
+     * A session that lets the claim be written, then refuses every later write, so giving up cannot save
+     * anything.
      *
      * @return the session
      */
@@ -596,8 +596,7 @@ class ExtractAnswersJobConsumerTest
     }
 
     /**
-     * A session that hands back resources nothing can be written on, which a mock repository does not do by
-     * itself.
+     * A session whose resources cannot be written. A mock repository does not do this on its own.
      *
      * @return the session
      */

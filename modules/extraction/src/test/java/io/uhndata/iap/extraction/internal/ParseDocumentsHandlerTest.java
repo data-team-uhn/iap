@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Unit tests for {@link ParseDocumentsHandler}.
+ * Unit tests for {@link ParseDocumentsHandler}: which uploads are staged and queued for parsing.
  *
  * @version $Id$
  * @since 0.1.0
@@ -142,7 +142,7 @@ class ParseDocumentsHandlerTest
         Mockito.verify(this.parseService).queue(STAGED, file.getPath());
     }
 
-    // A schema with no reading workflow has nothing to parse for
+    // A schema with no reading workflow has no reason to parse its uploads
     @Test
     void leavesTheUploadsOfASchemaThatReadsNothingAlone() throws Exception
     {

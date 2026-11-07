@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link IngestParseHandler}.
+ * Unit tests for {@link IngestParseHandler}: saving a finished parse on its file, or saving that it failed.
  *
  * @version $Id$
  * @since 0.1.0
@@ -227,7 +227,7 @@ class IngestParseHandlerTest
             () -> this.handler.execute(TaskContexts.of(readOnlyTarget, payload, new HashMap<>())));
     }
 
-    // Even a failed parse leaves the volume alone here; the step after the commit is what clears it
+    // Even after a failed parse this step does not clear the staging folder; the step after the commit does
     @Test
     void leavesTheStagingFolderToWhoeverCommits() throws Exception
     {

@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link IntakePayload}: what the model is shown, and the shape its answer is held to.
+ * Unit tests for {@link IntakePayload}: the message the model is sent, and the JSON schema its answer must follow.
  *
  * @version $Id$
  * @since 0.1.0
@@ -81,7 +81,7 @@ class IntakePayloadTest
         assertTrue(message.contains("multiple values: yes"), message);
     }
 
-    // A field that says nothing about its shape or purpose leaves those lines out rather than printing blanks
+    // A field with no shape or purpose leaves those lines out instead of printing empty ones
     @Test
     void leavesOutWhatAFieldDoesNotSay()
     {
@@ -104,7 +104,7 @@ class IntakePayloadTest
         assertTrue(payload.getUserMessage().endsWith(DOCUMENT.strip()));
     }
 
-    // The questions come first so the model reads what it is looking for before the text it looks in
+    // The questions come first, so the model knows what to look for before it reads the document
     @Test
     void putsTheQuestionsBeforeTheDocument()
     {
@@ -125,8 +125,8 @@ class IntakePayloadTest
         assertEquals("#/$defs/field", schema.getJsonObject("properties").getJsonObject(AIMS).getString("$ref"));
     }
 
-    // A choice field names the values it may take on the reply schema, so a provider that honours the
-    // schema cannot answer off-list. Null stays allowed: not finding an answer is a real reply.
+    // A choice field lists its allowed values in the reply schema, so a provider that follows the schema
+    // cannot answer off the list. Null is still allowed: finding no answer is a real reply.
     @Test
     void closesAChoiceFieldOverTheValuesItOffers()
     {
@@ -141,8 +141,8 @@ class IntakePayloadTest
             value.getJsonArray("enum").stream().map(JsonValue::toString).toList());
     }
 
-    // Several values are one comma-separated string, which is not itself one of the options. An enum would
-    // make the only legal replies a single option, and the parts are matched when the answer is stored.
+    // Several values come as one comma-separated string, which is not one of the options. An enum would allow
+    // only a single option, so the parts are matched when the answer is saved instead.
     @Test
     void leavesAMultiChoiceFieldOpen()
     {
@@ -156,7 +156,7 @@ class IntakePayloadTest
         assertEquals("#/$defs/field", field.getString("$ref"));
     }
 
-    // Strict structured output refuses a schema whose objects allow extra keys
+    // Strict structured output refuses a schema with objects that allow extra keys
     @Test
     void closesEveryObjectInTheAnswerSchema()
     {
@@ -184,7 +184,7 @@ class IntakePayloadTest
         assertFalse(confidence.containsKey("maximum"));
     }
 
-    // A quote carries its page, and a document with no page markers has to be able to say so
+    // Each quote gives its page, and the page can be null for a document with no page markers
     @Test
     void asksEachQuoteForItsPageAndAllowsNone()
     {

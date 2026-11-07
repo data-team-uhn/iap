@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link DocumentText}: reading the parsed text, and finding the heading a quote sits under.
+ * Unit tests for {@link DocumentText}: reading the parsed text of a file, and finding the heading above a quote.
  *
  * @version $Id$
  * @since 0.1.0
@@ -60,7 +60,7 @@ class DocumentTextTest
         assertEquals("# Aims\n\nTo find out.\n", DocumentText.readText(createFileWithText("# Aims\n\nTo find out.\n")));
     }
 
-    // A parse that never landed leaves nothing to read, which is not an error here: the caller decides
+    // No parsed file gives an empty text, not an error. The caller decides what that means.
     @Test
     void readsNothingWhenThereIsNoFile() throws IOException
     {
@@ -95,7 +95,7 @@ class DocumentTextTest
         assertEquals("Budget", getHeadingOver(scan, "Money spent."));
     }
 
-    // The model rarely copies whitespace exactly, so the quote is matched the way the verifier matches it
+    // The model rarely copies spaces and line breaks exactly, so the quote is matched the way the verifier does
     @Test
     void findsTheHeadingEvenWhenTheQuoteWasReflowed()
     {
@@ -104,8 +104,8 @@ class DocumentTextTest
         assertEquals("Objectives", getHeadingOver(scan, "The aim is to find out."));
     }
 
-    // The quote was matched with a word changed, so there is no exact position to look the heading up by. It
-    // still has one: the search that found it says where, and that is what places it.
+    // A quote with a changed word has no exact match. The fuzzy search still says where it found the quote,
+    // and that position is used to find the heading.
     @Test
     void findsTheHeadingOfAQuoteThatOnlyMatchedFuzzily()
     {
@@ -148,11 +148,11 @@ class DocumentTextTest
     }
 
     /**
-     * Where a quote sits, the way the intake asks: find it, then say what titles it.
+     * Finds the quote, then returns the heading above it, the same way the intake does.
      *
      * @param scan the document
      * @param quote what the model quoted
-     * @return the heading above it, or an empty string when the quote is not there at all
+     * @return the heading above the quote, or an empty string when the quote is not found
      */
     private static String getHeadingOver(final DocumentScan scan, final String quote)
     {

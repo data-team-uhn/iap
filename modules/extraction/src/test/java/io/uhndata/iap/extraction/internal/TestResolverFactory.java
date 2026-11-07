@@ -26,7 +26,8 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 
 /**
- * Hands out the test context's resolver as the service user's, or refuses when standing in for a missing one.
+ * Returns the test context's resolver as the service user's resolver. Given {@code null}, it acts as if the
+ * service user is missing and refuses to log in.
  *
  * @version $Id$
  * @since 0.1.0
@@ -42,7 +43,7 @@ final class TestResolverFactory implements ResourceResolverFactory
             @Override
             public void close()
             {
-                // The test context owns this resolver
+                // The test context owns this resolver, so it is not closed here
             }
         };
     }

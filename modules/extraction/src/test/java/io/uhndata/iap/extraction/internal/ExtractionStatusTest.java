@@ -37,7 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Unit tests for {@link ExtractionStatus}.
+ * Unit tests for {@link ExtractionStatus}: saving the reading's status, message, block and claim on a
+ * submission, and checking the submission out.
  *
  * @version $Id$
  * @since 0.1.0
@@ -59,7 +60,7 @@ class ExtractionStatusTest
             submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
-    // A new reading decides afresh whether the request can go on
+    // Each new reading decides again whether the request can go on
     @Test
     void takesABlockDownWhenANewReadingStarts() throws PersistenceException
     {
@@ -173,7 +174,7 @@ class ExtractionStatusTest
         assertThrows(PersistenceException.class, () -> ExtractionStatus.markBlocked(readOnly));
     }
 
-    // Checked in, a submission is read-only with everything under it, until it is checked out
+    // A checked-in submission and everything under it is read-only until it is checked out
     @Test
     void checksOutASubmissionThatIsCheckedIn() throws Exception
     {

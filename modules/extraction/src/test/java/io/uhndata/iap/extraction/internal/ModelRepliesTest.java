@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link ModelReplies}: reading a model's answer without ever throwing over it.
+ * Unit tests for {@link ModelReplies}: reading values out of a model's reply without ever throwing.
  *
  * @version $Id$
  * @since 0.1.0
@@ -107,8 +107,8 @@ class ModelRepliesTest
         assertNull(ModelReplies.readLong(parseObject("{}"), "page"));
     }
 
-    // Anything but a real boolean has to read as no answer: turning it into false would let an unusable
-    // reply settle the question the gate is asking
+    // Anything but a real true or false reads as no answer. Reading it as false would let a bad reply decide
+    // the gate's question.
     @Test
     void readsAYesOrNoAndNothingElse()
     {

@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ReadingRuns}.
+ * Unit tests for {@link ReadingRuns}: how a stop reaches the thread that is reading a submission.
  *
  * @version $Id$
  * @since 0.1.0
@@ -53,7 +53,7 @@ class ReadingRunsTest
         assertFalse(this.runs.stop(SUBMISSION));
     }
 
-    // Outside a model call the thread may be in the repository, which an interrupt can break
+    // Outside a model call the thread may be using the repository, and an interrupt can break that
     @Test
     void notesAStopOnAThreadBetweenModelCallsWithoutInterruptingIt()
     {
@@ -89,7 +89,7 @@ class ReadingRunsTest
         assertFalse(this.runs.end(SUBMISSION));
     }
 
-    // The job and each step enter the same reading on one thread; only the outermost leaving ends it
+    // The job and each step enter the same reading on one thread; only the last one to leave ends it
     @Test
     void staysRegisteredUntilTheOutermostEntryLeaves()
     {
@@ -105,7 +105,7 @@ class ReadingRunsTest
         assertFalse(this.runs.stop(SUBMISSION));
     }
 
-    // A stop that landed after the last model call must not stay set on a thread that has moved on
+    // A stop that came after the last model call must not stay set on a thread that has moved on
     @Test
     void leavingSaysWhetherAStopLandedAndClearsIt()
     {
@@ -140,7 +140,7 @@ class ReadingRunsTest
         assertThrows(ReadingRuns.Stopped.class, () -> this.runs.begin(SUBMISSION));
     }
 
-    // A handler wraps the stop in a failure of its own, and the engine wraps that again
+    // A handler wraps the stop in its own exception, and the engine wraps that again
     @Test
     void recognizesAStopWrappedInOtherFailures()
     {

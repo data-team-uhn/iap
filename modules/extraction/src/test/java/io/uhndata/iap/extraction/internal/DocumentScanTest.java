@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Unit tests for {@link DocumentScan}: several documents joined into one text, and telling which one a quote
+ * Unit tests for {@link DocumentScan}: joining several documents into one text, and telling which one a quote
  * came from.
  *
  * @version $Id$
@@ -42,8 +42,7 @@ class DocumentScanTest
             + "# Questionnaire\n\n1. How was your visit?", JOINED.getText());
     }
 
-    // A heading inside a document is still that document: the part is decided by where each one starts, not
-    // by the nearest heading
+    // A heading inside a document does not start a new part. Each part starts where its document starts.
     @Test
     void tellsWhichDocumentAQuoteCameFrom()
     {
@@ -52,7 +51,7 @@ class DocumentScanTest
         assertEquals(1, JOINED.getPart(JOINED.locate("How was your visit?")));
     }
 
-    // The last words of one document and the first of the next were never next to each other
+    // The end of one document and the start of the next were never side by side, so no real quote spans both
     @Test
     void refusesAQuoteThatRunsAcrossTwoDocuments()
     {

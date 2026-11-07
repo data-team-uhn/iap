@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ModelCall}.
+ * Unit tests for {@link ModelCall}: asking again with a correction, and how a stop ends a call.
  *
  * @version $Id$
  * @since 0.1.0
@@ -71,7 +71,7 @@ class ModelCallTest
         }
     }
 
-    // Not every client fails the request just because the thread asking for it was interrupted
+    // Some clients still return a reply after the thread was interrupted, so the reply must be refused
     @Test
     void aReplyThatArrivesAfterBeingStoppedIsNotAccepted()
     {

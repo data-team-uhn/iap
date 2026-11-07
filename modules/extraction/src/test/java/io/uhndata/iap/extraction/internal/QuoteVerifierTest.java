@@ -24,11 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link QuoteVerifier}: what counts as a quote really being in the text.
+ * Unit tests for {@link QuoteVerifier}: when a quote counts as really being in the document.
  *
- * <p>Driven through {@link DocumentScan}, which is the only door production uses. Asking the verifier directly
- * meant comparing against a document normalized one way while a reading normalizes it another, so the two could
- * disagree about what the same text was and nothing here would notice.</p>
+ * <p>The tests go through {@link DocumentScan}, the only way the real code uses the verifier, so the tests see
+ * the document prepared the same way a reading does.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -38,7 +37,7 @@ class QuoteVerifierTest
     private static final String TEXT = "<!-- page: 3 -->\n## Aims\n\nThe primary aim is to"
         + " reduce\treadmissions   within 30 days.\n";
 
-    /** Whether a quote holds up, the way a reading asks it: is it anywhere in the prepared document. */
+    /** Whether the quote is found anywhere in the prepared document, the way a reading checks it. */
     private static boolean isVerified(final String quote, final String text)
     {
         return DocumentScan.of(text).locate(quote) >= 0;
@@ -63,16 +62,14 @@ class QuoteVerifierTest
         assertTrue(isVerified("## Aims The primary", TEXT));
     }
 
-    // The one that mattered. A blank line used to put a second space in the document but not in the quote, so a
-    // quote reaching across a paragraph break was never found however faithfully it had been copied.
+    // A correctly copied quote that runs across a paragraph break must still be found
     @Test
     void findsAQuoteThatReachesAcrossAParagraphBreak()
     {
         assertTrue(isVerified("Aims The primary aim is to reduce readmissions", TEXT));
     }
 
-    // Worse for a long one: past the fuzzy limit only exact containment is tried, so the extra space was the
-    // whole of the answer and the quote was dropped outright
+    // A quote past the fuzzy limit only gets an exact check, so it must still match across a paragraph break
     @Test
     void findsALongQuoteThatReachesAcrossAParagraphBreak()
     {
@@ -108,14 +105,14 @@ class QuoteVerifierTest
     }
 
     // A model that drops a word has still pointed at the right passage. One that writes a plausible
-    // sentence that is not there has not, and that is the line the floor draws.
+    // sentence that is not there has not.
     @Test
     void forgivesADroppedWord()
     {
         assertTrue(isVerified("The primary aim is reduce readmissions within 30 days", TEXT));
     }
 
-    // A number changes what the passage says, not how it is worded
+    // A number changes what the passage says, not just how it is worded
     @Test
     void refusesADroppedOrChangedNumber()
     {
@@ -129,7 +126,7 @@ class QuoteVerifierTest
         assertFalse(isVerified("The primary aim is not to reduce readmissions within 30 days", TEXT));
     }
 
-    // Text the model left out costs as much as text it added, so two sentences cannot be stitched into one
+    // Missing text costs as much as added text, so two sentences cannot be joined into one quote
     @Test
     void refusesAQuoteStitchedFromTwoSentences()
     {
@@ -155,15 +152,14 @@ class QuoteVerifierTest
             "Participants were randomised to receive the study drug or placebo", TEXT));
     }
 
-    // Partly there is not enough: a quote a long way from anything in the document is not evidence for it
+    // Being partly there is not enough: a quote far from anything in the document is not evidence
     @Test
     void refusesAQuoteOnlyPartlyThere()
     {
         assertFalse(isVerified("The primary aim is to reduce hospital admissions greatly", TEXT));
     }
 
-    // The comparison used to be given up on for any text past a few thousand characters, which is every real
-    // protocol: a quote a word out of true was dropped as evidence and halved the answer confidence with it.
+    // Real protocols are long. A quote with one word off must still be found in a document of that size.
     @Test
     void forgivesADroppedWordInADocumentOfARealisticLength()
     {
@@ -184,8 +180,8 @@ class QuoteVerifierTest
         assertFalse(isVerified("Participants were randomised to receive the study drug or placebo", protocol));
     }
 
-    // Past this length a passage that is not there verbatim was built rather than copied, and comparing it
-    // properly costs more than the answer is worth
+    // Past this length, a passage that is not there word for word was put together, not copied. A fuzzy check
+    // would also cost more than it is worth.
     @Test
     void checksAVeryLongQuoteForExactContainmentOnly()
     {
@@ -198,8 +194,8 @@ class QuoteVerifierTest
         assertTrue(isVerified(sentence.repeat(20), document), "the same passage verbatim still holds");
     }
 
-    // An opening that repeats through a protocol must not use up every candidate place, or the passage the
-    // middle of the quote would have found is never compared
+    // An opening that repeats many times must not use up every candidate place, or the place the middle of the
+    // quote points to is never compared
     @Test
     void findsAQuoteWhoseOpeningRepeatsThroughTheDocument()
     {

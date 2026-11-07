@@ -37,8 +37,8 @@ import org.mockito.stubbing.Answer;
 import io.uhndata.iap.tags.models.Taggable;
 
 /**
- * Builds the repository a handler test needs: a schema version with questions, a submission answering it, and
- * documents with uploads under it. JCR-backed, because the handlers write real references and binaries.
+ * Builds the content a handler test needs: a schema version with questions, a submission for it, and documents
+ * with uploads. Tests use a JCR-backed context, because the handlers write real references and binaries.
  *
  * @version $Id$
  * @since 0.1.0
@@ -66,7 +66,7 @@ final class SubmissionTree
     SubmissionTree(final SlingContext context)
     {
         this.context = context;
-        // The tags service does not run under sling-mock; a draft is read off the node's own tags
+        // The tags service does not run under sling-mock, so a draft is read from the node's own tags property
         context.registerAdapter(Resource.class, Taggable.class, (Function<Resource, Taggable>) resource -> {
             final Taggable taggable = Mockito.mock(Taggable.class);
             final Answer<Boolean> isTagged = invocation -> Arrays.asList(
@@ -77,30 +77,30 @@ final class SubmissionTree
         });
     }
 
-    /** The schema version, with one form to hold questions. */
+    /** Creates the schema version, with one form to hold questions. */
     Resource createSchemaVersion()
     {
         this.context.create().resource("/Schemas/proposal", Map.of(TYPE, "sch/Schema", "title", "Proposal"));
         final Resource version = this.context.create().resource(VERSION_PATH, Map.of(TYPE, "sch/SchemaVersion",
             "version", "1.0", "tags", new String[] { "active" }));
-        // Names a reading workflow, since only a schema that reads its documents has them parsed
+        // Names a reading workflow, because only a schema that reads its documents has them parsed
         reference(version, ParseDocumentsHandler.READING_WORKFLOW, this.context.create().resource(READING_PATH,
             Map.of(TYPE, "wf/WorkflowVersion", "version", "1.0", "tags", new String[] { "active" })));
-        // A mock repository has no /libs/sch hierarchy to inherit from, so each item carries its super type
+        // A mock repository has no /libs/sch types to inherit from, so each item sets its super type
         this.context.create().resource(FORM_PATH,
             Map.of(TYPE, "sch/FormRequirement", SUPER_TYPE, "sch/Requirement", "label", "Study"));
         return version;
     }
 
-    /** A question in the form; with a prompt, one the intake reads out of the document. */
+    /** Creates a question in the form. With a prompt, the intake reads its answer from the document. */
     Resource createQuestion(final String name, final String prompt)
     {
         return createQuestion(name, prompt, 1);
     }
 
     /**
-     * The same, taking as many answers as given. A maximum other than one is what makes a question
-     * multi-valued, which is what decides how its extracted answer is stored.
+     * Same as above, with the given maximum number of answers. Any maximum other than one makes the question
+     * multi-valued, which decides how its extracted answer is saved.
      */
     Resource createQuestion(final String name, final String prompt, final long maxAnswers)
     {
@@ -116,7 +116,7 @@ final class SubmissionTree
         return this.context.create().resource(FORM_PATH + "/" + name, properties);
     }
 
-    /** The submission, answering the schema version, still a draft. */
+    /** Creates the submission for the schema version, still a draft. */
     Resource createSubmission()
     {
         final Resource submission = this.context.create().resource(SUBMISSION_PATH, Map.of(
@@ -127,9 +127,9 @@ final class SubmissionTree
     }
 
     /**
-     * A document with one version holding an upload.
+     * Creates a document with one version holding an upload.
      *
-     * @param parseStatus where its parse got to, or {@code null} for one never sent
+     * @param parseStatus the file's parse status, or {@code null} if it was never sent to be parsed
      * @return the {@code sub:File}
      */
     Resource createFile(final String parseStatus)
@@ -150,7 +150,7 @@ final class SubmissionTree
     }
 
     /**
-     * A newer version of the document a file belongs to, holding a parsed upload.
+     * Adds a newer version to the document a file belongs to, holding a parsed upload.
      *
      * @param file a file of the document
      * @return the new version's {@code sub:File}
@@ -170,7 +170,7 @@ final class SubmissionTree
         return newer;
     }
 
-    /** A document requirement of the schema version, which uploads are attached for. */
+    /** Creates a document requirement in the schema version. Uploads are attached for it. */
     Resource createDocumentRequirement(final String name)
     {
         return this.context.create().resource(VERSION_PATH + "/" + name,
@@ -178,10 +178,10 @@ final class SubmissionTree
     }
 
     /**
-     * A parsed upload attached for a document requirement, holding the given Markdown.
+     * Creates a parsed upload attached for a document requirement, holding the given Markdown.
      *
      * @param requirement the requirement the document fulfills
-     * @param text what the parse produced
+     * @param text the Markdown the parse produced
      * @return the {@code sub:File}
      */
     Resource createParsedFileFor(final Resource requirement, final String text)
@@ -192,7 +192,7 @@ final class SubmissionTree
         return file;
     }
 
-    /** A document whose version holds no upload yet. */
+    /** Creates a document whose only version has no upload yet, and returns that version. */
     Resource createEmptyDocument()
     {
         this.documents++;
@@ -202,12 +202,12 @@ final class SubmissionTree
     }
 
     /**
-     * A yes/no classification requirement reading one document requirement, with its one question.
+     * Creates a yes/no classification requirement that reads one document requirement, with its one question.
      *
      * @param name the requirement's name
      * @param document the name of the document requirement it reads
      * @param prompt what the model is asked to decide
-     * @return the question the pick is stored under
+     * @return the question the pick is saved under
      */
     Resource createClassification(final String name, final String document, final String prompt)
     {
@@ -223,7 +223,7 @@ final class SubmissionTree
         return question;
     }
 
-    /** The reference text a classification requirement shows the model. */
+    /** Stores the reference text that a classification requirement shows the model. */
     void addTemplate(final String requirement, final String text)
     {
         storeText(VERSION_PATH + "/" + requirement + "/template", text);
@@ -235,8 +235,8 @@ final class SubmissionTree
     }
 
     /**
-     * Give what a handler wrote under the submission the resource types its node types autocreate, which the mock
-     * repository does not, so the models find the answers and runs it wrote.
+     * Sets the resource type on every node a handler wrote under the submission, from its node type. The mock
+     * repository does not do this, and the models need it to find the answers and runs.
      */
     void stampTypes()
     {
@@ -252,7 +252,7 @@ final class SubmissionTree
         resource.getChildren().forEach(SubmissionTree::stamp);
     }
 
-    /** A JCR REFERENCE, which the resolver cannot write. */
+    /** Sets a JCR REFERENCE property, which the resolver cannot write. */
     static void reference(final Resource from, final String property, final Resource to)
     {
         try {
@@ -263,7 +263,7 @@ final class SubmissionTree
         }
     }
 
-    /** The identifier a REFERENCE to a node holds. */
+    /** Returns the identifier that a REFERENCE to the node holds. */
     static String getIdentifier(final Resource resource)
     {
         try {

@@ -45,8 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ReviewExtractionHandler}: what the submitter's two verdicts change, and what they
- * deliberately leave alone.
+ * Unit tests for {@link ReviewExtractionHandler}: saving the submitter's note that the quotes behind a
+ * suggestion are wrong, and what that note leaves alone.
  *
  * @version $Id$
  * @since 0.1.0
@@ -86,7 +86,7 @@ class ReviewExtractionHandlerTest
                 "extractedAnswer", "reduce readmissions", "confidence", 0.6));
     }
 
-    /** A tree nothing may be written to, standing in for one the caller has no write access to. */
+    /** A resource tree where nothing can be written, standing in for a caller with no write access. */
     private static final class ReadOnly extends ResourceWrapper
     {
         ReadOnly(final Resource wrapped)
@@ -132,7 +132,7 @@ class ReviewExtractionHandlerTest
         assertEquals("reviewExtraction", this.handler.getName());
     }
 
-    // The passage being wrong is a report about the extraction, not a verdict on the answer
+    // Rejecting the quotes is a note about the run, not a decision on the answer
     @Test
     void recordsARejectedPassageWithoutSettlingTheAnswer() throws Exception
     {
@@ -173,7 +173,7 @@ class ReviewExtractionHandlerTest
         assertEquals(0.6, getRecorded().get("confidence", Double.class));
     }
 
-    // Only the submitter's word on their own request counts
+    // Only the submitter can review their own request
     @Test
     void refusesAReviewFromAnybodyButTheSubmitter()
     {
@@ -223,7 +223,7 @@ class ReviewExtractionHandlerTest
         assertThrows(PersistenceException.class, () -> this.handler.execute(readOnly));
     }
 
-    // The verdict lands on the newest run, the one the form shows, even when an older run was surer
+    // The note goes on the newest run, the one the form shows, even if an older run had a higher confidence
     @Test
     void reviewsTheNewestExtraction() throws Exception
     {

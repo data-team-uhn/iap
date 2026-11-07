@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Unit tests for {@link QueueExtractionHandler}.
+ * Unit tests for {@link QueueExtractionHandler}: queuing the job that reads a submission.
  *
  * @version $Id$
  * @since 0.1.0
@@ -86,9 +86,9 @@ class QueueExtractionHandlerTest
             Map.of(ExtractAnswersJobConsumer.SUBMISSION_PROPERTY, this.submission.getPath()));
     }
 
-    // Every parse that lands queues one, even while another is still going. Whether this one's turn has come
-    // is the job's to answer, from a session that sees committed state; asked from inside this transaction,
-    // two parses landing at once could each see the other as unfinished and neither would queue anything.
+    // Every parse that lands queues a job, even while another parse is still going. The job decides if it is
+    // time to read, because it sees committed data. Checked inside this transaction, two parses landing at once
+    // could each see the other as unfinished, and neither would queue a job.
     @Test
     void queuesTheReadingEvenWhileAnotherParseIsStillGoing() throws Exception
     {
