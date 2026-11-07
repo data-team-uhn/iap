@@ -138,10 +138,18 @@ export default function AiGrid({ risks, grouped, settled, about, onShow, onMakeI
       initialState={{ sorting: { sortModel: [ { field: "severity", sort: "asc" } ] },
         pinnedColumns: { right: [ "actions" ] } }}
       localeText={{ noRowsLabel: "The AI found nothing to raise", noResultsOverlayLabel: "Nothing found matches" }}
-      sx={theme => ({ bgcolor: "background.paper", "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" },
-        "& .ai-risk": { bgcolor: theme.alpha(theme.palette.assistant.light, 0.12) },
-        "& .ai-settled": { color: "text.secondary", opacity: 0.75 },
-        [`& [data-field="${GRID_TREE_DATA_GROUPING_FIELD}"]`]: { fontWeight: "fontWeightMedium" } })}
+      // All of it in the AI's tint, as its frame is elsewhere; a risk's own row a shade deeper
+      sx={theme => {
+        // Solid, mixed into the scheme's own paper, so pinned cells still hide what scrolls under them
+        const paper = theme.vars?.palette.background.paper ?? theme.palette.background.paper;
+        const tint = (share: number) => `color-mix(in srgb, ${theme.palette.assistant.light} ${share}%, ${paper})`;
+        return { bgcolor: tint(10), "--DataGrid-containerBackground": tint(16), "--DataGrid-pinnedBackground": tint(10),
+          "& .MuiDataGrid-toolbar, & .MuiDataGrid-columnHeader, & .MuiDataGrid-filler": { bgcolor: tint(16) },
+          "& .MuiDataGrid-cell": { py: 0.75, alignItems: "center" },
+          "& .ai-risk, & .ai-risk .MuiDataGrid-cell--pinnedRight": { bgcolor: tint(22) },
+          "& .ai-settled": { color: "text.secondary", opacity: 0.75 },
+          [`& [data-field="${GRID_TREE_DATA_GROUPING_FIELD}"]`]: { fontWeight: "fontWeightMedium" } };
+      }}
     />
   );
 }
