@@ -29,20 +29,18 @@ import io.uhndata.iap.llm.LLMMessage;
 import io.uhndata.iap.llm.LLMRequestOptions;
 
 /**
- * Asking a model once, and once more when the first answer was not the shape it had to be.
+ * Asks a model, and asks once more if the first answer cannot be read. The second try sends the same message
+ * with a note saying what was wrong.
  *
- * <p>Send the system prompt and one user message, try to read the reply, and on failure send the same message
- * again with a correction appended saying what was wrong.</p>
- *
- * <p>Two attempts, not more. Each one re-sends the whole document, so a third would pay for the document a
- * third time to ask a model that has now failed twice.</p>
+ * <p>Only two tries. Each one sends the whole document again, so a third try costs a lot for a model that has
+ * already failed twice.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class ModelCall
 {
-    /** What a stage appends when it has nothing more specific to say about an unreadable answer. */
+    /** The note sent with the second try when the caller has nothing more exact to say. */
     static final String SHAPE_CORRECTION =
         "Your previous answer was not a single JSON object matching the schema. "
             + "Answer again with exactly one such object and nothing else.";
@@ -57,18 +55,18 @@ final class ModelCall
     }
 
     /**
-     * Ask, and ask again with a correction if the answer could not be read.
+     * Asks the model, and asks once more with a note if the first answer cannot be read.
      *
-     * @param <T> what a readable answer becomes
-     * @param client the client to ask through
-     * @param system the system prompt, the same on both attempts so a cached prefix still matches
-     * @param userMessage what to show the model
-     * @param options the per-call options, including the schema the reply must match
-     * @param read turns a reply into an answer, or {@code null} when it cannot be read
-     * @param fault what to tell the model was wrong, given its unreadable first reply, or {@code null} to say
-     *            only that the shape was wrong
-     * @param stage what is asking, for the log
-     * @return the answer, or {@code null} when neither attempt could be read
+     * @param <T> the type of a readable answer
+     * @param client the client used to ask the model
+     * @param system the system prompt, the same on both tries so a cached prompt can be reused
+     * @param userMessage the message to send the model
+     * @param options the options for the call, including the schema the reply must match
+     * @param read turns a reply into an answer, returning {@code null} when it cannot be read
+     * @param fault builds the note from the unreadable first reply, or {@code null} to send
+     *            {@link #SHAPE_CORRECTION}
+     * @param stage the name of the step asking, for the logs
+     * @return the answer, or {@code null} when neither reply could be read
      * @throws IOException if the model cannot be reached
      */
     static <T> T askWithCorrection(final LLMClient client, final String system, final String userMessage,
@@ -80,8 +78,7 @@ final class ModelCall
         if (first != null) {
             return first;
         }
-        // The re-ask says what was actually wrong rather than that something was. A model told its answer was
-        // unreadable has nothing to correct; one told it held two objects, or stopped mid-string, does.
+        // Say what exactly was wrong, so the model knows what to fix
         final String wrong = fault == null ? SHAPE_CORRECTION : fault.apply(reply);
         LOGGER.warn("The {} did not answer in the required shape ({}); asking once more", stage, wrong);
         final T second = read.apply(chat(client, system, userMessage + CORRECTION_OPENING + wrong, options));
@@ -92,8 +89,8 @@ final class ModelCall
     }
 
     /**
-     * Send one turn, unless this reading has been stopped. A stop throws {@link ReadingRuns.Stopped}, before or
-     * after the call.
+     * Sends one message to the model, unless this reading was stopped. A stop throws {@link ReadingRuns.Stopped},
+     * before or after the call.
      *
      * @param client the client to ask through
      * @param system the system prompt
@@ -117,8 +114,7 @@ final class ModelCall
             }
             throw e;
         }
-        // A stop can land while the call is in flight without failing it -- not every client reacts to an
-        // interrupt by aborting the request -- so a reply that came back anyway must still not be accepted.
+        // Not every client aborts on an interrupt, so a stop during the call must still reject the reply
         ReadingRuns.leaveModelCall();
         return reply;
     }

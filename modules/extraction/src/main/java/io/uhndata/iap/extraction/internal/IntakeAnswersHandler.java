@@ -42,14 +42,15 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that reads every extractable answer out of a proposal and records it: a {@code sub:Answer}
- * holding the value, with a {@code sub:Extraction} under it saying where it came from and how sure the model was,
- * and a {@code sub:Context} for each quote. A question that already carries an answer is left alone, whoever
- * or whatever wrote it: reading again fills the gaps. The first reading of a newer revision of a document asks
- * them again, and replaces an answer only when the new file says something different from both the answer and
- * the last suggestion.
+ * The service task that asks the model the schema's questions about a submission's documents and saves what it
+ * reads. Each question asked gets a {@code sub:Extraction} (a suggestion, found or not) under its
+ * {@code sub:Answer}, with a {@code sub:Context} for each quote. The answer's value is never written here.
  *
- * <p>Fields are keyed by the question's path within its schema version, so two sections may both have a
+ * <p>Reading again only fills gaps: a question that already has an answer or a suggestion is skipped. The first
+ * reading of a newer document version asks every question again. Its runs are new suggestions; they do not change
+ * any answer.</p>
+ *
+ * <p>Questions are keyed by their path within the schema version, so two sections can both have a
  * {@code title}.</p>
  *
  * @version $Id$
@@ -63,22 +64,22 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
 
     /**
      * The activity property naming the requirement to ask about, or a list of them asked in one call. Absent
-     * means the whole schema version; naming some asks only what those requirements hold, so a schema can be
-     * read in stages and each stage is a step on the diagram.
+     * means every question of the schema version. Naming requirements lets a schema be read in stages, one step
+     * per stage.
      */
     static final String REQUIREMENT_PARAMETER = "requirement";
 
     /**
-     * The activity property naming the document requirements to read, in the order they are sent. Each one's
-     * parsed text goes under a heading of its own, and together they are one document to the model. Absent
-     * means the first parsed document on the submission.
+     * The activity property naming the document requirements to read, in the order they are sent. Each parsed
+     * document goes under its own heading, and the model sees them as one text. Absent means the first parsed
+     * document on the submission.
      */
     static final String DOCUMENTS_PARAMETER = "documents";
 
     /**
      * The activity property naming extra system-prompt files for this step only, from the bundle's
-     * {@code /prompts} folder. A string or a list; each file is prepended to the intake prompt so domain
-     * knowledge that is only worth sending for one schema is not added to every reading.
+     * {@code /prompts} folder. A string or a list. The files go before the intake prompt, so knowledge that only
+     * one schema needs is not sent with every reading.
      */
     static final String PROMPT_FROM = "promptFrom";
 
@@ -114,7 +115,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             stopped = this.runs.end(target.getPath());
         }
         if (stopped) {
-            // The stop landed after the model answered: what it wrote must not be kept
+            // Stopped after the model answered: fail the step so nothing it wrote is kept
             throw new PersistenceException(ExtractionStatus.STOPPED_MESSAGE, new ReadingRuns.Stopped());
         }
     }
@@ -127,13 +128,13 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      * <li>Pick the questions this step asks. Unless the document is a newer version, drop the ones that already
      * have an answer or a suggestion. None left: stop.</li>
      * <li>Ask the model all of them in one call. The call failed: record why and stop.</li>
-     * <li>Save the answers, each as a new run under its question.</li>
+     * <li>Save one new run under each question asked, found or not.</li>
      * </ol>
      *
      * @param context the step
      * @param target the submission
-     * @throws PersistenceException if an answer cannot be written
-     * @throws ReadingRuns.Stopped when the reading was stopped mid-call
+     * @throws PersistenceException if a status cannot be written
+     * @throws ReadingRuns.Stopped when the submitter stopped the reading during the model call
      */
     private void read(final WorkflowTaskContext context, final Resource target)
         throws PersistenceException, ReadingRuns.Stopped
@@ -149,7 +150,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         final Map<String, Question> questions = getQuestionsIncludingAnswered(submission, requirement);
         final boolean newRevision = ExtractionFields.isNewRevision(submission, questions.values(), files);
         if (!newRevision) {
-            // Reading again fills the gaps; a newer version is read for every question
+            // Reading again only fills gaps; the first reading of a newer version asks every question
             final Set<String> answered = ExtractionFields.getAnswered(submission);
             questions.values().removeIf(question -> answered.contains(question.getPath()));
         }
@@ -176,7 +177,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Say why a step asked the model nothing.
+     * Records why a step asked the model nothing.
      *
      * @param target the submission's resource
      * @param submission the submission
@@ -190,12 +191,12 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             // Everything it asks is answered already
             ExtractionStatus.recordDone(target, null);
         } else if (requirement == null || requirement.isBlank()) {
-            // Said only when no requirement is named: a named one that asks nothing just did not apply this time
+            // Only when no requirement is named: a named requirement with no questions just does not apply here
             ExtractionStatus.recordDone(target, "The schema asks nothing of the document");
         }
     }
 
-    /** Every question the step names, answered or not. Several requirements are asked in one call, in order. */
+    /** Every extractable question the step names, answered or not. Several requirements are joined in order. */
     private static Map<String, Question> getQuestionsIncludingAnswered(final Submission submission,
         final String requirement)
     {
@@ -204,7 +205,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             questions.putAll(ExtractionFields.getExtractable(submission, null));
             return questions;
         }
-        // Split on commas too, since that is how a diagram writes a list into this single-valued attribute
+        // A diagram writes a list as one comma-separated value, so split on commas
         for (final String name : requirement.split(",")) {
             if (!name.isBlank()) {
                 questions.putAll(ExtractionFields.getExtractable(submission, name.trim()));
@@ -214,16 +215,16 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * What this step reads, or {@code null} when there is nothing to read and the reason has been recorded.
+     * The documents this step reads, or {@code null} when there is nothing to read. The reason is then recorded.
      *
-     * <p>A step that names its documents reads each of them that has been parsed, in the order named. One that
-     * was never uploaded is skipped. One whose parse failed fails the step, so the person is told why instead
-     * of a reading marked done on whatever else parsed. One that names none reads the first parsed document
-     * on the submission.</p>
+     * <p>A step that names its documents reads each named one that has been parsed, in the order named. One with
+     * no upload is skipped. One whose parse failed fails the whole step, so the submitter sees why instead of a
+     * reading marked done on the others. A step that names none reads the first parsed document on the
+     * submission.</p>
      *
      * @param context the execution
      * @param submission the submission being read
-     * @return the parts to send, or {@code null} when there are none
+     * @return the documents to send, or {@code null} when there are none
      * @throws PersistenceException if the reason cannot be recorded
      */
     private static List<Part> getPartsToRead(final WorkflowTaskContext context, final Submission submission)
@@ -257,16 +258,15 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         return parts;
     }
 
-    /** The heading a document is sent under: its requirement's name, capitalized, as in "# Preamble". */
+    /** The heading a document is sent under: its requirement's name with a capital first letter, like "Preamble". */
     private static String getHeading(final String requirement)
     {
         return Character.toUpperCase(requirement.charAt(0)) + requirement.substring(1);
     }
 
     /**
-     * The document this step reads, or {@code null} when there is nothing to read and the reason has been
-     * recorded. The first parsed file on the submission: a later gateway, not this step, decides whether
-     * there is anything left to ask.
+     * The first parsed document on the submission, for a step that names no documents. Returns {@code null}
+     * when there is none, and records why.
      *
      * @param context the execution
      * @param submission the submission being read
@@ -285,8 +285,8 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Extra system instructions this step names, concatenated in the order named. A single name reads as a
-     * list of one. Blank names add nothing.
+     * The extra system instructions this step names, joined in the order named, or {@code null} when there are
+     * none. Blank names are skipped.
      */
     static String getExtraSystem(final WorkflowTaskContext context)
     {
@@ -301,12 +301,13 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Put the questions to the model; failures come back as a degraded result, not thrown.
+     * Asks the model the questions about the documents. A failure comes back as a degraded result, not an
+     * exception.
      *
      * @param parts the documents to send
      * @param questions the questions to ask
      * @param extraSystem extra system instructions, or {@code null}
-     * @return what the model read out, degraded with the reason when it could not be asked
+     * @return what the model read, or a degraded result with the reason when it could not be asked
      */
     private IntakeResult ask(final List<Part> parts, final Map<String, Question> questions,
         final String extraSystem)
@@ -317,7 +318,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             scan = getScan(parts);
         } catch (final IOException e) {
             LOGGER.warn("The text of {} could not be read: {}", first.getPath(), e.getMessage());
-            // A repository fault: the submitter is told the text could not be read, not why
+            // A repository fault: the submitter only sees a generic message, so log it for an administrator
             ErrorLogger.logError(e, ErrorContext.of(IntakeAnswersHandler.class, "readText").about(first.getPath()));
             return IntakeResult.createNotAsked(IntakeResult.TEXT_UNREADABLE);
         }
@@ -329,28 +330,27 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             if (ReadingRuns.isStopped(e)) {
                 throw new ReadingRuns.Stopped();
             }
-            // Recorded, not thrown: throwing would revert the answers earlier steps wrote and replace this reason
-            // with a generic one.
+            // Recorded, not thrown: throwing would undo what earlier steps wrote and hide this reason
             LOGGER.warn("The intake could not be asked about {}: {}", first.getPath(), e.getMessage());
-            // An outage of the model, which an administrator has to see to fix
+            // The model is down, and an administrator has to see that to fix it
             ErrorLogger.logError(e, ErrorContext.of(IntakeAnswersHandler.class, "askModel").about(first.getPath()));
             return IntakeResult.createNotAsked(IntakeResult.UNREACHABLE_MESSAGE);
         }
     }
 
     /**
-     * The text sent to the model: one document as parsed, or several each under its own heading.
+     * The text sent to the model: one document as parsed, or several joined, each under its own heading.
      *
-     * <p>Quotes are checked against this same text, so a passage quoted from either document is found, and the
-     * joined text remembers where each document starts, so each passage is stored with the one it came from.</p>
+     * <p>Quotes are checked against this same text. The joined text remembers where each document starts, so
+     * each quote is stored with the document it came from.</p>
      */
     private DocumentScan getScan(final List<Part> parts) throws IOException
     {
         if (parts.size() == 1 && parts.get(0).heading() == null) {
             return this.documents.scan(parts.get(0).file());
         }
-        // Read straight from the repository: the joined text is scanned once as a whole, so scanning each part
-        // first would be wasted work, and each would push the other out of the one-document cache
+        // Read the raw text, not each part's scan: the joined text is scanned once anyway, and each part's scan
+        // would push the other out of the one-document cache
         final List<String> headings = new ArrayList<>();
         final List<String> texts = new ArrayList<>();
         for (final Part part : parts) {

@@ -34,9 +34,9 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Service task {@code readAgain}: the submitter asks for the submission to be read again, after a reading ended.
- * The reading is queued as a job, like one a parse queues, so it runs with the same claim, the same
- * progress and the same way to stop it, instead of inside the request that asked.
+ * Service task {@code readAgain}: the submitter asks to read the submission again after a reading ended. The
+ * reading is queued as a job, like the one a parse queues, so it has the same claim, progress and way to stop it,
+ * instead of running inside the request that asked. It is refused while a reading is still running.
  *
  * @version $Id$
  * @since 0.1.0
@@ -69,9 +69,9 @@ public class ReadAgainHandler implements ServiceTaskHandler
             throw new InvalidStateException("This request is already being read");
         }
         ExtractionStatus.record(target, ExtractionStatus.STATUS_RUNNING, null);
-        // The last reading's claim would turn the job away
+        // Otherwise the last reading's claim would turn the new job away
         ExtractionStatus.releaseClaim(target);
-        // Queued before this walk commits, so the job is told to wait for the `running` written above
+        // Queued before this walk commits, so the job is told to wait until it sees the `running` written above
         if (this.jobManager.addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
             Map.of(ExtractAnswersJobConsumer.SUBMISSION_PROPERTY,
             target.getPath(), ExtractAnswersJobConsumer.READ_AGAIN, Boolean.TRUE)) == null) {

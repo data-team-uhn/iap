@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Hands a submission whose documents have been parsed to the workflow that reads them, which its schema version names as `readingWorkflow`. Nothing is read here. A system workflow runs straight through with no instance behind it, so it cannot branch, cannot wait and cannot fork; what a reading is worth doing in what order - one call or several, which questions when, what happens to a document that turns out not to be a proposal - is a process, and belongs on a diagram somebody can read and change. A schema version that names no reading workflow simply has none, and this ends without doing anything. Fired only by the reading job, which holds the claim; a submitter asks for another reading through readAgain, which queues that job. An earlier instance of the reading workflow still open on the submission, such as one waiting for a confirmation, is ended first.",
+    "description": "Starts the reading workflow that the submission's schema version names in `readingWorkflow`. It reads nothing itself: a system workflow cannot branch or wait for a person, and a reading needs both. If the schema version names no reading workflow, it does nothing. An older reading still open on the submission is ended first. Only the reading job fires it; a submitter asks for another reading through readAgain, which queues that job.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

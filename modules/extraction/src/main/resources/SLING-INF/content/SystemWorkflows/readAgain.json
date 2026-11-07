@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Queues the reading of an already parsed submission again, after a reading ended. Fired by the submitter through POST <submission>.readAgain.json; the reading then runs as a background job, the same as after a parse.",
+    "description": "Queues another reading of an already parsed submission, after the last reading ended. It is refused while a reading is still running. The submitter fires it with POST <submission>.readAgain.json. The reading then runs as a background job, the same as after a parse.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

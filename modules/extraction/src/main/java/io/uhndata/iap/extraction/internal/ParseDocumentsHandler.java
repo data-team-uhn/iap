@@ -41,9 +41,9 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that sends a submission's uploads to be parsed: every latest upload still wanting one is
- * staged on the shared volume and queued, and the submission is marked as being read. It is meant to follow the
- * upload; today only the {@code retryParse} workflow runs it. The answers arrive later, through the
+ * The service task that sends a submission's uploads to be parsed. Each latest upload that still needs a parse is
+ * copied to the shared volume and queued, and the submission is marked as being read. It is meant to run after an
+ * upload too, but today only the {@code retryParse} workflow runs it. The answers come later, through the
  * {@code documentParsed} and {@code extractAnswers} system workflows.
  *
  * @version $Id$
@@ -55,16 +55,16 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "parseDocuments";
 
-    /** Where a file may keep the name it arrived under; the upload handler puts it on the document's title instead. */
+    /** Where a file may keep its original name; the upload handler puts that name on the document's title instead. */
     static final String FILE_NAME = "fileName";
 
-    /** Where a file records the parse job it was queued under. */
+    /** Where a file records the id of its parse job. */
     static final String PARSE_JOB_ID = "parseJobId";
 
-    /** Where a schema version names the workflow that reads its documents, absent when none reads them. */
+    /** Where a schema version names the workflow that reads its documents; absent when nothing reads them. */
     static final String READING_WORKFLOW = "readingWorkflow";
 
-    /** Where a file records where its upload was staged for the daemon. */
+    /** Where a file records the path of its upload copy on the shared volume. */
     static final String SHARED_PATH = "sharedPath";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ParseDocumentsHandler.class);
@@ -114,13 +114,12 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
     }
 
     /**
-     * Stage one upload and queue its parse, recording on the file where it went.
+     * Copies one upload to the shared volume, queues its parse, and records the job on the file.
      *
-     * <p>This step is the one place in the reading that reaches outside the engine's transaction: staging writes
-     * to the shared volume and queueing commits a job node through a session of its own, both before the walk
-     * that asked for them has committed. It is that way round on purpose - the job node has to be visible to the
-     * consumer before the Sling job is queued - and it is why a failure to queue discards what it staged rather
-     * than leave the folder to a sweep that may never find it.</p>
+     * <p>This is the one step of the reading that acts outside the engine's transaction: the copy and the job
+     * node are written before the walk that asked for them commits. That order is on purpose, since the job node
+     * must be visible to the job consumer before the Sling job is queued. It is also why a failed queue deletes
+     * the copy here, instead of leaving it for a sweep that may never find it.</p>
      *
      * @return {@code false} when the file holds no upload to parse
      */
@@ -131,7 +130,7 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         final InputStream bytes = content == null ? null : content.getValueMap().get(JCR_DATA, InputStream.class);
         if (bytes == null) {
             LOGGER.warn("{} holds no upload to parse", file.getPath());
-            // An upload with no content is damaged data, and it is silently left unread
+            // An upload with no content is damaged data; without this report it would stay unread silently
             ErrorLogger.logProblem("An uploaded file holds no content to parse",
                 ErrorContext.of(ParseDocumentsHandler.class, "queue").about(file.getPath()));
             return false;
@@ -146,14 +145,14 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
             staged = this.parseService.stage(name, in);
             final String jobId = this.parseService.queue(staged, file.getPath());
             properties.put(ParsePropertyNames.PARSE_STATUS, ParsePropertyNames.STATUS_QUEUED);
-            // Whatever went wrong last time is being tried again, so it is no longer what is wrong with this file
+            // The parse is tried again, so the last error no longer applies to this file
             properties.remove(ParsePropertyNames.PARSE_ERROR);
             properties.put(PARSE_JOB_ID, jobId);
             properties.put(SHARED_PATH, staged);
             LOGGER.info("Document sent to be parsed: file={} job={} name={}", file.getPath(), jobId, name);
         } catch (final IOException e) {
-            // A copy staged for a parse that was never queued usually has no job node naming it, so no sweep would
-            // come back for it. It goes now. A stage that failed partway names nothing to delete, and stays.
+            // A copy staged for a parse that was never queued usually has no job node naming it, so no sweep
+            // would find it: delete it now. A stage that failed partway returns no path, so nothing is deleted.
             this.parseService.discardStaging(staged);
             throw new PersistenceException("Could not queue the parse of " + file.getPath() + ": " + e.getMessage(),
                 e);
@@ -162,7 +161,7 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
     }
 
     /**
-     * The name to stage an upload under. Its extension is what tells the daemon what kind of document it is.
+     * Returns the name to stage an upload under. Its extension tells the daemon what kind of document it is.
      *
      * @param file the upload
      * @return the file's own {@code fileName}, else the title of its document, or {@code null} when neither is set
@@ -173,7 +172,7 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         if (own != null) {
             return own;
         }
-        // The upload handler keeps the uploaded name as the title of the document: file, then version, then document
+        // The upload handler keeps the uploaded name as the document's title: file, then version, then document
         return Optional.ofNullable(file.getParent()).map(Content::getParent)
             .map(document -> document.as(Document.class)).map(Document::getTitle).orElse(null);
     }

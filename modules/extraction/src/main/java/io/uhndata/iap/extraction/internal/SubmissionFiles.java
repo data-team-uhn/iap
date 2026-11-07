@@ -32,8 +32,8 @@ import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 
 /**
- * The files of a submission, as the extraction steps need them: the latest upload of every document, in the order
- * the repository lists the documents.
+ * Helpers that find a submission and its files for the reading steps. A document's file is always its latest
+ * upload, and documents come in the order the repository lists them.
  *
  * @version $Id$
  * @since 0.1.0
@@ -46,9 +46,9 @@ final class SubmissionFiles
     }
 
     /**
-     * The submission a part of one belongs to.
+     * The submission a node belongs to: the node itself when it is a submission, or the closest submission above.
      *
-     * @param part any node under a submission
+     * @param part a submission, or any node under one
      * @return the submission's resource, or {@code null} when the node is not under one
      */
     static Resource findSubmission(final Resource part)
@@ -61,10 +61,11 @@ final class SubmissionFiles
     }
 
     /**
-     * The submission a resource is, read as a model.
+     * The submission resource as a model. Throws {@code NullPointerException} when the resource is not a
+     * submission.
      *
      * @param target the submission's resource
-     * @return the model
+     * @return the model, never {@code null}
      */
     static Submission getSubmission(final Resource target)
     {
@@ -76,7 +77,7 @@ final class SubmissionFiles
      * The latest upload of every document, in the order the repository lists the documents.
      *
      * @param submission the submission
-     * @return its current files, skipping documents with no upload yet
+     * @return the current files; documents with no upload yet are skipped
      */
     static List<File> getCurrentFiles(final Submission submission)
     {
@@ -92,11 +93,11 @@ final class SubmissionFiles
     }
 
     /**
-     * The latest upload of every document whose requirement wants it parsed, in the order the repository lists
-     * the documents.
+     * The latest upload of every document whose requirement does not skip parsing, in the order the repository
+     * lists the documents.
      *
      * @param submission the submission
-     * @return the current files to parse, skipping documents with no upload yet
+     * @return the current files to parse; documents with no upload yet are skipped
      */
     static List<File> getFilesToParse(final Submission submission)
     {
@@ -115,11 +116,12 @@ final class SubmissionFiles
     }
 
     /**
-     * Why there is nothing to read: no upload, a failed parse (a fixed message; its reason stays on the file and in
-     * the log), a parse still queued, or uploads never sent.
+     * Why there is nothing to read, checked in this order: no upload, a failed parse, a parse still queued, or
+     * else no document could be read. A failed parse gets a fixed message; its real reason stays on the file and
+     * in the log.
      *
      * @param submission the submission
-     * @return the reason, ready to show
+     * @return the reason, ready to show to the submitter
      */
     static String describeNothingToRead(final Submission submission)
     {
@@ -158,9 +160,8 @@ final class SubmissionFiles
     }
 
     /**
-     * What the submitter is told when a file could not be parsed. The parse's own reason stays on the file and
-     * in the log: it names the daemon, its paths and its workers, which tells the submitter nothing they can act
-     * on.
+     * The message the submitter sees when a file could not be parsed. The real reason stays on the file and in
+     * the log: it is about the parsing service, and the submitter cannot act on it.
      *
      * @return the message, ready to show
      */
@@ -170,11 +171,11 @@ final class SubmissionFiles
     }
 
     /**
-     * The latest upload answering one document requirement, whatever its parse did.
+     * The latest upload for one document requirement, whatever its parse status.
      *
      * @param submission the submission
-     * @param requirement the name of the document requirement, as the schema version calls it
-     * @return the latest upload for it, or {@code null} when nothing is attached or nothing was uploaded
+     * @param requirement the name of the document requirement in the schema version
+     * @return the latest upload, or {@code null} when no document for that requirement has an upload
      */
     static File getCurrentFile(final Submission submission, final String requirement)
     {
@@ -190,15 +191,15 @@ final class SubmissionFiles
     }
 
     /**
-     * Whether no parse is still going, so that what there is to read is all there will be.
+     * Whether no parse is still waiting, so what can be read now is all there will be.
      *
      * @param submission the submission
-     * @return {@code true} when every file's parse has ended, one way or the other, or was never asked for
+     * @return {@code true} when no current file's parse is queued, including files never sent to be parsed
      */
     static boolean isEveryParseSettled(final Submission submission)
     {
         for (final File file : getCurrentFiles(submission)) {
-            // A file never sent has no status at all, which is not a parse still going
+            // A file never sent to be parsed has no status, and is not waiting for anything
             if (ParsePropertyNames.STATUS_QUEUED.equals(file.getParseStatus())) {
                 return false;
             }

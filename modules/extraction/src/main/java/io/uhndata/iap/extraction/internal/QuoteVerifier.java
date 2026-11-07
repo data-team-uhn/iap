@@ -25,52 +25,51 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Checks that a quote is really in the text the model was shown.
+ * Checks that a quote from the model is really in the document.
  *
- * <p>The prompt asks for verbatim quotes. This is the code side of that rule. A quote we cannot find is
- * not evidence, however plausible it reads. That is what stops an instruction injected into a document
- * from inventing evidence.
+ * <p>A quote that cannot be found is not evidence, however likely it sounds. This also stops a document that
+ * tells the model what to say from creating its own evidence.
  *
- * <p>Both strings are lowercased, their whitespace collapsed, and the {@code <!-- page: N -->} markers removed,
+ * <p>Both texts are lowercased, their whitespace collapsed, and the {@code <!-- page: N -->} markers removed,
  * since a marker can sit in the middle of a sentence.
  *
- * <p>A quote that is not there word for word is scored against the stretch of text that matches it best, by
- * edit distance, so text the model left out costs as much as text it added. A sentence stitched from two places
- * fails. Numbers and negations have to agree exactly: a slip there changes the meaning, not the wording.
+ * <p>A quote that is not there word for word is compared, by edit distance, to the part of the text closest to
+ * it. Missing words cost as much as added ones, so a sentence joined from two places fails. Numbers and
+ * negations must match exactly, because a change there changes the meaning.
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class QuoteVerifier
 {
-    /** Anything shorter than this is too easy to match by accident to count as evidence. */
+    /** A quote shorter than this is too easy to match by chance, so it never counts as evidence. */
     private static final int MIN_QUOTE_LENGTH = 3;
 
-    /** How much of a quote has to be right. 0.85 allows a slip or two, not a made-up sentence. */
+    /** The lowest match score that counts as found. 0.85 allows a small slip, not a made-up sentence. */
     private static final double MATCH_FLOOR = 0.85;
 
-    /** Past this length a quote is only checked for exact containment, since the comparison is quadratic. */
+    /** A quote longer than this must match exactly, because the close-match check is slow on long quotes. */
     private static final int MAX_FUZZY_QUOTE = 1000;
 
     /**
-     * How many characters of the quote are used to find where it might start. A quote no longer than this has
-     * to be there exactly.
+     * How many characters of the quote are searched for to find where it might start. A quote no longer than
+     * this must match exactly.
      */
     private static final int ANCHOR_LENGTH = 24;
 
-    /** How many candidate places are compared. The quote is in one of them or in none of them. */
+    /** The most places in the text the quote is compared against. */
     private static final int MAX_CANDIDATES = 4;
 
-    /** How many of those one anchor may claim, so a repeating opening cannot use up the lot. */
+    /** The most places one anchor may add, so an opening that repeats in the text cannot take them all. */
     private static final int CANDIDATES_PER_ANCHOR = 2;
 
     /**
-     * How far past a hit, in quote lengths, the compared stretch runs. It starts half a quote before the hit, so
-     * the whole stretch is about twice the quote: room for a model that added a few words.
+     * How far past a candidate start, in quote lengths, the compared text runs. It also starts half a quote
+     * before, so it is about twice as long as the quote, leaving room for a few added words.
      */
     private static final double WINDOW_FACTOR = 1.5;
 
-    /** Words whose loss or addition turns a statement around. */
+    /** Words that turn a statement into its opposite when added or removed. */
     private static final Set<String> NEGATION_WORDS =
         Set.of("not", "no", "never", "without", "none", "nor", "neither", "cannot");
 
@@ -87,17 +86,17 @@ final class QuoteVerifier
     }
 
     /**
-     * Where a quote matched: the stretch of the normalized text it lines up with, and how well.
+     * Where a quote matched in the normalized text, and how well.
      *
-     * @param score how right the quote is there, from 0 to 1
-     * @param at where the stretch starts, -1 when nothing matched
-     * @param end where the stretch ends, exclusive
+     * @param score how well the quote matches there, 1 for an exact match
+     * @param at where the match starts, -1 when nothing matched
+     * @param end where the match ends, exclusive, -1 when nothing matched
      * @version $Id$
      * @since 0.1.0
      */
     private record Match(double score, int at, int end)
     {
-        /** Nothing found. */
+        /** No match. */
         static Match createEmpty()
         {
             return new Match(0.0, -1, -1);
@@ -105,13 +104,13 @@ final class QuoteVerifier
     }
 
     /**
-     * Where a quote sits in a normalized text, which may be several documents joined into one. A match running
-     * across the start of a document is not one: those words were never next to each other.
+     * Finds where a quote is in a normalized text, which may be several documents joined together. A match that
+     * crosses from one document into the next does not count, since those words were never next to each other.
      *
-     * @param quote what the model quoted, in its raw form
-     * @param haystack the normalized text to look in, see {@link #normalize}
-     * @param partStarts where each joined document starts in it, empty for a single one
-     * @return where the quote starts, or -1 when enough of it is not there
+     * @param quote the quote as the model wrote it
+     * @param haystack the normalized text to search, see {@link #normalize}
+     * @param partStarts where each joined document starts in the text, empty for a single document
+     * @return where the quote starts, or -1 when it is not found or is {@code null}
      */
     static int locateIn(final String quote, final String haystack, final int[] partStarts)
     {
@@ -138,7 +137,7 @@ final class QuoteVerifier
         return findBestWindow(wanted, haystack, partStarts);
     }
 
-    /** The best stretch any plausible starting place gives this quote. */
+    /** The best close match for the quote among the candidate places, or no match. */
     private static Match findBestWindow(final String wanted, final String haystack, final int[] partStarts)
     {
         final int window = (int) Math.min(Integer.MAX_VALUE, (long) (wanted.length() * WINDOW_FACTOR));
@@ -156,8 +155,8 @@ final class QuoteVerifier
     }
 
     /**
-     * The stretch of the text between {@code from} and {@code to} with the fewest edits to the quote. The quote
-     * is used whole; the stretch may start and end anywhere.
+     * The part of the text between {@code from} and {@code to} that needs the fewest edits to become the quote.
+     * The whole quote is used, but the matched part may start and end anywhere in that range.
      */
     private static Match align(final String wanted, final String haystack, final int from, final int to)
     {
@@ -199,7 +198,7 @@ final class QuoteVerifier
         return new Match(score, from + previousStart[end], from + end);
     }
 
-    /** Where the lowest edit count is, the first of them on a tie. */
+    /** The index of the lowest edit count, the first one on a tie. */
     private static int findLowest(final int[] costs)
     {
         int lowest = 0;
@@ -211,7 +210,7 @@ final class QuoteVerifier
         return lowest;
     }
 
-    /** Whether a stretch runs over the start of one of the joined documents. */
+    /** Whether a match crosses the start of one of the joined documents. */
     private static boolean isAcrossParts(final int at, final int end, final int[] partStarts)
     {
         for (final int partStart : partStarts) {
@@ -222,7 +221,7 @@ final class QuoteVerifier
         return false;
     }
 
-    /** The key words of a stretch, widened to whole words at both ends. */
+    /** The numbers and negations in a match, widened to whole words at both ends. */
     private static Set<String> getWords(final String haystack, final int at, final int end)
     {
         int from = at;
@@ -255,17 +254,16 @@ final class QuoteVerifier
     }
 
     /**
-     * Where in the text the quote might start.
+     * Places in the text where the quote might start.
      *
-     * <p>Anchored on stretches of the quote itself: its opening, its middle and its end. A model copying a
-     * passage rarely changes all three, and one that has changed all three did not copy it.</p>
+     * <p>They are found by searching for three pieces of the quote: its start, its middle and its end. A model
+     * copying a passage rarely changes all three, and if it changed all three it did not copy it.</p>
      *
-     * <p>Each anchor may take at most two places, so a repeating opening cannot use them all; the end anchor
-     * only gets what the first two leave.</p>
+     * <p>Each piece may add at most two places, so the end piece only gets what the first two leave.</p>
      *
      * @param wanted the normalized quote
      * @param haystack the normalized text
-     * @return up to {@link #MAX_CANDIDATES} offsets into the text, in no particular order
+     * @return up to {@link #MAX_CANDIDATES} positions in the text, empty when no piece is found
      */
     private static List<Integer> findCandidateStarts(final String wanted, final String haystack)
     {
@@ -279,12 +277,12 @@ final class QuoteVerifier
     }
 
     /**
-     * Where one anchor says the quote might start, for as many places as this anchor is allowed.
+     * Adds the places where one piece of the quote says the quote might start, up to the limits.
      *
-     * @param starts the candidates so far, added to
+     * @param starts the places found so far; new ones are added to it
      * @param haystack the normalized text
-     * @param anchor the stretch of the quote to look for
-     * @param anchorAt where that stretch sits in the quote
+     * @param anchor the piece of the quote to search for
+     * @param anchorAt where that piece starts in the quote
      */
     private static void addCandidates(final List<Integer> starts, final String haystack, final String anchor,
         final int anchorAt)
@@ -292,7 +290,7 @@ final class QuoteVerifier
         int taken = 0;
         int found = haystack.indexOf(anchor);
         while (found >= 0 && taken < CANDIDATES_PER_ANCHOR && starts.size() < MAX_CANDIDATES) {
-            // Where the quote would start if this anchor is the part of it that matched
+            // Where the whole quote would start, if this piece of it is the one found here
             final Integer start = Integer.valueOf(Math.max(0, found - anchorAt));
             if (!starts.contains(start)) {
                 starts.add(start);
@@ -303,11 +301,11 @@ final class QuoteVerifier
     }
 
     /**
-     * The shape both the check and the heading lookup compare in: markers gone, whitespace collapsed,
-     * lowercased. Shared so the two cannot disagree about what counts as the same text.
+     * Makes text ready to compare: page markers removed, whitespace collapsed, lowercased. Quotes and documents
+     * both go through this, so they are always compared the same way.
      *
-     * @param text what to normalize
-     * @return the normalized form
+     * @param text the text to normalize
+     * @return the normalized text
      */
     static String normalize(final String text)
     {

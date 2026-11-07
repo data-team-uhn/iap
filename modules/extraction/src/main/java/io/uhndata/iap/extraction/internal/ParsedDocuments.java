@@ -26,10 +26,10 @@ import org.osgi.service.component.annotations.Component;
 import io.uhndata.iap.submissions.models.File;
 
 /**
- * Reads a parsed document, once per reading rather than once per step.
+ * Reads a parsed document once per reading instead of once per step.
  *
- * <p>The steps of a reading run one after another on the same document, so one entry is kept, keyed by the
- * stored file and when it was last written: a re-parse is never served the document it replaced.</p>
+ * <p>The steps of a reading run one after another on the same document, so only the last document read is kept.
+ * It is keyed by the stored file and the time it was last written, so a new parse never gets the old text.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -37,19 +37,19 @@ import io.uhndata.iap.submissions.models.File;
 @Component(service = ParsedDocuments.class)
 public class ParsedDocuments
 {
-    /** When the stored Markdown was last written, which is what makes a kept copy stale. */
+    /** When the stored Markdown was last written; a change means the kept copy is stale. */
     private static final String JCR_LAST_MODIFIED = "jcr:lastModified";
 
     private static final String JCR_CONTENT = "jcr:content";
 
-    /** The document read most recently, or {@code null} when nothing has been read yet. */
+    /** The document read last, or {@code null} when nothing has been read yet. */
     private volatile Entry kept;
 
     /**
-     * The parsed text of a file, prepared for the quotes that will be checked against it.
+     * Returns the parsed text of a file, ready for checking quotes against it.
      *
      * @param file the parsed file
-     * @return the scan, {@link DocumentScan#EMPTY_SCAN} when the file holds no parsed text
+     * @return the scan, or {@link DocumentScan#EMPTY_SCAN} when the file holds no parsed text
      * @throws IOException if the stored text cannot be read
      */
     public DocumentScan scan(final File file) throws IOException
@@ -70,10 +70,10 @@ public class ParsedDocuments
     }
 
     /**
-     * When the stored Markdown was last written.
+     * Returns when the stored Markdown was last written.
      *
      * @param markdown the {@code nt:file} holding it
-     * @return the moment, or {@code null} when the repository did not record one
+     * @return the time, or {@code null} when the repository has none
      */
     private static Calendar getLastModified(final Resource markdown)
     {
@@ -82,7 +82,7 @@ public class ParsedDocuments
     }
 
     /**
-     * One document, and what makes it the same document next time.
+     * One kept document, with what tells whether it is still the same document.
      *
      * @version $Id$
      * @since 0.1.0
@@ -103,11 +103,10 @@ public class ParsedDocuments
         }
 
         /**
-         * Whether this entry is still the document being asked for.
+         * Checks whether this entry is still the document asked for.
          *
-         * <p>A file the repository records no write time for is never reused: there would be nothing to tell a
-         * re-parse from the parse it replaced, and serving the old text would read answers out of a document
-         * the submitter has already taken down.</p>
+         * <p>A file with no recorded write time is never reused: nothing would tell a new parse from the one it
+         * replaced, and the old text could give answers from a document the submitter already removed.</p>
          */
         boolean isSameVersion(final String otherPath, final Calendar otherWrittenAt)
         {

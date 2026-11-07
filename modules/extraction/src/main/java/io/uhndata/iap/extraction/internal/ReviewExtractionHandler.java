@@ -37,14 +37,15 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Service task {@code reviewExtraction}: record what the submitter said about the quotes behind a suggested answer.
+ * Service task {@code reviewExtraction}: records what the submitter said about the quotes behind a suggested
+ * answer.
  *
- * <p>{@code evidenceRejected} says the quoted passage does not support the suggestion. That is a report about the
- * extraction, not about the answer, so it settles nothing and blocks nothing. Accepting or changing a suggestion
- * is not a review: it is saving the answer, which is also what measures how far the answer moved from it.
+ * <p>{@code evidenceRejected} means the quotes do not support the suggestion. It is a note about the run, not
+ * about the answer, so it settles nothing and blocks nothing. Accepting or changing a suggestion is not a review:
+ * that is saving the answer, which also measures how far the answer moved from the suggestion.
  *
- * <p>The payload names the question by its path relative to the schema version, the same way the save
- * endpoint does, so a form posts back what it was given.
+ * <p>The payload names the question by its path within the schema version, the same way the save endpoint does,
+ * so a form posts back what it was given.
  *
  * @version $Id$
  * @since 0.1.0
@@ -77,7 +78,7 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
         }
         final Resource target = context.getTarget();
         final Submission submission = SubmissionFiles.getSubmission(target);
-        // Only the submitter's word on their own request counts
+        // Only the submitter may review, and only while the request is a draft
         SubmitterAccess.checkMayChange(submission, context.getActor());
         final Extraction extraction = findExtraction(submission, path);
         if (extraction == null) {
@@ -100,18 +101,16 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
         }
     }
 
-    /** A form posts strings, a test posts booleans, and both mean the same thing. */
+    /** Reads a payload flag: a form posts the string "true", a test posts a boolean. */
     private static boolean isTrue(final Object value)
     {
         return value instanceof Boolean ? (Boolean) value : Boolean.parseBoolean(Objects.toString(value, ""));
     }
 
     /**
-     * The extraction the submitter was looking at when they gave this verdict, or {@code null} when there is
-     * none.
-     *
-     * <p>That is the newest run, the same one the form shows. The rule lives in the model, so the verdict cannot
-     * land on a different run from the one that was on screen.</p>
+     * The newest run of the question, the one the form shows, or {@code null} when there is none. It uses the
+     * same rule as the form ({@code Answer.getLatestExtraction}), so the review lands on the run that was on
+     * screen.
      */
     private static Extraction findExtraction(final Submission submission, final String path)
     {

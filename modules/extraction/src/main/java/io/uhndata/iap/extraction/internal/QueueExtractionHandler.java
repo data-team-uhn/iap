@@ -31,14 +31,13 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that asks for the reading of a submission's answers. Queued rather than run here: the reading
- * takes the model minutes, and the request that delivered the parse should not wait for it.
+ * The service task that queues the reading of a submission's answers as a background job. It is queued, not run
+ * here, because the reading takes the model minutes and the request that delivered the parse should not wait.
  *
- * <p>Every parse that lands queues one, and the job decides whether its turn has come. Deciding here instead
- * meant asking "has every other parse landed?" from inside a transaction that has not committed, so two parses
- * landing at once could each see the other as still going and neither would queue anything - a submission left
- * at {@code running} with nothing left to move it on. The job looks at committed state and claims the reading,
- * so the question is asked where it can be answered.</p>
+ * <p>Every finished parse queues one job, and the job decides whether the reading can start. This task cannot
+ * decide, because its transaction has not committed yet: two parses ending at the same time could each see the
+ * other as still going, and neither would queue a reading, leaving the submission at {@code running} for good.
+ * The job sees committed data and claims the reading.</p>
  *
  * @version $Id$
  * @since 0.1.0

@@ -44,15 +44,12 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
- * Runs the reading of a submission's answers in the background: fires the {@code extractAnswers} event on the
- * submission, and the system workflow catching it starts the schema's reading workflow, which runs in one commit up
- * to its first user task.
- * The submitter asks for another reading through {@code readAgain}, which queues one of these jobs too.
+ * Runs the reading of a submission's answers as a background job. It fires the {@code extractAnswers} event on the
+ * submission, and that system workflow starts the reading workflow the schema version names.
  *
- * <p>Every parse that lands queues one of these, so this is also where it is decided whose turn it is. Its own
- * session sees committed state, which is what makes the question answerable: a job that finds a parse still
- * going comes back to it shortly, since what it sees may be a parse that has landed but not committed. The
- * reading is then claimed on the submission, so two jobs that both find everything settled cannot both pay a
+ * <p>Every finished parse queues one of these jobs, and {@code readAgain} queues one too, so the job decides
+ * whether the reading can start. It sees only committed data: when a parse still looks unfinished, the job fails
+ * so Sling runs it again shortly. It then claims the reading on the submission, so two jobs never both pay a
  * model to read the same document.</p>
  *
  * @version $Id$
@@ -69,18 +66,18 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     public static final String SUBMISSION_PROPERTY = "submission";
 
     /**
-     * The job property set when the submitter asked for the reading again. That job is queued before the walk
-     * asking for it commits, so until it does, the job waits rather than meet the old claim.
+     * The job property set when the submitter asked to read again. The job is queued before that request commits,
+     * so it waits until the submission shows {@code running}; before that it would still see the old claim.
      */
     public static final String READ_AGAIN = "readAgain";
 
-    /** The event the reading is. */
+    /** The event that starts the reading. */
     static final String EVENT_NAME = "extractAnswers";
 
     /** What the submitter is told when the schema names no reading workflow that exists. */
     static final String NOTHING_READS = "Nothing is set up to read this request's documents";
 
-    /** What the submitter is told when the reading failed for a reason that is an administrator's to fix. */
+    /** What the submitter is told when the reading failed for a reason an administrator must fix. */
     static final String COULD_NOT_READ = "The document could not be read";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtractAnswersJobConsumer.class);
@@ -108,8 +105,8 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             try {
                 return runReading(resolver, job, path);
             } finally {
-                // Also clears a stop that came after the last model call: it has nothing left to stop, and left
-                // set, it would stop whatever job this pooled thread runs next
+                // Also clears a stop that came after the last model call: left set, it would stop the next job
+                // this pooled thread runs
                 this.runs.end(path);
             }
         } catch (final ReadingRuns.Stopped e) {
@@ -123,9 +120,9 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "openSession").about(path));
             return JobResult.CANCEL;
         } catch (final WorkflowException | RuntimeException e) {
-            // RuntimeException too, because a malformed definition throws rather than returning.
-            // Not left to Sling's retry: a failed reading has already let the claim go through giveUp, so a retry
-            // would claim it again and pay the model twice.
+            // RuntimeException too, because a malformed definition throws one.
+            // Not left to Sling to retry: giveUp has already let the claim go, so a retry would claim it again
+            // and pay the model twice.
             LOGGER.error("Extracting answers from {} failed: {}", path, e.getMessage(), e);
             // The submitter only sees that the document could not be read; the cause is for an administrator
             ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "read").about(path));
@@ -134,12 +131,13 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     }
 
     /**
-     * Read a submission, if this job is the one to do it.
+     * Reads the submission, if this job is the one to do it.
      *
-     * @param resolver the session to read and claim through, which sees committed state
-     * @param job the job, whose id is the claim
+     * @param resolver the session to read and claim through; it sees only committed data
+     * @param job the job; its id is written as the claim
      * @param path the submission to read
-     * @return what became of the job
+     * @return {@code OK} when the reading ran, {@code FAILED} to have Sling run the job again later, or
+     *         {@code CANCEL} when there is nothing for this job to do
      * @throws WorkflowException when the reading itself fails
      */
     private JobResult runReading(final ResourceResolver resolver, final Job job, final String path)
@@ -160,7 +158,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             LOGGER.debug("The reading of {} is already somebody else's", path);
             return JobResult.CANCEL;
         }
-        // Brackets every model call a reading makes, so one line says what the whole of it cost
+        // Times the whole reading, all model calls included, for the log line below
         final long startedAt = System.nanoTime();
         LOGGER.info("Reading run started: submission={}", path);
         try {
@@ -172,9 +170,8 @@ public class ExtractAnswersJobConsumer implements JobConsumer
                 Thread.interrupted();
                 throw new ReadingRuns.Stopped();
             }
-            // The engine reverted the whole walk, so the `running` a parse or Read again committed is still there and
-            // this job still holds the claim. Left alone that is a submission nothing can ever read again and a
-            // spinner that never stops, which is the one outcome this pipeline treats as worse than a bad answer.
+            // The engine reverted the walk, but `running` and this job's claim were committed before it. Left as
+            // they are, nothing could ever read the submission again and its spinner would never stop.
             giveUp(resolver, submission, COULD_NOT_READ);
             throw e;
         }
@@ -185,10 +182,10 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     }
 
     /**
-     * Make the submission writable for everything this job writes, from giving up to the answers the reading reads.
+     * Checks the submission out if it is checked in, so this job and the reading can write to it.
      *
      * @param submission the submission to read
-     * @return {@code false} when it cannot be checked out, which nothing here can fix
+     * @return {@code false} when it cannot be checked out, which this job cannot fix
      */
     private static boolean checkOut(final Resource submission)
     {
@@ -204,8 +201,8 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     }
 
     /**
-     * Whether a reading can start at all, giving it up when it cannot: fired anyway, it would start nothing and
-     * leave `running` behind for good.
+     * Checks that a reading can start, and gives the reading up when it cannot. Fired anyway, the event would start
+     * nothing and leave {@code running} on the submission for good.
      *
      * @param resolver this job's session
      * @param submission the submission to read
@@ -233,7 +230,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     }
 
     /**
-     * Whether the submission is not ready for this job yet, so Sling should run it again in a moment.
+     * Checks whether the submission is not ready for this job yet, so Sling should run it again in a moment.
      *
      * @param job the job
      * @param submission the submission to read
@@ -243,14 +240,14 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     {
         if (Boolean.TRUE.equals(job.getProperty(READ_AGAIN, Boolean.class)) && !ExtractionStatus.STATUS_RUNNING.equals(
             submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class))) {
-            // The walk that queued this job has not committed yet, so the old claim is still there
+            // The read again request that queued this job has not committed yet, so the old claim is still there
             LOGGER.info("The request to read {} again is not committed yet; looking again shortly",
                 submission.getPath());
             return true;
         }
         if (!SubmissionFiles.isEveryParseSettled(SubmissionFiles.getSubmission(submission))) {
-            // Retried, not dropped: this job is queued before the walk recording its parse commits, so it can
-            // see that parse as unfinished. A parse really still going queues its own job when it lands.
+            // Retried, not dropped: this job is queued before its parse is committed, so that parse can look
+            // unfinished. A parse that really is still going queues its own job when it ends.
             LOGGER.info("A parse of {} is still going, or has not been committed yet; looking again shortly",
                 submission.getPath());
             return true;
@@ -259,15 +256,14 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     }
 
     /**
-     * Give the reading up: say so on the submission and take the claim back down, in a commit of this job's own.
+     * Gives the reading up: marks it failed on the submission and releases the claim, in a commit of its own.
      *
-     * <p>Runs after a failed or skipped reading, so it writes and commits on its own: a status the view can stop
-     * spinning on, and a claim let go so a later parse - or somebody asking for the reading again - can take
-     * it.</p>
+     * <p>The failed status stops the spinner in the view, and the released claim lets a later parse or a read
+     * again request start a new reading.</p>
      *
      * @param resolver this job's session
      * @param submission the submission whose reading failed
-     * @param reason what to tell the person looking at it
+     * @param reason the message shown to the person looking at the submission
      */
     private static void giveUp(final ResourceResolver resolver, final Resource submission, final String reason)
     {
@@ -275,7 +271,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         final ModifiableValueMap properties = submission.adaptTo(ModifiableValueMap.class);
         if (properties == null) {
             LOGGER.error("The reading of {} failed and its claim cannot be taken back down", submission.getPath());
-            // The submission now spins for good: only the service user's rights can explain it
+            // The submission now spins forever; only missing rights for the service user can cause this
             ErrorLogger.logProblem("The extraction service user cannot write the submission",
                 ErrorContext.of(ExtractAnswersJobConsumer.class, "giveUp").about(submission));
             return;
@@ -287,17 +283,17 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         } catch (final PersistenceException e) {
             LOGGER.error("Could not record that the reading of {} failed: {}", submission.getPath(),
                 e.getMessage(), e);
-            // The submission now spins for good, and nothing else will say why
+            // The submission now spins forever, and nothing else will say why
             ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "giveUp").about(submission));
             resolver.revert();
         }
     }
 
     /**
-     * Give the reading up when the session it was using has already been closed.
+     * Gives the reading up through a new session, for when the job's own session is already closed.
      *
      * @param path the submission whose reading failed
-     * @param reason what to tell the person looking at it
+     * @param reason the message shown to the person looking at the submission
      */
     private void giveUp(final String path, final String reason)
     {
@@ -314,11 +310,12 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     }
 
     /**
-     * Whether the submission's schema version names a reading workflow that is really there.
+     * Checks whether the submission's schema version names a reading workflow that exists.
      *
      * @param resolver the job's session
      * @param submission the submission to read
-     * @return {@code true} when {@code readingWorkflow} points at a workflow version
+     * @return {@code true} when {@code readingWorkflow} holds the id of a workflow version; {@code false} when it
+     *         is missing or points at anything else
      */
     private static boolean hasReadingWorkflow(final ResourceResolver resolver, final Resource submission)
     {
@@ -338,14 +335,14 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     }
 
     /**
-     * Take the reading of a submission, unless another job already has it.
+     * Claims the reading of a submission for this job, unless another job already has it.
      *
-     * <p>The claim is a property written and committed on its own. Two jobs that both got this far have both
-     * read it unset, and the second one's commit meets the first one's write, which the repository refuses - so
-     * the loser hears about it here rather than by paying a model to read a document twice.</p>
+     * <p>The claim is written and committed on its own. When two jobs both find it unset, the second commit
+     * conflicts with the first and the repository refuses it, so only one job pays a model to read the
+     * document.</p>
      *
-     * <p>A claim this job already holds is still its own: Sling runs a job again, with the same id, when the
-     * instance stopped before it finished.</p>
+     * <p>A claim that already holds this job's id still counts as this job's: Sling runs a job again, with the
+     * same id, when the instance stopped before the job finished.</p>
      *
      * @param resolver the session to claim through
      * @param submission the submission to read

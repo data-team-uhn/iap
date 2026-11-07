@@ -32,11 +32,11 @@ import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.utils.ReferenceUtils;
 
 /**
- * Writes one run of the model against a question: a {@code sub:Extraction} under the question's
- * {@code sub:Answer}, saying what it read and where from, and a {@code sub:Context} per quote. The answer's value
- * is the submitter's alone, so nothing here writes it.
+ * Saves one model run for one question: a {@code sub:Extraction} under the question's {@code sub:Answer}, with
+ * what the model read and from which document versions, and a {@code sub:Context} for each quote. The answer's
+ * value belongs to the submitter, so nothing here writes it.
  *
- * <p>Kept apart from the intake so that every step recording extracted answers writes the same nodes.
+ * <p>Kept apart from the intake so that every step that saves runs writes the same nodes.
  *
  * @version $Id$
  * @since 0.1.0
@@ -55,22 +55,23 @@ final class ExtractedAnswers
     }
 
     /**
-     * Record one run of the model against a question, under its answer, creating an empty answer when there is none.
-     * The answer's value is never written: a suggestion is not an answer until the submitter accepts or edits it.
+     * Saves one run under the question's answer, and creates an empty answer first when there is none. The
+     * answer's value is never written: a suggestion is not an answer until the submitter accepts or edits it.
      *
      * @param resolver the session to write through
      * @param target the submission
-     * @param existing the answer to the same question to write under, or {@code null} to create one
+     * @param existing the question's answer to write under, or {@code null} to create one
      * @param question the question that was asked
      * @param result what the model found, or that it found nothing
      * @param files the files it was read from, all of them when several were sent as one text
-     * @throws PersistenceException if anything cannot be written
+     * @throws PersistenceException if the question, a file, or any node cannot be read or written; nothing is
+     *     left half-written
      */
     static void write(final ResourceResolver resolver, final Resource target, final Resource existing,
         final Question question, final FieldResult result, final List<File> files) throws PersistenceException
     {
-        // Everything the run points at is looked up before anything is written, so a missing one leaves no
-        // half-made answer behind for the engine's commit to refuse
+        // Look up everything the run points at before writing, so a missing node leaves no half-made answer
+        // behind for the engine's commit to refuse
         final Resource questionResource = resolver.getResource(question.getPath());
         if (questionResource == null) {
             throw new PersistenceException("Could not read the question " + question.getPath());
@@ -91,7 +92,7 @@ final class ExtractedAnswers
         }
     }
 
-    /** The versions the files belong to, which are what a run read. */
+    /** The document version of each file, which is what a run cites as read. Throws if a file cannot be found. */
     private static List<Resource> getVersions(final ResourceResolver resolver, final List<File> files)
         throws PersistenceException
     {
@@ -107,8 +108,8 @@ final class ExtractedAnswers
     }
 
     /**
-     * Write the run under an answer, with its quotes, removing it again if any of it cannot be written. A run that
-     * found nothing has no extracted answer, and still names the versions it read.
+     * Writes the run under an answer, with its quotes, and removes it again if any part fails. A run that found
+     * nothing has no {@code extractedAnswer}, but still names the versions it read.
      */
     private static void writeExtraction(final ResourceResolver resolver, final Resource answer,
         final FieldResult result, final List<Resource> versions) throws PersistenceException
@@ -141,7 +142,7 @@ final class ExtractedAnswers
         final Map<String, Object> context = new HashMap<>();
         context.put(PRIMARY_TYPE, "sub:Context");
         context.put("quote", passage.quote());
-        // Every quote stored here was found in the text. The ones that were not are dropped upstream.
+        // Every quote here was found in the text; the ones that were not were dropped before
         if (passage.header() != null && !passage.header().isEmpty()) {
             context.put("header", passage.header());
         }
@@ -149,7 +150,7 @@ final class ExtractedAnswers
             context.put("page", passage.page());
         }
         final Resource written = resolver.create(extracted, UUID.randomUUID().toString(), context);
-        // Only when the step named its documents: then each quote points at the one it came from
+        // Only when the step named its documents; then each quote points at the version it came from
         if (source != null) {
             ReferenceUtils.setWeakReference(written, "source", source);
         }

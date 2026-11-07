@@ -27,9 +27,8 @@ import org.apache.sling.api.resource.Resource;
 import io.uhndata.iap.utils.VersioningUtils;
 
 /**
- * Where reading answers out of a submission's documents got to, as recorded on the submission for whoever is
- * looking at it. The states are the ones the submission view knows: {@link #RUNNING} shows a spinner, the rest
- * stop it and say why.
+ * The reading status saved on a submission, for the submission view. {@link #STATUS_RUNNING} shows a spinner;
+ * the other states stop it, and the message says why.
  *
  * @version $Id$
  * @since 0.1.0
@@ -43,24 +42,24 @@ final class ExtractionStatus
     static final String MESSAGE_PROPERTY = "extractionMessage";
 
     /**
-     * The property on the submission saying a job has taken the reading. Every parse that lands queues a job, so
-     * this is what keeps the second one from paying a model to read the same document again. Taken back down when
-     * new documents are sent to be parsed, when the submitter asks to read again or stops the reading, and when a
+     * The property on the submission saying a job has taken the reading. Every finished parse queues a job, so
+     * this stops a second job from paying the model to read the same document again. It is removed when new
+     * documents are sent to be parsed, when the submitter asks to read again or stops the reading, and when a
      * reading gives up.
      */
     static final String READING_CLAIMED = "extractionReadingClaimed";
 
     /**
-     * The property naming the job holding the claim, by its id. Two jobs racing to claim would both write
-     * {@code true}, and the repository merges two identical changes without a conflict, so both would read. Each
-     * job's own id makes the two writes differ, and the second commit is refused. The id also lets a job that
-     * Sling runs again after a restart find the claim is still its own.
+     * The property holding the id of the job that has the claim. If two jobs race, both write {@code true}, and
+     * the repository merges two equal changes without a conflict, so both would read. Writing each job's own id
+     * makes the writes differ, so the second commit is refused. The id also lets a job that Sling runs again
+     * after a restart see that the claim is still its own.
      */
     static final String READING_CLAIMED_BY = "extractionReadingClaimedBy";
 
     /**
-     * The property on the submission saying the last reading ended with the request unable to go on, such as a
-     * document that is not what the request asks for. Its message says why. Taken down when a new reading starts.
+     * The property on the submission saying the last reading ended with the request unable to go on, such as when
+     * a document is not what the request asks for. The message says why. It is removed when a new reading starts.
      */
     static final String BLOCKED_PROPERTY = "extractionBlocked";
 
@@ -70,7 +69,7 @@ final class ExtractionStatus
     /** Every answer that could be read has been recorded. */
     static final String STATUS_DONE = "done";
 
-    /** Parsing or reading did not finish as it should; the message says why. Earlier answers may stay. */
+    /** Parsing or reading failed; the message says why. Runs saved by earlier steps may stay. */
     static final String STATUS_FAILED = "failed";
 
     /** What the view is told when the submitter stopped the reading. */
@@ -82,7 +81,7 @@ final class ExtractionStatus
     }
 
     /**
-     * Take a reading's claim down, so the next reading can take it.
+     * Removes the reading claim, so the next reading can take it.
      *
      * @param submission the submission's resource, through a session that may write it
      * @throws PersistenceException if the submission cannot be written
@@ -97,7 +96,7 @@ final class ExtractionStatus
     }
 
     /**
-     * The same, on properties already open for writing.
+     * Removes the reading claim from properties already open for writing.
      *
      * @param properties the submission's properties
      */
@@ -108,7 +107,7 @@ final class ExtractionStatus
     }
 
     /**
-     * Record that the request cannot go on after this reading, until a new reading starts.
+     * Marks the request as unable to go on after this reading, until a new reading starts.
      *
      * @param submission the submission's resource, through a session that may write it
      * @throws PersistenceException if the submission cannot be written
@@ -123,8 +122,8 @@ final class ExtractionStatus
     }
 
     /**
-     * Record that a step read what it could, unless an earlier step of the same reading already recorded a
-     * failure: that one said something this step does not know, and the submitter must still see it.
+     * Sets the status to done, unless it is already failed. A failure says something this step does not know,
+     * and the submitter must still see it.
      *
      * @param submission the submission's resource, through a session that may write it
      * @param message a short message for the person looking at it, or {@code null} to clear it
@@ -140,10 +139,10 @@ final class ExtractionStatus
     }
 
     /**
-     * Record where extraction got to on a submission.
+     * Saves the reading status and message on a submission. Setting {@code running} also clears the blocked mark.
      *
      * @param submission the submission's resource, through a session that may write it
-     * @param status one of the states above
+     * @param status one of the {@code STATUS_} constants
      * @param message a short message for the person looking at it, or {@code null} to clear it
      * @throws PersistenceException if the submission cannot be written
      */
@@ -167,9 +166,9 @@ final class ExtractionStatus
     }
 
     /**
-     * Make a submission writable when it was checked in. A submission is versionable, and once checked in it is
-     * read-only with everything under it. A checkout takes effect at once and stays, so one before the first write
-     * covers every write after it.
+     * Checks out the submission when it is versionable, so it can be written. A checked-in submission is
+     * read-only, with everything under it. A checkout lasts, so one call before the first write covers every
+     * write after it.
      *
      * @param submission the submission's resource, through a session that may check it out
      * @throws PersistenceException if it cannot be checked out

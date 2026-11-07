@@ -25,9 +25,9 @@ import io.uhndata.iap.llm.LLMConfigurationService;
 import io.uhndata.iap.submissions.models.File;
 
 /**
- * How much of a document one model call sends, and saying so when it is not all of it.
+ * Cuts a document to fit in one model call, and logs when it had to cut.
  *
- * <p>What is left out is not read, and the confidence says nothing about it, so a cut is always logged.</p>
+ * <p>The model never sees the part that was cut, and the confidence does not show it, so every cut is logged.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -42,15 +42,16 @@ final class DocumentBudget
     }
 
     /**
-     * As much of a document as one call may carry, and a log line when that is not the whole of it.
+     * The part of a document that fits in one call. A document that is too long keeps its start and its end,
+     * and the middle is left out.
      *
      * @param configuration where the active model's settings are read from
-     * @param stage what is asking, for the log and for the warning when the settings cannot be read
-     * @param file the file being read, for what to call it in the log
+     * @param stage the name of the step asking, for the logs
+     * @param file the file being read, used to name it in the log
      * @param document the whole parsed document
-     * @param promptTokens the tokens everything other than the document takes
-     * @param maxOutputTokens the room this call gives the answer
-     * @return the text to send, empty when the prompt leaves no room for any of it
+     * @param promptTokens the tokens used by everything other than the document
+     * @param maxOutputTokens the most tokens this call lets the answer use
+     * @return the text to send; empty when the document is empty or the prompt leaves no room for it
      */
     static String fitDocument(final LLMConfigurationService configuration, final String stage, final File file,
         final String document, final long promptTokens, final long maxOutputTokens)

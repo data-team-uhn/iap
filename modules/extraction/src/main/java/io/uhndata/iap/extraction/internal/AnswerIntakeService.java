@@ -43,13 +43,12 @@ import io.uhndata.iap.llm.LLMRequestOptions;
 import io.uhndata.iap.submissions.models.File;
 
 /**
- * The extraction pass: one call that asks for every field at once. A long document is cut to its opening and
- * its end to fit the call; quotes are still checked against the whole of it.
+ * Asks the model for every field in one call and checks its answers against the document. A long document is
+ * cut to its start and its end to fit the call, but quotes are still checked against the whole document.
  *
- * <p>Nothing is made up. Every quote is checked against the document, and a field's confidence is scaled by
- * how much of its evidence held up; a field with no value at all is reported as not found whatever the model
- * said. An answer that cannot be read twice over leaves every field unanswered, marked degraded, rather than
- * settling any of them by guesswork.
+ * <p>Each quote must really be in the document. A field's confidence goes down when its quotes are not found.
+ * A field with no value is not found, whatever the model said. If the answer cannot be read on both tries,
+ * every field is left unanswered and the result is marked degraded.
  *
  * @version $Id$
  * @since 0.1.0
@@ -58,14 +57,14 @@ import io.uhndata.iap.submissions.models.File;
 public class AnswerIntakeService
 {
     /**
-     * What we multiply confidence by when none of a field's quotes could be found. 0.9 becomes 0.45. Not 0,
+     * What confidence is multiplied by when none of a field's quotes are found, so 0.9 becomes 0.45. Not 0,
      * because the answer can still be right.
      */
     static final double UNVERIFIED_PENALTY = 0.5;
 
     /**
-     * The most room an answer is given, however many fields are asked. A provider refuses a request asking for more
-     * than its model can write, and 16k is a common ceiling among hosted models.
+     * The most output tokens one answer may use, however many fields are asked. A provider refuses a request for
+     * more than its model can write, and 16k is a common limit for hosted models.
      */
     static final long MAX_OUTPUT_TOKENS = 16_384L;
 
@@ -73,13 +72,13 @@ public class AnswerIntakeService
 
     private static final String SCHEMA_NAME = "iap_intake";
 
-    /** Room for the envelope of the answer. */
+    /** Output tokens for the parts of the answer that are not about one field. */
     private static final long BASE_TOKENS = 500L;
 
-    /** Room for one field's value, reasoning and quotes. */
+    /** Output tokens for one field's value, reasoning and quotes. */
     private static final long PER_FIELD_TOKENS = 400L;
 
-    /** What is asking, in the logs and in the budget warning. */
+    /** The name of this step in the logs and in the budget warning. */
     private static final String STAGE_NAME = "intake";
 
     private static final String RETRY_OPENING = "Your previous answer could not be read: ";
@@ -94,30 +93,31 @@ public class AnswerIntakeService
     private LLMConfigurationService configurationService;
 
     /**
-     * What the intake pass produced.
+     * The result of one intake call.
      *
-     * @param fields one result per field asked for, by field name, in the order asked
-     * @param degraded whether nothing was read, leaving every field unanswered; {@code reason} says why
-     * @param reason what to tell the submitter when nothing was read, or {@code null} for the model's fault
+     * @param fields one result per field asked for, keyed by field name, in the order asked
+     * @param degraded {@code true} when nothing was read and every field is left unanswered
+     * @param reason what to tell the submitter when nothing was read, or {@code null} when the model's answer could
+     *            not be read
      * @version $Id$
      * @since 0.1.0
      */
     public record IntakeResult(Map<String, FieldResult> fields, boolean degraded, String reason)
     {
-        /** What the model's answer could not be read gives the submitter. */
+        /** What the submitter is told when the model's answer could not be read. */
         static final String UNREADABLE_MESSAGE = "The model's answer could not be read";
 
-        /** What the submitter is told when the model could not be asked at all. */
+        /** What the submitter is told when the model could not be reached. */
         static final String UNREACHABLE_MESSAGE = "The model could not be reached";
 
-        /** What the submitter is told when the parsed text could not be read back out of the repository. */
+        /** What the submitter is told when the parsed text could not be read from the repository. */
         static final String TEXT_UNREADABLE = "The document's text could not be read";
 
         /**
-         * A result with no reason of its own.
+         * A result with no reason.
          *
          * @param fields one result per field
-         * @param degraded whether nothing was read
+         * @param degraded {@code true} when nothing was read
          */
         public IntakeResult(final Map<String, FieldResult> fields, final boolean degraded)
         {
@@ -125,23 +125,22 @@ public class AnswerIntakeService
         }
 
         /**
-         * Takes copies, so a result cannot be changed once produced.
+         * Copies the fields, so the result cannot be changed later.
          *
          * @param fields one result per field
-         * @param degraded whether nothing was read
+         * @param degraded {@code true} when nothing was read
          * @param reason what to tell the submitter, or {@code null}
          */
         public IntakeResult
         {
-            // A copy that keeps the order, which Map.copyOf does not: the fields read back in the order the
-            // schema asks them, and a caller listing them should not have to sort them again
+            // Not Map.copyOf, which loses the order: callers list the fields in the order they were asked
             fields = Collections.unmodifiableMap(new LinkedHashMap<>(fields));
         }
 
         /**
-         * The result when the model's answer could not be read twice over: nothing answered.
+         * The result when the model's answer could not be read on either try.
          *
-         * @return a degraded result
+         * @return a degraded result with no fields and no reason
          */
         static IntakeResult createNothingRead()
         {
@@ -149,10 +148,10 @@ public class AnswerIntakeService
         }
 
         /**
-         * The result when the model was not asked, or could not be, with what to tell the submitter.
+         * The result when the model was not asked, or could not be reached.
          *
          * @param reason what to tell the submitter
-         * @return a degraded result carrying the reason
+         * @return a degraded result with no fields and this reason
          */
         static IntakeResult createNotAsked(final String reason)
         {
@@ -160,9 +159,9 @@ public class AnswerIntakeService
         }
 
         /**
-         * What to tell the submitter about a result that read nothing.
+         * What to tell the submitter when nothing was read.
          *
-         * @return the reason, or the model's fault when there is none
+         * @return the reason, or {@link #UNREADABLE_MESSAGE} when there is no reason
          */
         String getMessage()
         {
@@ -171,12 +170,13 @@ public class AnswerIntakeService
     }
 
     /**
-     * Ask for every field over the document.
+     * Asks the model for every field in the document.
      *
-     * @param file the parsed file, for what to call it in a warning
-     * @param document its parsed text, prepared for the quotes that will be checked against it
-     * @param fields what to extract
-     * @return what the model read out, degraded with the reason when nothing was read
+     * @param file the parsed file, used to name it in the logs
+     * @param document the parsed text, which quotes are checked against
+     * @param fields the fields to extract
+     * @return one result per field, or a degraded result with a reason when nothing was read; an empty, not
+     *         degraded result when there are no fields
      * @throws IOException if the model cannot be reached
      */
     public IntakeResult run(final File file, final DocumentScan document, final List<ExtractionField> fields)
@@ -186,13 +186,14 @@ public class AnswerIntakeService
     }
 
     /**
-     * Ask for every field over the document, with extra system instructions for this step only.
+     * Asks the model for every field in the document, with extra system instructions for this step.
      *
-     * @param file the parsed file, for what to call it in a warning
-     * @param document its parsed text, prepared for the quotes that will be checked against it
-     * @param fields what to extract
-     * @param extraSystem domain knowledge for this step, prepended to the intake prompt; ignored when blank
-     * @return what the model read out, degraded with the reason when nothing was read
+     * @param file the parsed file, used to name it in the logs
+     * @param document the parsed text, which quotes are checked against
+     * @param fields the fields to extract
+     * @param extraSystem extra instructions put before the intake prompt; ignored when {@code null} or blank
+     * @return one result per field, or a degraded result with a reason when nothing was read; an empty, not
+     *         degraded result when there are no fields
      * @throws IOException if the model cannot be reached
      */
     public IntakeResult run(final File file, final DocumentScan document, final List<ExtractionField> fields,
@@ -212,9 +213,9 @@ public class AnswerIntakeService
         final String text = DocumentBudget.fitDocument(this.configurationService, STAGE_NAME, file, document.getText(),
             promptTokens, maxOutputTokens);
         if (text.isEmpty()) {
-            // Asking every field over no document at all is a call that can only invent, so it is not made
+            // Without the document the model could only make answers up, so it is not asked
             LOGGER.warn("No room was left to show the intake any of {}", file.getPath());
-            // The active model's window is too small for the questions: a setting only an administrator can change
+            // The model's context window is too small for the questions, which only an administrator can fix
             ErrorLogger.logProblem("The questions leave no room for the document in the model's context window",
                 ErrorContext.of(AnswerIntakeService.class, "intake").about(file.getPath()));
             return IntakeResult.createNotAsked("The questions leave no room to show the model the document");
@@ -224,16 +225,15 @@ public class AnswerIntakeService
             LOGGER.warn("The intake did not answer in the required shape twice for {}", file.getPath());
             return IntakeResult.createNothingRead();
         }
-        // Checked against the whole document, not the part that fitted in the call. A quote is evidence when it
-        // is in the document the submitter attached; where the token budget happened to fall is this pipeline
-        // business and says nothing about whether the passage is real.
+        // Quotes are checked against the whole document, not only the part sent. A quote is real if it is
+        // anywhere in the file the submitter attached.
         return new IntakeResult(readFields(answer, fields, document), false);
     }
 
     /**
-     * Put the question to the model, once, and once more if the first answer was not the shape it had to be.
+     * Asks the model, and asks once more if the first answer cannot be read.
      *
-     * @return the answer, or {@code null} when neither could be read
+     * @return the answer, or {@code null} when neither answer could be read
      * @throws IOException if the model cannot be reached
      */
     private JsonObject ask(final IntakePayload payload, final List<ExtractionField> fields, final String system,
@@ -249,8 +249,8 @@ public class AnswerIntakeService
     }
 
     /**
-     * The system prompt: this step's extra instructions first, when it has any, then the intake's own. Domain
-     * knowledge that is only worth sending for one schema sits on the step, not on every reading.
+     * The system prompt: the step's extra instructions first, if there are any, then the intake prompt. The extra
+     * instructions live on the step so they are only sent for the schema that needs them.
      */
     static String buildSystemPrompt(final String extraSystem)
     {
@@ -258,7 +258,7 @@ public class AnswerIntakeService
         return extraSystem == null || extraSystem.isBlank() ? intake : extraSystem.strip() + "\n\n" + intake;
     }
 
-    /** What was wrong with a reply, in terms a model can act on. */
+    /** The note sent with the second try: what was wrong with the reply, so the model can fix it. */
     static String describeFault(final String reply, final List<ExtractionField> fields)
     {
         return RETRY_OPENING + describeWhatWasWrong(reply, fields) + RETRY_CLOSING;
@@ -279,12 +279,12 @@ public class AnswerIntakeService
     }
 
     /**
-     * Read one answer per field, holding each to the evidence rules.
+     * Reads the model's answer for each field and checks its quotes.
      *
-     * @param answer the object holding one entry per field
-     * @param fields what was asked
+     * @param answer the model's answer, with one entry per field
+     * @param fields the fields that were asked
      * @param document the document quotes are checked against
-     * @return one result per field, in the order they were asked
+     * @return one result per field, in the order asked; a field missing from the answer is not found
      */
     static Map<String, FieldResult> readFields(final JsonObject answer, final List<ExtractionField> fields,
         final DocumentScan document)
@@ -300,13 +300,13 @@ public class AnswerIntakeService
     }
 
     /**
-     * One field, held to the evidence rules: no value means not found, and a found value is discounted by how
-     * many of its quotes cannot be found in the text.
+     * Reads one field's answer. No value means not found, and a found value loses confidence for each of its
+     * quotes that is not in the document.
      */
     private static FieldResult readField(final String name, final JsonObject read, final DocumentScan document)
     {
         final String value = ModelReplies.readString(read, "value");
-        // A blank value written as found would hold the question against every later reading
+        // A blank value counts as not found, or it would be stored as an answer and block the question for good
         final boolean found = read.getBoolean("found_answer", false) && value != null && !value.isBlank();
         final List<FieldResult.Passage> evidence = readPassages(read);
         // The top of the fraction below: the quotes really found in the document
@@ -314,7 +314,7 @@ public class AnswerIntakeService
         // The bottom: the different quotes offered. The same quote twice is one piece of evidence.
         final long distinct = evidence.stream().map(passage -> QuoteVerifier.normalize(passage.quote())).distinct()
             .count();
-        // Scaled by how many quotes checked out. 2 of 2 keeps it, 1 of 2 takes off a quarter, 0 of 2 halves it.
+        // 2 of 2 quotes found keeps the confidence, 1 of 2 takes off a quarter, 0 of 2 halves it
         final double claimed = ModelReplies.readConfidence(read, "confidence");
         final double confidence = found ? claimed * getEvidenceFactor(confirmedEvidence.size(), distinct) : claimed;
         final String reasoning = ModelReplies.readString(read, "reasoning");
@@ -323,10 +323,11 @@ public class AnswerIntakeService
     }
 
     /**
-     * The quotes that are really in the document, each under the heading it sits below.
+     * The quotes that are really in the document, each with the heading above it and the document it is in. A
+     * repeated quote is kept once.
      *
-     * <p>A quote nobody can find is dropped rather than stored. Shown to a reviewer, it would be a sentence that
-     * is not in their document.
+     * <p>A quote that is not found is dropped. A reviewer would otherwise see a sentence that is not in their
+     * document.
      */
     private static List<FieldResult.Passage> verify(final List<FieldResult.Passage> offered,
         final DocumentScan document)
@@ -346,11 +347,11 @@ public class AnswerIntakeService
     }
 
     /**
-     * The multiplier for a found answer, from {@link #UNVERIFIED_PENALTY} when no quote checked out to 1 when
-     * all of them did. An answer with no quotes at all gets the same 0.5 as one whose quotes all failed.
+     * What a found answer's confidence is multiplied by: {@link #UNVERIFIED_PENALTY} when no quote was found, up
+     * to 1 when all were. An answer with no quotes at all gets {@link #UNVERIFIED_PENALTY} too.
      *
-     * @param kept how many quotes were really in the text
-     * @param offered how many the model gave
+     * @param kept how many quotes were found in the document
+     * @param offered how many different quotes the model gave
      */
     private static double getEvidenceFactor(final int kept, final long offered)
     {
@@ -361,10 +362,10 @@ public class AnswerIntakeService
     }
 
     /**
-     * Takes evidence[], skips anything that isn't an object, and skips blank quotes.
+     * The quotes the model gave for one field. Items that are not objects, and blank quotes, are skipped.
      *
-     * @param read the answer to read
-     * @return the passages that are evidence
+     * @param read the model's answer for one field
+     * @return the quotes, empty when there is no {@code evidence} list
      */
     private static List<FieldResult.Passage> readPassages(final JsonObject read)
     {

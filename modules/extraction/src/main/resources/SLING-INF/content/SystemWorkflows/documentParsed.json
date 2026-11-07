@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "What happens when the document daemon has finished with one of a submission's uploads: what it produced is read onto the file - the Markdown, the PDF rendition and the size the daemon measured - or the failure is recorded on it, and a job is queued to read the answers, which decides for itself whether its turn has come. The start event names this module's own service user and nobody else: the event carries paths on the shared volume, and reading files from there into the repository is not something a person should be able to ask for.",
+    "description": "Runs when the document daemon has finished with one of a submission's uploads. It reads the results onto the file (the Markdown, the PDF and the size in tokens), or records the failure there. Then it queues a job to read the answers; that job decides itself whether the reading can start. Only this module's service user can fire it: the event carries paths on the shared volume, and no person should be able to have files read from there into the repository.",
     "parsed": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "parsed",

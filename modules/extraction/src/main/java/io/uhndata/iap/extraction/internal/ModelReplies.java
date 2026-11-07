@@ -28,11 +28,10 @@ import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 /**
- * Reading what a model answered.
+ * Reads values out of a model's JSON answer.
  *
- * <p>A model wraps its JSON in prose however firmly it is told not to, and leaves out or mistypes fields the
- * schema required. Everything here reads defensively and hands back {@code null} or a safe default instead of
- * throwing, so a bad answer is one the caller can ask for again rather than a failure.
+ * <p>Models often add text around the JSON, and leave out or mistype required fields. So nothing here throws:
+ * each method returns {@code null} or a safe default, and the caller can ask the model again.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,10 +44,11 @@ final class ModelReplies
     }
 
     /**
-     * The JSON object in a reply, wherever the model put it.
+     * The JSON object in a reply: the text from the first '{' to the last '}', so any text around it is
+     * ignored.
      *
-     * @param reply what the model said
-     * @return the object, or {@code null} when the reply holds none
+     * @param reply the model's reply
+     * @return the object, or {@code null} when the reply is blank or has no valid JSON object
      */
     static JsonObject readJsonObject(final String reply)
     {
@@ -72,7 +72,7 @@ final class ModelReplies
      *
      * @param parent the object holding it
      * @param key its key
-     * @return the object, or {@code null} when the key is absent or holds something else
+     * @return the object, or {@code null} when the key is missing or is not an object
      */
     static JsonObject readObject(final JsonObject parent, final String key)
     {
@@ -81,11 +81,11 @@ final class ModelReplies
     }
 
     /**
-     * A string, taking a non-string value as its JSON text rather than refusing it.
+     * A string. A value that is not a string is returned as its JSON text, for example {@code 42} as "42".
      *
      * @param object the object holding it
      * @param key its key
-     * @return the string, or {@code null} when the key is absent or null
+     * @return the string, or {@code null} when the key is missing or {@code null}
      */
     static String readString(final JsonObject object, final String key)
     {
@@ -98,11 +98,11 @@ final class ModelReplies
     }
 
     /**
-     * A confidence, held to 0..1.
+     * A confidence, kept between 0 and 1.
      *
      * @param object the object holding it
      * @param key its key
-     * @return the confidence, or 0 when the key is absent or not a number
+     * @return the confidence, or 0 when the key is missing or not a number
      */
     static double readConfidence(final JsonObject object, final String key)
     {
@@ -118,7 +118,7 @@ final class ModelReplies
      *
      * @param object the object holding it
      * @param key its key
-     * @return the number, or {@code null} when the key is absent, null, or not a whole number
+     * @return the number, or {@code null} when the key is missing, {@code null}, or not a whole number
      */
     static Long readLong(final JsonObject object, final String key)
     {
@@ -130,12 +130,12 @@ final class ModelReplies
     }
 
     /**
-     * A yes or no, and only that. A model that answers {@code null}, {@code "yes"} or a number has not
-     * answered the question, and reading any of those as a no would turn a bad answer into a decision.
+     * A true or false value, and nothing else. {@code null}, {@code "yes"} or a number is no answer, because
+     * reading it as false would turn a bad answer into a decision.
      *
      * @param object the object holding it
      * @param key its key
-     * @return the answer, empty when the key is absent or holds anything but a boolean
+     * @return the value, or empty when the key is missing or is not a boolean
      */
     static Optional<Boolean> readBoolean(final JsonObject object, final String key)
     {

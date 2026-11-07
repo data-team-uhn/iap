@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Stops a reading that is still going. A parse that has not finished is dropped: the daemon is told, without waiting for its answer, and the job record is marked failed, for the sweep to remove later with its staging folder. The folder is wiped here only when no job record names it. A parse that has already been read in stops the model call instead, and the Markdown that call was consuming is removed so a later try starts clean. Fired by the submitter through POST <submission>.stopProcessing.json.",
+    "description": "Stops a reading that is still going, and does nothing when none is. A parse that has not finished is dropped: the daemon is told, without waiting for its answer, and the job record is marked failed so the sweep removes it later with its staging folder. The folder is deleted here only when no job record names it. A running reading is told to stop, and the Markdown its current step was reading is deleted, so a later try parses the upload again. Reading jobs still waiting in the queue are removed. The submitter fires it with POST <submission>.stopProcessing.json.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

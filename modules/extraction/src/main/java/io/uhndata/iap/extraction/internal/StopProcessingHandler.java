@@ -40,10 +40,11 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that stops a reading still in progress. A parse that has not come back is abandoned: the daemon
- * is told, and the job record is marked failed, for the sweep to drop with its staging folder. A parse already
- * read in stops the model call, and the Markdown that call was consuming is removed so the next try parses again
- * rather than reading a document the submitter just threw out.
+ * The service task that stops a reading still in progress, and does nothing when no reading is running. A parse
+ * that has not come back is abandoned: the daemon is told, and the job record is marked failed for the sweep to
+ * remove with its staging folder. A running reading is told to stop, and the Markdown its current step was
+ * reading is deleted, so the next try parses the upload again instead of reusing that text. Reading jobs still
+ * waiting in the queue are removed.
  *
  * @version $Id$
  * @since 0.1.0
@@ -86,13 +87,13 @@ public class StopProcessingHandler implements ServiceTaskHandler
             LOGGER.info("Nothing to stop: submission={}", path);
             return;
         }
-        // Asked before the stop, since the thread forgets them on its way out
+        // Read before the stop, since the thread forgets its files when it leaves the reading
         final Set<String> read = this.runs.getFiles(path);
         final boolean reading = this.runs.stop(path);
         dropQueuedReadings(path);
         for (final File file : SubmissionFiles.getCurrentFiles(SubmissionFiles.getSubmission(target))) {
-            // Only the text a model call here was reading. A claim with no reading thread is left over from a
-            // reading that ended or a restart, and has nothing to throw away
+            // Only text the running step is reading. A claim with no reading thread is left over from a reading
+            // that ended or from a restart, and has nothing to throw away
             final boolean consumed = reading && read != null && read.contains(file.getPath());
             stopFile(context.getResourceResolver(), file, consumed);
         }
@@ -102,8 +103,9 @@ public class StopProcessingHandler implements ServiceTaskHandler
     }
 
     /**
-     * Drop the readings still waiting to start. One already inside the model is the thread {@code stop} interrupted;
-     * one still on the queue would start the moment this returns and pay for a document the submitter just cancelled.
+     * Removes the reading jobs of this submission that have not started yet. A running one was told to stop
+     * through {@code stop}; a queued one would start right after this returns and pay a model to read a document
+     * the submitter just stopped.
      *
      * @param path the submission whose queued readings should not run
      */
@@ -121,11 +123,12 @@ public class StopProcessingHandler implements ServiceTaskHandler
     }
 
     /**
-     * Stop one file's part of the pipeline.
+     * Stops one file's part of the pipeline: abandons its queued parse, or deletes the Markdown the running step
+     * was reading.
      *
      * @param resolver the session the submission is being written through
      * @param file the upload
-     * @param consumed whether a reading had already taken the parsed text
+     * @param consumed whether the running step was reading the file's parsed text
      * @throws PersistenceException if the file's record cannot be updated
      */
     private void stopFile(final ResourceResolver resolver, final File file, final boolean consumed)
@@ -151,11 +154,11 @@ public class StopProcessingHandler implements ServiceTaskHandler
     }
 
     /**
-     * Drop a parse that has not finished.
+     * Abandons a parse that has not finished.
      *
-     * <p>The job record normally names the folder it was working in, and the sweep removes the folder with the
-     * record. When the record is already gone the file still remembers where the upload was staged, and that copy
-     * is wiped here: a folder nothing names is one no sweep will ever find.</p>
+     * <p>The job record usually names the staging folder, and the sweep deletes the folder with the record. When
+     * no record names it, the folder is deleted here, using the path the file kept: no sweep would ever find
+     * it.</p>
      *
      * @param file the {@code sub:File} whose parse is still open
      */
@@ -163,18 +166,18 @@ public class StopProcessingHandler implements ServiceTaskHandler
     {
         final String jobId = file.getValueMap().get(ParseDocumentsHandler.PARSE_JOB_ID, String.class);
         final String staged = file.getValueMap().get(ParseDocumentsHandler.SHARED_PATH, String.class);
-        // Only a folder no record names is this side's to wipe. One a record names may be read in right now, or
-        // read in later if this stop is undone
+        // Delete only a folder no job record names. One a record names may be read in right now, or later if
+        // this stop is undone
         if (this.parses.abandon(jobId)) {
             this.parseService.discardStaging(staged);
         }
     }
 
     /**
-     * Record that this upload's parse was stopped, and forget the job it was queued under.
+     * Marks this upload's parse as stopped, and removes the job id, staging path and token count recorded for it.
      *
      * @param file the {@code sub:File}
-     * @param reason what to keep on the file
+     * @param reason the message kept on the file
      * @throws PersistenceException if the file cannot be written
      */
     private static void markStopped(final Resource file, final String reason) throws PersistenceException

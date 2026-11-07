@@ -17,8 +17,8 @@
 {
   "bundles":[
     {
-      // Starts after the LLM client (25), the workflow engine (26), and the submissions and schemas models it
-      // reads and writes (28)
+      // Starts after the LLM client (25), the workflow engine (26), and the submissions and schemas modules it
+      // uses (28)
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
       "start-order":"29"
     }
@@ -27,16 +27,16 @@
     "org.apache.sling.jcr.repoinit.RepositoryInitializer~extraction":{
       "service.ranking:Integer": 400,
       "scripts":[
-        // The user that hands a finished parse to the workflow engine and later asks it to read the answers out.
-        // The engine decides from the definitions whether this user may fire the events it fires, which is why
-        // the documentParsed start event names it and nobody else.
+        // The user that hands a finished parse to the workflow engine and later asks it to read the answers.
+        // The workflow definitions decide which events it may fire: the documentParsed and extractAnswers start
+        // events name only this user.
         //
-        // It writes only properties of the submission: the claim that stops two jobs reading the same document
-        // twice, and the record of how a reading ended when it could not be handed on. It checks the submission
-        // out first when it was checked in. Everything else is written by the workflow engine as its own user.
-        // It reads /Schemas and /Workflows to check that the reading workflow a submission's schema version names
-        // is there before asking for a reading that would start nothing. Granted by name: a service user mapped as [iap-extraction] holds only that principal,
-        // so what /Schemas grants to everyone does not reach it.
+        // It writes only properties of the submission: the claim that stops two jobs reading the same document,
+        // and the failed status when a reading gives up. It checks the submission out first when it is checked
+        // in. The workflow engine writes everything else as its own user.
+        // It reads /Schemas and /Workflows to check that the schema version's reading workflow exists before it
+        // asks for a reading. Granted by name: a service user mapped as [iap-extraction] holds only that
+        // principal, so what /Schemas grants to everyone does not reach it.
         "create service user iap-extraction \n set ACL for iap-extraction \n allow jcr:read,jcr:modifyProperties,jcr:versionManagement on /Submissions \n allow jcr:read on /Schemas,/Workflows \n end"
       ]
     },
@@ -45,10 +45,9 @@
         "io.uhndata.iap.extraction:extraction=[iap-extraction]"
       ]
     },
-    // One submission in extraction at a time, matching the LLM module's call gate. A wider queue does not read
-    // anything sooner - the gate holds model calls to one whatever this says - it only moves the waiting from
-    // the queue, where a job waits as long as it takes, to the gate, where a job waits against the call
-    // timeout and fails when it runs out.
+    // One submission read at a time, to match the LLM module's gate of one model call at a time. A wider queue
+    // would not read anything sooner: jobs would wait at the gate, where they time out and fail, instead of in
+    // the queue, where they can wait as long as needed.
     "org.apache.sling.event.jobs.QueueConfiguration~iapextraction":{
       "queue.name":"iap-extraction",
       "queue.topics":[

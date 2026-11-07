@@ -35,9 +35,8 @@ import org.apache.sling.api.resource.Resource;
 final class DocumentText
 {
     /**
-     * An ATX heading: up to six hashes, a space, then the title, which is the one group. The hashes are not
-     * captured because nothing reads the level, and the title is not length-capped because a capped one simply
-     * stopped counting as a heading - so a long one titled nothing and placed no quote under itself.
+     * A Markdown heading: one to six {@code #}, whitespace, then the title in group 1. The title has no length
+     * limit, so a long heading is still a heading and quotes below it are still placed under it.
      */
     private static final Pattern ATX_HEADING = Pattern.compile("^#{1,6}\\s+(\\S.*)$");
 
@@ -51,10 +50,10 @@ final class DocumentText
     }
 
     /**
-     * Read the text of a stored file.
+     * Reads the text of a stored file as UTF-8.
      *
-     * @param file the {@code nt:file} holding it, or {@code null}
-     * @return the text, or an empty string when there is no file to read
+     * @param file the {@code nt:file} holding the text, or {@code null}
+     * @return the text, or an empty string when the file is {@code null} or has no stored data
      * @throws IOException if the stored text cannot be read
      */
     static String readText(final Resource file) throws IOException
@@ -76,10 +75,10 @@ final class DocumentText
     }
 
     /**
-     * Whether one line of the document is an ATX heading, and what it says.
+     * Checks whether one line of the document is a Markdown heading. Spaces around the line are ignored.
      *
      * @param line one line of the document
-     * @return the matcher; call {@code matches()} before reading group 1
+     * @return the matcher; call {@code matches()} first, then group 1 is the heading's title
      */
     static Matcher matchHeading(final String line)
     {

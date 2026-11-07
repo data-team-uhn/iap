@@ -26,18 +26,17 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The prompts the extraction sends, read from the bundle.
+ * Reads the extraction prompts from files in the bundle.
  *
- * <p>They are files rather than string constants because they are written and revised as prose by people
- * reasoning about what the model should be told, and reading them as text beats reading them as escaped Java.
- * Each is read once and kept, since they never change while the bundle is running.
+ * <p>They are files, not Java strings, so people can write and edit them as plain text. Each one is read once
+ * and cached, since they do not change while the bundle runs.
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class Prompts
 {
-    /** What the intake pass is told about reading every field out of a document at once. */
+    /** The system prompt for the intake call, which reads every field out of a document at once. */
     static final String INTAKE_SYSTEM = "intake_system.md";
 
     private static final String PROMPT_DIRECTORY = "/prompts/";
@@ -50,10 +49,10 @@ final class Prompts
     }
 
     /**
-     * Read one prompt.
+     * Reads one prompt, from the cache after the first time.
      *
      * @param name a file name in the bundle's {@code /prompts} folder
-     * @return its content
+     * @return the prompt's text
      * @throws UncheckedIOException if the bundle has no such prompt, or it cannot be read
      */
     static String read(final String name)

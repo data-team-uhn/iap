@@ -25,17 +25,17 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that says the reading is over.
+ * The service task that marks the reading as done.
  *
- * <p>A reading workflow can reach its end having asked nothing, or stop to wait for the submitter. Without this
- * the submission would sit at {@code running}, which the view shows as a spinner that never stops.</p>
+ * <p>A reading workflow can end having asked nothing, or stop to wait for the submitter. Without this step the
+ * submission would stay {@code running}, and the view would show a spinner that never stops.</p>
  *
- * <p>Only {@code running} is moved on. A step that already said the reading failed has said something this one
- * does not know, and overwriting it with "done" would lose it.</p>
+ * <p>Only {@code running} is changed to {@code done}. A {@code failed} status is kept, so its message is not
+ * lost.</p>
  *
- * <p>A step that pauses names a {@code message}, so the view can say the reading waits for the submitter. A step
- * that ends with the request unable to go on, such as a document that is not what the request asks for, also sets
- * {@code blocks}: the submission is marked blocked until a new reading starts.</p>
+ * <p>The step can set a {@code message}, for example to say the reading waits for the submitter. It can also set
+ * {@code blocks} when the request cannot go on, such as when a document is not what the request asks for: the
+ * submission is then marked blocked until a new reading starts.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -46,10 +46,10 @@ public class FinishReadingHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "finishReading";
 
-    /** The activity property holding what to tell the submitter, if anything. */
+    /** The activity property holding a message for the submitter. Optional. */
     static final String MESSAGE_PARAMETER = "message";
 
-    /** The activity property saying the request cannot go on after this reading. */
+    /** The activity property that, when {@code true}, marks the request as unable to go on after this reading. */
     static final String BLOCKS_PARAMETER = "blocks";
 
     @Override

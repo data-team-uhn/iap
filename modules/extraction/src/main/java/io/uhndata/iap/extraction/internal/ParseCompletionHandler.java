@@ -42,16 +42,15 @@ import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 
 /**
- * Turns a finished parse into a {@code documentParsed} event on the submission the file belongs to. The system
- * workflow catching it reads the parse in and queues the reading of the answers - so what happens after a parse
- * lands is content, and this only knocks on the engine's door.
+ * Turns a finished parse into a {@code documentParsed} event on the submission the file belongs to. The
+ * {@code documentParsed} system workflow then reads the parse in and queues the reading of the answers.
  *
- * <p>Clearing the staging folder is this side's, and only once the engine has committed: until then the volume
+ * <p>This class deletes the staging folder, but only after the engine has committed: until then the shared volume
  * holds the only copy of what the parse produced.</p>
  *
- * <p>The event is fired as this module's own service user, which the {@code documentParsed} start event names as
- * its one performer: the payload carries paths on the shared volume, and nobody else should be able to have them
- * read into the repository.</p>
+ * <p>The event is fired as this module's service user, the only performer the {@code documentParsed} start event
+ * allows. The payload holds paths on the shared volume, and no one else should be able to have those read into
+ * the repository.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,28 +61,28 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
     /** The event a finished parse fires on the submission. */
     static final String EVENT_NAME = "documentParsed";
 
-    /** The subservice this module reads submissions as. */
+    /** The subservice name this module logs in with to read submissions. */
     static final String SUBSERVICE_NAME = "extraction";
 
-    /** The payload entry naming the {@code sub:File} the parse was for. */
+    /** The payload entry with the path of the {@code sub:File} the parse was for. */
     static final String FILE_KEY = "file";
 
-    /** The payload entry saying whether the daemon produced anything. */
+    /** The payload entry saying whether the parse succeeded. */
     static final String SUCCEEDED_KEY = "succeeded";
 
-    /** The payload entry carrying what went wrong. */
+    /** The payload entry with the error message of a failed parse. */
     static final String ERROR_KEY = "error";
 
-    /** The payload entry naming the Markdown on the shared volume. */
+    /** The payload entry with the path of the Markdown on the shared volume. */
     static final String MARKDOWN_KEY = "markdown";
 
-    /** The payload entry naming the PDF rendition beside the Markdown, when the daemon left one. */
+    /** The payload entry with the path of the PDF next to the Markdown, when the daemon made one. */
     static final String PDF_KEY = "pdf";
 
-    /** The payload entry holding how large the daemon measured the document to be, in tokens. */
+    /** The payload entry with the size of the document in tokens, as the daemon measured it. */
     static final String TOKENS_KEY = "tokens";
 
-    /** How many times a file is looked at for the job its walk is about to name, half a second apart. */
+    /** How many times to look for the file to name the outcome's job, half a second apart. */
     static final int COMMIT_WAIT_LOOKS = 10;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ParseCompletionHandler.class);
@@ -92,10 +91,10 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
 
     private static final long COMMIT_WAIT_MILLISECONDS = 500L;
 
-    /** The extension of a path's last segment, which is what the PDF beside it replaces. */
+    /** Matches the extension of a path's last segment, which the PDF path replaces. */
     private static final String LAST_EXTENSION = "\\.[^.\\\\/]*$";
 
-    /** Waits between two looks at the file, saying whether to look again; replaced in tests. */
+    /** Waits between two looks at the file, then says whether to look again; tests replace it. */
     private BooleanSupplier pause = () -> pause(COMMIT_WAIT_MILLISECONDS);
 
     @Reference
@@ -116,15 +115,15 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
             final Resource submission = file == null ? null : SubmissionFiles.findSubmission(file);
             final ValueMap recorded = file == null ? ValueMap.EMPTY : file.getValueMap();
             if (submission == null || !isWaitingFor(file, outcome)) {
-                // Not taken: the file may only not be committed yet, and the sweep hands the outcome over again.
-                // A record nobody takes is dropped with its staging folder later.
+                // Not taken: the file may just not be committed yet, and the sweep hands the outcome over again.
+                // A job record nobody takes is dropped with its staging folder later.
                 LOGGER.warn("Parse job {} is not what {} is waiting for, or the file is gone", outcome.jobId(),
                     outcome.target());
                 return false;
             }
             final String parseStatus = recorded.get(ParsePropertyNames.PARSE_STATUS, String.class);
             if (!ParsePropertyNames.STATUS_QUEUED.equals(parseStatus)) {
-                // Already recorded: the same outcome handed over again, kept because its staging folder stayed
+                // Already recorded: the sweep handed the same outcome over again because its folder was not deleted
                 return discardStaging(getStagedFolder(outcome, file));
             }
             LOGGER.info("Parse came back: job={} file={} submission={} succeeded={} tokens={}", outcome.jobId(),
@@ -138,9 +137,8 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
             }
             final String staged = getStagedFolder(outcome, file);
             this.engine.receiveEvent(submission, new WorkflowEvent(EVENT_NAME, buildPayload(outcome)));
-            // Only now the repository has committed what the parse produced. Until this point the volume holds
-            // the only copy, and a delete before the commit would lose the parse for good if the commit failed.
-            // A folder that stays keeps the job record, the only thing naming it, for the sweep to try again.
+            // Delete the folder only now that the parse is committed: deleted earlier, a failed commit would lose
+            // the parse. If the delete fails, the job record stays, so the sweep tries again.
             return discardStaging(staged);
         } catch (final LoginException e) {
             LOGGER.error("Cannot read submissions to record parse job {}: {}", outcome.jobId(), e.getMessage(), e);
@@ -158,9 +156,9 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
     }
 
     /**
-     * The file an outcome is for. The walk that queues a parse commits after the job is queued, so an outcome that
-     * comes back at once, such as from a daemon that cannot be reached, can arrive before the file names its job.
-     * The file is looked at again for a few seconds, rather than left to the sweep minutes later.
+     * Finds the file an outcome is for, waiting a few seconds for it to name the outcome's job. The walk that
+     * queues a parse commits after the job is queued, so a fast outcome, such as from a daemon that cannot be
+     * reached, can arrive before the file names its job. Looking again here is faster than waiting for the sweep.
      */
     private Resource findFile(final ResourceResolver resolver, final ParseOutcome outcome)
     {
@@ -179,9 +177,9 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
     }
 
     /**
-     * Replace the wait between two looks at a file, so a test needs no real time.
+     * Replaces the wait between two looks at a file, so a test needs no real time.
      *
-     * @param pause waits, saying whether to look again
+     * @param pause waits, then says whether to look again
      */
     void setPause(final BooleanSupplier pause)
     {
@@ -189,16 +187,16 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
     }
 
     /**
-     * The wait between two looks at a file.
+     * Returns the wait between two looks at a file.
      *
-     * @return waits, saying whether to look again
+     * @return the wait, which then says whether to look again
      */
     BooleanSupplier getPause()
     {
         return this.pause;
     }
 
-    /** Sleep, saying {@code false} when interrupted, which ends the wait. */
+    /** Sleeps, and returns {@code false} when interrupted, which ends the wait. */
     private static boolean pause(final long milliseconds)
     {
         try {
@@ -210,20 +208,19 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
         }
     }
 
-    /** Remove the staging folder, saying whether it is gone. */
+    /** Deletes the staging folder, and returns whether it is gone. */
     private boolean discardStaging(final String staged)
     {
         return this.ingester.discardStaging(staged == null ? null : Path.of(staged));
     }
 
     /**
-     * A path inside the folder the parse worked in, so the whole of it can be cleared afterwards. The Markdown
-     * when the parse produced one; failing that, where the upload was staged, which is the same folder and is all
-     * a failed parse leaves to go on.
+     * Returns a path inside the folder the parse worked in, so the whole folder can be deleted afterwards. That is
+     * the Markdown when the parse made one, else the staged upload, which is in the same folder.
      *
      * @param outcome how the parse ended
      * @param file the {@code sub:File} the parse was for
-     * @return a path inside the staging folder, or {@code null} when nothing names one
+     * @return a path inside the staging folder, or {@code null} when neither is known
      */
     private static String getStagedFolder(final ParseOutcome outcome, final Resource file)
     {
@@ -235,11 +232,11 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
     }
 
     /**
-     * What the event carries: the outcome as it was, plus the PDF rendition when the daemon left one beside the
-     * Markdown, which the callback does not mention.
+     * Builds the event payload: the outcome as it came, plus the PDF next to the Markdown when the daemon made
+     * one, since the callback does not mention it.
      *
      * @param outcome how the parse ended
-     * @return the payload
+     * @return the payload; entries with no value are left out
      */
     static Map<String, Object> buildPayload(final ParseOutcome outcome)
     {
@@ -256,15 +253,15 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
     }
 
     /**
-     * The PDF the daemon left beside the Markdown, under the same name. Its own convention, which the callback
-     * does not repeat, so the only way to know is to look.
+     * Finds the PDF the daemon left next to the Markdown, with the same name. The callback does not report it, so
+     * the only way to know is to look.
      *
-     * @param markdown where the Markdown is
-     * @return the PDF's path, or {@code null} when there is none beside it
+     * @param markdown the path of the Markdown
+     * @return the PDF's path, or {@code null} when there is none
      */
     private static String findPdfBeside(final Path markdown)
     {
-        // The extension of the last segment, so a dot in a folder name is left where it is
+        // Only the last segment's extension, so a dot in a folder name stays
         final Path pdf = Path.of(markdown.toString().replaceFirst(LAST_EXTENSION, "") + PDF_SUFFIX);
         return Files.exists(pdf) ? pdf.toString() : null;
     }

@@ -20,14 +20,14 @@ package io.uhndata.iap.extraction.internal;
 import java.util.List;
 
 /**
- * What the model answered for one field, after its evidence was checked.
+ * What the model answered for one field, after its quotes were checked against the document.
  *
- * @param name the field, as the schema names it
+ * @param name the field's key, the question's path within its schema version
  * @param found whether the model found an answer and gave a value for it
- * @param confidence how sure it is, from 0 to 1, discounted for evidence that could not be found
+ * @param confidence how sure the model is, from 0 to 1, lowered when its quotes could not be found
  * @param value the answer, or {@code null} when nothing was found
- * @param reasoning why it says so, empty when it gave none
- * @param passages the quotes that were really in the document
+ * @param reasoning why the model gave this answer, empty when it gave no reason
+ * @param passages the quotes that were found in the document
  * @version $Id$
  * @since 0.1.0
  */
@@ -35,23 +35,23 @@ record FieldResult(String name, boolean found, double confidence, String value, 
     List<Passage> passages)
 {
     /**
-     * One quote from the document, with where it sits.
+     * One quote from the document, and where it is.
      *
-     * @param quote the words themselves, as the model gave them
-     * @param page the page the model gave, unchecked; {@code null} when it gave none
-     * @param header the nearest heading above it, empty when nothing titles it
-     * @param part which of the documents sent together it was found in, -1 when the document was sent alone,
-     *     without a heading
+     * @param quote the quoted words, as the model gave them
+     * @param page the page the model gave, not checked; {@code null} when it gave none
+     * @param header the nearest heading above the quote, empty when there is none
+     * @param part the index of the document it was found in, when several were sent together; -1 when the
+     *     document was sent alone, without a heading
      * @version $Id$
      * @since 0.1.0
      */
     record Passage(String quote, Long page, String header, int part)
     {
         /**
-         * A quote before it has been placed under a heading.
+         * A quote as the model gave it, before it is found in the document: no heading, no document index.
          *
-         * @param quote the words themselves
-         * @param page the page it is on, or {@code null}
+         * @param quote the quoted words
+         * @param page the page the model gave, or {@code null}
          */
         Passage(final String quote, final Long page)
         {
@@ -59,10 +59,10 @@ record FieldResult(String name, boolean found, double confidence, String value, 
         }
 
         /**
-         * The same quote, placed under the heading it was found below.
+         * A copy of this quote with the heading it was found under.
          *
-         * @param heading the nearest heading above it
-         * @return the placed passage
+         * @param heading the nearest heading above it, empty when there is none
+         * @return the new passage
          */
         Passage placeUnder(final String heading)
         {
@@ -70,11 +70,11 @@ record FieldResult(String name, boolean found, double confidence, String value, 
         }
 
         /**
-         * The same quote, placed in the document it was found in.
+         * A copy of this quote with the index of the document it was found in.
          *
-         * @param found which of the documents sent together holds it, -1 when the document was sent alone,
+         * @param found the index of the document among those sent together; -1 when the document was sent alone,
          *     without a heading
-         * @return the placed passage
+         * @return the new passage
          */
         Passage placeIn(final int found)
         {
@@ -83,14 +83,14 @@ record FieldResult(String name, boolean found, double confidence, String value, 
     }
 
     /**
-     * Takes a copy of the passages, so a result cannot be changed once produced.
+     * Copies the passages, so a result cannot change after it is made.
      *
-     * @param name the field
+     * @param name the field's key
      * @param found whether an answer was found
      * @param confidence how sure the model is
-     * @param value the answer
-     * @param reasoning why it says so
-     * @param passages the quotes it rests on
+     * @param value the answer, or {@code null}
+     * @param reasoning why the model gave this answer
+     * @param passages the quotes found in the document
      */
     FieldResult
     {

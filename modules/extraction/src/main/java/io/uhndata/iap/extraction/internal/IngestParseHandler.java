@@ -34,9 +34,9 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that reads a finished parse onto the file it was for, or records that the parse failed. What
- * the parse produced lands in the engine's transaction along with everything else the {@code documentParsed}
- * workflow does, so a submission never shows half a parse.
+ * The service task that reads a finished parse onto the file it was for, or records that the parse failed. It
+ * runs in the same engine transaction as the rest of the {@code documentParsed} workflow, so a submission never
+ * shows half a parse.
  *
  * @version $Id$
  * @since 0.1.0
@@ -87,10 +87,10 @@ public class IngestParseHandler implements ServiceTaskHandler
     }
 
     /**
-     * How large the daemon measured the document to be, when it said.
+     * Returns the size of the document in tokens, as the daemon measured it.
      *
      * @param event the parse outcome
-     * @return the token count, or {@code null} when the event carries none
+     * @return the token count, or {@code null} when the event has none
      */
     private static Long readTokens(final WorkflowEvent event)
     {

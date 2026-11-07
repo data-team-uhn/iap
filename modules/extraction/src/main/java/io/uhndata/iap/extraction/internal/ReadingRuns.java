@@ -25,16 +25,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.osgi.service.component.annotations.Component;
 
 /**
- * The thread that is reading a submission, so a stop can interrupt the model call it is blocked in.
+ * Tracks which thread is reading each submission, so a stop can interrupt the model call that thread waits on.
  *
- * <p>A reading is entered from more than one place on the same thread — the job that claimed it, then each
- * reading step — so the registration is counted. The thread stays registered until the outermost one leaves,
- * which is what a stop in the middle of a step still finds.</p>
+ * <p>The same thread enters a reading more than once: first the job, then each reading step. So entries are
+ * counted, and the thread stays registered until its outermost entry ends. That way a stop in the middle of a
+ * step still finds it.</p>
  *
  * <p>A stop is noted on the thread, and interrupts it only inside a model call. Anywhere else the thread may be
  * in the repository, which an interrupt can break, so the next model call or step sees the stop instead.</p>
  *
- * <p>Registering, leaving, calling and stopping share one lock, so a stop cannot interrupt a thread that has
+ * <p>Entering, leaving, model calls and stops share one lock, so a stop cannot interrupt a thread that has
  * already left the model call or the reading.</p>
  *
  * @version $Id$
@@ -44,8 +44,8 @@ import org.osgi.service.component.annotations.Component;
 public class ReadingRuns
 {
     /**
-     * What an interrupted reading throws, so a caller can tell a stop from a model that could not be reached.
-     * Unchecked: it has to cross the workflow engine, which only declares its own checked failure.
+     * Thrown when a reading is stopped, so a caller can tell a stop from a model that could not be reached.
+     * Unchecked, because it must pass through the workflow engine, which only declares its own checked exception.
      *
      * @since 0.1.0
      */
@@ -59,7 +59,7 @@ public class ReadingRuns
         }
     }
 
-    /** Shared by every instance, since a model call reaches it from where no instance is at hand. */
+    /** Shared by all instances, because a model call uses it through static methods, with no instance at hand. */
     private static final Object STATE_LOCK = new Object();
 
     /** The threads inside a model call, the only place a stop interrupts. */
@@ -75,7 +75,7 @@ public class ReadingRuns
     private final ConcurrentMap<String, Set<String>> files = new ConcurrentHashMap<>();
 
     /**
-     * Note that this thread is reading a submission.
+     * Registers this thread as reading a submission.
      *
      * @param submission the submission's path
      * @throws Stopped when this thread was already told to stop
@@ -92,13 +92,13 @@ public class ReadingRuns
     }
 
     /**
-     * Note that this thread has left one entry into the reading. The registration drops when the last one does.
+     * Ends one entry of this thread into the reading. The thread is unregistered when its outermost entry ends.
      *
-     * <p>The outermost leaving also takes down a stop that landed since the last model call. Checked under the
-     * same lock as {@link #stop}, so no stop can land after it and stay set on a thread that has moved on.</p>
+     * <p>The outermost end also clears a stop that came after the last model call. It runs under the same lock as
+     * {@link #stop}, so no stop can arrive after it and stay set on a thread that has moved on.</p>
      *
      * @param submission the submission's path
-     * @return {@code true} when this thread had been told to stop
+     * @return {@code true} when this thread had been told to stop or was interrupted
      */
     boolean end(final String submission)
     {
@@ -117,10 +117,10 @@ public class ReadingRuns
     }
 
     /**
-     * Tell the thread reading a submission to stop, if one is, interrupting it when it is inside a model call.
+     * Tells the thread reading a submission to stop, and interrupts it if it is inside a model call.
      *
      * @param submission the submission's path
-     * @return {@code true} when a thread was reading it
+     * @return {@code true} when a thread was reading it; {@code false} when none was
      */
     boolean stop(final String submission)
     {
@@ -138,7 +138,7 @@ public class ReadingRuns
     }
 
     /**
-     * Note that this thread is about to ask a model, where a stop may interrupt it.
+     * Registers this thread as calling a model, where a stop may interrupt it.
      *
      * @throws Stopped when this thread was already told to stop
      */
@@ -153,8 +153,8 @@ public class ReadingRuns
     }
 
     /**
-     * Note that the model call of this thread is over. A stop that came during the call is reported, and its
-     * interrupt taken down, so the thread goes back to the repository uninterrupted.
+     * Marks this thread's model call as over. A stop that came during the call is thrown here and its interrupt
+     * cleared, so the thread goes back to the repository uninterrupted.
      *
      * @throws Stopped when this thread was told to stop during the call
      */
@@ -176,10 +176,10 @@ public class ReadingRuns
     }
 
     /**
-     * Whether a failure is a reading that was stopped, rather than a model that could not be reached.
+     * Checks whether a failure comes from a stopped reading, not from a model that could not be reached.
      *
      * @param failure the failure
-     * @return {@code true} when the reading was stopped
+     * @return {@code true} when a {@link Stopped} is in the cause chain, or this thread was told to stop
      */
     static boolean isStopped(final Throwable failure)
     {
@@ -193,7 +193,7 @@ public class ReadingRuns
     }
 
     /**
-     * Note which files the step under way reads, so a stop knows whose text it cut off.
+     * Records which files the current step reads, so a stop knows whose parsed text it cut off.
      *
      * @param submission the submission's path
      * @param files the paths of the files the step reads
@@ -204,10 +204,10 @@ public class ReadingRuns
     }
 
     /**
-     * The files the step under way reads, when one said.
+     * Returns the files the current step reads.
      *
      * @param submission the submission's path
-     * @return the file paths, or {@code null} when no step has said
+     * @return the file paths, or {@code null} when no step has set them
      */
     Set<String> getFiles(final String submission)
     {

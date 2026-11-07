@@ -43,10 +43,10 @@ import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 
 /**
- * Which questions a step asks of a document, and what becomes of the answers.
+ * Helpers for the reading steps: which questions to ask the model, and saving what it read as runs.
  *
- * <p>Shared by every {@code intakeAnswers} step, so a schema read in stages is asked the same way and written
- * the same way in every stage. {@code classifyDocument} writes its picks through it too.</p>
+ * <p>Every {@code intakeAnswers} step uses them, so a schema read in stages is asked and saved the same way in
+ * each stage. {@code classifyDocument} saves its picks through {@link #write} too.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -61,16 +61,17 @@ final class ExtractionFields
     }
 
     /**
-     * The questions worth putting to the model, by their path within the schema version.
+     * The questions the model can be asked (those with an extraction prompt), keyed by their path within the
+     * schema version, in schema order.
      *
-     * @param submission whose schema is being read
-     * @param requirement the requirement to ask about, or {@code null} for every question the schema asks
-     * @return the extractable questions, empty when the requirement is not being asked
+     * @param submission the submission whose schema is read
+     * @param requirement the requirement to ask about, or {@code null} for every question of the schema
+     * @return the extractable questions, empty when the requirement has none
      */
     static Map<String, Question> getExtractable(final Submission submission, final String requirement)
     {
         final String versionPath = submission.getSchemaVersion().getPath();
-        // Kept in the order the schema asks them, which is the order the model is shown them in
+        // Keep schema order: the model is shown the questions in this order
         final Map<String, Question> questions = new LinkedHashMap<>();
         final List<Question> asked = requirement == null || requirement.isBlank()
             ? submission.getQuestions() : submission.getQuestions(requirement);
@@ -83,11 +84,11 @@ final class ExtractionFields
     }
 
     /**
-     * The questions as the model is asked them. The key is the path within the schema version, which is what
-     * the answers come back under and what they are written back by.
+     * The questions as fields to ask the model. Each field's name is the question's path within the schema
+     * version, which is the key its answer comes back under.
      *
      * @param questions the questions to ask, by path within the schema version
-     * @return the fields to put to a model
+     * @return the fields to ask the model, in the same order
      */
     static List<ExtractionField> toFields(final Map<String, Question> questions)
     {
@@ -97,15 +98,19 @@ final class ExtractionFields
     }
 
     /**
-     * Record a run for every question asked, found or not, under the question's answer. Every run names the
-     * versions it read, which is what tells a later reading those versions were read for these questions. No
-     * answer's value is written: what the model read stays a suggestion until the submitter acts on it.
+     * Saves one run for each entry in {@code results}, found or not, under that question's answer. The intake
+     * passes every question it asked; the gate passes only its sure picks. An entry whose key is not in
+     * {@code questions} is skipped.
+     *
+     * <p>Each run names the document versions it read, which is how a later reading knows those versions were
+     * already read for that question. No answer's value is written: what the model read stays a suggestion until
+     * the submitter acts on it.</p>
      *
      * @param resolver the session to write with
      * @param target the submission node
-     * @param submission the submission, for the answers it already holds
+     * @param submission the submission, for the answers it already has
      * @param questions what was asked, by path within the schema version
-     * @param results what the model answered, keyed the same way
+     * @param results what the model answered, keyed the same way; one run is saved per entry
      * @param files the documents the answers were read from
      */
     static void write(final ResourceResolver resolver, final Resource target, final Submission submission,
@@ -117,8 +122,7 @@ final class ExtractionFields
             if (question == null) {
                 continue;
             }
-            // Isolated per field: one field's run failing to write (e.g. a source file that stopped resolving
-            // mid-transaction) must not cost every other, unrelated field its run too.
+            // One field failing to write, such as when a source file stops resolving, must not lose the others
             try {
                 final Answer existing = answers.get(question.getPath());
                 ExtractedAnswers.write(resolver, target,
@@ -134,14 +138,14 @@ final class ExtractionFields
     }
 
     /**
-     * Whether a step reads a revision its questions were not read from yet: a file that is not its document's
-     * first revision, and that no answer to these questions cites. Each file counts on its own, so a newer revision
-     * already read does not hide another nobody has read.
+     * Whether the step reads a newer document version that its questions were not read from yet: a file that is
+     * not its document's first version, and that no run of these questions cites. Each file is checked on its
+     * own, so a newer version already read does not hide another one nobody has read.
      *
      * @param submission the submission
      * @param questions the questions the step asks, answered or not
      * @param files the files the step reads
-     * @return {@code true} for a first reading of a newer revision, which asks every question again
+     * @return {@code true} for the first reading of a newer version, which asks every question again
      */
     static boolean isNewRevision(final Submission submission, final Collection<Question> questions,
         final List<File> files)
@@ -165,18 +169,18 @@ final class ExtractionFields
     }
 
     /**
-     * The paths of the questions a reading leaves alone unless it reads a newer version: ones the submitter
-     * answered, and ones a reading already found a suggestion for. A question only ever asked and not found is
-     * asked again, and so is one whose answer the form saved empty.
+     * The paths of the questions a reading skips, unless it reads a newer version: ones the submitter answered,
+     * and ones a reading already found a suggestion for. A question asked before but never found is asked again,
+     * and so is one whose saved value is blank.
      *
      * @param submission the submission
-     * @return the question paths
+     * @return the full question paths, empty when nothing is answered yet
      */
     static Set<String> getAnswered(final Submission submission)
     {
         final Set<String> answered = new HashSet<>();
         for (final Answer answer : submission.getAnswers()) {
-            // Read once: every read resolves the reference again
+            // Called once: each call resolves the reference again
             final Question question = answer.getQuestion();
             if (question != null && isAnswered(answer)) {
                 answered.add(question.getPath());
@@ -190,7 +194,7 @@ final class ExtractionFields
         return question != null && asked.contains(question.getPath());
     }
 
-    /** The answer each question already has, by the path of the question, for a run to be written under. */
+    /** The existing answer of each question, by full question path. New runs are written under these. */
     private static Map<String, Answer> getAnswers(final Submission submission)
     {
         final Map<String, Answer> answers = new HashMap<>();
@@ -203,7 +207,7 @@ final class ExtractionFields
         return answers;
     }
 
-    /** Whether the submitter gave an answer a value, or a reading found a suggestion for it. */
+    /** Whether the answer has a non-blank value, or a run that found a suggestion. */
     private static boolean isAnswered(final Answer answer)
     {
         final String[] values = answer.getValue();

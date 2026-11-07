@@ -22,8 +22,8 @@ import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 
 /**
- * Who may ask for a submission's reading to change: the person who raised it, while it is still a draft. The
- * events that do this are open to everyone at the door, the same way saving answers is.
+ * Checks who may act on a submission's reading: only the person who raised it, and only while it is a draft. The
+ * events that call this let everyone in, like saving answers does, so this check is what keeps others out.
  *
  * @version $Id$
  * @since 0.1.0
@@ -36,11 +36,11 @@ final class SubmitterAccess
     }
 
     /**
-     * Refuse anybody but the submitter, and anything once the request has been sent.
+     * Refuses anyone but the submitter, and refuses everyone once the request has been submitted.
      *
      * @param submission the submission being read
-     * @param actor the user whose action this is
-     * @throws NotAuthorizedException when somebody else asks
+     * @param actor the user doing the action, or {@code null}
+     * @throws NotAuthorizedException when the actor is not the submitter
      * @throws InvalidStateException when the request is no longer a draft
      */
     static void checkMayChange(final Submission submission, final String actor)

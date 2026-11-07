@@ -25,14 +25,14 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 
 /**
- * What one intake call sends: the questions, then the document.
+ * Builds what one intake call sends: the user message with the questions and then the document, and the JSON
+ * schema the reply must follow.
  *
- * <p>The document goes last, after the questions, so the model reads what it is looking for before it reads
- * the text to look in.
+ * <p>The document goes last, so the model knows what it is looking for before it reads the text.
  *
- * <p>The response schema is built per call because the fields come from the schema version, not from code.
- * Every object in it forbids extra properties and requires all of its own, which is what a provider's strict
- * structured-output mode asks for.
+ * <p>The reply schema is built for each call, because the fields come from the schema version, not from code.
+ * Every object in it forbids extra properties and requires all of its own, as a provider's strict
+ * structured-output mode needs.
  *
  * @version $Id$
  * @since 0.1.0
@@ -65,11 +65,11 @@ final class IntakePayload
     }
 
     /**
-     * Everything the user message carries besides the document: the questions and the headers. Built on its
-     * own so the caller can count what it costs before working out how much document is left to send.
+     * The user message without the document: the questions and the headers. It is built first so the caller can
+     * count its tokens, then work out how much of the document still fits.
      *
-     * @param fields what to extract
-     * @return the opening of the user message, up to and including the document's header
+     * @param fields the fields to extract
+     * @return the start of the user message, up to and including the document's header
      */
     static String buildQuestionBlock(final List<ExtractionField> fields)
     {
@@ -78,10 +78,10 @@ final class IntakePayload
     }
 
     /**
-     * Build the message for a document.
+     * Builds the user message: the questions, then the document.
      *
-     * @param questionBlock the opening of the message, from {@link #buildQuestionBlock}
-     * @param markdown as much of the document's Markdown as the call may carry, see
+     * @param questionBlock the start of the message, from {@link #buildQuestionBlock}
+     * @param markdown the part of the document's Markdown that fits in the call, see
      *            {@link DocumentBudget#fitDocument}
      * @return the payload
      */
@@ -100,8 +100,8 @@ final class IntakePayload
         final JsonObjectBuilder properties = Json.createObjectBuilder();
         final JsonArrayBuilder required = Json.createArrayBuilder();
         for (final ExtractionField field : fields) {
-            // A multi-select answer is one comma-separated string. That string is not itself one of the
-            // allowed values, so a strict enum would leave the model able to name only a single option.
+            // A multi-select answer is one comma-separated string, which is not one of the allowed values,
+            // so a list of allowed values would let the model pick only one option
             properties.add(field.name(), isClosedList(field)
                 ? buildFieldSchema(field.getAllowedValues())
                 : Json.createObjectBuilder().add("$ref", "#/$defs/field").build());
@@ -117,9 +117,9 @@ final class IntakePayload
     }
 
     /**
-     * The SCHEMA block: what each field is, in the model's terms.
+     * The SCHEMA block: for each field, its question, purpose, rules and answer shape, as the model reads them.
      *
-     * @param fields what to extract
+     * @param fields the fields to extract
      * @return the block, without its header
      */
     static String describeFields(final List<ExtractionField> fields)
@@ -147,11 +147,11 @@ final class IntakePayload
     }
 
     /**
-     * Whether a field's value is a closed list. Only a single choice is: several values travel as one string,
-     * and each part is matched to an option when the answer is stored.
+     * Whether the reply schema can list a field's allowed values. Only a single-choice field can: several
+     * values come as one string, and each part is matched to an option when the answer is stored.
      *
      * @param field the field
-     * @return {@code true} when the reply schema may name the values it accepts
+     * @return {@code true} for a single-choice field with allowed values
      */
     private static boolean isClosedList(final ExtractionField field)
     {
@@ -159,14 +159,14 @@ final class IntakePayload
     }
 
     /**
-     * One field's answer: whether it was found, the value, how sure the model is, why, and the quotes it rests
-     * on. A single-choice field names the values it may take, so a provider that honours the schema cannot
-     * answer off-list; {@code null} stays allowed, because not finding an answer is a real reply.
+     * The schema for one field's answer: whether it was found, the value, how sure the model is, why, and the
+     * quotes. With allowed values, the model can only answer one of them, or {@code null}, since not finding an
+     * answer is a valid reply.
      *
      * <p>Confidence is a plain number. Strict structured output rejects {@code minimum} and {@code maximum},
-     * and the intake prompt already bounds it to 0–1.</p>
+     * and the intake prompt already asks for a value from 0 to 1.</p>
      *
-     * @param allowed the values the answer may take, empty when it is free text
+     * @param allowed the values the answer may take, empty for free text
      * @return the schema for one field
      */
     private static JsonObject buildFieldSchema(final List<String> allowed)
@@ -196,9 +196,9 @@ final class IntakePayload
     }
 
     /**
-     * One quote: the words themselves and, when the document says so, the page they are on.
+     * The schema for one quote: its words, and the page it is on, or {@code null} when the page is not known.
      *
-     * @return the schema for one piece of evidence
+     * @return the schema for one quote
      */
     private static JsonObject buildEvidenceSchema()
     {

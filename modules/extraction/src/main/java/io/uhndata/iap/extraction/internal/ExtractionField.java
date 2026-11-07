@@ -29,7 +29,7 @@ import io.uhndata.iap.schemas.models.Question;
  * and the allowed values. The model's answer is saved as an {@code Extraction}, not here.
  *
  * <p>Only questions with an extraction prompt are asked ({@link #isExtractable}). The others are for the
- * submitter to answer. A classification is the one exception: its prompt comes from the requirement, not the
+ * submitter to answer. A classification is the one exception: its prompt is on the requirement, not the
  * question.</p>
  *
  * @param name the field's key, the question's path within its schema version
@@ -64,10 +64,10 @@ record ExtractionField(String name, String text, String purpose, String prompt, 
     }
 
     /**
-     * Whether a question is one an extraction stage should try to answer.
+     * Whether the model should be asked this question.
      *
-     * @param question the question to weigh up
-     * @return {@code true} when the schema says how to ask it of a document
+     * @param question the question to check
+     * @return {@code true} when the question has a non-blank extraction prompt
      */
     static boolean isExtractable(final Question question)
     {
@@ -76,12 +76,12 @@ record ExtractionField(String name, String text, String purpose, String prompt, 
     }
 
     /**
-     * Read a question as an extraction field, under a name of the caller's choosing - its path within the schema
-     * version, when questions in different sections may share a node name.
+     * Builds the field for a question, asked with the question's own extraction prompt. The name is usually the
+     * question's path within the schema version, since questions in different sections can share a node name.
      *
      * @param question the question, which must be {@link #isExtractable}
-     * @param name what to call the field, and so its answer
-     * @return the field to put to a model
+     * @param name the field's key, which its answer comes back under
+     * @return the field to ask the model
      */
     static ExtractionField of(final Question question, final String name)
     {
@@ -89,13 +89,13 @@ record ExtractionField(String name, String text, String purpose, String prompt, 
     }
 
     /**
-     * The same, asked with a prompt from elsewhere: a classification keeps its prompt on the requirement, not on
-     * the question the answer is stored under.
+     * Builds the field for a question, asked with the given prompt. Used for a classification, whose prompt is
+     * on the requirement, not on the question its answer is stored under.
      *
      * @param question the question the answer is stored under
-     * @param name what to call the field, and so its answer
+     * @param name the field's key, which its answer comes back under
      * @param prompt what the model is told to decide
-     * @return the field to put to a model
+     * @return the field to ask the model
      */
     static ExtractionField of(final Question question, final String name, final String prompt)
     {
@@ -105,9 +105,9 @@ record ExtractionField(String name, String text, String purpose, String prompt, 
     }
 
     /**
-     * The question's prompt, and for one that offers options, the values it may be answered with. Without them
-     * the model answers in its own words, and a reply that names no option cannot be ticked. A description
-     * goes with the label when the option has one, so a category tree can tell the model what belongs where.
+     * The prompt, followed by the allowed values when the question has options. Without them the model answers
+     * in its own words, and a reply that names no option cannot be matched. Each option's description is added
+     * when it has one, so the model can tell categories apart.
      */
     private static String getPrompt(final Question question, final String prompt,
         final List<OfferedOption> options)
@@ -123,7 +123,7 @@ record ExtractionField(String name, String text, String purpose, String prompt, 
             : " Answer with exactly one of these values: ") + offered + (offered.endsWith(".") ? "" : ".");
     }
 
-    /** One option as the model is shown it: value (label), and -- description when there is one. */
+    /** One option as the model sees it: "value (label)", plus " -- description" when there is one. */
     private static String describe(final OfferedOption option)
     {
         final String shown = option.value() + " (" + option.label() + ")";
