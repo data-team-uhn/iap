@@ -98,6 +98,8 @@ export interface ReviewDoing {
 }
 
 interface ReviewProps {
+  // The submission's identifier, such as IA-00001, which names the review
+  identifier: string;
   risks: RiskReview[];
   unfiled: ReviewNote[];
   issueCount: number;
@@ -226,7 +228,7 @@ function WholeReview(props: ReviewProps & { open: boolean; onClose: () => void }
     >
       <Stack direction="row" sx={{ alignItems: "center", gap: 2, px: 2.5, py: 1.5, borderBottom: 1,
         borderColor: "divider" }}>
-        <Typography id="whole-review-title" variant="h6" component="h2">Your review</Typography>
+        <Typography id="whole-review-title" variant="h6" component="h2">{props.identifier} review</Typography>
         <Box sx={{ flex: 1, maxWidth: 560 }}><Progress risks={risks} more /></Box>
         <Box sx={{ flex: 1 }} />
         <IconButton aria-label="Close" onClick={onClose}><CloseOutlined /></IconButton>
