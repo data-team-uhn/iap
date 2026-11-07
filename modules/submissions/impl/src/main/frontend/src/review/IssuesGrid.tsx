@@ -26,10 +26,9 @@ import EditOutlined from "@mui/icons-material/EditOutlined";
 import ReplyOutlined from "@mui/icons-material/ReplyOutlined";
 import { Box, Button, IconButton, InputBase, Link, MenuItem, Stack, TextField, Tooltip, Typography } from "@mui/material";
 import {
-  DataGridPro, GRID_DETAIL_PANEL_TOGGLE_FIELD, GridCellModes, type GridCellModesModel, type GridCellParams,
-  type GridColDef, type GridRenderCellParams, type GridRenderEditCellParams, type GridRowId,
-  gridColumnPositionsSelector,
-  gridVisibleColumnDefinitionsSelector, useGridApiContext, useGridSelector,
+  DataGridPro, GRID_DETAIL_PANEL_TOGGLE_FIELD, GridCellModes, GridEditSingleSelectCell, type GridCellModesModel,
+  type GridCellParams, type GridColDef, type GridRenderCellParams, type GridRenderEditCellParams, type GridRowId,
+  gridColumnPositionsSelector, gridVisibleColumnDefinitionsSelector, useGridApiContext, useGridSelector,
 } from "@mui/x-data-grid-pro";
 
 import EntityGridToolbar from "@iap/frontend-commons/entityGrid/EntityGridToolbar";
@@ -139,6 +138,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
     {
       field: "severity", headerName: "Severity", width: 130, editable: true, type: "singleSelect",
       valueOptions: SEVERITIES.map(value => ({ value, label: SEVERITY_NAMES[value] })),
+      renderEditCell: params => <ChoiceEdit {...params} />,
       // By how serious, not by name
       sortComparator: (a: string, b: string) =>
         SEVERITIES.indexOf(a as typeof SEVERITIES[number]) - SEVERITIES.indexOf(b as typeof SEVERITIES[number]),
@@ -148,6 +148,7 @@ export default function IssuesGrid({ issues, concerns = [], risks, about, onChan
       field: "risk", headerName: "Risk", width: 160, editable: true, type: "singleSelect",
       valueOptions: [ { value: "", label: "No risk" }, ...risks.map(risk => ({ value: risk.path, label: risk.label })) ],
       valueFormatter: (value: string) => riskLabel(value),
+      renderEditCell: params => <ChoiceEdit {...params} />,
     },
     ...concerns.length > 0 ? [ {
       field: "ai", headerName: "Raised by", width: 100, type: "singleSelect" as const,
@@ -502,4 +503,18 @@ function DraftCell({ field }: { field: string }) {
     default:
       return null;
   }
+}
+
+// A list in a cell, kept as soon as a choice is made in it rather than when the cell is left
+function ChoiceEdit(props: GridRenderEditCellParams<IssueRow>) {
+  const api = useGridApiContext();
+  return (
+    <GridEditSingleSelectCell
+      {...props}
+      onValueChange={async (_event, value: unknown) => {
+        await api.current.setEditCellValue({ id: props.id, field: props.field, value });
+        api.current.stopCellEditMode({ id: props.id, field: props.field });
+      }}
+    />
+  );
 }
