@@ -263,9 +263,9 @@
 // A decision a model makes about an uploaded document before anything is read
 // out of it, e.g. "is this a research proposal" or "which kind of study is
 // it". It is a form requirement holding one question, whose options are the
-// categories to choose from: the model's pick is stored as that question's
-// answer, pre-filled for the submitter to confirm or change, and workflow
-// conditions read it like any other answer.
+// categories to choose from. The model's pick is saved as a suggestion on that
+// question's answer, for the submitter to accept or change. Workflows read the
+// pick through the `decision` condition source.
 [sch:ClassificationRequirement] > sch:FormRequirement
   - sling:resourceType (STRING) = "sch/ClassificationRequirement" mandatory autocreated protected
 
@@ -280,7 +280,7 @@
   - confidenceThreshold (DOUBLE) = '0.7' autocreated
 
   // Optional reference text the model is shown with the prompt, e.g. the
-  // typical structure of a research protocol
+  // typical structure of a research protocol. A template.md child also works.
   + template (nt:file)
 
 //-----------------------------------------------------------------------------
@@ -296,7 +296,7 @@
   - required (BOOLEAN) = true autocreated
 
   // Whether uploads for this requirement are never parsed, so no reading
-  // uses them, e.g. a signed form nobody needs read. Defaults to false.
+  // uses them, e.g. a signed form nobody needs to read. Defaults to false.
   - skipParsing (BOOLEAN) = false autocreated
 
   // The media types the document may have, such as application/pdf; any

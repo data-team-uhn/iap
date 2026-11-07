@@ -77,7 +77,7 @@ class OptionCatalogTest
         assertEquals("", options.get(1).description());
     }
 
-    // A catalogue is read through its own items, never walked as a folder: here it lists none, so the labeled
+    // A catalogue is read through its own items, not walked as a folder. This one lists no items, so the labeled
     // child under it is not an option
     @Test
     void readsACatalogueThroughItsDocumentedItems()
@@ -103,8 +103,8 @@ class OptionCatalogTest
             "a content item is stored by its path, a name-only item by its name");
     }
 
-    // A path inside a catalogue is read through it, so what the catalogue leaves out (a retired category) is
-    // left out here too
+    // A path inside a catalogue is read through the catalogue, so an item it leaves out (here a retired one) is
+    // left out too
     @Test
     void readsTheLiveItemsOfACatalogueUnderAPathInsideIt()
     {

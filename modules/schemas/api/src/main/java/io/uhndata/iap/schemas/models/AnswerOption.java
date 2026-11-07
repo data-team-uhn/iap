@@ -89,9 +89,9 @@ public class AnswerOption extends EntityPart
     }
 
     /**
-     * Its place among its question's options, lower first, as the workflows that add and move options number it.
+     * Its place among its question's options, lower first. Options with the same place keep their stored order.
      *
-     * @return the place, {@code 0} when it was never numbered
+     * @return the place, {@code 0} when not set
      */
     public long getDefaultOrder()
     {

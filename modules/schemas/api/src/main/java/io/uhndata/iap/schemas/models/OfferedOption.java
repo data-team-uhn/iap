@@ -20,15 +20,15 @@ package io.uhndata.iap.schemas.models;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * One answer a {@link Question} offers, as the form, the model and the matching all see it: the stored value,
- * the label a person reads, and an optional description of when it applies.
+ * One answer a {@link Question} offers: the stored value, the label a person reads, and an optional description
+ * of when it applies.
  *
- * <p>Declared {@link AnswerOption} children and items loaded from {@link Question#getOptionsFrom()} both become
- * this, so the three places that need the list cannot drift.</p>
+ * <p>Declared {@link AnswerOption} children and the items at {@link Question#getOptionsFrom()} both become this,
+ * so the code that shows options to the model and matches its replies works the same for both.</p>
  *
  * @param value what an answer picking this option stores, and what a condition compares against
  * @param label what a person reads
- * @param description when this option applies; empty when there is nothing more to say than the label
+ * @param description when this option applies; empty when there is none
  * @version $Id$
  * @since 0.1.0
  */

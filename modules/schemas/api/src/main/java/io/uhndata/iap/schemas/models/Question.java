@@ -281,14 +281,13 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
-     * The answers this question offers, as the form, the model and the matching all see them.
+     * The answers this question offers, as the model is shown them and as its replies are matched against.
      *
-     * <p>From {@link #getOptionsFrom()} when that path is set, otherwise from the declared
-     * {@link #getOptions() children}. One list, so a category tree an administrator edits is the same list
-     * a submitter picks from, a model is shown, and a reply is matched against. Declared children come in
-     * their {@code defaultOrder}, the order the form shows them in.</p>
+     * <p>Read from {@link #getOptionsFrom()} when that path is set, otherwise from the declared
+     * {@link #getOptions() children}, sorted by {@code defaultOrder}. The submission form lists
+     * {@link #getOptions()} instead.</p>
      *
-     * @return the offered options, an empty list if the question is answered freely
+     * @return the offered options, an empty list if the question has none
      */
     @NotNull
     public List<OfferedOption> getOfferedOptions()

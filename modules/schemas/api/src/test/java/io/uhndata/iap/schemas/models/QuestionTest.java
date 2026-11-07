@@ -200,8 +200,7 @@ class QuestionTest
         return this.context.create().resource("/Schemas/schema/1.0/" + name, all).adaptTo(Question.class);
     }
 
-    // The form, the model and the matching all read offered options, so a description declared on a
-    // child is the same description they are shown
+    // The model is shown each option's description, so a description declared on a child must come through
     @Test
     void offersDeclaredOptionsWithTheirDescriptions()
     {
@@ -216,7 +215,7 @@ class QuestionTest
         assertEquals("The patient's own health.", offered.description());
     }
 
-    // A model is shown the options in the order the form shows them, which is their place, not their storage order
+    // Declared options come by defaultOrder, lower first; options without one count as 0 and keep their stored order
     @Test
     void offersDeclaredOptionsInTheirPlaces()
     {
@@ -235,8 +234,7 @@ class QuestionTest
             offered.stream().map(OfferedOption::value).toList());
     }
 
-    // The live list is the path's, not the children: a category tree an administrator edits is what
-    // the form shows, even when the question happens to have a leftover child
+    // When optionsFrom is set, the options come from that path and any declared child is ignored
     @Test
     void offersTheOptionsAtThePathItNames()
     {

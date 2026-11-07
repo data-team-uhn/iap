@@ -74,7 +74,7 @@ class ClassificationRequirementTest
         assertEquals(0.8, requirement.getConfidenceThreshold());
     }
 
-    // A threshold is only worth writing down when a schema wants it other than the usual
+    // A schema sets a threshold only when it wants a different one
     @Test
     void usesTheDefaultThresholdWhenNoneIsGiven()
     {
@@ -149,7 +149,7 @@ class ClassificationRequirementTest
         assertEquals("decision", requirement.getDecision().getName());
     }
 
-    // A requirement written without its question has nothing to be answered in, so nothing to pick from
+    // Without its question, a requirement has no categories to pick from
     @Test
     void offersNothingWithoutAQuestion()
     {
@@ -160,7 +160,7 @@ class ClassificationRequirementTest
         assertTrue(requirement.getCategories().isEmpty());
     }
 
-    // It is a requirement like any other, so the schema version lists it with the rest
+    // It reads as a Requirement, so the schema version lists it with the others
     @Test
     void readsAsARequirement()
     {

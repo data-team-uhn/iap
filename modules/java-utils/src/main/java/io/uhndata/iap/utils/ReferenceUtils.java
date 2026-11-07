@@ -58,8 +58,8 @@ public final class ReferenceUtils
     }
 
     /**
-     * Points a property of one resource at another, as a {@code WEAKREFERENCE}, which lets the target be removed
-     * while the property still points at it.
+     * Points a property of one resource at another with a {@code WEAKREFERENCE}, so the target can still be removed
+     * while the property points at it.
      *
      * @param holder the resource the property is set on
      * @param property the property's name

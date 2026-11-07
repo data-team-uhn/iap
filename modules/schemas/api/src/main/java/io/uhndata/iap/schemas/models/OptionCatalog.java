@@ -33,13 +33,13 @@ import io.uhndata.iap.autodoc.api.DocumentedItem;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * The answers a choice question offers when they live at a content path rather than as child nodes: the live
- * items of that path, each with a value, a label and a description.
+ * Reads the answers a choice question offers when they live at a content path instead of in child nodes. Each
+ * item gives a value, a label and a description.
  *
- * <p>A path that documents itself ({@link AutoDocumentable}) is read as that catalogue, so {@code /Categories}
- * yields the live leaves an administrator has arranged, retired branches left out. A path inside such a
- * catalogue, such as {@code /Categories/Proposal}, yields the catalogue's live items under it. Any other path is
- * walked for labeled leaves, so a folder of options still works.</p>
+ * <p>A path that documents itself ({@link AutoDocumentable}) is read through its documented items, so
+ * {@code /Categories} gives the live leaf categories, without the retired ones. A path inside such a catalogue,
+ * such as {@code /Categories/Prospective}, gives the catalogue's items under that path. Any other path is walked
+ * for labeled leaves, so a plain folder of options also works.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -52,11 +52,11 @@ public final class OptionCatalog
     }
 
     /**
-     * The options at a content path, in the order the catalogue or the tree arranges them.
+     * Returns the options at a content path, in the order the catalogue or the tree gives them.
      *
-     * @param resolver how to reach the path
-     * @param path an absolute repository path, e.g. {@code /Categories}
-     * @return the options; empty when the path is missing or holds nothing that can be chosen
+     * @param resolver the resolver used to read the path
+     * @param path an absolute repository path, e.g. {@code /Categories}; may be {@code null}
+     * @return the options; empty when the path is {@code null}, blank, missing, or holds nothing to choose
      */
     @NotNull
     public static List<OfferedOption> read(@NotNull final ResourceResolver resolver, @Nullable final String path)
@@ -82,8 +82,8 @@ public final class OptionCatalog
     }
 
     /**
-     * The catalogue the path documents, or {@code null} when it is a plain folder. Sling Models falls back to the
-     * first implementation of an adapter when no resource type matches, so the model's own type is checked too.
+     * The catalogue model of a resource, or {@code null} when it is a plain folder. When no resource type matches,
+     * Sling Models falls back to the first model for the adapter, so the model's own resource type is checked too.
      */
     private static AutoDocumentable getCatalog(final Resource root)
     {
@@ -96,10 +96,10 @@ public final class OptionCatalog
     }
 
     /**
-     * The documented items as options. The value is the item's path when it is content, otherwise its name,
-     * so a category is stored as {@code /Categories/…} and a name-only item as itself.
+     * The documented items as options. A content item's value is its path, so a category is stored as
+     * {@code /Categories/...}; any other item's value is its name.
      *
-     * @param under only the content items below this path prefix, or {@code null} for all of them
+     * @param under keep only the content items below this path prefix, or {@code null} to keep all items
      */
     private static List<OfferedOption> readDocumented(final AutoDocumentable catalog, final String under)
     {
@@ -116,7 +116,8 @@ public final class OptionCatalog
     }
 
     /**
-     * Labeled leaves under the path, depth-first. A node with labeled children is a grouping, not a choice.
+     * The labeled leaves under the path, depth-first. A node with labeled children is a group, not a choice, and
+     * the path itself is never a choice.
      */
     private static List<OfferedOption> readLeaves(final Resource root)
     {
