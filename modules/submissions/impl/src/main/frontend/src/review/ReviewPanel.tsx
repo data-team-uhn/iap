@@ -135,26 +135,14 @@ function countsOf(risk: RiskReview): string {
 export default function ReviewPanel(props: ReviewProps & { open: boolean; onToggle: () => void }) {
   const { risks, issueCount, doing, open, onToggle } = props;
   const [ expanded, setExpanded ] = useState<string>();
-  const [ lastConcern, setLastConcern ] = useState<string>();
   const [ whole, setWhole ] = useState(false);
   // The whole review's page the reviewer last had open, kept while they stay on the submission, so reopening it, as
   // after showing where something was raised, brings them back there
   const [ wholePage, setWholePage ] = useState<string>();
-  const concerns = risks.flatMap(risk => bySeverity(risk.aiOpen).filter(anchored)
-    .map(note => ({ note, risk: risk.topic.path })));
 
   if (!open) {
     return <Folded issueCount={issueCount} onToggle={onToggle} decision={doing.decision} />;
   }
-
-  // The AI's next open concern after the last one stepped to, round to the first
-  const nextConcern = () => {
-    const at = concerns.findIndex(one => one.note.id === lastConcern);
-    const next = concerns[(at + 1) % concerns.length];
-    setLastConcern(next.note.id);
-    setExpanded(next.risk);
-    doing.open(next.note);
-  };
 
   return (
     // Part of the frame, tinted like the contents on the other side of the page
@@ -175,11 +163,6 @@ export default function ReviewPanel(props: ReviewProps & { open: boolean; onTogg
       </Stack>
       <Box sx={{ px: 1.5, pb: 1 }}>
         <Progress risks={risks} />
-        {concerns.length > 0 && (
-          <Button size="small" variant="outlined" fullWidth onClick={nextConcern} sx={{ mt: 1 }}>
-            Next open AI concern ({concerns.length})
-          </Button>
-        )}
       </Box>
       <PanelBody>
         {risks.map(risk => (
@@ -198,7 +181,7 @@ export default function ReviewPanel(props: ReviewProps & { open: boolean; onTogg
         <Unfiled {...props} dense onShow={doing.open} />
         <Others others={props.others} doing={doing} />
       </PanelBody>
-      <Decision waitingSince={props.waitingSince} decision={doing.decision} />
+      <Decision decision={doing.decision} />
       <WholeReview {...props} open={whole} onClose={() => setWhole(false)} page={wholePage} onPage={setWholePage} />
     </Paper>
   );
@@ -887,9 +870,12 @@ function Decision({ waitingSince, decision, wide = false }: {
   return (
     <Stack direction={wide ? { xs: "column", sm: "row" } : "column"} spacing={1}
       sx={{ p: 1.5, borderTop: 1, borderColor: "divider", alignItems: wide ? { sm: "center" } : undefined }}>
-      <Typography variant="caption" sx={{ color: "text.secondary", flex: wide ? 1 : undefined }}>
-        {waitingSince ? `Waiting on your decision since ${waitingSince}` : "Not waiting on your decision now"}
-      </Typography>
+      {/* The whole review says since when the decision has waited; the panel keeps to the decision */}
+      {wide && (
+        <Typography variant="caption" sx={{ color: "text.secondary", flex: 1 }}>
+          {waitingSince ? `Waiting on your decision since ${waitingSince}` : "Not waiting on your decision now"}
+        </Typography>
+      )}
       {wide && decision.board && (
         <Button variant="text" size="small" startIcon={<GroupsOutlined />} onClick={decision.board}>
           Escalate to the board
