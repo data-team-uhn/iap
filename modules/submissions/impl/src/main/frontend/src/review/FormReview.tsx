@@ -220,9 +220,9 @@ function SideCard({ note, kind, onOpen, children }: {
   );
 }
 
-// The first question each note is about, in the order the form asks them
+// The question each note shows beside: the first it is about, as its author listed them, among those this form asks
 function homes(items: FormItem[], data: ReviewData): Map<string, string> {
-  const home = new Map<string, string>();
+  const asked = new Map<string, string>();
   const visit = (list: FormItem[]) => list.forEach(item => {
     if (!isQuestion(item)) {
       visit(item.items);
@@ -230,10 +230,18 @@ function homes(items: FormItem[], data: ReviewData): Map<string, string> {
     }
     const answer = data.answers.get(item.path);
     if (answer) {
-      notesAbout(data.notes, [ answer.uuid ]).forEach(note => home.has(note.id) || home.set(note.id, item.path));
+      asked.set(answer.uuid, item.path);
     }
   });
   visit(items);
+  const home = new Map<string, string>();
+  for (const note of data.notes) {
+    const first = [ ...note.subjects, ...note.passage?.source ? [ note.passage.source ] : [] ]
+      .map(subject => asked.get(subject)).find(Boolean);
+    if (first) {
+      home.set(note.id, first);
+    }
+  }
   return home;
 }
 

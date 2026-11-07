@@ -124,7 +124,23 @@ export interface ReviewData {
   assessments: Map<string, string>;
   // The risks the reviewer has marked as considered, by path
   considered: Set<string>;
+  // The reviewer's latest decision, and the letters that came with their decisions, latest last
+  decided?: Decided;
+  letters: Letter[];
 }
+
+export interface Decided {
+  outcome: string;
+  at: string;
+}
+
+export interface Letter {
+  outcome: string;
+  at: string;
+  text: string;
+}
+
+const DECISIONS = [ "approved", "changes-requested", "rejected" ];
 
 const isNode = (value: unknown): value is Node => typeof value === "object" && value !== null && !Array.isArray(value);
 const text = (value: unknown): string => typeof value === "string" ? value : "";
@@ -206,6 +222,8 @@ export function parseReview(submission: Node, schema: string, me: string, topics
   let aiSummary: string | undefined;
   const assessments = new Map<string, string>();
   let considered = new Set<string>();
+  let decided: Decided | undefined;
+  const letters: Letter[] = [];
   for (const node of Object.values(submission).filter(isNode)) {
     const type = node["sling:resourceType"];
     if (type === "sub/Answer") {
@@ -252,7 +270,17 @@ export function parseReview(submission: Node, schema: string, me: string, topics
       if (node.reviewer === me && Array.isArray(node.considered)) {
         considered = new Set(node.considered.map(String));
       }
-      const comments = childrenOf(node, "sub:Comment");
+      // What the reviewer wrote with a decision is their letter, not an issue
+      const comments = childrenOf(node, "sub:Comment").filter(one => !text(one.decision));
+      if (node.reviewer === me) {
+        const outcome = (Array.isArray(node.tags) ? node.tags.map(String) : []).find(tag => DECISIONS.includes(tag));
+        const at = text(node.decidedAt) || text(node["jcr:lastModified"]);
+        if (outcome && (!decided || Date.parse(at) > Date.parse(decided.at))) {
+          decided = { outcome, at };
+        }
+        letters.push(...childrenOf(node, "sub:Comment").filter(one => text(one.decision))
+          .map(one => ({ outcome: text(one.decision), at: text(one["jcr:created"]), text: text(one.text) })));
+      }
       comments.filter(one => one.author === me && text(one.from))
         .forEach(one => settled.set(text(one.from), text(one["@path"])));
       const group = text(node.group) || undefined;
@@ -267,8 +295,7 @@ export function parseReview(submission: Node, schema: string, me: string, topics
   const settledAi = notes.filter(note => settled.has(note.id))
     .map(note => ({ ...note, settled: settled.get(note.id) }));
   return { answers, documents, notes: notes.filter(note => !settled.has(note.id)), settledAi, partOf, aiSummary,
-    assessments,
-    considered };
+    assessments, considered, decided, letters: letters.sort((a, b) => Date.parse(a.at) - Date.parse(b.at)) };
 }
 
 // The risks each approval lists, by path

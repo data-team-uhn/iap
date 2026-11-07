@@ -78,3 +78,17 @@ export function draftLetter({ title, identifier, pi, about, issues, risks, revie
   lines.push("", "Sincerely,", "", reviewer, `On behalf of the ${group} review`);
   return lines.join("\n");
 }
+
+// The note that goes with an approval when the reviewer raised suggestions only: the approval stands, and the
+// suggestions are there to take up or not
+export function approvalLetter({ title, identifier, pi, about, issues, reviewer, group }: LetterInput): string {
+  const date = new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
+  return [
+    date, "", `To ${pi}`, "", `Re: ${title} (${identifier})`, "",
+    `Thank you for your submission. The ${group} review approves it. It also has a few suggestions you may want to `
+      + "take up. They are not conditions of the approval.",
+    "",
+    ...issues.map((issue, index) => `${index + 1}. ${leadIn(about(issue))}${issue.text}`),
+    "", "Sincerely,", "", reviewer, `On behalf of the ${group} review`,
+  ].join("\n");
+}

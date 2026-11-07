@@ -58,8 +58,7 @@ export default function EscalateDialog({ open, title, identifier, pi, summary, p
   onClose: () => void;
 }) {
   const [ chosen, setChosen ] = useState(() => new Set(parts.map(part => part.name)));
-  const [ shared, setShared ] = useState(() => new Set(issues.filter(issue => [ "critical", "major" ]
-    .includes(issue.severity ?? "")).map(issue => issue.id)));
+  const [ shared, setShared ] = useState(() => new Set(issues.map(issue => issue.id)));
   const [ message, setMessage ] = useState("The REB reviewers would like the board's decision on the points below.");
   const [ sent, setSent ] = useState(false);
   const toggle = (set: Set<string>, value: string) => {
@@ -80,21 +79,27 @@ export default function EscalateDialog({ open, title, identifier, pi, summary, p
             <TextField
               multiline minRows={3} label="Message" value={message} onChange={event => setMessage(event.target.value)}
             />
-            <Typography variant="subheading">Parts of the submission</Typography>
-            {parts.map(part => (
-              <FormControlLabel
-                key={part.name} label={part.label}
-                control={<Checkbox checked={chosen.has(part.name)}
-                  onChange={() => setChosen(current => toggle(current, part.name))} />}
-              />
-            ))}
-            <Typography variant="subheading">Issues</Typography>
+            {/* What the board is asked to decide comes first: without it there is nothing to escalate */}
+            <Typography variant="subheading">The points to decide</Typography>
+            {issues.length === 0 && (
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                You have raised no issues yet. Raise the ones the board should decide, then escalate.
+              </Typography>
+            )}
             {issues.map(issue => (
               <FormControlLabel
                 key={issue.id}
                 label={<Typography variant="body2">{leadIn(about(issue) || "General")}{issue.text}</Typography>}
                 control={<Checkbox checked={shared.has(issue.id)}
                   onChange={() => setShared(current => toggle(current, issue.id))} />}
+              />
+            ))}
+            <Typography variant="subheading">Parts of the submission</Typography>
+            {parts.map(part => (
+              <FormControlLabel
+                key={part.name} label={part.label}
+                control={<Checkbox checked={chosen.has(part.name)}
+                  onChange={() => setChosen(current => toggle(current, part.name))} />}
               />
             ))}
           </Stack>
@@ -106,6 +111,7 @@ export default function EscalateDialog({ open, title, identifier, pi, summary, p
               <Typography variant="body2" sx={{ mt: 1.5, whiteSpace: "pre-wrap" }}>{message}</Typography>
               <Typography variant="body2" sx={{ mt: 1.5 }}>{summary}</Typography>
               <Typography variant="subheading" sx={{ mt: 2, display: "block" }}>The points to decide</Typography>
+              {shared.size === 0 && <Typography variant="body2" sx={{ color: "text.secondary" }}>None chosen</Typography>}
               {issues.filter(issue => shared.has(issue.id)).map(issue => (
                 <Box key={issue.id} sx={{ mt: 1 }}>
                   {issue.severity && <TagChip tags={[ issue.severity ]} category="severity" />}
@@ -126,8 +132,15 @@ export default function EscalateDialog({ open, title, identifier, pi, summary, p
         )}
       </DialogContent>
       <DialogActions>
+        {shared.size === 0 && (
+          <Typography variant="caption" sx={{ color: "text.secondary", mr: "auto", pl: 2 }}>
+            Choose at least one point for the board to decide.
+          </Typography>
+        )}
         <Button onClick={onClose}>Close</Button>
-        <Button variant="contained" onClick={() => setSent(true)}>Send to the board</Button>
+        <Button variant="contained" disabled={shared.size === 0} onClick={() => setSent(true)}>
+          Send to the board
+        </Button>
       </DialogActions>
     </ResponsiveDialog>
   );

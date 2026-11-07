@@ -28,6 +28,7 @@ import {
   Box,
   Button,
   Chip,
+  DialogContentText,
   IconButton,
   List,
   ListItemButton,
@@ -44,6 +45,7 @@ import {
   useTheme,
 } from "@mui/material";
 
+import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { usePublishedPageContext } from "@iap/frontend-commons/pageContext";
@@ -66,10 +68,10 @@ import Countdown from "./Countdown";
 import DocumentReview from "./DocumentReview";
 import EscalateDialog from "./EscalateDialog";
 import FormReview, { answerText, disagrees, GroupChips, type ReviewActions } from "./FormReview";
-import LetterDialog from "./LetterDialog";
+import LetterDialog, { SentLetter } from "./LetterDialog";
 import { GroupLabels, usePersonName } from "./people";
 import { pulseWhenThere } from "./pulse";
-import { draftLetter } from "./rebLetter";
+import { approvalLetter, draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
 import { groupShortName, issueFrom, isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics,
   type NoteKind, type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
@@ -210,7 +212,7 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ selected, setSelected ] = useState<string>();
   const [ shown, setShown ] = useState(storedKinds);
   const [ mark, setMark ] = useState<{ id?: string; page?: number }>({});
-  const [ dialog, setDialog ] = useState<"letter" | "board">();
+  const [ dialog, setDialog ] = useState<"letter" | "board" | "approve" | "sentLetter">();
   // Whether the issues are shown beside the requirement; until the reviewer says, open beside a form and folded
   // beside a document, which needs the width
   const [ issuesOpen, setIssuesOpen ] = useStoredFlag(ISSUES_OPEN_KEY);
@@ -583,6 +585,8 @@ export default function ReviewScreen({ path }: { path: string }) {
     considered: data.considered.has(topic.path),
   }));
   const unfiled = myIssues.filter(note => !reviewerTopics.mine.some(topic => topic.path === note.topicPath));
+  // The reviewer's notes to self on the whole submission, rather than on a question or passage, as the queue shows
+  const generalNotes = data.notes.filter(note => note.kind === "note" && note.subjects.length === 0 && !note.passage);
   // What other reviewers raised, by group, and how much of it on what this reviewer also reviews
   const othersRaised: OthersRaised[] = [ ...Map.groupBy(data.notes.filter(note => note.kind === "otherIssue"),
     note => groupLabels.get(note.group ?? "") ?? "Another group") ].map(([ group, raised ]) => ({
@@ -601,6 +605,8 @@ export default function ReviewScreen({ path }: { path: string }) {
     editIssue: (note, said, severity, topic) => actions.write({ edit: note.id, text: said,
       ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {} }),
     removeIssue: note => actions.write({ remove: note.id }),
+    addNote: said => actions.write({ kind: "note", text: said }),
+    editNote: (note, said) => actions.write({ edit: note.id, text: said }),
     reply: (note, said) => actions.write({ replyTo: note.id, text: said }),
     editReply: (reply, said) => actions.write({ edit: reply, text: said }),
     removeReply: reply => actions.write({ remove: reply }),
@@ -610,15 +616,39 @@ export default function ReviewScreen({ path }: { path: string }) {
   const waitingSince = taskCreated
     ? new Date(taskCreated).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : undefined;
   const waiting = myTask() !== undefined;
+  // A suggestion can go with an approval; anything more serious needs changes first
+  const blocking = myIssues.filter(note => note.severity !== "suggestion");
+  const suggestions = myIssues.filter(note => note.severity === "suggestion");
+  const letterInput = { title: text(submission.title), identifier: text(submission.identifier),
+    pi: text(submission.pi), about, issues: myIssues,
+    risks: reviewerTopics.mine.map(topic => ({ path: topic.path, label: topic.label })),
+    reviewer: myName, group: myGroupLabel.toLowerCase() };
+  // What the reviewer last decided, said once it is with someone else, or when it comes back after changes
+  const decidedOn = data.decided
+    && new Date(data.decided.at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const decided = !data.decided ? undefined
+    : data.decided.outcome === "approved" ? `You approved this on ${decidedOn}.`
+      : data.decided.outcome === "rejected" ? `You rejected this on ${decidedOn}.`
+        : waiting ? `You requested changes on ${decidedOn}, and the study team has answered.`
+          : `You requested changes on ${decidedOn}. It's with the study team now.`;
+  const lastLetter = data.letters.at(-1);
   const reviewActions = {
+    waiting,
+    decided: !waiting || data.decided?.outcome === "changes-requested" ? decided : undefined,
+    outcome: data.decided?.outcome,
+    readLetter: lastLetter ? () => setDialog("sentLetter") : undefined,
     send: () => setDialog("letter"),
-    approve: () => void decide("approved"),
+    approve: () => setDialog("approve"),
     approveBlocked: !waiting ? "Your review is not waiting on a decision now"
-      : myIssues.length > 0
-        ? `Request changes for your ${myIssues.length === 1 ? "issue" : `${myIssues.length} issues`} first`
+      : blocking.length > 0
+        ? `Request changes for your ${blocking.length === 1 ? "issue" : `${blocking.length} issues`} first`
         : undefined,
     board: myGroups.includes("reb-reviewers") ? () => setDialog("board") : undefined,
   };
+  // What is still open in the review, said before approving
+  const unconsidered = risks.filter(risk => !risk.considered).length;
+  const aiOpen = risks.reduce((sum, risk) => sum + risk.aiOpen.length, 0);
+  const contradicted = new Set(risks.flatMap(risk => risk.mismatches.map(one => one.question))).size;
   const shownDocument = current ? data.documents.get(current.name) : undefined;
 
   const rail = narrow ? (
@@ -720,14 +750,20 @@ export default function ReviewScreen({ path }: { path: string }) {
       </Box>
       <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1, alignItems: { sm: "center" }, display: { md: "none" } }}>
         <Box>{search(false)}</Box>
-        <Stack direction="row" spacing={1} sx={{ ml: { sm: "auto" }, flexWrap: "wrap" }}>
-          {reviewActions.board && (
-            <Button size="small" variant="text" onClick={reviewActions.board}>Escalate to the board</Button>
-          )}
-          <Button size="small" variant="outlined" onClick={reviewActions.send}>Request changes</Button>
-          <Button size="small" variant="contained" disabled={Boolean(reviewActions.approveBlocked)}
-            onClick={reviewActions.approve}>Approve</Button>
-        </Stack>
+        {waiting ? (
+          <Stack direction="row" spacing={1} sx={{ ml: { sm: "auto" }, flexWrap: "wrap" }}>
+            {reviewActions.board && (
+              <Button size="small" variant="text" onClick={reviewActions.board}>Escalate to the board</Button>
+            )}
+            <Button size="small" variant="outlined" onClick={reviewActions.send}>Request changes</Button>
+            <Button size="small" variant="contained" disabled={Boolean(reviewActions.approveBlocked)}
+              onClick={reviewActions.approve}>Approve</Button>
+          </Stack>
+        ) : (
+          <Typography variant="body2" sx={{ ml: { sm: "auto" }, color: "text.secondary" }}>
+            {decided ?? "Not waiting on your decision now."}
+          </Typography>
+        )}
       </Stack>
       <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, alignItems: "flex-start" }}>
         {/* The page runs at least as far down as the contents beside it, so whichever requirement is being read,
@@ -742,7 +778,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             <Stack direction="row" sx={{ alignItems: "center", pl: 1.5, pr: 0.5, pt: 0.75, pb: 0.5 }}>
               <Typography variant="panelTitle" sx={{ flex: 1 }}>Submission contents</Typography>
               {!narrow && (
-                <Tooltip title="Fold away">
+                <Tooltip title="Fold away" disableInteractive>
                   <IconButton size="small" aria-label="Fold the contents away" onClick={() => setRailOpen(false)}>
                     <ChevronLeftOutlined />
                   </IconButton>
@@ -754,11 +790,11 @@ export default function ReviewScreen({ path }: { path: string }) {
               onChange={(_event, value: string | null) => value && setFocused(value === "focused")}
               sx={{ px: 1.5, pb: 1, "& .MuiToggleButton-root": { py: 0.25, textTransform: "none" } }}
             >
-              <Tooltip describeChild title={myGroupLabel ? `Only what the ${groupShortName(myGroupLabel)} review covers`
+              <Tooltip describeChild disableInteractive title={myGroupLabel ? `Only what the ${groupShortName(myGroupLabel)} review covers`
                 : "Only what your review covers"}>
                 <ToggleButton value="focused">Focused</ToggleButton>
               </Tooltip>
-              <Tooltip describeChild title="The whole submission, including the parts that concern other reviewer groups">
+              <Tooltip describeChild disableInteractive title="The whole submission, including the parts that concern other reviewer groups">
                 <ToggleButton value="all">All</ToggleButton>
               </Tooltip>
             </ToggleButtonGroup>
@@ -768,7 +804,7 @@ export default function ReviewScreen({ path }: { path: string }) {
           // Folded, it still says what it is
           <Paper sx={{ width: 48, py: 1, flexShrink: 0, ...panelPlacement, display: "flex",
             flexDirection: "column", alignItems: "center", gap: 1 }}>
-            <Tooltip title="Show the contents" placement="right">
+            <Tooltip title="Show the contents" placement="right" disableInteractive>
               <IconButton size="small" aria-label="Show the submission contents" onClick={() => setRailOpen(true)}>
                 <ChevronRightOutlined />
               </IconButton>
@@ -841,13 +877,47 @@ export default function ReviewScreen({ path }: { path: string }) {
               )}
               {dialog === "letter" && (
                 <LetterDialog
-                  open issueCount={myIssues.length}
-                  draft={draftLetter({ title: text(submission.title), identifier: text(submission.identifier),
-                    pi: text(submission.pi), about, issues: myIssues,
-                    risks: reviewerTopics.mine.map(topic => ({ path: topic.path, label: topic.label })),
-                    reviewer: myName, group: myGroupLabel.toLowerCase() })}
+                  open submission={text(submission["@path"])} issueCount={myIssues.length}
+                  draft={draftLetter(letterInput)}
                   onSend={sendLetter} onClose={() => setDialog(undefined)}
                 />
+              )}
+              {dialog === "sentLetter" && lastLetter && (
+                <SentLetter letter={lastLetter} onClose={() => setDialog(undefined)} />
+              )}
+              {dialog === "approve" && (
+                <ConfirmActionDialog
+                  title={`Approve ${text(submission.identifier)}?`} confirmLabel="Approve" workingLabel="Approving…"
+                  onConfirm={() => decide("approved", suggestions.length > 0
+                    ? approvalLetter({ ...letterInput, issues: suggestions }) : undefined)}
+                  onClose={() => setDialog(undefined)}
+                >
+                  {unconsidered + aiOpen + contradicted === 0 ? (
+                    <DialogContentText sx={{ mb: 1 }}>
+                      Every risk is marked as considered, and nothing the AI raised is still open.
+                    </DialogContentText>
+                  ) : (
+                    <>
+                      <DialogContentText>Still open in your review</DialogContentText>
+                      <Box component="ul" sx={{ mt: 0.5, mb: 1, pl: 3, color: "text.secondary" }}>
+                        {unconsidered > 0 && (
+                          <li>{`${unconsidered} of your ${risks.length} risks aren't marked as considered.`}</li>
+                        )}
+                        {aiOpen > 0 && <li>{aiOpen === 1 ? "1 concern" : `${aiOpen} concerns`} the AI raised, not
+                          made into issues or dismissed.</li>}
+                        {contradicted > 0 && <li>{contradicted === 1 ? "1 answer" : `${contradicted} answers`} the
+                          protocol contradicts.</li>}
+                      </Box>
+                    </>
+                  )}
+                  {suggestions.length > 0 && (
+                    <DialogContentText sx={{ mb: 1 }}>
+                      Your {suggestions.length === 1 ? "suggestion goes" : `${suggestions.length} suggestions go`} to
+                      the study team with the approval.
+                    </DialogContentText>
+                  )}
+                  <DialogContentText>An approval cannot be taken back.</DialogContentText>
+                </ConfirmActionDialog>
               )}
               {dialog === "board" && (
                 <EscalateDialog
@@ -863,6 +933,7 @@ export default function ReviewScreen({ path }: { path: string }) {
             <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", ...panelPlacement, flexShrink: 0 }}>
               <ReviewPanel
                 identifier={text(submission.identifier)} risks={risks} unfiled={unfiled} issueCount={myIssues.length}
+                notes={generalNotes}
                 countdown={<Countdown due={submission.reviewDue} pausedAt={submission.reviewPausedAt} />}
                 others={othersRaised} about={about} waitingSince={waitingSince}
                 doing={{ ...doing, decision: reviewActions }}

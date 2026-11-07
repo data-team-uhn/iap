@@ -328,11 +328,20 @@ def open_review(admin, path, schema, reviewer, requirement):
         "requirement@TypeHint": "Reference", "tags": ["in-progress"], "tags@TypeHint": "String[]"})
 
 
+# The letter that went with the request for changes, as the reviewer would have sent it
+def letter(issues):
+    points = [f"{index + 1}. {issue['text']}" for index, issue in enumerate(issues)]
+    return "\n".join(["Thank you for your submission. The research ethics review asks that you respond to the "
+                      "points below, revise the submission where it applies, and send it back.", "", *points, "",
+                      "Sincerely,", "", "Sam Okafor", "On behalf of the research ethics review"])
+
+
 def send_back(admin, path, answers, documents, issues, url):
     for index, issue in enumerate(issues):
         add_comment(admin, f"{path}/review-reb-reviewer/issue{index}", issue, "reb-reviewer", answers, documents)
     reviewer = Instance(url, "reb-reviewer")
-    reviewer.post(open_task(admin, path, "rebTask") + ".json", {"outcome": "changes-requested"})
+    reviewer.post(open_task(admin, path, "rebTask") + ".json",
+                  {"outcome": "changes-requested", "outcomeNote": letter(issues)})
 
 
 def add_activity(url, path, activity):

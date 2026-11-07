@@ -25,8 +25,12 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { writeComment } from "./reviewApi";
 import { getMessages, type Message } from "./reviewModel";
 
-// PRETOTYPE. A reviewer's latest note to self on a submission, written and changed right in the queue, the
-// way they kept a column of their own in a spreadsheet.
+// A note to self on the submission as a whole, rather than pinned to a question or a passage
+const general = ([ , node ]: [string, unknown]) => typeof node !== "object" || node === null
+  || !("subjects" in node || "context" in node);
+
+// PRETOTYPE. A reviewer's latest note to self on a submission as a whole, written and changed right in the queue,
+// the way they kept a column of their own in a spreadsheet; the review panel lists the same notes.
 export default function NotesCell({ path, me }: { path: string; me: string }) {
   const doFetch = useAuthenticatedFetch();
   const [ note, setNote ] = useState<Message>();
@@ -42,7 +46,8 @@ export default function NotesCell({ path, me }: { path: string; me: string }) {
 
   const load = useCallback(() => doFetch(`${path}/notes-${me}.1.json`)
     .then(response => response.ok ? response.json() as Promise<Record<string, unknown>> : undefined)
-    .then(notes => setNote(getMessages(notes).at(-1))), [ doFetch, path, me ]);
+    .then(notes => setNote(getMessages(notes && Object.fromEntries(Object.entries(notes).filter(general))).at(-1))),
+  [ doFetch, path, me ]);
   useEffect(() => {
     void load();
   }, [ load ]);
