@@ -309,9 +309,9 @@ public class AnswerIntakeService
         // A blank value written as found would hold the question against every later reading
         final boolean found = read.getBoolean("found_answer", false) && value != null && !value.isBlank();
         final List<FieldResult.Passage> evidence = readPassages(read);
-        // top of a fraction: how many of those were actually found in the document
+        // The top of the fraction below: the quotes really found in the document
         final List<FieldResult.Passage> confirmedEvidence = verify(evidence, document);
-        // bottom of a fraction: how many different quotes the model offered
+        // The bottom: the different quotes offered. The same quote twice is one piece of evidence.
         final long distinct = evidence.stream().map(passage -> QuoteVerifier.normalize(passage.quote())).distinct()
             .count();
         // Scaled by how many quotes checked out. 2 of 2 keeps it, 1 of 2 takes off a quarter, 0 of 2 halves it.
@@ -325,7 +325,8 @@ public class AnswerIntakeService
     /**
      * The quotes that are really in the document, each under the heading it sits below.
      *
-     * <p>A quote nobody can find is dropped rather than stored.
+     * <p>A quote nobody can find is dropped rather than stored. Shown to a reviewer, it would be a sentence that
+     * is not in their document.
      */
     private static List<FieldResult.Passage> verify(final List<FieldResult.Passage> offered,
         final DocumentScan document)
