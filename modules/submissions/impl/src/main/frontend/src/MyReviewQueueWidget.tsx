@@ -65,7 +65,7 @@ function MyReviewQueueWidget() {
     },
     {
       field: "__notes__",
-      headerName: "My notes",
+      headerName: "Notes to self",
       flex: 1.5,
       minWidth: 200,
       cardSlot: "omit",
