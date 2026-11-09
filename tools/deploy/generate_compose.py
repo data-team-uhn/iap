@@ -544,6 +544,13 @@ def iap_environment(args):
         comment(environment, "same path on both sides, so a staged path can be handed over as is.")
         environment['IAP_SHARED_DOCS'] = '/shared-docs'
 
+    comment(environment, "The largest document a person may upload, then the most PDF pages and")
+    comment(environment, "what a .docx may unzip to. IAP checks uploads against these and sends")
+    comment(environment, "them with each parse; the daemon applies them under its own ceilings.")
+    environment['IAP_UPLOAD_MAX_BYTES'] = '${IAP_UPLOAD_MAX_BYTES:-52428800}'
+    environment['IAP_UPLOAD_MAX_PDF_PAGES'] = '${IAP_UPLOAD_MAX_PDF_PAGES:-500}'
+    environment['IAP_UPLOAD_MAX_UNZIPPED_BYTES'] = '${IAP_UPLOAD_MAX_UNZIPPED_BYTES:-536870912}'
+
     if args.features:
         comment(environment, "Started in addition to the distribution the image already carries.")
         comment(environment, "The entrypoint expands this value as a bash prompt string, so a")
@@ -660,8 +667,11 @@ def docling_service():
         # 0, so that an operator who empties the token hears the daemon's own warning about it.
         # Set this to 1 only after confining the port some other way.
         'IAP_DOCLING_TRUSTED_NETWORK': '${IAP_DOCLING_TRUSTED_NETWORK:-0}',
+        # Ceilings only: IAP sends its own IAP_UPLOAD_MAX_* limits with each parse, and the
+        # lower of the two applies, so these only matter when they are the smaller.
         'IAP_MAX_INPUT_PAGES': '${IAP_MAX_INPUT_PAGES:-500}',
         'IAP_MAX_INPUT_BYTES': '${IAP_MAX_INPUT_BYTES:-67108864}',
+        'IAP_MAX_EXPANDED_BYTES': '${IAP_MAX_EXPANDED_BYTES:-536870912}',
         'IAP_LIBREOFFICE_TIMEOUT_SECONDS': '${IAP_LIBREOFFICE_TIMEOUT_SECONDS:-300}',
         'IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS': '${IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS:-600}',
         'IAP_DOCLING_PARSE_TIMEOUT_SECONDS': '${IAP_DOCLING_PARSE_TIMEOUT_SECONDS:-900}',

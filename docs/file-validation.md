@@ -1,7 +1,7 @@
 # File validation
 
 **Module:** `modules/frontend-commons` · **Files:** `fileValidation.ts`, one check per
-format in `fileValidation/`, `pdfViewer/pdfjsClient.ts` · **Used by:**
+format in `fileValidation/`, `pdfViewer/pdfjsClient.ts`, `uploadLimits.ts` · **Used by:**
 `DocumentUpload.tsx` (submissions) · **Demo:** `test-data`'s `FileValidationWidget`
 
 Checks a file in the browser before it is uploaded: its size, its type, and whether its
@@ -209,11 +209,36 @@ here and fails in the parser.
 
 ## Limits
 
+The server owns the limits. They are set once, in the **Document limits** configuration
+(`ConfiguredDocumentLimits` in `modules/documents/api`), and served at
+`/system/documents/limits`. The configuration reads them from the environment, and the web
+console can change them on a running instance:
+
+| Variable | Default |
+| --- | --- |
+| `IAP_UPLOAD_MAX_BYTES` | `52428800` (50 MB) |
+| `IAP_UPLOAD_MAX_PDF_PAGES` | `500` |
+| `IAP_UPLOAD_MAX_UNZIPPED_BYTES` | `536870912` (512 MB) |
+
+`./start.sh` passes its own environment on to the instance, and `generate_compose.py` gives
+the IAP container all three. The endpoint answers:
+
+```json
+{ "maxFileSize": 52428800, "maxPdfPages": 500, "maxUnzippedSize": 536870912 }
+```
+
+`fetchUploadLimits(doFetch)` (`uploadLimits.ts`) reads them in the shape `validateUpload`
+takes. A limit the server does not give, or all of them when it cannot be asked, is left
+out, and the check uses its own default for it:
+
 | Limit | Default | Override | Why this default |
 | --- | --- | --- | --- |
 | File size | 50 MB (`MAX_FILE_SIZE`) | `limits.maxFileSize`, in bytes | Bigger uploads are slow enough to look broken, and the parser holds the file in memory |
 | PDF pages | 500 (`MAX_PDF_PAGES`) | `limits.maxPdfPages` | Longer parses take long enough that a person thinks they failed |
-| DOCX unzipped size | 512 MB (`MAX_UNZIPPED_SIZE`) | `limits.maxUnzippedSize`, in bytes | The parser's own limit, `IAP_MAX_EXPANDED_BYTES` |
+| DOCX unzipped size | 512 MB (`MAX_UNZIPPED_SIZE`) | `limits.maxUnzippedSize`, in bytes | The parser's own default, `IAP_MAX_EXPANDED_BYTES` |
+
+The server's defaults are the same numbers. Zero or less in the configuration means the
+default, not "nothing allowed".
 
 A megabyte here is `MEGABYTE`, 1024 × 1024 bytes. There is no page limit for `.docx` or
 `.doc`, whose page count is unknown until they are converted.
@@ -255,26 +280,34 @@ A `.docx` needs no library, being read with the browser's own `DataView` and
 
 This check is the first of several, and the others do not trust it.
 
-**The upload calls it first.** `DocumentUpload.tsx` runs `validateUpload` with the
-requirement's `acceptedFileTypes` before sending anything, and shows a refusal in place.
-It passes `timeoutMs` of `CHECK_TIMEOUT_MS` (30 seconds), so a check still running then
-is stopped and the file sent unchecked, since the server decides anyway.
+**The upload calls it first.** `DocumentUpload.tsx` reads the server's limits with
+`fetchUploadLimits`, then runs `validateUpload` with them and the requirement's
+`acceptedFileTypes` before sending anything, and shows a refusal in place. Reading the
+limits counts against `CHECK_TIMEOUT_MS` (30 seconds), and the check gets what is left as
+its `timeoutMs`, so a check still running then is stopped and the file sent unchecked,
+since the server decides anyway.
 
 **The server checks again.** `AttachDocumentHandler` (submissions) refuses what this
-module refuses on type and size, by the same rules:
+module refuses on type, size and PDF pages, by the same rules. A PDF it cannot open is
+stored, and the parser refuses it later:
 
 | Check | Server | Here |
 | --- | --- | --- |
-| Size | `MAX_FILE_BYTES`, 50 MB | `MAX_FILE_SIZE`, 50 MB |
+| Size | `DocumentLimits.getMaxFileSize()` | the same number, from `/system/documents/limits` |
+| PDF pages | counted with PDFBox, against `DocumentLimits.getMaxPdfPages()` | the same number, counted with PDF.js |
 | Type | `checkAcceptedType`, after `getMimeType` | the same rules |
 | Extension to type | `TYPE_BY_EXTENSION` | `MIME_TYPE_BY_EXTENSION` |
 | Content | not looked at | opened |
 
-The two are in different languages and only name each other in comments, so **a change
-to one needs the same change to the other.**
+The limits come from the server, so they cannot drift. The type map is kept on both
+sides, in different languages that only name each other in comments, so **a change to
+one needs the same change to the other.**
 
 **The parser checks again.** The Docling daemon (`modules/documents/processing`) checks
-every `/parse` request in `shared_docs.py`:
+every `/parse` request in `shared_docs.py`. Java sends the configured limits with each
+request (`max_bytes`, `max_pages`, `max_expanded_bytes`), and the daemon applies each
+where it is lower than its own ceiling below, so the configured ones are the ones a
+document meets:
 
 | Check | Default | Setting | Refusal |
 | --- | --- | --- | --- |
@@ -286,14 +319,14 @@ every `/parse` request in `shared_docs.py`:
 | DOCX opens as a zip | — | — | `document could not be read as a .docx` |
 | DOCX size once unzipped | 512 MiB | `IAP_MAX_EXPANDED_BYTES` | `document expands to N bytes, over the …-byte limit` |
 
-A numeric setting of 0 or less turns that limit off. The file type is checked later, in
-`parse_document.py`, during conversion. A type other than `.pdf`, `.docx` or `.doc`
-fails there, and the caller sees a conversion failure with a reference to the daemon
-log.
+A ceiling of 0 or less turns it off, and the limits Java sends then apply alone. Keep the
+upload limits at or under these ceilings, or the daemon refuses what the upload took. The
+file type is checked later, in `parse_document.py`, during conversion. A type other than
+`.pdf`, `.docx` or `.doc` fails there, and the caller sees a conversion failure with a
+reference to the daemon log.
 
 **Any other upload has to check too.** A request that never went through a browser skips
-this module entirely, so a new upload endpoint needs its own size and type checks on the
-server.
+this module entirely, so a new upload endpoint needs its own checks on the server.
 
 ## The demo widget
 
@@ -321,6 +354,8 @@ ignored.
 The tests are in `frontend-commons`. `fileValidation.test.ts` covers the common checks,
 the time limit and `formatSize`, and replaces the three content checks. Each content
 check, the zip reader and `pdfjsClient.ts` has a test file of its own.
+`uploadLimits.test.ts` covers reading the server's limits, dropping a bad one, stopping
+the request, and falling back when the server refuses or cannot be reached.
 `FileValidationWidget.test.tsx` (`test-data`) covers the widget, which replaces
 `validateUpload`.
 

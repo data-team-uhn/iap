@@ -18,7 +18,6 @@
 package io.uhndata.iap.documents.internal;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -28,11 +27,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Calendar;
 import java.util.Map;
-
-import jakarta.json.Json;
-import jakarta.json.JsonException;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -49,12 +43,14 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.documents.api.DocumentLimits;
+
 /**
  * Dispatches a queued document parse to the Docling daemon, without waiting for the conversion itself. The daemon is
- * asked asynchronously — {@code POST /parse?path=&job_id=} — and answers "queued" right away, so no thread
- * sits on an open connection for the minutes a conversion takes; when the daemon finishes, it POSTs the outcome to
- * {@link ParseCallbackServlet}, which records it on the job node. This consumer only walks the node from
- * {@code queued} to {@code active}: the callback endpoint takes it from there.
+ * asked asynchronously — {@code POST /parse?path=&job_id=}, with the configured {@code DocumentLimits} — and
+ * answers "queued" right away, so no thread sits on an open connection for the minutes a conversion takes; when the
+ * daemon finishes, it POSTs the outcome to {@link ParseCallbackServlet}, which records it on the job node. This
+ * consumer only walks the node from {@code queued} to {@code active}: the callback endpoint takes it from there.
  *
  * <p>
  * Only a {@code queued} job is dispatched. Sling re-queues jobs it did not see finish, across a restart for instance,
@@ -115,14 +111,14 @@ public class ParseJobConsumer implements JobConsumer
     /** How long to wait for the daemon to accept a connection. */
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
 
-    /** How much of a non-JSON daemon answer is kept as the error message. */
-    private static final int ERROR_EXCERPT_LENGTH = 200;
-
     @Reference
     private ResourceResolverFactory resolverFactory;
 
     @Reference
     private ParseOutcomeDispatcher outcomes;
+
+    @Reference
+    private DocumentLimits limits;
 
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
 
@@ -265,7 +261,7 @@ public class ParseJobConsumer implements JobConsumer
         try {
             final HttpResponse<String> response = send(buildRequest(jobId, path));
             final int status = response.statusCode();
-            if ((status == 200 || status == 202) && isAsyncAccept(jobId, response.body())) {
+            if ((status == 200 || status == 202) && DaemonReply.isAsyncAccept(jobId, response.body())) {
                 // The conversion itself is the daemon's; this only measures how long it took to take the work on,
                 // which is what separates a busy daemon from a slow document
                 LOGGER.info("Parse dispatched: job={} acceptedInMs={}", jobId,
@@ -273,9 +269,10 @@ public class ParseJobConsumer implements JobConsumer
                 return JobResult.OK;
             }
             if (status == 200 || status == 202) {
-                fail(jobId, "The daemon did not accept the asynchronous parse: " + errorMessage(response.body()));
+                fail(jobId, "The daemon did not accept the asynchronous parse: "
+                    + DaemonReply.getErrorMessage(response.body()));
             } else {
-                fail(jobId, "The daemon answered HTTP " + status + ": " + errorMessage(response.body()));
+                fail(jobId, "The daemon answered HTTP " + status + ": " + DaemonReply.getErrorMessage(response.body()));
             }
         } catch (final IOException | IllegalArgumentException e) {
             fail(jobId, "Calling the daemon at " + this.daemonUrl + " failed: " + describe(e));
@@ -297,9 +294,12 @@ public class ParseJobConsumer implements JobConsumer
     {
         // No callback parameter: the daemon POSTs outcomes to the URL in its own configuration. Sending one would
         // mean anyone able to reach the daemon's unauthenticated port could name the destination and be handed the
-        // shared token with it.
+        // shared token with it. The limits are sent so the daemon applies the configured ones, under its own.
         final String url = this.daemonUrl + "/parse?path=" + URLEncoder.encode(path, StandardCharsets.UTF_8)
-            + "&job_id=" + URLEncoder.encode(jobId, StandardCharsets.UTF_8);
+            + "&job_id=" + URLEncoder.encode(jobId, StandardCharsets.UTF_8)
+            + "&max_bytes=" + this.limits.getMaxFileSize()
+            + "&max_pages=" + this.limits.getMaxPdfPages()
+            + "&max_expanded_bytes=" + this.limits.getMaxUnzippedSize();
         if (this.daemonAuthorization == null) {
             return HttpRequest.newBuilder(URI.create(url))
                 .timeout(this.responseTimeout)
@@ -336,51 +336,6 @@ public class ParseJobConsumer implements JobConsumer
     protected String environment(final String name)
     {
         return System.getenv(name);
-    }
-
-    /**
-     * Whether a daemon answer is the asynchronous accept this consumer expects, rather than a synchronous parse
-     * result or some other 2xx body.
-     *
-     * @param jobId the job that was dispatched
-     * @param body the response body
-     * @return {@code true} only for {@code {"job_id": <same>, "status": "queued"}}
-     */
-    private static boolean isAsyncAccept(final String jobId, final String body)
-    {
-        if (body == null || body.isBlank()) {
-            return false;
-        }
-        try (JsonReader reader = Json.createReader(new StringReader(body))) {
-            final JsonObject json = reader.readObject();
-            return ParseJob.STATUS_QUEUED.equals(json.getString(ParseJob.PN_STATUS, null))
-                && jobId.equals(json.getString(ParseJob.JSON_JOB_ID, null));
-        } catch (final JsonException | ClassCastException e) {
-            return false;
-        }
-    }
-
-    /**
-     * Extract the daemon's own error message from a refusal, falling back to an excerpt of the raw body when it is
-     * not the usual {@code {"error": "..."}}.
-     *
-     * @param body the response body
-     * @return a message safe to record on the job node
-     */
-    private static String errorMessage(final String body)
-    {
-        if (body == null || body.isBlank()) {
-            return "(empty response)";
-        }
-        try (JsonReader reader = Json.createReader(new StringReader(body))) {
-            final String error = reader.readObject().getString(ParseJob.PN_ERROR, null);
-            if (error != null) {
-                return error;
-            }
-        } catch (final JsonException | ClassCastException e) {
-            // Not JSON, fall through to the raw excerpt
-        }
-        return body.length() > ERROR_EXCERPT_LENGTH ? body.substring(0, ERROR_EXCERPT_LENGTH) + "…" : body;
     }
 
     /**
