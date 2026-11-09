@@ -272,9 +272,12 @@ public class StaleParseJobSweeper implements Runnable
     {
         final String jobId = jobNode.getValueMap().get(ParseJob.PN_JOB_ID, jobNode.getName());
         final String staged = jobNode.getValueMap().get(ParseJob.PN_PATH, String.class);
-        if (!this.parseService.discardStaging(staged) && !isFolderGivenUpOn(jobNode)) {
-            // Keep the record: it is the only thing that names the folder, so the next sweep tries again
-            return;
+        if (!this.parseService.discardStaging(staged)) {
+            if (!isFolderPastRetryLimit(jobNode)) {
+                // Keep the record: it is the only thing that names the folder, so the next sweep tries again
+                return;
+            }
+            reportFolderLeftBehind(jobNode);
         }
         final String target = jobNode.getValueMap().get(ParseJob.PN_TARGET, String.class);
         try {
@@ -312,12 +315,19 @@ public class StaleParseJobSweeper implements Runnable
      * @param jobNode the settled job whose folder could not be removed
      * @return {@code true} when the job finished more than a day ago, so the record is dropped anyway
      */
-    private static boolean isFolderGivenUpOn(final Resource jobNode)
+    private static boolean isFolderPastRetryLimit(final Resource jobNode)
     {
         final Calendar finished = jobNode.getValueMap().get(ParseJob.PN_FINISHED, Calendar.getInstance());
-        if (finished.getTimeInMillis() >= System.currentTimeMillis() - GIVE_UP_ON_FOLDER_MILLISECONDS) {
-            return false;
-        }
+        return finished.getTimeInMillis() < System.currentTimeMillis() - GIVE_UP_ON_FOLDER_MILLISECONDS;
+    }
+
+    /**
+     * Reports a staging folder the sweep stops retrying. Nothing will name it once the record goes.
+     *
+     * @param jobNode the settled job whose folder could not be removed
+     */
+    private static void reportFolderLeftBehind(final Resource jobNode)
+    {
         final String jobId = jobNode.getValueMap().get(ParseJob.PN_JOB_ID, jobNode.getName());
         final String staged = jobNode.getValueMap().get(ParseJob.PN_PATH, String.class);
         LOGGER.error("The staging folder of parse job {} still cannot be removed after a day; giving up on {}",
@@ -325,7 +335,6 @@ public class StaleParseJobSweeper implements Runnable
         // Nothing will name the folder once the record goes, so only an administrator can clear it now
         ErrorLogger.logProblem("A parse staging folder cannot be removed",
             ErrorContext.of(StaleParseJobSweeper.class, "forget").with("job", jobId).with("folder", staged));
-        return true;
     }
 
     /**

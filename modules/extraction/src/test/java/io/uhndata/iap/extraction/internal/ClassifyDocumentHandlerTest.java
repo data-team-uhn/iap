@@ -81,7 +81,7 @@ class ClassifyDocumentHandlerTest
         this.tree.createSchemaVersion();
         this.submission = this.tree.createSubmission();
         this.proposal = this.tree.createDocumentRequirement("proposal");
-        this.decision = this.tree.createClassification("is_proposal", "proposal", PROMPT);
+        this.decision = this.tree.createClassificationQuestion("is_proposal", "proposal", PROMPT);
         inject("intake", this.intake);
         inject("documents", new ParsedDocuments());
         inject("runs", new ReadingRuns());

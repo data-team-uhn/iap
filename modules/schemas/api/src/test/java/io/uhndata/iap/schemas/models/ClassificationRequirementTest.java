@@ -70,7 +70,7 @@ class ClassificationRequirementTest
         final ClassificationRequirement requirement = resource.adaptTo(ClassificationRequirement.class);
 
         assertEquals("Decide whether the document is a research protocol.", requirement.getPrompt());
-        assertEquals("proposal", requirement.getDocument());
+        assertEquals("proposal", requirement.getDocumentRequirementName());
         assertEquals(0.8, requirement.getConfidenceThreshold());
     }
 
@@ -83,7 +83,7 @@ class ClassificationRequirementTest
 
         assertEquals(ClassificationRequirement.DEFAULT_CONFIDENCE_THRESHOLD, requirement.getConfidenceThreshold());
         assertNull(requirement.getPrompt());
-        assertNull(requirement.getDocument());
+        assertNull(requirement.getDocumentRequirementName());
         assertNull(requirement.getTemplate(), "a template is optional");
     }
 

@@ -123,7 +123,7 @@ final class DaemonConnection
      * @param pathAndQuery the part after the base URL, already encoded, for example {@code /cancel?job_id=...}
      * @return the request
      */
-    HttpRequest post(final String pathAndQuery)
+    HttpRequest buildPostRequest(final String pathAndQuery)
     {
         final HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(this.url + pathAndQuery))
             .timeout(this.responseTimeout)

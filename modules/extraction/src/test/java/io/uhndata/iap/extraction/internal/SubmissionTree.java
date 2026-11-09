@@ -193,7 +193,7 @@ final class SubmissionTree
     }
 
     /** Creates a document whose only version has no upload yet, and returns that version. */
-    Resource createEmptyDocument()
+    Resource createEmptyDocumentVersion()
     {
         this.documents++;
         final String document = SUBMISSION_PATH + "/d" + this.documents;
@@ -209,7 +209,7 @@ final class SubmissionTree
      * @param prompt what the model is asked to decide
      * @return the question the pick is saved under
      */
-    Resource createClassification(final String name, final String document, final String prompt)
+    Resource createClassificationQuestion(final String name, final String document, final String prompt)
     {
         final String path = VERSION_PATH + "/" + name;
         this.context.create().resource(path, Map.of(TYPE, "sch/ClassificationRequirement", SUPER_TYPE,

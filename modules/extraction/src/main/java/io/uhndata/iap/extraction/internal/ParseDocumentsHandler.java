@@ -86,12 +86,12 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         final Submission submission = SubmissionFiles.getSubmission(target);
         SubmitterAccess.checkMayChange(submission, context.getActor());
         // Nothing would read the parse, so the uploads are left alone
-        final SubmissionFiles.ReadingWorkflow reading =
+        final SubmissionFiles.ReadingWorkflowState reading =
             SubmissionFiles.checkReadingWorkflow(submission, context.getResourceResolver());
-        if (reading == SubmissionFiles.ReadingWorkflow.NONE) {
+        if (reading == SubmissionFiles.ReadingWorkflowState.NONE) {
             return;
         }
-        if (reading == SubmissionFiles.ReadingWorkflow.CANNOT_RUN) {
+        if (reading == SubmissionFiles.ReadingWorkflowState.CANNOT_RUN) {
             SubmissionFiles.reportReadingWorkflowCannotRun(ParseDocumentsHandler.class, target);
             // Told, so the submitter does not retry a parse nothing would read
             ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, ExtractAnswersJobConsumer.NOTHING_READS);

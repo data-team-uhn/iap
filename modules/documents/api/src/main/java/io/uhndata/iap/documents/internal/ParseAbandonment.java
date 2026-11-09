@@ -84,7 +84,7 @@ public class ParseAbandonment implements ParseControl
     }
 
     @Override
-    public boolean abandon(final String jobId)
+    public boolean stopParse(final String jobId)
     {
         if (jobId == null || !ParseJob.isJobId(jobId)) {
             return true;
@@ -104,7 +104,7 @@ public class ParseAbandonment implements ParseControl
         } catch (final LoginException e) {
             LOGGER.error("Cannot stop parse job {}: {}", jobId, e.getMessage(), e);
             // The service user is missing, which only an administrator can fix
-            ErrorLogger.logError(e, ErrorContext.of(ParseAbandonment.class, "abandon").with("job", jobId));
+            ErrorLogger.logError(e, ErrorContext.of(ParseAbandonment.class, "stopParse").with("job", jobId));
         }
         if (!settled) {
             // Sent last: once the record says stopped, a queued job is never dispatched. Sent first, the cancel could
@@ -166,7 +166,7 @@ public class ParseAbandonment implements ParseControl
      */
     private void askDaemonToCancel(final String jobId)
     {
-        sendAsync(this.daemon.post("/cancel?job_id=" + URLEncoder.encode(jobId, StandardCharsets.UTF_8)))
+        sendAsync(this.daemon.buildPostRequest("/cancel?job_id=" + URLEncoder.encode(jobId, StandardCharsets.UTF_8)))
             .whenComplete((response, error) -> {
                 if (error != null) {
                     LOGGER.warn("The daemon could not be asked to stop parse job {}: {}", jobId, error.getMessage());

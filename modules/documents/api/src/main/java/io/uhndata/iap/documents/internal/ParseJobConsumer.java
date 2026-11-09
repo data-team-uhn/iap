@@ -247,7 +247,7 @@ public class ParseJobConsumer implements JobConsumer
         // No callback parameter: the daemon POSTs outcomes to the URL in its own configuration. Sending one would
         // mean anyone able to reach the daemon's unauthenticated port could name the destination and be handed the
         // shared token with it.
-        return this.daemon.post("/parse?path=" + URLEncoder.encode(path, StandardCharsets.UTF_8)
+        return this.daemon.buildPostRequest("/parse?path=" + URLEncoder.encode(path, StandardCharsets.UTF_8)
             + "&job_id=" + URLEncoder.encode(jobId, StandardCharsets.UTF_8));
     }
 

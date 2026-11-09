@@ -250,7 +250,7 @@ class IntakeAnswersHandlerTest
 
             assertEquals("failed", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class),
                 wrong);
-            assertEquals(IntakeAnswersHandler.NO_REQUIREMENT_MESSAGE,
+            assertEquals(IntakeAnswersHandler.SET_UP_WRONG_MESSAGE,
                 this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
         }
         Mockito.verifyNoInteractions(this.intake);
@@ -638,7 +638,7 @@ class IntakeAnswersHandlerTest
         this.variables.clear();
         final Resource preamble = this.tree.createDocumentRequirement("preamble");
         // One document for the preamble with no upload yet, and one with no version at all
-        SubmissionTree.reference(this.tree.createEmptyDocument().getParent(), "fulfills", preamble);
+        SubmissionTree.reference(this.tree.createEmptyDocumentVersion().getParent(), "fulfills", preamble);
         SubmissionTree.reference(this.context.create().resource(SubmissionTree.SUBMISSION_PATH + "/bare",
             Map.of("sling:resourceType", "sub/Document")), "fulfills", preamble);
         this.tree.createParsedFileFor(this.tree.createDocumentRequirement("questionnaire"), "1. How was your visit?");
@@ -721,7 +721,7 @@ class IntakeAnswersHandlerTest
                     Map.of(IntakeAnswersHandler.REQUIREMENT_PARAMETER, none)));
 
             assertEquals("failed", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-            assertEquals(IntakeAnswersHandler.NO_REQUIREMENT_MESSAGE,
+            assertEquals(IntakeAnswersHandler.SET_UP_WRONG_MESSAGE,
                 this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
         }
         Mockito.verifyNoInteractions(this.intake);

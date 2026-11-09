@@ -158,8 +158,8 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         final long startedAt = System.nanoTime();
         LOGGER.info("Reading step started: step=classify submission={} file={} classifications={}",
             target.getPath(), file.getPath(), fields.size());
-        final IntakeResult result = ask(file,
-            new ExtractionPrompt.Group(classifications.get(0).getDocument(), fields), getTemplates(classifications));
+        final IntakeResult result = ask(file, new ExtractionPrompt.Group(
+            classifications.get(0).getDocumentRequirementName(), fields), getTemplates(classifications));
         if (result.status() == AnswerIntakeService.Status.NOT_READ) {
             ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, result.message());
             return false;
@@ -207,18 +207,19 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
      */
     private static Map<String, List<ClassificationRequirement>> getOpen(final Submission submission)
     {
-        final Set<String> answered = ExtractionFields.getAnsweredOrSuggested(submission);
+        final Set<String> answeredOrSuggested = ExtractionFields.getAnsweredOrSuggested(submission);
         final Map<String, List<ClassificationRequirement>> open = new LinkedHashMap<>();
         for (final Requirement requirement : submission.getSchemaVersion().getRequirements()) {
             if (!(requirement instanceof ClassificationRequirement classification)
-                || classification.getDocument() == null) {
+                || classification.getDocumentRequirementName() == null) {
                 continue;
             }
-            final List<Question> asked = submission.getQuestions(classification.getName());
-            if (asked.isEmpty() || answered.contains(asked.get(0).getPath())) {
+            final List<Question> decisionQuestions = submission.getQuestions(classification.getName());
+            if (decisionQuestions.isEmpty() || answeredOrSuggested.contains(decisionQuestions.get(0).getPath())) {
                 continue;
             }
-            open.computeIfAbsent(classification.getDocument(), name -> new ArrayList<>()).add(classification);
+            open.computeIfAbsent(classification.getDocumentRequirementName(), name -> new ArrayList<>())
+                .add(classification);
         }
         return open;
     }

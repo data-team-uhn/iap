@@ -73,7 +73,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     static final String REQUIREMENT_PARAMETER = "requirement";
 
     /** What the submitter is told when a step names no requirement, which is a mistake in the workflow. */
-    static final String NO_REQUIREMENT_MESSAGE = "This reading is not set up correctly";
+    static final String SET_UP_WRONG_MESSAGE = "This reading is not set up correctly";
 
     /**
      * The activity property naming the document requirements to read, in the order they are sent. Each parsed
@@ -213,7 +213,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         ErrorLogger.logProblem("The intake step " + step + " " + problem,
             ErrorContext.of(IntakeAnswersHandler.class, REQUIREMENT_PARAMETER).about(target.getPath())
                 .with(REQUIREMENT_PARAMETER, names));
-        ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, NO_REQUIREMENT_MESSAGE);
+        ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, SET_UP_WRONG_MESSAGE);
     }
 
     /**
@@ -434,7 +434,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         final List<String> texts = new ArrayList<>();
         for (final Part part : parts) {
             headings.add(part.heading());
-            texts.add(DocumentText.readText(part.file().getFileMarkdown()));
+            texts.add(DocumentText.readText(part.file().getMarkdownFile()));
         }
         return DocumentScan.join(headings, texts);
     }

@@ -84,8 +84,8 @@ final class SuggestionDistance
             return;
         }
         // In order, so taking the suggested values in another order still counts as taking them as they were
-        final String suggested = joinInOrder(offered.stream());
-        final int distance = LevenshteinDistance.getDefaultInstance().apply(suggested, joinInOrder(Stream.of(values)));
+        final String suggested = joinSorted(offered.stream());
+        final int distance = LevenshteinDistance.getDefaultInstance().apply(suggested, joinSorted(Stream.of(values)));
         final Resource run = Objects.requireNonNull(answer.getResourceResolver().getResource(shown.getPath()),
             "A run the answer just reported is still where it said");
         final ModifiableValueMap properties = Objects.requireNonNull(run.adaptTo(ModifiableValueMap.class),
@@ -95,7 +95,7 @@ final class SuggestionDistance
         properties.put(PERCENTAGE_DISTANCE_PROPERTY, PERCENT_SCALE * distance / Math.max(1, suggested.length()));
     }
 
-    private static String joinInOrder(final Stream<String> values)
+    private static String joinSorted(final Stream<String> values)
     {
         return values.sorted().collect(Collectors.joining(", "));
     }

@@ -136,7 +136,7 @@ public class File extends EntityPart implements Referenceable
      * @return the Markdown file, or {@code null} if the file has not been parsed
      */
     @Nullable
-    public Resource getFileMarkdown()
+    public Resource getMarkdownFile()
     {
         return this.resource.getChild(MARKDOWN_CHILD);
     }
@@ -150,7 +150,7 @@ public class File extends EntityPart implements Referenceable
      * @return the PDF file, or {@code null} if there is no PDF of this document
      */
     @Nullable
-    public Resource getFilePdf()
+    public Resource getPdfFile()
     {
         final Resource rendered = this.resource.getChild(PDF_CHILD);
         if (rendered != null) {

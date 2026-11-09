@@ -86,7 +86,7 @@ class StopProcessingHandlerTest
         // A stop only does something while a reading is running
         this.submission.adaptTo(ModifiableValueMap.class).put(ExtractionStatus.STATUS_PROPERTY,
             ExtractionStatus.STATUS_RUNNING);
-        Mockito.when(this.parses.abandon(Mockito.any())).thenReturn(true);
+        Mockito.when(this.parses.stopParse(Mockito.any())).thenReturn(true);
         Mockito.when(this.parseService.discardStaging(Mockito.any())).thenReturn(true);
     }
 
@@ -123,7 +123,7 @@ class StopProcessingHandlerTest
         final ModifiableValueMap properties = file.adaptTo(ModifiableValueMap.class);
         properties.put(ParseDocumentsHandler.PARSE_JOB_ID, JOB_ID);
         properties.put(ParseDocumentsHandler.SHARED_PATH, STAGED);
-        Mockito.when(this.parses.abandon(JOB_ID)).thenReturn(false);
+        Mockito.when(this.parses.stopParse(JOB_ID)).thenReturn(false);
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of()));
 
@@ -187,11 +187,11 @@ class StopProcessingHandlerTest
             .thenReturn(List.of(waiting));
 
         // The record still names the folder, so the sweep removes both together
-        Mockito.when(this.parses.abandon(JOB_ID)).thenReturn(false);
+        Mockito.when(this.parses.stopParse(JOB_ID)).thenReturn(false);
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of()));
 
-        Mockito.verify(this.parses).abandon(JOB_ID);
+        Mockito.verify(this.parses).stopParse(JOB_ID);
         Mockito.verify(this.parseService, Mockito.never()).discardStaging(Mockito.any());
         Mockito.verify(this.jobManager).removeJobById("reading-1");
         assertEquals("failed", file.getValueMap().get("parseStatus", String.class));

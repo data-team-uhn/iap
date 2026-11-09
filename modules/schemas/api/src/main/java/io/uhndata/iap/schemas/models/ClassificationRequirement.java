@@ -76,7 +76,7 @@ public class ClassificationRequirement extends FormRequirement
      * @return the requirement's name, or {@code null} if not set
      */
     @Nullable
-    public String getDocument()
+    public String getDocumentRequirementName()
     {
         return this.document;
     }

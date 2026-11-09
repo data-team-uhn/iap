@@ -103,7 +103,7 @@ class SubmissionFilesTest
         this.context.create().resource(firstDocument + "/v2", Map.of("sling:resourceType", "sub/DocumentVersion"));
         final Resource newer = this.context.create().resource(firstDocument + "/v2/file",
             Map.of("sling:resourceType", "sub/File"));
-        this.tree.createEmptyDocument();
+        this.tree.createEmptyDocumentVersion();
         final Resource third = this.tree.createFile(null);
 
         final List<File> files = SubmissionFiles.getCurrentFiles(getModel());
@@ -151,9 +151,9 @@ class SubmissionFilesTest
         Mockito.when(session.getNodeByIdentifier(Mockito.anyString()))
             .thenThrow(new IllegalArgumentException("Not a valid identifier"), new ItemNotFoundException("gone"));
 
-        assertEquals(SubmissionFiles.ReadingWorkflow.CANNOT_RUN, SubmissionFiles.checkReadingWorkflow(getModel(),
+        assertEquals(SubmissionFiles.ReadingWorkflowState.CANNOT_RUN, SubmissionFiles.checkReadingWorkflow(getModel(),
             resolver));
-        assertEquals(SubmissionFiles.ReadingWorkflow.CANNOT_RUN, SubmissionFiles.checkReadingWorkflow(getModel(),
+        assertEquals(SubmissionFiles.ReadingWorkflowState.CANNOT_RUN, SubmissionFiles.checkReadingWorkflow(getModel(),
             resolver));
     }
 

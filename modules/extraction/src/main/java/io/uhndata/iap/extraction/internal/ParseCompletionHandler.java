@@ -124,7 +124,7 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
             final String parseStatus = recorded.get(ParsePropertyNames.PARSE_STATUS, String.class);
             if (!ParsePropertyNames.STATUS_QUEUED.equals(parseStatus)) {
                 // Already recorded: the sweep handed the same outcome over again because its folder was not deleted
-                return discardStaging(getStagedFolder(outcome, file));
+                return discardStaging(getStagedPath(outcome, file));
             }
             LOGGER.info("Parse came back: job={} file={} submission={} succeeded={} tokens={}", outcome.jobId(),
                 outcome.target(), submission.getPath(), outcome.succeeded(), outcome.tokens());
@@ -135,7 +135,7 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
                     ErrorContext.of(ParseCompletionHandler.class, "handle").about(outcome.target())
                         .with("job", outcome.jobId()).with("error", outcome.error()));
             }
-            final String staged = getStagedFolder(outcome, file);
+            final String staged = getStagedPath(outcome, file);
             this.engine.receiveEvent(submission, new WorkflowEvent(EVENT_NAME, buildPayload(outcome)));
             // Delete the folder only now that the parse is committed: deleted earlier, a failed commit would lose
             // the parse. If the delete fails, the job record stays, so the sweep tries again.
@@ -229,7 +229,7 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
      * @param file the {@code sub:File} the parse was for
      * @return a path inside the staging folder, or {@code null} when neither is known
      */
-    private static String getStagedFolder(final ParseOutcome outcome, final Resource file)
+    private static String getStagedPath(final ParseOutcome outcome, final Resource file)
     {
         if (outcome.markdownPath() != null) {
             return outcome.markdownPath();

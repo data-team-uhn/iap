@@ -185,7 +185,7 @@ final class QuoteVerifier
             final int to = Math.min(haystack.length(), from + window + wanted.length() / 2);
             final Match aligned = align(wanted, haystack, from, to);
             if (aligned.score() > best.score() && !isAcrossParts(aligned.at(), aligned.end(), partStarts)
-                && hasSameKeyWords(wanted, getWords(haystack, aligned.at(), aligned.end()))) {
+                && hasSameKeyWords(wanted, getKeyWordsAround(haystack, aligned.at(), aligned.end()))) {
                 best = aligned;
             }
         }
@@ -260,7 +260,7 @@ final class QuoteVerifier
     }
 
     /** The numbers and negations in a match, widened to whole words at both ends. */
-    private static Set<String> getWords(final String haystack, final int at, final int end)
+    private static Set<String> getKeyWordsAround(final String haystack, final int at, final int end)
     {
         int from = at;
         while (from > 0 && Character.isLetterOrDigit(haystack.charAt(from - 1))) {

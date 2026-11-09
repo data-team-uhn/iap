@@ -88,18 +88,19 @@ public class StopProcessingHandler implements ServiceTaskHandler
             return;
         }
         // Read before the stop, since the thread forgets its files when it leaves the reading
-        final Set<String> read = this.runs.getFiles(path);
-        final boolean reading = this.runs.stop(path);
+        final Set<String> filesBeingRead = this.runs.getFiles(path);
+        final boolean wasReadingThreadStopped = this.runs.stop(path);
         dropQueuedReadings(path);
         for (final File file : SubmissionFiles.getCurrentFiles(SubmissionFiles.getSubmission(target))) {
             // Only text the running step is reading. A claim with no reading thread is left over from a reading
             // that ended or from a restart, and has nothing to throw away
-            final boolean consumed = reading && read != null && read.contains(file.getPath());
+            final boolean consumed = wasReadingThreadStopped && filesBeingRead != null
+                && filesBeingRead.contains(file.getPath());
             stopFile(context.getResourceResolver(), file, consumed);
         }
         ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, ExtractionStatus.STOPPED_MESSAGE);
         ExtractionStatus.releaseClaim(target);
-        LOGGER.info("Reading stopped: submission={} modelCall={}", path, reading);
+        LOGGER.info("Reading stopped: submission={} readingThreadStopped={}", path, wasReadingThreadStopped);
     }
 
     /**
@@ -145,7 +146,7 @@ public class StopProcessingHandler implements ServiceTaskHandler
             return;
         }
         if (consumed && ParsePropertyNames.STATUS_COMPLETED.equals(status)) {
-            final Resource markdown = file.getFileMarkdown();
+            final Resource markdown = file.getMarkdownFile();
             if (markdown != null) {
                 resolver.delete(markdown);
                 markStopped(resource, "Stopped while the document was being read");
@@ -168,7 +169,8 @@ public class StopProcessingHandler implements ServiceTaskHandler
         final String staged = file.getValueMap().get(ParseDocumentsHandler.SHARED_PATH, String.class);
         // Delete only a folder no job record names. One a record names may be read in right now, or later if
         // this stop is undone
-        if (this.parses.abandon(jobId)) {
+        final boolean isFolderOrphaned = this.parses.stopParse(jobId);
+        if (isFolderOrphaned) {
             this.parseService.discardStaging(staged);
         }
     }

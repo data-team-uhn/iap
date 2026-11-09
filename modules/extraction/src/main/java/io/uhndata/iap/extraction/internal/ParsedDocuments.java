@@ -54,7 +54,7 @@ public class ParsedDocuments
      */
     public DocumentScan scan(final File file) throws IOException
     {
-        final Resource markdown = file.getFileMarkdown();
+        final Resource markdown = file.getMarkdownFile();
         if (markdown == null) {
             return DocumentScan.EMPTY_SCAN;
         }

@@ -86,9 +86,9 @@ final class DocumentScan
                 normalizedText.append(normalizedLine).append(' ');
             }
             this.lineEndsAt[line] = normalizedText.length();
-            final Matcher isHeading = DocumentText.matchHeading(lineText);
-            if (isHeading.matches()) {
-                this.headings.add(isHeading.group(1).strip());
+            final Matcher headingMatcher = DocumentText.matchHeading(lineText);
+            if (headingMatcher.matches()) {
+                this.headings.add(headingMatcher.group(1).strip());
             }
             this.headingAbove[line] = this.headings.size() - 1;
             from = to + 1;

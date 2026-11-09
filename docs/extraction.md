@@ -223,7 +223,7 @@ What `ParseResultIngester.ingest` checks and writes:
 | The Markdown path is on the shared volume (`ParseService.isStagedPath`) | If not: `parseStatus=failed`, "The parse named ..., which is not on the shared volume", and the problem "The document daemon named a file outside the shared volume" is recorded. A file outside the volume is never read. |
 | The Markdown file exists | If not: `parseStatus=failed`, "The parse named ..., which is not there", and the problem "The document daemon named a result that is not there" is recorded for an administrator. |
 | The PDF path is on the shared volume | If not: the PDF is skipped, a warning is logged, and the same problem is recorded. |
-| The upload is itself a PDF (`File.isUploadAPdf`, which reads `uploadedFile/jcr:content/jcr:mimeType`) | The PDF is not stored a second time. `File.getFilePdf()` returns the upload instead. |
+| The upload is itself a PDF (`File.isUploadAPdf`, which reads `uploadedFile/jcr:content/jcr:mimeType`) | The PDF is not stored a second time. `File.getPdfFile()` returns the upload instead. |
 
 The ingester also has a message for a success that names no Markdown ("The parse
 finished without naming the text it produced"), but nothing reaches it. The callback
@@ -794,7 +794,7 @@ only while it is a draft. An administrator who is not the submitter is refused.
    engine undoes the walk, so nothing that reading wrote is kept.
 3. Reading jobs for this submission still waiting in the job queue are removed.
 4. For each current file:
-   - Parse `queued`: `ParseControl.abandon` (see below). The file gets
+   - Parse `queued`: `ParseControl.stopParse` (see below). The file gets
      `parseStatus=failed` with "Stopped before the document was read", and loses
      `parseJobId`, `sharedPath` and `tokens`.
    - Parse `completed`, and a reading thread on this instance was reading it (the step
@@ -809,11 +809,11 @@ only while it is a draft. An administrator who is not the submitter is refused.
 The stopped job sees the stop, writes the same "Reading was stopped." status in its own
 commit, and ends.
 
-`ParseControl.abandon` (`ParseAbandonment`, documents module) reads the job record
+`ParseControl.stopParse` (`ParseAbandonment`, documents module) reads the job record
 first. Then it sends `/cancel` to the daemon without waiting for the answer, unless the
 record already has an outcome:
 
-| Job record | What `abandon` does | Returns |
+| Job record | What `stopParse` does | Returns |
 | --- | --- | --- |
 | No job id, or not a valid one | Nothing, not even a cancel | `true`: no record names the staging folder, so `StopProcessingHandler` deletes it (`sharedPath`) |
 | Valid id, record missing | Sends the cancel | `true`, for the same reason |
@@ -1017,7 +1017,7 @@ from the submission's own workflow, replaces the reading workflow each schema na
 | `IntakeAnswersHandler` | handler `intakeAnswers` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, or `DocumentText.readText` and `DocumentScan.join`, `ExtractionFields`, `Prompts` |
 | `FinishReadingHandler` | handler `finishReading` | a reading workflow | `ExtractionStatus` |
 | `ReadAgainHandler` | handler `readAgain` | `readAgain` | `JobManager.addJob` |
-| `StopProcessingHandler` | handler `stopProcessing` | `stopProcessing` | `ReadingRuns.getFiles`, `.stop`, `JobManager.findJobs`, `.removeJobById`, `ParseControl.abandon`, `ParseService.discardStaging` |
+| `StopProcessingHandler` | handler `stopProcessing` | `stopProcessing` | `ReadingRuns.getFiles`, `.stop`, `JobManager.findJobs`, `.removeJobById`, `ParseControl.stopParse`, `ParseService.discardStaging` |
 | `ReviewExtractionHandler` | handler `reviewExtraction` | `reviewExtraction` | `Answer.getLatestExtraction` |
 | `AnswerIntakeService` | component | classify, intake | `LLMClientFactory`, `ExtractionPrompt.plan`, `DocumentReader.read` (which calls `ModelCall`, `ExtractionReply`, `DocumentScan.locate`) |
 | `ParsedDocuments` | component | classify, intake | `DocumentText.readText`, `DocumentScan.of` |
@@ -1044,7 +1044,7 @@ reading. These writes happen outside that commit:
 | --- | --- | --- |
 | `parseDocuments` | The staged copy on the shared volume, and the job node, committed by `ParseService.queue` in a session of its own | The job node must exist before the Sling job runs. It is also why a failure to queue deletes what was staged: no job node names that folder, so no sweep would find it. |
 | `queueExtraction`, `readAgain` | A Sling job | The JobManager commits the job node in its own session |
-| `stopProcessing` | Removes queued reading jobs; `ParseControl.abandon` marks the parse job record failed in its own session; the staging folder is deleted only when no job record names it | A Stop has to reach work that is already outside the submission |
+| `stopProcessing` | Removes queued reading jobs; `ParseControl.stopParse` marks the parse job record failed in its own session; the staging folder is deleted only when no job record names it | A Stop has to reach work that is already outside the submission |
 
 The claim and the give-up in step 5 also commit on their own, and the staging folder in
 step 4 is deleted only after the commit; those steps say why.

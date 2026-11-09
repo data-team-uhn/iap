@@ -325,7 +325,7 @@ class StaleParseJobSweeperTest
         final Field factory = ParseAbandonment.class.getDeclaredField("resolverFactory");
         factory.setAccessible(true);
         factory.set(abandonment, new TestResolverFactory(this.context.resourceResolver()));
-        abandonment.abandon(OLD_JOB);
+        abandonment.stopParse(OLD_JOB);
         // Past the moment the request that stopped it could still be handing it over
         edit(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)))
             .put(ParseJob.PN_FINISHED, minutesAgo(5));

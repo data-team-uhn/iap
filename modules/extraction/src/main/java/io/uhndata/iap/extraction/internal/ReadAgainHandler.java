@@ -69,7 +69,7 @@ public class ReadAgainHandler implements ServiceTaskHandler
             throw new InvalidStateException("This request is already being read");
         }
         if (SubmissionFiles.checkReadingWorkflow(submission, context.getResourceResolver())
-            == SubmissionFiles.ReadingWorkflow.NONE) {
+            == SubmissionFiles.ReadingWorkflowState.NONE) {
             throw new InvalidStateException(ExtractAnswersJobConsumer.NOTHING_READS);
         }
         ExtractionStatus.record(target, ExtractionStatus.STATUS_RUNNING, null);

@@ -123,7 +123,7 @@ class ParseAbandonmentTest
     {
         createJob(ParseJob.STATUS_QUEUED);
 
-        assertFalse(this.abandonment.abandon(JOB_ID), "the record still names the folder");
+        assertFalse(this.abandonment.stopParse(JOB_ID), "the record still names the folder");
 
         assertEquals("http://localhost:18765/cancel?job_id=" + JOB_ID, this.sent.uri().toString());
         // Marked first, so a dispatch that comes later finds the job stopped and does not send it
@@ -141,7 +141,7 @@ class ParseAbandonmentTest
     {
         createJob(ParseJob.STATUS_ACTIVE).put(ParseJob.PN_OUTPUTS, new String[] { "/shared-docs/half.md" });
 
-        this.abandonment.abandon(JOB_ID);
+        this.abandonment.stopParse(JOB_ID);
 
         assertArrayEquals(new String[0], getRecord().get(ParseJob.PN_OUTPUTS, new String[0]));
     }
@@ -154,7 +154,7 @@ class ParseAbandonmentTest
         final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
         ErrorLogger.setService(recorder);
         try {
-            this.abandonment.abandon(JOB_ID);
+            this.abandonment.stopParse(JOB_ID);
 
             Mockito.verify(recorder).logProblem(Mockito.eq("The document daemon refused to stop a parse"),
                 Mockito.any());
@@ -170,7 +170,7 @@ class ParseAbandonmentTest
         createJob(ParseJob.STATUS_ACTIVE);
         this.sendFailure = new IOException("connection refused");
 
-        this.abandonment.abandon(JOB_ID);
+        this.abandonment.stopParse(JOB_ID);
 
         assertEquals(ParseJob.STATUS_FAILED, getRecord().get(ParseJob.PN_STATUS, String.class));
     }
@@ -183,7 +183,7 @@ class ParseAbandonmentTest
         this.abandonment.activate(Map.of("responseTimeout", "soon"));
         createJob(ParseJob.STATUS_QUEUED);
 
-        this.abandonment.abandon(JOB_ID);
+        this.abandonment.stopParse(JOB_ID);
 
         assertEquals(ParseJob.STATUS_FAILED, getRecord().get(ParseJob.PN_STATUS, String.class));
     }
@@ -193,7 +193,7 @@ class ParseAbandonmentTest
     {
         createJob(ParseJob.STATUS_COMPLETED);
 
-        assertFalse(this.abandonment.abandon(JOB_ID), "the folder is not the caller's to remove");
+        assertFalse(this.abandonment.stopParse(JOB_ID), "the folder is not the caller's to remove");
 
         assertEquals(ParseJob.STATUS_COMPLETED, getRecord().get(ParseJob.PN_STATUS, String.class));
         assertNull(this.sent, "the daemon is done with it");
@@ -204,7 +204,7 @@ class ParseAbandonmentTest
     {
         createJob(ParseJob.STATUS_FAILED).put(ParseJob.PN_ERROR, "The daemon answered HTTP 500");
 
-        assertFalse(this.abandonment.abandon(JOB_ID));
+        assertFalse(this.abandonment.stopParse(JOB_ID));
 
         assertEquals("The daemon answered HTTP 500", getRecord().get(ParseJob.PN_ERROR, String.class));
     }
@@ -234,7 +234,7 @@ class ParseAbandonmentTest
         final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
         ErrorLogger.setService(recorder);
         try {
-            assertFalse(this.abandonment.abandon(JOB_ID), "the record still names the folder");
+            assertFalse(this.abandonment.stopParse(JOB_ID), "the record still names the folder");
 
             Mockito.verifyNoInteractions(recorder);
             assertNotNull(this.sent, "the record may have moved to active, so the daemon is still asked");
@@ -247,8 +247,8 @@ class ParseAbandonmentTest
     @Test
     void ignoresSomethingThatIsNotAJob()
     {
-        assertTrue(this.abandonment.abandon(null));
-        assertTrue(this.abandonment.abandon("not-a-uuid"));
+        assertTrue(this.abandonment.stopParse(null));
+        assertTrue(this.abandonment.stopParse("not-a-uuid"));
 
         assertNull(this.sent);
     }
@@ -259,7 +259,7 @@ class ParseAbandonmentTest
         this.abandonment.activate(Map.of(ParseJob.DAEMON_TOKEN_PROPERTY, "s3cret"));
         createJob(ParseJob.STATUS_QUEUED);
 
-        this.abandonment.abandon(JOB_ID);
+        this.abandonment.stopParse(JOB_ID);
 
         assertEquals("Bearer s3cret", this.sent.headers().firstValue("Authorization").orElseThrow());
     }
@@ -268,7 +268,7 @@ class ParseAbandonmentTest
     @Test
     void handsTheFolderBackWhenTheRecordIsAlreadyGone()
     {
-        assertTrue(this.abandonment.abandon(JOB_ID));
+        assertTrue(this.abandonment.stopParse(JOB_ID));
 
         assertEquals("http://localhost:18765/cancel?job_id=" + JOB_ID, this.sent.uri().toString());
     }
@@ -293,7 +293,7 @@ class ParseAbandonmentTest
             real.activate(Map.of("daemonUrl", "http://127.0.0.1:" + daemon.getAddress().getPort() + "/"));
             createJob(ParseJob.STATUS_QUEUED);
 
-            real.abandon(JOB_ID);
+            real.stopParse(JOB_ID);
 
             assertTrue(asked.await(10, TimeUnit.SECONDS), "the daemon was asked");
             assertEquals(ParseJob.STATUS_FAILED, getRecord().get(ParseJob.PN_STATUS, String.class));
@@ -308,7 +308,7 @@ class ParseAbandonmentTest
         this.abandonment.activate(Map.of("daemonUrl", "  "));
         createJob(ParseJob.STATUS_QUEUED);
 
-        this.abandonment.abandon(JOB_ID);
+        this.abandonment.stopParse(JOB_ID);
 
         assertTrue(this.sent.uri().toString().startsWith("http://localhost:18765/cancel?"));
     }
@@ -321,7 +321,7 @@ class ParseAbandonmentTest
         inject(this.abandonment, factory);
         createJob(ParseJob.STATUS_QUEUED);
 
-        assertFalse(this.abandonment.abandon(JOB_ID), "unknown, so the folder is not the caller's to remove");
+        assertFalse(this.abandonment.stopParse(JOB_ID), "unknown, so the folder is not the caller's to remove");
 
         assertEquals(ParseJob.STATUS_QUEUED, getRecord().get(ParseJob.PN_STATUS, String.class));
     }

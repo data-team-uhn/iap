@@ -145,7 +145,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             LOGGER.warn("Dropping the extraction job for {}: it is gone", path);
             return JobResult.CANCEL;
         }
-        final JobResult notReading = findResultBeforeReading(resolver, job, submission);
+        final JobResult notReading = claimReadingOrGetEarlyResult(resolver, job, submission);
         if (notReading != null) {
             return notReading;
         }
@@ -181,7 +181,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
      * @return {@code FAILED} to have Sling run the job again later, {@code CANCEL} when there is nothing for this job
      *     to do, or {@code null} when the reading is this job's to run
      */
-    private static JobResult findResultBeforeReading(final ResourceResolver resolver, final Job job,
+    private static JobResult claimReadingOrGetEarlyResult(final ResourceResolver resolver, final Job job,
         final Resource submission)
     {
         final String reason;
@@ -245,11 +245,11 @@ public class ExtractAnswersJobConsumer implements JobConsumer
                 ErrorContext.of(ExtractAnswersJobConsumer.class, "findSchemaVersion").about(submission));
             return COULD_NOT_READ;
         }
-        final SubmissionFiles.ReadingWorkflow reading = SubmissionFiles.checkReadingWorkflow(model, resolver);
-        if (reading == SubmissionFiles.ReadingWorkflow.CANNOT_RUN) {
+        final SubmissionFiles.ReadingWorkflowState reading = SubmissionFiles.checkReadingWorkflow(model, resolver);
+        if (reading == SubmissionFiles.ReadingWorkflowState.CANNOT_RUN) {
             SubmissionFiles.reportReadingWorkflowCannotRun(ExtractAnswersJobConsumer.class, submission);
         }
-        return reading == SubmissionFiles.ReadingWorkflow.CAN_RUN ? null : NOTHING_READS;
+        return reading == SubmissionFiles.ReadingWorkflowState.CAN_RUN ? null : NOTHING_READS;
     }
 
     /**

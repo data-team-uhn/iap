@@ -184,7 +184,7 @@ public class ParseResultIngester
 
     /**
      * Stores the PDF of the document, unless the upload is already a PDF: then the PDF next to the Markdown is
-     * the upload, and one copy is enough. {@code File.getFilePdf} falls back to the upload, so callers do not have
+     * the upload, and one copy is enough. {@code File.getPdfFile} falls back to the upload, so callers do not have
      * to. Returns the size in bytes, or 0 when nothing was stored.
      */
     private long storePdf(final ResourceResolver resolver, final Resource file, final Path pdf)

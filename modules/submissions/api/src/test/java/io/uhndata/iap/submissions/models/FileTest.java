@@ -126,8 +126,8 @@ class FileTest
         final File file = resource.adaptTo(File.class);
 
         assertEquals("uploadedFile", file.getUploadedFile().getName());
-        assertEquals("markdownFile", file.getFileMarkdown().getName());
-        assertEquals("pdfFile", file.getFilePdf().getName());
+        assertEquals("markdownFile", file.getMarkdownFile().getName());
+        assertEquals("pdfFile", file.getPdfFile().getName());
     }
 
     @Test
@@ -138,7 +138,7 @@ class FileTest
         uploadOfType("application/pdf");
         final File file = resource.adaptTo(File.class);
 
-        assertEquals("uploadedFile", file.getFilePdf().getName(),
+        assertEquals("uploadedFile", file.getPdfFile().getName(),
             "a PDF upload is the PDF, and is not copied a second time");
     }
 
@@ -150,7 +150,7 @@ class FileTest
         uploadOfType("application/msword");
         final File file = resource.adaptTo(File.class);
 
-        assertNull(file.getFilePdf());
+        assertNull(file.getPdfFile());
     }
 
     @Test
@@ -162,7 +162,7 @@ class FileTest
         this.context.create().resource(FILE_PATH + "/pdfFile", SLING_RESOURCE_TYPE, NT_FILE);
         final File file = resource.adaptTo(File.class);
 
-        assertEquals("pdfFile", file.getFilePdf().getName());
+        assertEquals("pdfFile", file.getPdfFile().getName());
     }
 
     @Test

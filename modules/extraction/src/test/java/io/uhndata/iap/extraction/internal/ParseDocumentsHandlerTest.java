@@ -249,7 +249,7 @@ class ParseDocumentsHandlerTest
     @Test
     void skipsADocumentWithNoUpload() throws Exception
     {
-        this.tree.createEmptyDocument();
+        this.tree.createEmptyDocumentVersion();
 
         this.handler.execute(createTask(this.submission));
 
@@ -259,7 +259,7 @@ class ParseDocumentsHandlerTest
     @Test
     void skipsAFileWithNoUpload() throws Exception
     {
-        this.tree.createEmptyDocument();
+        this.tree.createEmptyDocumentVersion();
         this.context.create().resource(SubmissionTree.SUBMISSION_PATH + "/d1/v1/file",
             Map.of("sling:resourceType", "sub/File"));
 

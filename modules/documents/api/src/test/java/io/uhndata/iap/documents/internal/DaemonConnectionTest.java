@@ -99,7 +99,8 @@ class DaemonConnectionTest
     void buildsAPostCarryingTheTimeoutAndTheToken()
     {
         final HttpRequest request = DaemonConnection.read(Map.of("daemonUrl", "http://docling:9999/",
-            "responseTimeout", "5", ParseJob.DAEMON_TOKEN_PROPERTY, "secret"), name -> null).post("/cancel?job_id=j1");
+            "responseTimeout", "5", ParseJob.DAEMON_TOKEN_PROPERTY, "secret"), name -> null)
+            .buildPostRequest("/cancel?job_id=j1");
 
         assertEquals("POST", request.method());
         assertEquals("http://docling:9999/cancel?job_id=j1", request.uri().toString());
@@ -110,7 +111,7 @@ class DaemonConnectionTest
     @Test
     void buildsAPostWithNoTokenWhenTheDaemonNeedsNone()
     {
-        final HttpRequest request = DaemonConnection.read(Map.of(), name -> null).post("/parse?path=x");
+        final HttpRequest request = DaemonConnection.read(Map.of(), name -> null).buildPostRequest("/parse?path=x");
 
         assertTrue(request.headers().firstValue("Authorization").isEmpty());
     }

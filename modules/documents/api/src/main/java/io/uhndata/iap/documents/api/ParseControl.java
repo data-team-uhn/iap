@@ -43,5 +43,5 @@ public interface ParseControl
      * @return {@code true} when no job record names the staging folder, so the caller should delete it;
      *         {@code false} when a record names it, or may name it, and the sweep deletes the folder with the record
      */
-    boolean abandon(@Nullable String jobId);
+    boolean stopParse(@Nullable String jobId);
 }

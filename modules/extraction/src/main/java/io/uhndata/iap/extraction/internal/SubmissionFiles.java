@@ -67,7 +67,7 @@ final class SubmissionFiles
      * @version $Id$
      * @since 0.1.0
      */
-    enum ReadingWorkflow
+    enum ReadingWorkflowState
     {
         /** The schema names none: it never reads its documents. */
         NONE,
@@ -85,11 +85,11 @@ final class SubmissionFiles
      * @param resolver a session that can read the workflow version
      * @return whether there is one, and whether it can run
      */
-    static ReadingWorkflow checkReadingWorkflow(final Submission submission, final ResourceResolver resolver)
+    static ReadingWorkflowState checkReadingWorkflow(final Submission submission, final ResourceResolver resolver)
     {
         final String identifier = submission.getSchemaVersion().get(READING_WORKFLOW, String.class);
         if (identifier == null) {
-            return ReadingWorkflow.NONE;
+            return ReadingWorkflowState.NONE;
         }
         final Session session = Objects.requireNonNull(resolver.adaptTo(Session.class),
             "A repository session is always JCR-backed");
@@ -97,10 +97,11 @@ final class SubmissionFiles
             final Resource reading = resolver.getResource(session.getNodeByIdentifier(identifier).getPath());
             final WorkflowVersion version = reading == null || !reading.isResourceType(WorkflowVersion.RESOURCE_TYPE)
                 ? null : reading.adaptTo(WorkflowVersion.class);
-            return version != null && version.isActive() ? ReadingWorkflow.CAN_RUN : ReadingWorkflow.CANNOT_RUN;
+            return version != null && version.isActive() ? ReadingWorkflowState.CAN_RUN
+                : ReadingWorkflowState.CANNOT_RUN;
         } catch (final RepositoryException | IllegalArgumentException e) {
             // The repository refuses an identifier that is not a UUID with an IllegalArgumentException
-            return ReadingWorkflow.CANNOT_RUN;
+            return ReadingWorkflowState.CANNOT_RUN;
         }
     }
 
