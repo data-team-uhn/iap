@@ -1,0 +1,138 @@
+{
+  "jcr:primaryType": "sch:Schema",
+  "title": "Clinical trial protocol (evaluation)",
+  "v1": {
+    "jcr:primaryType": "sch:SchemaVersion",
+    "version": "1.0",
+    "study": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "The study",
+      "title": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What is the title of the study?",
+        "dataType": "text",
+        "purpose": "Identifying the study in every listing and letter about it",
+        "extractionPrompt": "Find the study's full title, as given on the cover page or at the head of the synopsis. Give it exactly as written, without the word 'Title', a protocol number or a version."
+      },
+      "sponsor": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Who is the sponsor of the study?",
+        "dataType": "text",
+        "purpose": "Who answers for the study to regulators and to the institution",
+        "extractionPrompt": "Find the organisation named as the sponsor, usually on the cover page, a sponsor information page or the synopsis. Give its name as written. When an investigator is the sponsor, give their name."
+      },
+      "leadInvestigator": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Who is the lead investigator?",
+        "dataType": "text",
+        "purpose": "Who is accountable for the study, and who the review corresponds with",
+        "extractionPrompt": "Find the principal investigator, study chair or lead investigator, usually on the cover page, the study team page or the signature page. Give the person's name only, without degrees or titles. When several are named, give the one the document calls principal or lead."
+      },
+      "phase": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What phase is the trial?",
+        "dataType": "text",
+        "purpose": "How much is already known about the product, and how much oversight the trial needs",
+        "extractionPrompt": "Find the trial phase as the protocol states it, usually in the title, on the cover page or in the synopsis. When the protocol states no phase, choose no phase.",
+        "early1": { "jcr:primaryType": "sch:AnswerOption", "value": "early1", "label": "Early phase 1 (phase 0)" },
+        "p1": { "jcr:primaryType": "sch:AnswerOption", "value": "1", "label": "Phase 1" },
+        "p12": { "jcr:primaryType": "sch:AnswerOption", "value": "1/2", "label": "Phase 1/2" },
+        "p2": { "jcr:primaryType": "sch:AnswerOption", "value": "2", "label": "Phase 2" },
+        "p23": { "jcr:primaryType": "sch:AnswerOption", "value": "2/3", "label": "Phase 2/3" },
+        "p3": { "jcr:primaryType": "sch:AnswerOption", "value": "3", "label": "Phase 3" },
+        "p4": { "jcr:primaryType": "sch:AnswerOption", "value": "4", "label": "Phase 4" },
+        "none": { "jcr:primaryType": "sch:AnswerOption", "value": "none", "label": "No phase", "description": "The protocol states none" }
+      }
+    },
+    "design": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "The design",
+      "allocation": {
+        "jcr:primaryType": "sch:Question",
+        "text": "How are participants assigned to the study's arms?",
+        "dataType": "text",
+        "purpose": "Whether a difference between arms can be put down to the intervention",
+        "extractionPrompt": "Decide how the protocol assigns participants to arms, from its design section or synopsis.",
+        "randomized": { "jcr:primaryType": "sch:AnswerOption", "value": "randomized", "label": "Randomised" },
+        "nonRandomized": { "jcr:primaryType": "sch:AnswerOption", "value": "nonRandomized", "label": "Assigned, but not at random" },
+        "singleArm": { "jcr:primaryType": "sch:AnswerOption", "value": "singleArm", "label": "Not assigned", "description": "A single arm, so everyone receives the same intervention" }
+      },
+      "masking": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Who is kept from knowing which intervention a participant receives?",
+        "dataType": "text",
+        "purpose": "How far the results can be biased by knowing who received what",
+        "extractionPrompt": "Find whether the trial is open-label or blinded, and how many parties are blinded: participants, investigators, outcome assessors, care providers.",
+        "open": { "jcr:primaryType": "sch:AnswerOption", "value": "open", "label": "Nobody: open-label" },
+        "single": { "jcr:primaryType": "sch:AnswerOption", "value": "single", "label": "One party: single-blind" },
+        "double": { "jcr:primaryType": "sch:AnswerOption", "value": "double", "label": "Two or more parties: double-blind or more" }
+      }
+    },
+    "participants": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "The participants",
+      "sampleSize": {
+        "jcr:primaryType": "sch:Question",
+        "text": "How many participants will be enrolled?",
+        "dataType": "long",
+        "minValue": 1,
+        "purpose": "Whether the study's size matches its aims, and the burden it puts on participants",
+        "extractionPrompt": "Find the planned total number of participants to be enrolled, across all arms and sites, usually in the synopsis or the sample size section. When the protocol gives a number to randomise and a larger number to screen, give the number to enrol or randomise."
+      },
+      "minimumAge": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What is the youngest age a participant can be, in years?",
+        "dataType": "long",
+        "minValue": 0,
+        "purpose": "Whether children take part, which changes how consent is obtained",
+        "extractionPrompt": "Find the minimum age in the inclusion criteria, in years."
+      },
+      "sex": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Who can take part, by sex?",
+        "dataType": "text",
+        "purpose": "Whether the study is open to everyone it could apply to",
+        "extractionPrompt": "Decide from the eligibility criteria whether the study enrols women only, men only, or both.",
+        "all": { "jcr:primaryType": "sch:AnswerOption", "value": "all", "label": "Everyone" },
+        "female": { "jcr:primaryType": "sch:AnswerOption", "value": "female", "label": "Women only" },
+        "male": { "jcr:primaryType": "sch:AnswerOption", "value": "male", "label": "Men only" }
+      },
+      "healthyVolunteers": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does the study enrol healthy volunteers?",
+        "dataType": "boolean",
+        "purpose": "Whether people with nothing to gain from the intervention are exposed to it",
+        "extractionPrompt": "Decide from the eligibility criteria whether people without the condition under study can take part."
+      }
+    },
+    "intervention": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "The intervention",
+      "kinds": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What kinds of intervention does the study test?",
+        "dataType": "text",
+        "maxAnswers": 0,
+        "purpose": "Which regulations apply to the products and procedures used",
+        "extractionPrompt": "Find every intervention the study assigns to participants, including any comparator such as a placebo or usual care, and pick the kind each one is.",
+        "drug": { "jcr:primaryType": "sch:AnswerOption", "value": "drug", "label": "Drug", "description": "Including a placebo" },
+        "biological": { "jcr:primaryType": "sch:AnswerOption", "value": "biological", "label": "Biologic or vaccine" },
+        "device": { "jcr:primaryType": "sch:AnswerOption", "value": "device", "label": "Medical device" },
+        "procedure": { "jcr:primaryType": "sch:AnswerOption", "value": "procedure", "label": "Procedure or surgery" },
+        "radiation": { "jcr:primaryType": "sch:AnswerOption", "value": "radiation", "label": "Radiation" },
+        "behavioral": { "jcr:primaryType": "sch:AnswerOption", "value": "behavioral", "label": "Behavioural", "description": "Such as counselling, education or exercise" },
+        "dietarySupplement": { "jcr:primaryType": "sch:AnswerOption", "value": "dietarySupplement", "label": "Dietary supplement or diet" },
+        "diagnosticTest": { "jcr:primaryType": "sch:AnswerOption", "value": "diagnosticTest", "label": "Diagnostic test" },
+        "genetic": { "jcr:primaryType": "sch:AnswerOption", "value": "genetic", "label": "Genetic" },
+        "other": { "jcr:primaryType": "sch:AnswerOption", "value": "other", "label": "Something else", "description": "Such as usual care" }
+      },
+      "primaryOutcome": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What is the primary outcome measure?",
+        "dataType": "text",
+        "purpose": "Whether the study measures what its objective asks",
+        "extractionPrompt": "Find the primary outcome or endpoint. When several are listed, give the first. Name what is measured, without when it is measured."
+      }
+    }
+  }
+}
