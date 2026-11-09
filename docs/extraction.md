@@ -61,10 +61,10 @@ says which class does the work, who calls it, and what it checks.
    finishReading ----- extractionStatus=done
 ```
 
-Everything from `extractAnswers` to the reading workflow's first user task (or to its
-end, if it has none) runs in one engine walk. It runs on the job's thread, as the
-`iap-extraction` user, and is saved in one commit: either all of it is saved, or none of
-it. What comes after a user task runs later, in another request (see step 6).
+Everything from `extractAnswers` to the end of the reading workflow runs in one engine
+walk. It runs on the job's thread, as the `iap-extraction` user, and is saved in one
+commit: either all of it is saved, or none of it. A reading workflow has no user task
+(see step 6).
 
 ## Step 1: sending a document to be parsed
 
@@ -300,12 +300,11 @@ event fires only when its timer runs out (see "Known gaps" in
 [workflows.md](workflows.md)). So the reading gets its own instance, started on the
 submission when its parse lands.
 
-Steps after the reading workflow's first user task run in the request that completes
-that task, with that person as the actor, and are saved in that request's commit. The
-job is long finished by then. Its give-up does not cover these steps, and the extraction
-queue does not limit them to one at a time (the LLM call gate still does). Stop can
-still reach a classify or intake step there while the status is `running`, because those
-steps register the request's thread with `ReadingRuns` too.
+A reading workflow has no user task. The walk would commit when it parks there, but
+completing the task runs the rest in that person's request, as that person: the job's
+give-up does not cover it, the view shows no spinner, and a failed model call undoes
+what the person just did. So the reading never waits for the submitter: when it needs
+them, it ends with a message saying what to do.
 
 Only the `iap-extraction` user may fire `documentParsed` and `extractAnswers`: their
 start events name it as the only performer. Administrators can too, since they pass
@@ -635,12 +634,13 @@ not seen took 47.4 s, against 3.8 s for a repeat.
 | The gate does not ask a classification already answered or picked | `ExtractionFields.getAnsweredOrSuggested` | A pick decides the reading's route, so it is made once, even of a newer version. Only the submitter changes it. |
 
 How a quote is matched (`QuoteVerifier`): both texts are lowercased, page markers are
-removed, and whitespace is collapsed, no-break spaces included. An exact match wins. Otherwise, for quotes longer
-than 24 characters (`ANCHOR_LENGTH`) and at most 1000 (`MAX_FUZZY_QUOTE`), it looks for
-the quote's first, middle and last 24 characters in the text. It takes up to 4 candidate
-places (`MAX_CANDIDATES`, at most 2 per anchor), and finds the stretch of nearby text
-that needs the fewest edits to become the quote. The best stretch must score at least
-0.85 and match on numbers and negations. A longer quote must be there exactly.
+removed, and whitespace is collapsed, no-break spaces included. An exact match wins.
+Otherwise, for quotes longer than 24 characters (`ANCHOR_LENGTH`) and at most 1000
+(`MAX_FUZZY_QUOTE`), it looks for the quote's first, middle and last 24 characters in
+the text. It takes up to 4 candidate places (`MAX_CANDIDATES`, at most 2 per anchor),
+and finds the stretch of nearby text that needs the fewest edits to become the quote.
+The best stretch must score at least 0.85 and match on numbers and negations. A longer
+quote must be there exactly.
 
 The anchors are there because comparing a quote against a whole protocol is quadratic.
 The three anchors are found quickly, and only the text around each hit is compared edit
@@ -739,8 +739,8 @@ A submitter never deletes a document. A new upload for the same requirement adds
 `sub:DocumentVersion`, and every older version stays.
 
 The first reading of a newer version asks every question of the intake step, answered or
-not. `ExtractionFields.getUnreadInNewerVersions` decides it for each question: a file the
-step reads is not its document's first version, and none of the question's own runs
+not. `ExtractionFields.getUnreadInNewerVersions` decides it for each question: a file
+the step reads is not its document's first version, and none of the question's own runs
 cites it yet. Each file is checked on its own, so a newer version that was already read
 does not hide another that nobody has read. Every question asked gets a run that cites
 the new version, found or not. So each question is read from the version once; after
@@ -855,9 +855,9 @@ reading's route.
 ### Retry a failed parse
 
 This runs the `parseDocuments` step. Only uploads with no `parseStatus`, or with
-`failed`, are sent, and nothing is sent when the schema names no reading workflow that can run.
-Uploads for a requirement that sets `skipParsing` are never sent. Usually the daemon was
-down, not the document broken.
+`failed`, are sent, and nothing is sent when the schema names no reading workflow that
+can run. Uploads for a requirement that sets `skipParsing` are never sent. Usually the
+daemon was down, not the document broken.
 
 ### Review the quotes behind a suggestion
 
@@ -995,10 +995,10 @@ All five are declared on `sub:Submission` in `submissions.cnd`.
 
 On the schema side: `readingWorkflow` on `sch:SchemaVersion` (a reference to the reading
 workflow version), and on `sch:Question` the `extractionPrompt`, `purpose`,
-`description`, `dataType`, `maxAnswers`, `minValue`/`maxValue`, `pattern`/`patternMessage`,
-and option children or `optionsFrom`. `optionsFrom` names a content path. For a
-catalogue such as `/Categories`, the live leaves are the options, with their descriptions
-(`OptionCatalog`).
+`description`, `dataType`, `maxAnswers`, `minValue`/`maxValue`,
+`pattern`/`patternMessage`, and option children or `optionsFrom`. `optionsFrom` names a
+content path. For a catalogue such as `/Categories`, the live leaves are the options,
+with their descriptions (`OptionCatalog`).
 
 `readingWorkflow` is not declared in `schemas.cnd`: it goes away when one handler, run
 from the submission's own workflow, replaces the reading workflow each schema names.
@@ -1077,7 +1077,10 @@ has one called `readProposal`):
 1. `classifyDocument`: is this a proposal, and which kind?
 2. A gateway on the `is_proposal` decision, with a `decision` operand so it sees the
    pick before anybody accepts it (step 7). A "no" ends the reading. No pick at all,
-   because the model was unsure, waits at a user task for the submitter.
+   because the model was unsure, ends the reading with a `finishReading` whose `message`
+   asks the submitter to pick the category in the form. Once they have, a new reading
+   runs the intake; today the submitter starts it with Read again, since saving the
+   category does not start one yet.
 3. A gateway on the category, leading to one `intakeAnswers` step per kind, each naming
    the requirements to ask (for example `[common, prospective]`).
 4. `finishReading` at the end of every path.
@@ -1085,13 +1088,10 @@ has one called `readProposal`):
 Keep in mind:
 
 - Every path must end at `finishReading`, or the submission stays `running`.
-- A user task that waits for the submitter should come after a `finishReading` with a
-  `message`, so the view stops spinning while it waits.
+- No user task. When the reading needs the submitter, it ends with a `finishReading`
+  whose `message` says what to do (see step 6).
 - Only `finishReading` writes `done`. A path that ends after an intake step without it
   stays `running` (see step 9).
-- Up to its first user task, the reading runs as `iap-extraction`, in the job. After
-  that, the rest runs in the request that completes the task, as that person (see step
-  6).
 - Tag the reading workflow's version `active`. An inactive one is treated as no reading
   workflow: nothing is parsed, and a reading already queued fails with "Nothing is set up
   to read this request's documents".
@@ -1121,7 +1121,7 @@ a public dataset from ClinicalTrials.gov and run it:
 | Only the first parsed upload is read unless `documents` is set | Other files, such as a consent form or a cover letter, are ignored by default |
 | The category does not choose the schema | It is recorded next to the schema the submitter already chose |
 | No chat over the document (two calls: a router, then an answer) | The submitter cannot ask the document a question of their own |
-| Nothing better than asking the submitter when the model cannot place a study | The reading waits, and only goes on when somebody answers the category and completes the task |
+| Nothing better than asking the submitter when the model cannot place a study | The reading ends with a message; once the submitter picks the category in the form, nothing starts the intake until they press Read again |
 
 ## Files
 
