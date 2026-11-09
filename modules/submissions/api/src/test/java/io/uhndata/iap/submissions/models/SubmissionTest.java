@@ -493,17 +493,6 @@ class SubmissionTest
     }
 
     @Test
-    void listsTheQuestionsCurrentlyAsked()
-        throws RepositoryException
-    {
-        // Only the two questions: the other requirements are not forms
-        this.createSchemaVersionWithRequirements();
-        final Submission submission = this.createBareSubmission();
-
-        assertEquals(List.of("Q1", "Q2"), submission.getQuestions().stream().map(Question::getText).toList());
-    }
-
-    @Test
     void asksOnlyTheQuestionsWhoseConditionHolds()
         throws RepositoryException
     {
@@ -514,7 +503,7 @@ class SubmissionTest
             SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
         final Submission submission = this.createBareSubmission();
 
-        assertEquals(List.of("Q1"), submission.getQuestions().stream().map(Question::getText).toList());
+        assertEquals(List.of("Q1"), submission.getQuestions("form").stream().map(Question::getText).toList());
     }
 
     @Test

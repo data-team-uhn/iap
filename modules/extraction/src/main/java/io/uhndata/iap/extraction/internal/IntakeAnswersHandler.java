@@ -46,9 +46,10 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * reads. Each question asked gets a {@code sub:Extraction} (a suggestion, found or not) under its
  * {@code sub:Answer}, with a {@code sub:Context} for each quote. The answer's value is never written here.
  *
- * <p>Reading again only fills gaps: a question that already has an answer or a suggestion is skipped. The first
- * reading of a newer document version asks every question again. Its runs are new suggestions; they do not change
- * any answer.</p>
+ * <p>A step asks only the questions of the requirements it names. Reading the same document version again asks
+ * every one of them the submitter has not answered, suggested or not; the newest run is the one shown. The first
+ * reading of a newer document version asks every question again, answered or not. Its runs are new suggestions;
+ * they do not change any answer.</p>
  *
  * <p>Questions are keyed by their path within the schema version, with dots for slashes, so two sections can both
  * have a {@code title}.</p>
@@ -63,11 +64,14 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     public static final String HANDLER_NAME = "intakeAnswers";
 
     /**
-     * The activity property naming the requirement to ask about, or a list of them asked in one call. Absent
-     * means every question of the schema version. Naming requirements lets a schema be read in stages, one step
-     * per stage.
+     * The activity property naming the requirement to ask about, or a list of them, each asked as its own group.
+     * Required: a step asks only the questions that belong to it, so a schema is read in stages, one step per
+     * stage.
      */
     static final String REQUIREMENT_PARAMETER = "requirement";
+
+    /** What the submitter is told when a step names no requirement, which is a mistake in the workflow. */
+    static final String NO_REQUIREMENT_MESSAGE = "This reading is not set up correctly";
 
     /**
      * The activity property naming the document requirements to read, in the order they are sent. Each parsed
@@ -124,9 +128,10 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      * The whole intake step: pick the documents and the questions, ask the model, and save its answers.
      *
      * <ol>
+     * <li>The step names no requirement: record that the reading is set up wrong, and stop.</li>
      * <li>Find the parsed documents this step reads. None: record why and stop.</li>
-     * <li>Pick the questions this step asks. Unless the document is a newer version, drop the ones that already
-     * have an answer or a suggestion. None left: stop.</li>
+     * <li>Pick the questions of the named requirements. Unless the document is a newer version, drop the ones the
+     * submitter answered. None left: stop.</li>
      * <li>Ask the model, one requirement after another, at most ten questions per call. No call went through:
      * record why and stop.</li>
      * <li>Save one new run under each question whose call went through, found or not.</li>
@@ -140,12 +145,16 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     private void read(final WorkflowTaskContext context, final Resource target)
         throws PersistenceException, ReadingRuns.Stopped
     {
+        final List<String> requirements = getRequirementNames(context);
+        if (requirements.isEmpty()) {
+            recordNoRequirement(context, target);
+            return;
+        }
         final Submission submission = SubmissionFiles.getSubmission(target);
         final List<Part> parts = getPartsToRead(context, submission);
         if (parts == null) {
             return;
         }
-        final List<String> requirements = getRequirementNames(context);
         final List<File> files = parts.stream().map(Part::file).toList();
         final Map<String, Map<String, Question>> grouped = getQuestionsByRequirement(submission, requirements);
         final Map<String, Question> questions = new LinkedHashMap<>();
@@ -153,13 +162,17 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         final boolean hadQuestions = !questions.isEmpty();
         final boolean newRevision = ExtractionFields.isNewRevision(submission, questions.values(), files);
         if (!newRevision) {
-            // Reading again only fills gaps; the first reading of a newer version asks every question
+            // The same version again asks what the submitter has not answered; a newer one asks everything
             final Set<String> answered = ExtractionFields.getAnswered(submission);
             questions.values().removeIf(question -> answered.contains(question.getPath()));
             grouped.values().forEach(group -> group.keySet().retainAll(questions.keySet()));
         }
         if (questions.isEmpty()) {
-            recordNothingToAsk(target, hadQuestions, requirements.isEmpty());
+            if (hadQuestions) {
+                // Everything it asks is answered already. A named requirement with no questions just does not
+                // apply here, so it says nothing.
+                ExtractionStatus.recordDone(target, null);
+            }
             return;
         }
         this.runs.setFiles(target.getPath(), files.stream().map(File::getPath).collect(Collectors.toSet()));
@@ -181,23 +194,20 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Records why a step asked the model nothing.
+     * Fails a step that names no requirement. A step asks only its own questions, so naming none is a mistake in
+     * the workflow, which an administrator has to fix.
      *
+     * @param context the step
      * @param target the submission's resource
-     * @param hadQuestions whether the step has questions, all of them already answered
-     * @param wholeSchema whether the step names no requirement and asks the whole schema
      * @throws PersistenceException if the status cannot be written
      */
-    private static void recordNothingToAsk(final Resource target, final boolean hadQuestions,
-        final boolean wholeSchema) throws PersistenceException
+    private static void recordNoRequirement(final WorkflowTaskContext context, final Resource target)
+        throws PersistenceException
     {
-        if (hadQuestions) {
-            // Everything it asks is answered already
-            ExtractionStatus.recordDone(target, null);
-        } else if (wholeSchema) {
-            // Only when no requirement is named: a named requirement with no questions just does not apply here
-            ExtractionStatus.recordDone(target, "The schema asks nothing of the document");
-        }
+        LOGGER.warn("The intake step {} names no requirement", context.getActivity().getPath());
+        ErrorLogger.logProblem("The intake step " + context.getActivity().getPath() + " names no requirement",
+            ErrorContext.of(IntakeAnswersHandler.class, "requirement").about(target.getPath()));
+        ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, NO_REQUIREMENT_MESSAGE);
     }
 
     /**
@@ -226,28 +236,20 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      * group is asked in calls of its own.
      *
      * @param submission the submission
-     * @param requirements the requirement names, empty for the whole schema as one group
+     * @param requirements the requirement names
      * @return the questions of each requirement, keyed by question key; a requirement with none is left out
      */
     private static Map<String, Map<String, Question>> getQuestionsByRequirement(final Submission submission,
         final List<String> requirements)
     {
         final Map<String, Map<String, Question>> grouped = new LinkedHashMap<>();
-        if (requirements.isEmpty()) {
-            putIfAny(grouped, "schema", ExtractionFields.getExtractable(submission, null));
-        }
         for (final String name : requirements) {
-            putIfAny(grouped, name, ExtractionFields.getExtractable(submission, name));
+            final Map<String, Question> questions = ExtractionFields.getExtractable(submission, name);
+            if (!questions.isEmpty()) {
+                grouped.put(name, questions);
+            }
         }
         return grouped;
-    }
-
-    private static void putIfAny(final Map<String, Map<String, Question>> grouped, final String name,
-        final Map<String, Question> questions)
-    {
-        if (!questions.isEmpty()) {
-            grouped.put(name, questions);
-        }
     }
 
     /**

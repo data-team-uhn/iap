@@ -324,9 +324,10 @@ What the step does:
 
 1. Collects the "open" classifications. It skips a classification whose condition does
    not hold, one with no question or no `document`, and one whose question already has
-   a value or a run that found a pick (the same rule as the intake below: an empty value
-   saved by the form does not count). So a second upload does not pay again for a pick
-   already made, and a newer version of the document does not change it either.
+   a value or a run that found a pick (an empty value saved by the form does not count).
+   So a second upload does not pay again for a pick already made, and a newer version of
+   the document does not change it either. This differs from the intake, which asks a
+   question with only a suggestion again: a pick decides the reading's route.
 2. Groups them by `document`. For each document:
    - No upload: skipped.
    - Parse `failed`: `extractionStatus=failed`, "The document could not be read. Please
@@ -363,7 +364,7 @@ Activity properties a reading workflow can set on this step:
 
 | Property | Meaning | When absent |
 | --- | --- | --- |
-| `requirement` | One requirement name, or several (a list, or comma-separated). Each requirement is asked as its own group, in that order, at most ten questions per call. | Every question the schema asks, as one group |
+| `requirement` | **Required.** One requirement name, or several (a list, or comma-separated). The step asks only these requirements' questions, each requirement as its own group, in that order, at most ten questions per call. | The step fails with "This reading is not set up correctly", and the administrator is told which step names none |
 | `documents` | The document requirement names to read, in order. Each document's text goes under its own heading (`# Preamble` for `preamble`), and together they are one document to the model. | The first upload with a completed parse |
 | `promptFrom` | Reference files from the bundle's `/prompts` folder, sent in the `<reference>` block after the document. A name the bundle does not have fails the step. | No reference |
 
@@ -384,26 +385,23 @@ What the step does:
    left, it records `failed` with the reason (`describeNothingToRead`). Without
    `documents`: it reads the first upload with a completed parse, or records `failed`
    with the reason.
-2. **Which questions.** The questions of the named requirements that apply (conditions
-   resolved), that have an `extractionPrompt`, and that have **no answer and no
-   suggestion yet**. A question the submitter answered, or that a reading already found
-   a suggestion for, is not asked again: reading again only fills gaps. An empty value
-   saved by the form (a field somebody clicked through) is a gap, and so is a question
-   that was asked before but never found. The first reading of a newer document version
-   asks every question, answered or not (see "A newer version"). Questions are keyed by
-   their path inside the schema version with dots for slashes (`study.title`), so two
-   sections may both have a `title`.
-3. **Nothing to ask.** If every question already has an answer or a suggestion: `done`.
-   If the whole schema asks nothing: `done`, with "The schema asks nothing of the
-   document". If a named requirement asks nothing (for example its condition does not
-   hold): no status change.
+2. **Which questions.** Only the questions of the named requirements that apply
+   (conditions resolved), that have an `extractionPrompt`, and that **the submitter has
+   not answered**. Only the submitter's own non-blank value counts as an answer: a
+   question with only a suggestion is asked again, and so is an empty value saved by the
+   form (a field somebody clicked through or emptied). The first reading of a newer
+   document version asks every question, answered or not (see "A newer version").
+   Questions are keyed by their path inside the schema version with dots for slashes
+   (`study.title`), so two sections may both have a `title`.
+3. **Nothing to ask.** If every question already has an answer: `done`. If a named
+   requirement asks nothing (for example its condition does not hold): no status change.
 4. **Ask** the model (see the next section).
 5. **No call went through** (every reply unreadable twice, or the model unreachable):
    `extractionStatus=failed` with the reason, and nothing is written.
 6. **Otherwise** every question whose call went through gets a run, found or not (see
    "Writing an answer"), and `extractionStatus=done`, unless an earlier step of the
    reading already wrote `failed`. When some calls did not go through, their questions
-   get no run, so they stay gaps for the next reading, and the status message says "Some
+   get no run, so the next reading asks them again, and the status message says "Some
    questions could not be read. Read again to try them again".
 
 A model that cannot be reached is recorded as `failed`, not thrown as a workflow error.
@@ -435,8 +433,8 @@ classifies.
 
 ## Asking the model
 
-**Classes:** `AnswerIntakeService` (plans and sums up), `ExtractionPrompt` (what each call
-sends), `ResponseSchema` (the reply format), `DocumentReader` (makes the calls),
+**Classes:** `AnswerIntakeService` (plans and sums up), `ExtractionPrompt` (what each
+call sends), `ResponseSchema` (the reply format), `DocumentReader` (makes the calls),
 `ExtractionReply` (reads a reply), `ModelCall` (one call that Stop can end), `Prompts`.
 Both the gate and the intake use them. The prompt building comes from the
 `extraction-prompts` branch.
@@ -466,15 +464,15 @@ one big one.
     `Answer with`: the answer's form in words, such as "a whole number from 1 to 5000",
     "a date, as YYYY-MM-DD", "text, in this form: ..." (the pattern message), or the
     options as `` `value`: label (description) ``.
-- **Reply schema** (strict JSON schema, named `iap_extraction`): one object per question,
-  with `evidence` (a list of `{quote, page}`), `reasoning`, `value` and `confidence`, in
-  that order. A provider writes the properties in schema order, so the model gives its
-  quotes before it commits to a value. The value is typed from the question: a number
-  is a JSON number, a yes or no is a boolean, several answers are an array, and a
-  question with options takes only their values (an `enum`, per item for several). Null
-  always means "not found"; there is no separate found flag. Bounds and patterns are in
-  the question block only, because strict structured output rejects `minimum`,
-  `maximum` and `pattern`.
+- **Reply schema** (strict JSON schema, named `iap_extraction`): one object per
+  question, with `evidence` (a list of `{quote, page}`), `reasoning`, `value` and
+  `confidence`, in that order. A provider writes the properties in schema order, so the
+  model gives its quotes before it commits to a value. The value is typed from the
+  question: a number is a JSON number, a yes or no is a boolean, several answers are an
+  array, and a question with options takes only their values (an `enum`, per item for
+  several). Null always means "not found"; there is no separate found flag. Bounds and
+  patterns are in the question block only, because strict structured output rejects
+  `minimum`, `maximum` and `pattern`.
 
 A question's `responseShape` is not sent: the form of the answer comes from the
 question's own data type, `maxAnswers`, bounds, pattern and options.
@@ -489,9 +487,9 @@ be read loses only its own questions.
 
 ### How much of the document fits
 
-Each call's reply gets `maxOutputTokens` = 500 + 400 per question. The document is fitted
-once, against the largest call of the reading, so it is the same in every call and the
-shared start stays the same. It gets what is left of the model's context window
+Each call's reply gets `maxOutputTokens` = 500 + 400 per question. The document is
+fitted once, against the largest call of the reading, so it is the same in every call
+and the shared start stays the same. It gets what is left of the model's context window
 (`CallBudget.calculateDocumentTokenBudget`):
 
 ```
@@ -607,7 +605,8 @@ not seen took 47.4 s, against 3.8 s for a repeat.
 | Confidence drops when quotes are not found | `getEvidenceFactor` | See below |
 | Confidence stays between 0 and 1 | `ModelReplies.readConfidence` | A number outside 0 to 1 is clamped. A missing value or a non-number reads as 0. |
 | No answer's value is ever written | `ExtractedAnswers.write` | What the model read is a run under the answer. Only the submitter's save writes `value` (see "When the submitter acts on it"). |
-| A question already answered or suggested is not asked again | `ExtractionFields.getAnswered` | Reading again only fills gaps. A question counts as answered when its answer holds a non-blank value or any run found something, so a suggestion the submitter left alone is not paid for twice. An empty answer, or one whose runs all found nothing, is asked again. The one exception is the first reading of a newer version (see "A newer version"). |
+| The intake does not ask a question the submitter answered | `ExtractionFields.getAnswered` | Only a non-blank value counts. A question with only a suggestion, or an empty value, is asked again on the same version, and the new run is the one shown. The first reading of a newer version asks every question, answered or not (see "A newer version"). |
+| The gate does not ask a classification already answered or picked | `ExtractionFields.getAnsweredOrSuggested` | A pick decides the reading's route, so it is made once, even of a newer version. Only the submitter changes it. |
 
 How a quote is matched (`QuoteVerifier`): both texts are lowercased, page markers are
 removed, and whitespace is collapsed. An exact match wins. Otherwise, for quotes longer
@@ -657,7 +656,7 @@ sub:Submission
     +-- question  -> REFERENCE to the sch:Question
     +-- value     = only what the submitter gave; a reading never writes it
     +-- <uuid> (sub:Extraction), one per reading of the question
-        +-- extractedAnswer = the model's value, as it came; absent when it found nothing
+        +-- extractedAnswer = the model's value, several joined by commas; absent if none
         +-- confidence      = after the evidence adjustment
         +-- reasoning
         +-- sources         -> REFERENCE to every sub:DocumentVersion read
@@ -714,7 +713,8 @@ not. `ExtractionFields.isNewRevision` decides when that is: a file the step read
 its document's first version, and no run of the step's questions cites it yet. Each file
 is checked on its own, so a newer version that was already read does not hide another
 that nobody has read. Every question asked gets a run that cites the new version, found
-or not. So the version is read in full only once, and Read again on it only fills gaps.
+or not. So the version is read in full only once; after that, Read again on it asks only
+what the submitter has not answered.
 
 Nothing the newer version says changes an answer. Its run is a new suggestion next to
 the answer, and because it is the newest run, it is the one shown
@@ -734,7 +734,7 @@ administrator who is not the submitter is refused too.
 | Event | Handler | What it does |
 | --- | --- | --- |
 | `stopProcessing` | `StopProcessingHandler` | Stops a parse or a reading that is in progress |
-| `readAgain` | `ReadAgainHandler` | Runs the reading again over the documents already parsed, and only fills gaps |
+| `readAgain` | `ReadAgainHandler` | Runs the reading again over the documents already parsed, asking every question the submitter has not answered |
 | `retryParse` | `ParseDocumentsHandler` | Sends every upload that was never parsed or whose parse failed, when the schema names a reading workflow |
 | `reviewExtraction` | `ReviewExtractionHandler` | Records that the quotes behind a suggestion do not support it |
 
@@ -799,14 +799,16 @@ read"). Otherwise it sets `running`, removes the claim, and queues the same job 
 parse queues (step 5), with the job property `readAgain=true`. The job is queued before
 this walk commits, so that property tells it to wait until it sees `running`.
 
-Read again only fills gaps. A gap is a question with no value from the submitter, for
-which no run has found anything yet. Every other question is skipped: one the submitter
-answered, and one with a suggestion, even if the submitter has not accepted it. So Read
-again on the same version never changes or adds to a suggestion that is already there.
+Read again on the same version asks every question of each intake step that the
+submitter has not answered: a question with only a suggestion is asked again, and so is
+one whose value is empty. Each gets a new run, and the newest run is the one shown, even
+when it found nothing where an older run found something. A question the submitter
+answered is skipped.
 
-The one exception is a newer version: the first reading of it asks every question of an
-intake step again (see "A newer version"). After that, Read again on it only fills gaps
-too. A classification that already has a value or a pick is never asked again.
+A newer version goes further: the first reading of it asks every question of an intake
+step, answered or not (see "A newer version"). The gate is different: a classification
+that already has a value or a pick is never asked again, because the pick decides the
+reading's route.
 
 ### Retry a failed parse
 
@@ -875,7 +877,8 @@ Messages the submitter can see in `extractionMessage`:
 | (the reading workflow's own text) | A `finishReading` step's `message` |
 | Reading was stopped. | Stop |
 | Nothing is set up to read this request's documents | The schema names no reading workflow, or it no longer exists |
-| The schema asks nothing of the document | No extractable question in the whole schema |
+| This reading is not set up correctly | An `intakeAnswers` step names no `requirement` |
+| Some questions could not be read. Read again to try them again | Some of an intake step's calls did not go through (the reading is still `done`) |
 
 ## What a reading leaves in the log
 
@@ -910,9 +913,9 @@ A failed parse also logs `Parse job ... for ... failed: <reason>` at `WARN` from
 
 The two LLM lines are kept apart on purpose. The call gate allows one call at a time, so
 a slow reading is usually a reading that waited, and one total would not say which it
-was. The stage on `LLM call done` is the response schema's name, `iap_extraction`, for both
-classify and intake calls. The step line next to it says which step, and which file or
-requirement, the call was for.
+was. The stage on `LLM call done` is the response schema's name, `iap_extraction`, for
+both classify and intake calls. The step line next to it says which step, and which file
+or requirement, the call was for.
 
 None of this can be measured from the job records. A job queued for a node is deleted as
 soon as its outcome is taken, so the log is the only place a finished parse is recorded.
@@ -1057,7 +1060,8 @@ documents a schema's questions through the production code (`ExtractionPrompt`,
 ones (`AnswerScoring`). It runs only when `extraction.dataset` names a dataset, so a
 normal build skips it; `-Dextraction.dryRun=true` plans every call and sends none, and
 needs no key. Its summary holds counts and rates only, never document text. How to build
-a public dataset from ClinicalTrials.gov and run it: `tools/dev/extraction-eval/README.md`.
+a public dataset from ClinicalTrials.gov and run it:
+`tools/dev/extraction-eval/README.md`.
 
 ## What is still missing
 

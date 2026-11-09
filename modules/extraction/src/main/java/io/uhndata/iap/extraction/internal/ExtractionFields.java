@@ -26,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.PersistenceException;
@@ -61,21 +62,19 @@ final class ExtractionFields
     }
 
     /**
-     * The questions the model can be asked (those with an extraction prompt), keyed by
+     * The questions of one requirement the model can be asked (those with an extraction prompt), keyed by
      * {@link ExtractionField#keyFor}, in schema order.
      *
      * @param submission the submission whose schema is read
-     * @param requirement the requirement to ask about, or {@code null} for every question of the schema
-     * @return the extractable questions, empty when the requirement has none
+     * @param requirement the requirement to ask about, by name
+     * @return the extractable questions, empty when the requirement has none or does not apply
      */
     static Map<String, Question> getExtractable(final Submission submission, final String requirement)
     {
         final String versionPath = submission.getSchemaVersion().getPath();
         // Keep schema order: the model is shown the questions in this order
         final Map<String, Question> questions = new LinkedHashMap<>();
-        final List<Question> asked = requirement == null || requirement.isBlank()
-            ? submission.getQuestions() : submission.getQuestions(requirement);
-        for (final Question question : asked) {
+        for (final Question question : submission.getQuestions(requirement)) {
             if (ExtractionField.isExtractable(question)) {
                 questions.put(ExtractionField.keyFor(versionPath, question), question);
             }
@@ -168,24 +167,41 @@ final class ExtractionFields
     }
 
     /**
-     * The paths of the questions a reading skips, unless it reads a newer version: ones the submitter answered,
-     * and ones a reading already found a suggestion for. A question asked before but never found is asked again,
-     * and so is one whose saved value is blank.
+     * The paths of the questions the submitter answered: the ones the intake skips, unless it reads a newer
+     * version. A question with only a suggestion is asked again, and so is one whose saved value is blank.
      *
      * @param submission the submission
      * @return the full question paths, empty when nothing is answered yet
      */
     static Set<String> getAnswered(final Submission submission)
     {
-        final Set<String> answered = new HashSet<>();
+        return getQuestionPaths(submission, ExtractionFields::hasValue);
+    }
+
+    /**
+     * The paths of the questions the submitter answered or a reading found a suggestion for: the classifications
+     * the gate skips, even of a newer version. A pick drives the reading's route, so it is made once.
+     *
+     * @param submission the submission
+     * @return the full question paths, empty when nothing is answered or suggested yet
+     */
+    static Set<String> getAnsweredOrSuggested(final Submission submission)
+    {
+        return getQuestionPaths(submission, answer -> hasValue(answer)
+            || answer.getExtractions().stream().anyMatch(run -> run.getExtractedAnswer() != null));
+    }
+
+    private static Set<String> getQuestionPaths(final Submission submission, final Predicate<Answer> chosen)
+    {
+        final Set<String> paths = new HashSet<>();
         for (final Answer answer : submission.getAnswers()) {
             // Called once: each call resolves the reference again
             final Question question = answer.getQuestion();
-            if (question != null && isAnswered(answer)) {
-                answered.add(question.getPath());
+            if (question != null && chosen.test(answer)) {
+                paths.add(question.getPath());
             }
         }
-        return answered;
+        return paths;
     }
 
     private static boolean isAsking(final Question question, final Set<String> asked)
@@ -206,11 +222,10 @@ final class ExtractionFields
         return answers;
     }
 
-    /** Whether the answer has a non-blank value, or a run that found a suggestion. */
-    private static boolean isAnswered(final Answer answer)
+    /** Whether the answer holds a non-blank value: something the submitter saved, not a field clicked past. */
+    private static boolean hasValue(final Answer answer)
     {
         final String[] values = answer.getValue();
-        final boolean hasValue = values != null && Arrays.stream(values).anyMatch(value -> !value.isBlank());
-        return hasValue || answer.getExtractions().stream().anyMatch(run -> run.getExtractedAnswer() != null);
+        return values != null && Arrays.stream(values).anyMatch(value -> !value.isBlank());
     }
 }

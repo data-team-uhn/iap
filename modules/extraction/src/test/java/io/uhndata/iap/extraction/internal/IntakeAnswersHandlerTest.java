@@ -114,9 +114,10 @@ class IntakeAnswersHandlerTest
         runs.set(this.handler, new ReadingRuns());
     }
 
+    /** A step that asks the {@code study} requirement, which holds the aims and the title. */
     private WorkflowTaskContext createTask()
     {
-        return TaskContexts.of(this.submission, Map.of(), this.variables);
+        return createTaskAsking("study");
     }
 
     /** A step that names the requirement it reads, the way a diagram does. */
@@ -180,7 +181,7 @@ class IntakeAnswersHandlerTest
 
         this.handler.execute(createTask());
 
-        assertEquals(Map.of("schema", List.of(AIMS, TITLE)), getAskedGroups(),
+        assertEquals(Map.of("study", List.of(AIMS, TITLE)), getAskedGroups(),
             "the question with no prompt is the submitter's to answer");
         assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
     }
@@ -372,20 +373,22 @@ class IntakeAnswersHandlerTest
             getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class));
     }
 
-    // The submitter cleared what the model suggested, so they do not want it back
+    // Only the submitter's own value counts as an answer, so a question with only a suggestion is asked again,
+    // even one whose value the submitter emptied. The new run is the one shown.
     @Test
-    void leavesASuggestionTheSubmitterClearedEmpty() throws Exception
+    void asksAgainAQuestionThatOnlyHasASuggestion() throws Exception
     {
-        final Resource cleared = this.context.create().resource(this.submission.getPath() + "/a1",
+        final Resource suggested = this.context.create().resource(this.submission.getPath() + "/a1",
             Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer", VALUE, new String[] { "" }));
-        SubmissionTree.reference(cleared, "question", this.aims);
-        this.context.create().resource(cleared.getPath() + "/e1", Map.of("jcr:primaryType", "sub:Extraction",
+        SubmissionTree.reference(suggested, "question", this.aims);
+        this.context.create().resource(suggested.getPath() + "/e1", Map.of("jcr:primaryType", "sub:Extraction",
             "sling:resourceType", "sub/Extraction", "extractedAnswer", "What the model read before"));
         stubModelFinds(new FieldResult(AIMS, List.of("What the model read"), "", 0.9, List.of(), 0));
 
         this.handler.execute(createTask());
 
         assertEquals(1, getAnswers().size());
+        assertEquals(2, getExtractions(getAnswers().get(0)).size(), "a new run beside the old one");
         assertArrayEquals(new String[] { "" }, getAnswers().get(0).getValueMap().get(VALUE, String[].class));
     }
 
@@ -557,7 +560,8 @@ class IntakeAnswersHandlerTest
     private WorkflowTaskContext createTaskReading(final String... documents)
     {
         return TaskContexts.of(this.submission, Map.of(), this.variables,
-            Map.of(IntakeAnswersHandler.DOCUMENTS_PARAMETER, documents));
+            Map.of(IntakeAnswersHandler.REQUIREMENT_PARAMETER, "study", IntakeAnswersHandler.DOCUMENTS_PARAMETER,
+                documents));
     }
 
     /** Returns the document text the model was sent. */
@@ -679,19 +683,20 @@ class IntakeAnswersHandlerTest
             this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
+    // Every step asks only its own questions, so a step that names none is a mistake in the workflow, not a
+    // request to ask the whole schema
     @Test
-    void isDoneAtOnceWhenTheSchemaAsksNothingOfTheDocument() throws Exception
+    void failsWhenTheStepNamesNoRequirement() throws Exception
     {
-        // Delete the questions with prompts, leaving only the one meant for the submitter
-        this.context.resourceResolver().delete(this.aims);
-        this.context.resourceResolver().delete(
-            this.context.resourceResolver().getResource(SubmissionTree.FORM_PATH + "/title"));
+        for (final Object none : new Object[] { null, " ", new String[] { "", " , " } }) {
+            this.handler.execute(none == null ? TaskContexts.of(this.submission, Map.of(), this.variables)
+                : TaskContexts.of(this.submission, Map.of(), this.variables,
+                    Map.of(IntakeAnswersHandler.REQUIREMENT_PARAMETER, none)));
 
-        this.handler.execute(createTask());
-
-        assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals("The schema asks nothing of the document",
-            this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
+            assertEquals("failed", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+            assertEquals(IntakeAnswersHandler.NO_REQUIREMENT_MESSAGE,
+                this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
+        }
         Mockito.verifyNoInteractions(this.intake);
     }
 
@@ -818,7 +823,8 @@ class IntakeAnswersHandlerTest
         stubModelFinds();
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), this.variables,
-            Map.of(IntakeAnswersHandler.PROMPT_FROM, REFERENCE_PROMPT)));
+            Map.of(IntakeAnswersHandler.REQUIREMENT_PARAMETER, "study", IntakeAnswersHandler.PROMPT_FROM,
+                REFERENCE_PROMPT)));
 
         final ArgumentCaptor<String> references = ArgumentCaptor.forClass(String.class);
         Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), Mockito.anyList(), references.capture());
