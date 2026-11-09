@@ -47,7 +47,7 @@ final class ExtractionStatus
      * documents are sent to be parsed, when the submitter asks to read again or stops the reading, and when a
      * reading gives up.
      */
-    static final String READING_CLAIMED = "extractionReadingClaimed";
+    static final String READING_CLAIMED_PROPERTY = "extractionReadingClaimed";
 
     /**
      * The property holding the id of the job that has the claim. If two jobs race, both write {@code true}, and
@@ -55,7 +55,7 @@ final class ExtractionStatus
      * makes the writes differ, so the second commit is refused. The id also lets a job that Sling runs again
      * after a restart see that the claim is still its own.
      */
-    static final String READING_CLAIMED_BY = "extractionReadingClaimedBy";
+    static final String READING_CLAIMED_BY_PROPERTY = "extractionReadingClaimedBy";
 
     /**
      * The property on the submission saying the last reading ended with the request unable to go on, such as when
@@ -102,8 +102,8 @@ final class ExtractionStatus
      */
     static void releaseClaim(final ModifiableValueMap properties)
     {
-        properties.remove(READING_CLAIMED);
-        properties.remove(READING_CLAIMED_BY);
+        properties.remove(READING_CLAIMED_PROPERTY);
+        properties.remove(READING_CLAIMED_BY_PROPERTY);
     }
 
     /**

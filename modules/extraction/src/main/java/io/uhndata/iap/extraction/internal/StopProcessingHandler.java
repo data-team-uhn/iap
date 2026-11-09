@@ -165,8 +165,8 @@ public class StopProcessingHandler implements ServiceTaskHandler
      */
     private void abandonParse(final Resource file)
     {
-        final String jobId = file.getValueMap().get(ParseDocumentsHandler.PARSE_JOB_ID, String.class);
-        final String staged = file.getValueMap().get(ParseDocumentsHandler.SHARED_PATH, String.class);
+        final String jobId = file.getValueMap().get(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, String.class);
+        final String staged = file.getValueMap().get(ParseDocumentsHandler.SHARED_PATH_PROPERTY, String.class);
         // Delete only a folder no job record names. One a record names may be read in right now, or later if
         // this stop is undone
         final boolean isFolderOrphaned = this.parses.stopParse(jobId);
@@ -188,10 +188,10 @@ public class StopProcessingHandler implements ServiceTaskHandler
         if (properties == null) {
             throw new PersistenceException("Not allowed to record the stop on " + file.getPath());
         }
-        properties.put(ParsePropertyNames.PARSE_STATUS, ParsePropertyNames.STATUS_FAILED);
-        properties.put(ParsePropertyNames.PARSE_ERROR, reason);
-        properties.remove(ParseDocumentsHandler.PARSE_JOB_ID);
-        properties.remove(ParseDocumentsHandler.SHARED_PATH);
+        properties.put(ParsePropertyNames.PARSE_STATUS_PROPERTY, ParsePropertyNames.STATUS_FAILED);
+        properties.put(ParsePropertyNames.PARSE_ERROR_PROPERTY, reason);
+        properties.remove(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY);
+        properties.remove(ParseDocumentsHandler.SHARED_PATH_PROPERTY);
         properties.remove(ParsePropertyNames.TOKENS_PROPERTY);
     }
 }

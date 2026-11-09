@@ -68,8 +68,9 @@ public class IngestParseHandler implements ServiceTaskHandler
         } else {
             final String reported = Payloads.text(event, ParseCompletionHandler.ERROR_KEY);
             ParseResultIngester.writeParseProperties(file, Map.of(
-                ParsePropertyNames.PARSE_STATUS, ParsePropertyNames.STATUS_FAILED,
-                ParsePropertyNames.PARSE_ERROR, reported == null ? "The parse failed without details" : reported));
+                ParsePropertyNames.PARSE_STATUS_PROPERTY, ParsePropertyNames.STATUS_FAILED,
+                ParsePropertyNames.PARSE_ERROR_PROPERTY,
+                reported == null ? "The parse failed without details" : reported));
         }
     }
 

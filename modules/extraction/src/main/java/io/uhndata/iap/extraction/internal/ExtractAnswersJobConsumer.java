@@ -66,16 +66,16 @@ public class ExtractAnswersJobConsumer implements JobConsumer
      * The job property set when the submitter asked to read again. The job is queued before that request commits,
      * so it waits until the submission shows {@code running}; before that it would still see the old claim.
      */
-    public static final String READ_AGAIN = "readAgain";
+    public static final String READ_AGAIN_PROPERTY = "readAgain";
 
     /** The event that starts the reading. */
-    static final String EVENT_NAME = "extractAnswers";
+    static final String EXTRACT_ANSWERS_EVENT = "extractAnswers";
 
     /** What the submitter is told when the schema names no reading workflow, or one that cannot run. */
-    static final String NOTHING_READS = "Nothing is set up to read this request's documents";
+    static final String NO_READING_WORKFLOW_MESSAGE = "Nothing is set up to read this request's documents";
 
     /** What the submitter is told when the reading failed for a reason an administrator must fix. */
-    static final String COULD_NOT_READ = "The document could not be read";
+    static final String COULD_NOT_READ_MESSAGE = "The document could not be read";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtractAnswersJobConsumer.class);
 
@@ -153,7 +153,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         final long startedAt = System.nanoTime();
         LOGGER.info("Reading run started: submission={}", path);
         try {
-            this.engine.receiveEvent(submission, new WorkflowEvent(EVENT_NAME, Map.of()));
+            this.engine.receiveEvent(submission, new WorkflowEvent(EXTRACT_ANSWERS_EVENT, Map.of()));
         } catch (final ReadingRuns.Stopped e) {
             throw e;
         } catch (final WorkflowException | RuntimeException e) {
@@ -163,7 +163,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             }
             // The engine reverted the walk, but `running` and this job's claim were committed before it. Left as
             // they are, nothing could ever read the submission again and its spinner would never stop.
-            giveUpOwnReading(resolver, submission, job.getId(), COULD_NOT_READ);
+            giveUpOwnReading(resolver, submission, job.getId(), COULD_NOT_READ_MESSAGE);
             throw e;
         }
         LOGGER.info("Reading run done: submission={} status={} ms={}", path,
@@ -190,10 +190,10 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             if (isTooEarly(job, submission, model)) {
                 return JobResult.FAILED;
             }
-            reason = checkOut(submission) ? findReasonNotToStart(resolver, submission, model) : COULD_NOT_READ;
+            reason = checkOut(submission) ? findReasonNotToStart(resolver, submission, model) : COULD_NOT_READ_MESSAGE;
         } catch (final RuntimeException e) {
             // `running` was committed before this job: left as it is, its spinner would never stop
-            giveUpBeforeClaiming(resolver, submission, job.getId(), COULD_NOT_READ);
+            giveUpBeforeClaiming(resolver, submission, job.getId(), COULD_NOT_READ_MESSAGE);
             throw e;
         }
         if (reason != null) {
@@ -243,13 +243,13 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             LOGGER.error("The extraction service user cannot read the schema version of {}", submission.getPath());
             ErrorLogger.logProblem("The extraction service user cannot read a submission's schema version",
                 ErrorContext.of(ExtractAnswersJobConsumer.class, "findSchemaVersion").about(submission));
-            return COULD_NOT_READ;
+            return COULD_NOT_READ_MESSAGE;
         }
         final SubmissionFiles.ReadingWorkflowState reading = SubmissionFiles.checkReadingWorkflow(model, resolver);
         if (reading == SubmissionFiles.ReadingWorkflowState.CANNOT_RUN) {
             SubmissionFiles.reportReadingWorkflowCannotRun(ExtractAnswersJobConsumer.class, submission);
         }
-        return reading == SubmissionFiles.ReadingWorkflowState.CAN_RUN ? null : NOTHING_READS;
+        return reading == SubmissionFiles.ReadingWorkflowState.CAN_RUN ? null : NO_READING_WORKFLOW_MESSAGE;
     }
 
     /**
@@ -262,7 +262,8 @@ public class ExtractAnswersJobConsumer implements JobConsumer
      */
     private static boolean isTooEarly(final Job job, final Resource submission, final Submission model)
     {
-        if (Boolean.TRUE.equals(job.getProperty(READ_AGAIN, Boolean.class)) && !ExtractionStatus.STATUS_RUNNING.equals(
+        if (Boolean.TRUE.equals(job.getProperty(READ_AGAIN_PROPERTY, Boolean.class))
+            && !ExtractionStatus.STATUS_RUNNING.equals(
             submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class))) {
             // The read again request that queued this job has not committed yet, so the old claim is still there
             LOGGER.info("The request to read {} again is not committed yet; looking again shortly",
@@ -332,8 +333,8 @@ public class ExtractAnswersJobConsumer implements JobConsumer
                 ErrorContext.of(ExtractAnswersJobConsumer.class, "giveUp").about(submission));
             return;
         }
-        final String claimedBy = properties.get(ExtractionStatus.READING_CLAIMED, Boolean.FALSE).booleanValue()
-            ? properties.get(ExtractionStatus.READING_CLAIMED_BY, String.class) : null;
+        final String claimedBy = properties.get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.FALSE).booleanValue()
+            ? properties.get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class) : null;
         if (!mayGiveUp.test(claimedBy)) {
             LOGGER.info("Not giving up the reading of {}: it is now {}'s", submission.getPath(), claimedBy);
             return;
@@ -398,11 +399,11 @@ public class ExtractAnswersJobConsumer implements JobConsumer
                 ErrorContext.of(ExtractAnswersJobConsumer.class, "claim").about(submission));
             return false;
         }
-        if (properties.get(ExtractionStatus.READING_CLAIMED, Boolean.FALSE).booleanValue()) {
-            return jobId.equals(properties.get(ExtractionStatus.READING_CLAIMED_BY, String.class));
+        if (properties.get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.FALSE).booleanValue()) {
+            return jobId.equals(properties.get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class));
         }
-        properties.put(ExtractionStatus.READING_CLAIMED, Boolean.TRUE);
-        properties.put(ExtractionStatus.READING_CLAIMED_BY, jobId);
+        properties.put(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.TRUE);
+        properties.put(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, jobId);
         try {
             resolver.commit();
             return true;

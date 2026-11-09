@@ -59,7 +59,11 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
 
     static final String QUESTION_PARAMETER = "question";
 
-    static final String EVIDENCE_REJECTED = "evidenceRejected";
+    /** The payload entry saying whether the submitter rejects the quotes behind the suggestion. */
+    static final String EVIDENCE_REJECTED_PARAMETER = "evidenceRejected";
+
+    /** Where the run records that the submitter rejected its quotes. */
+    static final String EVIDENCE_REJECTED_PROPERTY = "evidenceRejected";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ReviewExtractionHandler.class);
 
@@ -94,8 +98,8 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
 
     private static void apply(final Map<String, Object> payload, final ModifiableValueMap properties)
     {
-        if (payload.containsKey(EVIDENCE_REJECTED)) {
-            properties.put(EVIDENCE_REJECTED, isTrue(payload.get(EVIDENCE_REJECTED)));
+        if (payload.containsKey(EVIDENCE_REJECTED_PARAMETER)) {
+            properties.put(EVIDENCE_REJECTED_PROPERTY, isTrue(payload.get(EVIDENCE_REJECTED_PARAMETER)));
         }
     }
 

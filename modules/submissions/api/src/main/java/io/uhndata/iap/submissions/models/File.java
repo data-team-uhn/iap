@@ -20,6 +20,7 @@ package io.uhndata.iap.submissions.models;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -57,10 +58,6 @@ public class File extends EntityPart implements Referenceable
     public static final String PDF_CHILD = "pdfFile";
 
     private static final String FILE_RESOURCE_TYPE = "nt:file";
-
-    private static final String JCR_CONTENT = "jcr:content";
-
-    private static final String JCR_MIME_TYPE = "jcr:mimeType";
 
     private static final String PDF_MIME_TYPE = "application/pdf";
 
@@ -166,9 +163,9 @@ public class File extends EntityPart implements Referenceable
      */
     public boolean isUploadAPdf()
     {
-        final Resource content = this.resource.getChild(UPLOADED_FILE_CHILD + "/" + JCR_CONTENT);
+        final Resource content = this.resource.getChild(UPLOADED_FILE_CHILD + "/" + JcrConstants.JCR_CONTENT);
         return content != null
-            && PDF_MIME_TYPE.equals(content.getValueMap().get(JCR_MIME_TYPE, String.class));
+            && PDF_MIME_TYPE.equals(content.getValueMap().get(JcrConstants.JCR_MIMETYPE, String.class));
     }
 
     /**

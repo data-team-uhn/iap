@@ -46,7 +46,7 @@ final class DaemonConnection
     static final String DEFAULT_URL = "http://localhost:18765";
 
     /** How many seconds to wait for the daemon to answer when no {@code responseTimeout} is configured. */
-    static final long DEFAULT_RESPONSE_TIMEOUT = 30;
+    static final long DEFAULT_RESPONSE_TIMEOUT_SECONDS = 30;
 
     /** How long to wait for the daemon to accept a connection. */
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
@@ -78,7 +78,7 @@ final class DaemonConnection
     {
         final String configured = String.valueOf(configuration.getOrDefault("daemonUrl", DEFAULT_URL));
         final String url = (configured.isBlank() ? DEFAULT_URL : configured).replaceAll("/+$", "");
-        long seconds = DEFAULT_RESPONSE_TIMEOUT;
+        long seconds = DEFAULT_RESPONSE_TIMEOUT_SECONDS;
         final Object timeout = configuration.get("responseTimeout");
         if (timeout != null) {
             try {
@@ -90,7 +90,7 @@ final class DaemonConnection
             }
         }
         final String token = getToken(configuration, environment);
-        return new DaemonConnection(url, Duration.ofSeconds(seconds > 0 ? seconds : DEFAULT_RESPONSE_TIMEOUT),
+        return new DaemonConnection(url, Duration.ofSeconds(seconds > 0 ? seconds : DEFAULT_RESPONSE_TIMEOUT_SECONDS),
             token.isEmpty() ? null : "Bearer " + token);
     }
 

@@ -338,7 +338,7 @@ class AnswerIntakeServiceTest
 
         assertEquals(AnswerIntakeService.Status.NOT_READ, result.status());
         assertTrue(result.fields().isEmpty());
-        assertEquals(IntakeResult.UNREADABLE_MESSAGE, result.message());
+        assertEquals(IntakeResult.REPLY_UNREADABLE_MESSAGE, result.message());
     }
 
     @Test

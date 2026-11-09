@@ -124,8 +124,8 @@ class ParseDocumentsHandlerTest
 
         Mockito.verify(this.parseService).queue(STAGED, file.getPath());
         assertEquals("queued", file.getValueMap().get("parseStatus", String.class));
-        assertEquals(JOB_ID, file.getValueMap().get(ParseDocumentsHandler.PARSE_JOB_ID, String.class));
-        assertEquals(STAGED, file.getValueMap().get(ParseDocumentsHandler.SHARED_PATH, String.class));
+        assertEquals(JOB_ID, file.getValueMap().get(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, String.class));
+        assertEquals(STAGED, file.getValueMap().get(ParseDocumentsHandler.SHARED_PATH_PROPERTY, String.class));
         assertEquals("running", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class),
             "the submission is now being read");
     }
@@ -134,7 +134,7 @@ class ParseDocumentsHandlerTest
     void stagesAFileWithNoFileNameUnderItsDocumentTitle() throws Exception
     {
         final Resource file = this.tree.createFile(null);
-        file.adaptTo(ModifiableValueMap.class).remove(ParseDocumentsHandler.FILE_NAME);
+        file.adaptTo(ModifiableValueMap.class).remove(ParseDocumentsHandler.FILE_NAME_PROPERTY);
         file.getParent().getParent().adaptTo(ModifiableValueMap.class).put("title", "protocol.docx");
         Mockito.when(this.parseService.stage(Mockito.eq("protocol.docx"), Mockito.any())).thenReturn(STAGED);
 
@@ -150,7 +150,7 @@ class ParseDocumentsHandlerTest
     {
         this.tree.createFile(null);
         this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH).adaptTo(ModifiableValueMap.class)
-            .remove(SubmissionFiles.READING_WORKFLOW);
+            .remove(SubmissionFiles.READING_WORKFLOW_PROPERTY);
 
         final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
         ErrorLogger.setService(errors);
@@ -186,7 +186,7 @@ class ParseDocumentsHandlerTest
             Mockito.eq("The schema version names a reading workflow that does not exist or is not active"),
             Mockito.any());
         assertEquals("failed", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals(ExtractAnswersJobConsumer.NOTHING_READS,
+        assertEquals(ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE,
             this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 

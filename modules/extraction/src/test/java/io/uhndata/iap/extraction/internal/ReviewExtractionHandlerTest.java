@@ -137,7 +137,7 @@ class ReviewExtractionHandlerTest
     void recordsARejectedPassageWithoutSettlingTheAnswer() throws Exception
     {
         this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-            ReviewExtractionHandler.EVIDENCE_REJECTED, true)));
+            ReviewExtractionHandler.EVIDENCE_REJECTED_PARAMETER, true)));
 
         assertTrue(getRecorded().get("evidenceRejected", Boolean.FALSE));
         assertNull(getRecorded().get("editDistance", Long.class), "the answer is still theirs to settle");
@@ -148,7 +148,7 @@ class ReviewExtractionHandlerTest
     void readsAVerdictPostedAsAString() throws Exception
     {
         this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-            ReviewExtractionHandler.EVIDENCE_REJECTED, "true")));
+            ReviewExtractionHandler.EVIDENCE_REJECTED_PARAMETER, "true")));
 
         assertTrue(getRecorded().get("evidenceRejected", Boolean.FALSE));
     }
@@ -157,9 +157,9 @@ class ReviewExtractionHandlerTest
     void letsThemTakeThatBack() throws Exception
     {
         this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-            ReviewExtractionHandler.EVIDENCE_REJECTED, true)));
+            ReviewExtractionHandler.EVIDENCE_REJECTED_PARAMETER, true)));
         this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-            ReviewExtractionHandler.EVIDENCE_REJECTED, false)));
+            ReviewExtractionHandler.EVIDENCE_REJECTED_PARAMETER, false)));
 
         assertFalse(getRecorded().get("evidenceRejected", Boolean.FALSE));
     }
@@ -181,7 +181,7 @@ class ReviewExtractionHandlerTest
 
         assertThrows(NotAuthorizedException.class, () -> this.handler.execute(
             createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-                ReviewExtractionHandler.EVIDENCE_REJECTED, true))));
+                ReviewExtractionHandler.EVIDENCE_REJECTED_PARAMETER, true))));
         assertFalse(getRecorded().get("evidenceRejected", Boolean.FALSE));
     }
 
@@ -192,7 +192,7 @@ class ReviewExtractionHandlerTest
 
         assertThrows(InvalidStateException.class, () -> this.handler.execute(
             createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-                ReviewExtractionHandler.EVIDENCE_REJECTED, true))));
+                ReviewExtractionHandler.EVIDENCE_REJECTED_PARAMETER, true))));
         assertFalse(getRecorded().get("evidenceRejected", Boolean.FALSE));
     }
 
@@ -212,7 +212,7 @@ class ReviewExtractionHandlerTest
     {
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
             createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, "study/title",
-                ReviewExtractionHandler.EVIDENCE_REJECTED, true))));
+                ReviewExtractionHandler.EVIDENCE_REJECTED_PARAMETER, true))));
     }
 
     // A run that found nothing has no evidence to reject
@@ -223,8 +223,8 @@ class ReviewExtractionHandlerTest
 
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
             createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, "study/aims",
-                ReviewExtractionHandler.EVIDENCE_REJECTED, true))));
-        assertNull(this.extraction.getValueMap().get(ReviewExtractionHandler.EVIDENCE_REJECTED));
+                ReviewExtractionHandler.EVIDENCE_REJECTED_PARAMETER, true))));
+        assertNull(this.extraction.getValueMap().get(ReviewExtractionHandler.EVIDENCE_REJECTED_PROPERTY));
     }
 
     @Test
@@ -232,7 +232,8 @@ class ReviewExtractionHandlerTest
     {
         final WorkflowTaskContext readOnly = TaskContexts.of(
             new ReadOnly(this.submission),
-            Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS, ReviewExtractionHandler.EVIDENCE_REJECTED, true),
+            Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
+                ReviewExtractionHandler.EVIDENCE_REJECTED_PARAMETER, true),
             Map.of());
 
         assertThrows(PersistenceException.class, () -> this.handler.execute(readOnly));
@@ -247,7 +248,7 @@ class ReviewExtractionHandlerTest
                 "extractedAnswer", "reduce readmissions", "confidence", 0.3));
 
         this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
-            ReviewExtractionHandler.EVIDENCE_REJECTED, true)));
+            ReviewExtractionHandler.EVIDENCE_REJECTED_PARAMETER, true)));
 
         assertTrue(this.context.resourceResolver().getResource(newest.getPath()).getValueMap()
             .get("evidenceRejected", Boolean.FALSE));

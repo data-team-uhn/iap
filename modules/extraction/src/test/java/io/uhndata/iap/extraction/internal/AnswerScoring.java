@@ -49,7 +49,7 @@ final class AnswerScoring
     /** How many of its words free text must share with the expected text to count as the same answer. */
     static final double TEXT_MATCH = 0.6;
 
-    private static final Pattern WORD_BREAK = Pattern.compile("[^\\p{L}\\p{N}]+");
+    private static final Pattern WORD_BREAK_PATTERN = Pattern.compile("[^\\p{L}\\p{N}]+");
 
     private AnswerScoring()
     {
@@ -155,7 +155,7 @@ final class AnswerScoring
 
     private static Set<String> words(final String text)
     {
-        final Set<String> words = new HashSet<>(Arrays.asList(WORD_BREAK.split(text.toLowerCase(Locale.ROOT))));
+        final Set<String> words = new HashSet<>(Arrays.asList(WORD_BREAK_PATTERN.split(text.toLowerCase(Locale.ROOT))));
         words.remove("");
         return words;
     }

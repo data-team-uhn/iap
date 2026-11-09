@@ -624,7 +624,7 @@ not seen took 47.4 s, against 3.8 s for a repeat.
 | A quote must really be in the document | `QuoteVerifier`, through `DocumentScan.locate` | A quote that is not found is dropped, never stored. |
 | Quotes shorter than 3 characters do not count | `MIN_QUOTE_LENGTH` = 3 | Too easy to match by chance |
 | A quote of at most 24 characters matches only whole words | `isOnWordEdges` | "yes" is not found in "eyes", nor "100" in "1000" or "$2,100,000" |
-| A close match must be at least 85% right | `MATCH_FLOOR` = 0.85 | Edit distance against the best-matching stretch of text |
+| A close match must be at least 85% right | `MIN_MATCH_SCORE` = 0.85 | Edit distance against the best-matching stretch of text |
 | Numbers and negations must match exactly | `NEGATION_WORDS` (not, no, never, without, none, nor, neither, cannot) | "was not approved" never matches "was approved" |
 | A quote may not join two documents sent together | `isAcrossParts` | Those words were never next to each other |
 | Confidence drops when quotes are not found | `getEvidenceFactor` | See below |
@@ -636,7 +636,7 @@ not seen took 47.4 s, against 3.8 s for a repeat.
 How a quote is matched (`QuoteVerifier`): both texts are lowercased, page markers are
 removed, and whitespace is collapsed, no-break spaces included. An exact match wins.
 Otherwise, for quotes longer than 24 characters (`ANCHOR_LENGTH`) and at most 1000
-(`MAX_FUZZY_QUOTE`), it looks for the quote's first, middle and last 24 characters in
+(`MAX_FUZZY_QUOTE_LENGTH`), it looks for the quote's first, middle and last 24 characters in
 the text. It takes up to 4 candidate places (`MAX_CANDIDATES`, at most 2 per anchor),
 and finds the stretch of nearby text that needs the fewest edits to become the quote.
 The best stretch must score at least 0.85 and match on numbers and negations. A longer

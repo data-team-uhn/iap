@@ -97,7 +97,7 @@ class StopProcessingHandlerTest
         this.tree.addMarkdown(file, "the protocol");
         final ModifiableValueMap properties = this.submission.adaptTo(ModifiableValueMap.class);
         properties.put(ExtractionStatus.STATUS_PROPERTY, ExtractionStatus.STATUS_DONE);
-        properties.put(ExtractionStatus.READING_CLAIMED, Boolean.TRUE);
+        properties.put(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.TRUE);
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of()));
 
@@ -121,8 +121,8 @@ class StopProcessingHandlerTest
     {
         final Resource file = this.tree.createFile("queued");
         final ModifiableValueMap properties = file.adaptTo(ModifiableValueMap.class);
-        properties.put(ParseDocumentsHandler.PARSE_JOB_ID, JOB_ID);
-        properties.put(ParseDocumentsHandler.SHARED_PATH, STAGED);
+        properties.put(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, JOB_ID);
+        properties.put(ParseDocumentsHandler.SHARED_PATH_PROPERTY, STAGED);
         Mockito.when(this.parses.stopParse(JOB_ID)).thenReturn(false);
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of()));
@@ -136,8 +136,8 @@ class StopProcessingHandlerTest
     {
         final Resource file = this.tree.createFile("queued");
         final ModifiableValueMap properties = file.adaptTo(ModifiableValueMap.class);
-        properties.put(ParseDocumentsHandler.PARSE_JOB_ID, JOB_ID);
-        properties.put(ParseDocumentsHandler.SHARED_PATH, STAGED);
+        properties.put(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, JOB_ID);
+        properties.put(ParseDocumentsHandler.SHARED_PATH_PROPERTY, STAGED);
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of()));
 
@@ -178,8 +178,8 @@ class StopProcessingHandlerTest
     {
         final Resource file = this.tree.createFile("queued");
         final ModifiableValueMap properties = file.adaptTo(ModifiableValueMap.class);
-        properties.put(ParseDocumentsHandler.PARSE_JOB_ID, JOB_ID);
-        properties.put(ParseDocumentsHandler.SHARED_PATH, STAGED);
+        properties.put(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, JOB_ID);
+        properties.put(ParseDocumentsHandler.SHARED_PATH_PROPERTY, STAGED);
         final Job waiting = Mockito.mock(Job.class);
         Mockito.when(waiting.getId()).thenReturn("reading-1");
         Mockito.when(this.jobManager.findJobs(Mockito.eq(JobManager.QueryType.QUEUED),
@@ -195,7 +195,7 @@ class StopProcessingHandlerTest
         Mockito.verify(this.parseService, Mockito.never()).discardStaging(Mockito.any());
         Mockito.verify(this.jobManager).removeJobById("reading-1");
         assertEquals("failed", file.getValueMap().get("parseStatus", String.class));
-        assertNull(file.getValueMap().get(ParseDocumentsHandler.PARSE_JOB_ID, String.class));
+        assertNull(file.getValueMap().get(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, String.class));
         assertEquals(ExtractionStatus.STATUS_FAILED,
             this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
         assertEquals(ExtractionStatus.STOPPED_MESSAGE,
@@ -208,13 +208,13 @@ class StopProcessingHandlerTest
     {
         final Resource file = this.tree.createFile("completed");
         this.tree.addMarkdown(file, "the protocol");
-        this.submission.adaptTo(ModifiableValueMap.class).put(ExtractionStatus.READING_CLAIMED, Boolean.TRUE);
+        this.submission.adaptTo(ModifiableValueMap.class).put(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.TRUE);
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of()));
 
         assertNotNull(file.getChild("markdownFile"));
         assertEquals("completed", file.getValueMap().get("parseStatus", String.class));
-        assertNull(this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED, Boolean.class));
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.class));
         Mockito.verifyNoInteractions(this.parses);
     }
 
@@ -251,12 +251,12 @@ class StopProcessingHandlerTest
     void releasesTheClaimButKeepsTheParseStatusWhenThereIsNoMarkdown() throws Exception
     {
         final Resource file = this.tree.createFile("completed");
-        this.submission.adaptTo(ModifiableValueMap.class).put(ExtractionStatus.READING_CLAIMED, Boolean.TRUE);
+        this.submission.adaptTo(ModifiableValueMap.class).put(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.TRUE);
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of()));
 
         assertEquals("completed", file.getValueMap().get("parseStatus", String.class));
-        assertNull(this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED, Boolean.class));
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.class));
     }
 
     @Test

@@ -48,7 +48,7 @@ public @interface DaemonConnectionConfiguration
      */
     @AttributeDefinition(name = "Response timeout",
         description = "Seconds to wait for the daemon to answer a request. Zero or less uses the default of 30.")
-    long responseTimeout() default DaemonConnection.DEFAULT_RESPONSE_TIMEOUT;
+    long responseTimeout() default DaemonConnection.DEFAULT_RESPONSE_TIMEOUT_SECONDS;
 
     /**
      * The bearer token the daemon requires, when it requires one.

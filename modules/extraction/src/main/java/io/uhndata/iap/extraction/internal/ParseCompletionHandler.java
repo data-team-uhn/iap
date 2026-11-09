@@ -59,7 +59,7 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 public class ParseCompletionHandler implements ParseOutcomeHandler
 {
     /** The event a finished parse fires on the submission. */
-    static final String EVENT_NAME = "documentParsed";
+    static final String DOCUMENT_PARSED_EVENT = "documentParsed";
 
     /** The subservice name this module logs in with to read submissions. */
     static final String SUBSERVICE_NAME = "extraction";
@@ -121,7 +121,7 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
                     outcome.target());
                 return false;
             }
-            final String parseStatus = recorded.get(ParsePropertyNames.PARSE_STATUS, String.class);
+            final String parseStatus = recorded.get(ParsePropertyNames.PARSE_STATUS_PROPERTY, String.class);
             if (!ParsePropertyNames.STATUS_QUEUED.equals(parseStatus)) {
                 // Already recorded: the sweep handed the same outcome over again because its folder was not deleted
                 return discardStaging(getStagedPath(outcome, file));
@@ -136,7 +136,7 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
                         .with("job", outcome.jobId()).with("error", outcome.error()));
             }
             final String staged = getStagedPath(outcome, file);
-            this.engine.receiveEvent(submission, new WorkflowEvent(EVENT_NAME, buildPayload(outcome)));
+            this.engine.receiveEvent(submission, new WorkflowEvent(DOCUMENT_PARSED_EVENT, buildPayload(outcome)));
             // Delete the folder only now that the parse is committed: deleted earlier, a failed commit would lose
             // the parse. If the delete fails, the job record stays, so the sweep tries again.
             return discardStaging(staged);
@@ -180,7 +180,8 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
 
     private static boolean isWaitingFor(final Resource file, final ParseOutcome outcome)
     {
-        return outcome.jobId().equals(file.getValueMap().get(ParseDocumentsHandler.PARSE_JOB_ID, String.class));
+        return outcome.jobId()
+            .equals(file.getValueMap().get(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, String.class));
     }
 
     /**
@@ -234,7 +235,7 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
         if (outcome.markdownPath() != null) {
             return outcome.markdownPath();
         }
-        final String staged = file.getValueMap().get(ParseDocumentsHandler.SHARED_PATH, String.class);
+        final String staged = file.getValueMap().get(ParseDocumentsHandler.SHARED_PATH_PROPERTY, String.class);
         return staged == null || staged.isBlank() ? null : staged;
     }
 

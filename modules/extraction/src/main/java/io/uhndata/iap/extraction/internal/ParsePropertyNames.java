@@ -26,19 +26,22 @@ package io.uhndata.iap.extraction.internal;
 final class ParsePropertyNames
 {
     /** The parse status of a {@code sub:File}. */
-    static final String PARSE_STATUS = "parseStatus";
+    static final String PARSE_STATUS_PROPERTY = "parseStatus";
 
-    /** The {@link #PARSE_STATUS} of a file whose parse finished and was read in. */
+    /** The {@link #PARSE_STATUS_PROPERTY} of a file whose parse finished and was read in. */
     static final String STATUS_COMPLETED = "completed";
 
-    /** The {@link #PARSE_STATUS} of a file whose parse was asked for and has no answer yet. */
+    /** The {@link #PARSE_STATUS_PROPERTY} of a file whose parse was asked for and has no answer yet. */
     static final String STATUS_QUEUED = "queued";
 
-    /** The {@link #PARSE_STATUS} of a file whose parse failed, was stopped, or produced no readable Markdown. */
+    /**
+     * The {@link #PARSE_STATUS_PROPERTY} of a file whose parse failed, was stopped, or produced no readable
+     * Markdown.
+     */
     static final String STATUS_FAILED = "failed";
 
     /** What went wrong, on a file whose parse failed. */
-    static final String PARSE_ERROR = "parseError";
+    static final String PARSE_ERROR_PROPERTY = "parseError";
 
     /** The size of the whole document, in tokens. */
     static final String TOKENS_PROPERTY = "tokens";

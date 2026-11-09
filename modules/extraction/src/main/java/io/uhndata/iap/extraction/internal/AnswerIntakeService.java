@@ -92,7 +92,7 @@ public class AnswerIntakeService
     public record IntakeResult(Map<String, FieldResult> fields, Status status, String message)
     {
         /** What the submitter is told when the model's replies could not be read. */
-        static final String UNREADABLE_MESSAGE = "The model's answer could not be read";
+        static final String REPLY_UNREADABLE_MESSAGE = "The model's answer could not be read";
 
         /** What the submitter is told when the model could not be reached. */
         static final String UNREACHABLE_MESSAGE = "The model could not be reached";
@@ -228,6 +228,6 @@ public class AnswerIntakeService
             return IntakeResult.createIncomplete(reading.answers());
         }
         return IntakeResult.createNotRead(reading.findFailure() != null ? IntakeResult.UNREACHABLE_MESSAGE
-            : IntakeResult.UNREADABLE_MESSAGE);
+            : IntakeResult.REPLY_UNREADABLE_MESSAGE);
     }
 }

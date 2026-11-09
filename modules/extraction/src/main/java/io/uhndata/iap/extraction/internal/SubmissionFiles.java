@@ -49,7 +49,7 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 final class SubmissionFiles
 {
     /** Where a schema version names the workflow that reads its documents. */
-    static final String READING_WORKFLOW = "readingWorkflow";
+    static final String READING_WORKFLOW_PROPERTY = "readingWorkflow";
 
     /** What the submitter is told when no document a reading can read has been uploaded. */
     static final String NO_DOCUMENT_MESSAGE = "No document to read has been uploaded";
@@ -87,7 +87,7 @@ final class SubmissionFiles
      */
     static ReadingWorkflowState checkReadingWorkflow(final Submission submission, final ResourceResolver resolver)
     {
-        final String identifier = submission.getSchemaVersion().get(READING_WORKFLOW, String.class);
+        final String identifier = submission.getSchemaVersion().get(READING_WORKFLOW_PROPERTY, String.class);
         if (identifier == null) {
             return ReadingWorkflowState.NONE;
         }

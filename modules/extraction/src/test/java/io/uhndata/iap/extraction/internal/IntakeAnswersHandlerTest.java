@@ -731,7 +731,7 @@ class IntakeAnswersHandlerTest
     void failsWhenTheModelsAnswerCouldNotBeRead() throws Exception
     {
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenReturn(IntakeResult.createNotRead(IntakeResult.UNREADABLE_MESSAGE));
+            .thenReturn(IntakeResult.createNotRead(IntakeResult.REPLY_UNREADABLE_MESSAGE));
 
         this.handler.execute(createTask());
 

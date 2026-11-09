@@ -121,12 +121,12 @@ class ExtractionStatusTest
     void takesTheWholeClaimDown() throws PersistenceException
     {
         final Resource submission = this.context.create().resource("/Submissions/s1", Map.of(
-            ExtractionStatus.READING_CLAIMED, true, ExtractionStatus.READING_CLAIMED_BY, "job-1"));
+            ExtractionStatus.READING_CLAIMED_PROPERTY, true, ExtractionStatus.READING_CLAIMED_BY_PROPERTY, "job-1"));
 
         ExtractionStatus.releaseClaim(submission);
 
-        assertNull(submission.getValueMap().get(ExtractionStatus.READING_CLAIMED, Boolean.class));
-        assertNull(submission.getValueMap().get(ExtractionStatus.READING_CLAIMED_BY, String.class));
+        assertNull(submission.getValueMap().get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.class));
+        assertNull(submission.getValueMap().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class));
     }
 
     @Test

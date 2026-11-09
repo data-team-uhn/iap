@@ -20,6 +20,7 @@ package io.uhndata.iap.extraction.internal;
 import java.io.IOException;
 import java.util.Calendar;
 
+import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
@@ -37,11 +38,6 @@ import io.uhndata.iap.submissions.models.File;
 @Component(service = ParsedDocuments.class)
 public class ParsedDocuments
 {
-    /** When the stored Markdown was last written; a change means the kept copy is stale. */
-    private static final String JCR_LAST_MODIFIED = "jcr:lastModified";
-
-    private static final String JCR_CONTENT = "jcr:content";
-
     /** The document read last, or {@code null} when nothing has been read yet. */
     private volatile Entry kept;
 
@@ -77,8 +73,8 @@ public class ParsedDocuments
      */
     private static Calendar getLastModified(final Resource markdown)
     {
-        final Resource content = markdown.getChild(JCR_CONTENT);
-        return content == null ? null : content.getValueMap().get(JCR_LAST_MODIFIED, Calendar.class);
+        final Resource content = markdown.getChild(JcrConstants.JCR_CONTENT);
+        return content == null ? null : content.getValueMap().get(JcrConstants.JCR_LASTMODIFIED, Calendar.class);
     }
 
     /**

@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -55,18 +56,6 @@ import io.uhndata.iap.submissions.models.File;
 public class ParseResultIngester
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(ParseResultIngester.class);
-
-    private static final String PRIMARY_TYPE = "jcr:primaryType";
-
-    private static final String NT_FILE = "nt:file";
-
-    private static final String NT_RESOURCE = "nt:resource";
-
-    private static final String JCR_CONTENT = "jcr:content";
-
-    private static final String JCR_DATA = "jcr:data";
-
-    private static final String JCR_MIME_TYPE = "jcr:mimeType";
 
     private static final String MARKDOWN_MIME_TYPE = "text/markdown";
 
@@ -119,7 +108,7 @@ public class ParseResultIngester
         }
         final long startedAt = System.nanoTime();
         final Map<String, Object> properties = new HashMap<>();
-        properties.put(ParsePropertyNames.PARSE_STATUS, ParsePropertyNames.STATUS_COMPLETED);
+        properties.put(ParsePropertyNames.PARSE_STATUS_PROPERTY, ParsePropertyNames.STATUS_COMPLETED);
         if (tokens != null) {
             properties.put(ParsePropertyNames.TOKENS_PROPERTY, tokens);
         }
@@ -137,8 +126,8 @@ public class ParseResultIngester
         throws PersistenceException
     {
         writeParseProperties(file, Map.of(
-            ParsePropertyNames.PARSE_STATUS, ParsePropertyNames.STATUS_FAILED,
-            ParsePropertyNames.PARSE_ERROR, markdown == null
+            ParsePropertyNames.PARSE_STATUS_PROPERTY, ParsePropertyNames.STATUS_FAILED,
+            ParsePropertyNames.PARSE_ERROR_PROPERTY, markdown == null
                 ? "The parse finished without naming the text it produced"
                 : "The parse named " + markdown + ", " + why));
     }
@@ -232,10 +221,10 @@ public class ParseResultIngester
     private static void createFile(final ResourceResolver resolver, final Resource parent, final String name,
         final String mimeType, final InputStream content) throws PersistenceException
     {
-        final Resource file = resolver.create(parent, name, Map.of(PRIMARY_TYPE, NT_FILE));
-        resolver.create(file, JCR_CONTENT, Map.of(
-            PRIMARY_TYPE, NT_RESOURCE,
-            JCR_MIME_TYPE, mimeType,
-            JCR_DATA, content));
+        final Resource file = resolver.create(parent, name, Map.of(JcrConstants.JCR_PRIMARYTYPE, JcrConstants.NT_FILE));
+        resolver.create(file, JcrConstants.JCR_CONTENT, Map.of(
+            JcrConstants.JCR_PRIMARYTYPE, JcrConstants.NT_RESOURCE,
+            JcrConstants.JCR_MIMETYPE, mimeType,
+            JcrConstants.JCR_DATA, content));
     }
 }

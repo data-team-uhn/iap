@@ -79,7 +79,7 @@ class ParseCompletionHandlerTest
         tree.createSchemaVersion();
         tree.createSubmission();
         this.file = tree.createFile("queued");
-        this.file.adaptTo(ModifiableValueMap.class).put(ParseDocumentsHandler.PARSE_JOB_ID, JOB_ID);
+        this.file.adaptTo(ModifiableValueMap.class).put(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, JOB_ID);
         inject("resolverFactory", new TestResolverFactory(this.context.resourceResolver()));
         inject("engine", this.engine);
         inject("ingester", this.ingester);
@@ -109,7 +109,7 @@ class ParseCompletionHandlerTest
         final ArgumentCaptor<WorkflowEvent> event = ArgumentCaptor.forClass(WorkflowEvent.class);
         Mockito.verify(this.engine).receiveEvent(target.capture(), event.capture());
         assertEquals(SubmissionTree.SUBMISSION_PATH, target.getValue().getPath());
-        assertEquals(ParseCompletionHandler.EVENT_NAME, event.getValue().getName());
+        assertEquals(ParseCompletionHandler.DOCUMENT_PARSED_EVENT, event.getValue().getName());
         assertEquals(this.file.getPath(), event.getValue().get(ParseCompletionHandler.FILE_KEY));
         assertEquals(Boolean.TRUE, event.getValue().get(ParseCompletionHandler.SUCCEEDED_KEY));
         assertEquals("/shared-docs/x/proposal.md", event.getValue().get(ParseCompletionHandler.MARKDOWN_KEY));
@@ -145,7 +145,7 @@ class ParseCompletionHandlerTest
     void clearsTheStagingFolderOfAParseThatProducedNothing() throws Exception
     {
         this.file.adaptTo(ModifiableValueMap.class)
-            .put(ParseDocumentsHandler.SHARED_PATH, "/shared-docs/x/proposal.pdf");
+            .put(ParseDocumentsHandler.SHARED_PATH_PROPERTY, "/shared-docs/x/proposal.pdf");
 
         assertTrue(this.handler.handle(
             new ParseOutcome(JOB_ID, this.file.getPath(), false, "No pages", null, null)));
@@ -214,9 +214,9 @@ class ParseCompletionHandlerTest
     @Test
     void takesAnOutcomeThatArrivedBeforeTheFileNamedItsJob() throws Exception
     {
-        this.file.adaptTo(ModifiableValueMap.class).remove(ParseDocumentsHandler.PARSE_JOB_ID);
+        this.file.adaptTo(ModifiableValueMap.class).remove(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY);
         this.handler.setPause(() -> {
-            this.file.adaptTo(ModifiableValueMap.class).put(ParseDocumentsHandler.PARSE_JOB_ID, JOB_ID);
+            this.file.adaptTo(ModifiableValueMap.class).put(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, JOB_ID);
             return true;
         });
 
@@ -248,7 +248,7 @@ class ParseCompletionHandlerTest
     @Test
     void leavesAnOutcomeTheFileIsNotWaitingFor() throws Exception
     {
-        this.file.adaptTo(ModifiableValueMap.class).put(ParseDocumentsHandler.PARSE_JOB_ID, "another-job");
+        this.file.adaptTo(ModifiableValueMap.class).put(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, "another-job");
 
         assertFalse(this.handler.handle(createCompletedOutcome(this.file.getPath())));
 
@@ -259,7 +259,7 @@ class ParseCompletionHandlerTest
     @Test
     void doesNotWaitForAFileToNameAStoppedParse() throws Exception
     {
-        this.file.adaptTo(ModifiableValueMap.class).remove(ParseDocumentsHandler.PARSE_JOB_ID);
+        this.file.adaptTo(ModifiableValueMap.class).remove(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY);
         final AtomicInteger waits = new AtomicInteger();
         this.handler.setPause(() -> waits.incrementAndGet() > 0);
 
@@ -274,7 +274,7 @@ class ParseCompletionHandlerTest
     @Test
     void takesAnOutcomeAlreadyRecordedWithoutReadingItAgain() throws Exception
     {
-        this.file.adaptTo(ModifiableValueMap.class).put(ParsePropertyNames.PARSE_STATUS, "completed");
+        this.file.adaptTo(ModifiableValueMap.class).put(ParsePropertyNames.PARSE_STATUS_PROPERTY, "completed");
 
         assertTrue(this.handler.handle(createCompletedOutcome(this.file.getPath())));
 
@@ -291,7 +291,7 @@ class ParseCompletionHandlerTest
         assertFalse(this.handler.handle(createCompletedOutcome(this.file.getPath())));
         Mockito.verify(this.engine).receiveEvent(Mockito.any(), Mockito.any());
 
-        this.file.adaptTo(ModifiableValueMap.class).put(ParsePropertyNames.PARSE_STATUS, "completed");
+        this.file.adaptTo(ModifiableValueMap.class).put(ParsePropertyNames.PARSE_STATUS_PROPERTY, "completed");
         assertFalse(this.handler.handle(createCompletedOutcome(this.file.getPath())),
             "handed over again, it is not read in a second time and the folder is tried again");
         Mockito.verify(this.engine).receiveEvent(Mockito.any(), Mockito.any());

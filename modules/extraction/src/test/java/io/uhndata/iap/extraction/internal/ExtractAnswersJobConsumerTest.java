@@ -117,7 +117,7 @@ class ExtractAnswersJobConsumerTest
         assertTrue(event.getValue().getPayload().isEmpty());
         // The claim holds this job's id, so when two jobs race their writes differ and one commit is refused
         assertEquals(JOB_ID, this.context.resourceResolver().getResource(this.submission.getPath()).getValueMap()
-            .get(ExtractionStatus.READING_CLAIMED_BY, String.class));
+            .get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class));
     }
 
     // Sling runs an unfinished job again after a restart, with the same id
@@ -151,7 +151,7 @@ class ExtractAnswersJobConsumerTest
             ExtractionStatus.STATUS_DONE);
         claim("job-0");
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.job.getProperty(ExtractAnswersJobConsumer.READ_AGAIN, Boolean.class))
+        Mockito.when(this.job.getProperty(ExtractAnswersJobConsumer.READ_AGAIN_PROPERTY, Boolean.class))
             .thenReturn(Boolean.TRUE);
 
         assertEquals(JobResult.FAILED, this.consumer.process(this.job));
@@ -165,7 +165,7 @@ class ExtractAnswersJobConsumerTest
         this.submission.adaptTo(ModifiableValueMap.class).put(ExtractionStatus.STATUS_PROPERTY,
             ExtractionStatus.STATUS_RUNNING);
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.job.getProperty(ExtractAnswersJobConsumer.READ_AGAIN, Boolean.class))
+        Mockito.when(this.job.getProperty(ExtractAnswersJobConsumer.READ_AGAIN_PROPERTY, Boolean.class))
             .thenReturn(Boolean.TRUE);
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
@@ -176,8 +176,8 @@ class ExtractAnswersJobConsumerTest
     private void claim(final String jobId) throws Exception
     {
         final ModifiableValueMap properties = this.submission.adaptTo(ModifiableValueMap.class);
-        properties.put(ExtractionStatus.READING_CLAIMED, Boolean.TRUE);
-        properties.put(ExtractionStatus.READING_CLAIMED_BY, jobId);
+        properties.put(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.TRUE);
+        properties.put(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, jobId);
         this.context.resourceResolver().commit();
     }
 
@@ -186,7 +186,7 @@ class ExtractAnswersJobConsumerTest
     @Test
     void givesUpWhenTheSchemaNamesNoReadingWorkflow() throws Exception
     {
-        getSchemaVersionProperties().remove(SubmissionFiles.READING_WORKFLOW);
+        getSchemaVersionProperties().remove(SubmissionFiles.READING_WORKFLOW_PROPERTY);
         this.context.resourceResolver().commit();
         setJobSubmission(this.submission.getPath());
 
@@ -199,7 +199,7 @@ class ExtractAnswersJobConsumerTest
     void givesUpWhenTheReadingWorkflowIsNotAWorkflow() throws Exception
     {
         SubmissionTree.reference(this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH),
-            SubmissionFiles.READING_WORKFLOW,
+            SubmissionFiles.READING_WORKFLOW_PROPERTY,
             this.context.resourceResolver().getResource(SubmissionTree.FORM_PATH));
         setJobSubmission(this.submission.getPath());
 
@@ -211,7 +211,7 @@ class ExtractAnswersJobConsumerTest
     @Test
     void givesUpWhenTheReadingWorkflowLeadsNowhere() throws Exception
     {
-        getSchemaVersionProperties().put(SubmissionFiles.READING_WORKFLOW,
+        getSchemaVersionProperties().put(SubmissionFiles.READING_WORKFLOW_PROPERTY,
             "1e17e5b1-0000-0000-0000-000000000000");
         this.context.resourceResolver().commit();
         setJobSubmission(this.submission.getPath());
@@ -250,7 +250,7 @@ class ExtractAnswersJobConsumerTest
         final ValueMap properties = this.context.resourceResolver().getResource(this.submission.getPath())
             .getValueMap();
         assertEquals(ExtractionStatus.STATUS_FAILED, properties.get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals(ExtractAnswersJobConsumer.COULD_NOT_READ,
+        assertEquals(ExtractAnswersJobConsumer.COULD_NOT_READ_MESSAGE,
             properties.get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
@@ -266,9 +266,9 @@ class ExtractAnswersJobConsumerTest
         final ValueMap properties = this.context.resourceResolver().getResource(this.submission.getPath())
             .getValueMap();
         assertEquals(ExtractionStatus.STATUS_FAILED, properties.get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals(ExtractAnswersJobConsumer.NOTHING_READS,
+        assertEquals(ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE,
             properties.get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
-        assertNull(properties.get(ExtractionStatus.READING_CLAIMED, Boolean.class));
+        assertNull(properties.get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.class));
     }
 
     @Test
@@ -313,9 +313,9 @@ class ExtractAnswersJobConsumerTest
         final ValueMap properties = this.submission.getValueMap();
         assertEquals(ExtractionStatus.STATUS_FAILED, properties.get(ExtractionStatus.STATUS_PROPERTY, String.class));
         assertNotNull(properties.get(ExtractionStatus.MESSAGE_PROPERTY, String.class), "and the person is told why");
-        assertNull(properties.get(ExtractionStatus.READING_CLAIMED, Boolean.class),
+        assertNull(properties.get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.class),
             "so a later parse, or somebody asking again, can take the reading");
-        assertNull(properties.get(ExtractionStatus.READING_CLAIMED_BY, String.class));
+        assertNull(properties.get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class));
     }
 
     // A broken definition throws instead of returning. Sling must not retry it: the claim is already released,
@@ -416,7 +416,7 @@ class ExtractAnswersJobConsumerTest
             Thread.interrupted();
         }
 
-        assertEquals(ExtractAnswersJobConsumer.COULD_NOT_READ,
+        assertEquals(ExtractAnswersJobConsumer.COULD_NOT_READ_MESSAGE,
             this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
@@ -428,7 +428,7 @@ class ExtractAnswersJobConsumerTest
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
             final ModifiableValueMap properties = this.submission.adaptTo(ModifiableValueMap.class);
             properties.put(ExtractionStatus.STATUS_PROPERTY, ExtractionStatus.STATUS_RUNNING);
-            properties.put(ExtractionStatus.READING_CLAIMED_BY, "job-2");
+            properties.put(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, "job-2");
             this.context.resourceResolver().commit();
             throw new NotAuthorizedException("broken");
         });
@@ -437,7 +437,8 @@ class ExtractAnswersJobConsumerTest
 
         assertEquals(ExtractionStatus.STATUS_RUNNING,
             this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals("job-2", this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED_BY, String.class));
+        assertEquals("job-2",
+            this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class));
     }
 
     // `running` was committed before the job: left as it is, the spinner would never stop
@@ -553,7 +554,7 @@ class ExtractAnswersJobConsumerTest
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
         Mockito.verifyNoInteractions(this.engine);
-        assertNull(this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED, Boolean.class));
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.class));
     }
 
     // Two jobs both found every parse settled and both wrote the claim; the repository refuses the second

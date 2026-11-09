@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.resource.Resource;
 
 /**
@@ -38,11 +39,7 @@ final class DocumentText
      * A Markdown heading: one to six {@code #}, whitespace, then the title in group 1. The title has no length
      * limit, so a long heading is still a heading and quotes below it are still placed under it.
      */
-    private static final Pattern ATX_HEADING = Pattern.compile("^#{1,6}\\s+(\\S.*)$");
-
-    private static final String JCR_CONTENT = "jcr:content";
-
-    private static final String JCR_DATA = "jcr:data";
+    private static final Pattern ATX_HEADING_PATTERN = Pattern.compile("^#{1,6}\\s+(\\S.*)$");
 
     private DocumentText()
     {
@@ -61,11 +58,11 @@ final class DocumentText
         if (file == null) {
             return "";
         }
-        final Resource content = file.getChild(JCR_CONTENT);
+        final Resource content = file.getChild(JcrConstants.JCR_CONTENT);
         if (content == null) {
             return "";
         }
-        final InputStream stored = content.getValueMap().get(JCR_DATA, InputStream.class);
+        final InputStream stored = content.getValueMap().get(JcrConstants.JCR_DATA, InputStream.class);
         if (stored == null) {
             return "";
         }
@@ -82,6 +79,6 @@ final class DocumentText
      */
     static Matcher matchHeading(final String line)
     {
-        return ATX_HEADING.matcher(line.strip());
+        return ATX_HEADING_PATTERN.matcher(line.strip());
     }
 }

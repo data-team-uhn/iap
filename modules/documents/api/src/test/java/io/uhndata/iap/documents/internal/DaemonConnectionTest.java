@@ -35,7 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class DaemonConnectionTest
 {
-    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(DaemonConnection.DEFAULT_RESPONSE_TIMEOUT);
+    private static final Duration DEFAULT_TIMEOUT =
+        Duration.ofSeconds(DaemonConnection.DEFAULT_RESPONSE_TIMEOUT_SECONDS);
 
     @Test
     void worksWithNothingConfigured()

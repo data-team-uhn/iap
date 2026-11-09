@@ -27,6 +27,7 @@ import java.util.function.Function;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
+import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -57,8 +58,6 @@ final class SubmissionTree
 
     private static final String SUPER_TYPE = "sling:resourceSuperType";
 
-    private static final String PRIMARY_TYPE = "jcr:primaryType";
-
     private final SlingContext context;
 
     private int documents;
@@ -84,7 +83,7 @@ final class SubmissionTree
         final Resource version = this.context.create().resource(VERSION_PATH, Map.of(TYPE, "sch/SchemaVersion",
             "version", "1.0", "tags", new String[] { "active" }));
         // Names a reading workflow, because only a schema that reads its documents has them parsed
-        reference(version, SubmissionFiles.READING_WORKFLOW, this.context.create().resource(READING_PATH,
+        reference(version, SubmissionFiles.READING_WORKFLOW_PROPERTY, this.context.create().resource(READING_PATH,
             Map.of(TYPE, "wf/WorkflowVersion", "version", "1.0", "tags", new String[] { "active" })));
         // A mock repository has no /libs/sch types to inherit from, so each item sets its super type
         this.context.create().resource(FORM_PATH,
@@ -275,9 +274,9 @@ final class SubmissionTree
 
     private void storeText(final String path, final String text)
     {
-        final Resource file = this.context.create().resource(path, Map.of(PRIMARY_TYPE, "nt:file"));
+        final Resource file = this.context.create().resource(path, Map.of(JcrConstants.JCR_PRIMARYTYPE, "nt:file"));
         this.context.create().resource(file.getPath() + "/jcr:content", Map.of(
-            PRIMARY_TYPE, "nt:resource",
+            JcrConstants.JCR_PRIMARYTYPE, "nt:resource",
             "jcr:data", new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8))));
     }
 }

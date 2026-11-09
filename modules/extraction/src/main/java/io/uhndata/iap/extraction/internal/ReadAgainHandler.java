@@ -70,7 +70,7 @@ public class ReadAgainHandler implements ServiceTaskHandler
         }
         if (SubmissionFiles.checkReadingWorkflow(submission, context.getResourceResolver())
             == SubmissionFiles.ReadingWorkflowState.NONE) {
-            throw new InvalidStateException(ExtractAnswersJobConsumer.NOTHING_READS);
+            throw new InvalidStateException(ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE);
         }
         ExtractionStatus.record(target, ExtractionStatus.STATUS_RUNNING, null);
         // Otherwise the last reading's claim would turn the new job away
@@ -78,7 +78,7 @@ public class ReadAgainHandler implements ServiceTaskHandler
         // Queued before this walk commits, so the job is told to wait until it sees the `running` written above
         if (this.jobManager.addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
             Map.of(ExtractAnswersJobConsumer.SUBMISSION_PROPERTY,
-            target.getPath(), ExtractAnswersJobConsumer.READ_AGAIN, Boolean.TRUE)) == null) {
+            target.getPath(), ExtractAnswersJobConsumer.READ_AGAIN_PROPERTY, Boolean.TRUE)) == null) {
             throw new PersistenceException("The reading of " + target.getPath() + " could not be queued");
         }
         LOGGER.info("Reading asked for again: submission={}", target.getPath());

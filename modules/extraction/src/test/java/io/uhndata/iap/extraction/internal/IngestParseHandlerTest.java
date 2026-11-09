@@ -232,7 +232,7 @@ class IngestParseHandlerTest
     void leavesTheStagingFolderToWhoeverCommits() throws Exception
     {
         this.file.adaptTo(ModifiableValueMap.class)
-            .put(ParseDocumentsHandler.SHARED_PATH, "/shared-docs/abc123/proposal.pdf");
+            .put(ParseDocumentsHandler.SHARED_PATH_PROPERTY, "/shared-docs/abc123/proposal.pdf");
         final Map<String, Object> payload = new HashMap<>();
         payload.put(ParseCompletionHandler.FILE_KEY, this.file.getPath());
         payload.put(ParseCompletionHandler.SUCCEEDED_KEY, Boolean.FALSE);

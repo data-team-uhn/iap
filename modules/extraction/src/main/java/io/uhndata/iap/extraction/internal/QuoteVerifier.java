@@ -46,10 +46,10 @@ final class QuoteVerifier
     private static final int MIN_QUOTE_LENGTH = 3;
 
     /** The lowest match score that counts as found. 0.85 allows a small slip, not a made-up sentence. */
-    private static final double MATCH_FLOOR = 0.85;
+    private static final double MIN_MATCH_SCORE = 0.85;
 
     /** A quote longer than this must match exactly, because the close-match check is slow on long quotes. */
-    private static final int MAX_FUZZY_QUOTE = 1000;
+    private static final int MAX_FUZZY_QUOTE_LENGTH = 1000;
 
     /**
      * How many characters of the quote are searched for to find where it might start. A quote no longer than
@@ -79,7 +79,7 @@ final class QuoteVerifier
     /** Any whitespace, including the no-break spaces converted documents are full of. */
     private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
 
-    private static final Pattern WORD_BREAK = Pattern.compile("[^\\p{L}\\p{N}]+");
+    private static final Pattern WORD_BREAK_PATTERN = Pattern.compile("[^\\p{L}\\p{N}]+");
 
     private QuoteVerifier()
     {
@@ -119,7 +119,7 @@ final class QuoteVerifier
             return -1;
         }
         final Match found = match(normalize(quote), haystack, partStarts);
-        return found.score() >= MATCH_FLOOR ? found.at() : -1;
+        return found.score() >= MIN_MATCH_SCORE ? found.at() : -1;
     }
 
     private static Match match(final String wanted, final String haystack, final int[] partStarts)
@@ -134,7 +134,7 @@ final class QuoteVerifier
                 return new Match(1.0, exact, end);
             }
         }
-        if (wanted.length() <= ANCHOR_LENGTH || wanted.length() > MAX_FUZZY_QUOTE) {
+        if (wanted.length() <= ANCHOR_LENGTH || wanted.length() > MAX_FUZZY_QUOTE_LENGTH) {
             return Match.createEmpty();
         }
         return findBestWindow(wanted, haystack, partStarts);
@@ -283,7 +283,7 @@ final class QuoteVerifier
     private static Set<String> getKeyWords(final String text)
     {
         final Set<String> keys = new HashSet<>();
-        for (final String word : WORD_BREAK.split(text)) {
+        for (final String word : WORD_BREAK_PATTERN.split(text)) {
             if (NEGATION_WORDS.contains(word) || word.chars().anyMatch(Character::isDigit)) {
                 keys.add(word);
             }

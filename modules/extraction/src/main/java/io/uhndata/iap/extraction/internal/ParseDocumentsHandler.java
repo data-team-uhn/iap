@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
 
+import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -56,19 +57,15 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
     public static final String HANDLER_NAME = "parseDocuments";
 
     /** Where a file may keep its original name; the upload handler puts that name on the document's title instead. */
-    static final String FILE_NAME = "fileName";
+    static final String FILE_NAME_PROPERTY = "fileName";
 
     /** Where a file records the id of its parse job. */
-    static final String PARSE_JOB_ID = "parseJobId";
+    static final String PARSE_JOB_ID_PROPERTY = "parseJobId";
 
     /** Where a file records the path of its upload copy on the shared volume. */
-    static final String SHARED_PATH = "sharedPath";
+    static final String SHARED_PATH_PROPERTY = "sharedPath";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ParseDocumentsHandler.class);
-
-    private static final String JCR_CONTENT = "jcr:content";
-
-    private static final String JCR_DATA = "jcr:data";
 
     @Reference
     private ParseService parseService;
@@ -94,7 +91,8 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         if (reading == SubmissionFiles.ReadingWorkflowState.CANNOT_RUN) {
             SubmissionFiles.reportReadingWorkflowCannotRun(ParseDocumentsHandler.class, target);
             // Told, so the submitter does not retry a parse nothing would read
-            ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, ExtractAnswersJobConsumer.NOTHING_READS);
+            ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED,
+                ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE);
             return;
         }
         int queued = 0;
@@ -131,8 +129,9 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
     private boolean queue(final Resource resource, final File file) throws PersistenceException
     {
         final Resource uploaded = file.getUploadedFile();
-        final Resource content = uploaded == null ? null : uploaded.getChild(JCR_CONTENT);
-        final InputStream bytes = content == null ? null : content.getValueMap().get(JCR_DATA, InputStream.class);
+        final Resource content = uploaded == null ? null : uploaded.getChild(JcrConstants.JCR_CONTENT);
+        final InputStream bytes =
+            content == null ? null : content.getValueMap().get(JcrConstants.JCR_DATA, InputStream.class);
         if (bytes == null) {
             LOGGER.warn("{} holds no upload to parse", file.getPath());
             // An upload with no content is damaged data; without this report it would stay unread silently
@@ -149,11 +148,11 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         try (InputStream in = bytes) {
             staged = this.parseService.stage(name, in);
             final String jobId = this.parseService.queue(staged, file.getPath());
-            properties.put(ParsePropertyNames.PARSE_STATUS, ParsePropertyNames.STATUS_QUEUED);
+            properties.put(ParsePropertyNames.PARSE_STATUS_PROPERTY, ParsePropertyNames.STATUS_QUEUED);
             // The parse is tried again, so the last error no longer applies to this file
-            properties.remove(ParsePropertyNames.PARSE_ERROR);
-            properties.put(PARSE_JOB_ID, jobId);
-            properties.put(SHARED_PATH, staged);
+            properties.remove(ParsePropertyNames.PARSE_ERROR_PROPERTY);
+            properties.put(PARSE_JOB_ID_PROPERTY, jobId);
+            properties.put(SHARED_PATH_PROPERTY, staged);
             LOGGER.info("Document sent to be parsed: file={} job={} name={}", file.getPath(), jobId, name);
         } catch (final IOException e) {
             // A copy staged for a parse that was never queued usually has no job node naming it, so no sweep
@@ -173,7 +172,7 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
      */
     private static String getUploadName(final File file)
     {
-        final String own = file.get(FILE_NAME, String.class);
+        final String own = file.get(FILE_NAME_PROPERTY, String.class);
         if (own != null) {
             return own;
         }

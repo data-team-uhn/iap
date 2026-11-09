@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -43,8 +44,6 @@ import io.uhndata.iap.utils.ReferenceUtils;
  */
 final class ExtractedAnswers
 {
-    private static final String PRIMARY_TYPE = "jcr:primaryType";
-
     private static final String QUESTION_PROPERTY = "question";
 
     private static final String SOURCES_PROPERTY = "sources";
@@ -82,7 +81,7 @@ final class ExtractedAnswers
             return;
         }
         final Resource answer = resolver.create(target, UUID.randomUUID().toString(),
-            Map.of(PRIMARY_TYPE, "sub:Answer"));
+            Map.of(JcrConstants.JCR_PRIMARYTYPE, "sub:Answer"));
         try {
             ReferenceUtils.setReference(answer, QUESTION_PROPERTY, questionResource);
             writeExtraction(resolver, answer, result, versions);
@@ -116,7 +115,7 @@ final class ExtractedAnswers
         final FieldResult result, final List<Resource> versions) throws PersistenceException
     {
         final Map<String, Object> extraction = new HashMap<>();
-        extraction.put(PRIMARY_TYPE, "sub:Extraction");
+        extraction.put(JcrConstants.JCR_PRIMARYTYPE, "sub:Extraction");
         if (result.found()) {
             extraction.put("extractedAnswer", result.values().toArray(new String[0]));
         }
@@ -141,7 +140,7 @@ final class ExtractedAnswers
         final FieldResult.Passage passage, final Resource source) throws PersistenceException
     {
         final Map<String, Object> context = new HashMap<>();
-        context.put(PRIMARY_TYPE, "sub:Context");
+        context.put(JcrConstants.JCR_PRIMARYTYPE, "sub:Context");
         context.put("quote", passage.quote());
         // Every quote here was found in the text; the ones that were not were dropped before
         if (passage.header() != null && !passage.header().isEmpty()) {

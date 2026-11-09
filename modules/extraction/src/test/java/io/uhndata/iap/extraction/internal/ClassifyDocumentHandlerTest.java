@@ -107,7 +107,7 @@ class ClassifyDocumentHandlerTest
     private void stubModelPick(final String value, final double confidence, final boolean degraded) throws IOException
     {
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenReturn(degraded ? IntakeResult.createNotRead(IntakeResult.UNREADABLE_MESSAGE)
+            .thenReturn(degraded ? IntakeResult.createNotRead(IntakeResult.REPLY_UNREADABLE_MESSAGE)
                 : IntakeResult.createRead(Map.of(DECISION, new FieldResult(DECISION, List.of(value),
                     "It has objectives and methods.", confidence, List.of(), 0))));
     }

@@ -70,7 +70,7 @@ class ReadAgainHandlerTest
         final ModifiableValueMap properties = this.submission.adaptTo(ModifiableValueMap.class);
         properties.put(ExtractionStatus.STATUS_PROPERTY, ExtractionStatus.STATUS_FAILED);
         properties.put(ExtractionStatus.MESSAGE_PROPERTY, "The model's answer could not be read");
-        properties.put(ExtractionStatus.READING_CLAIMED, true);
+        properties.put(ExtractionStatus.READING_CLAIMED_PROPERTY, true);
         final Field field = ReadAgainHandler.class.getDeclaredField("jobManager");
         field.setAccessible(true);
         field.set(this.handler, this.jobManager);
@@ -97,12 +97,13 @@ class ReadAgainHandlerTest
 
         Mockito.verify(this.jobManager).addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
             Map.of(ExtractAnswersJobConsumer.SUBMISSION_PROPERTY, this.submission.getPath(),
-                ExtractAnswersJobConsumer.READ_AGAIN, Boolean.TRUE));
+                ExtractAnswersJobConsumer.READ_AGAIN_PROPERTY, Boolean.TRUE));
         final ValueMap recorded = this.submission.getValueMap();
         assertEquals(ExtractionStatus.STATUS_RUNNING, recorded.get(ExtractionStatus.STATUS_PROPERTY, String.class));
         assertNull(recorded.get(ExtractionStatus.MESSAGE_PROPERTY, String.class),
             "the old failure is no longer the news");
-        assertFalse(recorded.containsKey(ExtractionStatus.READING_CLAIMED), "or the job would turn itself away");
+        assertFalse(recorded.containsKey(ExtractionStatus.READING_CLAIMED_PROPERTY),
+            "or the job would turn itself away");
     }
 
     @Test
@@ -120,12 +121,12 @@ class ReadAgainHandlerTest
     void refusesWhenTheSchemaReadsNothing()
     {
         this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH).adaptTo(ModifiableValueMap.class)
-            .remove(SubmissionFiles.READING_WORKFLOW);
+            .remove(SubmissionFiles.READING_WORKFLOW_PROPERTY);
 
         final InvalidStateException refused =
             assertThrows(InvalidStateException.class, () -> this.handler.execute(createTask()));
 
-        assertEquals(ExtractAnswersJobConsumer.NOTHING_READS, refused.getMessage());
+        assertEquals(ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE, refused.getMessage());
         Mockito.verifyNoInteractions(this.jobManager);
     }
 
