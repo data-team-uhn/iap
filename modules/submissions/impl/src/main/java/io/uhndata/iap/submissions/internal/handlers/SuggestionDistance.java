@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
+import java.util.List;
 import java.util.Objects;
 
 import org.apache.commons.text.similarity.LevenshteinDistance;
@@ -48,21 +49,40 @@ final class SuggestionDistance
     }
 
     /**
-     * Measures an answer against the newest run's suggestion. Does nothing when there is no run, the run found
-     * nothing, or the run was already measured.
+     * The suggestion the form offers next to an answer, read before a save changes the answer. See
+     * {@link Answer#getOfferedSuggestion()}.
+     *
+     * @param answer the answer about to be saved
+     * @return the offered values, empty when nothing was offered
+     */
+    static List<String> getOffered(final Resource answer)
+    {
+        return Objects.requireNonNull(answer.adaptTo(Answer.class), "An answer the submission reported is an answer")
+            .getOfferedSuggestion();
+    }
+
+    /**
+     * Measures an answer against the suggestion the submitter was offered, on the newest run. Does nothing when
+     * nothing was offered, or the run was already measured. A run kept out of sight, because it repeats the answer
+     * or the run before it, is never measured.
      *
      * @param answer the answer just saved
      * @param values what it now holds; clearing a field is not answering it, so an empty answer measures nothing
+     * @param offered what the form offered before the save, from {@link #getOffered}
      */
-    static void record(final Resource answer, final String[] values)
+    static void record(final Resource answer, final String[] values, final List<String> offered)
     {
-        final Answer model = values.length == 0 ? null : answer.adaptTo(Answer.class);
-        final Extraction shown = model == null ? null : model.getLatestExtraction();
-        if (shown == null || shown.isActedOn() || shown.getExtractedAnswer() == null) {
+        if (values.length == 0 || offered.isEmpty()) {
+            return;
+        }
+        // Something was offered, so the answer has a newest run, the one that offered it
+        final Extraction shown = Objects.requireNonNull(Objects.requireNonNull(answer.adaptTo(Answer.class),
+            "An answer the submission reported is an answer").getLatestExtraction(), "An offer comes from a run");
+        if (shown.isActedOn()) {
             return;
         }
         // Compare values, not the raw reply: the suggestion is split and matched to options the way answers are saved
-        final String suggested = String.join(", ", model.getSuggestedValues());
+        final String suggested = String.join(", ", offered);
         final int distance = LevenshteinDistance.getDefaultInstance().apply(suggested, String.join(", ", values));
         final Resource run = Objects.requireNonNull(answer.getResourceResolver().getResource(shown.getPath()),
             "A run the answer just reported is still where it said");

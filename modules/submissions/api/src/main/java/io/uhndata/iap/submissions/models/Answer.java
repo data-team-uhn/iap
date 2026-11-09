@@ -19,7 +19,10 @@ package io.uhndata.iap.submissions.models;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -88,8 +91,9 @@ public class Answer extends EntityPart implements Referenceable
     }
 
     /**
-     * Returns the newest extraction run. The submitter is shown this run, and the review step and the suggestion
-     * distance use it too, so they all mean the same run. Older runs are kept but not shown.
+     * Returns the newest extraction run. Its suggestion is the one the form can offer (see
+     * {@link #getOfferedSuggestion()}), and the review step and the suggestion distance use this run too, so they
+     * all mean the same run. Older runs are kept but not shown.
      *
      * @return the newest run; {@code null} if extraction has never run
      */
@@ -137,9 +141,54 @@ public class Answer extends EntityPart implements Referenceable
     @NotNull
     public List<String> getValueOrSuggestion()
     {
-        final List<String> given = this.value == null ? List.of()
-            : Arrays.stream(this.value).filter(each -> !each.isBlank()).toList();
+        final List<String> given = getGivenValues();
         return given.isEmpty() ? getSuggestedValues() : given;
+    }
+
+    /**
+     * Returns the suggestion the form shows next to this answer, for the submitter to take or leave.
+     *
+     * <ul>
+     * <li>No value from the submitter yet: the newest run's suggestion.</li>
+     * <li>A value: the newest run's suggestion only when it differs from both that value and the run before it.
+     * The answer stays as it is; the new suggestion is shown beside it so the submitter can choose. A suggestion
+     * equal to the answer has nothing to offer, and one equal to the run before was already seen and passed
+     * over.</li>
+     * </ul>
+     *
+     * <p>Values are compared as a set, ignoring case and spaces at either end.</p>
+     *
+     * @return the suggested values to show, empty when there is nothing to offer
+     */
+    @NotNull
+    public List<String> getOfferedSuggestion()
+    {
+        final List<String> suggested = getSuggestedValues();
+        final List<String> given = getGivenValues();
+        if (given.isEmpty() || suggested.isEmpty()) {
+            return suggested;
+        }
+        final List<Extraction> runs = getExtractions();
+        final String previous = runs.size() < 2 ? null : runs.get(runs.size() - 2).getExtractedAnswer();
+        final List<String> earlier = previous == null ? List.of() : readAnswer(previous, getQuestion());
+        return isSameAnswer(suggested, given) || isSameAnswer(suggested, earlier) ? List.of() : suggested;
+    }
+
+    /** The submitter's own non-blank values. A blank one is a field clicked past, not an answer. */
+    private List<String> getGivenValues()
+    {
+        return this.value == null ? List.of() : Arrays.stream(this.value).filter(each -> !each.isBlank()).toList();
+    }
+
+    /** Whether two lists of values say the same thing: the same set, ignoring case and outer spaces. */
+    private static boolean isSameAnswer(final List<String> one, final List<String> other)
+    {
+        return normalize(one).equals(normalize(other));
+    }
+
+    private static Set<String> normalize(final List<String> values)
+    {
+        return values.stream().map(each -> each.strip().toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
     }
 
     /**

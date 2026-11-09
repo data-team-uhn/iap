@@ -690,12 +690,13 @@ How the suggestion is read (`Answer.getSuggestedValues`, from the newest run,
 
 The answer's `value` is written only by a save (`saveAnswers`, submissions module): the
 submitter accepted the suggestion, edited it, or picked something else. A save that
-gives the answer a value is measured against the suggestion shown, the newest run, if
-that run found something and nobody has acted on it yet (`SuggestionDistance`, called by
-`SaveAnswersHandler`). `editDistance` is the Levenshtein distance between the two, each
-joined with ", ". `percentageDistance` is that distance as a percentage of the
-suggestion's own length. Clearing a field measures nothing, and a run keeps the first
-measure it got. So what the submitter did needs no flag of its own:
+gives the answer a value is measured against the suggestion the form offered just before
+the save (`Answer.getOfferedSuggestion`, see "A newer version"), on the newest run, if
+nobody has acted on that run yet (`SuggestionDistance`, called by `SaveAnswersHandler`).
+A run kept out of sight is never measured. `editDistance` is the Levenshtein distance
+between the two, each joined with ", ". `percentageDistance` is that distance as a
+percentage of the suggestion's own length. Clearing a field measures nothing, and a run
+keeps the first measure it got. So what the submitter did needs no flag of its own:
 
 | On the run | Meaning |
 | --- | --- |
@@ -716,12 +717,23 @@ that nobody has read. Every question asked gets a run that cites the new version
 or not. So the version is read in full only once; after that, Read again on it asks only
 what the submitter has not answered.
 
-Nothing the newer version says changes an answer. Its run is a new suggestion next to
-the answer, and because it is the newest run, it is the one shown
-(`Answer.getLatestExtraction`). Older runs are kept but never shown, even when they were
-surer or the new run found nothing. Whether to show a suggestion that differs from the
-answer is for the form to decide. The gate (step 7) does not do this: a classification
-that already has a value or a pick is never asked again.
+Nothing the newer version says changes an answer. What the form shows beside it is
+`Answer.getOfferedSuggestion`, worked out from the runs and the answer, so nothing extra
+is stored. With N the newer version's value, C the submitter's answer, and P the run
+before N:
+
+| Case | The answer | Shown beside it |
+| --- | --- | --- |
+| No answer yet | empty | N, the newest run's suggestion |
+| N differs from both C and P (or there is no P) | C stays | N, so the submitter can choose |
+| N is the same as C | C stays | nothing: there is nothing to choose |
+| N is the same as P | C stays | nothing: the submitter saw it before and kept C |
+| N found nothing | C stays | nothing |
+
+Values are compared as a set, ignoring case and spaces at either end. The run is written
+in every case, so the version counts as read. Older runs are kept but never shown. The
+gate (step 7) does not do this: a classification that already has a value or a pick is
+never asked again.
 
 ## What the submitter can do
 

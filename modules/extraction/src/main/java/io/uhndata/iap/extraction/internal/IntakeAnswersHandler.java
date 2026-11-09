@@ -49,7 +49,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * <p>A step asks only the questions of the requirements it names. Reading the same document version again asks
  * every one of them the submitter has not answered, suggested or not; the newest run is the one shown. The first
  * reading of a newer document version asks every question again, answered or not. Its runs are new suggestions;
- * they do not change any answer.</p>
+ * they never change an answer. One is shown beside an answer only when it differs from both the answer and the
+ * run before ({@code Answer.getOfferedSuggestion}).</p>
  *
  * <p>Questions are keyed by their path within the schema version, with dots for slashes, so two sections can both
  * have a {@code title}.</p>

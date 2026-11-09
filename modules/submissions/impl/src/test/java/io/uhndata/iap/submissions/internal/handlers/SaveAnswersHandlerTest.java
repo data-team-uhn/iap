@@ -298,6 +298,18 @@ class SaveAnswersHandlerTest
         assertEquals(0L, run.getValueMap().get(EDIT_DISTANCE, Long.class));
     }
 
+    // An edited suggestion stays on offer beside the answer, but only the first save responded to it
+    @Test
+    void keepsTheFirstMeasureOfASuggestionThatWasEdited() throws Exception
+    {
+        final Resource run = suggest(SUGGESTED_DATE);
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-13")));
+
+        this.handler.execute(context(Map.of(START_DATE, "2027-01-01")));
+
+        assertEquals(2L, run.getValueMap().get(EDIT_DISTANCE, Long.class));
+    }
+
     @Test
     void measuresNothingWhenAFieldIsCleared() throws Exception
     {
@@ -313,6 +325,28 @@ class SaveAnswersHandlerTest
     void measuresNothingAgainstARunThatFoundNothing() throws Exception
     {
         final Resource run = suggest(null);
+
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-13")));
+
+        assertNull(run.getValueMap().get(EDIT_DISTANCE, Long.class));
+    }
+
+    // A newer document suggests something new beside the answer; taking it is measured like any suggestion
+    @Test
+    void measuresANewSuggestionOfferedBesideAnAnswer() throws Exception
+    {
+        final Resource run = suggestBeside("2026-10-01", SUGGESTED_DATE);
+
+        this.handler.execute(context(Map.of(START_DATE, SUGGESTED_DATE)));
+
+        assertEquals(0L, run.getValueMap().get(EDIT_DISTANCE, Long.class));
+    }
+
+    // A run that repeats the answer is never shown, so the next save did not respond to it
+    @Test
+    void neverMeasuresARunKeptOutOfSight() throws Exception
+    {
+        final Resource run = suggestBeside(SUGGESTED_DATE, SUGGESTED_DATE);
 
         this.handler.execute(context(Map.of(START_DATE, "2026-10-13")));
 
@@ -464,6 +498,24 @@ class SaveAnswersHandlerTest
             ? Map.of(TYPE, Extraction.RESOURCE_TYPE, "confidence", 0.2)
             : Map.of(TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested, "confidence", 0.9);
         this.context.create().resource(answer.getPath() + "/run", run);
+        return present(this.context.resourceResolver().getResource(answer.getPath() + "/run"));
+    }
+
+    /**
+     * Creates an answer to the start date holding a value, with a reading's run under it, as after a newer
+     * document was read.
+     *
+     * @param value what the submitter saved
+     * @param suggested what the run read
+     * @return the run
+     */
+    private Resource suggestBeside(final String value, final String suggested) throws Exception
+    {
+        this.handler.execute(context(Map.of(START_DATE, value)));
+        stampAnswers();
+        final Resource answer = onlyAnswer();
+        this.context.create().resource(answer.getPath() + "/run",
+            Map.of(TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested, "confidence", 0.9));
         return present(this.context.resourceResolver().getResource(answer.getPath() + "/run"));
     }
 

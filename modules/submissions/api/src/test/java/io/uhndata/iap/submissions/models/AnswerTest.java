@@ -313,6 +313,101 @@ class AnswerTest
             "a label two options share cannot be resolved from the reply alone");
     }
 
+    // With no answer yet, the newest run is the suggestion, whatever the runs before it said
+    @Test
+    void offersTheNewestSuggestionWhenThereIsNoAnswer() throws RepositoryException
+    {
+        final Answer answer = createAnswer("duration", 1, "24 months");
+        addRun(answer, "24 months");
+
+        assertEquals(List.of("24 months"), readAnswer(answer).getOfferedSuggestion());
+    }
+
+    // A newer document says something new: the answer stays, and the new suggestion is shown beside it
+    @Test
+    void offersANewSuggestionThatDiffersFromTheAnswerAndTheRunBefore() throws RepositoryException
+    {
+        final Answer answer = createAnswer("duration", 1, "24 months");
+        setValue(answer, "36 months");
+        addRun(answer, "30 months");
+
+        final Answer read = readAnswer(answer);
+        assertEquals(List.of("30 months"), read.getOfferedSuggestion());
+        assertEquals(List.of("36 months"), read.getValueOrSuggestion(), "the answer itself is kept");
+    }
+
+    // A suggestion the answer already holds offers nothing to choose
+    @Test
+    void offersNothingWhenTheNewSuggestionIsTheAnswer() throws RepositoryException
+    {
+        final Answer answer = createAnswer("duration", 1, "24 months");
+        setValue(answer, " 36 Months ");
+        addRun(answer, "36 months");
+
+        assertEquals(List.of(), readAnswer(answer).getOfferedSuggestion());
+    }
+
+    // The submitter saw that suggestion before and kept their own answer, so it is not offered again
+    @Test
+    void offersNothingWhenTheNewSuggestionRepeatsTheRunBefore() throws RepositoryException
+    {
+        final Answer answer = createAnswer("duration", 1, "24 months");
+        setValue(answer, "36 months");
+        addRun(answer, "24 months");
+
+        assertEquals(List.of(), readAnswer(answer).getOfferedSuggestion());
+    }
+
+    // Several values say the same thing in any order
+    @Test
+    void comparesSeveralValuesAsASet() throws RepositoryException
+    {
+        final Answer answer = createAnswer("sites", 0, "Sunnybrook, St Michael's");
+        setValue(answer, "St Michael's", "Sunnybrook");
+
+        assertEquals(List.of(), readAnswer(answer).getOfferedSuggestion(), "the only run, equal to the answer");
+        addRun(answer, "St Michael's, Mount Sinai");
+        assertEquals(List.of("St Michael's", "Mount Sinai"), readAnswer(answer).getOfferedSuggestion());
+    }
+
+    // A first run with a value already saved has no run before it, so only the answer is compared
+    @Test
+    void offersTheOnlyRunWhenItDiffersFromTheAnswer() throws RepositoryException
+    {
+        final Answer answer = createAnswer("duration", 1, "24 months");
+        setValue(answer, "36 months");
+
+        assertEquals(List.of("24 months"), readAnswer(answer).getOfferedSuggestion());
+    }
+
+    // A run before that found nothing has nothing to repeat; one that finds nothing has nothing to offer
+    @Test
+    void comparesWithARunBeforeThatFoundNothingAndOffersNothingFoundAsNothing() throws RepositoryException
+    {
+        final Answer answer = createAnswer("duration", 1, null);
+        setValue(answer, "36 months");
+        addRun(answer, "30 months");
+        assertEquals(List.of("30 months"), readAnswer(answer).getOfferedSuggestion());
+
+        addRun(answer, null);
+        assertEquals(List.of(), readAnswer(answer).getOfferedSuggestion());
+    }
+
+    private void setValue(final Answer answer, final String... values)
+    {
+        this.context.resourceResolver().getResource(answer.getPath()).adaptTo(ModifiableValueMap.class)
+            .put("value", values);
+    }
+
+    /** Adds a newer run under an answer, with the given suggestion or, for {@code null}, none. */
+    private void addRun(final Answer answer, final String suggested)
+    {
+        final int runs = readAnswer(answer).getExtractions().size();
+        this.context.create().resource(answer.getPath() + "/extraction" + runs, suggested == null
+            ? Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "confidence", 0.9)
+            : Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested, "confidence", 0.9));
+    }
+
     private void option(final String question, final String value, final String label)
     {
         this.context.create().resource("/Schemas/schema/1.0/" + question + "/" + value, Map.of(
