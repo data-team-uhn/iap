@@ -26,7 +26,7 @@
                   targetNamespace="https://iap.uhndata.io/system/readAgain">
   <bpmn:message id="readAgainMessage" name="readAgain" />
   <bpmn:process id="readAgain" name="Read a submission's documents again" isExecutable="true">
-    <bpmn:startEvent id="requested" iap:performers="everyone" name="Asked to read again">
+    <bpmn:startEvent id="requested" iap:performers="@creator" name="Asked to read again">
       <bpmn:messageEventDefinition id="readRequested" messageRef="readAgainMessage" />
       <bpmn:outgoing>toQueue</bpmn:outgoing>
     </bpmn:startEvent>

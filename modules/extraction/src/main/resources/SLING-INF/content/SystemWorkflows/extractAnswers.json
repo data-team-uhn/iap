@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Starts the reading workflow that the submission's schema version names in `readingWorkflow`. It reads nothing itself: a system workflow cannot branch or wait for a person, and a reading needs both. If the schema version names no reading workflow, it does nothing. An older reading still open on the submission is ended first. Only the reading job fires it; a submitter asks for another reading through readAgain, which queues that job.",
+    "description": "Starts the reading workflow that the submission's schema version names.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

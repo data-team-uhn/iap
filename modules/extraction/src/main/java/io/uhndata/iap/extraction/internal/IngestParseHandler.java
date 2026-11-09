@@ -30,6 +30,7 @@ import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -60,11 +61,12 @@ public class IngestParseHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final WorkflowEvent event = context.getEvent();
-        final Resource file = getFile(context, readString(event, ParseCompletionHandler.FILE_KEY));
+        final Resource file = getFile(context, Payloads.requireText(event, ParseCompletionHandler.FILE_KEY,
+            "The event does not say which file was parsed"));
         if (Boolean.TRUE.equals(event.get(ParseCompletionHandler.SUCCEEDED_KEY))) {
             ingest(file, event);
         } else {
-            final String reported = readString(event, ParseCompletionHandler.ERROR_KEY);
+            final String reported = Payloads.text(event, ParseCompletionHandler.ERROR_KEY);
             ParseResultIngester.writeParseProperties(file, Map.of(
                 ParsePropertyNames.PARSE_STATUS, ParsePropertyNames.STATUS_FAILED,
                 ParsePropertyNames.PARSE_ERROR, reported == null ? "The parse failed without details" : reported));
@@ -73,10 +75,8 @@ public class IngestParseHandler implements ServiceTaskHandler
 
     private void ingest(final Resource file, final WorkflowEvent event) throws WorkflowException, PersistenceException
     {
-        final String markdown = readString(event, ParseCompletionHandler.MARKDOWN_KEY);
-        if (markdown == null) {
-            throw new InvalidPayloadException("A successful parse names the Markdown it produced");
-        }
+        final String markdown = Payloads.requireText(event, ParseCompletionHandler.MARKDOWN_KEY,
+            "A successful parse names the Markdown it produced");
         try {
             this.ingester.ingest(file, Path.of(markdown), readPath(event, ParseCompletionHandler.PDF_KEY),
                 readTokens(event));
@@ -99,9 +99,6 @@ public class IngestParseHandler implements ServiceTaskHandler
 
     private static Resource getFile(final WorkflowTaskContext context, final String path) throws InvalidPayloadException
     {
-        if (path == null) {
-            throw new InvalidPayloadException("The event does not say which file was parsed");
-        }
         final Resource file = context.getResourceResolver().getResource(path);
         if (file == null || !file.isResourceType(File.RESOURCE_TYPE)) {
             throw new InvalidPayloadException("There is no uploaded file at " + path);
@@ -109,15 +106,9 @@ public class IngestParseHandler implements ServiceTaskHandler
         return file;
     }
 
-    private static String readString(final WorkflowEvent event, final String key)
-    {
-        final Object value = event.get(key);
-        return value instanceof String ? (String) value : null;
-    }
-
     private static Path readPath(final WorkflowEvent event, final String key)
     {
-        final String value = readString(event, key);
+        final String value = Payloads.text(event, key);
         return value == null ? null : Path.of(value);
     }
 }

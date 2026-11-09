@@ -33,6 +33,7 @@ import io.uhndata.iap.submissions.models.Extraction;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -71,11 +72,8 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
     @Override
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
-        final Map<String, Object> payload = context.getEvent().getPayload();
-        final String path = Objects.toString(payload.get(QUESTION_PARAMETER), "");
-        if (path.isBlank()) {
-            throw new InvalidPayloadException("A review has to name the question it is about");
-        }
+        final String path = Payloads.requireText(context.getEvent(), QUESTION_PARAMETER,
+            "A review has to name the question it is about");
         final Resource target = context.getTarget();
         final Submission submission = SubmissionFiles.getSubmission(target);
         // Only the submitter may review, and only while the request is a draft
@@ -90,7 +88,7 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
         if (properties == null) {
             throw new PersistenceException("Not allowed to record a review on " + extraction.getPath());
         }
-        apply(payload, properties);
+        apply(context.getEvent().getPayload(), properties);
         LOGGER.debug("Recorded a review of {} on {}", path, target.getPath());
     }
 

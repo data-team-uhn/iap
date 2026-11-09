@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Runs when the document daemon has finished with one of a submission's uploads. It reads the results onto the file (the Markdown, the PDF and the size in tokens), or records the failure there. Then it queues a job to read the answers; that job decides itself whether the reading can start. Only this module's service user can fire it: the event carries paths on the shared volume, and no person should be able to have files read from there into the repository.",
+    "description": "Records a finished parse on its file, and queues the reading of the submission's answers.",
     "parsed": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "parsed",

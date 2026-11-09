@@ -26,7 +26,7 @@
   <bpmn:message id="reviewExtractionMessage" name="reviewExtraction" />
   <bpmn:process id="reviewExtraction" name="Record what the submitter said about the quotes behind a suggested answer"
                 isExecutable="true">
-    <bpmn:startEvent id="reviewed" iap:performers="everyone" name="Answer reviewed">
+    <bpmn:startEvent id="reviewed" iap:performers="@creator" name="Answer reviewed">
       <bpmn:messageEventDefinition id="reviewRequested" messageRef="reviewExtractionMessage" />
       <bpmn:outgoing>toRecord</bpmn:outgoing>
     </bpmn:startEvent>

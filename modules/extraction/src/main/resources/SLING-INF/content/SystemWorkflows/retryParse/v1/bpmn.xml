@@ -26,7 +26,7 @@
                   targetNamespace="https://iap.uhndata.io/system/retryParse">
   <bpmn:message id="retryParseMessage" name="retryParse" />
   <bpmn:process id="retryParse" name="Send a submission's failed parses again" isExecutable="true">
-    <bpmn:startEvent id="requested" iap:performers="everyone" name="Asked to try again">
+    <bpmn:startEvent id="requested" iap:performers="@creator" name="Asked to try again">
       <bpmn:messageEventDefinition id="retryRequested" messageRef="retryParseMessage" />
       <bpmn:outgoing>toParse</bpmn:outgoing>
     </bpmn:startEvent>

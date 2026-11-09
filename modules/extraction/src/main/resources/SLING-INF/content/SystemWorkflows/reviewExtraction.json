@@ -6,13 +6,13 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Records whether the submitter says the quoted passage does not support an answer read out of their document (`evidenceRejected`). This is feedback on the extraction, not a verdict on the answer, so it changes nothing else and blocks nothing. Accepting or changing a suggested answer is not a review: it is a normal save of the answer, which also measures how far the answer moved from the suggestion. The payload names the question by its path relative to the schema version, like the save endpoint. The form fires it with POST <submission>.reviewExtraction.json.",
+    "description": "Records whether the submitter says the quotes behind a suggested answer do not support it.",
     "reviewed": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "reviewed",
       "label": "Answer reviewed",
       "messageName": "reviewExtraction",
-      "performers": ["everyone"],
+      "performers": ["@creator"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
       "toRecord": {
         "jcr:primaryType": "wf:SequenceFlow",

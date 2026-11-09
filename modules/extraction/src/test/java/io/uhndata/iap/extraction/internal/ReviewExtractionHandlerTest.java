@@ -202,6 +202,9 @@ class ReviewExtractionHandlerTest
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(createTask(Map.of())));
         assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, "  "))));
+        // A question named twice names none: read as text, it would be "[Ljava.lang.String;@..."
+        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(createTask(Map.of(
+            ReviewExtractionHandler.QUESTION_PARAMETER, new String[] { "study/aims", "study/aims" }))));
     }
 
     @Test

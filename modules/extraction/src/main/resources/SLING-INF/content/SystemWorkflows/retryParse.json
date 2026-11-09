@@ -6,13 +6,13 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Sends again the uploads whose parse failed, and any never sent; ones already queued or parsed are left alone. A failure is usually the daemon being down, not the document, so trying again is often all the submitter needs. The submitter fires it with POST <submission>.retryParse.json, offered in the view next to the error message. It does not check whether a retry can work: a broken document or a daemon still down just fails again, and the submitter sees that.",
+    "description": "Sends the submission's uploads that were never parsed, or whose parse failed, to be parsed.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
       "label": "Asked to try again",
       "messageName": "retryParse",
-      "performers": ["everyone"],
+      "performers": ["@creator"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
       "toParse": {
         "jcr:primaryType": "wf:SequenceFlow",

@@ -26,7 +26,7 @@
                   targetNamespace="https://iap.uhndata.io/system/stopProcessing">
   <bpmn:message id="stopProcessingMessage" name="stopProcessing" />
   <bpmn:process id="stopProcessing" name="Stop reading a submission's documents" isExecutable="true">
-    <bpmn:startEvent id="requested" iap:performers="everyone" name="Asked to stop">
+    <bpmn:startEvent id="requested" iap:performers="@creator" name="Asked to stop">
       <bpmn:messageEventDefinition id="stopRequested" messageRef="stopProcessingMessage" />
       <bpmn:outgoing>toStop</bpmn:outgoing>
     </bpmn:startEvent>

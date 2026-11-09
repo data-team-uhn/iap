@@ -6,13 +6,13 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Queues another reading of an already parsed submission, after the last reading ended. It is refused while a reading is still running. The submitter fires it with POST <submission>.readAgain.json. The reading then runs as a background job, the same as after a parse.",
+    "description": "Queues another reading of a submission's parsed documents.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
       "label": "Asked to read again",
       "messageName": "readAgain",
-      "performers": ["everyone"],
+      "performers": ["@creator"],
       "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
       "toQueue": {
         "jcr:primaryType": "wf:SequenceFlow",

@@ -769,9 +769,9 @@ never asked again.
 
 Each of these is a system workflow on `sub/Submission`, fired with `POST
 <submission>.<event>.json` (see "Events over HTTP" in [workflows.md](workflows.md)).
-Their start events let `everyone` in, and then the handler checks `SubmitterAccess`:
-only the person who created the submission, and only while it is a draft. An
-administrator who is not the submitter is refused too.
+Their start events let only `@creator` in, so nobody else is offered them, and the
+handler checks `SubmitterAccess` too: only the person who created the submission, and
+only while it is a draft. An administrator who is not the submitter is refused.
 
 | Event | Handler | What it does |
 | --- | --- | --- |
