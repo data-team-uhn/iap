@@ -57,7 +57,7 @@ says which class does the work, who calls it, and what it checks.
  the reading workflow (content, named by the schema version; none ships on this branch)
    classifyDocument -- the gate: what kind of document is this?
    gateways ---------- act on the pick (see step 7)
-   intakeAnswers ----- ask the remaining questions in one model call
+   intakeAnswers ----- ask the remaining questions, ten per call at most
    finishReading ----- extractionStatus=done
 ```
 
@@ -332,11 +332,11 @@ What the step does:
    - Parse `failed`: `extractionStatus=failed`, "The document could not be read. Please
      try again", and the step stops. The parse's own reason stays in `parseError`.
    - Parse not `completed` yet: skipped.
-   - Otherwise: one model call for all of that document's classifications.
+   - Otherwise: all of that document's classifications are asked together, as one group.
 3. The call goes through `AnswerIntakeService`, the same code as the intake (step 8).
-   Each template is put in front of the system prompt, under `# Reference for
-   "<label>"`. Each field's rules are the requirement's `prompt`, followed by the list
-   of allowed values.
+   Each template goes in the `<reference>` block, after the document, under
+   `# Reference for "<label>"`. Each question's instructions are the requirement's
+   `prompt`; its categories are listed as the values to answer with.
 4. Only sure picks are saved. A pick is sure when the model found it, its confidence is
    at or above the requirement's `confidenceThreshold`, and every value it names is one
    of the question's options. A sure pick is written like any extracted answer (see
@@ -363,9 +363,9 @@ Activity properties a reading workflow can set on this step:
 
 | Property | Meaning | When absent |
 | --- | --- | --- |
-| `requirement` | One requirement name, or several (a list, or comma-separated). All are asked in one call, in that order. | Every question the schema asks |
+| `requirement` | One requirement name, or several (a list, or comma-separated). Each requirement is asked as its own group, in that order, at most ten questions per call. | Every question the schema asks, as one group |
 | `documents` | The document requirement names to read, in order. Each document's text goes under its own heading (`# Preamble` for `preamble`), and together they are one document to the model. | The first upload with a completed parse |
-| `promptFrom` | Extra system-prompt files from the bundle's `/prompts` folder, put in front of the intake prompt. A name the bundle does not have fails the step. | No extra prompt |
+| `promptFrom` | Reference files from the bundle's `/prompts` folder, sent in the `<reference>` block after the document. A name the bundle does not have fails the step. | No reference |
 
 In a diagram these are the service task's `iap:requirement`, `iap:documents` and
 `iap:promptFrom` attributes. `documents` and `promptFrom` are lists, written
@@ -391,17 +391,20 @@ What the step does:
    saved by the form (a field somebody clicked through) is a gap, and so is a question
    that was asked before but never found. The first reading of a newer document version
    asks every question, answered or not (see "A newer version"). Questions are keyed by
-   their path inside the schema version, so two sections may both have a `title`.
+   their path inside the schema version with dots for slashes (`study.title`), so two
+   sections may both have a `title`.
 3. **Nothing to ask.** If every question already has an answer or a suggestion: `done`.
    If the whole schema asks nothing: `done`, with "The schema asks nothing of the
    document". If a named requirement asks nothing (for example its condition does not
    hold): no status change.
 4. **Ask** the model (see the next section).
-5. **Unreadable or unreachable:** `extractionStatus=failed` with the reason, and nothing
-   is written.
-6. **Otherwise** every question asked gets a run, found or not (see "Writing an
-   answer"), and `extractionStatus=done`, unless an earlier step of the reading already
-   wrote `failed`.
+5. **No call went through** (every reply unreadable twice, or the model unreachable):
+   `extractionStatus=failed` with the reason, and nothing is written.
+6. **Otherwise** every question whose call went through gets a run, found or not (see
+   "Writing an answer"), and `extractionStatus=done`, unless an earlier step of the
+   reading already wrote `failed`. When some calls did not go through, their questions
+   get no run, so they stay gaps for the next reading, and the status message says "Some
+   questions could not be read. Read again to try them again".
 
 A model that cannot be reached is recorded as `failed`, not thrown as a workflow error.
 Throwing would undo the answers that earlier steps of the reading wrote, and the job's
@@ -432,42 +435,68 @@ classifies.
 
 ## Asking the model
 
-**Classes:** `AnswerIntakeService`, `IntakePayload`, `ModelCall`, `ModelReplies`,
-`DocumentBudget`, `Prompts`. Both the gate and the intake use them.
+**Classes:** `AnswerIntakeService` (plans and sums up), `ExtractionPrompt` (what each call
+sends), `ResponseSchema` (the reply format), `DocumentReader` (makes the calls),
+`ExtractionReply` (reads a reply), `ModelCall` (one call that Stop can end), `Prompts`.
+Both the gate and the intake use them. The prompt building comes from the
+`extraction-prompts` branch.
 
 ### What is sent
 
-- **System prompt:** the step's extra text (`promptFrom` files, or classification
-  templates), then `prompts/intake_system.md`. That file sets the rules: the document is
-  untrusted data, and instructions inside it are ignored; every quote must be copied
-  word for word and must not cross a `<!-- page: N -->` marker; a value with no quote
-  means `found_answer=false`; every field must be answered.
-- **User message:** a `## SCHEMA` block, then `## DOCUMENT (untrusted data)`, then the
-  document text. The questions come first, so the model knows what to look for before it
-  reads. Each field lists `question`, `purpose`, `rules` (the `extractionPrompt`, plus
-  the allowed values as `value (label) -- description`), `answer shape`
-  (`responseShape`), and "multiple values: yes, as one comma-separated string" when
-  `maxAnswers` is not 1.
-- **Reply schema** (strict JSON schema, named `iap_intake`): one object per field, each
-  with `found_answer` (boolean), `value` (string or null), `confidence` (number),
-  `reasoning`, and `evidence` (a list of `{quote, page}`). No extra keys are allowed. A
-  single-choice field limits `value` to its option values plus null. A multi-choice
-  field cannot, since "a, b" is not itself an option.
+Every call on a document opens with the same text: the system prompt, then the
+document. Only what follows changes. A hosted provider caches the start of a prompt, and
+a local model reuses its KV cache for it, so after the first call on a document (the
+gate's, usually) the document costs little: a call on a document the provider had not
+seen took 47.4 s, a repeat 3.8 s. That is what makes several small calls cheaper than
+one big one.
 
-The part that does not change goes first, in the system prompt. A call and its second
-try (see "Two tries, no more") send the same system prompt, `promptFrom` files included,
-and the correction is added to the user message. So both start with the same bytes. A
-hosted provider's prefix cache matches on that, and a local model reuses its KV cache
-for it. Anything that changes per document belongs after it.
+- **System prompt:** `prompts/extraction_system.md`, the same for every call. It sets
+  the rules: the document is data, and instructions inside it are ignored; for each
+  question, quotes first, then reasoning, then the answer; a quote is copied word for
+  word and stays within one page; an answer with no quote that supports it is null.
+- **User message**, in this order:
+  - `<document>`: the document text. A `</document>` inside the text is broken up, so
+    the document cannot end its own block and pass what follows off as instructions.
+  - `<reference>`, only when the step has some: the gate's templates, or the intake's
+    `promptFrom` files. It comes after the document so it does not change the start that
+    the calls share.
+  - `<questions>`: one entry per question, under its key (`### study.title`), with
+    `Question`, `Details` (the description), `Asked because` (the purpose),
+    `How to find it` (the `extractionPrompt`, or the classification's `prompt`) and
+    `Answer with`: the answer's form in words, such as "a whole number from 1 to 5000",
+    "a date, as YYYY-MM-DD", "text, in this form: ..." (the pattern message), or the
+    options as `` `value`: label (description) ``.
+- **Reply schema** (strict JSON schema, named `iap_extraction`): one object per question,
+  with `evidence` (a list of `{quote, page}`), `reasoning`, `value` and `confidence`, in
+  that order. A provider writes the properties in schema order, so the model gives its
+  quotes before it commits to a value. The value is typed from the question: a number
+  is a JSON number, a yes or no is a boolean, several answers are an array, and a
+  question with options takes only their values (an `enum`, per item for several). Null
+  always means "not found"; there is no separate found flag. Bounds and patterns are in
+  the question block only, because strict structured output rejects `minimum`,
+  `maximum` and `pattern`.
+
+A question's `responseShape` is not sent: the form of the answer comes from the
+question's own data type, `maxAnswers`, bounds, pattern and options.
+
+### Calls of at most ten questions
+
+The questions are grouped: the gate asks one document's classifications as one group,
+and the intake asks each requirement it names as its own group. A group with more than
+ten questions (`MAX_FIELDS_PER_CALL`) is split into several calls, in order. A smaller
+call gives a shorter reply, which a model gets right more often, and a reply that cannot
+be read loses only its own questions.
 
 ### How much of the document fits
 
-`maxOutputTokens` = 500 + 400 per field, at most 16,384 (`MAX_OUTPUT_TOKENS`), because a
-provider refuses a request for more than its model can write. The document gets what is
-left of the model's context window (`CallBudget.calculateDocumentTokenBudget`):
+Each call's reply gets `maxOutputTokens` = 500 + 400 per question. The document is fitted
+once, against the largest call of the reading, so it is the same in every call and the
+shared start stays the same. It gets what is left of the model's context window
+(`CallBudget.calculateDocumentTokenBudget`):
 
 ```
-document budget = window - 15% safety margin - maxOutputTokens - (system prompt + question block)
+document budget = window - 15% safety margin - largest reply
+                  - (system prompt + reference + largest question block)
 ```
 
 This is the only place the size is decided; there is no separate maximum to keep in step
@@ -486,14 +515,15 @@ paragraph break before its limit, and the end starts at the first paragraph brea
 its own limit, so neither part starts or stops in the middle of a sentence. What the
 opening gives up goes to the end. A text with no paragraph breaks is cut exactly at the
 limits. The two parts are joined by `CallBudget.OMISSION_MARKER`, a line in brackets
-saying the middle was left out, and the intake prompt tells the model that the text on
+saying the middle was left out, and the system prompt tells the model that the text on
 the two sides does not follow on.
 
-`DocumentBudget` logs every cut as `Document cut to fit`, with the stage, the file, and
-how many characters were sent and left out. If there is not even room for the omission
-note, it returns empty text, and `AnswerIntakeService` does not ask the model: the step
-fails with "The questions leave no room to show the model the document". A blank
-document fails with "The document has no text that can be read".
+`AnswerIntakeService` logs every cut as `Document cut to fit`, with the file and how
+many characters were sent and left out. If there is not even room for the omission note,
+no call is planned and the model is not asked: the step fails with "The questions leave
+no room to show the model the document". A blank document fails with "The document has
+no text that can be read". Quotes are always checked against the whole document, so a
+quote from the part that was cut still counts.
 
 This is a real limit: an answer that is only in the middle of a very long protocol is
 not found, and the confidence does not show it. Sending the whole document instead would
@@ -501,14 +531,21 @@ get the call refused, and nothing would be answered at all.
 
 ### Two tries, no more
 
-`ModelCall.askWithCorrection` sends the call. If the reply holds no readable JSON object
-(`ModelReplies.readJsonObject` takes the text between the first `{` and the last `}`),
-it asks once more, with a `# Correction` section that says what was wrong: empty, no
-JSON, never closed (cut off), or not one object with a key for each field. A second bad
-reply means "degraded": nothing is saved, and the step fails with "The model's answer
-could not be read". Each try sends the whole document again, so a third try would pay
-for it a third time. Separately, the LLM client sends a failed request (for example one
-that timed out) once more.
+`DocumentReader` makes the calls one after another, each through `ModelCall`, so a Stop
+ends it. If a reply holds no readable JSON object (`ModelReplies.readJsonObject` takes
+the text between the first `{` and the last `}`), it asks once more. The note saying
+what was wrong (empty, cut off, or no JSON object) goes after the questions, under
+`# Correction`, so the second try opens with the same text and still uses the cache. A
+second bad reply, or a model that cannot be reached, loses that call's questions only;
+the other calls still go ahead. Separately, the LLM client sends a failed request (for
+example one that timed out) once more.
+
+| Calls that went through | Result |
+| --- | --- |
+| All | Every question asked gets a run |
+| Some | Those calls' questions get runs; the step says "Some questions could not be read. Read again to try them again" |
+| None, a model was unreachable | The step fails with "The model could not be reached" |
+| None, every reply unreadable | The step fails with "The model's answer could not be read" |
 
 ### One call at a time
 
@@ -543,11 +580,12 @@ in `OpenAIClient`), not one. If it waited exactly as long as one call may take, 
 give up just as the slot was about to come free, and for a reading that is a failure the
 submitter sees.
 
-Extraction makes one classify call per document, then one intake call per
-`intakeAnswers` step, so the limit matters more across submissions than within one. At
-about 39 s per call, ten proposals with one call each finish about six and a half
-minutes after the first one starts. A classify call plus an intake call for each roughly
-doubles that.
+Extraction makes one classify call per document, then one intake call per requirement
+for every ten questions, so the limit matters more across submissions than within one.
+The first call on a document pays for reading it, about 39 s; later calls on the same
+document reuse the provider's cache and take a few seconds each. Ten proposals finish
+about six and a half minutes after the first one starts, plus a few seconds per extra
+call.
 
 If this is measured again, give every call its own document. The same run with one
 identical body for every call reported 3.8 s per call, and made a limit of 8 look right.
@@ -559,7 +597,8 @@ not seen took 47.4 s, against 3.8 s for a repeat.
 | Rule | Where | What happens |
 | --- | --- | --- |
 | The intake never sends a question without an `extractionPrompt` | `ExtractionField.isExtractable` | Questions meant only for people are not sent. The gate asks with the classification's own `prompt`. |
-| A field with no `value` is "not found", whatever `found_answer` says | `AnswerIntakeService.readField` | The intake writes a run with no `extractedAnswer`; the gate writes nothing. |
+| A null or blank `value` is "not found" | `ExtractionReply` | The intake writes a run with no `extractedAnswer`; the gate writes nothing. |
+| A value names an option by its value, or by its label in any case | `ExtractionReply.matchOption` | A value matching two options that read the same, or none, is kept in the model's words, for a person to correct. |
 | A quote must really be in the document | `QuoteVerifier`, through `DocumentScan.locate` | A quote that is not found is dropped, never stored. |
 | Quotes shorter than 3 characters do not count | `MIN_QUOTE_LENGTH` = 3 | Too easy to match by chance |
 | A close match must be at least 85% right | `MATCH_FLOOR` = 0.85 | Edit distance against the best-matching stretch of text |
@@ -858,7 +897,7 @@ without adding anything. In order, for one submission:
 | `Parse staging removed` | documents (`ParseJobService`) | The staging folder, once the parse is in the repository |
 | `Reading run started` / `Reading run done` | `ExtractAnswersJobConsumer` | Marks the start and end of a reading that finishes; `done` carries the status and `ms`. A failed reading logs an `ERROR` instead, and a stopped one `Reading of ... was stopped`. |
 | `Reading step started` / `Reading step done` | `ClassifyDocumentHandler`, `IntakeAnswersHandler` | `step=classify` with the file and the number of classifications, or `step=intake` with the requirement and the number of questions; `done` adds how many were decided or found, and `ms` |
-| `Document cut to fit` | `DocumentBudget` | The stage, the file, and how many characters were sent and left out |
+| `Document cut to fit` | `AnswerIntakeService` | The file, and how many characters were sent and left out |
 | `LLM request served` | `OpenAIClient` (llm) | The model, with `gateWaitMs` and `callMs` kept apart |
 | `LLM call done` | `DefaultLLMClient` (llm) | The stage, the prompt size, `maxOutputTokens`, the milliseconds, the reply size |
 
@@ -871,7 +910,7 @@ A failed parse also logs `Parse job ... for ... failed: <reason>` at `WARN` from
 
 The two LLM lines are kept apart on purpose. The call gate allows one call at a time, so
 a slow reading is usually a reading that waited, and one total would not say which it
-was. The stage on `LLM call done` is the response schema's name, `iap_intake`, for both
+was. The stage on `LLM call done` is the response schema's name, `iap_extraction`, for both
 classify and intake calls. The step line next to it says which step, and which file or
 requirement, the call was for.
 
@@ -909,7 +948,8 @@ On `sub:File`:
 
 On the schema side: `readingWorkflow` on `sch:SchemaVersion` (a reference to the reading
 workflow version), and on `sch:Question` the `extractionPrompt`, `purpose`,
-`responseShape`, `maxAnswers`, and option children or `optionsFrom`. `optionsFrom` names
+`description`, `dataType`, `maxAnswers`, `minValue`/`maxValue`, `pattern`/`patternMessage`,
+and option children or `optionsFrom` (`responseShape` is not used). `optionsFrom` names
 a content path. For a catalogue such as `/Categories`, the live leaves are the options,
 with their descriptions (`OptionCatalog`).
 
@@ -929,15 +969,16 @@ with their descriptions (`OptionCatalog`).
 | `ReadAgainHandler` | handler `readAgain` | `readAgain` | `JobManager.addJob` |
 | `StopProcessingHandler` | handler `stopProcessing` | `stopProcessing` | `ReadingRuns.getFiles`, `.stop`, `JobManager.findJobs`, `.removeJobById`, `ParseControl.abandon`, `ParseService.discardStaging` |
 | `ReviewExtractionHandler` | handler `reviewExtraction` | `reviewExtraction` | `Answer.getLatestExtraction` |
-| `AnswerIntakeService` | component | classify, intake | `LLMClientFactory`, `Prompts`, `DocumentBudget`, `IntakePayload`, `ModelCall`, `ModelReplies`, `DocumentScan.locate`, `QuoteVerifier` |
+| `AnswerIntakeService` | component | classify, intake | `LLMClientFactory`, `ExtractionPrompt.plan`, `DocumentReader.read` (which calls `ModelCall`, `ExtractionReply`, `DocumentScan.locate`) |
 | `ParsedDocuments` | component | classify, intake | `DocumentText.readText`, `DocumentScan.of` |
 | `ReadingRuns` | component | job, classify, intake, stop, `ModelCall` | (thread registry) |
 
 Helpers with no state of their own (except `Prompts`, which keeps a static cache of the
 prompt files): `SubmissionFiles` (current uploads, reasons, settled check),
 `SubmitterAccess`, `ExtractionStatus`, `ParsePropertyNames`, `ExtractionField(s)`,
-`ExtractedAnswers`, `FieldResult`, `IntakePayload`, `ModelCall`, `ModelReplies`,
-`DocumentBudget`, `DocumentScan`, `DocumentText`, `QuoteVerifier`, `Prompts`.
+`ExtractedAnswers`, `FieldResult`, `ExtractionPrompt`, `ResponseSchema`,
+`DocumentReader`, `ExtractionReply`, `ModelCall`, `ModelReplies`, `DocumentScan`,
+`DocumentText`, `QuoteVerifier`, `Prompts`.
 
 `ParsedDocuments` keeps only the last document read, keyed by the Markdown's path and
 its `jcr:lastModified`. A new parse changes that time, so old text is never served. A
@@ -1008,6 +1049,16 @@ Keep in mind:
   That ties the guard to one schema version: a version copied from it holds a copy of
   the question, with its own UUID.
 
+## Measuring the extraction
+
+`ExtractionEvaluation` (test tree, from the `extraction-prompts` branch) asks a set of
+documents a schema's questions through the production code (`ExtractionPrompt`,
+`DocumentReader`, the LLM module's `OpenAIClient`) and scores the answers against known
+ones (`AnswerScoring`). It runs only when `extraction.dataset` names a dataset, so a
+normal build skips it; `-Dextraction.dryRun=true` plans every call and sends none, and
+needs no key. Its summary holds counts and rates only, never document text. How to build
+a public dataset from ClinicalTrials.gov and run it: `tools/dev/extraction-eval/README.md`.
+
 ## What is still missing
 
 | Gap | Effect |
@@ -1043,7 +1094,6 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | `ParsePropertyNames` | Property names and status values for a parse, as stored on a `sub:File` |
 | `ParsedDocuments` | Reads a parsed document once per reading instead of once per step, when it is read alone |
 | `DocumentScan` | A parsed document ready to have quotes checked against it: normalized once, with its headings |
-| `DocumentBudget` | How much of a document one model call sends, and the log line when it is not all of it |
 
 ### Shared by every call
 
@@ -1051,25 +1101,28 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | --- | --- |
 | `DocumentText` | Reads a parsed document's text, and tells whether a line is a heading. Finding the heading above a quote is `DocumentScan.getHeading`. |
 | `ModelReplies` | Reads a JSON object and its fields out of a model reply, without failing on a messy reply |
-| `ModelCall` | Asks once, and once more with a correction when the reply could not be read |
+| `ModelCall` | Sends one message to the model in a way a Stop can end |
 | `Prompts` | Loads prompts from the bundle, cached |
+| `prompts/extraction_system.md` | The system prompt every call opens with: the input blocks, the evidence rules, the answer rules |
 
 ### Choosing what to ask
 
 | File | What it does |
 | --- | --- |
-| `ExtractionField` | One answer to read out of a document, built from a `sch:Question` |
+| `ExtractionField` | One question as the model is asked it, with the form of its answer, built from a `sch:Question` |
 | `ExtractionFields` | Which questions a step asks, how they are keyed, and saving one run per result |
 
-### The intake
+### Asking and reading
 
 | File | What it does |
 | --- | --- |
-| `AnswerIntakeService` | Asks the model every field in one call, and checks the quotes against the whole document |
-| `IntakePayload` | What the model is shown (`SCHEMA`, then `DOCUMENT`) and the JSON schema its reply must match |
-| `FieldResult` | One field's answer after its quotes were checked: found or not, confidence, value, reasoning, quotes |
-| `QuoteVerifier` | Whether a quote is really in the text the model was shown |
-| `prompts/intake_system.md` | System prompt for the intake: the input blocks, the evidence rules, the output rules |
+| `AnswerIntakeService` | Plans the calls, makes them, and sums up how they went |
+| `ExtractionPrompt` | What each call sends: the document, the reference text, the questions; at most ten per call |
+| `ResponseSchema` | The strict JSON schema a reply must follow, typed from each question |
+| `DocumentReader` | Makes the calls one by one; a call that fails loses only its own questions |
+| `ExtractionReply` | Reads one reply: typed values to text, options matched, quotes checked, confidence lowered for quotes not found |
+| `FieldResult` | One question's answer after its quotes were checked: values, reasoning, confidence, quotes |
+| `QuoteVerifier` | Whether a quote is really in the document |
 | `prompts/tcps2_reference.md` | A reference text a step can add with `promptFrom`. No shipped step names it yet. |
 
 ### Running it
