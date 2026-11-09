@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import io.uhndata.iap.llm.LLMClient;
@@ -38,6 +40,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ModelCallTest
 {
+    private static final String SUBMISSION = "/Submissions/aa/bb/cc/proposal-1";
+
+    private final ReadingRuns runs = new ReadingRuns();
+
+    @BeforeEach
+    void beginReading()
+    {
+        this.runs.begin(SUBMISSION);
+    }
+
+    @AfterEach
+    void endReading()
+    {
+        this.runs.end(SUBMISSION);
+        Thread.interrupted();
+    }
+
     @Test
     void sendsTheMessageAndReturnsTheReply() throws IOException
     {
@@ -59,29 +78,23 @@ class ModelCallTest
             asked.add("asked");
             return "{}";
         };
-        Thread.currentThread().interrupt();
-        try {
-            assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
-        } finally {
-            Thread.interrupted();
-        }
+        this.runs.stop(SUBMISSION);
+
+        assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
         assertTrue(asked.isEmpty(), "the model was never asked");
         assertTrue(ReadingRuns.isStopped(new ReadingRuns.Stopped()));
-        assertFalse(ReadingRuns.isStopped(new IOException("closed")));
     }
 
     @Test
     void turnsACallEndedByAStopIntoAStop()
     {
         final LLMClient client = (system, messages, options) -> {
-            Thread.currentThread().interrupt();
+            this.runs.stop(SUBMISSION);
             throw new IOException("closed");
         };
-        try {
-            assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
-        } finally {
-            Thread.interrupted();
-        }
+
+        assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
+        assertFalse(Thread.currentThread().isInterrupted(), "taken down before the thread goes back to work");
     }
 
     // Some clients still return a reply after the thread was interrupted, so the reply must be refused
@@ -89,14 +102,11 @@ class ModelCallTest
     void refusesAReplyThatArrivesAfterAStop()
     {
         final LLMClient client = (system, messages, options) -> {
-            Thread.currentThread().interrupt();
+            this.runs.stop(SUBMISSION);
             return "too late";
         };
-        try {
-            assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
-        } finally {
-            Thread.interrupted();
-        }
+
+        assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
     }
 
     @Test
@@ -108,5 +118,28 @@ class ModelCallTest
 
         assertEquals("down", assertThrows(IOException.class, () -> ModelCall.ask(client, "system", "user", null))
             .getMessage());
+        assertFalse(ReadingRuns.isStopped(new IOException("down")));
+    }
+
+    // Left marked as calling, the thread would be interrupted by a later stop, in whatever job it runs next
+    @Test
+    void leavesTheCallWhateverTheClientThrows()
+    {
+        final LLMClient client = (system, messages, options) -> {
+            throw new IllegalStateException("broken client");
+        };
+
+        assertThrows(IllegalStateException.class, () -> ModelCall.ask(client, "system", "user", null));
+        this.runs.stop(SUBMISSION);
+        assertFalse(Thread.currentThread().isInterrupted(), "a stop outside a call does not interrupt");
+    }
+
+    // An interrupt from elsewhere, such as the instance shutting down, is not the submitter's stop
+    @Test
+    void asksEvenWhenTheThreadWasInterruptedByAnythingButAStop() throws IOException
+    {
+        Thread.currentThread().interrupt();
+
+        assertEquals("yes", ModelCall.ask((system, messages, options) -> "yes", "system", "user", null));
     }
 }

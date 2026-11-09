@@ -262,12 +262,11 @@ class StopProcessingHandlerTest
     @Test
     void aStoppedThreadCannotBeginAnotherReading()
     {
-        Thread.currentThread().interrupt();
-        try {
-            assertThrows(ReadingRuns.Stopped.class, () -> this.runs.begin(this.submission.getPath()));
-        } finally {
-            Thread.interrupted();
-        }
+        this.runs.begin(this.submission.getPath());
+        this.runs.stop(this.submission.getPath());
+
+        assertThrows(ReadingRuns.Stopped.class, () -> this.runs.begin(this.submission.getPath()));
+        this.runs.end(this.submission.getPath());
     }
 
     @Test

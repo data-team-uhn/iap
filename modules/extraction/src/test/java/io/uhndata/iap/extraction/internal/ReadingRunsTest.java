@@ -19,6 +19,8 @@ package io.uhndata.iap.extraction.internal;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -135,9 +137,66 @@ class ReadingRunsTest
     @Test
     void refusesToBeginOnAThreadAlreadyToldToStop()
     {
-        Thread.currentThread().interrupt();
+        this.runs.begin(SUBMISSION);
+        this.runs.stop(SUBMISSION);
 
         assertThrows(ReadingRuns.Stopped.class, () -> this.runs.begin(SUBMISSION));
+        assertTrue(this.runs.end(SUBMISSION));
+    }
+
+    // Two threads on one submission each keep their own entry, so neither hides the other from a stop
+    @Test
+    void stopsEveryThreadReadingTheSubmission() throws Exception
+    {
+        final CountDownLatch begun = new CountDownLatch(1);
+        final CountDownLatch stopped = new CountDownLatch(1);
+        final AtomicBoolean otherSawTheStop = new AtomicBoolean();
+        final Thread other = new Thread(() -> {
+            this.runs.begin(SUBMISSION);
+            this.runs.setFiles(SUBMISSION, Set.of("/other/file"));
+            begun.countDown();
+            try {
+                stopped.await();
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            otherSawTheStop.set(this.runs.end(SUBMISSION));
+        });
+        other.start();
+        begun.await();
+        this.runs.begin(SUBMISSION);
+        this.runs.setFiles(SUBMISSION, Set.of("/this/file"));
+
+        assertEquals(Set.of("/other/file", "/this/file"), this.runs.getFiles(SUBMISSION));
+        assertTrue(this.runs.stop(SUBMISSION));
+        stopped.countDown();
+        other.join();
+
+        assertTrue(otherSawTheStop.get());
+        assertTrue(this.runs.end(SUBMISSION));
+    }
+
+    // A replaced component must still reach the readings the old one started
+    @Test
+    void findsAReadingANewInstanceDidNotStart()
+    {
+        this.runs.begin(SUBMISSION);
+
+        assertTrue(new ReadingRuns().stop(SUBMISSION));
+        assertTrue(this.runs.end(SUBMISSION));
+    }
+
+    // The files of another submission, or of a thread not reading, are not this reading's
+    @Test
+    void keepsOnlyTheFilesOfTheSubmissionThisThreadReads()
+    {
+        this.runs.setFiles(SUBMISSION, Set.of("/not/reading"));
+        this.runs.begin(SUBMISSION);
+        this.runs.setFiles("/Submissions/another", Set.of("/another/file"));
+
+        assertNull(this.runs.getFiles(SUBMISSION));
+        assertNull(this.runs.getFiles("/Submissions/another"));
+        this.runs.end(SUBMISSION);
     }
 
     // A handler wraps the stop in its own exception, and the engine wraps that again
@@ -149,11 +208,14 @@ class ReadingRunsTest
         assertFalse(ReadingRuns.isStopped(new IOException("the model is down")));
     }
 
+    // An interrupt from elsewhere, such as the instance shutting down, is not the submitter's stop
     @Test
-    void readsAnInterruptedThreadAsStopped()
+    void doesNotReadAnInterruptFromElsewhereAsAStop()
     {
         Thread.currentThread().interrupt();
+        this.runs.begin(SUBMISSION);
 
-        assertTrue(ReadingRuns.isStopped(new IOException("closed")));
+        assertFalse(ReadingRuns.isStopped(new IOException("closed")));
+        assertFalse(this.runs.end(SUBMISSION));
     }
 }

@@ -52,19 +52,17 @@ final class ModelCall
         final LLMRequestOptions options) throws IOException
     {
         ReadingRuns.enterModelCall();
-        final String reply;
         try {
-            reply = client.chat(system, List.of(new LLMMessage("user", userMessage)), options);
+            return client.chat(system, List.of(new LLMMessage("user", userMessage)), options);
         } catch (final IOException e) {
-            final boolean stopped = ReadingRuns.isStopped(e);
-            ReadingRuns.leaveModelCall();
-            if (stopped) {
+            if (ReadingRuns.isStopped(e)) {
                 throw new ReadingRuns.Stopped();
             }
             throw e;
+        } finally {
+            // Whatever the call threw, or a stop during a call whose client does not abort on an interrupt, which
+            // rejects the reply here
+            ReadingRuns.leaveModelCall();
         }
-        // Not every client aborts on an interrupt, so a stop during the call must still reject the reply
-        ReadingRuns.leaveModelCall();
-        return reply;
     }
 }

@@ -388,7 +388,7 @@ class ClassifyDocumentHandlerTest
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenAnswer(invocation -> {
-                Thread.currentThread().interrupt();
+                new ReadingRuns().stop(this.submission.getPath());
                 return IntakeResult.createRead(Map.of(DECISION,
                     new FieldResult(DECISION, List.of("yes"), "", 0.9, List.of(), 0)));
             });

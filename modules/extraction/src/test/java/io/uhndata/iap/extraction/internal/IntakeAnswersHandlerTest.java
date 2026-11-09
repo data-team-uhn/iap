@@ -809,7 +809,7 @@ class IntakeAnswersHandlerTest
     {
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenAnswer(invocation -> {
-                Thread.currentThread().interrupt();
+                new ReadingRuns().stop(this.submission.getPath());
                 return IntakeResult.createRead(Map.of(AIMS,
                     new FieldResult(AIMS, List.of("Something"), "", 0.9, List.of(), 0)));
             });

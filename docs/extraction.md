@@ -255,7 +255,7 @@ The checks, in order:
 | The job names a submission, and it still exists | The job is dropped. |
 | A job queued by Read again (job property `readAgain=true`) finds `extractionStatus` at `running` | The job returns `FAILED`, so Sling runs it again later. The job was queued before the Read again walk committed, and until that commit the old status and claim are still there. |
 | No current file is still `queued` (`SubmissionFiles.isEveryParseSettled`) | The job returns `FAILED`, so Sling runs it again later. A parse that landed but is not committed yet looks "queued" for a moment. |
-| The submission can be checked out, if it was checked in (`ExtractionStatus.checkOut`) | The job is dropped, with an error for an administrator. A submission is versionable, and when checked in it is read-only, with everything under it. One checkout covers every later write. |
+| The submission can be checked out, if it was checked in (`ExtractionStatus.checkOut`) | The job gives up with "The document could not be read", and an error is recorded for an administrator. A submission is versionable, and when checked in it is read-only, with everything under it. One checkout covers every later write. |
 | The job's session can read the submission's schema version | `extractionStatus=failed`, "The document could not be read", and a problem is logged for an administrator. Throwing instead would end the job with `running` left behind. |
 | The schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists and is tagged `active` (`SubmissionFiles.checkReadingWorkflow`, the same check parsing makes; only one that is named but cannot run is reported to the administrator) | `extractionStatus=failed`, "Nothing is set up to read this request's documents". Firing the event anyway would start nothing, or be refused, and leave `running` forever. |
 | `extractionReadingClaimed` is not set, and setting it (with the job's Sling job id in `extractionReadingClaimedBy`) commits. A claim that already holds this job's own id counts as its own: after a restart, Sling runs an unfinished job again with the same id. | A claim held by another id means another job has the reading, and this one is dropped. Two jobs that race write different ids, so the repository refuses the second commit. |
@@ -263,11 +263,17 @@ The checks, in order:
 Then the job fires `extractAnswers` on the submission. If that throws, the job "gives
 up": in a commit of its own, it writes `extractionStatus=failed` with "The document
 could not be read", and removes the claim. Without this, the submission would stay
-`running` forever.
+`running` forever. A check above that throws gives up the same way.
+
+A job gives up only a reading that is still its own. Once it holds the claim, it gives
+up only while the claim holds its id: a Stop takes the claim down, and Read again may
+already have queued a new reading whose status this job must not overwrite. Before it
+claims, it gives up unless another job holds the claim.
 
 `ReadingRuns.begin` registers the job's thread under the submission path, so that Stop
 can reach it (see "Stop" below). A stopped reading gives up the same way, but records
-"Reading was stopped." instead.
+"Reading was stopped." instead. Only a Stop counts as one: an interrupt from elsewhere,
+such as the instance shutting down, is not taken for the submitter's Stop.
 
 ## Step 6: starting the schema's reading workflow
 
@@ -776,7 +782,7 @@ administrator who is not the submitter is refused too.
 
 1. If `extractionStatus` is not `running`, nothing happens. A late Stop must not undo a
    finished reading.
-2. If a thread is reading this submission (`ReadingRuns`), it is told to stop. It is
+2. Every thread reading this submission (`ReadingRuns`) is told to stop. A thread is
    interrupted only while it waits on a model call. Anywhere else it may be working in
    the repository, which an interrupt can break, so it is only marked. The model call
    checks for a stop before and after each request (`ModelCall.chat`), so a reply that

@@ -18,6 +18,7 @@
 package io.uhndata.iap.extraction.internal;
 
 import java.lang.reflect.Field;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.jcr.Node;
@@ -339,16 +340,15 @@ class ExtractAnswersJobConsumerTest
     {
         setJobSubmission(this.submission.getPath());
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
-            Thread.currentThread().interrupt();
+            new ReadingRuns().stop(this.submission.getPath());
             return null;
         });
 
-        try {
-            assertEquals(JobResult.OK, this.consumer.process(this.job));
-            assertFalse(Thread.currentThread().isInterrupted());
-        } finally {
-            Thread.interrupted();
-        }
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        final ReadingRuns runs = new ReadingRuns();
+        runs.begin(this.submission.getPath());
+        assertFalse(runs.end(this.submission.getPath()), "the next reading on this thread is not stopped");
     }
 
     @Test
@@ -386,11 +386,11 @@ class ExtractAnswersJobConsumerTest
     }
 
     @Test
-    void aReadingInterruptedMidCallIsAStop() throws Exception
+    void aReadingStoppedMidCallIsAStop() throws Exception
     {
         setJobSubmission(this.submission.getPath());
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
-            Thread.currentThread().interrupt();
+            new ReadingRuns().stop(this.submission.getPath());
             throw new NotAuthorizedException("closed");
         });
 
@@ -398,7 +398,60 @@ class ExtractAnswersJobConsumerTest
 
         assertEquals(ExtractionStatus.STOPPED_MESSAGE,
             this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
-        Thread.interrupted();
+    }
+
+    // An interrupt from elsewhere, such as the instance shutting down, is not the submitter's stop
+    @Test
+    void anInterruptFromElsewhereIsNotAStop() throws Exception
+    {
+        setJobSubmission(this.submission.getPath());
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
+            Thread.currentThread().interrupt();
+            throw new NotAuthorizedException("closed");
+        });
+
+        try {
+            assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+        } finally {
+            Thread.interrupted();
+        }
+
+        assertEquals(ExtractAnswersJobConsumer.COULD_NOT_READ,
+            this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
+    }
+
+    // After a stop, Read again may already have queued a new reading; this job's late give-up must not touch it
+    @Test
+    void leavesAReadingAnotherJobHasClaimedAlone() throws Exception
+    {
+        setJobSubmission(this.submission.getPath());
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
+            final ModifiableValueMap properties = this.submission.adaptTo(ModifiableValueMap.class);
+            properties.put(ExtractionStatus.STATUS_PROPERTY, ExtractionStatus.STATUS_RUNNING);
+            properties.put(ExtractionStatus.READING_CLAIMED_BY, "job-2");
+            this.context.resourceResolver().commit();
+            throw new NotAuthorizedException("broken");
+        });
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(ExtractionStatus.STATUS_RUNNING,
+            this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        assertEquals("job-2", this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED_BY, String.class));
+    }
+
+    // `running` was committed before the job: left as it is, the spinner would never stop
+    @Test
+    void givesUpAReadingThatBreaksBeforeItStarts() throws Exception
+    {
+        final Resource notASubmission = this.context.create().resource("/Submissions/stray", Map.of());
+        setJobSubmission(notASubmission.getPath());
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(ExtractionStatus.STATUS_FAILED,
+            notASubmission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        Mockito.verifyNoInteractions(this.engine);
     }
 
     @Test

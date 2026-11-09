@@ -17,25 +17,29 @@
  */
 package io.uhndata.iap.extraction.internal;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import org.osgi.service.component.annotations.Component;
 
 /**
  * Tracks which thread is reading each submission, so a stop can interrupt the model call that thread waits on.
  *
- * <p>The same thread enters a reading more than once: first the job, then each reading step. So entries are
- * counted, and the thread stays registered until its outermost entry ends. That way a stop in the middle of a
- * step still finds it.</p>
+ * <p>The same thread enters a reading more than once: first the job, then each reading step. So each thread's
+ * entries are counted, and it stays registered until its outermost entry ends. That way a stop in the middle of a
+ * step still finds it. Two threads reading one submission each keep their own entry, and a stop reaches both.</p>
  *
  * <p>A stop is noted on the thread, and interrupts it only inside a model call. Anywhere else the thread may be
- * in the repository, which an interrupt can break, so the next model call or step sees the stop instead.</p>
+ * in the repository, which an interrupt can break, so the next model call or step sees the stop instead. Only a
+ * stop counts as one: an interrupt from elsewhere, such as the instance shutting down, does not.</p>
  *
- * <p>Entering, leaving, model calls and stops share one lock, so a stop cannot interrupt a thread that has
- * already left the model call or the reading.</p>
+ * <p>All of it is kept in one place, shared by every instance, under one lock. A model call reaches it with no
+ * instance at hand, and a replaced component still finds the readings the old one started. A stop cannot
+ * interrupt a thread that has already left the model call or the reading.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -59,7 +63,6 @@ public class ReadingRuns
         }
     }
 
-    /** Shared by all instances, because a model call uses it through static methods, with no instance at hand. */
     private static final Object STATE_LOCK = new Object();
 
     /** The threads inside a model call, the only place a stop interrupts. */
@@ -68,11 +71,28 @@ public class ReadingRuns
     /** The threads told to stop, until they leave the reading. */
     private static final Set<Thread> STOPPING_THREADS = ConcurrentHashMap.newKeySet();
 
-    private final ConcurrentMap<String, Thread> running = new ConcurrentHashMap<>();
+    /** What each reading thread reads, guarded by {@link #STATE_LOCK}. */
+    private static final Map<Thread, Reading> THREAD_READINGS = new HashMap<>();
 
-    private final ConcurrentMap<String, AtomicInteger> depth = new ConcurrentHashMap<>();
+    /**
+     * One thread's reading: the submission, how many entries are open, and the files its step reads.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class Reading
+    {
+        private final String submission;
 
-    private final ConcurrentMap<String, Set<String>> files = new ConcurrentHashMap<>();
+        private int depth;
+
+        private Set<String> files;
+
+        Reading(final String submission)
+        {
+            this.submission = submission;
+        }
+    }
 
     /**
      * Registers this thread as reading a submission.
@@ -86,8 +106,7 @@ public class ReadingRuns
             if (isStopRequested()) {
                 throw new Stopped();
             }
-            this.running.put(submission, Thread.currentThread());
-            this.depth.computeIfAbsent(submission, key -> new AtomicInteger()).incrementAndGet();
+            THREAD_READINGS.computeIfAbsent(Thread.currentThread(), thread -> new Reading(submission)).depth++;
         }
     }
 
@@ -98,18 +117,16 @@ public class ReadingRuns
      * {@link #stop}, so no stop can arrive after it and stay set on a thread that has moved on.</p>
      *
      * @param submission the submission's path
-     * @return {@code true} when this thread had been told to stop or was interrupted
+     * @return {@code true} when this thread had been told to stop
      */
     boolean end(final String submission)
     {
         synchronized (STATE_LOCK) {
             final Thread current = Thread.currentThread();
-            final boolean stopped = Thread.interrupted() | STOPPING_THREADS.contains(current);
-            final AtomicInteger count = this.depth.get(submission);
-            if (count != null && count.decrementAndGet() <= 0) {
-                this.depth.remove(submission, count);
-                this.running.remove(submission, current);
-                this.files.remove(submission);
+            final boolean stopped = STOPPING_THREADS.contains(current);
+            final Reading reading = THREAD_READINGS.get(current);
+            if (reading != null && --reading.depth <= 0) {
+                THREAD_READINGS.remove(current);
                 STOPPING_THREADS.remove(current);
             }
             return stopped;
@@ -117,7 +134,7 @@ public class ReadingRuns
     }
 
     /**
-     * Tells the thread reading a submission to stop, and interrupts it if it is inside a model call.
+     * Tells every thread reading a submission to stop, and interrupts the ones inside a model call.
      *
      * @param submission the submission's path
      * @return {@code true} when a thread was reading it; {@code false} when none was
@@ -125,15 +142,17 @@ public class ReadingRuns
     boolean stop(final String submission)
     {
         synchronized (STATE_LOCK) {
-            final Thread thread = this.running.get(submission);
-            if (thread == null) {
-                return false;
-            }
-            STOPPING_THREADS.add(thread);
-            if (CALLING_THREADS.contains(thread)) {
-                thread.interrupt();
-            }
-            return true;
+            final List<Thread> threads = THREAD_READINGS.entrySet().stream()
+                .filter(entry -> entry.getValue().submission.equals(submission))
+                .map(Map.Entry::getKey)
+                .toList();
+            threads.forEach(thread -> {
+                STOPPING_THREADS.add(thread);
+                if (CALLING_THREADS.contains(thread)) {
+                    thread.interrupt();
+                }
+            });
+            return !threads.isEmpty();
         }
     }
 
@@ -169,10 +188,10 @@ public class ReadingRuns
         }
     }
 
-    /** Whether this thread was told to stop, or interrupted. */
+    /** Whether this thread was told to stop. */
     private static boolean isStopRequested()
     {
-        return Thread.currentThread().isInterrupted() || STOPPING_THREADS.contains(Thread.currentThread());
+        return STOPPING_THREADS.contains(Thread.currentThread());
     }
 
     /**
@@ -193,24 +212,36 @@ public class ReadingRuns
     }
 
     /**
-     * Records which files the current step reads, so a stop knows whose parsed text it cut off.
+     * Records which files this thread's current step reads, so a stop knows whose parsed text it cut off.
      *
      * @param submission the submission's path
      * @param files the paths of the files the step reads
      */
     void setFiles(final String submission, final Set<String> files)
     {
-        this.files.put(submission, Set.copyOf(files));
+        synchronized (STATE_LOCK) {
+            final Reading reading = THREAD_READINGS.get(Thread.currentThread());
+            if (reading != null && reading.submission.equals(submission)) {
+                reading.files = Set.copyOf(files);
+            }
+        }
     }
 
     /**
-     * Returns the files the current step reads.
+     * Returns the files the current steps reading a submission read.
      *
      * @param submission the submission's path
-     * @return the file paths, or {@code null} when no step has set them
+     * @return the file paths, or {@code null} when no step reading it has set them
      */
     Set<String> getFiles(final String submission)
     {
-        return this.files.get(submission);
+        synchronized (STATE_LOCK) {
+            final List<Set<String>> read = THREAD_READINGS.values().stream()
+                .filter(reading -> reading.submission.equals(submission) && reading.files != null)
+                .map(reading -> reading.files)
+                .toList();
+            return read.isEmpty() ? null
+                : read.stream().flatMap(Set::stream).collect(Collectors.toUnmodifiableSet());
+        }
     }
 }
