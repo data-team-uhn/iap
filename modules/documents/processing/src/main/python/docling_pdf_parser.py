@@ -201,7 +201,7 @@ def _run_pdf_chunks(
             _abandon_batches(future_to_chunk, log=log, timeout=get_cancel_wait_seconds())
             raise ParseAbandonedError("the caller cancelled this parse")
 
-        poll = ABANDON_POLL_SECONDS
+        poll_seconds = ABANDON_POLL_SECONDS
         if deadline is not None:
             remaining = deadline - perf_counter()
             if remaining <= 0:
@@ -210,9 +210,9 @@ def _run_pdf_chunks(
                 raise RuntimeError(
                     f"conversion exceeded the {timeout:.0f}s {PARSE_TIMEOUT_VARIABLE} ceiling"
                 )
-            poll = min(poll, remaining)
+            poll_seconds = min(poll_seconds, remaining)
 
-        done, pending = wait(pending, timeout=poll, return_when=FIRST_COMPLETED)
+        done, pending = wait(pending, timeout=poll_seconds, return_when=FIRST_COMPLETED)
         for future in done:
             _, start_page, end_page = future_to_chunk[future]
             try:

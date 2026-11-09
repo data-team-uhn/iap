@@ -60,7 +60,7 @@ final class SubmissionTree
 
     private final SlingContext context;
 
-    private int documents;
+    private int documentCount;
 
     SubmissionTree(final SlingContext context)
     {
@@ -133,8 +133,8 @@ final class SubmissionTree
      */
     Resource createFile(final String parseStatus)
     {
-        this.documents++;
-        final String document = SUBMISSION_PATH + "/d" + this.documents;
+        this.documentCount++;
+        final String document = SUBMISSION_PATH + "/d" + this.documentCount;
         this.context.create().resource(document, Map.of(TYPE, "sub/Document", "title", "proposal.pdf"));
         this.context.create().resource(document + "/v1", Map.of(TYPE, "sub/DocumentVersion"));
         final Map<String, Object> properties = new HashMap<>();
@@ -194,8 +194,8 @@ final class SubmissionTree
     /** Creates a document whose only version has no upload yet, and returns that version. */
     Resource createEmptyDocumentVersion()
     {
-        this.documents++;
-        final String document = SUBMISSION_PATH + "/d" + this.documents;
+        this.documentCount++;
+        final String document = SUBMISSION_PATH + "/d" + this.documentCount;
         this.context.create().resource(document, Map.of(TYPE, "sub/Document", "title", "pending"));
         return this.context.create().resource(document + "/v1", Map.of(TYPE, "sub/DocumentVersion"));
     }

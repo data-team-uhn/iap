@@ -48,7 +48,7 @@ final class EvaluationRun
 
     private final String model;
 
-    private final long window;
+    private final long contextTokens;
 
     private final long started = System.nanoTime();
 
@@ -58,7 +58,7 @@ final class EvaluationRun
 
     private final List<Long> documentTokens = new ArrayList<>();
 
-    private int cut;
+    private int documentsCut;
 
     private int unplanned;
 
@@ -122,21 +122,21 @@ final class EvaluationRun
         {
             return Json.createObjectBuilder()
                 .add("asked", this.asked).add("found", this.found).add("expected", this.expected)
-                .add("correct", this.correct).add("accuracy", average(this.correct, this.expected))
-                .add("meanF1", average(this.f1, this.expected))
+                .add("correct", this.correct).add("accuracy", computeAverage(this.correct, this.expected))
+                .add("meanF1", computeAverage(this.f1, this.expected))
                 .add("quotesOffered", this.quotesOffered).add("quotesFound", this.quotesFound)
                 .add("unsupported", this.unsupported)
-                .add("confidenceWhenRight", average(this.confidenceRight, this.right))
-                .add("confidenceWhenWrong", average(this.confidenceWrong, this.wrong))
+                .add("confidenceWhenRight", computeAverage(this.confidenceRight, this.right))
+                .add("confidenceWhenWrong", computeAverage(this.confidenceWrong, this.wrong))
                 .build();
         }
     }
 
-    EvaluationRun(final List<ExtractionPrompt.Group> groups, final String model, final long window)
+    EvaluationRun(final List<ExtractionPrompt.Group> groups, final String model, final long contextTokens)
     {
         this.groups = groups;
         this.model = model;
-        this.window = window;
+        this.contextTokens = contextTokens;
         groups.forEach(group -> group.fields().forEach(field -> this.tallies.put(field.key(), new Tally())));
     }
 
@@ -151,11 +151,11 @@ final class EvaluationRun
      * @param millis how long the reading took
      * @return the document's line of the details: every answer, what was expected, and the quotes
      */
-    JsonObject add(final String id, final String text, final ExtractionPrompt.Plan plan,
+    JsonObject scoreDocument(final String id, final String text, final ExtractionPrompt.Plan plan,
         final DocumentReader.Reading reading, final JsonObject wanted, final long millis)
     {
         this.documentTokens.add(CallBudget.estimateTokens(text));
-        this.cut += plan.document().wasCut() ? 1 : 0;
+        this.documentsCut += plan.document().wasCut() ? 1 : 0;
         this.unplanned += plan.calls().isEmpty() ? 1 : 0;
         final JsonArrayBuilder callLines = Json.createArrayBuilder();
         for (final DocumentReader.Outcome outcome : reading.outcomes()) {
@@ -214,9 +214,9 @@ final class EvaluationRun
         this.outcomes.forEach((status, count) -> statuses.add(status.name(), count));
         return Json.createObjectBuilder()
             .add("model", this.model)
-            .add("promptSha256", fingerprint(ExtractionPrompt.readSystemPrompt()))
-            .add("contextTokens", this.window)
-            .add("documents", this.documentTokens.size()).add("documentsCut", this.cut)
+            .add("promptSha256", computePromptFingerprint(ExtractionPrompt.readSystemPrompt()))
+            .add("contextTokens", this.contextTokens)
+            .add("documents", this.documentTokens.size()).add("documentsCut", this.documentsCut)
             .add("documentsNotAsked", this.unplanned)
             .add("documentTokensMedian", sorted.isEmpty() ? 0 : sorted.get(sorted.size() / 2))
             .add("documentTokensMax", sorted.isEmpty() ? 0 : sorted.get(sorted.size() - 1))
@@ -253,12 +253,12 @@ final class EvaluationRun
         return table.toString();
     }
 
-    private static double average(final double total, final int count)
+    private static double computeAverage(final double total, final int count)
     {
         return count == 0 ? 0.0 : total / count;
     }
 
-    private static String fingerprint(final String prompt)
+    private static String computePromptFingerprint(final String prompt)
     {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")

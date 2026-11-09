@@ -84,7 +84,7 @@ class ExtractionEvaluation
     private static final String PROMPTS_FILE = "prompts.md";
 
     /** How much of the document {@code prompts.md} shows: enough to see where it sits, not the whole of it. */
-    private static final int DOCUMENT_SHOWN = 600;
+    private static final int DOCUMENT_PREVIEW_CHARACTERS = 600;
 
     private final SlingContext context = new SlingContext();
 
@@ -94,24 +94,24 @@ class ExtractionEvaluation
         final Path dataset = Path.of(System.getProperty("extraction.dataset"));
         final boolean dryRun = Boolean.getBoolean("extraction.dryRun");
         final String model = System.getProperty("extraction.model", "Qwen3.8-27B");
-        final long window = Long.getLong("extraction.contextTokens", CallBudget.DEFAULT_CONTEXT_LIMIT_TOKENS);
+        final long contextTokens = Long.getLong("extraction.contextTokens", CallBudget.DEFAULT_CONTEXT_LIMIT_TOKENS);
         final List<ExtractionPrompt.Group> groups = loadQuestions(Path.of(System.getProperty("extraction.questions",
             dataset.resolve("questions.json").toString())));
         final JsonObject expected = Files.exists(dataset.resolve("expected.json"))
             ? readJson(Files.readString(dataset.resolve("expected.json"))) : JsonValue.EMPTY_JSON_OBJECT;
-        final LLMClient client = dryRun ? (system, messages, options) -> "{}" : buildClient(model, window);
+        final LLMClient client = dryRun ? (system, messages, options) -> "{}" : buildClient(model, contextTokens);
         final Path results = dataset.resolve("results").resolve(
             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "-"
             + (dryRun ? "dry-run" : model.replaceAll("[^A-Za-z0-9.-]", "_")));
         Files.createDirectories(results);
 
-        final EvaluationRun run = new EvaluationRun(groups, dryRun ? "dry run" : model, window);
+        final EvaluationRun run = new EvaluationRun(groups, dryRun ? "dry run" : model, contextTokens);
         try (Writer details = Files.newBufferedWriter(results.resolve("details.jsonl"))) {
             for (final Path document : listDocuments(dataset.resolve("documents"))) {
                 final String id = document.getFileName().toString().replaceFirst("\\.md$", "");
                 final String text = Files.readString(document);
                 final ExtractionPrompt.Plan plan = ExtractionPrompt.plan(text, null, groups,
-                    (prompt, reply) -> CallBudget.calculateDocumentTokenBudget(window, prompt, reply));
+                    (prompt, reply) -> CallBudget.calculateDocumentTokenBudget(contextTokens, prompt, reply));
                 if (!Files.exists(results.resolve(PROMPTS_FILE))) {
                     writePrompts(results.resolve(PROMPTS_FILE), plan);
                 }
@@ -119,8 +119,8 @@ class ExtractionEvaluation
                 final DocumentReader.Reading reading = DocumentReader.read(client, plan, DocumentScan.of(text));
                 final JsonObject wanted = expected.containsKey(id) ? expected.getJsonObject(id)
                     : JsonValue.EMPTY_JSON_OBJECT;
-                details.write(run.add(id, text, plan, reading, wanted, (System.nanoTime() - started) / 1_000_000L)
-                    .toString() + "\n");
+                final long milliseconds = (System.nanoTime() - started) / 1_000_000L;
+                details.write(run.scoreDocument(id, text, plan, reading, wanted, milliseconds).toString() + "\n");
                 details.flush();
                 LOGGER.info(() -> id + ": " + plan.calls().size() + " calls, "
                     + (plan.document().wasCut() ? "cut" : "whole"));
@@ -147,7 +147,7 @@ class ExtractionEvaluation
             final String message = call.userMessage();
             final int documentEnd = message.indexOf("</document>");
             prompts.append("# Call: ").append(call.group()).append(", up to ").append(call.maxOutputTokens())
-                .append(" tokens of reply\n\n").append(message, 0, Math.min(DOCUMENT_SHOWN, documentEnd))
+                .append(" tokens of reply\n\n").append(message, 0, Math.min(DOCUMENT_PREVIEW_CHARACTERS, documentEnd))
                 .append("\n[... the rest of the document ...]\n").append(message.substring(documentEnd))
                 .append("\n\n## Reply schema\n\n").append(call.responseSchema()).append("\n\n");
         }
@@ -160,7 +160,7 @@ class ExtractionEvaluation
      */
     private List<ExtractionPrompt.Group> loadQuestions(final Path file) throws IOException
     {
-        final JsonObject schema = withResourceTypes(readJson(stripComments(Files.readString(file))));
+        final JsonObject schema = addResourceTypes(readJson(stripComments(Files.readString(file))));
         this.context.addModelsForPackage("io.uhndata.iap.content.models", "io.uhndata.iap.entities.models",
             "io.uhndata.iap.schemas.models");
         this.context.load().json(new ByteArrayInputStream(schema.toString().getBytes(StandardCharsets.UTF_8)),
@@ -199,11 +199,11 @@ class ExtractionEvaluation
      * Gives every node the resource type its node type gives it in a real repository: {@code sch:Question} becomes
      * {@code sch/Question}. The mock resolver has no node types to do it.
      */
-    private static JsonObject withResourceTypes(final JsonObject node)
+    private static JsonObject addResourceTypes(final JsonObject node)
     {
         final JsonObjectBuilder copy = Json.createObjectBuilder();
         node.forEach((key, value) -> copy.add(key, value instanceof JsonObject
-            ? withResourceTypes((JsonObject) value) : value));
+            ? addResourceTypes((JsonObject) value) : value));
         if (node.get("jcr:primaryType") instanceof JsonString && !node.containsKey(RESOURCE_TYPE)) {
             copy.add(RESOURCE_TYPE, node.getString("jcr:primaryType").replace(':', '/'));
         }
@@ -235,21 +235,22 @@ class ExtractionEvaluation
     }
 
     /** The LLM module's own client, wired by hand the way the OSGi runtime wires it. */
-    private static LLMClient buildClient(final String model, final long window) throws ReflectiveOperationException
+    private static LLMClient buildClient(final String model, final long contextTokens)
+        throws ReflectiveOperationException
     {
         final LLMSettings settings = new LLMSettings("prompter", new LLMSettings.ProviderSettings(
             System.getProperty("extraction.endpoint", "https://prompter.uhndata.io/api/proxy/v1"),
             "PROMPTER_API_KEY", Long.getLong("extraction.timeoutSeconds", 600L),
             Map.of("projectId", System.getProperty("extraction.projectId", "ia45-data"), "disableThinking", "true")),
-            model, new LLMSettings.ModelSettings(window, 0.0, null, null));
+            model, new LLMSettings.ModelSettings(contextTokens, 0.0, null, null));
         final OpenAIClient client = new OpenAIClient();
-        final Method configuration = OpenAIClient.class.getDeclaredMethod("bindConfigurationService",
+        final Method bindConfigurationMethod = OpenAIClient.class.getDeclaredMethod("bindConfigurationService",
             LLMConfigurationService.class);
-        configuration.setAccessible(true);
-        configuration.invoke(client, (LLMConfigurationService) () -> settings);
-        final Method gate = OpenAIClient.class.getDeclaredMethod("bindCallGate", LLMCallGate.class);
-        gate.setAccessible(true);
-        gate.invoke(client, (LLMCallGate) wait -> () -> { });
+        bindConfigurationMethod.setAccessible(true);
+        bindConfigurationMethod.invoke(client, (LLMConfigurationService) () -> settings);
+        final Method bindCallGateMethod = OpenAIClient.class.getDeclaredMethod("bindCallGate", LLMCallGate.class);
+        bindCallGateMethod.setAccessible(true);
+        bindCallGateMethod.invoke(client, (LLMCallGate) wait -> () -> { });
         return client;
     }
 }

@@ -36,7 +36,7 @@ import jakarta.json.JsonValue;
  *
  * <p>An option, a yes or no and a number are right or wrong. A list of options is right when it names the same
  * options, and its F1 says how close it came. Free text is compared word by word: it is right when the F1 of its
- * words against the expected text, or any accepted alternative, reaches {@link #TEXT_MATCH}.</p>
+ * words against the expected text, or any accepted alternative, reaches {@link #TEXT_MATCH_THRESHOLD}.</p>
  *
  * <p>An expected answer is a JSON value, or an object giving one under {@code value}. That object may add
  * {@code alternatives} that also count and, for a number, a relative {@code tolerance}.</p>
@@ -47,7 +47,7 @@ import jakarta.json.JsonValue;
 final class AnswerScoring
 {
     /** How many of its words free text must share with the expected text to count as the same answer. */
-    static final double TEXT_MATCH = 0.6;
+    static final double TEXT_MATCH_THRESHOLD = 0.6;
 
     private static final Pattern WORD_BREAK_PATTERN = Pattern.compile("[^\\p{L}\\p{N}]+");
 
@@ -92,33 +92,33 @@ final class AnswerScoring
         final JsonValue value = expected instanceof JsonObject && ((JsonObject) expected).containsKey("value")
             ? ((JsonObject) expected).get("value") : expected;
         if (answer.multiple()) {
-            final double f1 = f1(new HashSet<>(values), new HashSet<>(texts(value)));
+            final double f1 = computeF1(new HashSet<>(values), new HashSet<>(getTexts(value)));
             return new Score(true, f1 == 1.0, f1);
         }
         if (ExtractionField.LONG_TYPE.equals(answer.dataType())
             || ExtractionField.DOUBLE_TYPE.equals(answer.dataType())) {
-            return exactly(isWithin(values.get(0), value, tolerance(expected)));
+            return scoreAllOrNothing(isWithin(values.get(0), value, getTolerance(expected)));
         }
         if (!answer.options().isEmpty() || ExtractionField.BOOLEAN_TYPE.equals(answer.dataType())) {
-            return exactly(texts(value).stream().anyMatch(text -> text.equalsIgnoreCase(values.get(0))));
+            return scoreAllOrNothing(getTexts(value).stream().anyMatch(text -> text.equalsIgnoreCase(values.get(0))));
         }
         return compareText(values, value, expected);
     }
 
-    private static Score exactly(final boolean right)
+    private static Score scoreAllOrNothing(final boolean right)
     {
         return new Score(true, right, right ? 1.0 : 0.0);
     }
 
     private static Score compareText(final List<String> values, final JsonValue value, final JsonValue expected)
     {
-        final List<String> accepted = new ArrayList<>(texts(value));
+        final List<String> accepted = new ArrayList<>(getTexts(value));
         if (expected instanceof JsonObject && ((JsonObject) expected).get("alternatives") instanceof JsonArray) {
-            accepted.addAll(texts(((JsonObject) expected).get("alternatives")));
+            accepted.addAll(getTexts(((JsonObject) expected).get("alternatives")));
         }
-        final Set<String> found = words(String.join(" ", values));
-        final double f1 = accepted.stream().mapToDouble(text -> f1(found, words(text))).max().orElse(0.0);
-        return new Score(true, f1 >= TEXT_MATCH, f1);
+        final Set<String> found = splitWords(String.join(" ", values));
+        final double f1 = accepted.stream().mapToDouble(text -> computeF1(found, splitWords(text))).max().orElse(0.0);
+        return new Score(true, f1 >= TEXT_MATCH_THRESHOLD, f1);
     }
 
     private static boolean isWithin(final String extracted, final JsonValue expected, final double tolerance)
@@ -132,18 +132,18 @@ final class AnswerScoring
         }
     }
 
-    private static double tolerance(final JsonValue expected)
+    private static double getTolerance(final JsonValue expected)
     {
         return expected instanceof JsonObject && ((JsonObject) expected).get("tolerance") instanceof JsonNumber
             ? ((JsonObject) expected).getJsonNumber("tolerance").doubleValue() : 0.0;
     }
 
     /** The expected value as text, one entry per item of a list. */
-    private static List<String> texts(final JsonValue value)
+    private static List<String> getTexts(final JsonValue value)
     {
         if (value instanceof JsonArray) {
             final List<String> texts = new ArrayList<>();
-            ((JsonArray) value).forEach(item -> texts.addAll(texts(item)));
+            ((JsonArray) value).forEach(item -> texts.addAll(getTexts(item)));
             return texts;
         }
         if (value instanceof JsonString) {
@@ -153,14 +153,14 @@ final class AnswerScoring
             : List.of(value.toString());
     }
 
-    private static Set<String> words(final String text)
+    private static Set<String> splitWords(final String text)
     {
         final Set<String> words = new HashSet<>(Arrays.asList(WORD_BREAK_PATTERN.split(text.toLowerCase(Locale.ROOT))));
         words.remove("");
         return words;
     }
 
-    private static double f1(final Set<String> found, final Set<String> wanted)
+    private static double computeF1(final Set<String> found, final Set<String> wanted)
     {
         if (found.isEmpty() || wanted.isEmpty()) {
             return 0.0;

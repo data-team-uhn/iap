@@ -41,9 +41,9 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-API = "https://clinicaltrials.gov/api/v2/studies"
-DOCUMENTS = "https://cdn.clinicaltrials.gov/large-docs"
-PARSER = Path(__file__).resolve().parents[3] / "modules/documents/processing/src/main/python/docling_parser.py"
+STUDIES_API_URL = "https://clinicaltrials.gov/api/v2/studies"
+LARGE_DOCS_BASE_URL = "https://cdn.clinicaltrials.gov/large-docs"
+PARSER_SCRIPT = Path(__file__).resolve().parents[3] / "modules/documents/processing/src/main/python/docling_parser.py"
 
 # Big enough to pick from, small enough to fetch in a few requests
 CANDIDATE_PAGES = 3
@@ -89,7 +89,7 @@ def fetch_candidates():
         }
         if token:
             params["pageToken"] = token
-        page = get_json(API + "?" + urllib.parse.urlencode(params))
+        page = get_json(STUDIES_API_URL + "?" + urllib.parse.urlencode(params))
         studies.extend(page.get("studies", []))
         token = page.get("nextPageToken")
         if not token:
@@ -97,7 +97,7 @@ def fetch_candidates():
     return studies
 
 
-def protocol_document(study):
+def find_protocol_document(study):
     """The study's protocol PDF, the smallest one when it has several, or None."""
     docs = study.get("documentSection", {}).get("largeDocumentModule", {}).get("largeDocs", [])
     protocols = [d for d in docs if d.get("hasProtocol") and d.get("filename", "").lower().endswith(".pdf")
@@ -105,7 +105,7 @@ def protocol_document(study):
     return min(protocols, key=lambda d: d["size"]) if protocols else None
 
 
-def stratum(study):
+def get_stratum(study):
     """What the selection spreads over: the phase and the first kind of intervention."""
     protocol = study["protocolSection"]
     phase = PHASES.get(tuple(protocol.get("designModule", {}).get("phases", [])), "?")
@@ -114,10 +114,10 @@ def stratum(study):
 
 
 def select(dataset, count, seed):
-    candidates = [s for s in fetch_candidates() if protocol_document(s)]
+    candidates = [s for s in fetch_candidates() if find_protocol_document(s)]
     groups = {}
     for study in candidates:
-        groups.setdefault(stratum(study), []).append(study)
+        groups.setdefault(get_stratum(study), []).append(study)
     rng = random.Random(seed)
     for members in groups.values():
         rng.shuffle(members)
@@ -130,10 +130,10 @@ def select(dataset, count, seed):
     manifest = []
     for study in picked:
         nct = study["protocolSection"]["identificationModule"]["nctId"]
-        document = protocol_document(study)
+        document = find_protocol_document(study)
         manifest.append({"id": nct, "file": document["filename"], "bytes": document["size"],
-                         "url": f"{DOCUMENTS}/{nct[-2:]}/{nct}/{document['filename']}",
-                         "stratum": list(stratum(study))})
+                         "url": f"{LARGE_DOCS_BASE_URL}/{nct[-2:]}/{nct}/{document['filename']}",
+                         "stratum": list(get_stratum(study))})
     dataset.mkdir(parents=True, exist_ok=True)
     (dataset / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (dataset / "registry.json").write_text(json.dumps(
@@ -155,19 +155,19 @@ def fetch(dataset, docling):
             urllib.request.urlretrieve(entry["url"], pdf)
         started = time.monotonic()
         # The parser only writes inside the shared folder the daemon is given
-        done = subprocess.run([docling, str(PARSER), str(pdf)], capture_output=True, text=True,
-                              stdin=subprocess.DEVNULL, cwd=PARSER.parent,
+        conversion = subprocess.run([docling, str(PARSER_SCRIPT), str(pdf)], capture_output=True, text=True,
+                              stdin=subprocess.DEVNULL, cwd=PARSER_SCRIPT.parent,
                               env={**os.environ, "IAP_SHARED_DOCS": str(sources.resolve())})
-        saved = re.search(r"Saved to (.+?) \(\d+ tokens\)", done.stdout)
-        if done.returncode != 0 or not saved:
-            print(f"{entry['id']}: conversion failed: {(done.stderr or done.stdout).strip()[-300:]}", flush=True)
+        saved = re.search(r"Saved to (.+?) \(\d+ tokens\)", conversion.stdout)
+        if conversion.returncode != 0 or not saved:
+            print(f"{entry['id']}: conversion failed: {(conversion.stderr or conversion.stdout).strip()[-300:]}", flush=True)
             continue
         Path(saved.group(1)).rename(markdown)
         print(f"{entry['id']}: {markdown.stat().st_size} characters in {time.monotonic() - started:.0f} s",
               flush=True)
 
 
-def years(age):
+def parse_age_in_years(age):
     """A registry age such as '18 Years' or '6 Months', in whole years, or None."""
     match = re.fullmatch(r"(\d+)\s+(\w+)", age or "")
     if not match or match.group(2).lower() not in AGE_UNITS:
@@ -175,7 +175,7 @@ def years(age):
     return int(int(match.group(1)) * AGE_UNITS[match.group(2).lower()])
 
 
-def expected_answers(protocol):
+def build_expected_answers(protocol):
     identification = protocol["identificationModule"]
     design = protocol.get("designModule", {})
     eligibility = protocol.get("eligibilityModule", {})
@@ -196,7 +196,7 @@ def expected_answers(protocol):
         "participants.sampleSize": None if enrollment.get("count") is None else (
             enrollment["count"] if enrollment.get("type") == "ESTIMATED"
             else {"value": enrollment["count"], "tolerance": 0.25}),
-        "participants.minimumAge": years(eligibility.get("minimumAge")),
+        "participants.minimumAge": parse_age_in_years(eligibility.get("minimumAge")),
         "participants.sex": SEXES.get(eligibility.get("sex")),
         "participants.healthyVolunteers": eligibility.get("healthyVolunteers"),
         "intervention.kinds": kinds or None,
@@ -205,9 +205,9 @@ def expected_answers(protocol):
     return {key: value for key, value in answers.items() if value is not None}
 
 
-def expected(dataset):
+def write_expected_answers(dataset):
     registry = json.loads((dataset / "registry.json").read_text())
-    answers = {nct: expected_answers(protocol) for nct, protocol in registry.items()}
+    answers = {nct: build_expected_answers(protocol) for nct, protocol in registry.items()}
     (dataset / "expected.json").write_text(json.dumps(answers, indent=2) + "\n")
     print(f"Expected answers for {len(answers)} studies")
 
@@ -215,22 +215,22 @@ def expected(dataset):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
-    pick = commands.add_parser("select")
-    pick.add_argument("dataset", type=Path)
-    pick.add_argument("--count", type=int, default=60)
-    pick.add_argument("--seed", type=int, default=2026)
-    get = commands.add_parser("fetch")
-    get.add_argument("dataset", type=Path)
-    get.add_argument("--docling", required=True, help="the Python of an environment with Docling installed")
-    answer = commands.add_parser("expected")
-    answer.add_argument("dataset", type=Path)
+    select_parser = commands.add_parser("select")
+    select_parser.add_argument("dataset", type=Path)
+    select_parser.add_argument("--count", type=int, default=60)
+    select_parser.add_argument("--seed", type=int, default=2026)
+    fetch_parser = commands.add_parser("fetch")
+    fetch_parser.add_argument("dataset", type=Path)
+    fetch_parser.add_argument("--docling", required=True, help="the Python of an environment with Docling installed")
+    expected_parser = commands.add_parser("expected")
+    expected_parser.add_argument("dataset", type=Path)
     args = parser.parse_args()
     if args.command == "select":
         select(args.dataset, args.count, args.seed)
     elif args.command == "fetch":
         fetch(args.dataset, args.docling)
     else:
-        expected(args.dataset)
+        write_expected_answers(args.dataset)
 
 
 if __name__ == "__main__":

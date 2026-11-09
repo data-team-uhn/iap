@@ -126,7 +126,7 @@ public final class OptionCatalog
         return List.copyOf(options);
     }
 
-    private static void collectLeaves(final Resource node, final boolean root,
+    private static void collectLeaves(final Resource node, final boolean isRoot,
         final List<OfferedOption> options)
     {
         final List<Resource> labeled = getLabeledChildren(node);
@@ -134,7 +134,7 @@ public final class OptionCatalog
             labeled.forEach(child -> collectLeaves(child, false, options));
             return;
         }
-        if (!root) {
+        if (!isRoot) {
             final String label = getLabel(node);
             if (label != null) {
                 options.add(new OfferedOption(node.getPath(), label, getDescription(node)));
