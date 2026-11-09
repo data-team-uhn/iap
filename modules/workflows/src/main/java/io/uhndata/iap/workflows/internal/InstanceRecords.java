@@ -67,6 +67,9 @@ final class InstanceRecords
 
     private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
 
+    /** The activity property naming the requirement a task is about; see {@code wf:TaskInstance}. */
+    private static final String REQUIREMENT_PROPERTY = "requirement";
+
     private final ResourceResolver resolver;
 
     private final Performers performers;
@@ -365,6 +368,11 @@ final class InstanceRecords
             this.performers.resolve(activity, hostOf(instance)).toArray(String[]::new),
             TaskInstance.STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
             TaskInstance.START_TIME_PROPERTY, started));
+        // Copied like the options: a form placing this task beside its requirement cannot read the definition
+        final String requirement = activity.get(REQUIREMENT_PROPERTY, String.class);
+        if (requirement != null && !requirement.isBlank()) {
+            properties.put(REQUIREMENT_PROPERTY, requirement);
+        }
         armNextDeadline(activity, started, List.of(), properties);
         this.resolver.create(instance, NodeNameUtils.findFreeName(instance, activity.getName()), properties);
     }
