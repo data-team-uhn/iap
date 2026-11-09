@@ -69,7 +69,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     /** The event that starts the reading. */
     static final String EVENT_NAME = "extractAnswers";
 
-    /** What the submitter is told when the schema names no reading workflow that exists. */
+    /** What the submitter is told when the schema names no reading workflow, or one that cannot run. */
     static final String NOTHING_READS = "Nothing is set up to read this request's documents";
 
     /** What the submitter is told when the reading failed for a reason an administrator must fix. */
@@ -201,7 +201,8 @@ public class ExtractAnswersJobConsumer implements JobConsumer
      *
      * @param resolver this job's session
      * @param submission the submission to read
-     * @return {@code true} when the schema version can be read and names a reading workflow that exists
+     * @return {@code true} when the schema version can be read and names a reading workflow that exists and is
+     *     tagged active
      */
     private static boolean canStart(final ResourceResolver resolver, final Resource submission)
     {
@@ -213,11 +214,12 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             giveUp(resolver, submission, COULD_NOT_READ);
             return false;
         }
-        if (!SubmissionFiles.hasReadingWorkflow(SubmissionFiles.getSubmission(submission), resolver)) {
-            LOGGER.warn("The schema of {} names no active reading workflow that exists", path);
-            // A schema set up to parse its documents but with nothing to read them
-            ErrorLogger.logProblem("The schema version names no active reading workflow that exists",
-                ErrorContext.of(ExtractAnswersJobConsumer.class, "findReadingWorkflow").about(path));
+        final SubmissionFiles.ReadingWorkflow reading =
+            SubmissionFiles.checkReadingWorkflow(SubmissionFiles.getSubmission(submission), resolver);
+        if (reading != SubmissionFiles.ReadingWorkflow.CAN_RUN) {
+            if (reading == SubmissionFiles.ReadingWorkflow.CANNOT_RUN) {
+                SubmissionFiles.reportReadingWorkflowCannotRun(ExtractAnswersJobConsumer.class, submission);
+            }
             giveUp(resolver, submission, NOTHING_READS);
             return false;
         }

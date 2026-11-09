@@ -78,10 +78,12 @@ What it does, in order:
    the submission, and only while it is a draft. Anyone else gets a 403. A submitted
    request gets a 409.
 2. Checks `readingWorkflow` on the submission's schema version
-   (`SubmissionFiles.hasReadingWorkflow`: it must lead to a workflow version that exists
-   and is tagged `active`). **No reading workflow that can run means nothing is parsed**,
-   so a schema that never reads its documents costs nothing. One that is named but cannot
-   run is also reported to the administrator.
+   (`SubmissionFiles.checkReadingWorkflow`). **A schema that names none parses
+   nothing**, so a schema that never reads its documents costs nothing. One that is
+   named but cannot run (missing, not a workflow version, or not tagged `active`) parses
+   nothing either: the step records `failed` with "Nothing is set up to read this
+   request's documents", so the submitter does not retry in vain, and the administrator
+   is told.
 3. Takes the latest upload of each document (`SubmissionFiles.getFilesToParse`). A
    document whose requirement sets `skipParsing` is left out, so its uploads are never
    parsed and no reading uses them. An upload is sent when its `parseStatus` is empty
@@ -255,7 +257,7 @@ The checks, in order:
 | No current file is still `queued` (`SubmissionFiles.isEveryParseSettled`) | The job returns `FAILED`, so Sling runs it again later. A parse that landed but is not committed yet looks "queued" for a moment. |
 | The submission can be checked out, if it was checked in (`ExtractionStatus.checkOut`) | The job is dropped, with an error for an administrator. A submission is versionable, and when checked in it is read-only, with everything under it. One checkout covers every later write. |
 | The job's session can read the submission's schema version | `extractionStatus=failed`, "The document could not be read", and a problem is logged for an administrator. Throwing instead would end the job with `running` left behind. |
-| The schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists and is tagged `active` (`SubmissionFiles.hasReadingWorkflow`, the same check parsing makes) | `extractionStatus=failed`, "Nothing is set up to read this request's documents". Firing the event anyway would start nothing, or be refused, and leave `running` forever. |
+| The schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists and is tagged `active` (`SubmissionFiles.checkReadingWorkflow`, the same check parsing makes; only one that is named but cannot run is reported to the administrator) | `extractionStatus=failed`, "Nothing is set up to read this request's documents". Firing the event anyway would start nothing, or be refused, and leave `running` forever. |
 | `extractionReadingClaimed` is not set, and setting it (with the job's Sling job id in `extractionReadingClaimedBy`) commits. A claim that already holds this job's own id counts as its own: after a restart, Sling runs an unfinished job again with the same id. | A claim held by another id means another job has the reading, and this one is dropped. Two jobs that race write different ids, so the repository refuses the second commit. |
 
 Then the job fires `extractAnswers` on the submission. If that throws, the job "gives
@@ -766,8 +768,8 @@ administrator who is not the submitter is refused too.
 | Event | Handler | What it does |
 | --- | --- | --- |
 | `stopProcessing` | `StopProcessingHandler` | Stops a parse or a reading that is in progress |
-| `readAgain` | `ReadAgainHandler` | Runs the reading again over the documents already parsed, asking every question the submitter has not answered |
-| `retryParse` | `ParseDocumentsHandler` | Sends every upload that was never parsed or whose parse failed, when the schema names a reading workflow |
+| `readAgain` | `ReadAgainHandler` | Runs the reading again over the documents already parsed, asking every question the submitter has not answered. Refused when the schema names no reading workflow. |
+| `retryParse` | `ParseDocumentsHandler` | Sends every upload that was never parsed or whose parse failed, when the schema names a reading workflow that can run |
 | `reviewExtraction` | `ReviewExtractionHandler` | Records that the quotes behind a suggestion do not support it |
 
 ### Stop
@@ -845,7 +847,7 @@ reading's route.
 ### Retry a failed parse
 
 This runs the `parseDocuments` step. Only uploads with no `parseStatus`, or with
-`failed`, are sent, and nothing is sent when the schema names no reading workflow.
+`failed`, are sent, and nothing is sent when the schema names no reading workflow that can run.
 Uploads for a requirement that sets `skipParsing` are never sent. Usually the daemon was
 down, not the document broken.
 
@@ -896,7 +898,7 @@ Messages the submitter can see in `extractionMessage`:
 
 | Message | Cause |
 | --- | --- |
-| No document has been uploaded | Nothing to read |
+| No document to read has been uploaded | Nothing to read: no upload, or only uploads whose requirement sets `skipParsing` |
 | The document has not been read yet | A parse is still queued |
 | The document could not be read. Please try again | The parse failed. Its reason stays in the file's `parseError`, in the log ("Parse job ... failed") and in error tracking. |
 | No uploaded document could be read | Uploads exist, but none has a finished parse, and none failed or is queued (for example, never sent to be parsed). With `documents` set, this is worked out from every upload, not only the named ones. |
@@ -1100,7 +1102,7 @@ a public dataset from ClinicalTrials.gov and run it:
 
 | Gap | Effect |
 | --- | --- |
-| The `attachDocument` workflow does not run a `parseDocuments` step, and no schema sets `readingWorkflow` | No upload is parsed on its own. Only `retryParse` sends one, and only when the schema version names a reading workflow. |
+| The `attachDocument` workflow does not run a `parseDocuments` step, and no schema sets `readingWorkflow` | No upload is parsed on its own. Only `retryParse` sends one, and only when the schema version names a reading workflow that can run. |
 | The submission page only knows that a reading is running; the view that shows `extractionMessage` and where answers came from is not merged | Nobody sees why a reading failed, or which answers a model suggested |
 | Only the start and the end of a long document are read | The middle of a document longer than the context window is never read, and the confidence does not show it |
 | Only the first parsed upload is read unless `documents` is set | Other files, such as a consent form or a cover letter, are ignored by default |

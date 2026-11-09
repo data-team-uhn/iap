@@ -721,7 +721,7 @@ class IntakeAnswersHandlerTest
 
         Mockito.verifyNoInteractions(this.intake);
         assertEquals("failed", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals("No document has been uploaded",
+        assertEquals(SubmissionFiles.NO_DOCUMENT_MESSAGE,
             this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 

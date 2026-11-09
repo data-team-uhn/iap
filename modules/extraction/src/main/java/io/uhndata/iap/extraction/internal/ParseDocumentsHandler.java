@@ -86,13 +86,15 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         final Submission submission = SubmissionFiles.getSubmission(target);
         SubmitterAccess.checkMayChange(submission, context.getActor());
         // Nothing would read the parse, so the uploads are left alone
-        if (!SubmissionFiles.hasReadingWorkflow(submission, context.getResourceResolver())) {
-            if (submission.getSchemaVersion().get(SubmissionFiles.READING_WORKFLOW, String.class) != null) {
-                // Named, but missing, not a workflow version, or not active: a set-up an administrator must fix
-                LOGGER.warn("The schema of {} names a reading workflow that cannot run", target.getPath());
-                ErrorLogger.logProblem("The schema version names a reading workflow that does not exist or is not"
-                    + " active", ErrorContext.of(ParseDocumentsHandler.class, "findReadingWorkflow").about(target));
-            }
+        final SubmissionFiles.ReadingWorkflow reading =
+            SubmissionFiles.checkReadingWorkflow(submission, context.getResourceResolver());
+        if (reading == SubmissionFiles.ReadingWorkflow.NONE) {
+            return;
+        }
+        if (reading == SubmissionFiles.ReadingWorkflow.CANNOT_RUN) {
+            SubmissionFiles.reportReadingWorkflowCannotRun(ParseDocumentsHandler.class, target);
+            // Told, so the submitter does not retry a parse nothing would read
+            ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, ExtractAnswersJobConsumer.NOTHING_READS);
             return;
         }
         int queued = 0;

@@ -17,17 +17,20 @@
  */
 package io.uhndata.iap.extraction.internal;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.submissions.models.Document;
@@ -48,25 +51,45 @@ final class SubmissionFiles
     /** Where a schema version names the workflow that reads its documents. */
     static final String READING_WORKFLOW = "readingWorkflow";
 
+    /** What the submitter is told when no document a reading can read has been uploaded. */
+    static final String NO_DOCUMENT_MESSAGE = "No document to read has been uploaded";
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(SubmissionFiles.class);
+
     private SubmissionFiles()
     {
         // Utility
     }
 
     /**
-     * Whether the submission's schema version names a reading workflow that can run: a workflow version that
-     * exists and is tagged {@code active}. Parsing and the reading job both ask this, so they agree on whether
-     * anything will read the documents.
+     * Whether a schema version names a workflow that reads its documents, and whether that workflow can run.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    enum ReadingWorkflow
+    {
+        /** The schema names none: it never reads its documents. */
+        NONE,
+        /** The schema names one that is missing, is not a workflow version, or is not tagged active. */
+        CANNOT_RUN,
+        /** The schema names a workflow version that exists and is tagged active. */
+        CAN_RUN
+    }
+
+    /**
+     * Checks the reading workflow the submission's schema version names. Parsing and the reading job both ask this,
+     * so they agree on whether anything will read the documents.
      *
      * @param submission the submission
      * @param resolver a session that can read the workflow version
-     * @return {@code true} when the named reading workflow exists and is active
+     * @return whether there is one, and whether it can run
      */
-    static boolean hasReadingWorkflow(final Submission submission, final ResourceResolver resolver)
+    static ReadingWorkflow checkReadingWorkflow(final Submission submission, final ResourceResolver resolver)
     {
         final String identifier = submission.getSchemaVersion().get(READING_WORKFLOW, String.class);
         if (identifier == null) {
-            return false;
+            return ReadingWorkflow.NONE;
         }
         final Session session = Objects.requireNonNull(resolver.adaptTo(Session.class),
             "A repository session is always JCR-backed");
@@ -74,10 +97,24 @@ final class SubmissionFiles
             final Resource reading = resolver.getResource(session.getNodeByIdentifier(identifier).getPath());
             final WorkflowVersion version = reading == null || !reading.isResourceType(WorkflowVersion.RESOURCE_TYPE)
                 ? null : reading.adaptTo(WorkflowVersion.class);
-            return version != null && version.isActive();
-        } catch (final RepositoryException e) {
-            return false;
+            return version != null && version.isActive() ? ReadingWorkflow.CAN_RUN : ReadingWorkflow.CANNOT_RUN;
+        } catch (final RepositoryException | IllegalArgumentException e) {
+            // The repository refuses an identifier that is not a UUID with an IllegalArgumentException
+            return ReadingWorkflow.CANNOT_RUN;
         }
+    }
+
+    /**
+     * Tells an administrator that the schema of a submission names a reading workflow that cannot run.
+     *
+     * @param reporter the class that found it
+     * @param submission the submission's resource
+     */
+    static void reportReadingWorkflowCannotRun(final Class<?> reporter, final Resource submission)
+    {
+        LOGGER.warn("The schema of {} names a reading workflow that cannot run", submission.getPath());
+        ErrorLogger.logProblem("The schema version names a reading workflow that does not exist or is not active",
+            ErrorContext.of(reporter, "findReadingWorkflow").about(submission));
     }
 
     /**
@@ -116,33 +153,30 @@ final class SubmissionFiles
      */
     static List<File> getCurrentFiles(final Submission submission)
     {
-        final List<File> files = new ArrayList<>();
-        for (final Document document : submission.getDocuments()) {
-            final DocumentVersion version = document.getCurrentVersion();
-            final File file = version == null ? null : version.getFile();
-            if (file != null) {
-                files.add(file);
-            }
-        }
-        return files;
+        return getCurrentFiles(submission.getDocuments().stream());
     }
 
     /**
      * The latest upload of every document whose requirement does not skip parsing, in the order the repository
-     * lists the documents.
+     * lists the documents. These are the only files ever parsed, so they are the only ones a reading can read.
      *
      * @param submission the submission
      * @return the current files to parse; documents with no upload yet are skipped
      */
     static List<File> getFilesToParse(final Submission submission)
     {
-        return submission.getDocuments().stream()
-            .filter(document -> !isParsingSkipped(document))
-            .map(Document::getCurrentVersion)
-            .filter(Objects::nonNull)
-            .map(DocumentVersion::getFile)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+        return getCurrentFiles(submission.getDocuments().stream().filter(document -> !isParsingSkipped(document)));
+    }
+
+    private static List<File> getCurrentFiles(final Stream<Document> documents)
+    {
+        return documents.map(SubmissionFiles::getCurrentFile).filter(Objects::nonNull).toList();
+    }
+
+    private static File getCurrentFile(final Document document)
+    {
+        final DocumentVersion version = document.getCurrentVersion();
+        return version == null ? null : version.getFile();
     }
 
     private static boolean isParsingSkipped(final Document document)
@@ -160,9 +194,9 @@ final class SubmissionFiles
      */
     static String describeNothingToRead(final Submission submission)
     {
-        final List<File> files = getCurrentFiles(submission);
+        final List<File> files = getFilesToParse(submission);
         if (files.isEmpty()) {
-            return "No document has been uploaded";
+            return NO_DOCUMENT_MESSAGE;
         }
         for (final File file : files) {
             if (ParsePropertyNames.STATUS_FAILED.equals(file.getParseStatus())) {
@@ -186,7 +220,7 @@ final class SubmissionFiles
      */
     static File findFirstParsed(final Submission submission)
     {
-        for (final File file : getCurrentFiles(submission)) {
+        for (final File file : getFilesToParse(submission)) {
             if (ParsePropertyNames.STATUS_COMPLETED.equals(file.getParseStatus())) {
                 return file;
             }
@@ -216,8 +250,7 @@ final class SubmissionFiles
     {
         for (final Document document : submission.getDocuments()) {
             final Requirement fulfilled = document.getFulfills();
-            final DocumentVersion version = document.getCurrentVersion();
-            final File file = version == null ? null : version.getFile();
+            final File file = getCurrentFile(document);
             if (fulfilled != null && requirement.equals(fulfilled.getName()) && file != null) {
                 return file;
             }

@@ -115,6 +115,20 @@ class ReadAgainHandlerTest
         Mockito.verifyNoInteractions(this.jobManager);
     }
 
+    // A schema that names no reading workflow never reads its documents, so there is nothing to read again
+    @Test
+    void refusesWhenTheSchemaReadsNothing()
+    {
+        this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH).adaptTo(ModifiableValueMap.class)
+            .remove(SubmissionFiles.READING_WORKFLOW);
+
+        final InvalidStateException refused =
+            assertThrows(InvalidStateException.class, () -> this.handler.execute(createTask()));
+
+        assertEquals(ExtractAnswersJobConsumer.NOTHING_READS, refused.getMessage());
+        Mockito.verifyNoInteractions(this.jobManager);
+    }
+
     @Test
     void refusesAnybodyButTheSubmitter()
     {

@@ -20,14 +20,19 @@ package io.uhndata.iap.extraction.internal;
 import java.util.List;
 import java.util.Map;
 
+import javax.jcr.ItemNotFoundException;
+import javax.jcr.Session;
+
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
@@ -118,7 +123,38 @@ class SubmissionFilesTest
     @Test
     void saysNothingHasBeenUploadedWhenThereIsNothing()
     {
-        assertEquals("No document has been uploaded", SubmissionFiles.describeNothingToRead(getModel()));
+        assertEquals(SubmissionFiles.NO_DOCUMENT_MESSAGE, SubmissionFiles.describeNothingToRead(getModel()));
+    }
+
+    // An upload whose requirement skips parsing is never read, so it is as good as none to a reading
+    @Test
+    void readsNoUploadWhoseRequirementSkipsParsing()
+    {
+        final Resource file = this.tree.createFile("completed");
+        final Resource requirement = this.tree.createDocumentRequirement("signedForm");
+        requirement.adaptTo(ModifiableValueMap.class).put("skipParsing", true);
+        SubmissionTree.reference(file.getParent().getParent(), "fulfills", requirement);
+
+        assertEquals(SubmissionFiles.NO_DOCUMENT_MESSAGE, SubmissionFiles.describeNothingToRead(getModel()));
+        assertNull(SubmissionFiles.findFirstParsed(getModel()));
+        assertTrue(SubmissionFiles.getFilesToParse(getModel()).isEmpty());
+        assertEquals(1, SubmissionFiles.getCurrentFiles(getModel()).size(), "it is still the document's upload");
+    }
+
+    // A value that is not a UUID makes the repository throw an unchecked exception, not a RepositoryException
+    @Test
+    void findsAReadingWorkflowNamedByAMalformedIdentifierCannotRun() throws Exception
+    {
+        final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);
+        Mockito.when(session.getNodeByIdentifier(Mockito.anyString()))
+            .thenThrow(new IllegalArgumentException("Not a valid identifier"), new ItemNotFoundException("gone"));
+
+        assertEquals(SubmissionFiles.ReadingWorkflow.CANNOT_RUN, SubmissionFiles.checkReadingWorkflow(getModel(),
+            resolver));
+        assertEquals(SubmissionFiles.ReadingWorkflow.CANNOT_RUN, SubmissionFiles.checkReadingWorkflow(getModel(),
+            resolver));
     }
 
     // The daemon's error names its address, paths and workers, which the submitter cannot do anything about

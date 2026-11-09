@@ -37,6 +37,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -150,22 +152,42 @@ class ParseDocumentsHandlerTest
         this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH).adaptTo(ModifiableValueMap.class)
             .remove(SubmissionFiles.READING_WORKFLOW);
 
-        this.handler.execute(createTask(this.submission));
+        final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(errors);
+        try {
+            this.handler.execute(createTask(this.submission));
+        } finally {
+            ErrorLogger.unsetService(errors);
+        }
 
-        Mockito.verifyNoInteractions(this.parseService);
+        Mockito.verifyNoInteractions(this.parseService, errors);
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class),
+            "a schema may read nothing, and that is not a fault");
     }
 
-    // Parsing for a reading workflow that cannot run would only end in a failed reading
+    // Parsing for a reading workflow that cannot run would only end in a failed reading, so the submitter is told
+    // and an administrator is shown the set-up to fix
     @Test
     void leavesTheUploadsAloneWhenTheReadingWorkflowCannotRun() throws Exception
     {
         this.tree.createFile(null);
         this.context.resourceResolver().getResource(SubmissionTree.READING_PATH).adaptTo(ModifiableValueMap.class)
             .put("tags", new String[] { "retired" });
-
-        this.handler.execute(createTask(this.submission));
+        final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(errors);
+        try {
+            this.handler.execute(createTask(this.submission));
+        } finally {
+            ErrorLogger.unsetService(errors);
+        }
 
         Mockito.verifyNoInteractions(this.parseService);
+        Mockito.verify(errors).logProblem(
+            Mockito.eq("The schema version names a reading workflow that does not exist or is not active"),
+            Mockito.any());
+        assertEquals("failed", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        assertEquals(ExtractAnswersJobConsumer.NOTHING_READS,
+            this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
     @Test
