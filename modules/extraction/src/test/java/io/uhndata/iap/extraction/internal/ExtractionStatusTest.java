@@ -88,35 +88,22 @@ class ExtractionStatusTest
         assertNull(submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
-    // A later step finishing must not hide that an earlier one failed
+    // A note says something to the submitter without ending the reading; finishReading ends it
     @Test
-    void keepsAFailureAnEarlierStepRecorded() throws PersistenceException
-    {
-        final Resource submission = this.context.create().resource("/Submissions/s1", Map.of(
-            ExtractionStatus.STATUS_PROPERTY, ExtractionStatus.STATUS_FAILED,
-            ExtractionStatus.MESSAGE_PROPERTY, "The model could not be reached"));
-
-        ExtractionStatus.recordDone(submission, null);
-
-        assertEquals("failed", submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals("The model could not be reached",
-            submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
-    }
-
-    @Test
-    void recordsDoneOverARunningReading() throws PersistenceException
+    void leavesANoteWithoutTouchingTheStatus() throws PersistenceException
     {
         final Resource submission = this.context.create().resource("/Submissions/s1",
             Map.of(ExtractionStatus.STATUS_PROPERTY, ExtractionStatus.STATUS_RUNNING));
 
-        ExtractionStatus.recordDone(submission, "Waiting for you");
+        ExtractionStatus.recordNote(submission, "Some questions could not be read");
 
-        assertEquals("done", submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals("Waiting for you", submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
+        assertEquals("running", submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        assertEquals("Some questions could not be read",
+            submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
     @Test
-    void refusesToRecordDoneOnASubmissionItCannotWrite()
+    void refusesToLeaveANoteOnASubmissionItCannotWrite()
     {
         final Resource readOnly = new ResourceWrapper(this.context.create().resource("/Submissions/s1", Map.of()))
         {
@@ -127,7 +114,7 @@ class ExtractionStatusTest
             }
         };
 
-        assertThrows(PersistenceException.class, () -> ExtractionStatus.recordDone(readOnly, null));
+        assertThrows(PersistenceException.class, () -> ExtractionStatus.recordNote(readOnly, "A note"));
     }
 
     @Test

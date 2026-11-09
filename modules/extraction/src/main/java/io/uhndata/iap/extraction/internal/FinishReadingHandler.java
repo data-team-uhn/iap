@@ -25,15 +25,15 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that marks the reading as done.
- *
- * <p>A reading workflow can end having asked nothing, or stop to wait for the submitter. Without this step the
- * submission would stay {@code running}, and the view would show a spinner that never stops.</p>
+ * The service task that marks the reading as done. It is the only step that does, so every path of a reading
+ * workflow ends with it; without it the submission would stay {@code running}, and the view would show a spinner
+ * that never stops.
  *
  * <p>Only {@code running} is changed to {@code done}. A {@code failed} status is kept, so its message is not
  * lost.</p>
  *
- * <p>The step can set a {@code message}, for example to say the reading waits for the submitter. It can also set
+ * <p>The step can set a {@code message}, for example to say the reading waits for the submitter. Without one, a
+ * note an earlier step left is kept, such as the intake's "some questions could not be read". It can also set
  * {@code blocks} when the request cannot go on, such as when a document is not what the request asks for: the
  * submission is then marked blocked until a new reading starts.</p>
  *
@@ -64,8 +64,10 @@ public class FinishReadingHandler implements ServiceTaskHandler
         final Resource target = context.getTarget();
         if (ExtractionStatus.STATUS_RUNNING.equals(
             target.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class))) {
-            ExtractionStatus.record(target, ExtractionStatus.STATUS_DONE,
-                context.getActivity().get(MESSAGE_PARAMETER, String.class));
+            final String message = context.getActivity().get(MESSAGE_PARAMETER, String.class);
+            // The step's own message is the deliberate one; otherwise an earlier step's note stays
+            ExtractionStatus.record(target, ExtractionStatus.STATUS_DONE, message != null ? message
+                : target.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
             if (Boolean.TRUE.equals(context.getActivity().get(BLOCKS_PARAMETER, Boolean.class))) {
                 ExtractionStatus.markBlocked(target);
             }

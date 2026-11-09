@@ -392,16 +392,17 @@ What the step does:
    document version asks every question, answered or not (see "A newer version").
    Questions are keyed by their path inside the schema version with dots for slashes
    (`study.title`), so two sections may both have a `title`.
-3. **Nothing to ask.** If every question already has an answer: `done`. If a named
-   requirement asks nothing (for example its condition does not hold): no status change.
+3. **Nothing to ask.** If every question already has an answer, or a named requirement
+   asks nothing (for example its condition does not hold): the step does nothing.
 4. **Ask** the model (see the next section).
 5. **No call went through** (every reply unreadable twice, or the model unreachable):
    `extractionStatus=failed` with the reason, and nothing is written.
 6. **Otherwise** every question whose call went through gets a run, found or not (see
-   "Writing an answer"), and `extractionStatus=done`, unless an earlier step of the
-   reading already wrote `failed`. When some calls did not go through, their questions
-   get no run, so the next reading asks them again, and the status message says "Some
-   questions could not be read. Read again to try them again".
+   "Writing an answer"). The status stays as it is: `finishReading` (step 9) ends the
+   reading. When some calls did not go through, their questions get no run, so the next
+   reading asks them again, and the step leaves the note "Some questions could not be
+   read. Read again to try them again" (`ExtractionStatus.recordNote`), which
+   `finishReading` keeps.
 
 A model that cannot be reached is recorded as `failed`, not thrown as a workflow error.
 Throwing would undo the answers that earlier steps of the reading wrote, and the job's
@@ -425,10 +426,10 @@ submission, and the `message` says why. A new reading removes the flag when it r
 flag yet. The request's own workflow and the form are meant to read it, to stop the
 request from going on.
 
-`intakeAnswers` already writes `done`, so a `finishReading` after an intake step on the
-same path changes nothing: its `message` and `blocks` are ignored. Put them on a
-`finishReading` that no intake step runs before, such as the end of a path that only
-classifies.
+`finishReading` is the only step that writes `done`; the intake leaves the status to it.
+Without a `message` of its own it keeps a note an earlier step left, such as the
+intake's "Some questions could not be read"; with one, its own message wins, since that
+is the one the workflow's author chose to show.
 
 ## Asking the model
 
@@ -540,7 +541,7 @@ example one that timed out) once more.
 | Calls that went through | Result |
 | --- | --- |
 | All | Every question asked gets a run |
-| Some | Those calls' questions get runs; the step says "Some questions could not be read. Read again to try them again" |
+| Some | Those calls' questions get runs; the step leaves the note "Some questions could not be read. Read again to try them again" |
 | None, a model was unreachable | The step fails with "The model could not be reached" |
 | None, every reply unreadable | The step fails with "The model's answer could not be read" |
 
@@ -891,7 +892,7 @@ Messages the submitter can see in `extractionMessage`:
 | Reading was stopped. | Stop |
 | Nothing is set up to read this request's documents | The schema names no reading workflow, or it no longer exists, or it is not tagged `active` |
 | This reading is not set up correctly | An `intakeAnswers` step names no `requirement` |
-| Some questions could not be read. Read again to try them again | Some of an intake step's calls did not go through (the reading is still `done`) |
+| Some questions could not be read. Read again to try them again | Some of an intake step's calls did not go through; `finishReading` still ends the reading as `done` |
 
 ## What a reading leaves in the log
 
@@ -1053,8 +1054,8 @@ Keep in mind:
 - Every path must end at `finishReading`, or the submission stays `running`.
 - A user task that waits for the submitter should come after a `finishReading` with a
   `message`, so the view stops spinning while it waits.
-- `intakeAnswers` already writes `done`, so a `finishReading` after it ignores its
-  `message` and `blocks` (see step 9).
+- Only `finishReading` writes `done`. A path that ends after an intake step without it
+  stays `running` (see step 9).
 - Up to its first user task, the reading runs as `iap-extraction`, in the job. After
   that, the rest runs in the request that completes the task, as that person (see step
   6).

@@ -135,7 +135,8 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      * submitter answered. None left: stop.</li>
      * <li>Ask the model, one requirement after another, at most ten questions per call. No call went through:
      * record why and stop.</li>
-     * <li>Save one new run under each question whose call went through, found or not.</li>
+     * <li>Save one new run under each question whose call went through, found or not. When some calls did not
+     * go through, leave a note saying so. The status is left to {@code finishReading}, which ends the reading.</li>
      * </ol>
      *
      * @param context the step
@@ -160,7 +161,6 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         final Map<String, Map<String, Question>> grouped = getQuestionsByRequirement(submission, requirements);
         final Map<String, Question> questions = new LinkedHashMap<>();
         grouped.values().forEach(questions::putAll);
-        final boolean hadQuestions = !questions.isEmpty();
         final boolean newRevision = ExtractionFields.isNewRevision(submission, questions.values(), files);
         if (!newRevision) {
             // The same version again asks what the submitter has not answered; a newer one asks everything
@@ -169,11 +169,8 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             grouped.values().forEach(group -> group.keySet().retainAll(questions.keySet()));
         }
         if (questions.isEmpty()) {
-            if (hadQuestions) {
-                // Everything it asks is answered already. A named requirement with no questions just does not
-                // apply here, so it says nothing.
-                ExtractionStatus.recordDone(target, null);
-            }
+            // Everything it asks is answered already, or its requirements do not apply here: nothing to do. The
+            // reading's last step, finishReading, ends it.
             return;
         }
         this.runs.setFiles(target.getPath(), files.stream().map(File::getPath).collect(Collectors.toSet()));
@@ -188,7 +185,10 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         }
         ExtractionFields.write(context.getResourceResolver(), target, submission, questions, result.fields(),
             files);
-        ExtractionStatus.recordDone(target, result.incomplete() ? IntakeResult.INCOMPLETE_MESSAGE : null);
+        if (result.incomplete()) {
+            // Kept by finishReading when it ends the reading, so the submitter knows Read again is worth it
+            ExtractionStatus.recordNote(target, IntakeResult.INCOMPLETE_MESSAGE);
+        }
         LOGGER.info("Reading step done: step=intake submission={} answered={} of={} ms={}", target.getPath(),
             result.fields().values().stream().filter(FieldResult::found).count(), questions.size(),
             (System.nanoTime() - startedAt) / 1_000_000L);

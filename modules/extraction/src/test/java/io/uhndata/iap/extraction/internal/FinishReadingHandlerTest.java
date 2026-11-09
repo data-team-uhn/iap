@@ -100,6 +100,30 @@ class FinishReadingHandlerTest
         assertEquals("Confirm the classification to go on", getProperty(ExtractionStatus.MESSAGE_PROPERTY));
     }
 
+    // An intake step that could not read every question leaves a note; ending the reading must not lose it
+    @Test
+    void keepsTheNoteAnEarlierStepLeft() throws Exception
+    {
+        setStatus(ExtractionStatus.STATUS_RUNNING, "Some questions could not be read");
+
+        this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of()));
+
+        assertEquals("done", getProperty(ExtractionStatus.STATUS_PROPERTY));
+        assertEquals("Some questions could not be read", getProperty(ExtractionStatus.MESSAGE_PROPERTY));
+    }
+
+    // The step's own message is the one its author meant to show
+    @Test
+    void putsItsOwnMessageOverAnEarlierNote() throws Exception
+    {
+        setStatus(ExtractionStatus.STATUS_RUNNING, "Some questions could not be read");
+
+        this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of(),
+            Map.of("message", "Confirm the classification to go on")));
+
+        assertEquals("Confirm the classification to go on", getProperty(ExtractionStatus.MESSAGE_PROPERTY));
+    }
+
     // The document is not what the request needs: the request cannot go on, and the message says why
     @Test
     void marksTheRequestBlockedWhenTheStepSaysSo() throws Exception
@@ -140,11 +164,11 @@ class FinishReadingHandlerTest
     @Test
     void leavesAReadingThatAlreadyFinishedAlone() throws Exception
     {
-        setStatus(ExtractionStatus.STATUS_DONE, "The schema asks nothing of the document");
+        setStatus(ExtractionStatus.STATUS_DONE, "Confirm the classification to go on");
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of()));
 
-        assertEquals("The schema asks nothing of the document", getProperty(ExtractionStatus.MESSAGE_PROPERTY));
+        assertEquals("Confirm the classification to go on", getProperty(ExtractionStatus.MESSAGE_PROPERTY));
     }
 
     @Test

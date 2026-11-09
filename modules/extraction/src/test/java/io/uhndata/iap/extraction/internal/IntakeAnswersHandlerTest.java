@@ -183,7 +183,8 @@ class IntakeAnswersHandlerTest
 
         assertEquals(Map.of("study", List.of(AIMS, TITLE)), getAskedGroups(),
             "the question with no prompt is the submitter's to answer");
-        assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class),
+            "finishReading, not the intake, ends the reading");
     }
 
     // A schema read in stages names one requirement per step, so each call asks about that requirement only,
@@ -336,7 +337,8 @@ class IntakeAnswersHandlerTest
         final Resource run = getOnlyChild(getAnswers().get(0));
         assertNull(run.getValueMap().get("extractedAnswer", String.class));
         assertEquals("Not stated.", run.getValueMap().get("reasoning", String.class));
-        assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class),
+            "finishReading, not the intake, ends the reading");
     }
 
     @Test
@@ -409,7 +411,8 @@ class IntakeAnswersHandlerTest
         this.handler.execute(createTask());
 
         Mockito.verifyNoInteractions(this.intake);
-        assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class),
+            "finishReading, not the intake, ends the reading");
         assertNull(this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
@@ -549,7 +552,8 @@ class IntakeAnswersHandlerTest
 
         this.handler.execute(createTask());
 
-        assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class),
+            "finishReading, not the intake, ends the reading");
         assertEquals(SubmissionTree.getIdentifier(this.aims),
             getAnswers().get(0).getValueMap().get("question", String.class));
         assertEquals("To reduce readmissions",
@@ -794,7 +798,8 @@ class IntakeAnswersHandlerTest
         this.handler.execute(createTask());
 
         assertEquals(1, getAnswers().size());
-        assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        assertNull(this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class),
+            "finishReading, not the intake, ends the reading");
         assertEquals(IntakeResult.INCOMPLETE_MESSAGE,
             this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
