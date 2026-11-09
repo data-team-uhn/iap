@@ -178,7 +178,7 @@ final class ExtractionPrompt
      */
     static String readSystemPrompt()
     {
-        return Prompts.read(Prompts.EXTRACTION_SYSTEM).strip();
+        return Prompts.read(Prompts.EXTRACTION_SYSTEM_FILE_NAME).strip();
     }
 
     /**

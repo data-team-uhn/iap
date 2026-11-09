@@ -172,7 +172,7 @@ class ExtractionEvaluation
             final List<ExtractionField> fields = streamQuestions(requirement)
                 .map(resource -> resource.adaptTo(Question.class))
                 .filter(question -> question != null && ExtractionField.isExtractable(question))
-                .map(question -> ExtractionField.of(ExtractionField.keyFor(version.getPath(), question), question))
+                .map(question -> ExtractionField.of(ExtractionField.getKey(version.getPath(), question), question))
                 .toList();
             if (!fields.isEmpty()) {
                 groups.add(new ExtractionPrompt.Group(requirement.getName(), fields));

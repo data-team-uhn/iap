@@ -22,7 +22,7 @@ import java.util.List;
 /**
  * What the model answered for one question, after its quotes were checked against the document.
  *
- * @param key the question's key, see {@link ExtractionField#keyFor}
+ * @param key the question's key, see {@link ExtractionField#getKey}
  * @param values the answer as text, one entry per value; empty when nothing was found
  * @param reasoning how the model got there, or what it looked for; empty when it gave none
  * @param confidence how sure the model is, from 0 to 1, lowered when its quotes could not be found

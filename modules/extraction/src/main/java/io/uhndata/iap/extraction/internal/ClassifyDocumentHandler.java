@@ -149,7 +149,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         for (final ClassificationRequirement classification : classifications) {
             final Question question = Objects.requireNonNull(classification.getDecision(),
                 "Only a classification holding a question is put to the model");
-            final String key = ExtractionField.keyFor(versionPath, question);
+            final String key = ExtractionField.getKey(versionPath, question);
             questions.put(key, question);
             thresholds.put(key, classification.getConfidenceThreshold());
             fields.add(ExtractionField.of(key, question, classification.getPrompt()));
@@ -201,8 +201,9 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
     }
 
     /**
-     * Finds the classification requirements whose question has no answer yet, grouped by document. A classification
-     * whose condition does not hold, that holds no question, or whose question is already answered is left out.
+     * Finds the classification requirements whose question is neither answered nor picked yet, grouped by
+     * document. A classification whose condition does not hold, that holds no question, or whose question already
+     * has an answer or a pick is left out.
      */
     private static Map<String, List<ClassificationRequirement>> getOpen(final Submission submission)
     {

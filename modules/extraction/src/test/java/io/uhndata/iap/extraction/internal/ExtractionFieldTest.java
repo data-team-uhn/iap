@@ -61,9 +61,9 @@ class ExtractionFieldTest
     @Test
     void keysAQuestionByItsPathInsideTheSchemaVersion()
     {
-        assertEquals("common.title", ExtractionField.keyFor(VERSION, question("Find it.")));
+        assertEquals("common.title", ExtractionField.getKey(VERSION, question("Find it.")));
         // A question outside the version keeps its whole path, dotted
-        assertEquals(".Schemas.proposal.v1.common.title", ExtractionField.keyFor("/elsewhere", question("Find it.")));
+        assertEquals(".Schemas.proposal.v1.common.title", ExtractionField.getKey("/elsewhere", question("Find it.")));
     }
 
     @Test

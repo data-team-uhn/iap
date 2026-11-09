@@ -31,7 +31,7 @@ import io.uhndata.iap.schemas.models.Question;
  * how to tell it. Only questions with an extraction prompt are asked ({@link #isExtractable}); the others are for the
  * submitter. A classification is the one exception: its instructions are on the requirement, not the question.</p>
  *
- * @param key the name the answer comes back under, unique within one call, see {@link #keyFor}
+ * @param key the name the answer comes back under, unique within one call, see {@link #getKey}
  * @param text the question as the submitter reads it
  * @param description the help text shown with the question, or {@code null}
  * @param purpose what the answer is used for, or {@code null}
@@ -105,7 +105,7 @@ record ExtractionField(String key, String text, String description, String purpo
     /**
      * The field for a question, asked with the question's own extraction prompt.
      *
-     * @param key the name the answer comes back under, see {@link #keyFor}
+     * @param key the name the answer comes back under, see {@link #getKey}
      * @param question an {@link #isExtractable extractable} question
      * @return the field
      */
@@ -118,7 +118,7 @@ record ExtractionField(String key, String text, String description, String purpo
      * The field for a question, asked with the given instructions. Used for a classification, whose instructions
      * are on the requirement, not on the question its answer is saved under.
      *
-     * @param key the name the answer comes back under, see {@link #keyFor}
+     * @param key the name the answer comes back under, see {@link #getKey}
      * @param question the question the answer is saved under
      * @param instructions what the model is told to look for or decide
      * @return the field
@@ -128,9 +128,10 @@ record ExtractionField(String key, String text, String description, String purpo
         final String pattern = isBlank(question.getPatternMessage()) ? question.getPattern()
             : question.getPatternMessage();
         final String dataType = isBlank(question.getDataType()) ? TEXT_TYPE : question.getDataType();
-        return new ExtractionField(key, question.getText(), trim(question.getDescription()),
-            trim(question.getPurpose()), instructions == null ? "" : instructions.strip(),
-            new Answer(dataType, question.isMultiple(), question.getMinValue(), question.getMaxValue(), trim(pattern),
+        return new ExtractionField(key, question.getText(), collapseWhitespace(question.getDescription()),
+            collapseWhitespace(question.getPurpose()), instructions == null ? "" : instructions.strip(),
+            new Answer(dataType, question.isMultiple(), question.getMinValue(), question.getMaxValue(),
+                collapseWhitespace(pattern),
                 question.getOfferedOptions().stream().map(ExtractionField::toOption).toList()));
     }
 
@@ -142,7 +143,7 @@ record ExtractionField(String key, String text, String description, String purpo
      * @param question a question of that version
      * @return the key, such as {@code common.title}
      */
-    static String keyFor(final String schemaVersionPath, final Question question)
+    static String getKey(final String schemaVersionPath, final Question question)
     {
         final String path = question.getPath();
         final String prefix = schemaVersionPath + "/";
@@ -152,11 +153,11 @@ record ExtractionField(String key, String text, String description, String purpo
     private static Option toOption(final OfferedOption option)
     {
         return new Option(option.value(), isBlank(option.label()) ? option.value() : option.label(),
-            trim(option.description()));
+            collapseWhitespace(option.description()));
     }
 
     /** The text with its whitespace collapsed, or {@code null} when nothing is left. */
-    private static String trim(final String text)
+    private static String collapseWhitespace(final String text)
     {
         if (text == null) {
             return null;

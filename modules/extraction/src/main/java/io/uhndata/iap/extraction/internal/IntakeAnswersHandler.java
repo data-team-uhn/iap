@@ -83,11 +83,11 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     static final String DOCUMENTS_PARAMETER = "documents";
 
     /**
-     * The activity property naming extra system-prompt files for this step only, from the bundle's
-     * {@code /prompts} folder. A string or a list. The files go before the intake prompt, so knowledge that only
-     * one schema needs is not sent with every reading.
+     * The activity property naming reference files for this step only, from the bundle's {@code /prompts}
+     * folder. A string or a list. They are sent after the document as reference material, which helps the model
+     * understand the questions; they are not instructions it must follow.
      */
-    static final String PROMPT_FROM = "promptFrom";
+    static final String REFERENCES_PARAMETER = "promptFrom";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(IntakeAnswersHandler.class);
 
@@ -379,14 +379,14 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      */
     static String getReferences(final WorkflowTaskContext context)
     {
-        final String[] named = context.getActivity().get(PROMPT_FROM, String[].class);
-        final StringBuilder extra = new StringBuilder();
+        final String[] named = context.getActivity().get(REFERENCES_PARAMETER, String[].class);
+        final StringBuilder references = new StringBuilder();
         for (final String name : named == null ? new String[0] : named) {
             if (!name.isBlank()) {
-                extra.append(Prompts.read(name)).append("\n\n");
+                references.append(Prompts.read(name)).append("\n\n");
             }
         }
-        return extra.isEmpty() ? null : extra.toString().strip();
+        return references.isEmpty() ? null : references.toString().strip();
     }
 
     /**

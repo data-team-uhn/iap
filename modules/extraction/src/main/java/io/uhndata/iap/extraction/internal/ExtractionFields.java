@@ -63,7 +63,7 @@ final class ExtractionFields
 
     /**
      * The questions of one requirement the model can be asked (those with an extraction prompt), keyed by
-     * {@link ExtractionField#keyFor}, in schema order.
+     * {@link ExtractionField#getKey}, in schema order.
      *
      * @param submission the submission whose schema is read
      * @param requirement the requirement to ask about, by name
@@ -76,7 +76,7 @@ final class ExtractionFields
         final Map<String, Question> questions = new LinkedHashMap<>();
         for (final Question question : submission.getQuestions(requirement)) {
             if (ExtractionField.isExtractable(question)) {
-                questions.put(ExtractionField.keyFor(versionPath, question), question);
+                questions.put(ExtractionField.getKey(versionPath, question), question);
             }
         }
         return questions;
@@ -97,8 +97,8 @@ final class ExtractionFields
 
     /**
      * Saves one run for each entry in {@code results}, found or not, under that question's answer. The intake
-     * passes every question it asked; the gate passes only its sure picks. An entry whose key is not in
-     * {@code questions} is skipped.
+     * passes every question whose call went through; the gate passes only its sure picks. An entry whose key is
+     * not in {@code questions} is skipped.
      *
      * <p>Each run names the document versions it read, which is how a later reading knows those versions were
      * already read for that question. No answer's value is written: what the model read stays a suggestion until

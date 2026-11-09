@@ -851,7 +851,7 @@ class IntakeAnswersHandlerTest
         stubModelFinds();
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), this.variables,
-            Map.of(IntakeAnswersHandler.REQUIREMENT_PARAMETER, "study", IntakeAnswersHandler.PROMPT_FROM,
+            Map.of(IntakeAnswersHandler.REQUIREMENT_PARAMETER, "study", IntakeAnswersHandler.REFERENCES_PARAMETER,
                 REFERENCE_PROMPT)));
 
         final ArgumentCaptor<String> references = ArgumentCaptor.forClass(String.class);
@@ -863,8 +863,8 @@ class IntakeAnswersHandlerTest
     void joinsEveryReferenceTheStepNamesInOrder()
     {
         final String references = IntakeAnswersHandler.getReferences(TaskContexts.of(this.submission, Map.of(),
-            this.variables, Map.of(IntakeAnswersHandler.PROMPT_FROM,
-                new String[] { REFERENCE_PROMPT, " ", Prompts.EXTRACTION_SYSTEM })));
+            this.variables, Map.of(IntakeAnswersHandler.REFERENCES_PARAMETER,
+                new String[] { REFERENCE_PROMPT, " ", Prompts.EXTRACTION_SYSTEM_FILE_NAME })));
 
         final String other = "You read the document submitted with a request";
         assertTrue(references.contains(REFERENCE_TEXT), references);
@@ -877,6 +877,6 @@ class IntakeAnswersHandlerTest
     {
         assertNull(IntakeAnswersHandler.getReferences(createTask()));
         assertNull(IntakeAnswersHandler.getReferences(TaskContexts.of(this.submission, Map.of(), this.variables,
-            Map.of(IntakeAnswersHandler.PROMPT_FROM, " "))));
+            Map.of(IntakeAnswersHandler.REFERENCES_PARAMETER, " "))));
     }
 }

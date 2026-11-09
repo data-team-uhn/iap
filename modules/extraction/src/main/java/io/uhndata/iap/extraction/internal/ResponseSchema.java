@@ -76,7 +76,7 @@ final class ResponseSchema
 
     private static final String PROPERTIES_KEY = "properties";
 
-    private static final String NO_EXTRAS = "additionalProperties";
+    private static final String ADDITIONAL_PROPERTIES_KEY = "additionalProperties";
 
     private static final String EVIDENCE_REFERENCE = "#/$defs/evidence";
 
@@ -101,7 +101,7 @@ final class ResponseSchema
         }
         return Json.createObjectBuilder()
             .add(TYPE_KEY, OBJECT_TYPE)
-            .add(NO_EXTRAS, false)
+            .add(ADDITIONAL_PROPERTIES_KEY, false)
             .add(REQUIRED_KEY, required)
             .add(PROPERTIES_KEY, properties)
             .add("$defs", Json.createObjectBuilder().add(EVIDENCE_KEY, buildEvidenceSchema()))
@@ -112,7 +112,7 @@ final class ResponseSchema
     {
         return Json.createObjectBuilder()
             .add(TYPE_KEY, OBJECT_TYPE)
-            .add(NO_EXTRAS, false)
+            .add(ADDITIONAL_PROPERTIES_KEY, false)
             .add(REQUIRED_KEY, Json.createArrayBuilder()
                 .add(EVIDENCE_KEY).add(REASONING_KEY).add(VALUE_KEY).add(CONFIDENCE_KEY))
             .add(PROPERTIES_KEY, Json.createObjectBuilder()
@@ -173,7 +173,7 @@ final class ResponseSchema
     {
         return Json.createObjectBuilder()
             .add(TYPE_KEY, OBJECT_TYPE)
-            .add(NO_EXTRAS, false)
+            .add(ADDITIONAL_PROPERTIES_KEY, false)
             .add(REQUIRED_KEY, Json.createArrayBuilder().add(QUOTE_KEY).add(PAGE_KEY))
             .add(PROPERTIES_KEY, Json.createObjectBuilder()
                 .add(QUOTE_KEY, Json.createObjectBuilder().add(TYPE_KEY, STRING_TYPE))
