@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+ Copyright 2026 DATA @ UHN. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
+                  id="ethicsReviewDemoDefinitions"
+                  targetNamespace="https://iap.uhndata.io/demos/ethicsReviewDemo">
+  <bpmn:process id="ethicsReviewDemo" name="Read for ethics review only" isExecutable="true">
+    <bpmn:startEvent id="started" name="The document is readable">
+      <bpmn:outgoing>toEthicsReview</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toEthicsReview" sourceRef="started" targetRef="askEthicsReview" />
+    <bpmn:serviceTask id="askEthicsReview" iap:handler="intakeAnswers" iap:requirement="ethicsReview" iap:promptFrom="tcps2_reference.md" name="Check the document against TCPS2">
+      <bpmn:incoming>toEthicsReview</bpmn:incoming>
+      <bpmn:outgoing>toMark</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toMark" sourceRef="askEthicsReview" targetRef="markCompleteness" />
+    <bpmn:serviceTask id="markCompleteness" iap:handler="markCompleteness" name="Record whether anything is still missing">
+      <bpmn:incoming>toMark</bpmn:incoming>
+      <bpmn:outgoing>toFinish</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toFinish" sourceRef="markCompleteness" targetRef="finishReading" />
+    <bpmn:serviceTask id="finishReading" iap:handler="finishReading" name="The reading is over">
+      <bpmn:incoming>toFinish</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toDone" sourceRef="finishReading" targetRef="done" />
+    <bpmn:endEvent id="done" name="The document has been read">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="ethicsReviewDemoDiagram">
+    <bpmndi:BPMNPlane id="ethicsReviewDemoPlane" bpmnElement="ethicsReviewDemo">
+      <bpmndi:BPMNShape id="startedShape" bpmnElement="started">
+        <dc:Bounds x="100" y="382" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="askEthicsReviewShape" bpmnElement="askEthicsReview">
+        <dc:Bounds x="200" y="360" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markCompletenessShape" bpmnElement="markCompleteness">
+        <dc:Bounds x="360" y="360" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="finishReadingShape" bpmnElement="finishReading">
+        <dc:Bounds x="520" y="360" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
+        <dc:Bounds x="680" y="382" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toEthicsReviewEdge" bpmnElement="toEthicsReview">
+        <di:waypoint x="136" y="400" />
+        <di:waypoint x="200" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toMarkEdge" bpmnElement="toMark">
+        <di:waypoint x="300" y="400" />
+        <di:waypoint x="360" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toFinishEdge" bpmnElement="toFinish">
+        <di:waypoint x="460" y="400" />
+        <di:waypoint x="520" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="620" y="400" />
+        <di:waypoint x="680" y="400" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

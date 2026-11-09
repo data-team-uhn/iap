@@ -1,0 +1,18 @@
+{
+  // A top category is what a submitter picks when starting a submission. It names the schema version the
+  // submission follows; the categories under it are what a classification of the uploaded document picks from.
+  "jcr:primaryType": "cat:Category",
+  "label": "Patient facing questionnaire",
+  "description": "A questionnaire given to patients to fill in, submitted to the PFQ Council for review.",
+  "jcr:reference:schemaVersion": "/Schemas/pfq/v1",
+  "PROM": {
+    "jcr:primaryType": "cat:Category",
+    "label": "PROM (patient-reported outcome measure)",
+    "description": "A questionnaire that asks patients about their own health status and the quality of life it affects: symptoms, functioning, pain, and physical, mental and social health, in their own words. EQ-5D-5L and Your Symptoms Matter are examples."
+  },
+  "PREM": {
+    "jcr:primaryType": "cat:Category",
+    "label": "PREM (patient-reported experience measure)",
+    "description": "A questionnaire that asks patients how they experienced the care they received: waiting times, communication, access, respect and dignity, involvement in decisions, clear information and coordination of care. The Canadian Patient Experiences Survey is an example."
+  }
+}

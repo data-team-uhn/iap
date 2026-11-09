@@ -167,7 +167,7 @@ describe("MySubmissionsWidget", () => {
     await waitFor(() => expect(listings()).toBeGreaterThan(before));
   });
 
-  it("offers raising a new submission, and opens the one that was raised", async () => {
+  it("offers raising a new submission, and opens the one that was raised in its editor", async () => {
     const fetchMock = widgetFetch();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -179,7 +179,7 @@ describe("MySubmissionsWidget", () => {
     await raiseOne();
 
     await waitFor(() => expect(screen.queryByRole("radio")).not.toBeInTheDocument());
-    await waitFor(() => expect(probedPath()).toBe(SUBMISSION_PATH));
+    await waitFor(() => expect(probedPath()).toBe(`${SUBMISSION_PATH}.edit`));
   });
 
   it("stays on the dashboard when the engine created nothing to open, and re-reads the listing", async () => {
