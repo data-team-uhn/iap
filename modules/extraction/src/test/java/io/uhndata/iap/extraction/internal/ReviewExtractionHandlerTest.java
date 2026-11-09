@@ -212,6 +212,18 @@ class ReviewExtractionHandlerTest
                 ReviewExtractionHandler.EVIDENCE_REJECTED, true))));
     }
 
+    // A run that found nothing has no evidence to reject
+    @Test
+    void refusesAReviewOfARunThatFoundNothing()
+    {
+        this.extraction.adaptTo(ModifiableValueMap.class).remove("extractedAnswer");
+
+        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
+            createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, "study/aims",
+                ReviewExtractionHandler.EVIDENCE_REJECTED, true))));
+        assertNull(this.extraction.getValueMap().get(ReviewExtractionHandler.EVIDENCE_REJECTED));
+    }
+
     @Test
     void refusesAReviewOnAnAnswerItMayNotWriteTo()
     {

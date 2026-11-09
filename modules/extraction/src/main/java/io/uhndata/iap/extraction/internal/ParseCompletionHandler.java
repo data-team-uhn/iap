@@ -131,9 +131,9 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
             if (!outcome.succeeded()) {
                 // The submitter is only told to try again; why it failed is for an administrator
                 LOGGER.warn("Parse job {} for {} failed: {}", outcome.jobId(), outcome.target(), outcome.error());
-                ErrorLogger.logProblem("A document could not be parsed: " + outcome.error(),
+                ErrorLogger.logProblem("A document could not be parsed",
                     ErrorContext.of(ParseCompletionHandler.class, "handle").about(outcome.target())
-                        .with("job", outcome.jobId()));
+                        .with("job", outcome.jobId()).with("error", outcome.error()));
             }
             final String staged = getStagedFolder(outcome, file);
             this.engine.receiveEvent(submission, new WorkflowEvent(EVENT_NAME, buildPayload(outcome)));

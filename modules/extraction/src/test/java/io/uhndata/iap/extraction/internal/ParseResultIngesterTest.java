@@ -41,8 +41,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -310,9 +313,16 @@ class ParseResultIngesterTest
     void refusesToCallAParseDoneWhenItsTextIsNotThere() throws IOException
     {
         Files.delete(this.markdown);
+        final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(errors);
+        try {
+            this.ingester.ingest(getFile(), this.markdown, this.pdf, 12000L);
+        } finally {
+            ErrorLogger.unsetService(errors);
+        }
 
-        this.ingester.ingest(getFile(), this.markdown, this.pdf, 12000L);
-
+        Mockito.verify(errors).logProblem(Mockito.eq("The document daemon named a result that is not there"),
+            Mockito.any());
         assertEquals("failed", getProperties().get("parseStatus", String.class));
         // The path is on the volume, the file is just missing. Saying "not on the volume" would send someone
         // looking in the wrong place.

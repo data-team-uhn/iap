@@ -19,8 +19,8 @@ package io.uhndata.iap.extraction.internal;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
@@ -64,11 +64,10 @@ public class IngestParseHandler implements ServiceTaskHandler
         if (Boolean.TRUE.equals(event.get(ParseCompletionHandler.SUCCEEDED_KEY))) {
             ingest(file, event);
         } else {
-            final ModifiableValueMap properties = getWritableProperties(file);
-            properties.put(ParsePropertyNames.PARSE_STATUS, ParsePropertyNames.STATUS_FAILED);
             final String reported = readString(event, ParseCompletionHandler.ERROR_KEY);
-            properties.put(ParsePropertyNames.PARSE_ERROR,
-                reported == null ? "The parse failed without details" : reported);
+            ParseResultIngester.writeParseProperties(file, Map.of(
+                ParsePropertyNames.PARSE_STATUS, ParsePropertyNames.STATUS_FAILED,
+                ParsePropertyNames.PARSE_ERROR, reported == null ? "The parse failed without details" : reported));
         }
     }
 
@@ -108,15 +107,6 @@ public class IngestParseHandler implements ServiceTaskHandler
             throw new InvalidPayloadException("There is no uploaded file at " + path);
         }
         return file;
-    }
-
-    private static ModifiableValueMap getWritableProperties(final Resource file) throws PersistenceException
-    {
-        final ModifiableValueMap properties = file.adaptTo(ModifiableValueMap.class);
-        if (properties == null) {
-            throw new PersistenceException("Not allowed to record the parse on " + file.getPath());
-        }
-        return properties;
     }
 
     private static String readString(final WorkflowEvent event, final String key)

@@ -220,7 +220,7 @@ What `ParseResultIngester.ingest` checks and writes:
 | Check | Result |
 | --- | --- |
 | The Markdown path is on the shared volume (`ParseService.isStagedPath`) | If not: `parseStatus=failed`, "The parse named ..., which is not on the shared volume", and the problem "The document daemon named a file outside the shared volume" is recorded. A file outside the volume is never read. |
-| The Markdown file exists | If not: `parseStatus=failed`, "The parse named ..., which is not there". |
+| The Markdown file exists | If not: `parseStatus=failed`, "The parse named ..., which is not there", and the problem "The document daemon named a result that is not there" is recorded for an administrator. |
 | The PDF path is on the shared volume | If not: the PDF is skipped, a warning is logged, and the same problem is recorded. |
 | The upload is itself a PDF (`File.isUploadAPdf`, which reads `uploadedFile/jcr:content/jcr:mimeType`) | The PDF is not stored a second time. `File.getFilePdf()` returns the upload instead. |
 
@@ -776,7 +776,7 @@ administrator who is not the submitter is refused too.
 | `stopProcessing` | `StopProcessingHandler` | Stops a parse or a reading that is in progress |
 | `readAgain` | `ReadAgainHandler` | Runs the reading again over the documents already parsed, asking every question the submitter has not answered. Refused when the schema names no reading workflow. |
 | `retryParse` | `ParseDocumentsHandler` | Sends every upload that was never parsed or whose parse failed, when the schema names a reading workflow that can run |
-| `reviewExtraction` | `ReviewExtractionHandler` | Records that the quotes behind a suggestion do not support it |
+| `reviewExtraction` | `ReviewExtractionHandler` | Records that the quotes behind a suggestion do not support it. Refused when the newest run found nothing, since there is no evidence to reject. |
 
 ### Stop
 

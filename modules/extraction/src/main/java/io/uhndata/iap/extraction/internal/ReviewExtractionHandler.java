@@ -108,9 +108,9 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
     }
 
     /**
-     * The newest run of the question, the one the form shows, or {@code null} when there is none. It uses the
-     * same rule as the form ({@code Answer.getLatestExtraction}), so the review lands on the run that was on
-     * screen.
+     * The newest run of the question, the one the form shows, or {@code null} when there is none or it found
+     * nothing. It uses the same rule as the form ({@code Answer.getLatestExtraction}), so the review lands on the
+     * run that was on screen.
      */
     private static Extraction findExtraction(final Submission submission, final String path)
     {
@@ -120,8 +120,9 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
             if (question == null || !wanted.equals(question.getPath())) {
                 continue;
             }
+            // A run that found nothing has no evidence to reject
             final Extraction latest = answer.getLatestExtraction();
-            if (latest != null) {
+            if (latest != null && latest.getExtractedAnswer() != null) {
                 return latest;
             }
         }

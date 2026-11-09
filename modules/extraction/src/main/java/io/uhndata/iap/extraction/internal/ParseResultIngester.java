@@ -111,6 +111,9 @@ public class ParseResultIngester
         if (markdown == null || !Files.isRegularFile(markdown)) {
             // The daemon said it finished, but the file is not there. Marked completed, the reading would get an
             // empty document and tell the submitter it could not be identified, instead of that the parse was lost.
+            LOGGER.warn("The parse for {} named {}, which is not there", file.getPath(), markdown);
+            ErrorLogger.logProblem("The document daemon named a result that is not there",
+                ErrorContext.of(ParseResultIngester.class, "ingest").about(file).with("named", markdown));
             recordLostParse(file, markdown, "which is not there");
             return;
         }
@@ -121,7 +124,7 @@ public class ParseResultIngester
             properties.put(ParsePropertyNames.TOKENS_PROPERTY, tokens);
         }
 
-        applyProperties(file, properties);
+        writeParseProperties(file, properties);
         final long markdownBytes = storeFile(resolver, file, File.MARKDOWN_CHILD, MARKDOWN_MIME_TYPE, markdown);
         final long pdfBytes = storePdf(resolver, file, pdf);
 
@@ -133,7 +136,7 @@ public class ParseResultIngester
     private static void recordLostParse(final Resource file, final Path markdown, final String why)
         throws PersistenceException
     {
-        applyProperties(file, Map.of(
+        writeParseProperties(file, Map.of(
             ParsePropertyNames.PARSE_STATUS, ParsePropertyNames.STATUS_FAILED,
             ParsePropertyNames.PARSE_ERROR, markdown == null
                 ? "The parse finished without naming the text it produced"
@@ -203,7 +206,15 @@ public class ParseResultIngester
         return storeFile(resolver, file, File.PDF_CHILD, PDF_MIME_TYPE, pdf);
     }
 
-    private static void applyProperties(final Resource file, final Map<String, Object> properties)
+    /**
+     * Writes what a parse came to on its file, checking the submission out first: a checked-in submission is read
+     * only, with everything under it.
+     *
+     * @param file the file the parse was for
+     * @param properties the properties to write
+     * @throws PersistenceException if the submission cannot be checked out or the file cannot be written
+     */
+    static void writeParseProperties(final Resource file, final Map<String, Object> properties)
         throws PersistenceException
     {
         // Always the first write of an ingest, so checking the submission out here covers every write after it
