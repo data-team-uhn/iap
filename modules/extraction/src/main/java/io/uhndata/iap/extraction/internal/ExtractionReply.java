@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.extraction.internal;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -50,52 +51,79 @@ final class ExtractionReply
      */
     static final double UNVERIFIED_PENALTY = 0.5;
 
+    /** The most digits, or zeros after the point, a number in a reply may have. */
+    private static final int MAX_NUMBER_DIGITS = 100;
+
     private ExtractionReply()
     {
         // Utility
     }
 
     /**
-     * Reads a reply.
+     * A reply that cannot be read, and why, in words fit for the note sent back to the model.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    static final class UnreadableReply extends Exception
+    {
+        private static final long serialVersionUID = 1L;
+
+        private final boolean cutOff;
+
+        UnreadableReply(final String reason, final boolean cutOff)
+        {
+            super(reason);
+            this.cutOff = cutOff;
+        }
+
+        /**
+         * Whether the reply ran out of room before it ended.
+         *
+         * @return {@code true} when the reply was cut off
+         */
+        boolean isCutOff()
+        {
+            return this.cutOff;
+        }
+    }
+
+    /**
+     * Reads a reply. The schema asks for every question, so a reply that leaves one out did not follow it.
      *
      * @param fields the questions the call asked
      * @param reply what the model said
      * @param document the document the quotes are checked against: the whole of it, not only the part sent
-     * @return an answer per question, in the order asked, or {@code null} when the reply holds no JSON object; a
-     *     question the reply leaves out is answered with nothing
+     * @return an answer per question, in the order asked
+     * @throws UnreadableReply when the reply is empty, holds no JSON object, or leaves a question out
      */
     static Map<String, FieldResult> read(final List<ExtractionField> fields, final String reply,
-        final DocumentScan document)
+        final DocumentScan document) throws UnreadableReply
     {
+        if (reply == null || reply.isBlank()) {
+            throw new UnreadableReply("it was empty", false);
+        }
         final JsonObject object = ModelReplies.readJsonObject(reply);
         if (object == null) {
-            return null;
+            throw isCutOff(reply) ? new UnreadableReply("it was cut off before the end", true)
+                : new UnreadableReply("it held no JSON object", false);
+        }
+        final List<String> missing = fields.stream().map(ExtractionField::key)
+            .filter(key -> !(object.get(key) instanceof JsonObject)).toList();
+        if (!missing.isEmpty()) {
+            throw new UnreadableReply("it left out " + String.join(", ", missing), false);
         }
         final Map<String, FieldResult> answers = new LinkedHashMap<>();
-        for (final ExtractionField field : fields) {
-            final JsonValue entry = object.get(field.key());
-            answers.put(field.key(), entry instanceof JsonObject
-                ? readField(field, (JsonObject) entry, document) : FieldResult.createNotFound(field.key()));
-        }
+        fields.forEach(field -> answers.put(field.key(), readField(field, object.getJsonObject(field.key()),
+            document)));
         return answers;
     }
 
-    /**
-     * Why a reply could not be read, for the note sent back to the model.
-     *
-     * @param reply what the model said
-     * @return the reason, or {@code null} when the reply can be read
-     */
-    static String describeUnreadable(final String reply)
+    /** Whether a reply opens more objects than it closes, which is how a reply that ran out of room ends. */
+    private static boolean isCutOff(final String reply)
     {
-        if (reply == null || reply.isBlank()) {
-            return "it was empty";
-        }
-        if (ModelReplies.readJsonObject(reply) != null) {
-            return null;
-        }
-        return reply.indexOf('{') >= 0 && reply.lastIndexOf('}') < reply.indexOf('{')
-            ? "it was cut off before the end" : "it held no JSON object";
+        return reply.chars().filter(character -> character == '{').count()
+            > reply.chars().filter(character -> character == '}').count();
     }
 
     private static FieldResult readField(final ExtractionField field, final JsonObject entry,
@@ -170,12 +198,23 @@ final class ExtractionReply
         if (value instanceof JsonString text) {
             return text.getString();
         } else if (value instanceof JsonNumber number) {
-            return number.isIntegral() ? number.bigIntegerValue().toString()
-                : number.bigDecimalValue().stripTrailingZeros().toPlainString();
+            return readNumber(number.bigDecimalValue());
         } else if (JsonValue.TRUE.equals(value) || JsonValue.FALSE.equals(value)) {
             return value.toString();
         }
         return null;
+    }
+
+    /**
+     * A number as a person writes it, or {@code null} for one with more digits than any answer has. Written out in
+     * full, {@code 1e999999999} would take a billion characters.
+     */
+    private static String readNumber(final BigDecimal number)
+    {
+        if (number.precision() > MAX_NUMBER_DIGITS || Math.abs(number.scale()) > MAX_NUMBER_DIGITS) {
+            return null;
+        }
+        return number.stripTrailingZeros().toPlainString();
     }
 
     /**

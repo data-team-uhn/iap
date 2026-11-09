@@ -160,10 +160,13 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
             target.getPath(), file.getPath(), fields.size());
         final IntakeResult result = ask(file,
             new ExtractionPrompt.Group(classifications.get(0).getDocument(), fields), getTemplates(classifications));
-        if (result.degraded()) {
-            ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED,
-                result.getMessage());
+        if (result.status() == AnswerIntakeService.Status.NOT_READ) {
+            ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, result.message());
             return false;
+        }
+        if (result.status() == AnswerIntakeService.Status.INCOMPLETE) {
+            // The lost picks stay open for the submitter, as an unsure one does
+            ExtractionStatus.recordNote(target, result.message());
         }
         // The gate must never guess: a pick less sure than the schema asks, or one naming no category the question
         // offers, is left for the submitter to make
@@ -257,7 +260,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
             LOGGER.warn("The text of {} could not be read: {}", file.getPath(), e.getMessage());
             // A repository fault: the submitter is told the text could not be read, not why
             ErrorLogger.logError(e, ErrorContext.of(ClassifyDocumentHandler.class, "readText").about(file.getPath()));
-            return IntakeResult.createNotAsked(IntakeResult.TEXT_UNREADABLE);
+            return IntakeResult.createNotRead(IntakeResult.TEXT_UNREADABLE_MESSAGE);
         }
         return this.intake.run(file, scan, List.of(classifications), templates);
     }

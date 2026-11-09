@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.sling.api.resource.Resource;
@@ -176,6 +177,19 @@ class AnswerIntakeServiceTest
             + " \"reasoning\": \"It says so.\", \"value\": \"" + value + "\", \"confidence\": 0.9}}";
     }
 
+    /** Keys q0 to q(count - 1). */
+    private static String[] createKeys(final int count)
+    {
+        return IntStream.range(0, count).mapToObj(i -> "q" + i).toArray(String[]::new);
+    }
+
+    /** A reply that finds nothing for questions q(from) to q(to - 1). */
+    private static String buildNotFound(final int from, final int to)
+    {
+        return IntStream.range(from, to).mapToObj(i -> "\"q" + i + "\": {\"value\": null}")
+            .collect(Collectors.joining(", ", "{", "}"));
+    }
+
     /** The document read and prepared once, the way the service gets it. */
     private DocumentScan scan() throws IOException
     {
@@ -196,8 +210,7 @@ class AnswerIntakeServiceTest
             List.of(new ExtractionPrompt.Group("empty", List.of())))) {
             final IntakeResult result = run(nothing);
             assertTrue(result.fields().isEmpty());
-            assertFalse(result.degraded());
-            assertFalse(result.incomplete());
+            assertEquals(AnswerIntakeService.Status.READ, result.status());
         }
         assertTrue(this.client.asked.isEmpty(), "no call is worth making for no questions");
     }
@@ -210,8 +223,8 @@ class AnswerIntakeServiceTest
 
         final IntakeResult result = run(groupOf(AIMS));
 
-        assertFalse(result.degraded());
-        assertFalse(result.incomplete());
+        assertEquals(AnswerIntakeService.Status.READ, result.status());
+        assertNull(result.message());
         final FieldResult found = result.fields().get(AIMS);
         assertEquals(List.of("To find out whether it works"), found.values());
         assertEquals(0.9, found.confidence(), 1e-9, "every quote checked out, so nothing is taken off");
@@ -248,31 +261,45 @@ class AnswerIntakeServiceTest
     void asksAtMostTenQuestionsPerCall() throws IOException
     {
         addMarkdown(DOCUMENT);
-        for (int i = 0; i < 3; i++) {
-            this.client.replies.add("{}");
-        }
+        this.client.replies.add(buildNotFound(0, 10));
+        this.client.replies.add(buildNotFound(10, 20));
+        this.client.replies.add(buildNotFound(20, 23));
 
-        final IntakeResult result = run(groupOf(IntStream.range(0, 23).mapToObj(i -> "q" + i)
-            .toArray(String[]::new)));
+        final IntakeResult result = run(groupOf(createKeys(23)));
 
         assertEquals(3, this.client.asked.size());
-        assertEquals(23, result.fields().size(), "a question the reply left out is answered with nothing");
+        assertEquals(23, result.fields().size());
     }
 
-    // One call failing must not lose the others' answers; the lost questions stay open for the next reading
+    // A failed call loses its own questions; they get no run, so the next reading asks them again
     @Test
-    void keepsWhatTheOtherCallsReadWhenOneFails() throws IOException
+    void keepsWhatTheOtherCallsReadWhenOneCannotBeRead() throws IOException
     {
         addMarkdown(DOCUMENT);
-        this.client.replies.add(new IOException("connection reset"));
-        this.client.replies.add("{\"q10\": {\"value\": \"x\"}}");
+        this.client.replies.add("nonsense");
+        this.client.replies.add("more nonsense");
+        this.client.replies.add(buildNotFound(10, 11));
 
-        final IntakeResult result = run(groupOf(IntStream.range(0, 11).mapToObj(i -> "q" + i)
-            .toArray(String[]::new)));
+        final IntakeResult result = run(groupOf(createKeys(11)));
 
-        assertFalse(result.degraded());
-        assertTrue(result.incomplete());
+        assertEquals(AnswerIntakeService.Status.INCOMPLETE, result.status());
+        assertEquals(IntakeResult.INCOMPLETE_MESSAGE, result.message());
         assertEquals(List.of("q10"), List.copyOf(result.fields().keySet()));
+    }
+
+    // The calls after an outage would each wait out the same timeout
+    @Test
+    void stopsAskingOnceTheModelCannotBeReached() throws IOException
+    {
+        addMarkdown(DOCUMENT);
+        this.client.replies.add(buildNotFound(0, 10));
+        this.client.replies.add(new IOException("connection reset"));
+
+        final IntakeResult result = run(groupOf(createKeys(21)));
+
+        assertEquals(2, this.client.asked.size(), "the third call is never made");
+        assertEquals(AnswerIntakeService.Status.INCOMPLETE, result.status());
+        assertEquals(10, result.fields().size());
     }
 
     @Test
@@ -283,8 +310,8 @@ class AnswerIntakeServiceTest
 
         final IntakeResult result = run(groupOf(AIMS));
 
-        assertTrue(result.degraded());
-        assertEquals(IntakeResult.UNREACHABLE_MESSAGE, result.getMessage());
+        assertEquals(AnswerIntakeService.Status.NOT_READ, result.status());
+        assertEquals(IntakeResult.UNREACHABLE_MESSAGE, result.message());
     }
 
     @Test
@@ -295,8 +322,8 @@ class AnswerIntakeServiceTest
 
         final IntakeResult result = run(groupOf(AIMS));
 
-        assertTrue(result.degraded());
-        assertEquals(IntakeResult.UNREACHABLE_MESSAGE, result.getMessage());
+        assertEquals(AnswerIntakeService.Status.NOT_READ, result.status());
+        assertEquals(IntakeResult.UNREACHABLE_MESSAGE, result.message());
     }
 
     // After two unreadable replies every question is left for the submitter to answer
@@ -309,10 +336,9 @@ class AnswerIntakeServiceTest
 
         final IntakeResult result = run(groupOf(AIMS));
 
-        assertTrue(result.degraded());
+        assertEquals(AnswerIntakeService.Status.NOT_READ, result.status());
         assertTrue(result.fields().isEmpty());
-        assertNull(result.reason());
-        assertEquals(IntakeResult.UNREADABLE_MESSAGE, result.getMessage());
+        assertEquals(IntakeResult.UNREADABLE_MESSAGE, result.message());
     }
 
     @Test
@@ -320,8 +346,8 @@ class AnswerIntakeServiceTest
     {
         final IntakeResult result = run(groupOf(AIMS));
 
-        assertTrue(result.degraded());
-        assertEquals("The document has no text that can be read", result.getMessage());
+        assertEquals(AnswerIntakeService.Status.NOT_READ, result.status());
+        assertEquals("The document has no text that can be read", result.message());
         assertTrue(this.client.asked.isEmpty(), "nothing was worth asking");
     }
 
@@ -375,8 +401,9 @@ class AnswerIntakeServiceTest
 
         final IntakeResult result = run(groupOf(AIMS));
 
-        assertTrue(result.degraded(), "asking every question over no document could only invent");
+        assertEquals(AnswerIntakeService.Status.NOT_READ, result.status(),
+            "asking every question over no document could only invent");
         assertTrue(this.client.asked.isEmpty(), "and the call is not made at all");
-        assertEquals("The questions leave no room to show the model the document", result.getMessage());
+        assertEquals("The questions leave no room to show the model the document", result.message());
     }
 }

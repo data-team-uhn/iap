@@ -41,8 +41,8 @@ import io.uhndata.iap.submissions.models.File;
  * {@link ExtractionPrompt} and made by {@link DocumentReader}.
  *
  * <p>A long document is cut to its start and its end to fit the calls, but quotes are still checked against the
- * whole document. A call whose reply cannot be read twice, or that cannot reach the model, loses only its own
- * questions; they stay unanswered and are asked again by the next reading.</p>
+ * whole document. A call whose reply cannot be read twice loses only its own questions, and a model that cannot be
+ * reached loses the questions of every call left. Lost questions get no run, so the next reading asks them again.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -55,6 +55,9 @@ public class AnswerIntakeService
     /** The name of this step in the logs and in the budget warning. */
     private static final String STAGE_NAME = "extraction";
 
+    /** The operation a failure to reach the model is recorded under. */
+    private static final String ASK_MODEL_OPERATION = "askModel";
+
     @Reference
     private LLMClientFactory llmClientFactory;
 
@@ -62,17 +65,31 @@ public class AnswerIntakeService
     private LLMConfigurationService configurationService;
 
     /**
-     * The result of reading a document.
+     * How much of a document's questions a reading read.
      *
-     * @param fields one result per question whose call went through, keyed by the question's key, in the order asked
-     * @param degraded {@code true} when nothing was read and every question is left unanswered
-     * @param reason what to tell the submitter when nothing was read, or {@code null} when the replies could not be
-     *     read
-     * @param incomplete {@code true} when some calls went through and others did not
      * @version $Id$
      * @since 0.1.0
      */
-    public record IntakeResult(Map<String, FieldResult> fields, boolean degraded, String reason, boolean incomplete)
+    public enum Status
+    {
+        /** Every question was read. */
+        READ,
+        /** Some calls went through and others did not; the questions of the others are left unanswered. */
+        INCOMPLETE,
+        /** Nothing was read, and every question is left unanswered. */
+        NOT_READ
+    }
+
+    /**
+     * The result of reading a document.
+     *
+     * @param fields one result per question whose call went through, keyed by the question's key, in the order asked
+     * @param status how much was read
+     * @param message what to tell the submitter, or {@code null} when everything was read
+     * @version $Id$
+     * @since 0.1.0
+     */
+    public record IntakeResult(Map<String, FieldResult> fields, Status status, String message)
     {
         /** What the submitter is told when the model's replies could not be read. */
         static final String UNREADABLE_MESSAGE = "The model's answer could not be read";
@@ -81,7 +98,7 @@ public class AnswerIntakeService
         static final String UNREACHABLE_MESSAGE = "The model could not be reached";
 
         /** What the submitter is told when the parsed text could not be read from the repository. */
-        static final String TEXT_UNREADABLE = "The document's text could not be read";
+        static final String TEXT_UNREADABLE_MESSAGE = "The document's text could not be read";
 
         /** What the submitter is told when only some questions could be read. */
         static final String INCOMPLETE_MESSAGE = "Some questions could not be read. Read again to try them again";
@@ -90,9 +107,8 @@ public class AnswerIntakeService
          * Copies the fields, so the result cannot be changed later.
          *
          * @param fields one result per question
-         * @param degraded {@code true} when nothing was read
-         * @param reason what to tell the submitter, or {@code null}
-         * @param incomplete {@code true} when only some calls went through
+         * @param status how much was read
+         * @param message what to tell the submitter, or {@code null}
          */
         public IntakeResult
         {
@@ -108,38 +124,29 @@ public class AnswerIntakeService
          */
         static IntakeResult createRead(final Map<String, FieldResult> fields)
         {
-            return new IntakeResult(fields, false, null, false);
+            return new IntakeResult(fields, Status.READ, null);
         }
 
         /**
-         * The result when no reply could be read on either try.
+         * The result of a reading where only some calls went through.
          *
-         * @return a degraded result with no fields and no reason
+         * @param fields one result per question whose call went through
+         * @return an incomplete result, telling the submitter to read again
          */
-        static IntakeResult createNothingRead()
+        static IntakeResult createIncomplete(final Map<String, FieldResult> fields)
         {
-            return new IntakeResult(Map.of(), true, null, false);
+            return new IntakeResult(fields, Status.INCOMPLETE, INCOMPLETE_MESSAGE);
         }
 
         /**
-         * The result when the model was not asked, or could not be reached.
+         * The result when nothing was read.
          *
-         * @param reason what to tell the submitter
-         * @return a degraded result with no fields and this reason
+         * @param message what to tell the submitter
+         * @return a result with no fields
          */
-        static IntakeResult createNotAsked(final String reason)
+        static IntakeResult createNotRead(final String message)
         {
-            return new IntakeResult(Map.of(), true, reason, false);
-        }
-
-        /**
-         * What to tell the submitter when nothing was read.
-         *
-         * @return the reason, or {@link #UNREADABLE_MESSAGE} when there is no reason
-         */
-        String getMessage()
-        {
-            return this.reason == null ? UNREADABLE_MESSAGE : this.reason;
+            return new IntakeResult(Map.of(), Status.NOT_READ, message);
         }
     }
 
@@ -150,8 +157,7 @@ public class AnswerIntakeService
      * @param document the parsed text, which quotes are checked against
      * @param groups the questions, grouped as they should be asked, such as one group per requirement
      * @param references reference text for these questions, sent after the document, or {@code null} for none
-     * @return one result per question read; a degraded result with a reason when nothing was read; an empty, not
-     *     degraded result when there is nothing to ask
+     * @return one result per question read, and how much was read; an empty, read result when there is nothing to ask
      */
     public IntakeResult run(final File file, final DocumentScan document, final List<ExtractionPrompt.Group> groups,
         final String references)
@@ -161,7 +167,7 @@ public class AnswerIntakeService
         }
         if (document.isBlank()) {
             LOGGER.warn("There is nothing to read for {}", file.getPath());
-            return IntakeResult.createNotAsked("The document has no text that can be read");
+            return IntakeResult.createNotRead("The document has no text that can be read");
         }
         final ExtractionPrompt.Plan plan = ExtractionPrompt.plan(document.getText(), references, groups,
             (promptTokens, maxOutputTokens) -> CallBudget.calculateDocumentTokenBudget(this.configurationService,
@@ -172,7 +178,7 @@ public class AnswerIntakeService
             // The model's context window is too small for the questions, which only an administrator can fix
             ErrorLogger.logProblem("The questions leave no room for the document in the model's context window",
                 ErrorContext.of(AnswerIntakeService.class, "plan").about(file.getPath()));
-            return IntakeResult.createNotAsked("The questions leave no room to show the model the document");
+            return IntakeResult.createNotRead("The questions leave no room to show the model the document");
         }
         if (plan.document().wasCut()) {
             LOGGER.info("Document cut to fit: file={} documentChars={} sentChars={} omittedChars={}", file.getPath(),
@@ -184,33 +190,44 @@ public class AnswerIntakeService
         } catch (final IOException e) {
             LOGGER.warn("No model can be asked about {}: {}", file.getPath(), e.getMessage());
             // No active model is configured, which an administrator has to fix
-            ErrorLogger.logError(e, ErrorContext.of(AnswerIntakeService.class, "askModel").about(file.getPath()));
-            return IntakeResult.createNotAsked(IntakeResult.UNREACHABLE_MESSAGE);
+            ErrorLogger.logError(e, ErrorContext.of(AnswerIntakeService.class, ASK_MODEL_OPERATION)
+                .about(file.getPath()));
+            return IntakeResult.createNotRead(IntakeResult.UNREACHABLE_MESSAGE);
         }
-        return summarize(file, DocumentReader.read(client, plan, document));
+        final DocumentReader.Reading reading = DocumentReader.read(client, plan, document);
+        reportProblems(file, reading);
+        return summarize(reading);
     }
 
-    /** Turns how each call went into the result, and reports each call the model could not take. */
-    private static IntakeResult summarize(final File file, final DocumentReader.Reading reading)
+    /** Reports, once per reading, an outage of the model and a model that does not follow the reply's schema. */
+    private static void reportProblems(final File file, final DocumentReader.Reading reading)
     {
-        boolean answered = false;
-        boolean unreachable = false;
-        for (final DocumentReader.Outcome outcome : reading.outcomes()) {
-            answered |= outcome.status() == DocumentReader.Status.ANSWERED;
-            if (outcome.status() == DocumentReader.Status.FAILED) {
-                unreachable = true;
-                // An outage of the model, which an administrator has to see to fix
-                ErrorLogger.logProblem("The model could not be reached: " + outcome.problem(),
-                    ErrorContext.of(AnswerIntakeService.class, "askModel").about(file.getPath()));
-            }
+        final IOException failure = reading.findFailure();
+        if (failure != null) {
+            LOGGER.warn("The model could not be reached about {}: {}", file.getPath(), failure.getMessage());
+            ErrorLogger.logError(failure, ErrorContext.of(AnswerIntakeService.class, ASK_MODEL_OPERATION)
+                .about(file.getPath()));
         }
-        if (!answered) {
-            LOGGER.warn("No call about {} went through", file.getPath());
-            return unreachable ? IntakeResult.createNotAsked(IntakeResult.UNREACHABLE_MESSAGE)
-                : IntakeResult.createNothingRead();
+        final String problem = reading.findProblem();
+        if (problem != null) {
+            // Its replies were checked against the schema, so a model that cannot follow it is a setting to fix
+            ErrorLogger.logProblem("The model did not answer in the required shape",
+                ErrorContext.of(AnswerIntakeService.class, "readReply").about(file.getPath()).with("problem",
+                    problem));
         }
-        final boolean incomplete = reading.outcomes().stream()
-            .anyMatch(outcome -> outcome.status() != DocumentReader.Status.ANSWERED);
-        return new IntakeResult(reading.answers(), false, null, incomplete);
+    }
+
+    /** Turns how each call went into the result. */
+    private static IntakeResult summarize(final DocumentReader.Reading reading)
+    {
+        final List<DocumentReader.Outcome> outcomes = reading.outcomes();
+        if (outcomes.stream().allMatch(outcome -> outcome.status() == DocumentReader.Status.ANSWERED)) {
+            return IntakeResult.createRead(reading.answers());
+        }
+        if (outcomes.stream().anyMatch(outcome -> outcome.status() == DocumentReader.Status.ANSWERED)) {
+            return IntakeResult.createIncomplete(reading.answers());
+        }
+        return IntakeResult.createNotRead(reading.findFailure() != null ? IntakeResult.UNREACHABLE_MESSAGE
+            : IntakeResult.UNREADABLE_MESSAGE);
     }
 }

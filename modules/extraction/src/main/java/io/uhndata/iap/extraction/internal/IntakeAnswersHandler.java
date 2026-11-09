@@ -178,16 +178,15 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         LOGGER.info("Reading step started: step=intake submission={} requirement={} questions={}",
             target.getPath(), String.join(",", requirements), questions.size());
         final IntakeResult result = ask(parts, grouped, getReferences(context));
-        if (result.degraded()) {
-            ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED,
-                result.getMessage());
+        if (result.status() == AnswerIntakeService.Status.NOT_READ) {
+            ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, result.message());
             return;
         }
         ExtractionFields.write(context.getResourceResolver(), target, submission, questions, result.fields(),
             files);
-        if (result.incomplete()) {
+        if (result.status() == AnswerIntakeService.Status.INCOMPLETE) {
             // Kept by finishReading when it ends the reading, so the submitter knows Read again is worth it
-            ExtractionStatus.recordNote(target, IntakeResult.INCOMPLETE_MESSAGE);
+            ExtractionStatus.recordNote(target, result.message());
         }
         LOGGER.info("Reading step done: step=intake submission={} answered={} of={} ms={}", target.getPath(),
             result.fields().values().stream().filter(FieldResult::found).count(), questions.size(),
@@ -360,7 +359,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             LOGGER.warn("The text of {} could not be read: {}", first.getPath(), e.getMessage());
             // A repository fault: the submitter only sees a generic message, so log it for an administrator
             ErrorLogger.logError(e, ErrorContext.of(IntakeAnswersHandler.class, "readText").about(first.getPath()));
-            return IntakeResult.createNotAsked(IntakeResult.TEXT_UNREADABLE);
+            return IntakeResult.createNotRead(IntakeResult.TEXT_UNREADABLE_MESSAGE);
         }
         final List<ExtractionPrompt.Group> groups = grouped.entrySet().stream()
             .map(group -> new ExtractionPrompt.Group(group.getKey(), ExtractionFields.toFields(group.getValue())))

@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.extraction.internal;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,7 +25,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -53,19 +54,19 @@ class ExtractionReplyTest
             new ExtractionField.Answer("text", multiple, null, null, null, options));
     }
 
-    private static FieldResult readOne(final ExtractionField field, final String entry)
+    private static FieldResult readOne(final ExtractionField field, final String entry) throws Exception
     {
         return ExtractionReply.read(List.of(field), "{\"" + field.key() + "\": " + entry + "}", DOCUMENT)
             .get(field.key());
     }
 
-    private static FieldResult readValue(final String value)
+    private static FieldResult readValue(final String value) throws Exception
     {
         return readOne(field("k", false, List.of()), "{\"evidence\": [], \"reasoning\": \"\", \"value\": " + value
             + ", \"confidence\": 0.5}");
     }
 
-    private static FieldResult readWithQuotes(final double confidence, final String... quotes)
+    private static FieldResult readWithQuotes(final double confidence, final String... quotes) throws Exception
     {
         final StringBuilder evidence = new StringBuilder();
         for (final String quote : quotes) {
@@ -77,7 +78,7 @@ class ExtractionReplyTest
     }
 
     @Test
-    void readsAnAnswerWithTheQuotesFoundAndWhereTheyAre()
+    void readsAnAnswerWithTheQuotesFoundAndWhereTheyAre() throws Exception
     {
         final FieldResult reply = readOne(field("design", false, List.of()), "{\"evidence\": ["
             + "{\"quote\": \"" + REAL + "\", \"page\": 1},"
@@ -96,14 +97,14 @@ class ExtractionReplyTest
     }
 
     @Test
-    void keepsTheConfidenceWhenEveryQuoteIsFound()
+    void keepsTheConfidenceWhenEveryQuoteIsFound() throws Exception
     {
         assertEquals(0.9, readWithQuotes(0.9, REAL).confidence(), 1e-9);
     }
 
     // No quotes at all costs the same as quotes that were all not found
     @Test
-    void halvesTheConfidenceOfAnAnswerWithNoQuoteFound()
+    void halvesTheConfidenceOfAnAnswerWithNoQuoteFound() throws Exception
     {
         assertEquals(0.45, readWithQuotes(0.9, INVENTED).confidence(), 1e-9);
         assertEquals(0.45, readWithQuotes(0.9).confidence(), 1e-9);
@@ -111,7 +112,7 @@ class ExtractionReplyTest
 
     // Repeating a quote cannot raise the score, nor count as a second quote that failed
     @Test
-    void countsAQuoteGivenTwiceOnceAndSkipsWhatIsNotAQuote()
+    void countsAQuoteGivenTwiceOnceAndSkipsWhatIsNotAQuote() throws Exception
     {
         final FieldResult reply = readOne(field("size", false, List.of()), "{\"evidence\": ["
             + "{\"quote\": \"We will enrol 182 adults\", \"page\": 1.5},"
@@ -132,7 +133,7 @@ class ExtractionReplyTest
 
     // With several documents sent together, each quote remembers which one it came from
     @Test
-    void recordsWhichDocumentAQuoteCameFrom()
+    void recordsWhichDocumentAQuoteCameFrom() throws Exception
     {
         final DocumentScan joined = DocumentScan.join(List.of("Preamble", "Protocol"),
             List.of("We serve the north.", "We will enrol 182 adults."));
@@ -146,7 +147,7 @@ class ExtractionReplyTest
     }
 
     @Test
-    void readsNoEvidenceWhenThereIsNoListOfIt()
+    void readsNoEvidenceWhenThereIsNoListOfIt() throws Exception
     {
         final FieldResult reply = readOne(field("k", false, List.of()), "{\"evidence\": \"none\", \"value\": \"x\"}");
 
@@ -155,7 +156,7 @@ class ExtractionReplyTest
     }
 
     @Test
-    void turnsTypedValuesIntoText()
+    void turnsTypedValuesIntoText() throws Exception
     {
         assertEquals(List.of("182"), readValue("182").values());
         assertEquals(List.of("2.5"), readValue("2.50").values());
@@ -166,7 +167,7 @@ class ExtractionReplyTest
 
     // A blank value counts as not found, or it would be saved as an answer and block the question for good
     @Test
-    void findsNoAnswerInNullOrBlankOrSomethingElse()
+    void findsNoAnswerInNullOrBlankOrSomethingElse() throws Exception
     {
         for (final String nothing : List.of("null", "\"  \"", "{\"a\": 1}", "[]", "[null, \" \"]")) {
             final FieldResult reply = readValue(nothing);
@@ -177,14 +178,14 @@ class ExtractionReplyTest
     }
 
     @Test
-    void readsAListAsOneValuePerItem()
+    void readsAListAsOneValuePerItem() throws Exception
     {
         assertEquals(List.of("Toronto General", "Mount Sinai, Toronto", "3"),
             readValue("[\"Toronto General\", \"Mount Sinai, Toronto\", 3]").values());
     }
 
     @Test
-    void matchesAValueToTheOptionItNames()
+    void matchesAValueToTheOptionItNames() throws Exception
     {
         final ExtractionField choice = field("kind", true, DRUG_OR_DEVICE);
 
@@ -194,7 +195,7 @@ class ExtractionReplyTest
 
     // Two options that read the same leave nothing to tell them apart, so the model's words are kept
     @Test
-    void keepsAValueThatNamesTwoOptionsAsWritten()
+    void keepsAValueThatNamesTwoOptionsAsWritten() throws Exception
     {
         final ExtractionField choice = field("kind", false, List.of(new ExtractionField.Option("a", "Same", null),
             new ExtractionField.Option("b", "Same", null), new ExtractionField.Option("c", "C", null),
@@ -204,21 +205,21 @@ class ExtractionReplyTest
         assertEquals(List.of("c"), readOne(choice, "{\"value\": \"C\"}").values(), "one value twice is one option");
     }
 
+    // The schema requires every question, so a reply that leaves one out did not follow it
     @Test
-    void answersALeftOutQuestionWithNothing()
+    void refusesAReplyThatLeavesAQuestionOut()
     {
-        final Map<String, FieldResult> replies = ExtractionReply.read(
-            List.of(field("asked", false, List.of()), field("forgotten", false, List.of()), field("odd", false,
-                List.of())), "{\"asked\": {\"value\": \"x\"}, \"odd\": \"not an object\"}", DOCUMENT);
+        final ExtractionReply.UnreadableReply refused = assertThrows(ExtractionReply.UnreadableReply.class,
+            () -> ExtractionReply.read(List.of(field("asked", false, List.of()), field("forgotten", false, List.of()),
+                field("odd", false, List.of())), "{\"asked\": {\"value\": \"x\"}, \"odd\": \"not an object\"}",
+                DOCUMENT));
 
-        assertEquals(List.of("asked", "forgotten", "odd"), List.copyOf(replies.keySet()));
-        assertEquals(List.of("x"), replies.get("asked").values());
-        assertEquals(FieldResult.createNotFound("forgotten"), replies.get("forgotten"));
-        assertFalse(replies.get("odd").found());
+        assertEquals("it left out forgotten, odd", refused.getMessage());
+        assertFalse(refused.isCutOff());
     }
 
     @Test
-    void holdsTheConfidenceBetweenZeroAndOne()
+    void holdsTheConfidenceBetweenZeroAndOne() throws Exception
     {
         assertEquals(1.0, readOne(field("k", false, List.of()), "{\"confidence\": 7}").confidence());
         assertEquals(0.0, readOne(field("k", false, List.of()), "{\"confidence\": -1}").confidence());
@@ -226,7 +227,7 @@ class ExtractionReplyTest
     }
 
     @Test
-    void findsTheObjectWhereverTheModelPutIt()
+    void findsTheObjectWhereverTheModelPutIt() throws Exception
     {
         final Map<String, FieldResult> replies = ExtractionReply.read(List.of(field("k", false,
             List.of())), "Here you go:\n```json\n{\"k\": {\"value\": \"x\"}}\n```", DOCUMENT);
@@ -235,22 +236,39 @@ class ExtractionReplyTest
     }
 
     @Test
-    void readsNothingOutOfAReplyWithNoObject()
-    {
-        final List<ExtractionField> fields = List.of(field("k", false, List.of()));
-        for (final String reply : new String[] { null, "", "no JSON here", "} backwards {", "{\"k\": [1, }" }) {
-            assertNull(ExtractionReply.read(fields, reply, DOCUMENT), String.valueOf(reply));
-        }
-    }
-
-    @Test
     void saysWhyAReplyCannotBeRead()
     {
-        assertEquals("it was empty", ExtractionReply.describeUnreadable(null));
-        assertEquals("it was empty", ExtractionReply.describeUnreadable(" \n"));
-        assertEquals("it was cut off before the end", ExtractionReply.describeUnreadable("{\"k\": {\"value\": \"x"));
-        assertEquals("it held no JSON object", ExtractionReply.describeUnreadable("I cannot answer that."));
-        assertEquals("it held no JSON object", ExtractionReply.describeUnreadable("{\"k\": [1, }"));
-        assertNull(ExtractionReply.describeUnreadable("{\"k\": {}}"));
+        final List<ExtractionField> fields = List.of(field("k", false, List.of()));
+        final Map<String, String> reasons = new LinkedHashMap<>();
+        reasons.put(null, "it was empty");
+        reasons.put(" \n", "it was empty");
+        reasons.put("I cannot answer that.", "it held no JSON object");
+        reasons.put("} backwards {", "it held no JSON object");
+        reasons.put("{\"k\": [1, }", "it held no JSON object");
+        reasons.forEach((reply, reason) -> assertEquals(reason, assertThrows(ExtractionReply.UnreadableReply.class,
+            () -> ExtractionReply.read(fields, reply, DOCUMENT), String.valueOf(reply)).getMessage()));
+    }
+
+    // Evidence comes first in every answer, so a reply that ran out of room has closed some objects already
+    @Test
+    void tellsAReplyThatRanOutOfRoom()
+    {
+        final ExtractionReply.UnreadableReply refused = assertThrows(ExtractionReply.UnreadableReply.class,
+            () -> ExtractionReply.read(List.of(field("a", false, List.of()), field("b", false, List.of())),
+                "{\"a\": {\"evidence\": [{\"quote\": \"x\", \"page\": 1}], \"value\": \"y\"},"
+                    + " \"b\": {\"evidence\": [{\"quo", DOCUMENT));
+
+        assertEquals("it was cut off before the end", refused.getMessage());
+        assertTrue(refused.isCutOff());
+    }
+
+    // Written out in full, such a number would take a billion characters
+    @Test
+    void findsNoAnswerInANumberTooLongToWrite() throws Exception
+    {
+        for (final String huge : List.of("1e999999999", "1e-999999999", "1" + "0".repeat(101))) {
+            assertTrue(readValue(huge).values().isEmpty(), huge);
+        }
+        assertEquals(List.of("1" + "0".repeat(99)), readValue("1e99").values());
     }
 }

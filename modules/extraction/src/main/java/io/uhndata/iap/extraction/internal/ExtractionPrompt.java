@@ -81,15 +81,24 @@ final class ExtractionPrompt
      * @param group the name of the group the questions come from
      * @param fields the questions this call asks
      * @param systemPrompt the system prompt
-     * @param userMessage the document, the reference text if any, then the questions
+     * @param opening the document, then the reference text if any: what every call of the plan opens with
      * @param responseSchema the schema the reply must follow, see {@link ResponseSchema}
      * @param maxOutputTokens the room the reply is given
      * @version $Id$
      * @since 0.1.0
      */
-    record Call(String group, List<ExtractionField> fields, String systemPrompt, String userMessage,
+    record Call(String group, List<ExtractionField> fields, String systemPrompt, String opening,
         String responseSchema, long maxOutputTokens)
     {
+        /**
+         * What the model is shown: the opening, then the questions.
+         *
+         * @return the user message
+         */
+        String userMessage()
+        {
+            return this.opening + buildQuestionBlock(this.fields);
+        }
     }
 
     /**
@@ -135,13 +144,29 @@ final class ExtractionPrompt
         if (document.text().isEmpty()) {
             return new Plan(List.of(), document);
         }
-        final String start = buildDocumentBlock(document.text()) + PARAGRAPH_BREAK + referenceBlock;
+        final String opening = buildDocumentBlock(document.text()) + PARAGRAPH_BREAK + referenceBlock;
         final List<Call> calls = batches.stream()
-            .map(batch -> new Call(batch.name(), batch.fields(), systemPrompt,
-                start + buildQuestionBlock(batch.fields()), ResponseSchema.build(batch.fields()),
-                calculateMaxOutputTokens(batch.fields())))
+            .map(batch -> new Call(batch.name(), batch.fields(), systemPrompt, opening,
+                ResponseSchema.build(batch.fields()), calculateMaxOutputTokens(batch.fields())))
             .toList();
         return new Plan(calls, document);
+    }
+
+    /**
+     * Splits a call into two that ask half its questions each. Each half keeps the whole call's room for its reply,
+     * so a reply that ran out of room gets twice as much per question.
+     *
+     * @param call a call of at least two questions
+     * @return the two halves, in order
+     */
+    static List<Call> halve(final Call call)
+    {
+        final int middle = call.fields().size() / 2;
+        return List.of(call.fields().subList(0, middle), call.fields().subList(middle, call.fields().size()))
+            .stream()
+            .map(fields -> new Call(call.group(), fields, call.systemPrompt(), call.opening(),
+                ResponseSchema.build(fields), call.maxOutputTokens()))
+            .toList();
     }
 
     /**

@@ -107,9 +107,9 @@ class ClassifyDocumentHandlerTest
     private void stubModelPick(final String value, final double confidence, final boolean degraded) throws IOException
     {
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenReturn(degraded ? IntakeResult.createNothingRead() : IntakeResult.createRead(Map.of(DECISION,
-                new FieldResult(DECISION, List.of(value), "It has objectives and methods.", confidence, List.of(),
-                    0))));
+            .thenReturn(degraded ? IntakeResult.createNotRead(IntakeResult.UNREADABLE_MESSAGE)
+                : IntakeResult.createRead(Map.of(DECISION, new FieldResult(DECISION, List.of(value),
+                    "It has objectives and methods.", confidence, List.of(), 0))));
     }
 
     /** The value the run under an answer suggested. This is what the submitter is shown. */
@@ -305,12 +305,28 @@ class ClassifyDocumentHandlerTest
         assertTrue(getAnswers().isEmpty());
     }
 
+    // The lost pick stays open for the submitter, and they are told reading again is worth it
+    @Test
+    void leavesANoteWhenOnlySomeCallsWentThrough() throws Exception
+    {
+        this.tree.createParsedFileFor(this.proposal, "# Objectives");
+        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+            .thenReturn(IntakeResult.createIncomplete(Map.of()));
+
+        this.handler.execute(createTask());
+
+        assertNull(getStatus(), "finishReading, not the gate, ends the reading");
+        assertEquals(IntakeResult.INCOMPLETE_MESSAGE,
+            this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
+        assertTrue(getAnswers().isEmpty());
+    }
+
     @Test
     void failsWhenTheModelCannotBeReached() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenReturn(IntakeResult.createNotAsked(IntakeResult.UNREACHABLE_MESSAGE));
+            .thenReturn(IntakeResult.createNotRead(IntakeResult.UNREACHABLE_MESSAGE));
 
         this.handler.execute(createTask());
 
@@ -335,8 +351,8 @@ class ClassifyDocumentHandlerTest
 
         this.handler.execute(createTask());
 
-        assertEquals(IntakeResult.TEXT_UNREADABLE, this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY,
-            String.class));
+        assertEquals(IntakeResult.TEXT_UNREADABLE_MESSAGE,
+            this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
         Mockito.verifyNoInteractions(this.intake);
     }
 

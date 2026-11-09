@@ -530,13 +530,22 @@ get the call refused, and nothing would be answered at all.
 ### Two tries, no more
 
 `DocumentReader` makes the calls one after another, each through `ModelCall`, so a Stop
-ends it. If a reply holds no readable JSON object (`ModelReplies.readJsonObject` takes
-the text between the first `{` and the last `}`), it asks once more. The note saying
-what was wrong (empty, cut off, or no JSON object) goes after the questions, under
-`# Correction`, so the second try opens with the same text and still uses the cache. A
-second bad reply, or a model that cannot be reached, loses that call's questions only;
-the other calls still go ahead. Separately, the LLM client sends a failed request (for
-example one that timed out) once more.
+ends it. A reply cannot be read when it is empty, holds no JSON object
+(`ModelReplies.readJsonObject` takes the text between the first `{` and the last `}`),
+or leaves out one of the questions the schema requires. Then it asks once more. The note
+saying what was wrong goes after the questions, under `# Correction`, so the second try
+opens with the same text and still uses the cache. A second bad reply loses that call's
+questions only; the other calls still go ahead.
+
+A reply that opens more `{` than it closes ran out of room. Asking again with the same
+room would likely cut it off again, so its questions are asked in two halves instead,
+each with the whole call's `maxOutputTokens`. A number too long to write out (more than
+100 digits, such as `1e999999999`) is read as no answer.
+
+A model that cannot be reached stops the reading: the calls after it are not made, since
+each would only wait out the same outage. The outage is recorded once, with its
+exception. Separately, the LLM client sends a failed request (for example one that timed
+out) once more.
 
 | Calls that went through | Result |
 | --- | --- |
@@ -544,6 +553,10 @@ example one that timed out) once more.
 | Some | Those calls' questions get runs; the step leaves the note "Some questions could not be read. Read again to try them again" |
 | None, a model was unreachable | The step fails with "The model could not be reached" |
 | None, every reply unreadable | The step fails with "The model's answer could not be read" |
+
+A reply that cannot be read twice is recorded for an administrator once per reading,
+as "The model did not answer in the required shape": a model that ignores the schema is
+a setting to fix.
 
 ### One call at a time
 
@@ -1138,7 +1151,7 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | `AnswerIntakeService` | Plans the calls, makes them, and sums up how they went |
 | `ExtractionPrompt` | What each call sends: the document, the reference text, the questions; at most ten per call |
 | `ResponseSchema` | The strict JSON schema a reply must follow, typed from each question |
-| `DocumentReader` | Makes the calls one by one; a call that fails loses only its own questions |
+| `DocumentReader` | Makes the calls one by one; a reply that cannot be read loses only its own questions, and an unreachable model stops the reading |
 | `ExtractionReply` | Reads one reply: typed values to text, options matched, quotes checked, confidence lowered for quotes not found |
 | `FieldResult` | One question's answer after its quotes were checked: values, reasoning, confidence, quotes |
 | `QuoteVerifier` | Whether a quote is really in the document |

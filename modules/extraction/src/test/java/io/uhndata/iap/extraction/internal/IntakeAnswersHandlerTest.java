@@ -708,7 +708,7 @@ class IntakeAnswersHandlerTest
     void failsWhenTheModelsAnswerCouldNotBeRead() throws Exception
     {
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenReturn(IntakeResult.createNothingRead());
+            .thenReturn(IntakeResult.createNotRead(IntakeResult.UNREADABLE_MESSAGE));
 
         this.handler.execute(createTask());
 
@@ -722,7 +722,7 @@ class IntakeAnswersHandlerTest
     void recordsAnUnreachableModelAsAFailedReading() throws Exception
     {
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenReturn(IntakeResult.createNotAsked(IntakeResult.UNREACHABLE_MESSAGE));
+            .thenReturn(IntakeResult.createNotRead(IntakeResult.UNREACHABLE_MESSAGE));
 
         this.handler.execute(createTask());
 
@@ -748,7 +748,7 @@ class IntakeAnswersHandlerTest
 
         this.handler.execute(createTask());
 
-        assertEquals(IntakeResult.TEXT_UNREADABLE,
+        assertEquals(IntakeResult.TEXT_UNREADABLE_MESSAGE,
             this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
         Mockito.verifyNoInteractions(this.intake);
     }
@@ -792,8 +792,8 @@ class IntakeAnswersHandlerTest
     void keepsWhatWasReadAndSaysSoWhenSomeCallsFailed() throws Exception
     {
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenReturn(new IntakeResult(Map.of(AIMS, new FieldResult(AIMS, List.of("Something"), "", 0.9,
-                List.of(), 0)), false, null, true));
+            .thenReturn(IntakeResult.createIncomplete(Map.of(AIMS,
+                new FieldResult(AIMS, List.of("Something"), "", 0.9, List.of(), 0))));
 
         this.handler.execute(createTask());
 

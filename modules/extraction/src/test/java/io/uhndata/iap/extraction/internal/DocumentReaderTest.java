@@ -33,6 +33,7 @@ import io.uhndata.iap.llm.LLMRequestOptions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -82,6 +83,7 @@ class DocumentReaderTest
         assertEquals(DocumentReader.Status.ANSWERED, first.status());
         assertEquals(1, first.attempts());
         assertNull(first.problem());
+        assertNull(first.failure());
     }
 
     @Test
@@ -148,20 +150,64 @@ class DocumentReaderTest
         assertEquals(DocumentReader.Status.ANSWERED, reading.outcomes().get(1).status());
     }
 
+    // The calls after an outage would each wait out the same timeout
     @Test
-    void recordsACallTheModelCouldNotTakeAndGoesOn() throws IOException
+    void stopsAskingOnceTheModelCannotBeReached() throws IOException
     {
         final LLMClient client = Mockito.mock(LLMClient.class);
+        final IOException outage = new IOException("connection refused");
         Mockito.when(client.chat(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(), ArgumentMatchers.any()))
-            .thenThrow(new IOException("The model could not be reached")).thenReturn(answer("sponsor", "IDIBAPS"));
+            .thenThrow(outage);
 
         final DocumentReader.Reading reading = DocumentReader.read(client, plan("title", "sponsor"),
             DocumentScan.of(TEXT));
 
-        final DocumentReader.Outcome failed = reading.outcomes().get(0);
-        assertEquals(DocumentReader.Status.FAILED, failed.status());
-        assertEquals(1, failed.attempts());
-        assertEquals("The model could not be reached", failed.problem());
-        assertEquals(List.of("sponsor"), List.copyOf(reading.answers().keySet()));
+        Mockito.verify(client, Mockito.times(1)).chat(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
+            ArgumentMatchers.any());
+        assertEquals(List.of(DocumentReader.Status.FAILED, DocumentReader.Status.FAILED),
+            reading.outcomes().stream().map(DocumentReader.Outcome::status).toList());
+        assertEquals(List.of(1, 0), reading.outcomes().stream().map(DocumentReader.Outcome::attempts).toList());
+        assertSame(outage, reading.findFailure());
+        assertTrue(reading.answers().isEmpty());
+        assertNull(reading.findProblem());
+    }
+
+    // Half the questions get the whole call's room, so each has twice as much
+    @Test
+    void asksAReplyThatRanOutOfRoomAgainInTwoHalves() throws IOException
+    {
+        final LLMClient client = Mockito.mock(LLMClient.class);
+        Mockito.when(client.chat(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(), ArgumentMatchers.any()))
+            .thenReturn("{\"title\": {\"evidence\": [{\"quote\": \"x\"}], \"value\": \"Sard",
+                answer("title", "Sardines"), answer("sponsor", "IDIBAPS"));
+        final ExtractionPrompt.Plan plan = ExtractionPrompt.plan(TEXT, null, List.of(new ExtractionPrompt.Group(
+            "study", List.of(field("title"), field("sponsor")))),
+            (prompt, reply) -> CallBudget.calculateDocumentTokenBudget(200_000L, prompt, reply));
+
+        final DocumentReader.Reading reading = DocumentReader.read(client, plan, DocumentScan.of(TEXT));
+
+        assertEquals(List.of("title", "sponsor"), List.copyOf(reading.answers().keySet()));
+        assertEquals(2, reading.outcomes().size());
+        final ArgumentCaptor<LLMRequestOptions> options = ArgumentCaptor.forClass(LLMRequestOptions.class);
+        Mockito.verify(client, Mockito.times(3)).chat(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(),
+            options.capture());
+        assertEquals(plan.calls().get(0).maxOutputTokens(), options.getAllValues().get(2).getMaxOutputTokens());
+    }
+
+    // A reply that breaks the reader costs its own call only, like any reply that cannot be read
+    @Test
+    void treatsAReplyThatBreaksTheReaderAsUnreadable() throws IOException
+    {
+        final LLMClient client = Mockito.mock(LLMClient.class);
+        final ExtractionPrompt.Plan plan = plan("title");
+        final DocumentScan document = Mockito.mock(DocumentScan.class);
+        Mockito.when(document.locate(ArgumentMatchers.anyString())).thenThrow(new IllegalStateException("broken"));
+        Mockito.when(client.chat(ArgumentMatchers.anyString(), ArgumentMatchers.anyList(), ArgumentMatchers.any()))
+            .thenReturn("{\"title\": {\"evidence\": [{\"quote\": \"Sardines\"}], \"value\": \"x\"}}");
+
+        final DocumentReader.Reading reading = DocumentReader.read(client, plan, document);
+
+        assertEquals(DocumentReader.Status.UNREADABLE, reading.outcomes().get(0).status());
+        assertEquals("it could not be read", reading.findProblem());
     }
 }
