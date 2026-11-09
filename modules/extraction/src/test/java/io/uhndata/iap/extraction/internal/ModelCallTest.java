@@ -80,9 +80,9 @@ class ModelCallTest
         };
         this.runs.stop(SUBMISSION);
 
-        assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
+        assertThrows(ReadingStoppedException.class, () -> ModelCall.ask(client, "system", "user", null));
         assertTrue(asked.isEmpty(), "the model was never asked");
-        assertTrue(ReadingRuns.isCausedByStop(new ReadingRuns.Stopped()));
+        assertTrue(ReadingRuns.isCausedByStop(new ReadingStoppedException()));
     }
 
     @Test
@@ -93,7 +93,7 @@ class ModelCallTest
             throw new IOException("closed");
         };
 
-        assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
+        assertThrows(ReadingStoppedException.class, () -> ModelCall.ask(client, "system", "user", null));
         assertFalse(Thread.currentThread().isInterrupted(), "taken down before the thread goes back to work");
     }
 
@@ -106,7 +106,7 @@ class ModelCallTest
             return "too late";
         };
 
-        assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
+        assertThrows(ReadingStoppedException.class, () -> ModelCall.ask(client, "system", "user", null));
     }
 
     @Test

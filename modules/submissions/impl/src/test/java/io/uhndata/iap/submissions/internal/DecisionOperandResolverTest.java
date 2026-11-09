@@ -74,7 +74,7 @@ class DecisionOperandResolverTest
     private void createSuggestion(final String suggested)
     {
         this.context.create().resource(ANSWER_PATH + "/run", Map.of(
-            SLING_RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested, "confidence", 0.9));
+            SLING_RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedValues", suggested, "confidence", 0.9));
     }
 
     @Test

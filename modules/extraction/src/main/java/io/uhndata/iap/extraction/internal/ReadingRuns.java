@@ -47,22 +47,6 @@ import org.osgi.service.component.annotations.Component;
 @Component(service = ReadingRuns.class)
 public class ReadingRuns
 {
-    /**
-     * Thrown when a reading is stopped, so a caller can tell a stop from a model that could not be reached.
-     * Unchecked, because it must pass through the workflow engine, which only declares its own checked exception.
-     *
-     * @since 0.1.0
-     */
-    static final class Stopped extends RuntimeException
-    {
-        private static final long serialVersionUID = 1L;
-
-        Stopped()
-        {
-            super(ExtractionStatus.STOPPED_MESSAGE);
-        }
-    }
-
     private static final Object STATE_LOCK = new Object();
 
     /** The threads inside a model call, the only place a stop interrupts. */
@@ -98,13 +82,13 @@ public class ReadingRuns
      * Registers this thread as reading a submission.
      *
      * @param submission the submission's path
-     * @throws Stopped when this thread was already told to stop
+     * @throws ReadingStoppedException when this thread was already told to stop
      */
-    void begin(final String submission) throws Stopped
+    void begin(final String submission) throws ReadingStoppedException
     {
         synchronized (STATE_LOCK) {
             if (isStopRequested()) {
-                throw new Stopped();
+                throw new ReadingStoppedException();
             }
             THREAD_READINGS.computeIfAbsent(Thread.currentThread(), thread -> new Reading(submission)).depth++;
         }
@@ -159,13 +143,13 @@ public class ReadingRuns
     /**
      * Registers this thread as calling a model, where a stop may interrupt it.
      *
-     * @throws Stopped when this thread was already told to stop
+     * @throws ReadingStoppedException when this thread was already told to stop
      */
-    static void enterModelCall() throws Stopped
+    static void enterModelCall() throws ReadingStoppedException
     {
         synchronized (STATE_LOCK) {
             if (isStopRequested()) {
-                throw new Stopped();
+                throw new ReadingStoppedException();
             }
             CALLING_THREADS.add(Thread.currentThread());
         }
@@ -175,15 +159,15 @@ public class ReadingRuns
      * Marks this thread's model call as over. A stop that came during the call is thrown here and its interrupt
      * cleared, so the thread goes back to the repository uninterrupted.
      *
-     * @throws Stopped when this thread was told to stop during the call
+     * @throws ReadingStoppedException when this thread was told to stop during the call
      */
-    static void leaveModelCall() throws Stopped
+    static void leaveModelCall() throws ReadingStoppedException
     {
         synchronized (STATE_LOCK) {
             CALLING_THREADS.remove(Thread.currentThread());
             if (isStopRequested()) {
                 Thread.interrupted();
-                throw new Stopped();
+                throw new ReadingStoppedException();
             }
         }
     }
@@ -198,13 +182,13 @@ public class ReadingRuns
      * Checks whether a failure comes from a stopped reading, not from a model that could not be reached.
      *
      * @param failure the failure
-     * @return {@code true} when a {@link Stopped} is in the cause chain, or this thread was told to stop
+     * @return {@code true} when a {@link ReadingStoppedException} is in the cause chain, or this thread was told to stop
      */
     static boolean isCausedByStop(final Throwable failure)
     {
         // A handler wraps the stop in its own failure, and the engine wraps that again
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
-            if (cause instanceof Stopped) {
+            if (cause instanceof ReadingStoppedException) {
                 return true;
             }
         }

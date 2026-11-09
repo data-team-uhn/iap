@@ -134,7 +134,7 @@
 // One extraction run against one answer: what a model read out of the submitted
 // documents, and what it read to get there. The run's own existence is the
 // record that extraction happened, so a run that found nothing is a node
-// without an extractedAnswer rather than a flag, and jcr:created is when it ran.
+// with no extractedValues rather than a flag, and jcr:created is when it ran.
 [sub:Extraction] > data:EntityPart
   - sling:resourceType (STRING) = "sub/Extraction" mandatory autocreated protected
 
@@ -144,7 +144,7 @@
 
   // The values the model read out of the documents: one for a question taking
   // one, one per item for a list. Absent when the run found nothing
-  - extractedAnswer (STRING) multiple
+  - extractedValues (STRING) multiple
 
   // How sure the model is, from 0 to 1
   - confidence (DOUBLE)
@@ -156,7 +156,7 @@
   // answer. A note about the evidence only: it does not accept or reject the answer
   - evidenceRejected (BOOLEAN)
 
-  // How far the submitter's own value ended up from extractedAnswer: the raw
+  // How far the submitter's own value ended up from extractedValues: the raw
   // edit distance, and that distance as a percentage of the extracted answer's
   // length. Both are written when the submitter accepts or edits the extracted
   // answer, and are absent until then.

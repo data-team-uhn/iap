@@ -63,7 +63,7 @@ class ReadingRunsTest
 
         assertTrue(this.runs.stop(SUBMISSION));
         assertFalse(Thread.currentThread().isInterrupted());
-        assertThrows(ReadingRuns.Stopped.class, ReadingRuns::enterModelCall, "the next model call is not made");
+        assertThrows(ReadingStoppedException.class, ReadingRuns::enterModelCall, "the next model call is not made");
         assertTrue(this.runs.end(SUBMISSION));
     }
 
@@ -75,7 +75,7 @@ class ReadingRunsTest
 
         assertTrue(this.runs.stop(SUBMISSION));
         assertTrue(Thread.currentThread().isInterrupted());
-        assertThrows(ReadingRuns.Stopped.class, ReadingRuns::leaveModelCall);
+        assertThrows(ReadingStoppedException.class, ReadingRuns::leaveModelCall);
         assertFalse(Thread.currentThread().isInterrupted(), "taken down before the thread goes back to work");
         assertTrue(this.runs.end(SUBMISSION));
     }
@@ -140,7 +140,7 @@ class ReadingRunsTest
         this.runs.begin(SUBMISSION);
         this.runs.stop(SUBMISSION);
 
-        assertThrows(ReadingRuns.Stopped.class, () -> this.runs.begin(SUBMISSION));
+        assertThrows(ReadingStoppedException.class, () -> this.runs.begin(SUBMISSION));
         assertTrue(this.runs.end(SUBMISSION));
     }
 
@@ -204,7 +204,7 @@ class ReadingRunsTest
     void recognizesAStopWrappedInOtherFailures()
     {
         assertTrue(ReadingRuns.isCausedByStop(
-            new IOException("step", new IllegalStateException(new ReadingRuns.Stopped()))));
+            new IOException("step", new IllegalStateException(new ReadingStoppedException()))));
         assertFalse(ReadingRuns.isCausedByStop(new IOException("the model is down")));
     }
 

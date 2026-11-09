@@ -83,7 +83,7 @@ class ReviewExtractionHandlerTest
         SubmissionTree.reference(answer, "question", this.aims);
         this.extraction = this.context.create().resource(answer.getPath() + "/e1",
             Map.of(TYPE, "sub:Extraction", "sling:resourceType", "sub/Extraction",
-                "extractedAnswer", "reduce readmissions", "confidence", 0.6));
+                "extractedValues", "reduce readmissions", "confidence", 0.6));
     }
 
     /** A resource tree where nothing can be written, standing in for a caller with no write access. */
@@ -219,7 +219,7 @@ class ReviewExtractionHandlerTest
     @Test
     void refusesAReviewOfARunThatFoundNothing()
     {
-        this.extraction.adaptTo(ModifiableValueMap.class).remove("extractedAnswer");
+        this.extraction.adaptTo(ModifiableValueMap.class).remove("extractedValues");
 
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
             createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, "study/aims",
@@ -245,7 +245,7 @@ class ReviewExtractionHandlerTest
     {
         final Resource newest = this.context.create().resource(this.extraction.getParent().getPath() + "/e2",
             Map.of(TYPE, "sub:Extraction", "sling:resourceType", "sub/Extraction",
-                "extractedAnswer", "reduce readmissions", "confidence", 0.3));
+                "extractedValues", "reduce readmissions", "confidence", 0.3));
 
         this.handler.execute(createTask(Map.of(ReviewExtractionHandler.QUESTION_PARAMETER, AIMS,
             ReviewExtractionHandler.EVIDENCE_REJECTED_PARAMETER, true)));

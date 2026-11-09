@@ -114,7 +114,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         final boolean stopped;
         try {
             read(context, target);
-        } catch (final ReadingRuns.Stopped e) {
+        } catch (final ReadingStoppedException e) {
             Thread.interrupted();
             throw new PersistenceException(ExtractionStatus.STOPPED_MESSAGE, e);
         } finally {
@@ -122,7 +122,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         }
         if (stopped) {
             // Stopped after the model answered: fail the step so nothing it wrote is kept
-            throw new PersistenceException(ExtractionStatus.STOPPED_MESSAGE, new ReadingRuns.Stopped());
+            throw new PersistenceException(ExtractionStatus.STOPPED_MESSAGE, new ReadingStoppedException());
         }
     }
 
@@ -144,10 +144,10 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      * @param context the step
      * @param target the submission
      * @throws PersistenceException if a status cannot be written
-     * @throws ReadingRuns.Stopped when the submitter stopped the reading during the model call
+     * @throws ReadingStoppedException when the submitter stopped the reading during the model call
      */
     private void read(final WorkflowTaskContext context, final Resource target)
-        throws PersistenceException, ReadingRuns.Stopped
+        throws PersistenceException, ReadingStoppedException
     {
         final Submission submission = SubmissionFiles.getSubmission(target);
         final List<String> requirements = getRequirementNames(context);

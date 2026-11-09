@@ -106,7 +106,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
                 // this pooled thread runs
                 this.runs.end(path);
             }
-        } catch (final ReadingRuns.Stopped e) {
+        } catch (final ReadingStoppedException e) {
             Thread.interrupted();
             LOGGER.info("Reading of {} was stopped", path);
             giveUp(path, job.getId(), ExtractionStatus.STOPPED_MESSAGE);
@@ -154,12 +154,12 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         LOGGER.info("Reading run started: submission={}", path);
         try {
             this.engine.receiveEvent(submission, new WorkflowEvent(EXTRACT_ANSWERS_EVENT, Map.of()));
-        } catch (final ReadingRuns.Stopped e) {
+        } catch (final ReadingStoppedException e) {
             throw e;
         } catch (final WorkflowException | RuntimeException e) {
             if (ReadingRuns.isCausedByStop(e)) {
                 Thread.interrupted();
-                throw new ReadingRuns.Stopped();
+                throw new ReadingStoppedException();
             }
             // The engine reverted the walk, but `running` and this job's claim were committed before it. Left as
             // they are, nothing could ever read the submission again and its spinner would never stop.

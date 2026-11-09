@@ -282,7 +282,7 @@ class IntakeAnswersHandlerTest
         assertNull(answer.getValueMap().get(VALUE, String[].class), "a suggestion is not an answer");
         final Resource extraction = getOnlyChild(answer);
         assertEquals("sub:Extraction", extraction.getValueMap().get("jcr:primaryType", String.class));
-        assertEquals("To reduce readmissions", extraction.getValueMap().get("extractedAnswer", String.class));
+        assertEquals("To reduce readmissions", extraction.getValueMap().get("extractedValues", String.class));
         assertEquals(0.85, extraction.getValueMap().get("confidence", Double.class));
         assertEquals("Stated under Aims.", extraction.getValueMap().get("reasoning", String.class));
         assertArrayEquals(new String[] { SubmissionTree.getIdentifier(this.file.getParent()) },
@@ -326,7 +326,7 @@ class IntakeAnswersHandlerTest
         this.tree.stampTypes();
         assertEquals(sites, getAnswers().get(0).adaptTo(Answer.class).getSuggestedValues());
         assertArrayEquals(sites.toArray(new String[0]),
-            getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String[].class));
+            getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedValues", String[].class));
     }
 
     // A run that found nothing still records that the question was asked of this file
@@ -338,7 +338,7 @@ class IntakeAnswersHandlerTest
         this.handler.execute(createTask());
 
         final Resource run = getOnlyChild(getAnswers().get(0));
-        assertNull(run.getValueMap().get("extractedAnswer", String.class));
+        assertNull(run.getValueMap().get("extractedValues", String.class));
         assertEquals("Not stated.", run.getValueMap().get("reasoning", String.class));
         assertNull(this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class),
             "finishReading, not the intake, ends the reading");
@@ -375,7 +375,7 @@ class IntakeAnswersHandlerTest
         assertArrayEquals(new String[] { "" }, getAnswers().get(0).getValueMap().get(VALUE, String[].class),
             "a suggestion is not an answer until the submitter acts on it");
         assertEquals("What the model read",
-            getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class));
+            getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedValues", String.class));
     }
 
     // Only the submitter's own value counts as an answer, so a question with only a suggestion is asked again,
@@ -387,7 +387,7 @@ class IntakeAnswersHandlerTest
             Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer", VALUE, new String[] { "" }));
         SubmissionTree.reference(suggested, "question", this.aims);
         this.context.create().resource(suggested.getPath() + "/e1", Map.of("jcr:primaryType", "sub:Extraction",
-            "sling:resourceType", "sub/Extraction", "extractedAnswer", "What the model read before"));
+            "sling:resourceType", "sub/Extraction", "extractedValues", "What the model read before"));
         stubModelFinds(new FieldResult(AIMS, List.of("What the model read"), "", 0.9, List.of(), 0));
 
         this.handler.execute(createTask());
@@ -436,7 +436,7 @@ class IntakeAnswersHandlerTest
         if (read != null) {
             final Resource extraction = this.context.create().resource(answer.getPath() + "/e1",
                 Map.of("jcr:primaryType", "sub:Extraction", "sling:resourceType", "sub/Extraction",
-                    "extractedAnswer", read, "confidence", 0.9));
+                    "extractedValues", read, "confidence", 0.9));
             try {
                 extraction.adaptTo(Node.class).setProperty("sources",
                     new Value[] { this.context.resourceResolver().adaptTo(Session.class).getValueFactory()
@@ -470,7 +470,7 @@ class IntakeAnswersHandlerTest
             answer.getValueMap().get(VALUE, String[].class));
         final List<Resource> extractions = getExtractions(answer);
         assertEquals(2, extractions.size(), "the old reading stays");
-        assertEquals("What the new file says", extractions.get(1).getValueMap().get("extractedAnswer", String.class));
+        assertEquals("What the new file says", extractions.get(1).getValueMap().get("extractedValues", String.class));
         assertArrayEquals(new String[] { SubmissionTree.getIdentifier(newer.getParent()) },
             extractions.get(1).getValueMap().get("sources", String[].class));
     }
@@ -510,7 +510,7 @@ class IntakeAnswersHandlerTest
         assertArrayEquals(new String[] { "What the person said" },
             answer.getValueMap().get(VALUE, String[].class));
         assertEquals(2, getExtractions(answer).size());
-        assertNull(getExtractions(answer).get(1).getValueMap().get("extractedAnswer", String.class));
+        assertNull(getExtractions(answer).get(1).getValueMap().get("extractedValues", String.class));
     }
 
     // Each newer version counts on its own: one already read does not hide another one not read yet
@@ -581,7 +581,7 @@ class IntakeAnswersHandlerTest
         assertEquals(SubmissionTree.getIdentifier(this.aims),
             getAnswers().get(0).getValueMap().get("question", String.class));
         assertEquals("To reduce readmissions",
-            getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class));
+            getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedValues", String.class));
     }
 
     /** A step that reads the named documents, in the given order. */
@@ -781,7 +781,7 @@ class IntakeAnswersHandlerTest
     void aStopAbortsTheStep() throws Exception
     {
         Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenThrow(new ReadingRuns.Stopped());
+            .thenThrow(new ReadingStoppedException());
 
         final PersistenceException failure =
             assertThrows(PersistenceException.class, () -> this.handler.execute(createTask()));

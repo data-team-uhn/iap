@@ -265,7 +265,7 @@ class StopProcessingHandlerTest
         this.runs.begin(this.submission.getPath());
         this.runs.stop(this.submission.getPath());
 
-        assertThrows(ReadingRuns.Stopped.class, () -> this.runs.begin(this.submission.getPath()));
+        assertThrows(ReadingStoppedException.class, () -> this.runs.begin(this.submission.getPath()));
         this.runs.end(this.submission.getPath());
     }
 
@@ -275,7 +275,7 @@ class StopProcessingHandlerTest
         this.runs.begin(this.submission.getPath());
         try {
             this.handler.execute(TaskContexts.of(this.submission, Map.of(), Map.of()));
-            assertThrows(ReadingRuns.Stopped.class, ReadingRuns::enterModelCall);
+            assertThrows(ReadingStoppedException.class, ReadingRuns::enterModelCall);
         } finally {
             this.runs.end(this.submission.getPath());
             this.runs.end(this.submission.getPath());

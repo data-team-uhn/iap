@@ -618,7 +618,7 @@ not seen took 47.4 s, against 3.8 s for a repeat.
 | Rule | Where | What happens |
 | --- | --- | --- |
 | The intake never sends a question without an `extractionPrompt` | `ExtractionField.isExtractable` | Questions meant only for people are not sent. The gate asks with the classification's own `prompt`. |
-| A null or blank `value` is "not found" | `ExtractionReply` | The intake writes a run with no `extractedAnswer`; the gate writes nothing. |
+| A null or blank `value` is "not found" | `ExtractionReply` | The intake writes a run with no `extractedValues`; the gate writes nothing. |
 | Several values for a question taking one are "not found" | `ExtractionReply` | Picking one of them would be a guess. A list of one value is that value. |
 | A value names an option by its value, or by its label in any case | `ExtractionReply.matchOption` | A value matching two options that read the same, or none, is kept in the model's words, for a person to correct. |
 | A quote must really be in the document | `QuoteVerifier`, through `DocumentScan.locate` | A quote that is not found is dropped, never stored. |
@@ -682,7 +682,7 @@ sub:Submission
     +-- question  -> REFERENCE to the sch:Question
     +-- value     = only what the submitter gave; a reading never writes it
     +-- <uuid> (sub:Extraction), one per reading of the question
-        +-- extractedAnswer = the model's values, one each; absent if none
+        +-- extractedValues = the model's values, one each; absent if none
         +-- confidence      = after the evidence adjustment
         +-- reasoning
         +-- sources         -> REFERENCE to every sub:DocumentVersion read
@@ -707,7 +707,7 @@ A reply's values are matched to the question's options once, when the reply is r
 ignoring case. "English" becomes `english`, and a category label becomes the category's
 path, such as `/Categories/...`. If no option matches, or two options match equally, the
 model's own words are kept, so a person can see what it said and fix it. A run saves its
-values one each, in the multi-valued `extractedAnswer`, so a value holding a comma, such
+values one each, in the multi-valued `extractedValues`, so a value holding a comma, such
 as "Sunnybrook Health Sciences Centre, Toronto", stays one value.
 
 How the suggestion is read (`Answer.getSuggestedValues`, from the newest run,

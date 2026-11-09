@@ -83,7 +83,7 @@ class ExtractionTest
     {
         final Resource resource = this.context.create().resource(EXTRACTION_PATH, Map.of(
             "sling:resourceType", Extraction.RESOURCE_TYPE,
-            "extractedAnswer", "42",
+            "extractedValues", "42",
             "evidenceRejected", true));
         final Extraction extraction = resource.adaptTo(Extraction.class);
 
@@ -96,7 +96,7 @@ class ExtractionTest
     {
         final Resource resource = this.context.create().resource(EXTRACTION_PATH, Map.of(
             "sling:resourceType", Extraction.RESOURCE_TYPE,
-            "extractedAnswer", "42",
+            "extractedValues", "42",
             "confidence", 0.87,
             "reasoning", "The recruitment table gives 42 in the final column"));
         final Extraction extraction = resource.adaptTo(Extraction.class);
@@ -148,7 +148,7 @@ class ExtractionTest
     {
         final Resource resource = this.context.create().resource(EXTRACTION_PATH, Map.of(
             "sling:resourceType", Extraction.RESOURCE_TYPE,
-            "extractedAnswer", "42 participants",
+            "extractedValues", "42 participants",
             "editDistance", 3L,
             "percentageDistance", 20.0));
         final Extraction extraction = resource.adaptTo(Extraction.class);

@@ -115,7 +115,7 @@ class ClassifyDocumentHandlerTest
     /** The value the run under an answer suggested. This is what the submitter is shown. */
     private static String getPick(final Resource answer)
     {
-        return answer.getChildren().iterator().next().getValueMap().get("extractedAnswer", String.class);
+        return answer.getChildren().iterator().next().getValueMap().get("extractedValues", String.class);
     }
 
     private String getStatus()
@@ -373,7 +373,7 @@ class ClassifyDocumentHandlerTest
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
         Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenThrow(new ReadingRuns.Stopped());
+            .thenThrow(new ReadingStoppedException());
 
         final PersistenceException failure =
             assertThrows(PersistenceException.class, () -> this.handler.execute(createTask()));

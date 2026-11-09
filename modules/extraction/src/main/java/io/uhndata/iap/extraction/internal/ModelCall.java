@@ -38,7 +38,7 @@ final class ModelCall
     }
 
     /**
-     * Sends one message to the model, unless this reading was stopped. A stop throws {@link ReadingRuns.Stopped},
+     * Sends one message to the model, unless this reading was stopped. A stop throws {@link ReadingStoppedException},
      * before or after the call.
      *
      * @param client the client to ask through
@@ -56,7 +56,7 @@ final class ModelCall
             return client.chat(system, List.of(new LLMMessage("user", userMessage)), options);
         } catch (final IOException e) {
             if (ReadingRuns.isCausedByStop(e)) {
-                throw new ReadingRuns.Stopped();
+                throw new ReadingStoppedException();
             }
             throw e;
         } finally {

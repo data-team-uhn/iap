@@ -508,7 +508,7 @@ class SaveAnswersHandlerTest
         final Resource answer = onlyAnswer();
         final Map<String, Object> run = suggested == null
             ? Map.of(TYPE, Extraction.RESOURCE_TYPE, "confidence", 0.2)
-            : Map.of(TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested, "confidence", 0.9);
+            : Map.of(TYPE, Extraction.RESOURCE_TYPE, "extractedValues", suggested, "confidence", 0.9);
         this.context.create().resource(answer.getPath() + "/run", run);
         return present(this.context.resourceResolver().getResource(answer.getPath() + "/run"));
     }
@@ -527,7 +527,7 @@ class SaveAnswersHandlerTest
         stampAnswers();
         final Resource answer = onlyAnswer();
         this.context.create().resource(answer.getPath() + "/run",
-            Map.of(TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested, "confidence", 0.9));
+            Map.of(TYPE, Extraction.RESOURCE_TYPE, "extractedValues", suggested, "confidence", 0.9));
         return present(this.context.resourceResolver().getResource(answer.getPath() + "/run"));
     }
 

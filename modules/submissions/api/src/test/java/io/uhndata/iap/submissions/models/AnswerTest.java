@@ -126,11 +126,11 @@ class AnswerTest
         final Resource resource = this.context.create().resource("/Submissions/submission/newest",
             RESOURCE_TYPE, Answer.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/newest/extraction0", Map.of(
-            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "40", "confidence", 0.4));
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedValues", "40", "confidence", 0.4));
         this.context.create().resource("/Submissions/submission/newest/extraction1", Map.of(
-            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "42", "confidence", 0.9));
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedValues", "42", "confidence", 0.9));
         this.context.create().resource("/Submissions/submission/newest/extraction2", Map.of(
-            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "44", "confidence", 0.6));
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedValues", "44", "confidence", 0.6));
         final Answer answer = resource.adaptTo(Answer.class);
 
         assertEquals(List.of("44"), answer.getLatestExtraction().getExtractedValues());
@@ -143,7 +143,7 @@ class AnswerTest
         final Resource resource = this.context.create().resource("/Submissions/submission/emptied",
             RESOURCE_TYPE, Answer.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/emptied/extraction0", Map.of(
-            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "42", "confidence", 0.9));
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedValues", "42", "confidence", 0.9));
         this.context.create().resource("/Submissions/submission/emptied/extraction1", Map.of(
             RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "confidence", 0.3));
 
@@ -156,9 +156,9 @@ class AnswerTest
         final Resource resource = this.context.create().resource("/Submissions/submission/participants",
             RESOURCE_TYPE, Answer.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/participants/extraction0", Map.of(
-            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "40"));
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedValues", "40"));
         this.context.create().resource("/Submissions/submission/participants/extraction1", Map.of(
-            "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedAnswer", "42"));
+            "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedValues", "42"));
         // An answer may hold other children too, and those are not extractions
         this.context.create().resource("/Submissions/submission/participants/upload",
             RESOURCE_TYPE, "nt:file");
@@ -178,7 +178,7 @@ class AnswerTest
         final Resource resource = this.context.create().resource("/Submissions/submission/participants",
             RESOURCE_TYPE, Answer.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/participants/extraction0", Map.of(
-            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "42"));
+            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedValues", "42"));
         final Answer answer = resource.adaptTo(Answer.class);
 
         // The submitter has not accepted it, so the answer is still unanswered
@@ -328,7 +328,7 @@ class AnswerTest
     private static Map<String, Object> createRun(final String... suggested)
     {
         return suggested.length == 0 ? Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "confidence", 0.9)
-            : Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested, "confidence", 0.9);
+            : Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedValues", suggested, "confidence", 0.9);
     }
 
     /**

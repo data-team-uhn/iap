@@ -197,7 +197,7 @@ class ExtractedAnswersTest
 
         assertArrayEquals(new String[] { "" }, existing.getValueMap().get("value", String[].class));
         final Resource run = existing.getChildren().iterator().next();
-        assertEquals("Care", run.getValueMap().get("extractedAnswer", String.class));
+        assertEquals("Care", run.getValueMap().get("extractedValues", String.class));
     }
 
     @Test
@@ -238,7 +238,7 @@ class ExtractedAnswersTest
                 List.of(), 0), List.of(this.file.adaptTo(File.class)));
 
         final Resource run = existing.getChildren().iterator().next();
-        assertNull(run.getValueMap().get("extractedAnswer", String.class));
+        assertNull(run.getValueMap().get("extractedValues", String.class));
         assertEquals("Nothing about aims", run.getValueMap().get("reasoning", String.class));
         assertEquals(1, run.getValueMap().get("sources", String[].class).length);
     }

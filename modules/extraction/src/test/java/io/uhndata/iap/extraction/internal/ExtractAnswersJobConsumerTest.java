@@ -356,7 +356,7 @@ class ExtractAnswersJobConsumerTest
     {
         setJobSubmission(this.submission.getPath());
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
-            .thenThrow(new ReadingRuns.Stopped());
+            .thenThrow(new ReadingStoppedException());
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
@@ -380,7 +380,7 @@ class ExtractAnswersJobConsumerTest
         });
         inject("resolverFactory", flaky);
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
-            .thenThrow(new ReadingRuns.Stopped());
+            .thenThrow(new ReadingStoppedException());
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
     }

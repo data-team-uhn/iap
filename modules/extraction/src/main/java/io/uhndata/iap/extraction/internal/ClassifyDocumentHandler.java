@@ -93,7 +93,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         final boolean stopped;
         try {
             classify(context, target);
-        } catch (final ReadingRuns.Stopped e) {
+        } catch (final ReadingStoppedException e) {
             Thread.interrupted();
             throw new PersistenceException(ExtractionStatus.STOPPED_MESSAGE, e);
         } finally {
@@ -101,7 +101,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         }
         if (stopped) {
             // The stop landed after the model answered: what it wrote must not be kept
-            throw new PersistenceException(ExtractionStatus.STOPPED_MESSAGE, new ReadingRuns.Stopped());
+            throw new PersistenceException(ExtractionStatus.STOPPED_MESSAGE, new ReadingStoppedException());
         }
     }
 

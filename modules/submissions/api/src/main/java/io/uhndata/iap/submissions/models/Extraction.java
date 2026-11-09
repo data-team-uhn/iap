@@ -49,7 +49,7 @@ public class Extraction extends EntityPart
     private String[] sources;
 
     @ValueMapValue
-    private String[] extractedAnswer;
+    private String[] extractedValues;
 
     @ValueMapValue
     private Double confidence;
@@ -97,7 +97,7 @@ public class Extraction extends EntityPart
     @NotNull
     public List<String> getExtractedValues()
     {
-        return this.extractedAnswer == null ? List.of() : List.of(this.extractedAnswer);
+        return this.extractedValues == null ? List.of() : List.of(this.extractedValues);
     }
 
     /**
