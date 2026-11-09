@@ -136,8 +136,12 @@ public class SubmissionImporter
 
     /**
      * A node's name, refused when it is not a name at all: one that is a path would put the node somewhere else.
+     *
+     * @param node a node of a manifest
+     * @return its name
+     * @throws InvalidPayloadException when it has none, or one that is not a name
      */
-    private static String name(final JsonObject node) throws InvalidPayloadException
+    static String name(final JsonObject node) throws InvalidPayloadException
     {
         final String name = text(node, TransferFormat.NAME_KEY);
         if (NOT_A_NAME.matcher(name).find()) {
@@ -146,7 +150,15 @@ public class SubmissionImporter
         return name;
     }
 
-    private static JsonObject object(final JsonObject json, final String key) throws InvalidPayloadException
+    /**
+     * An object a manifest must have.
+     *
+     * @param json the object holding it
+     * @param key its key
+     * @return the object
+     * @throws InvalidPayloadException when there is none, or it is not an object
+     */
+    static JsonObject object(final JsonObject json, final String key) throws InvalidPayloadException
     {
         if (json.get(key) instanceof JsonObject object) {
             return object;

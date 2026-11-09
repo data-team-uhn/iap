@@ -17,13 +17,9 @@
  */
 package io.uhndata.iap.submissions.internal.transfer;
 
-import java.io.StringReader;
 import java.util.Objects;
 
-import jakarta.json.Json;
-import jakarta.json.JsonException;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -95,11 +91,7 @@ public class ReceiveSubmissionHandler implements ServiceTaskHandler
 
     private static JsonObject manifest(final WorkflowEvent event) throws InvalidPayloadException
     {
-        final String text = Payloads.requireText(event, TransferFormat.MANIFEST_PART, "A manifest is required");
-        try (JsonReader reader = Json.createReader(new StringReader(text))) {
-            return reader.readObject();
-        } catch (final JsonException e) {
-            throw new InvalidPayloadException("The manifest is not a JSON object", e);
-        }
+        return TransferFormat.parse(
+            Payloads.requireText(event, TransferFormat.MANIFEST_PART, "A manifest is required"));
     }
 }

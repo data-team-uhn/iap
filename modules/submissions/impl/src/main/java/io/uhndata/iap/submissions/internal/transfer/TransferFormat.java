@@ -17,7 +17,15 @@
  */
 package io.uhndata.iap.submissions.internal.transfer;
 
+import java.io.StringReader;
 import java.util.Set;
+
+import jakarta.json.Json;
+import jakarta.json.JsonException;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonReader;
+
+import io.uhndata.iap.workflows.api.InvalidPayloadException;
 
 /**
  * The manifest a submission travels between instances as: a JSON tree of its nodes, the binaries sent beside it.
@@ -101,8 +109,33 @@ final class TransferFormat
     /** The outcome answered for a submission that is already here, sent by the instance now sending it again. */
     static final String ALREADY_RECEIVED = "alreadyReceived";
 
+    /** The token claim carrying the submitter's email: the one thing that names them on both instances. */
+    static final String EMAIL_CLAIM = "email";
+
+    /** The event a received submission is handed to the workflows with. */
+    static final String RECEIVE_EVENT = "receive";
+
+    /** Where submissions are kept. */
+    static final String HOME_PATH = "/Submissions";
+
     private TransferFormat()
     {
-        // Constants only
+        // Constants and static helpers only
+    }
+
+    /**
+     * Reads a manifest sent as text.
+     *
+     * @param text the manifest
+     * @return the manifest
+     * @throws InvalidPayloadException when it is not a JSON object
+     */
+    static JsonObject parse(final String text) throws InvalidPayloadException
+    {
+        try (JsonReader reader = Json.createReader(new StringReader(text))) {
+            return reader.readObject();
+        } catch (final JsonException e) {
+            throw new InvalidPayloadException("The manifest is not a JSON object", e);
+        }
     }
 }

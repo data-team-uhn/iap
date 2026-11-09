@@ -67,9 +67,6 @@ public class TransferSubmissionHandler implements ServiceTaskHandler
     /** The payload entry naming the instance to send to, as its identity. */
     private static final String DESTINATION_PARAMETER = "destination";
 
-    /** The token claim carrying the submitter's email. */
-    private static final String EMAIL_CLAIM = "email";
-
     /** How long the token is good for: long enough to arrive, too short to be worth stealing. */
     private static final int TOKEN_MINUTES = 5;
 
@@ -104,7 +101,7 @@ public class TransferSubmissionHandler implements ServiceTaskHandler
         try {
             final String email = emailOf(submission, submitter);
             final SubmissionExport export = this.exporter.export(submission);
-            final IapToken token = this.tokens.create(submitter, expiry(), Map.of(EMAIL_CLAIM, email),
+            final IapToken token = this.tokens.create(submitter, expiry(), Map.of(TransferFormat.EMAIL_CLAIM, email),
                 Set.of(destination));
             if (token == null) {
                 throw new WorkflowFailedException("This instance cannot issue tokens");
