@@ -18,10 +18,6 @@
 package io.uhndata.iap.extraction.internal;
 
 import java.util.Map;
-import java.util.Objects;
-
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -41,7 +37,6 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Runs the reading of a submission's answers as a background job. It fires the {@code extractAnswers} event on the
@@ -218,10 +213,10 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             giveUp(resolver, submission, COULD_NOT_READ);
             return false;
         }
-        if (!hasReadingWorkflow(resolver, submission)) {
-            LOGGER.warn("The schema of {} names no reading workflow that exists", path);
+        if (!SubmissionFiles.hasReadingWorkflow(SubmissionFiles.getSubmission(submission), resolver)) {
+            LOGGER.warn("The schema of {} names no active reading workflow that exists", path);
             // A schema set up to parse its documents but with nothing to read them
-            ErrorLogger.logProblem("The schema version names no reading workflow that exists",
+            ErrorLogger.logProblem("The schema version names no active reading workflow that exists",
                 ErrorContext.of(ExtractAnswersJobConsumer.class, "findReadingWorkflow").about(path));
             giveUp(resolver, submission, NOTHING_READS);
             return false;
@@ -306,31 +301,6 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         } catch (final LoginException e) {
             LOGGER.error("Cannot record that the reading of {} was stopped: {}", path, e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "recordStop").about(path));
-        }
-    }
-
-    /**
-     * Checks whether the submission's schema version names a reading workflow that exists.
-     *
-     * @param resolver the job's session
-     * @param submission the submission to read
-     * @return {@code true} when {@code readingWorkflow} holds the id of a workflow version; {@code false} when it
-     *         is missing or points at anything else
-     */
-    private static boolean hasReadingWorkflow(final ResourceResolver resolver, final Resource submission)
-    {
-        final String identifier = SubmissionFiles.getSubmission(submission).getSchemaVersion()
-            .get(ParseDocumentsHandler.READING_WORKFLOW, String.class);
-        if (identifier == null) {
-            return false;
-        }
-        final Session session = Objects.requireNonNull(resolver.adaptTo(Session.class),
-            "A service session is always JCR-backed");
-        try {
-            final Resource reading = resolver.getResource(session.getNodeByIdentifier(identifier).getPath());
-            return reading != null && reading.isResourceType(WorkflowVersion.RESOURCE_TYPE);
-        } catch (final RepositoryException e) {
-            return false;
         }
     }
 

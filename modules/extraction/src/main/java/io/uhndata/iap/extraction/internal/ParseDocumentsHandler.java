@@ -61,9 +61,6 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
     /** Where a file records the id of its parse job. */
     static final String PARSE_JOB_ID = "parseJobId";
 
-    /** Where a schema version names the workflow that reads its documents; absent when nothing reads them. */
-    static final String READING_WORKFLOW = "readingWorkflow";
-
     /** Where a file records the path of its upload copy on the shared volume. */
     static final String SHARED_PATH = "sharedPath";
 
@@ -88,8 +85,14 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         final Resource target = context.getTarget();
         final Submission submission = SubmissionFiles.getSubmission(target);
         SubmitterAccess.checkMayChange(submission, context.getActor());
-        // A schema with no reading workflow has nothing to parse for, so its uploads are left alone
-        if (submission.getSchemaVersion().get(READING_WORKFLOW, String.class) == null) {
+        // Nothing would read the parse, so the uploads are left alone
+        if (!SubmissionFiles.hasReadingWorkflow(submission, context.getResourceResolver())) {
+            if (submission.getSchemaVersion().get(SubmissionFiles.READING_WORKFLOW, String.class) != null) {
+                // Named, but missing, not a workflow version, or not active: a set-up an administrator must fix
+                LOGGER.warn("The schema of {} names a reading workflow that cannot run", target.getPath());
+                ErrorLogger.logProblem("The schema version names a reading workflow that does not exist or is not"
+                    + " active", ErrorContext.of(ParseDocumentsHandler.class, "findReadingWorkflow").about(target));
+            }
             return;
         }
         int queued = 0;

@@ -148,7 +148,20 @@ class ParseDocumentsHandlerTest
     {
         this.tree.createFile(null);
         this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH).adaptTo(ModifiableValueMap.class)
-            .remove(ParseDocumentsHandler.READING_WORKFLOW);
+            .remove(SubmissionFiles.READING_WORKFLOW);
+
+        this.handler.execute(createTask(this.submission));
+
+        Mockito.verifyNoInteractions(this.parseService);
+    }
+
+    // Parsing for a reading workflow that cannot run would only end in a failed reading
+    @Test
+    void leavesTheUploadsAloneWhenTheReadingWorkflowCannotRun() throws Exception
+    {
+        this.tree.createFile(null);
+        this.context.resourceResolver().getResource(SubmissionTree.READING_PATH).adaptTo(ModifiableValueMap.class)
+            .put("tags", new String[] { "retired" });
 
         this.handler.execute(createTask(this.submission));
 

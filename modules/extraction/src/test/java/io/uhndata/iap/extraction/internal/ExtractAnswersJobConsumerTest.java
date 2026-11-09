@@ -185,7 +185,7 @@ class ExtractAnswersJobConsumerTest
     @Test
     void givesUpWhenTheSchemaNamesNoReadingWorkflow() throws Exception
     {
-        getSchemaVersionProperties().remove(ParseDocumentsHandler.READING_WORKFLOW);
+        getSchemaVersionProperties().remove(SubmissionFiles.READING_WORKFLOW);
         this.context.resourceResolver().commit();
         setJobSubmission(this.submission.getPath());
 
@@ -198,7 +198,7 @@ class ExtractAnswersJobConsumerTest
     void givesUpWhenTheReadingWorkflowIsNotAWorkflow() throws Exception
     {
         SubmissionTree.reference(this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH),
-            ParseDocumentsHandler.READING_WORKFLOW,
+            SubmissionFiles.READING_WORKFLOW,
             this.context.resourceResolver().getResource(SubmissionTree.FORM_PATH));
         setJobSubmission(this.submission.getPath());
 
@@ -210,8 +210,22 @@ class ExtractAnswersJobConsumerTest
     @Test
     void givesUpWhenTheReadingWorkflowLeadsNowhere() throws Exception
     {
-        getSchemaVersionProperties().put(ParseDocumentsHandler.READING_WORKFLOW,
+        getSchemaVersionProperties().put(SubmissionFiles.READING_WORKFLOW,
             "1e17e5b1-0000-0000-0000-000000000000");
+        this.context.resourceResolver().commit();
+        setJobSubmission(this.submission.getPath());
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertGaveUpBeforeReading();
+    }
+
+    // A version that is not active takes no new instances, so starting it would fail later with a vaguer message
+    @Test
+    void givesUpWhenTheReadingWorkflowIsNotActive() throws Exception
+    {
+        this.context.resourceResolver().getResource(SubmissionTree.READING_PATH).adaptTo(ModifiableValueMap.class)
+            .put("tags", new String[] { "retired" });
         this.context.resourceResolver().commit();
         setJobSubmission(this.submission.getPath());
 

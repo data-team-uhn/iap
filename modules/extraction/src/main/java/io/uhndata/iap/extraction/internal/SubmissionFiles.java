@@ -22,7 +22,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
@@ -30,6 +34,7 @@ import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Helpers that find a submission and its files for the reading steps. A document's file is always its latest
@@ -40,9 +45,39 @@ import io.uhndata.iap.submissions.models.Submission;
  */
 final class SubmissionFiles
 {
+    /** Where a schema version names the workflow that reads its documents. */
+    static final String READING_WORKFLOW = "readingWorkflow";
+
     private SubmissionFiles()
     {
         // Utility
+    }
+
+    /**
+     * Whether the submission's schema version names a reading workflow that can run: a workflow version that
+     * exists and is tagged {@code active}. Parsing and the reading job both ask this, so they agree on whether
+     * anything will read the documents.
+     *
+     * @param submission the submission
+     * @param resolver a session that can read the workflow version
+     * @return {@code true} when the named reading workflow exists and is active
+     */
+    static boolean hasReadingWorkflow(final Submission submission, final ResourceResolver resolver)
+    {
+        final String identifier = submission.getSchemaVersion().get(READING_WORKFLOW, String.class);
+        if (identifier == null) {
+            return false;
+        }
+        final Session session = Objects.requireNonNull(resolver.adaptTo(Session.class),
+            "A repository session is always JCR-backed");
+        try {
+            final Resource reading = resolver.getResource(session.getNodeByIdentifier(identifier).getPath());
+            final WorkflowVersion version = reading == null || !reading.isResourceType(WorkflowVersion.RESOURCE_TYPE)
+                ? null : reading.adaptTo(WorkflowVersion.class);
+            return version != null && version.isActive();
+        } catch (final RepositoryException e) {
+            return false;
+        }
     }
 
     /**

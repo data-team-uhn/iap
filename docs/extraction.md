@@ -77,8 +77,11 @@ What it does, in order:
 1. Checks the caller with `SubmitterAccess.checkMayChange`: only the person who created
    the submission, and only while it is a draft. Anyone else gets a 403. A submitted
    request gets a 409.
-2. Reads `readingWorkflow` on the submission's schema version. **No reading workflow
-   means nothing is parsed**, so a schema that never reads its documents costs nothing.
+2. Checks `readingWorkflow` on the submission's schema version
+   (`SubmissionFiles.hasReadingWorkflow`: it must lead to a workflow version that exists
+   and is tagged `active`). **No reading workflow that can run means nothing is parsed**,
+   so a schema that never reads its documents costs nothing. One that is named but cannot
+   run is also reported to the administrator.
 3. Takes the latest upload of each document (`SubmissionFiles.getFilesToParse`). A
    document whose requirement sets `skipParsing` is left out, so its uploads are never
    parsed and no reading uses them. An upload is sent when its `parseStatus` is empty
@@ -252,12 +255,8 @@ The checks, in order:
 | No current file is still `queued` (`SubmissionFiles.isEveryParseSettled`) | The job returns `FAILED`, so Sling runs it again later. A parse that landed but is not committed yet looks "queued" for a moment. |
 | The submission can be checked out, if it was checked in (`ExtractionStatus.checkOut`) | The job is dropped, with an error for an administrator. A submission is versionable, and when checked in it is read-only, with everything under it. One checkout covers every later write. |
 | The job's session can read the submission's schema version | `extractionStatus=failed`, "The document could not be read", and a problem is logged for an administrator. Throwing instead would end the job with `running` left behind. |
-| The schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists | `extractionStatus=failed`, "Nothing is set up to read this request's documents". Firing the event anyway would start nothing and leave `running` forever. |
+| The schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists and is tagged `active` (`SubmissionFiles.hasReadingWorkflow`, the same check parsing makes) | `extractionStatus=failed`, "Nothing is set up to read this request's documents". Firing the event anyway would start nothing, or be refused, and leave `running` forever. |
 | `extractionReadingClaimed` is not set, and setting it (with the job's Sling job id in `extractionReadingClaimedBy`) commits. A claim that already holds this job's own id counts as its own: after a restart, Sling runs an unfinished job again with the same id. | A claim held by another id means another job has the reading, and this one is dropped. Two jobs that race write different ids, so the repository refuses the second commit. |
-
-The `readingWorkflow` check only asks that the version exists, not that it is tagged
-`active`. An inactive version passes the check, the engine then refuses to start it, and
-the job gives up as described below, with "The document could not be read".
 
 Then the job fires `extractAnswers` on the submission. If that throws, the job "gives
 up": in a commit of its own, it writes `extractionStatus=failed` with "The document
@@ -887,10 +886,10 @@ Messages the submitter can see in `extractionMessage`:
 | The model's answer could not be read | Two unreadable replies |
 | The model could not be reached | The call failed: the model is down, there are no active settings, the call slot did not come free in time, or the model answered with empty text (for example, it ran out of output tokens) |
 | The document's text could not be read | The stored Markdown could not be read back from the repository |
-| The document could not be read | Firing the reading threw in the job (a step failed, or the version is not tagged `active`), or the job cannot read the schema version |
+| The document could not be read | Firing the reading threw in the job (a step failed), or the job cannot read the schema version |
 | (the reading workflow's own text) | A `finishReading` step's `message` |
 | Reading was stopped. | Stop |
-| Nothing is set up to read this request's documents | The schema names no reading workflow, or it no longer exists |
+| Nothing is set up to read this request's documents | The schema names no reading workflow, or it no longer exists, or it is not tagged `active` |
 | This reading is not set up correctly | An `intakeAnswers` step names no `requirement` |
 | Some questions could not be read. Read again to try them again | Some of an intake step's calls did not go through (the reading is still `done`) |
 
@@ -1059,8 +1058,9 @@ Keep in mind:
 - Up to its first user task, the reading runs as `iap-extraction`, in the job. After
   that, the rest runs in the request that completes the task, as that person (see step
   6).
-- Tag the reading workflow's version `active`. The job only checks that the version
-  exists; an inactive one fails the reading with "The document could not be read".
+- Tag the reading workflow's version `active`. An inactive one is treated as no reading
+  workflow: nothing is parsed, and a reading already queued fails with "Nothing is set up
+  to read this request's documents".
 - A gateway guard cannot name a question by its path (see "Known gaps" in
   [workflows.md](workflows.md)), so routing on the category needs the question's UUID.
   That ties the guard to one schema version: a version copied from it holds a copy of
