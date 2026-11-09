@@ -61,8 +61,8 @@ final class ExtractionFields
     }
 
     /**
-     * The questions the model can be asked (those with an extraction prompt), keyed by their path within the
-     * schema version, in schema order.
+     * The questions the model can be asked (those with an extraction prompt), keyed by
+     * {@link ExtractionField#keyFor}, in schema order.
      *
      * @param submission the submission whose schema is read
      * @param requirement the requirement to ask about, or {@code null} for every question of the schema
@@ -77,23 +77,22 @@ final class ExtractionFields
             ? submission.getQuestions() : submission.getQuestions(requirement);
         for (final Question question : asked) {
             if (ExtractionField.isExtractable(question)) {
-                questions.put(question.getPath().substring(versionPath.length() + 1), question);
+                questions.put(ExtractionField.keyFor(versionPath, question), question);
             }
         }
         return questions;
     }
 
     /**
-     * The questions as fields to ask the model. Each field's name is the question's path within the schema
-     * version, which is the key its answer comes back under.
+     * The questions as fields to ask the model. Each field's key is the key its answer comes back under.
      *
-     * @param questions the questions to ask, by path within the schema version
+     * @param questions the questions to ask, by key
      * @return the fields to ask the model, in the same order
      */
     static List<ExtractionField> toFields(final Map<String, Question> questions)
     {
         final List<ExtractionField> fields = new ArrayList<>(questions.size());
-        questions.forEach((key, question) -> fields.add(ExtractionField.of(question, key)));
+        questions.forEach((key, question) -> fields.add(ExtractionField.of(key, question)));
         return fields;
     }
 
@@ -109,7 +108,7 @@ final class ExtractionFields
      * @param resolver the session to write with
      * @param target the submission node
      * @param submission the submission, for the answers it already has
-     * @param questions what was asked, by path within the schema version
+     * @param questions what was asked, by key
      * @param results what the model answered, keyed the same way; one run is saved per entry
      * @param files the documents the answers were read from
      */

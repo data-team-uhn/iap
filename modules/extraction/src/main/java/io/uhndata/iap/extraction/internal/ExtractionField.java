@@ -19,121 +19,154 @@ package io.uhndata.iap.extraction.internal;
 
 import java.util.List;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
 
 /**
- * One schema question, ready to ask the model. It holds what the model needs: the question text, the prompt,
- * and the allowed values. The model's answer is saved as an {@code Extraction}, not here.
+ * One schema question, ready to ask the model. The model's answer is saved as an {@code Extraction}, not here.
  *
- * <p>Only questions with an extraction prompt are asked ({@link #isExtractable}). The others are for the
- * submitter to answer. A classification is the one exception: its prompt is on the requirement, not the
- * question.</p>
+ * <p>The form of the answer comes from the question itself: its data type, how many answers it takes, its bounds,
+ * its pattern and its options. The question's {@code extractionPrompt} only has to say where the answer is found and
+ * how to tell it. Only questions with an extraction prompt are asked ({@link #isExtractable}); the others are for the
+ * submitter. A classification is the one exception: its instructions are on the requirement, not the question.</p>
  *
- * @param name the field's key, the question's path within its schema version
- * @param text the question as the submitter would see it
- * @param purpose what the answer is used to judge, in the reviewer's terms
- * @param prompt what the model is told to look for
- * @param responseShape the JSON schema the answer must take, or {@code null} when the schema names none
- * @param multiple whether more than one value may be given
- * @param options the values the answer may take, empty when it is free text
+ * @param key the name the answer comes back under, unique within one call, see {@link #keyFor}
+ * @param text the question as the submitter reads it
+ * @param description the help text shown with the question, or {@code null}
+ * @param purpose what the answer is used for, or {@code null}
+ * @param instructions where the answer is found and how to tell it
+ * @param answer what form the answer takes
  * @version $Id$
  * @since 0.1.0
  */
-record ExtractionField(String name, String text, String purpose, String prompt, String responseShape,
-    boolean multiple, List<OfferedOption> options)
+record ExtractionField(String key, String text, String description, String purpose, String instructions,
+    Answer answer)
 {
+    /** The data type of a question that names none. */
+    static final String TEXT_TYPE = "text";
+
+    /** The data type for whole numbers. */
+    static final String LONG_TYPE = "long";
+
+    /** The data type for numbers with a fraction. */
+    static final String DOUBLE_TYPE = "double";
+
+    /** The data type for yes or no answers. */
+    static final String BOOLEAN_TYPE = "boolean";
+
+    /** The data type for dates. */
+    static final String DATE_TYPE = "date";
+
     private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
 
     /**
-     * A field with no options, for tests that only care about the prompt and the shape.
+     * What form an answer takes, all of it read off the question.
      *
-     * @param name the field name
-     * @param text the question text
-     * @param purpose the purpose
-     * @param prompt the extraction prompt
-     * @param responseShape the reply shape, or {@code null}
-     * @param multiple whether several values are allowed
+     * @param dataType one of {@code text}, {@code long}, {@code double}, {@code boolean}, {@code date}
+     * @param multiple whether the question takes several answers
+     * @param minValue the smallest number accepted, or {@code null}
+     * @param maxValue the largest number accepted, or {@code null}
+     * @param format what a text answer must look like, in words, or {@code null}
+     * @param options the answers the question offers, empty when it is answered freely
+     * @version $Id$
+     * @since 0.1.0
      */
-    ExtractionField(final String name, final String text, final String purpose, final String prompt,
-        final String responseShape, final boolean multiple)
+    record Answer(String dataType, boolean multiple, Double minValue, Double maxValue, String format,
+        List<Option> options)
     {
-        this(name, text, purpose, prompt, responseShape, multiple, List.of());
     }
 
     /**
-     * Whether the model should be asked this question.
+     * One answer a question offers.
      *
-     * @param question the question to check
-     * @return {@code true} when the question has a non-blank extraction prompt
+     * @param value what is stored when it is picked, and what the model must answer with
+     * @param label what the submitter reads
+     * @param description what the option covers, or {@code null}
+     * @version $Id$
+     * @since 0.1.0
+     */
+    record Option(String value, String label, String description)
+    {
+    }
+
+    /**
+     * Whether the model may be asked this question. Only a question with an extraction prompt is; the rest are
+     * meant for people.
+     *
+     * @param question a schema question
+     * @return {@code true} when the question has a non-blank {@code extractionPrompt}
      */
     static boolean isExtractable(final Question question)
     {
-        final String prompt = question.getExtractionPrompt();
-        return prompt != null && !prompt.isBlank();
+        return !isBlank(question.getExtractionPrompt());
     }
 
     /**
-     * Builds the field for a question, asked with the question's own extraction prompt. The name is usually the
-     * question's path within the schema version, since questions in different sections can share a node name.
+     * The field for a question, asked with the question's own extraction prompt.
      *
-     * @param question the question, which must be {@link #isExtractable}
-     * @param name the field's key, which its answer comes back under
-     * @return the field to ask the model
+     * @param key the name the answer comes back under, see {@link #keyFor}
+     * @param question an {@link #isExtractable extractable} question
+     * @return the field
      */
-    static ExtractionField of(final Question question, final String name)
+    static ExtractionField of(final String key, final Question question)
     {
-        return of(question, name, question.getExtractionPrompt());
+        return of(key, question, question.getExtractionPrompt());
     }
 
     /**
-     * Builds the field for a question, asked with the given prompt. Used for a classification, whose prompt is
-     * on the requirement, not on the question its answer is stored under.
+     * The field for a question, asked with the given instructions. Used for a classification, whose instructions
+     * are on the requirement, not on the question its answer is saved under.
      *
-     * @param question the question the answer is stored under
-     * @param name the field's key, which its answer comes back under
-     * @param prompt what the model is told to decide
-     * @return the field to ask the model
+     * @param key the name the answer comes back under, see {@link #keyFor}
+     * @param question the question the answer is saved under
+     * @param instructions what the model is told to look for or decide
+     * @return the field
      */
-    static ExtractionField of(final Question question, final String name, final String prompt)
+    static ExtractionField of(final String key, final Question question, final String instructions)
     {
-        final List<OfferedOption> options = question.getOfferedOptions();
-        return new ExtractionField(name, question.getText(), question.getPurpose(),
-            getPrompt(question, prompt, options), question.getResponseShape(), question.isMultiple(), options);
+        final String pattern = isBlank(question.getPatternMessage()) ? question.getPattern()
+            : question.getPatternMessage();
+        final String dataType = isBlank(question.getDataType()) ? TEXT_TYPE : question.getDataType();
+        return new ExtractionField(key, question.getText(), trim(question.getDescription()),
+            trim(question.getPurpose()), instructions == null ? "" : instructions.strip(),
+            new Answer(dataType, question.isMultiple(), question.getMinValue(), question.getMaxValue(), trim(pattern),
+                question.getOfferedOptions().stream().map(ExtractionField::toOption).toList()));
     }
 
     /**
-     * The prompt, followed by the allowed values when the question has options. Without them the model answers
-     * in its own words, and a reply that names no option cannot be matched. Each option's description is added
-     * when it has one, so the model can tell categories apart.
+     * The name a question's answer comes back under: its path inside the schema version, with dots for slashes.
+     * Two sections that both ask for a {@code title} stay apart.
+     *
+     * @param schemaVersionPath the path of the schema version the question belongs to
+     * @param question a question of that version
+     * @return the key, such as {@code common.title}
      */
-    private static String getPrompt(final Question question, final String prompt,
-        final List<OfferedOption> options)
+    static String keyFor(final String schemaVersionPath, final Question question)
     {
-        if (options.isEmpty()) {
-            return prompt;
+        final String path = question.getPath();
+        final String prefix = schemaVersionPath + "/";
+        return (path.startsWith(prefix) ? path.substring(prefix.length()) : path).replace('/', '.');
+    }
+
+    private static Option toOption(final OfferedOption option)
+    {
+        return new Option(option.value(), isBlank(option.label()) ? option.value() : option.label(),
+            trim(option.description()));
+    }
+
+    /** The text with its whitespace collapsed, or {@code null} when nothing is left. */
+    private static String trim(final String text)
+    {
+        if (text == null) {
+            return null;
         }
-        final String offered = options.stream()
-            .map(ExtractionField::describe)
-            .collect(Collectors.joining(", "));
-        return prompt + (question.isMultiple()
-            ? " Answer with one or more of these values, separated by commas: "
-            : " Answer with exactly one of these values: ") + offered + (offered.endsWith(".") ? "" : ".");
+        final String collapsed = WHITESPACE_PATTERN.matcher(text).replaceAll(" ").strip();
+        return collapsed.isEmpty() ? null : collapsed;
     }
 
-    /** One option as the model sees it: "value (label)", plus " -- description" when there is one. */
-    private static String describe(final OfferedOption option)
+    private static boolean isBlank(final String text)
     {
-        final String shown = option.value() + " (" + option.label() + ")";
-        final String description = WHITESPACE_PATTERN.matcher(option.description()).replaceAll(" ").strip();
-        return description.isEmpty() ? shown : shown + " -- " + description;
-    }
-
-    /** The values the answer may take, for the reply schema. */
-    List<String> getAllowedValues()
-    {
-        return this.options.stream().map(OfferedOption::value).toList();
+        return text == null || text.isBlank();
     }
 }

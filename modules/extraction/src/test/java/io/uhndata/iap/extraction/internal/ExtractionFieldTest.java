@@ -17,120 +17,141 @@
  */
 package io.uhndata.iap.extraction.internal;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-import org.apache.sling.api.resource.Resource;
-import org.apache.sling.testing.mock.sling.ResourceResolverType;
-import org.apache.sling.testing.mock.sling.junit5.SlingContext;
-import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
-import io.uhndata.iap.schemas.models.AnswerOption;
+import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ExtractionField}: which questions are sent to the model, and what the model is told
- * about them.
+ * Unit tests for {@link ExtractionField}: what of a schema question reaches the model.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@ExtendWith(SlingContextExtension.class)
 class ExtractionFieldTest
 {
-    private final SlingContext context = new SlingContext(ResourceResolverType.RESOURCERESOLVER_MOCK);
+    private static final String VERSION = "/Schemas/proposal/v1";
 
-    private int created;
-
-    private Question createQuestion(final Map<String, Object> properties)
+    private static Question question(final String extractionPrompt)
     {
-        this.created++;
-        final Map<String, Object> all = new HashMap<>(properties);
-        all.put("sling:resourceType", Question.RESOURCE_TYPE);
-        final Resource resource = this.context.create()
-            .resource("/Schemas/s/1.0/q" + this.created, all);
-        final Question model = resource.adaptTo(Question.class);
-        assertNotNull(model);
-        return model;
+        final Question question = Mockito.mock(Question.class);
+        Mockito.when(question.getPath()).thenReturn(VERSION + "/common/title");
+        Mockito.when(question.getText()).thenReturn("What is the title of the study?");
+        Mockito.when(question.getDataType()).thenReturn("text");
+        Mockito.when(question.getExtractionPrompt()).thenReturn(extractionPrompt);
+        return question;
     }
 
     @Test
-    void isWorthAskingWhenTheSchemaSaysHow()
+    void asksOnlyAQuestionWithInstructions()
     {
-        assertTrue(ExtractionField.isExtractable(
-            createQuestion(Map.of("extractionPrompt", "Find the primary aims."))));
+        assertTrue(ExtractionField.isExtractable(question("Find the title on the cover page.")));
+        assertFalse(ExtractionField.isExtractable(question("  ")));
+        assertFalse(ExtractionField.isExtractable(question(null)));
     }
 
     @Test
-    void isNotWorthAskingWithoutAPrompt()
+    void keysAQuestionByItsPathInsideTheSchemaVersion()
     {
-        assertFalse(ExtractionField.isExtractable(createQuestion(Map.of("text", "Your name?"))),
-            "a question meant for the submitter is not an extraction field");
-        assertFalse(ExtractionField.isExtractable(createQuestion(Map.of("extractionPrompt", "   "))));
+        assertEquals("common.title", ExtractionField.keyFor(VERSION, question("Find it.")));
+        // A question outside the version keeps its whole path, dotted
+        assertEquals(".Schemas.proposal.v1.common.title", ExtractionField.keyFor("/elsewhere", question("Find it.")));
     }
 
     @Test
-    void readsAQuestionIntoAFieldToPutToTheModel()
+    void readsEverythingAboutTheAnswerOffTheQuestion()
     {
-        final Question question = createQuestion(Map.of(
-            "text", "What are the aims?",
-            "purpose", "Whether there is one",
-            "extractionPrompt", "Find the primary aims.",
-            "responseShape", "{\"type\":\"string\"}",
-            "maxAnswers", 0L));
+        final Question question = question("  Find the planned number of participants:\n- across all sites  ");
+        Mockito.when(question.getDataType()).thenReturn(ExtractionField.LONG_TYPE);
+        Mockito.when(question.getDescription()).thenReturn("Across all sites");
+        Mockito.when(question.getPurpose()).thenReturn("Whether the size matches the aims");
+        Mockito.when(question.isMultiple()).thenReturn(true);
+        Mockito.when(question.getMinValue()).thenReturn(1.0);
+        Mockito.when(question.getMaxValue()).thenReturn(5000.0);
 
-        final ExtractionField field = ExtractionField.of(question, "study/aims");
+        final ExtractionField field = ExtractionField.of("common.size", question);
 
-        assertEquals("study/aims", field.name(), "the key the caller gives, the question's path in its version");
-        assertEquals("What are the aims?", field.text());
-        assertEquals("Whether there is one", field.purpose());
-        assertEquals("Find the primary aims.", field.prompt());
-        assertEquals("{\"type\":\"string\"}", field.responseShape());
-        assertTrue(field.multiple());
+        assertEquals("common.size", field.key());
+        assertEquals("What is the title of the study?", field.text());
+        assertEquals("Across all sites", field.description());
+        assertEquals("Whether the size matches the aims", field.purpose());
+        // The instructions keep their lines, which may lay out a list
+        assertEquals("Find the planned number of participants:\n- across all sites", field.instructions());
+        assertEquals(ExtractionField.LONG_TYPE, field.answer().dataType());
+        assertTrue(field.answer().multiple());
+        assertEquals(1.0, field.answer().minValue());
+        assertEquals(5000.0, field.answer().maxValue());
+        assertTrue(field.answer().options().isEmpty());
     }
 
-    // A question with options is answered with the option values, so the model must be told what they are.
-    // Left to its own words, it may write something that matches no option.
+    // A classification keeps its instructions on the requirement, not on its question
     @Test
-    void tellsTheModelTheValuesAnOptionQuestionTakes()
+    void asksAQuestionWithTheInstructionsItIsGiven()
     {
-        final Question many = createQuestion(Map.of("extractionPrompt", "Name the languages.", "maxAnswers", 0L));
-        addOption(many, "english", "English");
-        addOption(many, "french", "French");
-        final Question one = createQuestion(Map.of("extractionPrompt", "Say which kind.", "maxAnswers", 1L));
-        addOption(one, "prom", "PROM");
+        final Question question = question(null);
 
-        assertEquals("Name the languages. Answer with one or more of these values, separated by commas: "
-            + "english (English), french (French).", ExtractionField.of(many, "languages").prompt());
-        assertEquals("Say which kind. Answer with exactly one of these values: prom (PROM).",
-            ExtractionField.of(one, "kind").prompt());
+        assertEquals("Decide whether this is a proposal.",
+            ExtractionField.of("screening.isProposal", question, " Decide whether this is a proposal. ")
+                .instructions());
+        assertEquals("", ExtractionField.of("screening.isProposal", question, null).instructions());
     }
 
-    // The option's description is sent with its label, so the model knows what belongs in each category
     @Test
-    void tellsTheModelTheDescriptionAnOptionCarries()
+    void leavesOutWhatTheQuestionDoesNotSay()
     {
-        final Question kind = createQuestion(Map.of("extractionPrompt", "Say which kind."));
-        this.context.create().resource(kind.getPath() + "/prom", Map.of(
-            "sling:resourceType", AnswerOption.RESOURCE_TYPE, "value", "prom", "label", "PROM",
-            "description", "The patient's own health."));
+        final Question question = question("Find it.");
+        Mockito.when(question.getDescription()).thenReturn(" ");
 
-        assertEquals("Say which kind. Answer with exactly one of these values: prom (PROM) -- "
-            + "The patient's own health.", ExtractionField.of(kind, "kind").prompt());
-        assertEquals(List.of("prom"), ExtractionField.of(kind, "kind").getAllowedValues());
+        final ExtractionField field = ExtractionField.of("common.title", question);
+
+        assertNull(field.description());
+        assertNull(field.purpose());
+        assertNull(field.answer().format());
     }
 
-    private void addOption(final Question question, final String value, final String label)
+    @Test
+    void takesAQuestionNamingNoDataTypeForText()
     {
-        this.context.create().resource(question.getPath() + "/" + value, Map.of(
-            "sling:resourceType", AnswerOption.RESOURCE_TYPE, "value", value, "label", label));
+        final Question question = question("Find it.");
+        Mockito.when(question.getDataType()).thenReturn(null);
+        assertEquals(ExtractionField.TEXT_TYPE, ExtractionField.of("k", question).answer().dataType());
+
+        Mockito.when(question.getDataType()).thenReturn(" ");
+        assertEquals(ExtractionField.TEXT_TYPE, ExtractionField.of("k", question).answer().dataType());
+    }
+
+    @Test
+    void prefersThePatternInWordsToTheExpression()
+    {
+        final Question question = question("Find it.");
+        Mockito.when(question.getPattern()).thenReturn("^[A-Z]{3}-\\d{4}$");
+        assertEquals("^[A-Z]{3}-\\d{4}$", ExtractionField.of("k", question).answer().format());
+
+        Mockito.when(question.getPatternMessage()).thenReturn("Three letters, a dash, four digits");
+        assertEquals("Three letters, a dash, four digits", ExtractionField.of("k", question).answer().format());
+    }
+
+    // The offered options, not only the declared ones: a classification's categories come from a catalogue
+    @Test
+    void offersTheQuestionsOptionsInOrder()
+    {
+        final Question question = question("Decide which.");
+        Mockito.when(question.getOfferedOptions()).thenReturn(List.of(
+            new OfferedOption("drug", "Drug", "Including biologics\n and vaccines"),
+            new OfferedOption("device", " ", "")));
+
+        final List<ExtractionField.Option> offered = ExtractionField.of("k", question).answer().options();
+
+        assertEquals(List.of(new ExtractionField.Option("drug", "Drug", "Including biologics and vaccines"),
+            // An option with no label is shown under its value
+            new ExtractionField.Option("device", "device", null)), offered);
     }
 }

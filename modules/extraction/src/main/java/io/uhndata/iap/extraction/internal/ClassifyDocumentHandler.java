@@ -41,24 +41,23 @@ import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
-import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that classifies uploaded documents: every classification requirement of the schema whose
- * document has been parsed is put to the model, all of them for one document in one call.
+ * The service task that classifies uploaded documents: every open classification requirement whose document has
+ * been parsed is put to the model, all of them for one document together.
  *
- * <p>Each pick is stored as the answer to the classification's question, with its confidence, reasoning and the
- * quotes it rests on, so the submitter sees it pre-filled and can confirm or change it. The pick is stored like
- * any answer. A pick less sure than the classification's confidence threshold is not stored at all, so the
- * question is left for the submitter. Routing on it waits for a {@code decision} condition source, which is not
- * built yet.</p>
+ * <p>A sure pick is saved as a suggestion under the classification's question, with its confidence, reasoning and
+ * quotes. Sure means confident enough for the classification's threshold, and one of the question's options. The
+ * question's value stays empty until the submitter accepts the pick; a workflow gateway reads the pick through the
+ * {@code decision} condition source. A pick that is not sure is not saved, so the question is left for the
+ * submitter.</p>
  *
- * <p>A classification already answered is not asked again, so a second upload does not pay for decisions that
- * were made or confirmed already.</p>
+ * <p>A classification already answered or picked is not asked again, even of a newer document version, so a second
+ * upload does not pay for decisions already made.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -150,16 +149,17 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         for (final ClassificationRequirement classification : classifications) {
             final Question question = Objects.requireNonNull(classification.getDecision(),
                 "Only a classification holding a question is put to the model");
-            final String key = question.getPath().substring(versionPath.length() + 1);
+            final String key = ExtractionField.keyFor(versionPath, question);
             questions.put(key, question);
             thresholds.put(key, classification.getConfidenceThreshold());
-            fields.add(ExtractionField.of(question, key, classification.getPrompt()));
+            fields.add(ExtractionField.of(key, question, classification.getPrompt()));
         }
         this.runs.setFiles(target.getPath(), Set.of(file.getPath()));
         final long startedAt = System.nanoTime();
         LOGGER.info("Reading step started: step=classify submission={} file={} classifications={}",
             target.getPath(), file.getPath(), fields.size());
-        final IntakeResult result = ask(file, fields, getTemplates(classifications));
+        final IntakeResult result = ask(file,
+            new ExtractionPrompt.Group(classifications.get(0).getDocument(), fields), getTemplates(classifications));
         if (result.degraded()) {
             ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED,
                 result.getMessage());
@@ -194,7 +194,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         final Set<String> offered = question.getOfferedOptions().stream()
             .map(OfferedOption::value)
             .collect(Collectors.toSet());
-        return offered.containsAll(Answer.readAnswer(result.value(), question));
+        return offered.containsAll(result.values());
     }
 
     /**
@@ -221,7 +221,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
 
     /**
      * The reference texts the classifications carry, each under a heading naming what it is for. The model is
-     * shown them before its instructions, so the prompt can refer to them.
+     * shown them after the document and before the questions.
      */
     private static String getTemplates(final List<ClassificationRequirement> classifications)
     {
@@ -248,7 +248,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
     /**
      * Ask the model, degraded with the reason when it could not be asked.
      */
-    private IntakeResult ask(final File file, final List<ExtractionField> fields, final String templates)
+    private IntakeResult ask(final File file, final ExtractionPrompt.Group classifications, final String templates)
     {
         final DocumentScan scan;
         try {
@@ -259,19 +259,6 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
             ErrorLogger.logError(e, ErrorContext.of(ClassifyDocumentHandler.class, "readText").about(file.getPath()));
             return IntakeResult.createNotAsked(IntakeResult.TEXT_UNREADABLE);
         }
-        try {
-            return this.intake.run(file, scan, fields, templates);
-        } catch (final ReadingRuns.Stopped e) {
-            throw e;
-        } catch (final IOException e) {
-            if (ReadingRuns.isStopped(e)) {
-                throw new ReadingRuns.Stopped();
-            }
-            // Not a failure of the walk: throwing here reverts everything and leaves `running` behind
-            LOGGER.warn("The classification could not be asked about {}: {}", file.getPath(), e.getMessage());
-            // An outage of the model, which an administrator has to see to fix
-            ErrorLogger.logError(e, ErrorContext.of(ClassifyDocumentHandler.class, "askModel").about(file.getPath()));
-            return IntakeResult.createNotAsked(IntakeResult.UNREACHABLE_MESSAGE);
-        }
+        return this.intake.run(file, scan, List.of(classifications), templates);
     }
 }

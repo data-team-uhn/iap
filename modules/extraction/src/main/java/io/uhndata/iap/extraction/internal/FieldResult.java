@@ -20,19 +20,19 @@ package io.uhndata.iap.extraction.internal;
 import java.util.List;
 
 /**
- * What the model answered for one field, after its quotes were checked against the document.
+ * What the model answered for one question, after its quotes were checked against the document.
  *
- * @param name the field's key, the question's path within its schema version
- * @param found whether the model found an answer and gave a value for it
+ * @param key the question's key, see {@link ExtractionField#keyFor}
+ * @param values the answer as text, one entry per value; empty when nothing was found
+ * @param reasoning how the model got there, or what it looked for; empty when it gave none
  * @param confidence how sure the model is, from 0 to 1, lowered when its quotes could not be found
- * @param value the answer, or {@code null} when nothing was found
- * @param reasoning why the model gave this answer, empty when it gave no reason
  * @param passages the quotes that were found in the document
+ * @param quotesOffered how many different quotes the model gave, found or not
  * @version $Id$
  * @since 0.1.0
  */
-record FieldResult(String name, boolean found, double confidence, String value, String reasoning,
-    List<Passage> passages)
+record FieldResult(String key, List<String> values, String reasoning, double confidence, List<Passage> passages,
+    int quotesOffered)
 {
     /**
      * One quote from the document, and where it is.
@@ -47,53 +47,42 @@ record FieldResult(String name, boolean found, double confidence, String value, 
      */
     record Passage(String quote, Long page, String header, int part)
     {
-        /**
-         * A quote as the model gave it, before it is found in the document: no heading, no document index.
-         *
-         * @param quote the quoted words
-         * @param page the page the model gave, or {@code null}
-         */
-        Passage(final String quote, final Long page)
-        {
-            this(quote, page, "", -1);
-        }
-
-        /**
-         * A copy of this quote with the heading it was found under.
-         *
-         * @param heading the nearest heading above it, empty when there is none
-         * @return the new passage
-         */
-        Passage placeUnder(final String heading)
-        {
-            return new Passage(quote(), page(), heading, part());
-        }
-
-        /**
-         * A copy of this quote with the index of the document it was found in.
-         *
-         * @param found the index of the document among those sent together; -1 when the document was sent alone,
-         *     without a heading
-         * @return the new passage
-         */
-        Passage placeIn(final int found)
-        {
-            return new Passage(quote(), page(), header(), found);
-        }
     }
 
     /**
-     * Copies the passages, so a result cannot change after it is made.
+     * Copies the lists, so a result cannot change after it is made.
      *
-     * @param name the field's key
-     * @param found whether an answer was found
+     * @param key the question's key
+     * @param values the answer, empty when nothing was found
+     * @param reasoning how the model got there
      * @param confidence how sure the model is
-     * @param value the answer, or {@code null}
-     * @param reasoning why the model gave this answer
      * @param passages the quotes found in the document
+     * @param quotesOffered how many different quotes the model gave
      */
     FieldResult
     {
+        values = List.copyOf(values);
         passages = List.copyOf(passages);
+    }
+
+    /**
+     * The result for a question the reply left out: nothing found.
+     *
+     * @param key the question's key
+     * @return an empty result
+     */
+    static FieldResult createNotFound(final String key)
+    {
+        return new FieldResult(key, List.of(), "", 0.0, List.of(), 0);
+    }
+
+    /**
+     * Whether the model gave an answer.
+     *
+     * @return {@code true} when there is at least one value
+     */
+    boolean found()
+    {
+        return !this.values.isEmpty();
     }
 }

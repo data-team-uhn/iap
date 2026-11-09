@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class ClassifyDocumentHandlerTest
 {
-    private static final String DECISION = "is_proposal/decision";
+    private static final String DECISION = "is_proposal.decision";
 
     private static final String PROMPT = "Decide whether the document is a research protocol.";
 
@@ -107,8 +107,9 @@ class ClassifyDocumentHandlerTest
     private void stubModelPick(final String value, final double confidence, final boolean degraded) throws IOException
     {
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenReturn(new IntakeResult(Map.of(DECISION, new FieldResult(DECISION, true, confidence, value,
-                "It has objectives and methods.", List.of())), degraded));
+            .thenReturn(degraded ? IntakeResult.createNothingRead() : IntakeResult.createRead(Map.of(DECISION,
+                new FieldResult(DECISION, List.of(value), "It has objectives and methods.", confidence, List.of(),
+                    0))));
     }
 
     /** The value the run under an answer suggested. This is what the submitter is shown. */
@@ -149,13 +150,15 @@ class ClassifyDocumentHandlerTest
         this.handler.execute(createTask());
 
         @SuppressWarnings("unchecked")
-        final ArgumentCaptor<List<ExtractionField>> fields = ArgumentCaptor.forClass(List.class);
+        final ArgumentCaptor<List<ExtractionPrompt.Group>> groups = ArgumentCaptor.forClass(List.class);
         final ArgumentCaptor<String> reference = ArgumentCaptor.forClass(String.class);
-        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), fields.capture(), reference.capture());
-        final ExtractionField field = fields.getValue().get(0);
-        assertEquals(DECISION, field.name());
-        assertTrue(field.prompt().startsWith(PROMPT), "the prompt comes from the requirement");
-        assertEquals(List.of("yes", "no"), field.getAllowedValues());
+        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), groups.capture(), reference.capture());
+        assertEquals(1, groups.getValue().size(), "one document's classifications are asked together");
+        final ExtractionField field = groups.getValue().get(0).fields().get(0);
+        assertEquals(DECISION, field.key());
+        assertTrue(field.instructions().startsWith(PROMPT), "the instructions come from the requirement");
+        assertEquals(List.of("yes", "no"),
+            field.answer().options().stream().map(ExtractionField.Option::value).toList());
         assertTrue(reference.getValue().contains("B.1 General information"));
         assertEquals("yes", getPick(getAnswers().get(0)), "the pick is kept as a suggestion");
         assertNull(getAnswers().get(0).getValueMap().get("value", String[].class),
@@ -185,18 +188,6 @@ class ClassifyDocumentHandlerTest
         this.handler.execute(createTask());
 
         assertTrue(getAnswers().isEmpty());
-    }
-
-    // The model may write a category in a different case. It still matches the option.
-    @Test
-    void storesAPickNamingACategoryByItsLabel() throws Exception
-    {
-        this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        stubModelPick("YES", false);
-
-        this.handler.execute(createTask());
-
-        assertEquals("YES", getPick(getAnswers().get(0)), "kept as the model said it");
     }
 
     @Test
@@ -319,7 +310,7 @@ class ClassifyDocumentHandlerTest
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenThrow(new IOException("unreachable"));
+            .thenReturn(IntakeResult.createNotAsked(IntakeResult.UNREACHABLE_MESSAGE));
 
         this.handler.execute(createTask());
 
@@ -382,8 +373,8 @@ class ClassifyDocumentHandlerTest
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenAnswer(invocation -> {
                 Thread.currentThread().interrupt();
-                return new IntakeResult(Map.of(DECISION,
-                    new FieldResult(DECISION, true, 0.9, "yes", "", List.of())), false);
+                return IntakeResult.createRead(Map.of(DECISION,
+                    new FieldResult(DECISION, List.of("yes"), "", 0.9, List.of(), 0)));
             });
 
         try {
@@ -391,25 +382,6 @@ class ClassifyDocumentHandlerTest
                 assertThrows(PersistenceException.class, () -> this.handler.execute(createTask()));
             assertTrue(ReadingRuns.isStopped(failure.getCause()));
             assertFalse(Thread.currentThread().isInterrupted());
-        } finally {
-            Thread.interrupted();
-        }
-    }
-
-    @Test
-    void anInterruptedCallAbortsTheStep() throws Exception
-    {
-        this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenAnswer(invocation -> {
-                Thread.currentThread().interrupt();
-                throw new IOException("closed");
-            });
-
-        try {
-            final PersistenceException failure =
-                assertThrows(PersistenceException.class, () -> this.handler.execute(createTask()));
-            assertEquals(ExtractionStatus.STOPPED_MESSAGE, failure.getMessage());
         } finally {
             Thread.interrupted();
         }

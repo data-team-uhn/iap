@@ -22,9 +22,9 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
@@ -48,12 +48,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link AnswerIntakeService}: what it sends to the model, how it scores the answers, and when it
- * gives up instead of guessing.
+ * Unit tests for {@link AnswerIntakeService}: planning the calls, reading the replies, and when it gives up instead
+ * of guessing.
  *
  * @version $Id$
  * @since 0.1.0
@@ -66,14 +65,17 @@ class AnswerIntakeServiceTest
 
     private static final String FILE_PATH = "/Submissions/aa/proposal/v1/file";
 
-    private static final String AIMS = "aims";
+    private static final String AIMS = "study.aims";
 
-    /** The document every test reads. It has a heading, so a quote can be placed under it. */
+    /** The document every test reads. */
     private static final String DOCUMENT =
         "# Protocol\n\n## Objectives\n\nThe aim is to find out whether it works.\n";
 
     /** A sentence that is in {@link #DOCUMENT}. */
     private static final String REAL_QUOTE = "The aim is to find out whether it works.";
+
+    /** A window that holds the prompt and some of a document, but not 20,000 characters of one. */
+    private static final long SMALL_WINDOW = 5000;
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
@@ -83,38 +85,31 @@ class AnswerIntakeServiceTest
 
     private IOException settingsFailure;
 
+    private IOException clientFailure;
+
     /** The model's context window in tokens. 0 means the settings do not give one. */
     private long window;
 
     /** A fake model: returns the replies the test queued, and records what it was sent. */
     private static final class StubClient implements LLMClient
     {
-        private final List<String> replies = new ArrayList<>();
+        private final List<Object> replies = new ArrayList<>();
 
         private final List<String> asked = new ArrayList<>();
 
-        private final List<LLMRequestOptions> options = new ArrayList<>();
-
         private String system;
-
-        private IOException failure;
-
-        private String getNextReply()
-        {
-            return this.replies.isEmpty() ? "" : this.replies.remove(0);
-        }
 
         @Override
         public String chat(final String systemPrompt, final List<LLMMessage> messages,
             final LLMRequestOptions requestOptions) throws IOException
         {
-            if (this.failure != null) {
-                throw this.failure;
-            }
             this.system = systemPrompt;
             this.asked.add(messages.get(0).getContent());
-            this.options.add(requestOptions);
-            return getNextReply();
+            final Object reply = this.replies.isEmpty() ? "" : this.replies.remove(0);
+            if (reply instanceof IOException failure) {
+                throw failure;
+            }
+            return (String) reply;
         }
     }
 
@@ -123,7 +118,12 @@ class AnswerIntakeServiceTest
     {
         this.intake = new AnswerIntakeService();
         this.client = new StubClient();
-        inject("llmClientFactory", (LLMClientFactory) () -> this.client);
+        inject("llmClientFactory", (LLMClientFactory) () -> {
+            if (this.clientFailure != null) {
+                throw this.clientFailure;
+            }
+            return this.client;
+        });
         inject("configurationService", (LLMConfigurationService) () -> {
             if (this.settingsFailure != null) {
                 throw this.settingsFailure;
@@ -157,22 +157,23 @@ class AnswerIntakeServiceTest
             "jcr:data", new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8))));
     }
 
-    private static ExtractionField createAimsField()
+    private static ExtractionField createField(final String key)
     {
-        return new ExtractionField(AIMS, "What are the aims?", "Whether there is one", "Find the aims.", null,
-            false);
+        return new ExtractionField(key, "What are the aims?", null, "Whether there is one", "Find the aims.",
+            new ExtractionField.Answer(ExtractionField.TEXT_TYPE, false, null, null, null, List.of()));
     }
 
-    /** The aims field's answer as JSON, the way the model sends it. */
-    private static String buildAnswer(final String value, final double confidence, final String evidence)
+    private static List<ExtractionPrompt.Group> groupOf(final String... keys)
     {
-        return "{\"" + AIMS + "\":{\"found_answer\":true,\"value\":\"" + value + "\",\"confidence\":"
-            + confidence + ",\"reasoning\":\"It says so.\",\"evidence\":[" + evidence + "]}}";
+        return List.of(new ExtractionPrompt.Group("study", List.of(keys).stream()
+            .map(AnswerIntakeServiceTest::createField).toList()));
     }
 
-    private static String buildQuote(final String text)
+    /** One field's answer as JSON, the way the model sends it. */
+    private static String buildAnswer(final String key, final String value, final String quote)
     {
-        return "{\"quote\":\"" + text + "\",\"page\":3}";
+        return "{\"" + key + "\": {\"evidence\": [{\"quote\": \"" + quote + "\", \"page\": 3}],"
+            + " \"reasoning\": \"It says so.\", \"value\": \"" + value + "\", \"confidence\": 0.9}}";
     }
 
     /** The document read and prepared once, the way the service gets it. */
@@ -181,294 +182,147 @@ class AnswerIntakeServiceTest
         return new ParsedDocuments().scan(getFile());
     }
 
-    private IntakeResult run() throws IOException
+    private IntakeResult run(final List<ExtractionPrompt.Group> groups) throws IOException
     {
-        return this.intake.run(getFile(), scan(), List.of(createAimsField()));
+        return this.intake.run(getFile(), scan(), groups, null);
     }
 
     @Test
-    void asksNothingWhenThereIsNothingToExtract() throws IOException
+    void asksNothingWhenThereIsNothingToAsk() throws IOException
     {
         addMarkdown(DOCUMENT);
 
-        final IntakeResult result = this.intake.run(getFile(), scan(), List.of());
+        for (final List<ExtractionPrompt.Group> nothing : List.of(List.<ExtractionPrompt.Group>of(),
+            List.of(new ExtractionPrompt.Group("empty", List.of())))) {
+            final IntakeResult result = run(nothing);
+            assertTrue(result.fields().isEmpty());
+            assertFalse(result.degraded());
+            assertFalse(result.incomplete());
+        }
+        assertTrue(this.client.asked.isEmpty(), "no call is worth making for no questions");
+    }
 
-        assertTrue(result.fields().isEmpty());
+    @Test
+    void readsWhatTheModelFoundAndBackedWithAQuote() throws IOException
+    {
+        addMarkdown(DOCUMENT);
+        this.client.replies.add(buildAnswer(AIMS, "To find out whether it works", REAL_QUOTE));
+
+        final IntakeResult result = run(groupOf(AIMS));
+
         assertFalse(result.degraded());
-        assertTrue(this.client.asked.isEmpty(), "no call is worth making for no fields");
-    }
-
-    @Test
-    void readsAFieldTheModelFoundAndBackedWithAQuote() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add(buildAnswer("To find out whether it works", 0.9, buildQuote(REAL_QUOTE)));
-
-        final FieldResult found = run().fields().get(AIMS);
-
-        assertTrue(found.found());
-        assertEquals("To find out whether it works", found.value());
+        assertFalse(result.incomplete());
+        final FieldResult found = result.fields().get(AIMS);
+        assertEquals(List.of("To find out whether it works"), found.values());
         assertEquals(0.9, found.confidence(), 1e-9, "every quote checked out, so nothing is taken off");
-        assertEquals("It says so.", found.reasoning());
-        assertEquals(1, found.passages().size());
-        assertEquals(3L, found.passages().get(0).page());
-    }
-
-    // The form shows this heading next to the quote, so the reader can see where it came from
-    @Test
-    void placesAQuoteUnderTheHeadingAboveIt() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add(buildAnswer("Yes", 0.9, buildQuote(REAL_QUOTE)));
-
-        assertEquals("Objectives", run().fields().get(AIMS).passages().get(0).header());
+        assertEquals("Objectives", found.passages().get(0).header());
     }
 
     @Test
-    void discountsAnAnswerNoneOfWhoseQuotesCanBeFound() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add(buildAnswer("Yes", 0.9, buildQuote("A sentence that is nowhere in the document.")));
-
-        final FieldResult found = run().fields().get(AIMS);
-
-        assertTrue(found.found(), "the answer may still be right; only its evidence failed");
-        assertEquals(0.45, found.confidence(), 1e-9);
-        assertTrue(found.passages().isEmpty(), "a quote nobody can find is not shown as evidence");
-    }
-
-    @Test
-    void discountsAnAnswerByHowMuchOfItsEvidenceHeldUp() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add(buildAnswer("Yes", 0.8,
-            buildQuote(REAL_QUOTE) + "," + buildQuote("An invented sentence nobody wrote.")));
-
-        final FieldResult found = run().fields().get(AIMS);
-
-        assertEquals(1, found.passages().size(), "only the real one is kept");
-        assertEquals(0.8 * 0.75, found.confidence(), 1e-9, "one of two quotes costs a quarter");
-    }
-
-    // The same quote given twice is one piece of evidence. Otherwise a model could raise its score just by
-    // repeating a quote.
-    @Test
-    void doesNotCountTheSameQuoteTwice() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add(buildAnswer("Yes", 0.9, buildQuote(REAL_QUOTE) + "," + buildQuote(REAL_QUOTE)));
-
-        final FieldResult found = run().fields().get(AIMS);
-
-        assertEquals(1, found.passages().size(), "a repeated quote is kept once, not twice");
-        assertEquals(0.9, found.confidence(), 1e-9, "and it is not counted as a second quote that failed");
-    }
-
-    // No quotes at all costs the same as quotes that were all not found: half the confidence
-    @Test
-    void discountsAnAnswerWithNoEvidenceAtAll() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add(buildAnswer("Yes", 0.9, ""));
-
-        assertEquals(0.45, run().fields().get(AIMS).confidence(), 1e-9);
-    }
-
-    @Test
-    void anAnswerWithNoValueIsNotAnAnswer() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add("{\"" + AIMS + "\":{\"found_answer\":true,\"value\":null,"
-            + "\"confidence\":0.9,\"reasoning\":\"\",\"evidence\":[]}}");
-
-        final FieldResult found = run().fields().get(AIMS);
-
-        assertFalse(found.found());
-        assertNull(found.value());
-    }
-
-    @Test
-    void aBlankValueIsNotAnAnswer() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add("{\"" + AIMS + "\":{\"found_answer\":true,\"value\":\"  \","
-            + "\"confidence\":0.9,\"reasoning\":\"\",\"evidence\":[]}}");
-
-        final FieldResult found = run().fields().get(AIMS);
-
-        assertFalse(found.found());
-        assertNull(found.value());
-    }
-
-    @Test
-    void aFieldTheModelLeftOutIsNotFound() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add("{\"something_else\":{\"found_answer\":true}}");
-
-        final FieldResult found = run().fields().get(AIMS);
-
-        assertFalse(found.found());
-        assertEquals(0.0, found.confidence());
-        assertTrue(found.passages().isEmpty());
-    }
-
-    @Test
-    void keepsOnlyTheEvidenceItCanUse() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add(buildAnswer("Yes", 0.9,
-            "\"not an object\"," + buildQuote(REAL_QUOTE)
-                + ",{\"quote\":\"   \",\"page\":1},{\"page\":2}"));
-
-        assertEquals(1, run().fields().get(AIMS).passages().size());
-    }
-
-    @Test
-    void copesWithEvidenceThatIsNotAList() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add("{\"" + AIMS + "\":{\"found_answer\":true,\"value\":\"Yes\","
-            + "\"confidence\":0.9,\"reasoning\":\"\",\"evidence\":\"a sentence\"}}");
-
-        assertTrue(run().fields().get(AIMS).passages().isEmpty());
-    }
-
-    @Test
-    void sendsTheInstructionsAsTheSystemPromptAndTheDocumentAsTheMessage() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add(buildAnswer("Yes", 0.9, buildQuote(REAL_QUOTE)));
-
-        run();
-
-        assertTrue(this.client.system.contains("intake extraction engine"), this.client.system);
-        assertTrue(this.client.asked.get(0).contains("## DOCUMENT"), this.client.asked.get(0));
-        assertTrue(this.client.asked.get(0).contains(REAL_QUOTE));
-    }
-
-    @Test
-    void asksForRoomForEveryFieldItPutsToTheModel() throws IOException
+    void opensWithTheExtractionPromptAndTheDocument() throws IOException
     {
         addMarkdown(DOCUMENT);
         this.client.replies.add("{}");
 
-        this.intake.run(getFile(), scan(), List.of(createAimsField(), createAimsField()));
+        run(groupOf(AIMS));
 
-        assertEquals(500 + 400 * 2, this.client.options.get(0).getMaxOutputTokens());
+        assertEquals(ExtractionPrompt.readSystemPrompt(), this.client.system);
+        assertTrue(this.client.asked.get(0).startsWith("<document>\n# Protocol"), this.client.asked.get(0));
     }
 
-    // A provider refuses a request that asks for more output than its model can write
+    // Knowledge only one step needs comes after the document, so every call on it still opens the same way
     @Test
-    void asksForNoMoreRoomThanAModelCanWrite() throws IOException
+    void sendsTheReferenceTextAfterTheDocument() throws IOException
     {
         addMarkdown(DOCUMENT);
         this.client.replies.add("{}");
 
-        this.intake.run(getFile(), scan(), Collections.nCopies(50, createAimsField()));
+        this.intake.run(getFile(), scan(), groupOf(AIMS), "Only this reading.");
 
-        assertEquals(AnswerIntakeService.MAX_OUTPUT_TOKENS, this.client.options.get(0).getMaxOutputTokens());
+        final String asked = this.client.asked.get(0);
+        assertTrue(asked.indexOf("</document>") < asked.indexOf("Only this reading."), asked);
+        assertTrue(asked.indexOf("Only this reading.") < asked.indexOf("<questions>"), asked);
     }
 
     @Test
-    void asksAgainWhenTheAnswerIsNotTheShapeItHadToBe() throws IOException
+    void asksAtMostTenQuestionsPerCall() throws IOException
     {
         addMarkdown(DOCUMENT);
-        this.client.replies.add("I could not do that.");
-        this.client.replies.add(buildAnswer("Yes", 0.9, buildQuote(REAL_QUOTE)));
+        for (int i = 0; i < 3; i++) {
+            this.client.replies.add("{}");
+        }
 
-        assertTrue(run().fields().get(AIMS).found());
-        assertEquals(2, this.client.asked.size());
+        final IntakeResult result = run(groupOf(IntStream.range(0, 23).mapToObj(i -> "q" + i)
+            .toArray(String[]::new)));
+
+        assertEquals(3, this.client.asked.size());
+        assertEquals(23, result.fields().size(), "a question the reply left out is answered with nothing");
     }
 
+    // One call failing must not lose the others' answers; the lost questions stay open for the next reading
     @Test
-    void tellsTheModelWhatWasActuallyWrongWhenItAsksAgain() throws IOException
+    void keepsWhatTheOtherCallsReadWhenOneFails() throws IOException
     {
         addMarkdown(DOCUMENT);
-        this.client.replies.add("{\"aims\": {\"found_answer\": true");
-        this.client.replies.add(buildAnswer("Yes", 0.9, ""));
+        this.client.replies.add(new IOException("connection reset"));
+        this.client.replies.add("{\"q10\": {\"value\": \"x\"}}");
 
-        run();
+        final IntakeResult result = run(groupOf(IntStream.range(0, 11).mapToObj(i -> "q" + i)
+            .toArray(String[]::new)));
 
-        assertTrue(this.client.asked.get(1).contains("cut off before it finished"), this.client.asked.get(1));
+        assertFalse(result.degraded());
+        assertTrue(result.incomplete());
+        assertEquals(List.of("q10"), List.copyOf(result.fields().keySet()));
     }
 
     @Test
-    void tellsTheModelWhenItSaidNothingAtAll() throws IOException
+    void reportsAnUnreachableModelWhenNoCallWentThrough() throws IOException
     {
         addMarkdown(DOCUMENT);
-        this.client.replies.add("");
-        this.client.replies.add(buildAnswer("Yes", 0.9, ""));
+        this.client.replies.add(new IOException("connection refused"));
 
-        run();
+        final IntakeResult result = run(groupOf(AIMS));
 
-        assertTrue(this.client.asked.get(1).contains("it was empty"), this.client.asked.get(1));
+        assertTrue(result.degraded());
+        assertEquals(IntakeResult.UNREACHABLE_MESSAGE, result.getMessage());
     }
 
     @Test
-    void tellsTheModelWhenItAnsweredInProseInstead() throws IOException
+    void reportsAnUnreachableModelWhenNoModelIsSetUp() throws IOException
     {
         addMarkdown(DOCUMENT);
-        this.client.replies.add("The aims are to find out whether it works.");
-        this.client.replies.add(buildAnswer("Yes", 0.9, ""));
+        this.clientFailure = new IOException("no active provider");
 
-        run();
+        final IntakeResult result = run(groupOf(AIMS));
 
-        assertTrue(this.client.asked.get(1).contains("no JSON object"), this.client.asked.get(1));
+        assertTrue(result.degraded());
+        assertEquals(IntakeResult.UNREACHABLE_MESSAGE, result.getMessage());
     }
 
+    // After two unreadable replies every question is left for the submitter to answer
     @Test
-    void tellsTheModelWhenItsReplyIsMalformedJson() throws IOException
-    {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add("{\"aims\": }");
-        this.client.replies.add(buildAnswer("Yes", 0.9, ""));
-
-        run();
-
-        assertTrue(this.client.asked.get(1).contains("a key for each of 1 fields"), this.client.asked.get(1));
-    }
-
-    // After two unreadable replies every field is left for the submitter to answer
-    @Test
-    void givesUpAfterTwoUnreadableAnswersWithoutGuessing() throws IOException
+    void givesUpAfterTwoUnreadableRepliesWithoutGuessing() throws IOException
     {
         addMarkdown(DOCUMENT);
         this.client.replies.add("nonsense");
         this.client.replies.add("more nonsense");
 
-        final IntakeResult result = run();
+        final IntakeResult result = run(groupOf(AIMS));
 
         assertTrue(result.degraded());
         assertTrue(result.fields().isEmpty());
+        assertNull(result.reason());
+        assertEquals(IntakeResult.UNREADABLE_MESSAGE, result.getMessage());
     }
 
     @Test
     void hasNothingToAskAboutADocumentWithNoText() throws IOException
     {
-        final IntakeResult result = run();
+        final IntakeResult result = run(groupOf(AIMS));
 
         assertTrue(result.degraded());
+        assertEquals("The document has no text that can be read", result.getMessage());
         assertTrue(this.client.asked.isEmpty(), "nothing was worth asking");
-    }
-
-    @Test
-    void hasNothingToAskAboutADocumentThatIsAllWhitespace() throws IOException
-    {
-        addMarkdown("   \n\n  ");
-
-        assertTrue(run().degraded());
-    }
-
-    @Test
-    void letsAnUnreachableModelBeReportedRatherThanHidden()
-    {
-        addMarkdown(DOCUMENT);
-        this.client.failure = new IOException("the model is unreachable");
-
-        final IOException thrown = assertThrows(IOException.class, this::run);
-
-        assertEquals("the model is unreachable", thrown.getMessage());
     }
 
     @Test
@@ -476,23 +330,9 @@ class AnswerIntakeServiceTest
     {
         addMarkdown(DOCUMENT);
         this.settingsFailure = new IOException("no active provider");
-        this.client.replies.add(buildAnswer("Yes", 0.9, buildQuote(REAL_QUOTE)));
+        this.client.replies.add(buildAnswer(AIMS, "Yes", REAL_QUOTE));
 
-        assertTrue(run().fields().get(AIMS).found(), "a settings problem must not stop the reading");
-    }
-
-    // The window must also hold the questions and the answer, so the document gets only part of it
-    @Test
-    void leavesTheModelRoomForTheQuestionsAndTheAnswer() throws IOException
-    {
-        this.window = 20_000;
-        addMarkdown("x".repeat(20_000 * CallBudget.CHARS_PER_TOKEN));
-        this.client.replies.add("{}");
-
-        run();
-
-        final long sent = this.client.asked.get(0).length() / CallBudget.CHARS_PER_TOKEN;
-        assertTrue(sent > 0 && sent <= 17_000, "the window less its margin, the answer and the questions");
+        assertTrue(run(groupOf(AIMS)).fields().get(AIMS).found(), "a settings problem must not stop the reading");
     }
 
     // Cutting the middle keeps the provider from refusing a long document. The end is kept because a protocol
@@ -500,42 +340,42 @@ class AnswerIntakeServiceTest
     @Test
     void cutsTheMiddleOfADocumentTooLongForTheWindowAndKeepsBothEnds() throws IOException
     {
-        this.window = 2000;
+        this.window = SMALL_WINDOW;
         addMarkdown(DOCUMENT + BREAK + "x".repeat(20_000) + BREAK + "THE END");
         this.client.replies.add("{}");
 
-        run();
+        run(groupOf(AIMS));
 
         final String asked = this.client.asked.get(0);
         assertTrue(asked.contains("THE END"), "the end is sent");
-        assertTrue(asked.contains(CallBudget.OMISSION_MARKER), "and the gap is marked");
+        assertTrue(asked.contains(CallBudget.OMISSION_MARKER.strip()), "and the gap is marked");
         assertFalse(asked.contains("x".repeat(20_000)), "but not the whole middle");
     }
 
-    // Extra instructions named on a step go before the intake prompt. Knowledge that only one schema needs is
-    // then not sent with every reading.
+    // A quote is real if it is anywhere in the file the submitter attached, not only in the part that was sent
     @Test
-    void prependsExtraInstructionsToTheIntakePrompt() throws IOException
+    void checksQuotesAgainstTheWholeDocumentEvenWhenItWasCut() throws IOException
     {
-        addMarkdown(DOCUMENT);
-        this.client.replies.add(buildAnswer("Yes", 0.9, buildQuote(REAL_QUOTE)));
+        this.window = SMALL_WINDOW;
+        final String middle = "The middle says the sample is 182 adults.";
+        addMarkdown(DOCUMENT + BREAK + "x".repeat(10_000) + BREAK + middle + BREAK + "y".repeat(10_000));
+        this.client.replies.add(buildAnswer(AIMS, "182", middle));
 
-        this.intake.run(getFile(), scan(), List.of(createAimsField()), "# Extra\n\nOnly this reading.");
+        final FieldResult found = run(groupOf(AIMS)).fields().get(AIMS);
 
-        assertTrue(this.client.system.contains("Only this reading."), this.client.system);
-        assertTrue(this.client.system.contains("intake extraction engine"), this.client.system);
-        assertTrue(this.client.system.indexOf("Only this reading.")
-            < this.client.system.indexOf("intake extraction engine"), this.client.system);
+        assertFalse(this.client.asked.get(0).contains(middle), "the middle was not sent");
+        assertEquals(1, found.passages().size(), "but the quote from it still counts");
     }
 
     @Test
-    void readsNothingWhenThePromptLeavesNoRoomForTheDocumentAtAll() throws IOException
+    void readsNothingWhenTheQuestionsLeaveNoRoomForTheDocumentAtAll() throws IOException
     {
         this.window = 1;
         addMarkdown(DOCUMENT);
 
-        final IntakeResult result = run();
-        assertTrue(result.degraded(), "asking every field over no document could only invent");
+        final IntakeResult result = run(groupOf(AIMS));
+
+        assertTrue(result.degraded(), "asking every question over no document could only invent");
         assertTrue(this.client.asked.isEmpty(), "and the call is not made at all");
         assertEquals("The questions leave no room to show the model the document", result.getMessage());
     }

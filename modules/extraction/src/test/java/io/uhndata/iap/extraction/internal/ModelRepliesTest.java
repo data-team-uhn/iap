@@ -17,8 +17,6 @@
  */
 package io.uhndata.iap.extraction.internal;
 
-import java.util.Optional;
-
 import jakarta.json.JsonObject;
 
 import org.junit.jupiter.api.Test;
@@ -67,27 +65,6 @@ class ModelRepliesTest
     }
 
     @Test
-    void readsANestedObjectOnlyWhenItIsOne()
-    {
-        final JsonObject parent = parseObject("{\"field\": {\"value\": 1}, \"text\": \"no\"}");
-
-        assertNotNull(ModelReplies.readObject(parent, "field"));
-        assertNull(ModelReplies.readObject(parent, "text"));
-        assertNull(ModelReplies.readObject(parent, "absent"));
-    }
-
-    @Test
-    void readsAStringAndTakesAnythingElseAsItsText()
-    {
-        final JsonObject parent = parseObject("{\"s\": \"word\", \"n\": 3, \"gone\": null}");
-
-        assertEquals("word", ModelReplies.readString(parent, "s"));
-        assertEquals("3", ModelReplies.readString(parent, "n"));
-        assertNull(ModelReplies.readString(parent, "gone"));
-        assertNull(ModelReplies.readString(parent, "absent"));
-    }
-
-    @Test
     void holdsAConfidenceBetweenZeroAndOne()
     {
         assertEquals(0.7, ModelReplies.readConfidence(parseObject("{\"confidence\": 0.7}"), CONFIDENCE));
@@ -105,18 +82,5 @@ class ModelRepliesTest
         assertNull(ModelReplies.readLong(parseObject("{\"page\": \"4\"}"), "page"));
         assertNull(ModelReplies.readLong(parseObject("{\"page\": null}"), "page"));
         assertNull(ModelReplies.readLong(parseObject("{}"), "page"));
-    }
-
-    // Anything but a real true or false reads as no answer. Reading it as false would let a bad reply decide
-    // the gate's question.
-    @Test
-    void readsAYesOrNoAndNothingElse()
-    {
-        assertEquals(Optional.of(Boolean.TRUE), ModelReplies.readBoolean(parseObject("{\"ok\": true}"), "ok"));
-        assertEquals(Optional.of(Boolean.FALSE), ModelReplies.readBoolean(parseObject("{\"ok\": false}"), "ok"));
-        assertEquals(Optional.empty(), ModelReplies.readBoolean(parseObject("{\"ok\": \"true\"}"), "ok"));
-        assertEquals(Optional.empty(), ModelReplies.readBoolean(parseObject("{\"ok\": 1}"), "ok"));
-        assertEquals(Optional.empty(), ModelReplies.readBoolean(parseObject("{\"ok\": null}"), "ok"));
-        assertEquals(Optional.empty(), ModelReplies.readBoolean(parseObject("{}"), "ok"));
     }
 }

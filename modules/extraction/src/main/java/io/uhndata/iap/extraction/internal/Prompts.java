@@ -36,8 +36,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 final class Prompts
 {
-    /** The system prompt for the intake call, which reads every field out of a document at once. */
-    static final String INTAKE_SYSTEM = "intake_system.md";
+    /** The system prompt every extraction call opens with, the gate's and the intake's alike. */
+    static final String EXTRACTION_SYSTEM = "extraction_system.md";
 
     private static final String PROMPT_DIRECTORY = "/prompts/";
 

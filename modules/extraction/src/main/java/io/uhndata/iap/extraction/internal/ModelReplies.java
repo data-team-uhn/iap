@@ -18,17 +18,15 @@
 package io.uhndata.iap.extraction.internal;
 
 import java.io.StringReader;
-import java.util.Optional;
 
 import jakarta.json.Json;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
-import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 /**
- * Reads values out of a model's JSON answer.
+ * Reads values out of a model's JSON reply.
  *
  * <p>Models often add text around the JSON, and leave out or mistype required fields. So nothing here throws:
  * each method returns {@code null} or a safe default, and the caller can ask the model again.
@@ -68,36 +66,6 @@ final class ModelReplies
     }
 
     /**
-     * A nested object.
-     *
-     * @param parent the object holding it
-     * @param key its key
-     * @return the object, or {@code null} when the key is missing or is not an object
-     */
-    static JsonObject readObject(final JsonObject parent, final String key)
-    {
-        return parent.containsKey(key) && parent.get(key).getValueType() == JsonValue.ValueType.OBJECT
-            ? parent.getJsonObject(key) : null;
-    }
-
-    /**
-     * A string. A value that is not a string is returned as its JSON text, for example {@code 42} as "42".
-     *
-     * @param object the object holding it
-     * @param key its key
-     * @return the string, or {@code null} when the key is missing or {@code null}
-     */
-    static String readString(final JsonObject object, final String key)
-    {
-        if (!object.containsKey(key) || object.isNull(key)) {
-            return null;
-        }
-        final JsonValue value = object.get(key);
-        return value.getValueType() == JsonValue.ValueType.STRING ? ((JsonString) value).getString()
-            : value.toString();
-    }
-
-    /**
      * A confidence, kept between 0 and 1.
      *
      * @param object the object holding it
@@ -127,22 +95,5 @@ final class ModelReplies
             return null;
         }
         return ((JsonNumber) value).longValue();
-    }
-
-    /**
-     * A true or false value, and nothing else. {@code null}, {@code "yes"} or a number is no answer, because
-     * reading it as false would turn a bad answer into a decision.
-     *
-     * @param object the object holding it
-     * @param key its key
-     * @return the value, or empty when the key is missing or is not a boolean
-     */
-    static Optional<Boolean> readBoolean(final JsonObject object, final String key)
-    {
-        final JsonValue value = object.get(key);
-        if (JsonValue.TRUE.equals(value)) {
-            return Optional.of(Boolean.TRUE);
-        }
-        return JsonValue.FALSE.equals(value) ? Optional.of(Boolean.FALSE) : Optional.empty();
     }
 }

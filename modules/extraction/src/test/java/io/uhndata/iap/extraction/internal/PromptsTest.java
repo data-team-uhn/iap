@@ -36,7 +36,7 @@ class PromptsTest
     @Test
     void readsAPromptOnlyOnce()
     {
-        assertSame(Prompts.read(Prompts.INTAKE_SYSTEM), Prompts.read(Prompts.INTAKE_SYSTEM));
+        assertSame(Prompts.read(Prompts.EXTRACTION_SYSTEM), Prompts.read(Prompts.EXTRACTION_SYSTEM));
     }
 
     @Test

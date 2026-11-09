@@ -24,8 +24,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import io.uhndata.iap.llm.LLMClient;
-import io.uhndata.iap.llm.LLMMessage;
-import io.uhndata.iap.llm.LLMRequestOptions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -33,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ModelCall}: asking again with a correction, and how a stop ends a call.
+ * Unit tests for {@link ModelCall}: sending one message, and how a stop ends a call.
  *
  * @version $Id$
  * @since 0.1.0
@@ -41,31 +39,46 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCallTest
 {
     @Test
+    void sendsTheMessageAndReturnsTheReply() throws IOException
+    {
+        final List<String> asked = new ArrayList<>();
+        final LLMClient client = (system, messages, options) -> {
+            asked.add(system + "|" + messages.get(0).getRole() + "|" + messages.get(0).getContent());
+            return "yes";
+        };
+
+        assertEquals("yes", ModelCall.ask(client, "system", "user message", null));
+        assertEquals(List.of("system|user|user message"), asked);
+    }
+
+    @Test
     void doesNotAskWhenTheReadingWasStopped()
     {
-        final Answering client = new Answering("{\"ok\":true}");
+        final List<String> asked = new ArrayList<>();
+        final LLMClient client = (system, messages, options) -> {
+            asked.add("asked");
+            return "{}";
+        };
         Thread.currentThread().interrupt();
         try {
-            assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.askWithCorrection(client,
-                "system", "user", null, reply -> reply, null, "intake"));
+            assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
         } finally {
             Thread.interrupted();
         }
-        assertEquals(0, client.calls, "the model was never asked");
+        assertTrue(asked.isEmpty(), "the model was never asked");
         assertTrue(ReadingRuns.isStopped(new ReadingRuns.Stopped()));
         assertFalse(ReadingRuns.isStopped(new IOException("closed")));
     }
 
     @Test
-    void aStoppedCallIsNotAskedAgain()
+    void turnsACallEndedByAStopIntoAStop()
     {
         final LLMClient client = (system, messages, options) -> {
             Thread.currentThread().interrupt();
             throw new IOException("closed");
         };
         try {
-            assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.askWithCorrection(client,
-                "system", "user", null, reply -> null, null, "intake"));
+            assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
         } finally {
             Thread.interrupted();
         }
@@ -73,89 +86,27 @@ class ModelCallTest
 
     // Some clients still return a reply after the thread was interrupted, so the reply must be refused
     @Test
-    void aReplyThatArrivesAfterBeingStoppedIsNotAccepted()
+    void refusesAReplyThatArrivesAfterAStop()
     {
         final LLMClient client = (system, messages, options) -> {
             Thread.currentThread().interrupt();
             return "too late";
         };
         try {
-            assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.askWithCorrection(client,
-                "system", "user", null, reply -> reply, null, "intake"));
+            assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
         } finally {
             Thread.interrupted();
         }
     }
 
     @Test
-    void aModelThatCannotBeReachedIsNotAStop()
+    void letsAModelThatCannotBeReachedFailAsItself()
     {
         final LLMClient client = (system, messages, options) -> {
             throw new IOException("down");
         };
 
-        assertThrows(IOException.class, () -> ModelCall.askWithCorrection(client,
-            "system", "user", null, reply -> reply, null, "intake"));
-    }
-
-    @Test
-    void tellsTheModelWhatWasWrong() throws IOException
-    {
-        final List<String> asked = new ArrayList<>();
-        final LLMClient client = (system, messages, options) -> {
-            asked.add(messages.get(0).getContent());
-            return asked.size() == 1 ? "bad" : "good";
-        };
-
-        assertEquals("good", ModelCall.askWithCorrection(client, "system", "user", null,
-            reply -> "bad".equals(reply) ? null : reply, reply -> "say it plainly", "intake"));
-        assertEquals(2, asked.size());
-        assertTrue(asked.get(1).contains("say it plainly"), asked.get(1));
-    }
-
-    @Test
-    void aCorrectionWithNothingSpecificStillAsksAgain() throws IOException
-    {
-        final LLMClient client = new LLMClient()
-        {
-            private int calls;
-
-            @Override
-            public String chat(final String systemPrompt, final List<LLMMessage> messages,
-                final LLMRequestOptions options)
-            {
-                return ++this.calls == 1 ? "bad" : "good";
-            }
-        };
-
-        assertEquals("good", ModelCall.askWithCorrection(client, "system", "user", null,
-            reply -> "bad".equals(reply) ? null : reply, null, "intake"));
-    }
-
-    @Test
-    void readsAWellFormedAnswer() throws IOException
-    {
-        assertEquals("yes", ModelCall.askWithCorrection(new Answering("yes"),
-            "system", "user", null, reply -> reply, null, "intake"));
-    }
-
-    private static final class Answering implements LLMClient
-    {
-        private final String reply;
-
-        private int calls;
-
-        private Answering(final String reply)
-        {
-            this.reply = reply;
-        }
-
-        @Override
-        public String chat(final String systemPrompt, final List<LLMMessage> messages,
-            final LLMRequestOptions options)
-        {
-            this.calls++;
-            return this.reply;
-        }
+        assertEquals("down", assertThrows(IOException.class, () -> ModelCall.ask(client, "system", "user", null))
+            .getMessage());
     }
 }

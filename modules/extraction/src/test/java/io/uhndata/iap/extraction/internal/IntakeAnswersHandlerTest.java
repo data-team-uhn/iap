@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -64,14 +65,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class IntakeAnswersHandlerTest
 {
-    private static final String AIMS = "study/aims";
+    private static final String AIMS = "study.aims";
 
-    private static final String TITLE = "study/title";
+    private static final String TITLE = "study.title";
 
     private static final String VALUE = "value";
 
     /** A prompt file that only the tests have, so a test can name two prompts on one step. */
     private static final String REFERENCE_PROMPT = "test_reference.md";
+
+    /** What {@link #REFERENCE_PROMPT} says. */
+    private static final String REFERENCE_TEXT = "A reference only the tests carry";
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
@@ -126,10 +130,22 @@ class IntakeAnswersHandlerTest
     {
         final Map<String, FieldResult> fields = new HashMap<>();
         for (final FieldResult result : results) {
-            fields.put(result.name(), result);
+            fields.put(result.key(), result);
         }
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenReturn(new IntakeResult(fields, false));
+            .thenReturn(IntakeResult.createRead(fields));
+    }
+
+    /** The groups of questions the one reading asked, as group name to question keys, in the order asked. */
+    private Map<String, List<String>> getAskedGroups()
+    {
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<List<ExtractionPrompt.Group>> groups = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), groups.capture(), Mockito.any());
+        final Map<String, List<String>> asked = new LinkedHashMap<>();
+        groups.getValue().forEach(group -> asked.put(group.name(),
+            group.fields().stream().map(ExtractionField::key).toList()));
+        return asked;
     }
 
     private List<Resource> getAnswers()
@@ -164,11 +180,7 @@ class IntakeAnswersHandlerTest
 
         this.handler.execute(createTask());
 
-        @SuppressWarnings("unchecked")
-        final ArgumentCaptor<List<ExtractionField>> fields = ArgumentCaptor.forClass(List.class);
-        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), fields.capture(), Mockito.any());
-        assertEquals(List.of(AIMS, TITLE),
-            fields.getValue().stream().map(ExtractionField::name).sorted().toList(),
+        assertEquals(Map.of("schema", List.of(AIMS, TITLE)), getAskedGroups(),
             "the question with no prompt is the submitter's to answer");
         assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
     }
@@ -182,17 +194,12 @@ class IntakeAnswersHandlerTest
 
         this.handler.execute(createTaskAsking("study"));
 
-        @SuppressWarnings("unchecked")
-        final ArgumentCaptor<List<ExtractionField>> fields = ArgumentCaptor.forClass(List.class);
-        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), fields.capture(), Mockito.any());
-        assertEquals(List.of(AIMS, TITLE),
-            fields.getValue().stream().map(ExtractionField::name).sorted().toList());
+        assertEquals(Map.of("study", List.of(AIMS, TITLE)), getAskedGroups());
     }
 
-    // One call can ask the common questions and the study type's extra questions together. Sending the document
-    // is the expensive part, so it is sent once.
+    // Each requirement is asked in calls of its own, in the order named; the document is cached after the first
     @Test
-    void asksSeveralRequirementsInOneCall() throws Exception
+    void asksSeveralRequirementsEachAsItsOwnGroup() throws Exception
     {
         createExtraRequirement();
         stubModelFinds();
@@ -200,11 +207,10 @@ class IntakeAnswersHandlerTest
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), this.variables,
             Map.of(IntakeAnswersHandler.REQUIREMENT_PARAMETER, new String[] { "study", "extra" })));
 
-        @SuppressWarnings("unchecked")
-        final ArgumentCaptor<List<ExtractionField>> fields = ArgumentCaptor.forClass(List.class);
-        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), fields.capture(), Mockito.any());
-        assertEquals(List.of(AIMS, TITLE, "extra/sites"),
-            fields.getValue().stream().map(ExtractionField::name).toList(), "in the order the requirements are named");
+        final Map<String, List<String>> asked = getAskedGroups();
+        assertEquals(List.of("study", "extra"), List.copyOf(asked.keySet()), "in the order the requirements are named");
+        assertEquals(List.of(AIMS, TITLE), asked.get("study"));
+        assertEquals(List.of("extra.sites"), asked.get("extra"));
     }
 
     // A diagram writes a list in this attribute as one comma-separated string
@@ -217,11 +223,7 @@ class IntakeAnswersHandlerTest
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), this.variables,
             Map.of(IntakeAnswersHandler.REQUIREMENT_PARAMETER, "study, ,extra")));
 
-        @SuppressWarnings("unchecked")
-        final ArgumentCaptor<List<ExtractionField>> fields = ArgumentCaptor.forClass(List.class);
-        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), fields.capture(), Mockito.any());
-        assertEquals(List.of(AIMS, TITLE, "extra/sites"),
-            fields.getValue().stream().map(ExtractionField::name).toList());
+        assertEquals(List.of("study", "extra"), List.copyOf(getAskedGroups().keySet()));
     }
 
     /** Creates a second requirement with one question, to name next to {@code study}. */
@@ -249,9 +251,9 @@ class IntakeAnswersHandlerTest
     @Test
     void recordsWhatTheModelFoundWithItsEvidence() throws Exception
     {
-        stubModelFinds(new FieldResult(AIMS, true, 0.85, "To reduce readmissions", "Stated under Aims.",
-            List.of(new FieldResult.Passage("To reduce readmissions", 3L).placeUnder("Aims"),
-                new FieldResult.Passage("also here", null))));
+        stubModelFinds(new FieldResult(AIMS, List.of("To reduce readmissions"), "Stated under Aims.", 0.85,
+            List.of(new FieldResult.Passage("To reduce readmissions", 3L, "Aims", -1),
+                new FieldResult.Passage("also here", null, "", -1)), 2));
 
         this.handler.execute(createTask());
 
@@ -282,7 +284,7 @@ class IntakeAnswersHandlerTest
     void keepsAFailureAnEarlierStepRecorded() throws Exception
     {
         ExtractionStatus.record(this.submission, ExtractionStatus.STATUS_FAILED, "The model could not be reached");
-        stubModelFinds(new FieldResult(AIMS, true, 0.85, "To reduce readmissions", "", List.of()));
+        stubModelFinds(new FieldResult(AIMS, List.of("To reduce readmissions"), "", 0.85, List.of(), 0));
 
         this.handler.execute(createTask());
 
@@ -291,23 +293,22 @@ class IntakeAnswersHandlerTest
             this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
     }
 
-    // The model sends several answers as one comma-separated string, so the string is split into one value
-    // per name
+    // The model sends several answers as a list. The run keeps them as one comma-separated text, and the
+    // suggestion splits it back into one value per name.
     @Test
     void storesAMultiValuedAnswerAsOneValuePerName() throws Exception
     {
         this.tree.createQuestion("sites", "List the participating sites.", 0);
-        stubModelFinds(new FieldResult("study/sites", true, 0.9, "Sunnybrook, St. Michael's , SickKids", "",
-            List.of()));
+        stubModelFinds(new FieldResult("study.sites", List.of("Sunnybrook", "St. Michael's", "SickKids"), "", 0.9,
+            List.of(), 0));
 
         this.handler.execute(createTask());
 
         this.tree.stampTypes();
         assertEquals(List.of("Sunnybrook", "St. Michael's", "SickKids"),
             getAnswers().get(0).adaptTo(Answer.class).getSuggestedValues());
-        assertEquals("Sunnybrook, St. Michael's , SickKids",
-            getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class),
-            "the model's answer is kept as it came");
+        assertEquals("Sunnybrook, St. Michael's, SickKids",
+            getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class));
     }
 
     // If splitting left no values, the question would look unanswered and what the model said would be lost
@@ -315,7 +316,7 @@ class IntakeAnswersHandlerTest
     void keepsAMultiValuedAnswerThatSplitsIntoNothing() throws Exception
     {
         this.tree.createQuestion("sites", "List the participating sites.", 0);
-        stubModelFinds(new FieldResult("study/sites", true, 0.9, " , ", "", List.of()));
+        stubModelFinds(new FieldResult("study.sites", List.of(" , "), "", 0.9, List.of(), 0));
 
         this.handler.execute(createTask());
 
@@ -327,7 +328,7 @@ class IntakeAnswersHandlerTest
     @Test
     void recordsWhatTheModelDidNotFindAsARunWithNoAnswer() throws Exception
     {
-        stubModelFinds(new FieldResult(AIMS, false, 0.0, null, "Not stated.", List.of()));
+        stubModelFinds(new FieldResult(AIMS, List.of(), "Not stated.", 0.0, List.of(), 0));
 
         this.handler.execute(createTask());
 
@@ -344,7 +345,7 @@ class IntakeAnswersHandlerTest
             Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
                 VALUE, new String[] { "What the person said" }));
         SubmissionTree.reference(theirs, "question", this.aims);
-        stubModelFinds(new FieldResult(AIMS, true, 0.9, "What the model read", "", List.of()));
+        stubModelFinds(new FieldResult(AIMS, List.of("What the model read"), "", 0.9, List.of(), 0));
 
         this.handler.execute(createTask());
 
@@ -360,7 +361,7 @@ class IntakeAnswersHandlerTest
         final Resource empty = this.context.create().resource(this.submission.getPath() + "/a1",
             Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer", VALUE, new String[] { "" }));
         SubmissionTree.reference(empty, "question", this.aims);
-        stubModelFinds(new FieldResult(AIMS, true, 0.9, "What the model read", "", List.of()));
+        stubModelFinds(new FieldResult(AIMS, List.of("What the model read"), "", 0.9, List.of(), 0));
 
         this.handler.execute(createTask());
 
@@ -380,7 +381,7 @@ class IntakeAnswersHandlerTest
         SubmissionTree.reference(cleared, "question", this.aims);
         this.context.create().resource(cleared.getPath() + "/e1", Map.of("jcr:primaryType", "sub:Extraction",
             "sling:resourceType", "sub/Extraction", "extractedAnswer", "What the model read before"));
-        stubModelFinds(new FieldResult(AIMS, true, 0.9, "What the model read", "", List.of()));
+        stubModelFinds(new FieldResult(AIMS, List.of("What the model read"), "", 0.9, List.of(), 0));
 
         this.handler.execute(createTask());
 
@@ -452,7 +453,7 @@ class IntakeAnswersHandlerTest
     {
         final Resource answer = answerAims("What the person said", "What the model read", this.file.getParent());
         final Resource newer = this.tree.addVersion(this.file);
-        stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the new file says", "", List.of()));
+        stubModelFinds(new FieldResult(AIMS, List.of("What the new file says"), "", 0.8, List.of(), 0));
 
         this.handler.execute(createTask());
 
@@ -471,7 +472,7 @@ class IntakeAnswersHandlerTest
     {
         final Resource answer = answerAims("What the person said", "What the model read", this.file.getParent());
         this.tree.addVersion(this.file);
-        stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the person said", "", List.of()));
+        stubModelFinds(new FieldResult(AIMS, List.of("What the person said"), "", 0.8, List.of(), 0));
 
         this.handler.execute(createTask());
         this.tree.stampTypes();
@@ -479,11 +480,12 @@ class IntakeAnswersHandlerTest
 
         assertEquals(2, getExtractions(answer).size(), "one run for the newer file, not one per reading");
         @SuppressWarnings("unchecked")
-        final ArgumentCaptor<List<ExtractionField>> asked = ArgumentCaptor.forClass(List.class);
+        final ArgumentCaptor<List<ExtractionPrompt.Group>> asked = ArgumentCaptor.forClass(List.class);
         Mockito.verify(this.intake, Mockito.atLeastOnce()).run(Mockito.any(), Mockito.any(), asked.capture(),
             Mockito.any());
-        assertEquals(1, asked.getAllValues().stream().filter(fields -> fields.stream()
-            .anyMatch(field -> AIMS.equals(field.name()))).count(), "the aims are asked of the newer file once");
+        assertEquals(1, asked.getAllValues().stream().filter(groups -> groups.stream()
+            .flatMap(group -> group.fields().stream()).anyMatch(field -> AIMS.equals(field.key()))).count(),
+            "the aims are asked of the newer file once");
     }
 
     // Finding nothing in the newer file is still a run: the file was read for this question
@@ -492,7 +494,7 @@ class IntakeAnswersHandlerTest
     {
         final Resource answer = answerAims("What the person said", "What the model read", this.file.getParent());
         this.tree.addVersion(this.file);
-        stubModelFinds(new FieldResult(AIMS, false, 0.0, null, "Not stated.", List.of()));
+        stubModelFinds(new FieldResult(AIMS, List.of(), "Not stated.", 0.0, List.of(), 0));
 
         this.handler.execute(createTask());
 
@@ -523,8 +525,8 @@ class IntakeAnswersHandlerTest
     {
         final Resource newer = this.tree.addVersion(this.file);
         final Resource answer = answerAims("What the person said", "What the model read", newer.getParent());
-        stubModelFinds(new FieldResult(AIMS, true, 0.8, "What the new file says", "", List.of()),
-            new FieldResult(TITLE, true, 0.8, "A title", "", List.of()));
+        stubModelFinds(new FieldResult(AIMS, List.of("What the new file says"), "", 0.8, List.of(), 0),
+            new FieldResult(TITLE, List.of("A title"), "", 0.8, List.of(), 0));
 
         this.handler.execute(createTask());
 
@@ -539,7 +541,8 @@ class IntakeAnswersHandlerTest
     void readsTheParsedDocumentWhenNoGateRan() throws Exception
     {
         this.variables.clear();
-        stubModelFinds(new FieldResult(AIMS, true, 0.9, "To reduce readmissions", "Stated under Aims.", List.of()));
+        stubModelFinds(new FieldResult(AIMS, List.of("To reduce readmissions"), "Stated under Aims.", 0.9,
+            List.of(), 0));
 
         this.handler.execute(createTask());
 
@@ -576,9 +579,9 @@ class IntakeAnswersHandlerTest
             this.tree.createDocumentRequirement("questionnaire"), "1. How was your visit?");
         final Resource preamble = this.tree.createParsedFileFor(this.tree.createDocumentRequirement("preamble"),
             "This survey asks about your care.");
-        stubModelFinds(new FieldResult(AIMS, true, 0.9, "Care", "Stated in the preamble.", List.of(
-            new FieldResult.Passage("This survey asks about your care.", 1L).placeIn(0),
-            new FieldResult.Passage("How was your visit?", 1L).placeIn(1))));
+        stubModelFinds(new FieldResult(AIMS, List.of("Care"), "Stated in the preamble.", 0.9, List.of(
+            new FieldResult.Passage("This survey asks about your care.", 1L, "", 0),
+            new FieldResult.Passage("How was your visit?", 1L, "", 1)), 0));
 
         this.handler.execute(createTaskReading("preamble", "questionnaire"));
 
@@ -659,7 +662,7 @@ class IntakeAnswersHandlerTest
 
         assertThrows(PersistenceException.class, () -> ExtractedAnswers.write(this.context.resourceResolver(),
             this.submission, null, this.aims.adaptTo(Question.class),
-            new FieldResult(AIMS, true, 0.9, "Care", null, List.of()), List.of(gone)));
+            new FieldResult(AIMS, List.of("Care"), null, 0.9, List.of(), 0), List.of(gone)));
     }
 
     @Test
@@ -710,7 +713,7 @@ class IntakeAnswersHandlerTest
     void recordsAnUnreachableModelAsAFailedReading() throws Exception
     {
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenThrow(new IOException("connection refused"));
+            .thenReturn(IntakeResult.createNotAsked(IntakeResult.UNREACHABLE_MESSAGE));
 
         this.handler.execute(createTask());
 
@@ -760,8 +763,8 @@ class IntakeAnswersHandlerTest
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenAnswer(invocation -> {
                 Thread.currentThread().interrupt();
-                return new IntakeResult(Map.of(AIMS, new FieldResult(AIMS, true, 0.9, "Something", "", List.of())),
-                    false);
+                return IntakeResult.createRead(Map.of(AIMS,
+                    new FieldResult(AIMS, List.of("Something"), "", 0.9, List.of(), 0)));
             });
 
         try {
@@ -774,34 +777,33 @@ class IntakeAnswersHandlerTest
         }
     }
 
+    // Some calls went through and others did not: what was read is kept, and the submitter is told the rest
+    // can be read again
     @Test
-    void anInterruptedCallAbortsTheStep() throws Exception
+    void keepsWhatWasReadAndSaysSoWhenSomeCallsFailed() throws Exception
     {
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenAnswer(invocation -> {
-                Thread.currentThread().interrupt();
-                throw new IOException("closed");
-            });
+            .thenReturn(new IntakeResult(Map.of(AIMS, new FieldResult(AIMS, List.of("Something"), "", 0.9,
+                List.of(), 0)), false, null, true));
 
-        try {
-            final PersistenceException failure =
-                assertThrows(PersistenceException.class, () -> this.handler.execute(createTask()));
-            assertEquals(ExtractionStatus.STOPPED_MESSAGE, failure.getMessage());
-        } finally {
-            Thread.interrupted();
-        }
+        this.handler.execute(createTask());
+
+        assertEquals(1, getAnswers().size());
+        assertEquals("done", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        assertEquals(IntakeResult.INCOMPLETE_MESSAGE,
+            this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
     @Test
     void leavesNoAnswerWhenItsQuestionIsGoneByTheTimeItIsWritten() throws Exception
     {
-        stubModelFinds(new FieldResult(AIMS, true, 0.9, "Something", "", List.of()));
+        stubModelFinds(new FieldResult(AIMS, List.of("Something"), "", 0.9, List.of(), 0));
         // The question is read into the field list first, then gone by the time the answer is written
         Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenAnswer(invocation -> {
                 this.context.resourceResolver().delete(this.aims);
-                return new IntakeResult(Map.of(AIMS, new FieldResult(AIMS, true, 0.9, "Something", "", List.of())),
-                    false);
+                return IntakeResult.createRead(Map.of(AIMS,
+                    new FieldResult(AIMS, List.of("Something"), "", 0.9, List.of(), 0)));
             });
 
         this.handler.execute(createTask());
@@ -811,36 +813,36 @@ class IntakeAnswersHandlerTest
 
     // Knowledge that only one schema needs is named on the step, so it is not sent with every reading
     @Test
-    void prependsThePromptTheStepNames() throws Exception
+    void sendsTheReferenceTheStepNames() throws Exception
     {
         stubModelFinds();
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), this.variables,
-            Map.of(IntakeAnswersHandler.PROMPT_FROM, Prompts.INTAKE_SYSTEM)));
+            Map.of(IntakeAnswersHandler.PROMPT_FROM, REFERENCE_PROMPT)));
 
-        final ArgumentCaptor<String> extra = ArgumentCaptor.forClass(String.class);
-        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), Mockito.anyList(), extra.capture());
-        assertTrue(extra.getValue().contains("intake extraction engine"), extra.getValue());
+        final ArgumentCaptor<String> references = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), Mockito.anyList(), references.capture());
+        assertTrue(references.getValue().contains(REFERENCE_TEXT), references.getValue());
     }
 
     @Test
-    void concatenatesEveryPromptTheStepNames()
+    void joinsEveryReferenceTheStepNamesInOrder()
     {
-        final String extra = IntakeAnswersHandler.getExtraSystem(TaskContexts.of(this.submission, Map.of(),
+        final String references = IntakeAnswersHandler.getReferences(TaskContexts.of(this.submission, Map.of(),
             this.variables, Map.of(IntakeAnswersHandler.PROMPT_FROM,
-                new String[] { REFERENCE_PROMPT, " ", Prompts.INTAKE_SYSTEM })));
+                new String[] { REFERENCE_PROMPT, " ", Prompts.EXTRACTION_SYSTEM })));
 
-        assertTrue(extra.contains("A reference only the tests carry"), extra);
-        assertTrue(extra.contains("intake extraction engine"), extra);
-        assertTrue(extra.indexOf("A reference only the tests carry") < extra.indexOf("intake extraction engine"),
-            extra);
+        final String other = "You read the document submitted with a request";
+        assertTrue(references.contains(REFERENCE_TEXT), references);
+        assertTrue(references.contains(other), references);
+        assertTrue(references.indexOf(REFERENCE_TEXT) < references.indexOf(other), references);
     }
 
     @Test
-    void addsNoExtraPromptWhenTheStepNamesNone()
+    void sendsNoReferenceWhenTheStepNamesNone()
     {
-        assertNull(IntakeAnswersHandler.getExtraSystem(createTask()));
-        assertNull(IntakeAnswersHandler.getExtraSystem(TaskContexts.of(this.submission, Map.of(), this.variables,
+        assertNull(IntakeAnswersHandler.getReferences(createTask()));
+        assertNull(IntakeAnswersHandler.getReferences(TaskContexts.of(this.submission, Map.of(), this.variables,
             Map.of(IntakeAnswersHandler.PROMPT_FROM, " "))));
     }
 }

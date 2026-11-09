@@ -79,7 +79,8 @@ class ExtractedAnswersTest
 
     private FieldResult createFoundResult()
     {
-        return new FieldResult(AIMS, true, 0.9, "Care", "", List.of(new FieldResult.Passage("care", null).placeIn(0)));
+        return new FieldResult(AIMS, List.of("Care"), "", 0.9, List.of(new FieldResult.Passage("care", null, "", 0)),
+            1);
     }
 
     private void write(final ResourceResolver resolver) throws PersistenceException
@@ -233,8 +234,8 @@ class ExtractedAnswersTest
         final Resource existing = createEmptyAnswer(Map.of());
 
         ExtractedAnswers.write(this.context.resourceResolver(), this.submission, existing,
-            this.question.adaptTo(Question.class), new FieldResult("aims", false, 0.1, null, "Nothing about aims",
-                List.of()), List.of(this.file.adaptTo(File.class)));
+            this.question.adaptTo(Question.class), new FieldResult("aims", List.of(), "Nothing about aims", 0.1,
+                List.of(), 0), List.of(this.file.adaptTo(File.class)));
 
         final Resource run = existing.getChildren().iterator().next();
         assertNull(run.getValueMap().get("extractedAnswer", String.class));
