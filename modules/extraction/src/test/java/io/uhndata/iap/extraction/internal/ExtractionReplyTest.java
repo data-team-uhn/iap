@@ -180,8 +180,20 @@ class ExtractionReplyTest
     @Test
     void readsAListAsOneValuePerItem() throws Exception
     {
-        assertEquals(List.of("Toronto General", "Mount Sinai, Toronto", "3"),
-            readValue("[\"Toronto General\", \"Mount Sinai, Toronto\", 3]").values());
+        assertEquals(List.of("Toronto General", "Mount Sinai, Toronto", "3"), readOne(field("sites", true, List.of()),
+            "{\"value\": [\"Toronto General\", \"Mount Sinai, Toronto\", 3]}").values());
+    }
+
+    // Picking one of several values for a question taking one would be a guess
+    @Test
+    void findsNoAnswerInSeveralValuesForAQuestionTakingOne() throws Exception
+    {
+        final FieldResult reply = readOne(field("kind", false, DRUG_OR_DEVICE),
+            "{\"value\": [\"drug\", \"device\"], \"confidence\": 0.9}");
+
+        assertFalse(reply.found());
+        assertEquals(List.of("drug"), readOne(field("kind", false, DRUG_OR_DEVICE), "{\"value\": [\"drug\"]}")
+            .values(), "a list of one is still one answer");
     }
 
     @Test

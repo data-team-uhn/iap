@@ -54,7 +54,9 @@ final class ExtractionPrompt
 
     private static final String DOCUMENT_END = "\n</document>";
 
-    private static final Pattern DOCUMENT_END_TAG = Pattern.compile("</(document)>", Pattern.CASE_INSENSITIVE);
+    /** The tags of the blocks a call is made of, written loosely, as a model would still read them. */
+    private static final Pattern BLOCK_TAG_PATTERN =
+        Pattern.compile("<(\\s*/?\\s*(?:document|reference|questions)\\s*)>", Pattern.CASE_INSENSITIVE);
 
     private static final String PARAGRAPH_BREAK = "\n\n";
 
@@ -180,15 +182,15 @@ final class ExtractionPrompt
     }
 
     /**
-     * The document as a call carries it. A closing tag inside the text is broken up, so the document cannot end its
-     * own block and pass what follows off as instructions.
+     * The document as a call carries it. A block tag inside the text is written as plain text, so the document
+     * cannot end its own block, or open a block of questions, and pass what follows off as instructions.
      *
      * @param text the document's text
      * @return the block
      */
     static String buildDocumentBlock(final String text)
     {
-        return DOCUMENT_START + DOCUMENT_END_TAG.matcher(text).replaceAll("<\\\\/$1>") + DOCUMENT_END;
+        return DOCUMENT_START + BLOCK_TAG_PATTERN.matcher(text).replaceAll("&lt;$1&gt;") + DOCUMENT_END;
     }
 
     /**

@@ -453,8 +453,10 @@ one big one.
   question, quotes first, then reasoning, then the answer; a quote is copied word for
   word and stays within one page; an answer with no quote that supports it is null.
 - **User message**, in this order:
-  - `<document>`: the document text. A `</document>` inside the text is broken up, so
-    the document cannot end its own block and pass what follows off as instructions.
+  - `<document>`: the document text. A `document`, `reference` or `questions` tag inside
+    the text, even one written loosely such as `</ document >`, is written as plain text
+    (`&lt;/document&gt;`). The document cannot end its own block or open a block of
+    questions and pass what follows off as instructions.
   - `<reference>`, only when the step has some: the gate's templates, or the intake's
     `promptFrom` files. It comes after the document so it does not change the start that
     the calls share.
@@ -609,9 +611,11 @@ not seen took 47.4 s, against 3.8 s for a repeat.
 | --- | --- | --- |
 | The intake never sends a question without an `extractionPrompt` | `ExtractionField.isExtractable` | Questions meant only for people are not sent. The gate asks with the classification's own `prompt`. |
 | A null or blank `value` is "not found" | `ExtractionReply` | The intake writes a run with no `extractedAnswer`; the gate writes nothing. |
+| Several values for a question taking one are "not found" | `ExtractionReply` | Picking one of them would be a guess. A list of one value is that value. |
 | A value names an option by its value, or by its label in any case | `ExtractionReply.matchOption` | A value matching two options that read the same, or none, is kept in the model's words, for a person to correct. |
 | A quote must really be in the document | `QuoteVerifier`, through `DocumentScan.locate` | A quote that is not found is dropped, never stored. |
 | Quotes shorter than 3 characters do not count | `MIN_QUOTE_LENGTH` = 3 | Too easy to match by chance |
+| A quote of at most 24 characters matches only whole words | `isOnWordEdges` | "yes" is not found in "eyes", nor "100" in "1000" or "$2,100,000" |
 | A close match must be at least 85% right | `MATCH_FLOOR` = 0.85 | Edit distance against the best-matching stretch of text |
 | Numbers and negations must match exactly | `NEGATION_WORDS` (not, no, never, without, none, nor, neither, cannot) | "was not approved" never matches "was approved" |
 | A quote may not join two documents sent together | `isAcrossParts` | Those words were never next to each other |
@@ -622,7 +626,7 @@ not seen took 47.4 s, against 3.8 s for a repeat.
 | The gate does not ask a classification already answered or picked | `ExtractionFields.getAnsweredOrSuggested` | A pick decides the reading's route, so it is made once, even of a newer version. Only the submitter changes it. |
 
 How a quote is matched (`QuoteVerifier`): both texts are lowercased, page markers are
-removed, and whitespace is collapsed. An exact match wins. Otherwise, for quotes longer
+removed, and whitespace is collapsed, no-break spaces included. An exact match wins. Otherwise, for quotes longer
 than 24 characters (`ANCHOR_LENGTH`) and at most 1000 (`MAX_FUZZY_QUOTE`), it looks for
 the quote's first, middle and last 24 characters in the text. It takes up to 4 candidate
 places (`MAX_CANDIDATES`, at most 2 per anchor), and finds the stretch of nearby text

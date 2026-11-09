@@ -97,6 +97,29 @@ class QuoteVerifierTest
         assertTrue(isVerified("aim", TEXT), "three letters are enough");
     }
 
+    // A short quote is found inside longer words by chance
+    @Test
+    void findsAShortQuoteOnlyAsWholeWords()
+    {
+        assertFalse(isVerified("yes", "Look into my eyes."));
+        assertFalse(isVerified("100", "We will enrol 1000 adults."));
+        assertFalse(isVerified("100", "A budget of $2,100,000."));
+        assertTrue(isVerified("100", "We will enrol 100 adults."));
+        assertTrue(isVerified("(n=100)", "Adults (n=100) were enrolled."), "punctuation is a word's edge");
+        assertTrue(isVerified("yes", "yes"), "so is the start or end of the text");
+        assertFalse(isVerified("1.5", "A dose of 11.5 mg"));
+        assertFalse(isVerified("2,100", "A budget of $2,100,000."));
+        assertTrue(isVerified("100", "Visit 3, 100 days later."), "a comma before a space ends a number");
+        assertTrue(isVerified("week 12", "At week 12."), "and so does a full stop");
+    }
+
+    // Converted documents are full of no-break spaces, and the model writes plain ones
+    @Test
+    void readsANoBreakSpaceAsASpace()
+    {
+        assertTrue(isVerified("Visit 3 is at week 12", "Visit 3 is at week 12."));
+    }
+
     @Test
     void refusesWhenThereIsNothingToCompare()
     {

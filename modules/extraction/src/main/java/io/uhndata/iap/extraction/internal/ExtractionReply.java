@@ -129,8 +129,10 @@ final class ExtractionReply
     private static FieldResult readField(final ExtractionField field, final JsonObject entry,
         final DocumentScan document)
     {
-        final List<String> values = readValues(entry.get(ResponseSchema.VALUE_KEY)).stream()
+        final List<String> given = readValues(entry.get(ResponseSchema.VALUE_KEY)).stream()
             .map(value -> matchOption(field.answer().options(), value)).toList();
+        // Several values for a question taking one: picking one of them would be a guess
+        final List<String> values = given.size() > 1 && !field.answer().multiple() ? List.of() : given;
         final Set<String> offered = new HashSet<>();
         final List<FieldResult.Passage> passages = new ArrayList<>();
         if (entry.get(ResponseSchema.EVIDENCE_KEY) instanceof JsonArray evidence) {

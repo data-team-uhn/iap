@@ -76,7 +76,8 @@ final class QuoteVerifier
     private static final Pattern MARKER_PATTERN =
         Pattern.compile("<!--\\s{0,10}page:\\s{0,10}\\d{1,9}\\s{0,10}-->");
 
-    private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
+    /** Any whitespace, including the no-break spaces converted documents are full of. */
+    private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
 
     private static final Pattern WORD_BREAK = Pattern.compile("[^\\p{L}\\p{N}]+");
 
@@ -127,14 +128,51 @@ final class QuoteVerifier
             return Match.createEmpty();
         }
         for (int exact = haystack.indexOf(wanted); exact >= 0; exact = haystack.indexOf(wanted, exact + 1)) {
-            if (!isAcrossParts(exact, exact + wanted.length(), partStarts)) {
-                return new Match(1.0, exact, exact + wanted.length());
+            final int end = exact + wanted.length();
+            if (!isAcrossParts(exact, end, partStarts)
+                && (wanted.length() > ANCHOR_LENGTH || isOnWordEdges(haystack, exact, end))) {
+                return new Match(1.0, exact, end);
             }
         }
         if (wanted.length() <= ANCHOR_LENGTH || wanted.length() > MAX_FUZZY_QUOTE) {
             return Match.createEmpty();
         }
         return findBestWindow(wanted, haystack, partStarts);
+    }
+
+    /**
+     * Whether a match starts and ends where words do. A short quote is found inside longer words by chance, as
+     * "yes" is in "eyes" and "100" in "1000", so it only counts as a whole word.
+     */
+    private static boolean isOnWordEdges(final String haystack, final int at, final int end)
+    {
+        return !isWordInside(haystack, at - 1, at) && !isWordInside(haystack, end - 1, end);
+    }
+
+    /**
+     * Whether no word ends between {@code before} and {@code after}: both are part of a word, or a number goes on
+     * past a separator, as in "2,100,000" or "11.5".
+     */
+    private static boolean isWordInside(final String text, final int before, final int after)
+    {
+        if (before < 0 || after >= text.length()) {
+            return false;
+        }
+        final boolean isWordOnBothSides =
+            Character.isLetterOrDigit(text.charAt(before)) && Character.isLetterOrDigit(text.charAt(after));
+        return isWordOnBothSides || isSeparatorInNumber(text, after) || isSeparatorInNumber(text, before);
+    }
+
+    /** Whether the character at {@code at} is a comma or a point with a digit on both sides. */
+    private static boolean isSeparatorInNumber(final String text, final int at)
+    {
+        final char character = text.charAt(at);
+        return (character == ',' || character == '.') && isDigitAt(text, at - 1) && isDigitAt(text, at + 1);
+    }
+
+    private static boolean isDigitAt(final String text, final int at)
+    {
+        return at >= 0 && at < text.length() && Character.isDigit(text.charAt(at));
     }
 
     /** The best close match for the quote among the candidate places, or no match. */
