@@ -112,22 +112,13 @@ public class Answer extends EntityPart implements Referenceable
     /**
      * Returns the newest run's suggestion, as the values this answer would hold if the submitter took it as it is.
      *
-     * <p>For a question that takes several values, a run holds them as one comma-separated string, so
-     * "St Michael's, Sunnybrook" is two values. The run already holds option values, not labels: the extraction
-     * matches them before it saves the run. Splitting with {@link #splitAnswer} lets the suggestion be compared
-     * with saved values.</p>
-     *
      * @return the suggested values, empty when there is no run or the newest run found nothing
      */
     @NotNull
     public List<String> getSuggestedValues()
     {
         final Extraction latest = getLatestExtraction();
-        final String suggested = latest == null ? null : latest.getExtractedAnswer();
-        if (suggested == null) {
-            return List.of();
-        }
-        return readSuggestion(suggested);
+        return latest == null ? List.of() : latest.getExtractedValues();
     }
 
     /**
@@ -168,8 +159,7 @@ public class Answer extends EntityPart implements Referenceable
             return suggested;
         }
         final List<Extraction> runs = getExtractions();
-        final String previous = runs.size() < 2 ? null : runs.get(runs.size() - 2).getExtractedAnswer();
-        final List<String> earlier = previous == null ? List.of() : readSuggestion(previous);
+        final List<String> earlier = runs.size() < 2 ? List.of() : runs.get(runs.size() - 2).getExtractedValues();
         return isSameAnswer(suggested, given) || isSameAnswer(suggested, earlier) ? List.of() : suggested;
     }
 
@@ -177,13 +167,6 @@ public class Answer extends EntityPart implements Referenceable
     private List<String> getGivenValues()
     {
         return this.value == null ? List.of() : Arrays.stream(this.value).filter(each -> !each.isBlank()).toList();
-    }
-
-    /** A run's saved suggestion as values, split the way this answer's question takes them. */
-    private List<String> readSuggestion(final String suggested)
-    {
-        final Question asked = getQuestion();
-        return splitAnswer(suggested, asked != null && asked.isMultiple());
     }
 
     /** Whether two lists of values say the same thing: the same set, ignoring case and outer spaces. */
@@ -195,32 +178,5 @@ public class Answer extends EntityPart implements Referenceable
     private static Set<String> normalize(final List<String> values)
     {
         return values.stream().map(each -> each.strip().toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
-    }
-
-    /**
-     * Splits one reply from the model into values: trimmed, and for a question that takes several values, split
-     * on commas.
-     *
-     * <p>Keep this the only place a reply is split. If two readers split it differently, a suggestion taken as it
-     * is could be measured as an edit.</p>
-     *
-     * <p>A reply that is blank, or only commas and spaces, is kept whole, so what the model said is not lost.</p>
-     *
-     * @param answer the model's reply, as it came
-     * @param multiple whether the question takes more than one value
-     * @return the values, never empty
-     */
-    @NotNull
-    public static List<String> splitAnswer(@NotNull final String answer, final boolean multiple)
-    {
-        if (!multiple) {
-            final String value = answer.strip();
-            return List.of(value.isEmpty() ? answer : value);
-        }
-        final List<String> values = Arrays.stream(answer.split(","))
-            .map(String::strip)
-            .filter(part -> !part.isEmpty())
-            .toList();
-        return values.isEmpty() ? List.of(answer) : values;
     }
 }

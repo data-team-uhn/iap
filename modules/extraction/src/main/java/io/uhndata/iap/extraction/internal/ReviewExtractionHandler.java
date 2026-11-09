@@ -122,7 +122,7 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
             }
             // A run that found nothing has no evidence to reject
             final Extraction latest = answer.getLatestExtraction();
-            if (latest != null && latest.getExtractedAnswer() != null) {
+            if (latest != null && !latest.getExtractedValues().isEmpty()) {
                 return latest;
             }
         }

@@ -109,8 +109,8 @@ final class ExtractedAnswers
 
     /**
      * Writes the run under an answer, with its quotes, and removes it again if any part fails. A run that found
-     * nothing has no {@code extractedAnswer}, but still names the versions it read. Several values are saved as one
-     * comma-separated text, which {@code Answer.readAnswer} splits again.
+     * nothing has no {@code extractedAnswer}, but still names the versions it read. Its values are saved one each, so
+     * a value holding a comma stays one value.
      */
     private static void writeExtraction(final ResourceResolver resolver, final Resource answer,
         final FieldResult result, final List<Resource> versions) throws PersistenceException
@@ -118,7 +118,7 @@ final class ExtractedAnswers
         final Map<String, Object> extraction = new HashMap<>();
         extraction.put(PRIMARY_TYPE, "sub:Extraction");
         if (result.found()) {
-            extraction.put("extractedAnswer", String.join(", ", result.values()));
+            extraction.put("extractedAnswer", result.values().toArray(new String[0]));
         }
         extraction.put("confidence", result.confidence());
         if (result.reasoning() != null) {

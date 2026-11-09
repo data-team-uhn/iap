@@ -101,7 +101,7 @@ class ExtractionTest
             "reasoning", "The recruitment table gives 42 in the final column"));
         final Extraction extraction = resource.adaptTo(Extraction.class);
 
-        assertEquals("42", extraction.getExtractedAnswer());
+        assertEquals(List.of("42"), extraction.getExtractedValues());
         assertEquals(0.87, extraction.getConfidence());
         assertEquals("The recruitment table gives 42 in the final column", extraction.getReasoning());
         assertFalse(extraction.isEvidenceRejected());
@@ -122,7 +122,7 @@ class ExtractionTest
         final Extraction extraction = resource.adaptTo(Extraction.class);
 
         // The run's existence is the record that extraction happened; no answer means it found nothing
-        assertNull(extraction.getExtractedAnswer());
+        assertTrue(extraction.getExtractedValues().isEmpty());
         assertEquals(1, extraction.getSources().size());
         assertEquals("v0", extraction.getSources().get(0).getName());
     }
@@ -184,7 +184,7 @@ class ExtractionTest
 
         assertNotNull(extraction);
         assertTrue(extraction.getSources().isEmpty());
-        assertNull(extraction.getExtractedAnswer());
+        assertTrue(extraction.getExtractedValues().isEmpty());
         assertNull(extraction.getConfidence());
         assertNull(extraction.getReasoning());
         assertFalse(extraction.isEvidenceRejected());

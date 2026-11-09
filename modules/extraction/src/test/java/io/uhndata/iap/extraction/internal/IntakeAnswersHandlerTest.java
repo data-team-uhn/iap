@@ -312,35 +312,20 @@ class IntakeAnswersHandlerTest
             this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
     }
 
-    // The model sends several answers as a list. The run keeps them as one comma-separated text, and the
-    // suggestion splits it back into one value per name.
+    // A value holding a comma stays one value, since the run saves each value on its own
     @Test
-    void storesAMultiValuedAnswerAsOneValuePerName() throws Exception
+    void storesAMultiValuedAnswerAsOneValueEach() throws Exception
     {
         this.tree.createQuestion("sites", "List the participating sites.", 0);
-        stubModelFinds(new FieldResult("study.sites", List.of("Sunnybrook", "St. Michael's", "SickKids"), "", 0.9,
-            List.of(), 0));
+        final List<String> sites = List.of("Sunnybrook Health Sciences Centre, Toronto", "SickKids");
+        stubModelFinds(new FieldResult("study.sites", sites, "", 0.9, List.of(), 0));
 
         this.handler.execute(createTask());
 
         this.tree.stampTypes();
-        assertEquals(List.of("Sunnybrook", "St. Michael's", "SickKids"),
-            getAnswers().get(0).adaptTo(Answer.class).getSuggestedValues());
-        assertEquals("Sunnybrook, St. Michael's, SickKids",
-            getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String.class));
-    }
-
-    // If splitting left no values, the question would look unanswered and what the model said would be lost
-    @Test
-    void keepsAMultiValuedAnswerThatSplitsIntoNothing() throws Exception
-    {
-        this.tree.createQuestion("sites", "List the participating sites.", 0);
-        stubModelFinds(new FieldResult("study.sites", List.of(" , "), "", 0.9, List.of(), 0));
-
-        this.handler.execute(createTask());
-
-        this.tree.stampTypes();
-        assertEquals(List.of(" , "), getAnswers().get(0).adaptTo(Answer.class).getSuggestedValues());
+        assertEquals(sites, getAnswers().get(0).adaptTo(Answer.class).getSuggestedValues());
+        assertArrayEquals(sites.toArray(new String[0]),
+            getOnlyChild(getAnswers().get(0)).getValueMap().get("extractedAnswer", String[].class));
     }
 
     // A run that found nothing still records that the question was asked of this file

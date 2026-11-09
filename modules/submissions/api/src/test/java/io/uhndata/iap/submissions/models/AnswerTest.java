@@ -133,7 +133,7 @@ class AnswerTest
             RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "44", "confidence", 0.6));
         final Answer answer = resource.adaptTo(Answer.class);
 
-        assertEquals("44", answer.getLatestExtraction().getExtractedAnswer());
+        assertEquals(List.of("44"), answer.getLatestExtraction().getExtractedValues());
         assertEquals(List.of("44"), answer.getSuggestedValues());
     }
 
@@ -167,9 +167,9 @@ class AnswerTest
         final List<Extraction> extractions = answer.getExtractions();
 
         assertEquals(2, extractions.size());
-        assertEquals("40", extractions.get(0).getExtractedAnswer());
+        assertEquals(List.of("40"), extractions.get(0).getExtractedValues());
         // The newest run is the last, and it is the one a submitter is shown
-        assertEquals("42", answer.getLatestExtraction().getExtractedAnswer());
+        assertEquals(List.of("42"), answer.getLatestExtraction().getExtractedValues());
     }
 
     @Test
@@ -183,38 +183,8 @@ class AnswerTest
 
         // The submitter has not accepted it, so the answer is still unanswered
         assertNull(answer.getValue());
-        assertEquals("42", answer.getLatestExtraction().getExtractedAnswer());
+        assertEquals(List.of("42"), answer.getLatestExtraction().getExtractedValues());
         assertNull(answer.getLatestExtraction().getEditDistance());
-    }
-
-    @Test
-    void readsASingleValuedReplyAsTheOneValueItIs()
-    {
-        assertEquals(List.of("St Michael's, Sunnybrook"),
-            Answer.splitAnswer("St Michael's, Sunnybrook", false));
-    }
-
-    // A stray space would stop the reply from matching the option it names
-    @Test
-    void trimsASingleValuedReply()
-    {
-        assertEquals(List.of("yes"), Answer.splitAnswer(" yes \n", false));
-        assertEquals(List.of("  "), Answer.splitAnswer("  ", false), "a blank reply is kept as it came");
-    }
-
-    // The model gives several values as one comma-separated string
-    @Test
-    void splitsAMultiValuedReplyIntoAValueEach()
-    {
-        assertEquals(List.of("St Michael's", "Sunnybrook", "Mount Sinai"),
-            Answer.splitAnswer("St Michael's,  Sunnybrook , Mount Sinai", true));
-    }
-
-    // A reply of only commas and spaces is kept whole, so what the model said is not lost
-    @Test
-    void keepsAReplyThatSplitsIntoNothingWholeInstead()
-    {
-        assertEquals(List.of(" , , "), Answer.splitAnswer(" , , ", true));
     }
 
     // A step that routes on a reading before anyone checks it sees the suggestion; a value the submitter saves wins
@@ -233,13 +203,15 @@ class AnswerTest
         assertEquals(List.of("no"), readAnswer(unanswered).getValueOrSuggestion());
     }
 
-    // A multi-valued suggestion is split into values, so it can be compared with the values a submitter saves
+    // Saved one each, so a value holding a comma stays one value
     @Test
-    void suggestsTheSameValuesAMultiValuedAnswerIsStoredAs() throws RepositoryException
+    void suggestsTheValuesARunSavedAsTheyAre() throws RepositoryException
     {
-        final Answer answer = createAnswer("participatingSites", 0, "St Michael's, Sunnybrook");
+        final Answer answer = createAnswer("participatingSites", 0, "Sunnybrook Health Sciences Centre, Toronto",
+            "St Michael's");
 
-        assertEquals(List.of("St Michael's", "Sunnybrook"), answer.getSuggestedValues());
+        assertEquals(List.of("Sunnybrook Health Sciences Centre, Toronto", "St Michael's"),
+            answer.getSuggestedValues());
     }
 
     @Test
@@ -257,20 +229,7 @@ class AnswerTest
             RESOURCE_TYPE, Answer.RESOURCE_TYPE);
         assertEquals(List.of(), bare.adaptTo(Answer.class).getSuggestedValues());
 
-        assertEquals(List.of(), createAnswer("valueless", 1, null).getSuggestedValues());
-    }
-
-    // An answer whose question is gone from the schema is read as one value, since nobody can tell whether the
-    // question took several
-    @Test
-    void suggestsWholeWhenTheQuestionCannotBeRead()
-    {
-        final Resource resource = this.context.create().resource("/Submissions/submission/orphan",
-            RESOURCE_TYPE, Answer.RESOURCE_TYPE);
-        this.context.create().resource("/Submissions/submission/orphan/extraction0", Map.of(
-            RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "one, two", "confidence", 0.9));
-
-        assertEquals(List.of("one, two"), resource.adaptTo(Answer.class).getSuggestedValues());
+        assertEquals(List.of(), createAnswer("valueless", 1).getSuggestedValues());
     }
 
     // With no answer yet, the newest run is the suggestion, whatever the runs before it said
@@ -322,11 +281,11 @@ class AnswerTest
     @Test
     void comparesSeveralValuesAsASet() throws RepositoryException
     {
-        final Answer answer = createAnswer("sites", 0, "Sunnybrook, St Michael's");
+        final Answer answer = createAnswer("sites", 0, "Sunnybrook", "St Michael's");
         setValue(answer, "St Michael's", "Sunnybrook");
 
         assertEquals(List.of(), readAnswer(answer).getOfferedSuggestion(), "the only run, equal to the answer");
-        addRun(answer, "St Michael's, Mount Sinai");
+        addRun(answer, "St Michael's", "Mount Sinai");
         assertEquals(List.of("St Michael's", "Mount Sinai"), readAnswer(answer).getOfferedSuggestion());
     }
 
@@ -344,12 +303,12 @@ class AnswerTest
     @Test
     void comparesWithARunBeforeThatFoundNothingAndOffersNothingFoundAsNothing() throws RepositoryException
     {
-        final Answer answer = createAnswer("duration", 1, null);
+        final Answer answer = createAnswer("duration", 1);
         setValue(answer, "36 months");
         addRun(answer, "30 months");
         assertEquals(List.of("30 months"), readAnswer(answer).getOfferedSuggestion());
 
-        addRun(answer, null);
+        addRun(answer);
         assertEquals(List.of(), readAnswer(answer).getOfferedSuggestion());
     }
 
@@ -359,13 +318,17 @@ class AnswerTest
             .put("value", values);
     }
 
-    /** Adds a newer run under an answer, with the given suggestion or, for {@code null}, none. */
-    private void addRun(final Answer answer, final String suggested)
+    /** Adds a newer run under an answer, with the given suggested values, or none. */
+    private void addRun(final Answer answer, final String... suggested)
     {
         final int runs = readAnswer(answer).getExtractions().size();
-        this.context.create().resource(answer.getPath() + "/extraction" + runs, suggested == null
-            ? Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "confidence", 0.9)
-            : Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested, "confidence", 0.9));
+        this.context.create().resource(answer.getPath() + "/extraction" + runs, createRun(suggested));
+    }
+
+    private static Map<String, Object> createRun(final String... suggested)
+    {
+        return suggested.length == 0 ? Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "confidence", 0.9)
+            : Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested, "confidence", 0.9);
     }
 
     /**
@@ -373,10 +336,10 @@ class AnswerTest
      *
      * @param name what to call the question and the answer
      * @param maxAnswers the most values the question takes; 0 for any number
-     * @param suggested what the model answered, or {@code null} for a run that named nothing
+     * @param suggested the values the model answered, none for a run that named nothing
      * @return the answer
      */
-    private Answer createAnswer(final String name, final long maxAnswers, final String suggested)
+    private Answer createAnswer(final String name, final long maxAnswers, final String... suggested)
         throws RepositoryException
     {
         final String questionPath = "/Schemas/schema/1.0/" + name;
@@ -390,11 +353,7 @@ class AnswerTest
 
         final Resource resource = this.context.create().resource("/Submissions/submission/" + name, Map.of(
             RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", name));
-        final Map<String, Object> run = suggested == null
-            ? Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "confidence", 0.9)
-            : Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested,
-                "confidence", 0.9);
-        this.context.create().resource("/Submissions/submission/" + name + "/extraction0", run);
+        this.context.create().resource("/Submissions/submission/" + name + "/extraction0", createRun(suggested));
         return resource.adaptTo(Answer.class);
     }
 

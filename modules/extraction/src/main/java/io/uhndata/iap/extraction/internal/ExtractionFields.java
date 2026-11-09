@@ -196,7 +196,7 @@ final class ExtractionFields
     static Set<String> getAnsweredOrSuggested(final Submission submission)
     {
         return getQuestionPaths(submission, answer -> hasValue(answer)
-            || answer.getExtractions().stream().anyMatch(run -> run.getExtractedAnswer() != null));
+            || answer.getExtractions().stream().anyMatch(run -> !run.getExtractedValues().isEmpty()));
     }
 
     private static Set<String> getQuestionPaths(final Submission submission, final Predicate<Answer> chosen)

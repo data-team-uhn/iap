@@ -132,9 +132,9 @@
   // them. A newer revision of one of them makes the run stale.
   - sources (REFERENCE) multiple
 
-  // The answer the model read out of the documents; absent when the run found
-  // nothing
-  - extractedAnswer (STRING)
+  // The values the model read out of the documents: one for a question taking
+  // one, one per item for a list. Absent when the run found nothing
+  - extractedAnswer (STRING) multiple
 
   // How sure the model is, from 0 to 1
   - confidence (DOUBLE)

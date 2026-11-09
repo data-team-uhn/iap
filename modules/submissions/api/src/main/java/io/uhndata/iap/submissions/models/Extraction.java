@@ -33,7 +33,7 @@ import io.uhndata.iap.entities.models.EntityPart;
  * A Sling Model wrapping a {@code sub:Extraction} node: one run of answer extraction against one
  * {@link Answer} — what a model read out of the submitted documents, and which document revisions it read to get
  * there. The run's existence is the record that extraction happened, so a run that found nothing is one with no
- * {@link #getExtractedAnswer() extracted answer}, and {@link #getCreated()} is when it ran.
+ * {@link #getExtractedValues() extracted values}, and {@link #getCreated()} is when it ran.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,7 +49,7 @@ public class Extraction extends EntityPart
     private String[] sources;
 
     @ValueMapValue
-    private String extractedAnswer;
+    private String[] extractedAnswer;
 
     @ValueMapValue
     private Double confidence;
@@ -89,14 +89,15 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * The answer the model read out of the documents.
+     * The values the model read out of the documents: one for a question taking one value, one per item for a
+     * list. The run holds option values, not labels: the extraction matches them before it saves the run.
      *
-     * @return the extracted answer; {@code null} if this run found nothing
+     * @return the values, empty if this run found nothing
      */
-    @Nullable
-    public String getExtractedAnswer()
+    @NotNull
+    public List<String> getExtractedValues()
     {
-        return this.extractedAnswer;
+        return this.extractedAnswer == null ? List.of() : List.of(this.extractedAnswer);
     }
 
     /**

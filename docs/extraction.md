@@ -681,7 +681,7 @@ sub:Submission
     +-- question  -> REFERENCE to the sch:Question
     +-- value     = only what the submitter gave; a reading never writes it
     +-- <uuid> (sub:Extraction), one per reading of the question
-        +-- extractedAnswer = the model's value, several joined by commas; absent if none
+        +-- extractedAnswer = the model's values, one each; absent if none
         +-- confidence      = after the evidence adjustment
         +-- reasoning
         +-- sources         -> REFERENCE to every sub:DocumentVersion read
@@ -705,13 +705,13 @@ A reply's values are matched to the question's options once, when the reply is r
 (`ExtractionReply`), so a run already holds option values: first by value, then by label,
 ignoring case. "English" becomes `english`, and a category label becomes the category's
 path, such as `/Categories/...`. If no option matches, or two options match equally, the
-model's own words are kept, so a person can see what it said and fix it. Several values
-are saved as one comma-separated text.
+model's own words are kept, so a person can see what it said and fix it. A run saves its
+values one each, in the multi-valued `extractedAnswer`, so a value holding a comma, such
+as "Sunnybrook Health Sciences Centre, Toronto", stays one value.
 
 How the suggestion is read (`Answer.getSuggestedValues`, from the newest run,
-`Answer.getLatestExtraction`): a single-value question keeps the text as one value,
-trimmed; a multi-value question splits it on commas (`Answer.splitAnswer`). Nothing is
-matched again.
+`Answer.getLatestExtraction`): the run's values as they are. Nothing is split or matched
+again.
 
 ### When the submitter acts on it
 
