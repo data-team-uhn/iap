@@ -18,7 +18,6 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -48,6 +47,7 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
+import io.uhndata.iap.workflows.api.RequestParameterAttachment;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -240,53 +240,6 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
         }
         return values.length == 1 ? values[0].getString()
             : Arrays.stream(values).map(RequestParameter::getString).toArray(String[]::new);
-    }
-
-    /**
-     * A multipart part, offered to a handler as an attachment.
-     *
-     * <p>Holds the part rather than its bytes: Sling has already buffered it wherever it saw fit, and copying it
-     * into the heap to hand it over would double that for no reason — a handler writes it straight into the
-     * repository.</p>
-     *
-     * @version $Id$
-     * @since 0.1.0
-     */
-    private static final class RequestParameterAttachment implements EventAttachment
-    {
-        private final RequestParameter part;
-
-        RequestParameterAttachment(final RequestParameter part)
-        {
-            this.part = part;
-        }
-
-        @Override
-        public String getFileName()
-        {
-            return this.part.getFileName();
-        }
-
-        @Override
-        public String getMimeType()
-        {
-            return this.part.getContentType();
-        }
-
-        @Override
-        public long getSize()
-        {
-            return this.part.getSize();
-        }
-
-        @Override
-        public InputStream openStream() throws IOException
-        {
-            // Sling declares this nullable, and the annotation is load-bearing rather than defensive: a part with
-            // nothing to read is a broken request rather than an empty file, since a zero-byte upload still has a
-            // stream. Asserted rather than branched on, so there is no path a test cannot reach
-            return Objects.requireNonNull(this.part.getInputStream(), "A file part always has content to read");
-        }
     }
 
     /**
