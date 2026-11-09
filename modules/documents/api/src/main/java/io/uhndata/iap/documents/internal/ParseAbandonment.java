@@ -43,6 +43,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.documents.api.ParseControl;
+import io.uhndata.iap.documents.api.ParseOutcome;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 
@@ -60,7 +61,6 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 public class ParseAbandonment implements ParseControl
 {
     /** The error recorded on a stopped job. */
-    static final String STOPPED_MESSAGE = "Stopped";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ParseAbandonment.class);
 
@@ -153,7 +153,7 @@ public class ParseAbandonment implements ParseControl
         final ModifiableValueMap properties = Objects.requireNonNull(jobNode.adaptTo(ModifiableValueMap.class),
             "The service session that read the job can write it");
         properties.put(ParseJob.PN_STATUS, ParseJob.STATUS_FAILED);
-        properties.put(ParseJob.PN_ERROR, STOPPED_MESSAGE);
+        properties.put(ParseJob.PN_ERROR, ParseOutcome.STOPPED_ERROR);
         properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
         properties.remove(ParseJob.PN_OUTPUTS);
     }

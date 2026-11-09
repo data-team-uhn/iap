@@ -33,4 +33,16 @@ package io.uhndata.iap.documents.api;
 public record ParseOutcome(String jobId, String target, boolean succeeded, String error, String markdownPath,
     Long tokens)
 {
+    /** The error of a parse that was stopped before it finished, see {@link ParseControl#abandon}. */
+    public static final String STOPPED_ERROR = "Stopped";
+
+    /**
+     * Whether the parse was stopped before it finished, rather than failing on its own.
+     *
+     * @return {@code true} for a stopped parse
+     */
+    public boolean isStopped()
+    {
+        return !this.succeeded && STOPPED_ERROR.equals(this.error);
+    }
 }

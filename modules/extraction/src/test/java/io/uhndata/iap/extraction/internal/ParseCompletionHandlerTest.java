@@ -22,6 +22,7 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
@@ -251,6 +252,21 @@ class ParseCompletionHandlerTest
 
         assertFalse(this.handler.handle(createCompletedOutcome(this.file.getPath())));
 
+        Mockito.verifyNoInteractions(this.engine, this.ingester);
+    }
+
+    // The stop took the job off the file, so it would never name it again
+    @Test
+    void doesNotWaitForAFileToNameAStoppedParse() throws Exception
+    {
+        this.file.adaptTo(ModifiableValueMap.class).remove(ParseDocumentsHandler.PARSE_JOB_ID);
+        final AtomicInteger waits = new AtomicInteger();
+        this.handler.setPause(() -> waits.incrementAndGet() > 0);
+
+        assertFalse(this.handler.handle(new ParseOutcome(JOB_ID, this.file.getPath(), false,
+            ParseOutcome.STOPPED_ERROR, null, null)));
+
+        assertEquals(0, waits.get());
         Mockito.verifyNoInteractions(this.engine, this.ingester);
     }
 

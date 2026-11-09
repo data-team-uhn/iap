@@ -46,6 +46,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import com.sun.net.httpserver.HttpServer;
+import io.uhndata.iap.documents.api.ParseOutcome;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 
@@ -129,7 +130,7 @@ class ParseAbandonmentTest
         assertEquals(ParseJob.STATUS_FAILED, this.statusWhenSent, "the record is marked before the daemon is asked");
         final ValueMap stopped = getRecord();
         assertEquals(ParseJob.STATUS_FAILED, stopped.get(ParseJob.PN_STATUS, String.class));
-        assertEquals(ParseAbandonment.STOPPED_MESSAGE, stopped.get(ParseJob.PN_ERROR, String.class));
+        assertEquals(ParseOutcome.STOPPED_ERROR, stopped.get(ParseJob.PN_ERROR, String.class));
         assertNotNull(stopped.get(ParseJob.PN_FINISHED, Calendar.class));
         assertEquals(TARGET, stopped.get(ParseJob.PN_TARGET, String.class), "the stop may yet be undone");
         assertEquals(DOCUMENT, stopped.get(ParseJob.PN_PATH, String.class));

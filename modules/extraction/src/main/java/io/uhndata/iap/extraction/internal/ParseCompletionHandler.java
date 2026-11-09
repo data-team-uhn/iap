@@ -159,16 +159,23 @@ public class ParseCompletionHandler implements ParseOutcomeHandler
      * Finds the file an outcome is for, waiting a few seconds for it to name the outcome's job. The walk that
      * queues a parse commits after the job is queued, so a fast outcome, such as from a daemon that cannot be
      * reached, can arrive before the file names its job. Looking again here is faster than waiting for the sweep.
+     * A stopped parse is not waited for: the stop took the job off the file, so it would never name it again.
      */
     private Resource findFile(final ResourceResolver resolver, final ParseOutcome outcome)
     {
         Resource file = resolver.getResource(outcome.target());
-        for (int look = 1; look < COMMIT_WAIT_LOOKS && file != null && !isWaitingFor(file, outcome)
+        for (int look = 1; look < COMMIT_WAIT_LOOKS && file != null && !isDoneWaiting(file, outcome)
             && this.pause.getAsBoolean(); look++) {
             resolver.refresh();
             file = resolver.getResource(outcome.target());
         }
         return file;
+    }
+
+    /** Whether there is nothing more to wait for: the file names the job, or the parse was stopped. */
+    private static boolean isDoneWaiting(final Resource file, final ParseOutcome outcome)
+    {
+        return outcome.isStopped() || isWaitingFor(file, outcome);
     }
 
     private static boolean isWaitingFor(final Resource file, final ParseOutcome outcome)

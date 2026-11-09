@@ -285,6 +285,29 @@ class StaleParseJobSweeperTest
         assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)));
     }
 
+    // A stopped parse is meant to go untaken: its file stopped waiting for it, so dropping it is no fault
+    @Test
+    void reportsAnOutcomeNobodyTookButNotAStoppedOne()
+    {
+        final Resource refused = job(OLD_JOB, ParseJob.STATUS_FAILED, minutesAgo(26 * 60), TARGET);
+        edit(refused).put(ParseJob.PN_FINISHED, minutesAgo(25 * 60));
+        edit(refused).put(ParseJob.PN_ERROR, "No pages");
+        final Resource stopped = job("stopped-job", ParseJob.STATUS_FAILED, minutesAgo(26 * 60), TARGET);
+        edit(stopped).put(ParseJob.PN_FINISHED, minutesAgo(25 * 60));
+        edit(stopped).put(ParseJob.PN_ERROR, ParseOutcome.STOPPED_ERROR);
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        try {
+            this.sweeper.run();
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+
+        Mockito.verify(recorder, Mockito.times(1)).logProblem(
+            Mockito.eq("A parse outcome was never taken in, so its file may stay waiting for it"), Mockito.any());
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath("stopped-job")));
+    }
+
     // The engine walk that asked for the stop failed and was rolled back, so the file still waits on the job
     @Test
     void handsAStoppedParseToAFileStillWaitingOnIt() throws Exception
@@ -312,7 +335,7 @@ class StaleParseJobSweeperTest
         assertEquals(1, this.handed.size());
         assertEquals(TARGET, this.handed.get(0).target());
         assertFalse(this.handed.get(0).succeeded());
-        assertEquals(ParseAbandonment.STOPPED_MESSAGE, this.handed.get(0).error());
+        assertEquals(ParseOutcome.STOPPED_ERROR, this.handed.get(0).error());
         assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)), "taken");
     }
 

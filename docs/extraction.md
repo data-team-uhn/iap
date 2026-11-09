@@ -164,7 +164,8 @@ A record that names a `target` and is still there at 30 minutes is one that no h
 ever took. Whatever waited on it may now wait forever, so dropping it logs a `WARN` and
 records the problem "A parse outcome was never taken in, so its file may stay waiting
 for it". A file left `queued` this way keeps the reading waiting until the submitter
-presses Stop.
+presses Stop. A stopped parse (`ParseOutcome.isStopped`) is meant to go untaken, so its
+record is dropped without the problem.
 
 So the same outcome can reach the handlers more than once: offered again by a sweep, or
 offered again because its record could not be deleted. A `ParseOutcomeHandler` must
@@ -185,7 +186,7 @@ It opens a session as the `iap-extraction` service user and checks:
 | Check | If it fails |
 | --- | --- |
 | The `target` file still exists and is under a submission | Returns "not taken", and the sweep offers the outcome again. |
-| The file's `parseJobId` is this outcome's job id | It looks again, up to 10 looks half a second apart (`COMMIT_WAIT_LOOKS`), because the walk that queued the parse may not have committed yet. Then it returns "not taken": this is an old parse that the file no longer waits for. |
+| The file's `parseJobId` is this outcome's job id | It looks again, up to 10 looks half a second apart (`COMMIT_WAIT_LOOKS`), because the walk that queued the parse may not have committed yet. Then it returns "not taken": this is an old parse that the file no longer waits for. A stopped parse is not waited for: the stop took the job off the file. |
 | The file's `parseStatus` is still `queued` | It only clears the staging folder. This is the same outcome delivered again. |
 
 On a failed parse, it logs a `WARN` with the daemon's reason and records the problem "A
@@ -824,9 +825,9 @@ record depends on the Stop's own walk:
 
 - **The walk commits.** The file no longer names the job. The sweep offers the `Stopped`
   record to the handlers, and `ParseCompletionHandler` does not take it (the job id does
-  not match). Until then, each sweep logs a `WARN` that no handler took it. 30 minutes
-  after it settled, the sweep drops the record and its folder, and records the problem
-  "A parse outcome was never taken in" (step 3).
+  not match), without waiting for the file to name it. Until then, each sweep logs a
+  `WARN` that no handler took it. 30 minutes after it settled, the sweep drops the
+  record and its folder, without recording a problem: nothing waits on a stopped parse.
 - **The walk is undone.** The file still waits on the job. The first sweep at least 2
   minutes after the stop gives the `Stopped` failure to `ParseCompletionHandler`, and
   the file settles as `failed`.

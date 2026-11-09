@@ -36,6 +36,7 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.documents.api.ParseOutcome;
 import io.uhndata.iap.documents.api.ParseService;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
@@ -281,7 +282,9 @@ public class StaleParseJobSweeper implements Runnable
             resolver.commit();
             LOGGER.info("Parse job {} settled more than {} minutes ago; its record is dropped", jobId,
                 this.maxAgeMinutes);
-            if (target != null) {
+            // A stopped parse is meant to go untaken: the file stopped waiting for it
+            if (target != null && !ParseOutcome.STOPPED_ERROR.equals(jobNode.getValueMap().get(ParseJob.PN_ERROR,
+                String.class))) {
                 reportUntaken(jobId, target);
             }
         } catch (final PersistenceException e) {
