@@ -146,7 +146,7 @@ final class ExtractionStatus
      * @param message a short message for the person looking at it, or {@code null} to clear it
      * @throws PersistenceException if the submission cannot be written
      */
-    static void record(final Resource submission, final String status, final String message)
+    static void recordStatus(final Resource submission, final String status, final String message)
         throws PersistenceException
     {
         final ModifiableValueMap properties = submission.adaptTo(ModifiableValueMap.class);

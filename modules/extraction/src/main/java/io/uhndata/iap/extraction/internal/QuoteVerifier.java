@@ -113,7 +113,7 @@ final class QuoteVerifier
      * @param partStarts where each joined document starts in the text, empty for a single document
      * @return where the quote starts, or -1 when it is not found or is {@code null}
      */
-    static int locateIn(final String quote, final String haystack, final int[] partStarts)
+    static int locateQuote(final String quote, final String haystack, final int[] partStarts)
     {
         if (quote == null || haystack == null) {
             return -1;

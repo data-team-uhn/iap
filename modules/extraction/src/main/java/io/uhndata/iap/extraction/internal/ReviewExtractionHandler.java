@@ -92,11 +92,11 @@ public class ReviewExtractionHandler implements ServiceTaskHandler
         if (properties == null) {
             throw new PersistenceException("Not allowed to record a review on " + extraction.getPath());
         }
-        apply(context.getEvent().getPayload(), properties);
+        recordEvidenceRejected(context.getEvent().getPayload(), properties);
         LOGGER.debug("Recorded a review of {} on {}", path, target.getPath());
     }
 
-    private static void apply(final Map<String, Object> payload, final ModifiableValueMap properties)
+    private static void recordEvidenceRejected(final Map<String, Object> payload, final ModifiableValueMap properties)
     {
         if (payload.containsKey(EVIDENCE_REJECTED_PARAMETER)) {
             properties.put(EVIDENCE_REJECTED_PROPERTY, isTrue(payload.get(EVIDENCE_REJECTED_PARAMETER)));

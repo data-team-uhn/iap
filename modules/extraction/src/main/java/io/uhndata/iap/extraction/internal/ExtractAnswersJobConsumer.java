@@ -157,7 +157,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         } catch (final ReadingRuns.Stopped e) {
             throw e;
         } catch (final WorkflowException | RuntimeException e) {
-            if (ReadingRuns.isStopped(e)) {
+            if (ReadingRuns.isCausedByStop(e)) {
                 Thread.interrupted();
                 throw new ReadingRuns.Stopped();
             }
@@ -341,7 +341,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
         }
         ExtractionStatus.releaseClaim(properties);
         try {
-            ExtractionStatus.record(submission, ExtractionStatus.STATUS_FAILED, reason);
+            ExtractionStatus.recordStatus(submission, ExtractionStatus.STATUS_FAILED, reason);
             resolver.commit();
         } catch (final PersistenceException e) {
             LOGGER.error("Could not record that the reading of {} failed: {}", submission.getPath(),

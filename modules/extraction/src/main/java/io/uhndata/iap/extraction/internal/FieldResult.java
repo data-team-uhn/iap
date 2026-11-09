@@ -81,7 +81,7 @@ record FieldResult(String key, List<String> values, String reasoning, double con
      *
      * @return {@code true} when there is at least one value
      */
-    boolean found()
+    boolean isFound()
     {
         return !this.values.isEmpty();
     }

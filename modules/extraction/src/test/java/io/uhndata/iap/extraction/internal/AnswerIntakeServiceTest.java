@@ -198,7 +198,7 @@ class AnswerIntakeServiceTest
 
     private IntakeResult run(final List<ExtractionPrompt.Group> groups) throws IOException
     {
-        return this.intake.run(getFile(), scan(), groups, null);
+        return this.intake.askQuestions(getFile(), scan(), groups, null);
     }
 
     @Test
@@ -250,7 +250,7 @@ class AnswerIntakeServiceTest
         addMarkdown(DOCUMENT);
         this.client.replies.add("{}");
 
-        this.intake.run(getFile(), scan(), groupOf(AIMS), "Only this reading.");
+        this.intake.askQuestions(getFile(), scan(), groupOf(AIMS), "Only this reading.");
 
         final String asked = this.client.asked.get(0);
         assertTrue(asked.indexOf("</document>") < asked.indexOf("Only this reading."), asked);
@@ -358,7 +358,7 @@ class AnswerIntakeServiceTest
         this.settingsFailure = new IOException("no active provider");
         this.client.replies.add(buildAnswer(AIMS, "Yes", REAL_QUOTE));
 
-        assertTrue(run(groupOf(AIMS)).fields().get(AIMS).found(), "a settings problem must not stop the reading");
+        assertTrue(run(groupOf(AIMS)).fields().get(AIMS).isFound(), "a settings problem must not stop the reading");
     }
 
     // Cutting the middle keeps the provider from refusing a long document. The end is kept because a protocol

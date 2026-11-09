@@ -72,7 +72,7 @@ public class ReadAgainHandler implements ServiceTaskHandler
             == SubmissionFiles.ReadingWorkflowState.NONE) {
             throw new InvalidStateException(ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE);
         }
-        ExtractionStatus.record(target, ExtractionStatus.STATUS_RUNNING, null);
+        ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_RUNNING, null);
         // Otherwise the last reading's claim would turn the new job away
         ExtractionStatus.releaseClaim(target);
         // Queued before this walk commits, so the job is told to wait until it sees the `running` written above

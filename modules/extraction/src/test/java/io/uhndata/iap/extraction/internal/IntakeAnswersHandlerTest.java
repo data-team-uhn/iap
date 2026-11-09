@@ -134,7 +134,7 @@ class IntakeAnswersHandlerTest
         for (final FieldResult result : results) {
             fields.put(result.key(), result);
         }
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenReturn(IntakeResult.createRead(fields));
     }
 
@@ -143,7 +143,7 @@ class IntakeAnswersHandlerTest
     {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<List<ExtractionPrompt.Group>> groups = ArgumentCaptor.forClass(List.class);
-        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), groups.capture(), Mockito.any());
+        Mockito.verify(this.intake).askQuestions(Mockito.any(), Mockito.any(), groups.capture(), Mockito.any());
         final Map<String, List<String>> asked = new LinkedHashMap<>();
         groups.getValue().forEach(group -> asked.put(group.name(),
             group.fields().stream().map(ExtractionField::key).toList()));
@@ -302,7 +302,8 @@ class IntakeAnswersHandlerTest
     @Test
     void keepsAFailureAnEarlierStepRecorded() throws Exception
     {
-        ExtractionStatus.record(this.submission, ExtractionStatus.STATUS_FAILED, "The model could not be reached");
+        ExtractionStatus.recordStatus(this.submission, ExtractionStatus.STATUS_FAILED,
+            "The model could not be reached");
         stubModelFinds(new FieldResult(AIMS, List.of("To reduce readmissions"), "", 0.85, List.of(), 0));
 
         this.handler.execute(createTask());
@@ -489,7 +490,7 @@ class IntakeAnswersHandlerTest
         assertEquals(2, getExtractions(answer).size(), "one run for the newer file, not one per reading");
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<List<ExtractionPrompt.Group>> asked = ArgumentCaptor.forClass(List.class);
-        Mockito.verify(this.intake, Mockito.atLeastOnce()).run(Mockito.any(), Mockito.any(), asked.capture(),
+        Mockito.verify(this.intake, Mockito.atLeastOnce()).askQuestions(Mockito.any(), Mockito.any(), asked.capture(),
             Mockito.any());
         assertEquals(1, asked.getAllValues().stream().filter(groups -> groups.stream()
             .flatMap(group -> group.fields().stream()).anyMatch(field -> AIMS.equals(field.key()))).count(),
@@ -595,7 +596,7 @@ class IntakeAnswersHandlerTest
     private String getSentText() throws IOException
     {
         final ArgumentCaptor<DocumentScan> sent = ArgumentCaptor.forClass(DocumentScan.class);
-        Mockito.verify(this.intake).run(Mockito.any(), sent.capture(), Mockito.anyList(), Mockito.any());
+        Mockito.verify(this.intake).askQuestions(Mockito.any(), sent.capture(), Mockito.anyList(), Mockito.any());
         return sent.getValue().getText();
     }
 
@@ -730,7 +731,7 @@ class IntakeAnswersHandlerTest
     @Test
     void failsWhenTheModelsAnswerCouldNotBeRead() throws Exception
     {
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenReturn(IntakeResult.createNotRead(IntakeResult.REPLY_UNREADABLE_MESSAGE));
 
         this.handler.execute(createTask());
@@ -744,7 +745,7 @@ class IntakeAnswersHandlerTest
     @Test
     void recordsAnUnreachableModelAsAFailedReading() throws Exception
     {
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenReturn(IntakeResult.createNotRead(IntakeResult.UNREACHABLE_MESSAGE));
 
         this.handler.execute(createTask());
@@ -779,7 +780,7 @@ class IntakeAnswersHandlerTest
     @Test
     void aStopAbortsTheStep() throws Exception
     {
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenThrow(new ReadingRuns.Stopped());
 
         final PersistenceException failure =
@@ -792,7 +793,7 @@ class IntakeAnswersHandlerTest
     @Test
     void aStopAfterTheModelAnsweredAbortsTheStep() throws Exception
     {
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenAnswer(invocation -> {
                 new ReadingRuns().stop(this.submission.getPath());
                 return IntakeResult.createRead(Map.of(AIMS,
@@ -802,7 +803,7 @@ class IntakeAnswersHandlerTest
         try {
             final PersistenceException failure =
                 assertThrows(PersistenceException.class, () -> this.handler.execute(createTask()));
-            assertTrue(ReadingRuns.isStopped(failure.getCause()));
+            assertTrue(ReadingRuns.isCausedByStop(failure.getCause()));
             assertFalse(Thread.currentThread().isInterrupted());
         } finally {
             Thread.interrupted();
@@ -814,7 +815,7 @@ class IntakeAnswersHandlerTest
     @Test
     void keepsWhatWasReadAndSaysSoWhenSomeCallsFailed() throws Exception
     {
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenReturn(IntakeResult.createIncomplete(Map.of(AIMS,
                 new FieldResult(AIMS, List.of("Something"), "", 0.9, List.of(), 0))));
 
@@ -832,7 +833,7 @@ class IntakeAnswersHandlerTest
     {
         stubModelFinds(new FieldResult(AIMS, List.of("Something"), "", 0.9, List.of(), 0));
         // The question is read into the field list first, then gone by the time the answer is written
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenAnswer(invocation -> {
                 this.context.resourceResolver().delete(this.aims);
                 return IntakeResult.createRead(Map.of(AIMS,
@@ -855,7 +856,7 @@ class IntakeAnswersHandlerTest
                 REFERENCE_PROMPT)));
 
         final ArgumentCaptor<String> references = ArgumentCaptor.forClass(String.class);
-        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), Mockito.anyList(), references.capture());
+        Mockito.verify(this.intake).askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), references.capture());
         assertTrue(references.getValue().contains(REFERENCE_TEXT), references.getValue());
     }
 

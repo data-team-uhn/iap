@@ -159,8 +159,8 @@ public class AnswerIntakeService
      * @param references reference text for these questions, sent after the document, or {@code null} for none
      * @return one result per question read, and how much was read; an empty, read result when there is nothing to ask
      */
-    public IntakeResult run(final File file, final DocumentScan document, final List<ExtractionPrompt.Group> groups,
-        final String references)
+    public IntakeResult askQuestions(final File file, final DocumentScan document,
+        final List<ExtractionPrompt.Group> groups, final String references)
     {
         if (groups.stream().allMatch(group -> group.fields().isEmpty())) {
             return IntakeResult.createRead(Map.of());

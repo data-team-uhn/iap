@@ -128,21 +128,21 @@ final class ExtractionPrompt
     static Plan plan(final String markdown, final String references, final List<Group> groups,
         final LongBinaryOperator documentBudget)
     {
-        final List<Group> batches = split(groups);
+        final List<Group> batches = splitIntoBatches(groups);
         if (batches.isEmpty() || markdown.isBlank()) {
             return new Plan(List.of(), new CallBudget.FittedText("", false, 0));
         }
         final String systemPrompt = readSystemPrompt();
         final String referenceBlock = buildReferenceBlock(references);
-        final long largestQuestionBlock = batches.stream()
+        final long largestQuestionBlockTokens = batches.stream()
             .mapToLong(batch -> CallBudget.estimateTokens(buildQuestionBlock(batch.fields()))).max().orElse(0);
-        final long largestReply = batches.stream()
+        final long largestReplyTokens = batches.stream()
             .mapToLong(batch -> calculateMaxOutputTokens(batch.fields())).max().orElse(0);
         final long promptTokens = CallBudget.estimateTokens(systemPrompt)
             + CallBudget.estimateTokens(DOCUMENT_START + DOCUMENT_END + PARAGRAPH_BREAK + referenceBlock)
-            + largestQuestionBlock;
+            + largestQuestionBlockTokens;
         final CallBudget.FittedText document = CallBudget.fitToTokens(markdown.strip(),
-            documentBudget.applyAsLong(promptTokens, largestReply));
+            documentBudget.applyAsLong(promptTokens, largestReplyTokens));
         if (document.text().isEmpty()) {
             return new Plan(List.of(), document);
         }
@@ -286,7 +286,7 @@ final class ExtractionPrompt
     }
 
     /** The groups as they are asked: in order, each cut into calls of at most {@link #MAX_FIELDS_PER_CALL}. */
-    private static List<Group> split(final List<Group> groups)
+    private static List<Group> splitIntoBatches(final List<Group> groups)
     {
         final List<Group> batches = new ArrayList<>();
         for (final Group group : groups) {

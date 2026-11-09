@@ -178,7 +178,7 @@ final class DocumentScan
      */
     int locate(final String quote)
     {
-        return QuoteVerifier.locateIn(quote, this.normalized, this.partStartsAt);
+        return QuoteVerifier.locateQuote(quote, this.normalized, this.partStartsAt);
     }
 
     /**

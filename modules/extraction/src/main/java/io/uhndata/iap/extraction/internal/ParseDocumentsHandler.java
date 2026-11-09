@@ -91,7 +91,7 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         if (reading == SubmissionFiles.ReadingWorkflowState.CANNOT_RUN) {
             SubmissionFiles.reportReadingWorkflowCannotRun(ParseDocumentsHandler.class, target);
             // Told, so the submitter does not retry a parse nothing would read
-            ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED,
+            ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_FAILED,
                 ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE);
             return;
         }
@@ -109,7 +109,7 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
             }
         }
         if (queued > 0) {
-            ExtractionStatus.record(target, ExtractionStatus.STATUS_RUNNING, null);
+            ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_RUNNING, null);
             // A new document is a new reading to be had, so whoever took the last one no longer holds it
             ExtractionStatus.releaseClaim(target);
             LOGGER.info("Reading started: submission={} parsesQueued={}", target.getPath(), queued);

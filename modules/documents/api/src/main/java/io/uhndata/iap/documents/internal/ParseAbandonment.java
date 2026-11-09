@@ -80,7 +80,7 @@ public class ParseAbandonment implements ParseControl
     @Modified
     protected void activate(final Map<String, Object> configuration)
     {
-        this.daemon = DaemonConnection.read(configuration, this::environment);
+        this.daemon = DaemonConnection.read(configuration, this::getEnvironmentVariable);
     }
 
     @Override
@@ -198,7 +198,7 @@ public class ParseAbandonment implements ParseControl
      * @param name the variable to read
      * @return the value, or {@code null} when it is not set
      */
-    protected String environment(final String name)
+    protected String getEnvironmentVariable(final String name)
     {
         return System.getenv(name);
     }

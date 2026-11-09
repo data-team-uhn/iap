@@ -155,14 +155,15 @@ final class ExtractionReply
     private static void readQuote(final JsonValue item, final DocumentScan document, final Set<String> offered,
         final List<FieldResult.Passage> passages)
     {
-        if (!(item instanceof JsonObject quoted) || !(quoted.get(ResponseSchema.QUOTE_KEY) instanceof JsonString quote)
+        if (!(item instanceof JsonObject evidenceItem)
+            || !(evidenceItem.get(ResponseSchema.QUOTE_KEY) instanceof JsonString quote)
             || quote.getString().isBlank() || !offered.add(QuoteVerifier.normalize(quote.getString()))) {
             return;
         }
         final String text = quote.getString().strip();
         final int at = document.locate(text);
         if (at >= 0) {
-            passages.add(new FieldResult.Passage(text, ModelReplies.readLong(quoted, ResponseSchema.PAGE_KEY),
+            passages.add(new FieldResult.Passage(text, ModelReplies.readLong(evidenceItem, ResponseSchema.PAGE_KEY),
                 document.getHeading(at), document.getPart(at)));
         }
     }

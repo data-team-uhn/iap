@@ -100,7 +100,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
     @Modified
     protected void activate(final Map<String, Object> configuration)
     {
-        final String token = CallbackToken.resolve(configuration, environment(ParseJob.TOKEN_VARIABLE));
+        final String token = CallbackToken.resolve(configuration, getEnvironmentVariable(ParseJob.TOKEN_VARIABLE));
         if (token.isEmpty()) {
             this.expectedAuthorization = null;
             LOGGER.warn("No authorization token is configured ({} or the {} environment variable);"
@@ -287,7 +287,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
      * @param name the variable to read
      * @return the value, or {@code null} when not set
      */
-    protected String environment(final String name)
+    protected String getEnvironmentVariable(final String name)
     {
         return System.getenv(name);
     }

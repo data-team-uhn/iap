@@ -181,7 +181,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             target.getPath(), String.join(",", requirements), questions.size());
         final IntakeResult result = ask(parts, grouped, getReferences(context));
         if (result.status() == AnswerIntakeService.Status.NOT_READ) {
-            ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, result.message());
+            ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_FAILED, result.message());
             return;
         }
         ExtractionFields.write(context.getResourceResolver(), target, submission, questions, result.fields(),
@@ -191,7 +191,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             ExtractionStatus.recordNote(target, result.message());
         }
         LOGGER.info("Reading step done: step=intake submission={} answered={} of={} ms={}", target.getPath(),
-            result.fields().values().stream().filter(FieldResult::found).count(), questions.size(),
+            result.fields().values().stream().filter(FieldResult::isFound).count(), questions.size(),
             (System.nanoTime() - startedAt) / 1_000_000L);
     }
 
@@ -213,7 +213,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         ErrorLogger.logProblem("The intake step " + step + " " + problem,
             ErrorContext.of(IntakeAnswersHandler.class, REQUIREMENT_PARAMETER).about(target.getPath())
                 .with(REQUIREMENT_PARAMETER, names));
-        ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, SET_UP_WRONG_MESSAGE);
+        ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_FAILED, SET_UP_WRONG_MESSAGE);
     }
 
     /**
@@ -330,7 +330,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
                 continue;
             }
             if (ParsePropertyNames.STATUS_FAILED.equals(file.getParseStatus())) {
-                ExtractionStatus.record(context.getTarget(), ExtractionStatus.STATUS_FAILED,
+                ExtractionStatus.recordStatus(context.getTarget(), ExtractionStatus.STATUS_FAILED,
                     SubmissionFiles.describeUnreadable());
                 return null;
             }
@@ -339,7 +339,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
             }
         }
         if (parts.isEmpty()) {
-            ExtractionStatus.record(context.getTarget(), ExtractionStatus.STATUS_FAILED,
+            ExtractionStatus.recordStatus(context.getTarget(), ExtractionStatus.STATUS_FAILED,
                 SubmissionFiles.describeNothingToRead(submission));
             return null;
         }
@@ -366,7 +366,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     {
         final File parsed = SubmissionFiles.findFirstParsed(submission);
         if (parsed == null) {
-            ExtractionStatus.record(context.getTarget(), ExtractionStatus.STATUS_FAILED,
+            ExtractionStatus.recordStatus(context.getTarget(), ExtractionStatus.STATUS_FAILED,
                 SubmissionFiles.describeNothingToRead(submission));
         }
         return parsed;
@@ -414,7 +414,7 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
         final List<ExtractionPrompt.Group> groups = grouped.entrySet().stream()
             .map(group -> new ExtractionPrompt.Group(group.getKey(), ExtractionFields.toFields(group.getValue())))
             .toList();
-        return this.intake.run(first, scan, groups, references);
+        return this.intake.askQuestions(first, scan, groups, references);
     }
 
     /**

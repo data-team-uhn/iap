@@ -116,7 +116,7 @@ final class ExtractedAnswers
     {
         final Map<String, Object> extraction = new HashMap<>();
         extraction.put(JcrConstants.JCR_PRIMARYTYPE, "sub:Extraction");
-        if (result.found()) {
+        if (result.isFound()) {
             extraction.put("extractedAnswer", result.values().toArray(new String[0]));
         }
         extraction.put("confidence", result.confidence());

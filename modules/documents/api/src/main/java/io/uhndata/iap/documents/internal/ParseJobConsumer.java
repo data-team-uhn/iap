@@ -124,8 +124,8 @@ public class ParseJobConsumer implements JobConsumer
     @Modified
     protected void activate(final Map<String, Object> configuration)
     {
-        this.daemon = DaemonConnection.read(configuration, this::environment);
-        final String token = CallbackToken.resolve(configuration, environment(ParseJob.TOKEN_VARIABLE));
+        this.daemon = DaemonConnection.read(configuration, this::getEnvironmentVariable);
+        final String token = CallbackToken.resolve(configuration, getEnvironmentVariable(ParseJob.TOKEN_VARIABLE));
         this.callbackConfigured = !token.isEmpty();
         if (!this.callbackConfigured) {
             LOGGER.warn("No authorization token is configured ({} or the {} environment variable);"
@@ -271,7 +271,7 @@ public class ParseJobConsumer implements JobConsumer
      * @param name the variable to read
      * @return the value, or {@code null} when not set
      */
-    protected String environment(final String name)
+    protected String getEnvironmentVariable(final String name)
     {
         return System.getenv(name);
     }

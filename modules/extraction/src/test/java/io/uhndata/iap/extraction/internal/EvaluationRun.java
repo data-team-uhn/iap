@@ -96,7 +96,7 @@ final class EvaluationRun
         private void add(final FieldResult reply, final AnswerScoring.Score score)
         {
             this.asked++;
-            final boolean isFound = reply != null && reply.found();
+            final boolean isFound = reply != null && reply.isFound();
             if (reply != null) {
                 this.found += isFound ? 1 : 0;
                 this.unsupported += isFound && reply.passages().isEmpty() ? 1 : 0;

@@ -94,7 +94,7 @@ public class ParseJobService implements ParseService
         final Object configured = configuration.get(SHARED_DOCS_PROPERTY);
         String directory = configured == null ? "" : String.valueOf(configured).trim();
         if (directory.isEmpty()) {
-            final String fromEnvironment = environment(SHARED_DOCS_VARIABLE);
+            final String fromEnvironment = getEnvironmentVariable(SHARED_DOCS_VARIABLE);
             directory = fromEnvironment == null || fromEnvironment.isBlank() ? DEFAULT_SHARED_DOCS
                 : fromEnvironment.trim();
         }
@@ -225,7 +225,7 @@ public class ParseJobService implements ParseService
      * @param name the variable
      * @return its value, or {@code null} when not set
      */
-    protected String environment(final String name)
+    protected String getEnvironmentVariable(final String name)
     {
         return System.getenv(name);
     }

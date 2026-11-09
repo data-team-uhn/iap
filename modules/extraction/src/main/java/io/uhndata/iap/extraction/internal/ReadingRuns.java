@@ -200,7 +200,7 @@ public class ReadingRuns
      * @param failure the failure
      * @return {@code true} when a {@link Stopped} is in the cause chain, or this thread was told to stop
      */
-    static boolean isStopped(final Throwable failure)
+    static boolean isCausedByStop(final Throwable failure)
     {
         // A handler wraps the stop in its own failure, and the engine wraps that again
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {

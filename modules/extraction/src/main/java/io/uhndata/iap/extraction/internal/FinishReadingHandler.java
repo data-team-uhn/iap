@@ -66,7 +66,7 @@ public class FinishReadingHandler implements ServiceTaskHandler
             target.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class))) {
             final String message = context.getActivity().get(MESSAGE_PARAMETER, String.class);
             // The step's own message is the deliberate one; otherwise an earlier step's note stays
-            ExtractionStatus.record(target, ExtractionStatus.STATUS_DONE, message != null ? message
+            ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_DONE, message != null ? message
                 : target.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
             if (Boolean.TRUE.equals(context.getActivity().get(BLOCKS_PARAMETER, Boolean.class))) {
                 ExtractionStatus.markBlocked(target);

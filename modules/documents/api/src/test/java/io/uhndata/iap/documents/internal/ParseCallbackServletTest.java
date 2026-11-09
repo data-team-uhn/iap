@@ -362,7 +362,7 @@ class ParseCallbackServletTest
     @Test
     void theRealEnvironmentLookupIsHarmlessWhenConfigured() throws Exception
     {
-        // No overridden environment(): the real lookup runs, and the configured token keeps the outcome
+        // No overridden getEnvironmentVariable(): the real lookup runs, and the configured token keeps the outcome
         // deterministic whether or not the variable is set on the machine running the tests
         final ParseCallbackServlet real = new ParseCallbackServlet();
         inject(real, new TestResolverFactory(this.context.resourceResolver()));
@@ -386,7 +386,7 @@ class ParseCallbackServletTest
             private static final long serialVersionUID = 1L;
 
             @Override
-            protected String environment(final String name)
+            protected String getEnvironmentVariable(final String name)
             {
                 return ParseJob.TOKEN_VARIABLE.equals(name) ? token : null;
             }

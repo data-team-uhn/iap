@@ -115,13 +115,15 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
     private void classify(final WorkflowTaskContext context, final Resource target) throws PersistenceException
     {
         final Submission submission = SubmissionFiles.getSubmission(target);
-        for (final Map.Entry<String, List<ClassificationRequirement>> entry : getOpen(submission).entrySet()) {
+        for (final Map.Entry<String, List<ClassificationRequirement>> entry
+            : getOpenClassificationsByDocument(submission).entrySet()) {
             final File file = SubmissionFiles.getCurrentFile(submission, entry.getKey());
             if (file == null) {
                 continue;
             }
             if (ParsePropertyNames.STATUS_FAILED.equals(file.getParseStatus())) {
-                ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, SubmissionFiles.describeUnreadable());
+                ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_FAILED,
+                    SubmissionFiles.describeUnreadable());
                 return;
             }
             if (!ParsePropertyNames.STATUS_COMPLETED.equals(file.getParseStatus())) {
@@ -161,7 +163,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         final IntakeResult result = ask(file, new ExtractionPrompt.Group(
             classifications.get(0).getDocumentRequirementName(), fields), getTemplates(classifications));
         if (result.status() == AnswerIntakeService.Status.NOT_READ) {
-            ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, result.message());
+            ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_FAILED, result.message());
             return false;
         }
         if (result.status() == AnswerIntakeService.Status.INCOMPLETE) {
@@ -185,7 +187,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
     /** Whether the model found a pick at least as sure as its classification asks. */
     private static boolean isSure(final FieldResult result, final Double threshold)
     {
-        return result.found() && threshold != null && result.confidence() >= threshold;
+        return result.isFound() && threshold != null && result.confidence() >= threshold;
     }
 
     /**
@@ -205,7 +207,8 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
      * document. A classification whose condition does not hold, that holds no question, or whose question already
      * has an answer or a pick is left out.
      */
-    private static Map<String, List<ClassificationRequirement>> getOpen(final Submission submission)
+    private static Map<String, List<ClassificationRequirement>> getOpenClassificationsByDocument(
+        final Submission submission)
     {
         final Set<String> answeredOrSuggested = ExtractionFields.getAnsweredOrSuggested(submission);
         final Map<String, List<ClassificationRequirement>> open = new LinkedHashMap<>();
@@ -264,6 +267,6 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
             ErrorLogger.logError(e, ErrorContext.of(ClassifyDocumentHandler.class, "readText").about(file.getPath()));
             return IntakeResult.createNotRead(IntakeResult.TEXT_UNREADABLE_MESSAGE);
         }
-        return this.intake.run(file, scan, List.of(classifications), templates);
+        return this.intake.askQuestions(file, scan, List.of(classifications), templates);
     }
 }

@@ -98,7 +98,7 @@ public class StopProcessingHandler implements ServiceTaskHandler
                 && filesBeingRead.contains(file.getPath());
             stopFile(context.getResourceResolver(), file, consumed);
         }
-        ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, ExtractionStatus.STOPPED_MESSAGE);
+        ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_FAILED, ExtractionStatus.STOPPED_MESSAGE);
         ExtractionStatus.releaseClaim(target);
         LOGGER.info("Reading stopped: submission={} readingThreadStopped={}", path, wasReadingThreadStopped);
     }

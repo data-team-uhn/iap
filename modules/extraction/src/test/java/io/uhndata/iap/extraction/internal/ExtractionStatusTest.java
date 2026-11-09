@@ -53,7 +53,8 @@ class ExtractionStatusTest
     {
         final Resource submission = this.context.create().resource("/Submissions/s1", Map.of());
 
-        ExtractionStatus.record(submission, ExtractionStatus.STATUS_FAILED, "The model's answer could not be read");
+        ExtractionStatus.recordStatus(submission, ExtractionStatus.STATUS_FAILED,
+            "The model's answer could not be read");
 
         assertEquals("failed", submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
         assertEquals("The model's answer could not be read",
@@ -68,11 +69,11 @@ class ExtractionStatusTest
         ExtractionStatus.markBlocked(submission);
         assertEquals(Boolean.TRUE, submission.getValueMap().get(ExtractionStatus.BLOCKED_PROPERTY, Boolean.class));
 
-        ExtractionStatus.record(submission, ExtractionStatus.STATUS_DONE, null);
+        ExtractionStatus.recordStatus(submission, ExtractionStatus.STATUS_DONE, null);
         assertEquals(Boolean.TRUE, submission.getValueMap().get(ExtractionStatus.BLOCKED_PROPERTY, Boolean.class),
             "only a new reading takes it down");
 
-        ExtractionStatus.record(submission, ExtractionStatus.STATUS_RUNNING, null);
+        ExtractionStatus.recordStatus(submission, ExtractionStatus.STATUS_RUNNING, null);
         assertNull(submission.getValueMap().get(ExtractionStatus.BLOCKED_PROPERTY, Boolean.class));
     }
 
@@ -82,7 +83,7 @@ class ExtractionStatusTest
         final Resource submission = this.context.create().resource("/Submissions/s1",
             Map.of(ExtractionStatus.MESSAGE_PROPERTY, "something went wrong"));
 
-        ExtractionStatus.record(submission, ExtractionStatus.STATUS_DONE, null);
+        ExtractionStatus.recordStatus(submission, ExtractionStatus.STATUS_DONE, null);
 
         assertEquals("done", submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
         assertNull(submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
@@ -157,7 +158,7 @@ class ExtractionStatusTest
         };
 
         assertThrows(PersistenceException.class,
-            () -> ExtractionStatus.record(readOnly, ExtractionStatus.STATUS_DONE, null));
+            () -> ExtractionStatus.recordStatus(readOnly, ExtractionStatus.STATUS_DONE, null));
         assertThrows(PersistenceException.class, () -> ExtractionStatus.markBlocked(readOnly));
     }
 

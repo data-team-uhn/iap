@@ -82,7 +82,7 @@ class ModelCallTest
 
         assertThrows(ReadingRuns.Stopped.class, () -> ModelCall.ask(client, "system", "user", null));
         assertTrue(asked.isEmpty(), "the model was never asked");
-        assertTrue(ReadingRuns.isStopped(new ReadingRuns.Stopped()));
+        assertTrue(ReadingRuns.isCausedByStop(new ReadingRuns.Stopped()));
     }
 
     @Test
@@ -118,7 +118,7 @@ class ModelCallTest
 
         assertEquals("down", assertThrows(IOException.class, () -> ModelCall.ask(client, "system", "user", null))
             .getMessage());
-        assertFalse(ReadingRuns.isStopped(new IOException("down")));
+        assertFalse(ReadingRuns.isCausedByStop(new IOException("down")));
     }
 
     // Left marked as calling, the thread would be interrupted by a later stop, in whatever job it runs next

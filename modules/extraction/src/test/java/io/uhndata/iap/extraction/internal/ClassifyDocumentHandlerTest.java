@@ -106,7 +106,7 @@ class ClassifyDocumentHandlerTest
 
     private void stubModelPick(final String value, final double confidence, final boolean degraded) throws IOException
     {
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenReturn(degraded ? IntakeResult.createNotRead(IntakeResult.REPLY_UNREADABLE_MESSAGE)
                 : IntakeResult.createRead(Map.of(DECISION, new FieldResult(DECISION, List.of(value),
                     "It has objectives and methods.", confidence, List.of(), 0))));
@@ -152,7 +152,7 @@ class ClassifyDocumentHandlerTest
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<List<ExtractionPrompt.Group>> groups = ArgumentCaptor.forClass(List.class);
         final ArgumentCaptor<String> reference = ArgumentCaptor.forClass(String.class);
-        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), groups.capture(), reference.capture());
+        Mockito.verify(this.intake).askQuestions(Mockito.any(), Mockito.any(), groups.capture(), reference.capture());
         assertEquals(1, groups.getValue().size(), "one document's classifications are asked together");
         final ExtractionField field = groups.getValue().get(0).fields().get(0);
         assertEquals(DECISION, field.key());
@@ -211,7 +211,7 @@ class ClassifyDocumentHandlerTest
 
         this.handler.execute(createTask());
 
-        Mockito.verify(this.intake).run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.isNull());
+        Mockito.verify(this.intake).askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.isNull());
     }
 
     // A pick an earlier reading suggested is not asked for again, even if nobody has accepted it yet
@@ -226,7 +226,7 @@ class ClassifyDocumentHandlerTest
         this.handler.execute(createTask());
 
         Mockito.verify(this.intake, Mockito.times(1))
-            .run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any());
+            .askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any());
     }
 
     // When the reading runs again, a question that already has an answer is not asked again
@@ -310,7 +310,7 @@ class ClassifyDocumentHandlerTest
     void leavesANoteWhenOnlySomeCallsWentThrough() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenReturn(IntakeResult.createIncomplete(Map.of()));
 
         this.handler.execute(createTask());
@@ -325,7 +325,7 @@ class ClassifyDocumentHandlerTest
     void failsWhenTheModelCannotBeReached() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenReturn(IntakeResult.createNotRead(IntakeResult.UNREACHABLE_MESSAGE));
 
         this.handler.execute(createTask());
@@ -372,7 +372,7 @@ class ClassifyDocumentHandlerTest
     void aStopAbortsTheStep() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenThrow(new ReadingRuns.Stopped());
 
         final PersistenceException failure =
@@ -386,7 +386,7 @@ class ClassifyDocumentHandlerTest
     void aStopAfterTheModelAnsweredAbortsTheStep() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        Mockito.when(this.intake.run(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenAnswer(invocation -> {
                 new ReadingRuns().stop(this.submission.getPath());
                 return IntakeResult.createRead(Map.of(DECISION,
@@ -396,7 +396,7 @@ class ClassifyDocumentHandlerTest
         try {
             final PersistenceException failure =
                 assertThrows(PersistenceException.class, () -> this.handler.execute(createTask()));
-            assertTrue(ReadingRuns.isStopped(failure.getCause()));
+            assertTrue(ReadingRuns.isCausedByStop(failure.getCause()));
             assertFalse(Thread.currentThread().isInterrupted());
         } finally {
             Thread.interrupted();

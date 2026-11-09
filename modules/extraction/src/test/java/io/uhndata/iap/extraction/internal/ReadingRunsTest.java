@@ -203,9 +203,9 @@ class ReadingRunsTest
     @Test
     void recognizesAStopWrappedInOtherFailures()
     {
-        assertTrue(ReadingRuns.isStopped(
+        assertTrue(ReadingRuns.isCausedByStop(
             new IOException("step", new IllegalStateException(new ReadingRuns.Stopped()))));
-        assertFalse(ReadingRuns.isStopped(new IOException("the model is down")));
+        assertFalse(ReadingRuns.isCausedByStop(new IOException("the model is down")));
     }
 
     // An interrupt from elsewhere, such as the instance shutting down, is not the submitter's stop
@@ -215,7 +215,7 @@ class ReadingRunsTest
         Thread.currentThread().interrupt();
         this.runs.begin(SUBMISSION);
 
-        assertFalse(ReadingRuns.isStopped(new IOException("closed")));
+        assertFalse(ReadingRuns.isCausedByStop(new IOException("closed")));
         assertFalse(this.runs.end(SUBMISSION));
     }
 }

@@ -108,7 +108,7 @@ class ParseAbandonmentTest
             }
 
             @Override
-            protected String environment(final String name)
+            protected String getEnvironmentVariable(final String name)
             {
                 return null;
             }

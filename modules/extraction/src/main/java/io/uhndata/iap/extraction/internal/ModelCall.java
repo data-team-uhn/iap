@@ -55,7 +55,7 @@ final class ModelCall
         try {
             return client.chat(system, List.of(new LLMMessage("user", userMessage)), options);
         } catch (final IOException e) {
-            if (ReadingRuns.isStopped(e)) {
+            if (ReadingRuns.isCausedByStop(e)) {
                 throw new ReadingRuns.Stopped();
             }
             throw e;

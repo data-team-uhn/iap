@@ -88,7 +88,7 @@ class ExtractionReplyTest
 
         assertEquals("design", reply.key());
         assertEquals(List.of("randomised controlled trial"), reply.values());
-        assertTrue(reply.found());
+        assertTrue(reply.isFound());
         assertEquals("The design section says so.", reply.reasoning());
         // The invented quote is dropped, but still counts as offered, and costs a quarter of the confidence
         assertEquals(List.of(new FieldResult.Passage(REAL, 1L, "Design", -1)), reply.passages());
@@ -172,7 +172,7 @@ class ExtractionReplyTest
         for (final String nothing : List.of("null", "\"  \"", "{\"a\": 1}", "[]", "[null, \" \"]")) {
             final FieldResult reply = readValue(nothing);
             assertTrue(reply.values().isEmpty(), nothing);
-            assertFalse(reply.found(), nothing);
+            assertFalse(reply.isFound(), nothing);
             assertEquals(0.5, reply.confidence(), 1e-9, "a not-found answer has nothing to back: " + nothing);
         }
     }
@@ -191,7 +191,7 @@ class ExtractionReplyTest
         final FieldResult reply = readOne(field("kind", false, DRUG_OR_DEVICE),
             "{\"value\": [\"drug\", \"device\"], \"confidence\": 0.9}");
 
-        assertFalse(reply.found());
+        assertFalse(reply.isFound());
         assertEquals(List.of("drug"), readOne(field("kind", false, DRUG_OR_DEVICE), "{\"value\": [\"drug\"]}")
             .values(), "a list of one is still one answer");
     }

@@ -29,7 +29,7 @@ import io.uhndata.iap.submissions.models.File;
 /**
  * Reads a parsed document once per reading instead of once per step.
  *
- * <p>The steps of a reading run one after another on the same document, so only the last document read is kept.
+ * <p>The steps of a reading run one after another on the same document, so only the last document read is cachedScan.
  * It is keyed by the stored file and the time it was last written, so a new parse never gets the old text.</p>
  *
  * @version $Id$
@@ -39,7 +39,7 @@ import io.uhndata.iap.submissions.models.File;
 public class ParsedDocuments
 {
     /** The document read last, or {@code null} when nothing has been read yet. */
-    private volatile Entry kept;
+    private volatile CachedScan cachedScan;
 
     /**
      * Returns the parsed text of a file, ready for checking quotes against it.
@@ -56,12 +56,12 @@ public class ParsedDocuments
         }
         final String key = markdown.getPath();
         final Calendar writtenAt = getLastModified(markdown);
-        final Entry current = this.kept;
+        final CachedScan current = this.cachedScan;
         if (current != null && current.isSameVersion(key, writtenAt)) {
             return current.scan;
         }
         final DocumentScan scan = DocumentScan.of(DocumentText.readText(markdown));
-        this.kept = new Entry(key, writtenAt, scan);
+        this.cachedScan = new CachedScan(key, writtenAt, scan);
         return scan;
     }
 
@@ -78,12 +78,12 @@ public class ParsedDocuments
     }
 
     /**
-     * One kept document, with what tells whether it is still the same document.
+     * One cachedScan document, with what tells whether it is still the same document.
      *
      * @version $Id$
      * @since 0.1.0
      */
-    private static final class Entry
+    private static final class CachedScan
     {
         private final String path;
 
@@ -91,7 +91,7 @@ public class ParsedDocuments
 
         private final DocumentScan scan;
 
-        Entry(final String path, final Calendar writtenAt, final DocumentScan scan)
+        CachedScan(final String path, final Calendar writtenAt, final DocumentScan scan)
         {
             this.path = path;
             this.writtenAt = writtenAt;
