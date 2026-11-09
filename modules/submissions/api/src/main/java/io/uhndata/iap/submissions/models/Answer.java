@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
@@ -32,7 +31,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
-import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.utils.Referenceable;
 
@@ -114,9 +112,10 @@ public class Answer extends EntityPart implements Referenceable
     /**
      * Returns the newest run's suggestion, as the values this answer would hold if the submitter took it as it is.
      *
-     * <p>For a question that takes several values, the model gives them as one comma-separated string, so
-     * "St Michael's, Sunnybrook" is two values. The reply is read with {@link #readAnswer}, so the suggestion can
-     * be compared with saved values.</p>
+     * <p>For a question that takes several values, a run holds them as one comma-separated string, so
+     * "St Michael's, Sunnybrook" is two values. The run already holds option values, not labels: the extraction
+     * matches them before it saves the run. Splitting with {@link #splitAnswer} lets the suggestion be compared
+     * with saved values.</p>
      *
      * @return the suggested values, empty when there is no run or the newest run found nothing
      */
@@ -128,7 +127,7 @@ public class Answer extends EntityPart implements Referenceable
         if (suggested == null) {
             return List.of();
         }
-        return readAnswer(suggested, getQuestion());
+        return readSuggestion(suggested);
     }
 
     /**
@@ -170,7 +169,7 @@ public class Answer extends EntityPart implements Referenceable
         }
         final List<Extraction> runs = getExtractions();
         final String previous = runs.size() < 2 ? null : runs.get(runs.size() - 2).getExtractedAnswer();
-        final List<String> earlier = previous == null ? List.of() : readAnswer(previous, getQuestion());
+        final List<String> earlier = previous == null ? List.of() : readSuggestion(previous);
         return isSameAnswer(suggested, given) || isSameAnswer(suggested, earlier) ? List.of() : suggested;
     }
 
@@ -178,6 +177,13 @@ public class Answer extends EntityPart implements Referenceable
     private List<String> getGivenValues()
     {
         return this.value == null ? List.of() : Arrays.stream(this.value).filter(each -> !each.isBlank()).toList();
+    }
+
+    /** A run's saved suggestion as values, split the way this answer's question takes them. */
+    private List<String> readSuggestion(final String suggested)
+    {
+        final Question asked = getQuestion();
+        return splitAnswer(suggested, asked != null && asked.isMultiple());
     }
 
     /** Whether two lists of values say the same thing: the same set, ignoring case and outer spaces. */
@@ -189,64 +195,6 @@ public class Answer extends EntityPart implements Referenceable
     private static Set<String> normalize(final List<String> values)
     {
         return values.stream().map(each -> each.strip().toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
-    }
-
-    /**
-     * Reads one reply from the model as values for a question. The reply is split by {@link #splitAnswer}. When
-     * the question offers options, each part is matched to an option by value or label, ignoring case: a model
-     * writes an option's label, "English", but the saved value is the option's value, "english". A part that
-     * matches no option is kept as the model wrote it, so the submitter can still see what it said.
-     *
-     * <p>The suggestion and the classification step's check of its pick both use this, so they read a reply the
-     * same way.</p>
-     *
-     * @param answer the model's reply
-     * @param question the question it answers, or {@code null} to read the reply as one value with no options
-     * @return the values
-     */
-    @NotNull
-    public static List<String> readAnswer(@NotNull final String answer, @Nullable final Question question)
-    {
-        if (question == null) {
-            return splitAnswer(answer, false);
-        }
-        final List<OfferedOption> options = question.getOfferedOptions();
-        return splitAnswer(answer, question.isMultiple()).stream()
-            .map(value -> matchOption(value, options))
-            .toList();
-    }
-
-    /** Returns the value of the option a reply part names, by value first, then by label; or else the part. */
-    private static String matchOption(final String value, final List<OfferedOption> options)
-    {
-        final String byValue = findUniqueMatch(options, option -> value.equalsIgnoreCase(option.value()));
-        if (byValue != null) {
-            return byValue;
-        }
-        final String byLabel = findUniqueMatch(options, option -> value.equalsIgnoreCase(option.label()));
-        return byLabel != null ? byLabel : value;
-    }
-
-    /**
-     * Returns the value of the one option matching {@code test}, or {@code null} when none matches or options
-     * with different values match.
-     *
-     * <p>Nothing stops two options from having the same label, for example two categories in an editable tree.
-     * The reply cannot tell them apart, so a tie counts as no match: guessing could save the wrong category,
-     * while the model's own words are easy for a person to correct.</p>
-     */
-    private static String findUniqueMatch(final List<OfferedOption> options, final Predicate<OfferedOption> test)
-    {
-        String match = null;
-        for (final OfferedOption option : options) {
-            if (test.test(option)) {
-                if (match != null && !match.equals(option.value())) {
-                    return null;
-                }
-                match = option.value();
-            }
-        }
-        return match;
     }
 
     /**

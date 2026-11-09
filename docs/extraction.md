@@ -676,15 +676,17 @@ and skipped, and the others are still saved. A run that found nothing still name
 versions it read. This is how a later reading knows those versions were already read for
 that question.
 
-How the suggestion is read (`Answer.getSuggestedValues`, from the newest run,
-`Answer.getLatestExtraction`):
+A reply's values are matched to the question's options once, when the reply is read
+(`ExtractionReply`), so a run already holds option values: first by value, then by label,
+ignoring case. "English" becomes `english`, and a category label becomes the category's
+path, such as `/Categories/...`. If no option matches, or two options match equally, the
+model's own words are kept, so a person can see what it said and fix it. Several values
+are saved as one comma-separated text.
 
-- A single-value question keeps the reply as one value, trimmed.
-- A multi-value question splits the reply on commas.
-- For a question with options, each part is matched to an option, first by value, then
-  by label, ignoring case. "English" becomes `english`, and a category label becomes the
-  category's path, such as `/Categories/...`. If no option matches, or two options match
-  equally, the model's own words are kept, so a person can see what it said and fix it.
+How the suggestion is read (`Answer.getSuggestedValues`, from the newest run,
+`Answer.getLatestExtraction`): a single-value question keeps the text as one value,
+trimmed; a multi-value question splits it on commas (`Answer.splitAnswer`). Nothing is
+matched again.
 
 ### When the submitter acts on it
 

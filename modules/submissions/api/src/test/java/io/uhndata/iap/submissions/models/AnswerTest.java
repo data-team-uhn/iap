@@ -37,7 +37,6 @@ import org.mockito.Mockito;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.AnswerOption;
-import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -195,19 +194,6 @@ class AnswerTest
             Answer.splitAnswer("St Michael's, Sunnybrook", false));
     }
 
-    // A model may name an option by its label instead of its value, in any case
-    @Test
-    void readsAReplyAsTheOptionItNames()
-    {
-        final Question question = Mockito.mock(Question.class);
-        Mockito.when(question.getOfferedOptions()).thenReturn(List.of(
-            new OfferedOption("yes", "Yes, a proposal", ""), new OfferedOption("no", "No", "")));
-
-        assertEquals(List.of("yes"), Answer.readAnswer("YES", question));
-        assertEquals(List.of("yes"), Answer.readAnswer("yes, a proposal", question));
-        assertEquals(List.of("maybe"), Answer.readAnswer("maybe", question), "no option, so the reply stays");
-    }
-
     // A stray space would stop the reply from matching the option it names
     @Test
     void trimsASingleValuedReply()
@@ -285,32 +271,6 @@ class AnswerTest
             RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", "one, two", "confidence", 0.9));
 
         assertEquals(List.of("one, two"), resource.adaptTo(Answer.class).getSuggestedValues());
-    }
-
-    // A model names an option by its label, but the saved value is the option's value, so each part of the reply
-    // is matched to an option by value or label, ignoring case
-    @Test
-    void suggestsTheOptionAReplyNames() throws RepositoryException
-    {
-        final Answer answer = createAnswer("languages", 0, "English, FRENCH, Klingon");
-        option("languages", "english", "English");
-        option("languages", "french", "French");
-
-        assertEquals(List.of("english", "french", "Klingon"), answer.getSuggestedValues(),
-            "a language the question does not offer is kept as the model said it");
-    }
-
-    // Two categories can share a label, for example after a rename. Picking the first one could save the wrong
-    // category, so neither is picked
-    @Test
-    void keepsAReplyWhoseLabelMatchesMoreThanOneOption() throws RepositoryException
-    {
-        final Answer answer = createAnswer("languages", 0, "English");
-        option("languages", "en-ca", "English");
-        option("languages", "en-us", "English");
-
-        assertEquals(List.of("English"), answer.getSuggestedValues(),
-            "a label two options share cannot be resolved from the reply alone");
     }
 
     // With no answer yet, the newest run is the suggestion, whatever the runs before it said
@@ -406,12 +366,6 @@ class AnswerTest
         this.context.create().resource(answer.getPath() + "/extraction" + runs, suggested == null
             ? Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "confidence", 0.9)
             : Map.of(RESOURCE_TYPE, Extraction.RESOURCE_TYPE, "extractedAnswer", suggested, "confidence", 0.9));
-    }
-
-    private void option(final String question, final String value, final String label)
-    {
-        this.context.create().resource("/Schemas/schema/1.0/" + question + "/" + value, Map.of(
-            RESOURCE_TYPE, AnswerOption.RESOURCE_TYPE, "value", value, "label", label));
     }
 
     /**
