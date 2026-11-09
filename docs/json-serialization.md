@@ -90,6 +90,7 @@ children, so Sling-style URLs such as `.1.json` work without naming it.
 | `order` | off | 10 | Adds `@order` to a node that keeps its children in order: their names, in that order |
 | `active` | **on** | 20 | Leaves retired schemas and inactive schema versions out of a schema listing (contributed by `schemas`) |
 | `simple` | off | 25 | Drops the properties that say how content is *stored* rather than what it holds. `schemas` adds a second `simple`, at 50, for a schema version |
+| `originalCreated` | **on** | 30 | Writes `originalCreated`, the date content brought over from another instance was created there, as its `jcr:created`, in place of the time it arrived (see [submission transfer](submission-transfer.md#what-travels)) |
 | `frozen` | on when the resource requested is a past state | 30 | Writes a past state from version storage with the original's type and `jcr:uuid`, not the copy's (see [history](history.md#a-past-state-does-not-describe-itself)) |
 | `schemaPath` | **on** | 50 | Writes a submission's `schema` as the schema's path rather than the whole schema (contributed by `submissions`) |
 | `events` | off | 50 | Adds `@events`, the workflow events the requesting user could send to the node (contributed by `workflows`, see [asking without sending](workflows.md#asking-without-sending)) |

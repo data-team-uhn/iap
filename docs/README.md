@@ -76,6 +76,7 @@ The files people attach to a submission, from the browser to the parser.
 | --- | --- |
 | [keycloak-oidc.md](keycloak-oidc.md) | Sign-in delegated to an external Keycloak over OpenID Connect, and how a realm role becomes an Oak group principal that ACLs are written against |
 | [remote-requests.md](remote-requests.md) | JWT-authenticated requests from other IAP instances |
+| [submission-transfer.md](submission-transfer.md) | Handing a submission over whole to another instance, which takes it in on behalf of its submitter |
 
 ## Operating an instance
 

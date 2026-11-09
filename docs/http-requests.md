@@ -19,11 +19,22 @@ if (!response.isSuccessful()) {
 ```java
 @NotNull HttpResponse post(String url, String body, String contentType) throws IOException;
 @NotNull HttpResponse post(String url, String body, String contentType, Charset charset) throws IOException;
+@NotNull HttpResponse post(String url, Map<String, String> headers, Multipart body) throws IOException;
 ```
 
 The body is sent in UTF-8 unless a charset is given. `contentType` is a media type
 without parameters, and the request adds the charset to it: `application/json` goes out
 as `application/json; charset=UTF-8`.
+
+The `Multipart` form sends files alongside fields as `multipart/form-data`. Each part is
+opened only as it is sent, so a large file is streamed rather than held in memory:
+
+```java
+final Multipart body = new Multipart()
+    .add("manifest", json, "application/json")
+    .add("b0", "scan.pdf", "application/pdf", binary::getStream);
+this.httpRequests.post(url, Map.of("Authorization", "Bearer " + token), body);
+```
 
 `HttpResponse` carries `getStatusCode()`, `getBody()` and `isSuccessful()`, which is
 true for a `2xx` status.
@@ -38,4 +49,5 @@ Three things to code against:
   with an `HttpTimeoutException`, which is an `IOException`.
 - **An address can be a secret**, such as a chat webhook's token. The module's messages
   name at most the scheme, host and port of the service. A caller that names the service
-  in a message of its own should do the same, with `URI.getHost()`.
+  in a message of its own should do the same, with `URI.getHost()`. Headers often carry
+  credentials, so no message quotes one.
