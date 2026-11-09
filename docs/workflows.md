@@ -1035,6 +1035,25 @@ each completed on its own.
   since nothing could wake it: the engine's door opens onto a homepage or a task.
 - **Read access is never revoked.** It lasts for the life of the instance rather than
   while a task is open.
+- **No phase after the commit.** `receiveEvent` commits and returns, and nothing runs
+  once the changes are saved. Work that may only happen after the commit must find its
+  own way to wait for it: the extraction module queues Sling jobs that retry until the
+  walk's data is visible, re-reads a file until a commit lands, and deletes a staging
+  folder only once `receiveEvent` has returned. Listeners that run after the commit
+  would give such work one place.
+- **A failed step undoes the whole walk.** A walk is one commit, so a handler that
+  throws reverts everything the walk wrote before it. An `ErrorBoundaryEvent` is
+  imported but never fires: nothing catches a step's failure and carries on. A handler
+  that must keep earlier work records the failure itself and returns normally, as the
+  extraction handlers do by writing a failed status instead of throwing.
+- **`startWorkflow` quietly starts nothing.** When its `workflowFrom` chain leads
+  nowhere, or not to a workflow version, the step succeeds and no workflow runs, since
+  an entity whose data names no workflow simply has none. A caller that needs one to run
+  checks the chain itself first, as the extraction job does for `readingWorkflow`.
+- **A running walk cannot be stopped.** The engine has no way to cancel a walk in
+  progress; it ends when its last step returns. Stopping a long step, such as a model
+  call, is left to the step: the extraction module tracks the thread running each
+  reading, interrupts it, and throws so the walk is undone.
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created
   without it and the problem recorded; a guard is written as a `cond:condition` in the
   arc's `extensionElements`.
