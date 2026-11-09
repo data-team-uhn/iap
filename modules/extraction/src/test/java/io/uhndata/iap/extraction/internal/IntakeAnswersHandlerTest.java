@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -239,15 +240,31 @@ class IntakeAnswersHandlerTest
             "text", "Which sites?", "dataType", "text", "extractionPrompt", "List the sites."));
     }
 
-    // The step has nothing to do. It must not say the schema asks nothing of the document, because other steps
-    // may still ask plenty.
+    // A misspelled name, or the name of a document requirement, is a mistake in the workflow
     @Test
-    void doesNothingWhenTheRequirementItNamesIsNotThere() throws Exception
+    void failsWhenARequirementItNamesIsNotAFormOfTheSchema() throws Exception
     {
-        this.handler.execute(createTaskAsking("nothing-by-that-name"));
+        this.tree.createDocumentRequirement("protocol");
+        for (final String wrong : List.of("nothing-by-that-name", "study, stdy", "protocol")) {
+            this.handler.execute(createTaskAsking(wrong));
 
+            assertEquals("failed", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class),
+                wrong);
+            assertEquals(IntakeAnswersHandler.NO_REQUIREMENT_MESSAGE,
+                this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
+        }
         Mockito.verifyNoInteractions(this.intake);
-        assertNull(this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+    }
+
+    @Test
+    void namesARequirementByItsFullPathToo() throws Exception
+    {
+        stubModelFinds(new FieldResult(AIMS, List.of(), "", 0.0, List.of(), 0));
+
+        this.handler.execute(createTaskAsking(SubmissionTree.FORM_PATH));
+
+        assertEquals(List.of("study"), List.copyOf(getAskedGroups().keySet()).stream()
+            .map(name -> name.substring(name.lastIndexOf('/') + 1)).toList());
     }
 
     @Test
@@ -519,10 +536,31 @@ class IntakeAnswersHandlerTest
         final Resource newerConsent = this.tree.addVersion(this.tree.createFile("completed"));
         final List<Question> asked = List.of(this.aims.adaptTo(Question.class));
 
-        assertTrue(ExtractionFields.isNewRevision(SubmissionFiles.getSubmission(this.submission), asked,
+        assertEquals(Set.of(this.aims.getPath()), ExtractionFields.getUnreadInNewerVersions(
+            SubmissionFiles.getSubmission(this.submission), asked,
             List.of(newerProtocol.adaptTo(File.class), newerConsent.adaptTo(File.class))));
-        assertFalse(ExtractionFields.isNewRevision(SubmissionFiles.getSubmission(this.submission), asked,
-            List.of(newerProtocol.adaptTo(File.class))), "the version already read is not new");
+        assertEquals(Set.of(), ExtractionFields.getUnreadInNewerVersions(
+            SubmissionFiles.getSubmission(this.submission), asked, List.of(newerProtocol.adaptTo(File.class))),
+            "the version already read is not new");
+    }
+
+    // A reading of a newer version where one call failed read only some questions from it; the next reading
+    // asks the others again, even though the submitter answered them
+    @Test
+    void asksAgainTheAnsweredQuestionsANewerVersionWasNotReadFor() throws Exception
+    {
+        final Resource newer = this.tree.addVersion(this.file);
+        answerAims("What the person said", "What the model read", newer.getParent());
+        final Resource title = this.context.create().resource(this.submission.getPath() + "/a2",
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer",
+                VALUE, new String[] { "A title" }));
+        SubmissionTree.reference(title, "question",
+            this.context.resourceResolver().getResource(SubmissionTree.FORM_PATH + "/title"));
+        stubModelFinds(new FieldResult(TITLE, List.of("A newer title"), "", 0.8, List.of(), 0));
+
+        this.handler.execute(createTask());
+
+        assertEquals(Map.of("study", List.of(TITLE)), getAskedGroups(), "the aims were read from it already");
     }
 
     // The newest version was already read for the aims, so only the gaps are filled and the answer stays

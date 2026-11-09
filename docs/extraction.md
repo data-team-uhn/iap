@@ -363,7 +363,7 @@ Activity properties a reading workflow can set on this step:
 
 | Property | Meaning | When absent |
 | --- | --- | --- |
-| `requirement` | **Required.** One requirement name, or several (a list, or comma-separated). The step asks only these requirements' questions, each requirement as its own group, in that order, at most ten questions per call. | The step fails with "This reading is not set up correctly", and the administrator is told which step names none |
+| `requirement` | **Required.** One requirement name, or several (a list, or comma-separated). The step asks only these requirements' questions, each requirement as its own group, in that order, at most ten questions per call. | The step fails with "This reading is not set up correctly", and the administrator is told which step names none. So does a name that is not a form requirement of the schema version: a typo, or a document requirement. |
 | `documents` | The document requirement names to read, in order. Each document's text goes under its own heading (`# Preamble` for `preamble`), and together they are one document to the model. | The first upload with a completed parse |
 | `promptFrom` | Reference files from the bundle's `/prompts` folder, sent in the `<reference>` block after the document. A name the bundle does not have fails the step. | No reference |
 
@@ -729,12 +729,13 @@ A submitter never deletes a document. A new upload for the same requirement adds
 `sub:DocumentVersion`, and every older version stays.
 
 The first reading of a newer version asks every question of the intake step, answered or
-not. `ExtractionFields.isNewRevision` decides when that is: a file the step reads is not
-its document's first version, and no run of the step's questions cites it yet. Each file
-is checked on its own, so a newer version that was already read does not hide another
-that nobody has read. Every question asked gets a run that cites the new version, found
-or not. So the version is read in full only once; after that, Read again on it asks only
-what the submitter has not answered.
+not. `ExtractionFields.getUnreadInNewerVersions` decides it for each question: a file the
+step reads is not its document's first version, and none of the question's own runs
+cites it yet. Each file is checked on its own, so a newer version that was already read
+does not hide another that nobody has read. Every question asked gets a run that cites
+the new version, found or not. So each question is read from the version once; after
+that, Read again on it asks only what the submitter has not answered. A question whose
+call failed got no run, so the next reading asks it again, answered or not.
 
 Nothing the newer version says changes an answer. What the form shows beside it is
 `Answer.getOfferedSuggestion`, worked out from the runs and the answer, so nothing extra
@@ -908,7 +909,7 @@ Messages the submitter can see in `extractionMessage`:
 | (the reading workflow's own text) | A `finishReading` step's `message` |
 | Reading was stopped. | Stop |
 | Nothing is set up to read this request's documents | The schema names no reading workflow, or it no longer exists, or it is not tagged `active` |
-| This reading is not set up correctly | An `intakeAnswers` step names no `requirement` |
+| This reading is not set up correctly | An `intakeAnswers` step names no `requirement`, or one that is not a form of the schema |
 | Some questions could not be read. Read again to try them again | Some of an intake step's calls did not go through; `finishReading` still ends the reading as `done` |
 
 ## What a reading leaves in the log

@@ -136,16 +136,17 @@ final class ExtractionFields
     }
 
     /**
-     * Whether the step reads a newer document version that its questions were not read from yet: a file that is
-     * not its document's first version, and that no run of these questions cites. Each file is checked on its
-     * own, so a newer version already read does not hide another one nobody has read.
+     * The questions not yet read from a newer document version the step reads: a file that is not its document's
+     * first version, and that none of the question's own runs cites. Each question is checked on its own, so a
+     * reading where one call failed leaves that call's questions unread, and the next reading asks them again.
      *
      * @param submission the submission
      * @param questions the questions the step asks, answered or not
      * @param files the files the step reads
-     * @return {@code true} for the first reading of a newer version, which asks every question again
+     * @return the paths of the questions still to read from a newer version, empty when the files are all first
+     *     versions
      */
-    static boolean isNewRevision(final Submission submission, final Collection<Question> questions,
+    static Set<String> getUnreadInNewerVersions(final Submission submission, final Collection<Question> questions,
         final List<File> files)
     {
         final Set<String> revisions = files.stream()
@@ -154,16 +155,23 @@ final class ExtractionFields
             .map(DocumentVersion::getPath)
             .collect(Collectors.toSet());
         if (revisions.isEmpty()) {
-            return false;
+            return Set.of();
         }
         final Set<String> asked = questions.stream().map(Question::getPath).collect(Collectors.toSet());
-        final Set<String> cited = submission.getAnswers().stream()
-            .filter(answer -> isAsking(answer.getQuestion(), asked))
-            .flatMap(answer -> answer.getExtractions().stream())
-            .flatMap(extraction -> extraction.getSources().stream())
-            .map(DocumentVersion::getPath)
+        final Map<String, Set<String>> cited = new HashMap<>();
+        for (final Answer answer : submission.getAnswers()) {
+            // Called once: each call resolves the reference again
+            final Question question = answer.getQuestion();
+            if (question != null && asked.contains(question.getPath())) {
+                answer.getExtractions().stream()
+                    .flatMap(extraction -> extraction.getSources().stream())
+                    .forEach(source -> cited.computeIfAbsent(question.getPath(), path -> new HashSet<>())
+                        .add(source.getPath()));
+            }
+        }
+        return asked.stream()
+            .filter(path -> !cited.getOrDefault(path, Set.of()).containsAll(revisions))
             .collect(Collectors.toSet());
-        return revisions.stream().anyMatch(revision -> !cited.contains(revision));
     }
 
     /**
@@ -202,11 +210,6 @@ final class ExtractionFields
             }
         }
         return paths;
-    }
-
-    private static boolean isAsking(final Question question, final Set<String> asked)
-    {
-        return question != null && asked.contains(question.getPath());
     }
 
     /** The existing answer of each question, by full question path. New runs are written under these. */

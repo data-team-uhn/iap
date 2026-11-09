@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
+import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
@@ -129,10 +130,11 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
      * The whole intake step: pick the documents and the questions, ask the model, and save its answers.
      *
      * <ol>
-     * <li>The step names no requirement: record that the reading is set up wrong, and stop.</li>
+     * <li>The step names no requirement, or one that is not a form of the schema: record that the reading is set
+     * up wrong, and stop.</li>
      * <li>Find the parsed documents this step reads. None: record why and stop.</li>
-     * <li>Pick the questions of the named requirements. Unless the document is a newer version, drop the ones the
-     * submitter answered. None left: stop.</li>
+     * <li>Pick the questions of the named requirements. Drop the ones the submitter answered, unless they are not
+     * read from a newer version yet. None left: stop.</li>
      * <li>Ask the model, one requirement after another, at most ten questions per call. No call went through:
      * record why and stop.</li>
      * <li>Save one new run under each question whose call went through, found or not. When some calls did not
@@ -147,27 +149,27 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     private void read(final WorkflowTaskContext context, final Resource target)
         throws PersistenceException, ReadingRuns.Stopped
     {
+        final Submission submission = SubmissionFiles.getSubmission(target);
         final List<String> requirements = getRequirementNames(context);
         if (requirements.isEmpty()) {
-            recordNoRequirement(context, target);
+            recordSetUpWrong(context, target, "names no requirement", "");
             return;
         }
-        final Submission submission = SubmissionFiles.getSubmission(target);
+        final List<String> unknown = getUnknownRequirements(submission, requirements);
+        if (!unknown.isEmpty()) {
+            recordSetUpWrong(context, target, "names a requirement that is not a form of the schema",
+                String.join(",", unknown));
+            return;
+        }
         final List<Part> parts = getPartsToRead(context, submission);
         if (parts == null) {
             return;
         }
         final List<File> files = parts.stream().map(Part::file).toList();
-        final Map<String, Map<String, Question>> grouped = getQuestionsByRequirement(submission, requirements);
+        final Map<String, Map<String, Question>> grouped =
+            getQuestionsToAsk(submission, getQuestionsByRequirement(submission, requirements), files);
         final Map<String, Question> questions = new LinkedHashMap<>();
         grouped.values().forEach(questions::putAll);
-        final boolean newRevision = ExtractionFields.isNewRevision(submission, questions.values(), files);
-        if (!newRevision) {
-            // The same version again asks what the submitter has not answered; a newer one asks everything
-            final Set<String> answered = ExtractionFields.getAnswered(submission);
-            questions.values().removeIf(question -> answered.contains(question.getPath()));
-            grouped.values().forEach(group -> group.keySet().retainAll(questions.keySet()));
-        }
         if (questions.isEmpty()) {
             // Everything it asks is answered already, or its requirements do not apply here: nothing to do. The
             // reading's last step, finishReading, ends it.
@@ -194,20 +196,68 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Fails a step that names no requirement. A step asks only its own questions, so naming none is a mistake in
+     * Fails a step whose requirements are named wrong. A step asks only its own questions, so a mistake there is in
      * the workflow, which an administrator has to fix.
      *
      * @param context the step
      * @param target the submission's resource
+     * @param problem what is wrong with the step, such as "names no requirement"
+     * @param names the names at fault, empty when there are none
      * @throws PersistenceException if the status cannot be written
      */
-    private static void recordNoRequirement(final WorkflowTaskContext context, final Resource target)
-        throws PersistenceException
+    private static void recordSetUpWrong(final WorkflowTaskContext context, final Resource target,
+        final String problem, final String names) throws PersistenceException
     {
-        LOGGER.warn("The intake step {} names no requirement", context.getActivity().getPath());
-        ErrorLogger.logProblem("The intake step " + context.getActivity().getPath() + " names no requirement",
-            ErrorContext.of(IntakeAnswersHandler.class, "requirement").about(target.getPath()));
+        final String step = context.getActivity().getPath();
+        LOGGER.warn("The intake step {} {} {}", step, problem, names);
+        ErrorLogger.logProblem("The intake step " + step + " " + problem,
+            ErrorContext.of(IntakeAnswersHandler.class, REQUIREMENT_PARAMETER).about(target.getPath())
+                .with(REQUIREMENT_PARAMETER, names));
         ExtractionStatus.record(target, ExtractionStatus.STATUS_FAILED, NO_REQUIREMENT_MESSAGE);
+    }
+
+    /**
+     * The named requirements that are not a form requirement of the submission's schema version: a typo, or the
+     * name of a document requirement. A form that does not apply to this submission is not one of them.
+     *
+     * @param submission the submission
+     * @param requirements the requirement names, or their full paths
+     * @return the names that match no form requirement, in the order named
+     */
+    private static List<String> getUnknownRequirements(final Submission submission, final List<String> requirements)
+    {
+        final List<FormRequirement> forms = submission.getSchemaVersion().getFormRequirements();
+        return requirements.stream()
+            .filter(name -> forms.stream().noneMatch(form -> name.equals(form.getName())
+                || name.equals(form.getPath())))
+            .toList();
+    }
+
+    /**
+     * The questions this step asks, by requirement. A question the submitter answered is left out, unless it is
+     * not yet read from a newer version of a document the step reads.
+     *
+     * @param submission the submission
+     * @param byRequirement every question the step names, answered or not
+     * @param files the files the step reads
+     * @return the questions to ask, by requirement; a requirement with none left is left out
+     */
+    private static Map<String, Map<String, Question>> getQuestionsToAsk(final Submission submission,
+        final Map<String, Map<String, Question>> byRequirement, final List<File> files)
+    {
+        final Set<String> answered = ExtractionFields.getAnswered(submission);
+        final Set<String> unread = ExtractionFields.getUnreadInNewerVersions(submission,
+            byRequirement.values().stream().flatMap(group -> group.values().stream()).toList(), files);
+        final Map<String, Map<String, Question>> toAsk = new LinkedHashMap<>();
+        byRequirement.forEach((name, group) -> {
+            final Map<String, Question> kept = new LinkedHashMap<>(group);
+            kept.values().removeIf(question -> answered.contains(question.getPath())
+                && !unread.contains(question.getPath()));
+            if (!kept.isEmpty()) {
+                toAsk.put(name, kept);
+            }
+        });
+        return toAsk;
     }
 
     /**
