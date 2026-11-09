@@ -187,9 +187,6 @@
   // documents
   - extractionPrompt (STRING)
 
-  // The shape the LLM's reply must take, as a JSON schema
-  - responseShape (STRING)
-
   // A content path whose items are the options, in place of child
   // sch:AnswerOption nodes, such as /Vocabularies/sites
   - optionsFrom (STRING)

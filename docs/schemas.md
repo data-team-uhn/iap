@@ -53,7 +53,7 @@ assesses every topic on its own.
 | `minValue`, `maxValue` | Bounds for numeric answers. |
 | `pattern`, `patternMessage` | A regular expression every text value must match in full, and what the submitter is told when one does not. |
 | `optionsFrom` | A content path whose items are the options, instead of child options. |
-| `purpose`, `extractionPrompt`, `responseShape` | What answer extraction needs. |
+| `purpose`, `extractionPrompt` | What answer extraction needs. |
 
 A question with `sch:AnswerOption` children is answered only with their values. The
 **value** is what an answer stores and what a condition compares against, so changing it

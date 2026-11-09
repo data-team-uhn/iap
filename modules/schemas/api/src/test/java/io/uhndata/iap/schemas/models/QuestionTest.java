@@ -171,7 +171,6 @@ class QuestionTest
         assertNull(question.getDisplayMode());
         assertNull(question.getPurpose());
         assertNull(question.getExtractionPrompt());
-        assertNull(question.getResponseShape());
     }
 
     @Test
@@ -182,15 +181,13 @@ class QuestionTest
             "text", "How many participants will be recruited?",
             "displayMode", "number",
             "purpose", "Whether the sample size matches the statistical plan",
-            "extractionPrompt", "Read the target number of participants out of the recruitment section",
-            "responseShape", "{\"type\": \"integer\"}"));
+            "extractionPrompt", "Read the target number of participants out of the recruitment section"));
         final Question question = resource.adaptTo(Question.class);
 
         assertEquals("number", question.getDisplayMode());
         assertEquals("Whether the sample size matches the statistical plan", question.getPurpose());
         assertEquals("Read the target number of participants out of the recruitment section",
             question.getExtractionPrompt());
-        assertEquals("{\"type\": \"integer\"}", question.getResponseShape());
     }
 
     private Question question(final String name, final Map<String, Object> properties)

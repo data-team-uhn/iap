@@ -86,9 +86,6 @@ public class Question extends FormItem implements Referenceable
     @ValueMapValue
     private String extractionPrompt;
 
-    @ValueMapValue
-    private String responseShape;
-
     /**
      * The question, as the submitter reads it.
      *
@@ -260,17 +257,6 @@ public class Question extends FormItem implements Referenceable
     public String getExtractionPrompt()
     {
         return this.extractionPrompt;
-    }
-
-    /**
-     * The shape the LLM's reply must take, as a JSON schema.
-     *
-     * @return the JSON schema; {@code null} if none is set
-     */
-    @Nullable
-    public String getResponseShape()
-    {
-        return this.responseShape;
     }
 
     @Override

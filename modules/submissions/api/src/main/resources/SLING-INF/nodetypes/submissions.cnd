@@ -76,6 +76,16 @@
   - extractionStatus (STRING)
   - extractionMessage (STRING)
 
+  // Which reading job has the reading, so only one job pays a model to read
+  // the documents: the claim, and the Sling job id that holds it
+  - extractionReadingClaimed (BOOLEAN)
+  - extractionReadingClaimedBy (STRING)
+
+  // Whether the last reading ended with the request unable to go on, such as
+  // a document that is not what the request asks for; extractionMessage says
+  // why. Removed when a new reading starts
+  - extractionBlocked (BOOLEAN)
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple

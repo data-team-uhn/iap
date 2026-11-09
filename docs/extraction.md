@@ -485,8 +485,8 @@ one big one.
   patterns are in the question block only, because strict structured output rejects
   `minimum`, `maximum` and `pattern`.
 
-A question's `responseShape` is not sent: the form of the answer comes from the
-question's own data type, `maxAnswers`, bounds, pattern and options.
+The form of the answer comes from the question's own data type, `maxAnswers`, bounds,
+pattern and options.
 
 ### Calls of at most ten questions
 
@@ -991,12 +991,17 @@ On `sub:File`:
 | `markdownFile` | The text the model reads |
 | `pdfFile` | The PDF the text came from, only for office uploads |
 
+All five are declared on `sub:Submission` in `submissions.cnd`.
+
 On the schema side: `readingWorkflow` on `sch:SchemaVersion` (a reference to the reading
 workflow version), and on `sch:Question` the `extractionPrompt`, `purpose`,
 `description`, `dataType`, `maxAnswers`, `minValue`/`maxValue`, `pattern`/`patternMessage`,
-and option children or `optionsFrom` (`responseShape` is not used). `optionsFrom` names
-a content path. For a catalogue such as `/Categories`, the live leaves are the options,
-with their descriptions (`OptionCatalog`).
+and option children or `optionsFrom`. `optionsFrom` names a content path. For a
+catalogue such as `/Categories`, the live leaves are the options, with their descriptions
+(`OptionCatalog`).
+
+`readingWorkflow` is not declared in `schemas.cnd`: it goes away when one handler, run
+from the submission's own workflow, replaces the reading workflow each schema names.
 
 ## Who calls whom
 
