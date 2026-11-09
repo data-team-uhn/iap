@@ -19,6 +19,8 @@ package io.uhndata.iap.submissions.internal.handlers;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -81,9 +83,9 @@ final class SuggestionDistance
         if (shown.isActedOn()) {
             return;
         }
-        // Compare values, not the raw reply: the suggestion is split and matched to options the way answers are saved
-        final String suggested = String.join(", ", offered);
-        final int distance = LevenshteinDistance.getDefaultInstance().apply(suggested, String.join(", ", values));
+        // In order, so taking the suggested values in another order still counts as taking them as they were
+        final String suggested = joinInOrder(offered.stream());
+        final int distance = LevenshteinDistance.getDefaultInstance().apply(suggested, joinInOrder(Stream.of(values)));
         final Resource run = Objects.requireNonNull(answer.getResourceResolver().getResource(shown.getPath()),
             "A run the answer just reported is still where it said");
         final ModifiableValueMap properties = Objects.requireNonNull(run.adaptTo(ModifiableValueMap.class),
@@ -91,5 +93,10 @@ final class SuggestionDistance
         properties.put(EDIT_DISTANCE_PROPERTY, (long) distance);
         // Of the suggestion's own length; an empty suggestion counts as one character, not a division by zero
         properties.put(PERCENTAGE_DISTANCE_PROPERTY, PERCENT_SCALE * distance / Math.max(1, suggested.length()));
+    }
+
+    private static String joinInOrder(final Stream<String> values)
+    {
+        return values.sorted().collect(Collectors.joining(", "));
     }
 }

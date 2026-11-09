@@ -276,6 +276,18 @@ class SaveAnswersHandlerTest
         assertEquals(20.0, run.getValueMap().get("percentageDistance", Double.class));
     }
 
+    // Several values say the same thing in any order
+    @Test
+    void measuresTheSuggestedValuesTakenInAnotherOrderAsNoDistance() throws Exception
+    {
+        final Resource run = suggest(SUGGESTED_DATE);
+
+        SuggestionDistance.record(onlyAnswer(), new String[] { "St Michael's", "Sunnybrook" },
+            List.of("Sunnybrook", "St Michael's"));
+
+        assertEquals(0L, run.getValueMap().get(EDIT_DISTANCE, Long.class));
+    }
+
     @Test
     void measuresASuggestionTakenAsItStoodAsNoDistance() throws Exception
     {

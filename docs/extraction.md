@@ -721,7 +721,8 @@ gives the answer a value is measured against the suggestion the form offered jus
 the save (`Answer.getOfferedSuggestion`, see "A newer version"), on the newest run, if
 nobody has acted on that run yet (`SuggestionDistance`, called by `SaveAnswersHandler`).
 A run kept out of sight is never measured. `editDistance` is the Levenshtein distance
-between the two, each joined with ", ". `percentageDistance` is that distance as a
+between the two, each sorted and joined with ", ", so the suggested values taken in
+another order measure 0. `percentageDistance` is that distance as a
 percentage of the suggestion's own length. Clearing a field measures nothing, and a run
 keeps the first measure it got. So what the submitter did needs no flag of its own:
 
