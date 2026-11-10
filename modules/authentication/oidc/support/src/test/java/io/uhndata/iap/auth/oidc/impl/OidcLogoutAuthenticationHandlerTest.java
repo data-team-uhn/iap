@@ -206,8 +206,8 @@ public class OidcLogoutAuthenticationHandlerTest
     void unreachableProviderFallsBackToTheRedirect() throws Exception
     {
         final Fixture f = new Fixture().withStoredToken(CIPHERTEXT, TOKEN);
-        Mockito.when(f.httpRequests.post(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
-            .thenThrow(new IOException("connection refused"));
+        Mockito.when(f.httpRequests.post(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(),
+            ArgumentMatchers.anyString())).thenThrow(new IOException("connection refused"));
 
         f.logout();
 
@@ -439,8 +439,8 @@ public class OidcLogoutAuthenticationHandlerTest
 
         Fixture answering(final int status, final String body) throws IOException
         {
-            Mockito.when(this.httpRequests.post(ArgumentMatchers.any(), ArgumentMatchers.any(),
-                ArgumentMatchers.any())).thenReturn(new HttpResponse(status, body));
+            Mockito.when(this.httpRequests.post(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyString())).thenReturn(new HttpResponse(status, body));
             return this;
         }
 
