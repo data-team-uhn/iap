@@ -95,21 +95,21 @@ final class TaskContexts
         Mockito.when(activity.get(Mockito.anyString(), Mockito.eq(String.class)))
             .thenAnswer(invocation -> {
                 final Object value = properties.get(invocation.<String>getArgument(0));
-                return value instanceof String[] many ? (many.length == 0 ? null : many[0]) : value;
+                return value instanceof final String[] many ? (many.length == 0 ? null : many[0]) : value;
             });
         // The list form, for a property that names several things, such as the documents a step reads.
         // A single value reads as a list of one, as a ValueMap would convert it.
         Mockito.when(activity.get(Mockito.anyString(), Mockito.eq(String[].class)))
             .thenAnswer(invocation -> {
                 final Object value = properties.get(invocation.<String>getArgument(0));
-                return value instanceof String one ? new String[] { one } : value;
+                return value instanceof final String one ? new String[] { one } : value;
             });
         // The Boolean form, for a flag such as finishReading's `blocks`. A diagram writes it as text, which a
         // ValueMap converts.
         Mockito.when(activity.get(Mockito.anyString(), Mockito.eq(Boolean.class)))
             .thenAnswer(invocation -> {
                 final Object value = properties.get(invocation.<String>getArgument(0));
-                return value instanceof String text ? Boolean.valueOf(text) : value;
+                return value instanceof final String text ? Boolean.valueOf(text) : value;
             });
         return activity;
     }

@@ -213,7 +213,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         final Set<String> answeredOrSuggested = ExtractionFields.getAnsweredOrSuggested(submission);
         final Map<String, List<ClassificationRequirement>> open = new LinkedHashMap<>();
         for (final Requirement requirement : submission.getSchemaVersion().getRequirements()) {
-            if (!(requirement instanceof ClassificationRequirement classification)
+            if (!(requirement instanceof final ClassificationRequirement classification)
                 || classification.getDocumentRequirementName() == null) {
                 continue;
             }

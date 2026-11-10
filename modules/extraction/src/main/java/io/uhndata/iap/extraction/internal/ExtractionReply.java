@@ -135,7 +135,7 @@ final class ExtractionReply
         final List<String> values = given.size() > 1 && !field.answer().multiple() ? List.of() : given;
         final Set<String> offered = new HashSet<>();
         final List<FieldResult.Passage> passages = new ArrayList<>();
-        if (entry.get(ResponseSchema.EVIDENCE_KEY) instanceof JsonArray evidence) {
+        if (entry.get(ResponseSchema.EVIDENCE_KEY) instanceof final JsonArray evidence) {
             evidence.forEach(item -> readQuote(item, document, offered, passages));
         }
         final JsonValue reasoning = entry.get(ResponseSchema.REASONING_KEY);
@@ -144,7 +144,7 @@ final class ExtractionReply
         final double confidence = values.isEmpty() ? claimed
             : claimed * getEvidenceFactor(passages.size(), offered.size());
         return new FieldResult(field.key(), values,
-            reasoning instanceof JsonString text ? text.getString().strip() : "", confidence, passages,
+            reasoning instanceof final JsonString text ? text.getString().strip() : "", confidence, passages,
             offered.size());
     }
 
@@ -155,8 +155,8 @@ final class ExtractionReply
     private static void readQuote(final JsonValue item, final DocumentScan document, final Set<String> offered,
         final List<FieldResult.Passage> passages)
     {
-        if (!(item instanceof JsonObject evidenceItem)
-            || !(evidenceItem.get(ResponseSchema.QUOTE_KEY) instanceof JsonString quote)
+        if (!(item instanceof final JsonObject evidenceItem)
+            || !(evidenceItem.get(ResponseSchema.QUOTE_KEY) instanceof final JsonString quote)
             || quote.getString().isBlank() || !offered.add(QuoteVerifier.normalize(quote.getString()))) {
             return;
         }
@@ -187,7 +187,7 @@ final class ExtractionReply
     /** The values a reply gives, as text: one for a single answer, one per item for a list, none for null. */
     private static List<String> readValues(final JsonValue value)
     {
-        if (value instanceof JsonArray items) {
+        if (value instanceof final JsonArray items) {
             final List<String> values = new ArrayList<>();
             items.forEach(item -> values.addAll(readValues(item)));
             return values;
@@ -198,9 +198,9 @@ final class ExtractionReply
 
     private static String readValue(final JsonValue value)
     {
-        if (value instanceof JsonString text) {
+        if (value instanceof final JsonString text) {
             return text.getString();
-        } else if (value instanceof JsonNumber number) {
+        } else if (value instanceof final JsonNumber number) {
             return readNumber(number.bigDecimalValue());
         } else if (JsonValue.TRUE.equals(value) || JsonValue.FALSE.equals(value)) {
             return value.toString();

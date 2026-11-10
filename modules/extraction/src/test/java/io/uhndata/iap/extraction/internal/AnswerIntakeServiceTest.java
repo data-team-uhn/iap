@@ -107,7 +107,7 @@ class AnswerIntakeServiceTest
             this.system = systemPrompt;
             this.asked.add(messages.get(0).getContent());
             final Object reply = this.replies.isEmpty() ? "" : this.replies.remove(0);
-            if (reply instanceof IOException failure) {
+            if (reply instanceof final IOException failure) {
                 throw failure;
             }
             return (String) reply;

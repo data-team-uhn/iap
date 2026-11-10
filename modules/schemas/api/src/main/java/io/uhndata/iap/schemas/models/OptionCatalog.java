@@ -105,7 +105,7 @@ public final class OptionCatalog
     {
         final List<OfferedOption> options = new ArrayList<>();
         for (final DocumentedItem item : catalog.getDocumentedItems()) {
-            final String value = item instanceof Content content ? content.getPath() : item.getName();
+            final String value = item instanceof final Content content ? content.getPath() : item.getName();
             if (under != null && !(item instanceof Content && value.startsWith(under))) {
                 continue;
             }

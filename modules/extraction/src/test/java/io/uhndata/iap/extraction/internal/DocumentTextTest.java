@@ -159,5 +159,4 @@ class DocumentTextTest
         final int at = scan.locate(quote);
         return at < 0 ? "" : scan.getHeading(at);
     }
-
 }

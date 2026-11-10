@@ -182,7 +182,8 @@ final class SubmissionFiles
 
     private static boolean isParsingSkipped(final Document document)
     {
-        return document.getFulfills() instanceof DocumentRequirement requirement && requirement.isParsingSkipped();
+        return document.getFulfills() instanceof final DocumentRequirement requirement
+            && requirement.isParsingSkipped();
     }
 
     /**

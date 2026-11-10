@@ -131,10 +131,10 @@ public class ClassificationRequirement extends FormRequirement
     private static Question findFirstQuestion(final List<FormItem> items)
     {
         for (final FormItem item : items) {
-            if (item instanceof Question question) {
+            if (item instanceof final Question question) {
                 return question;
             }
-            if (item instanceof Section section) {
+            if (item instanceof final Section section) {
                 final Question found = findFirstQuestion(section.getChildren());
                 if (found != null) {
                     return found;

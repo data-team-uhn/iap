@@ -450,5 +450,4 @@ public class IntakeAnswersHandler implements ServiceTaskHandler
     private record Part(File file, String heading)
     {
     }
-
 }
