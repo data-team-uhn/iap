@@ -93,9 +93,11 @@ mismatched is not comparable and fails closed with a warning.
 | `ownProperty` | the property named by `value`, read on the content the condition is evaluated on rather than on its enclosing entity — e.g. a question's `optionsFrom` |
 
 `answer` has two details worth knowing. The question is identified by UUID or by a path
-**relative to the entity holding the operand definition** (e.g. `form/age` under the
-schema version), not relative to the context — so questions sharing a name in different
-sections never collide. And the answer node (anything whose `question` property
+**within the schema version the submission answers** (e.g. `form/age`), so questions
+sharing a name in different sections never collide. A path means the same wherever the
+condition is written, in the schema itself or in a workflow running over the submission.
+A workflow names questions by path: it outlives any one version of the schema, and each
+version's questions have identifiers of their own. And the answer node (anything whose `question` property
 references it) is looked up **nearest-scope-first**: the context's own subtree, then
 widening one ancestor at a time up to the submission holding the context. A condition
 evaluated inside a repeated block therefore sees that block's own answer. One evaluated
