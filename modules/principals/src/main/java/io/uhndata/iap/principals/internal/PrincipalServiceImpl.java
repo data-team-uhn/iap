@@ -206,7 +206,7 @@ public class PrincipalServiceImpl implements PrincipalService
         final PrincipalManager principalManager) throws RepositoryException
     {
         final Principal principal = principalManager.getPrincipal(name);
-        if (!(principal instanceof GroupPrincipal group)) {
+        if (!(principal instanceof final GroupPrincipal group)) {
             LOGGER.warn("The name {} names nobody in this repository", name);
             return List.of();
         }
@@ -266,7 +266,7 @@ public class PrincipalServiceImpl implements PrincipalService
             return named.isGroup() && ((Group) named).isMember(user);
         }
         final Principal principal = principalManager.getPrincipal(name);
-        return principal instanceof GroupPrincipal group && group.isMember(user.getPrincipal());
+        return principal instanceof final GroupPrincipal group && group.isMember(user.getPrincipal());
     }
 
     /**
@@ -313,7 +313,7 @@ public class PrincipalServiceImpl implements PrincipalService
     private static JackrabbitSession sessionOf(final ResourceResolver resolver)
     {
         final Session session = resolver.adaptTo(Session.class);
-        if (!(session instanceof JackrabbitSession jackrabbit)) {
+        if (!(session instanceof final JackrabbitSession jackrabbit)) {
             throw new PrincipalLookupException("The session cannot reach the user store", null);
         }
         return jackrabbit;

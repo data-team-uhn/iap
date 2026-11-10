@@ -141,7 +141,7 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
             if (!legal(key, context.prefixes())) {
                 throw new InvalidPayloadException(at + " is not a name content can take");
             }
-            if (entry.getValue() instanceof JsonObject object) {
+            if (entry.getValue() instanceof final JsonObject object) {
                 children.add(plan(context, at, key, object, List.of(type)));
             } else {
                 properties.add(TreeProperty.of(context.values(), at, key, entry.getValue(), type));
@@ -164,7 +164,7 @@ record ContentTree(String name, String type, List<TreeProperty> properties, List
     private static NodeType typeOf(final Context context, final String where, final JsonObject json)
         throws InvalidPayloadException, RepositoryException
     {
-        if (!(json.get(PRIMARY_TYPE) instanceof JsonString declared)) {
+        if (!(json.get(PRIMARY_TYPE) instanceof final JsonString declared)) {
             throw new InvalidPayloadException(where + " needs a " + PRIMARY_TYPE);
         }
         final String name = declared.getString();

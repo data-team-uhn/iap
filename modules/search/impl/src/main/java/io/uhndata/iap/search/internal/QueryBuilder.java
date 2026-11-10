@@ -353,5 +353,4 @@ final class QueryBuilder
         // Backslash first, or it would escape the escapes added after it
         return value.strip().replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
     }
-
 }

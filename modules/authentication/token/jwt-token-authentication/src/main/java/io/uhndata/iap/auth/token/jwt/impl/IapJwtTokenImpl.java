@@ -64,7 +64,7 @@ public final class IapJwtTokenImpl implements IapToken
     public IapJwtTokenImpl(final Jwt<?, ?> jwt, final String token)
     {
         Object payload = jwt.getPayload();
-        if (payload instanceof Claims claims) {
+        if (payload instanceof final Claims claims) {
             this.loginToken = token;
             this.userId = claims.getSubject();
             this.expirationTime = new Calendar.Builder().setInstant(claims.getExpiration()).build();

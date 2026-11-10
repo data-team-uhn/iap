@@ -404,7 +404,7 @@ public class LoggedErrorsStatusReporter implements StatusReporter
             .append(moment(error.getFirstOccurrence())).append(", last seen ")
             .append(moment(error.getLastOccurrence())).append(".\n");
         appendSubjects(text, error);
-        if (error instanceof LoggedFailure thrown) {
+        if (error instanceof final LoggedFailure thrown) {
             appendMessages(text, error);
             text.append("\n```\n").append(thrown.getStackTrace()).append("\n```\n");
         } else {

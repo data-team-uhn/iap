@@ -366,5 +366,4 @@ class CaughtMessageBuilderTest
         // Encoded per RFC 2047 rather than sent as raw bytes, and decoding gives back what was asked for
         assertEquals("Zoë", ((InternetAddress) message.getFrom()[0]).getPersonal());
     }
-
 }

@@ -129,7 +129,7 @@ public class PermanentDeletionVeto implements DeletionVeto
         // no local group node behind them, so a membership lookup would report that a Keycloak role's members belong to
         // nothing. Bound principals cover local groups and provider-supplied roles alike, which is what lets the two
         // vocabularies be used interchangeably in the configuration.
-        if (!(requester instanceof JackrabbitSession jackrabbitSession)) {
+        if (!(requester instanceof final JackrabbitSession jackrabbitSession)) {
             // Fail closed: without the Jackrabbit API there is no way to learn what this session acts as
             LOGGER.warn("Cannot read the principals of a {}, so the permanent deletion policy exempts nobody",
                 requester.getClass().getName());
