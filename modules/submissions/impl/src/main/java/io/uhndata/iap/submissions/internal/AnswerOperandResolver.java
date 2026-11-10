@@ -32,14 +32,17 @@ import io.uhndata.iap.conditions.api.OperandType;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.spi.OperandResolver;
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Submission;
 
 /**
- * Resolves {@code answer} operands: the recorded answer to a question, e.g. a submission's answer to one of its
- * schema's questions. The operand value identifies the question, either by its UUID or by its path relative to the
- * entity holding the operand definition (e.g. the schema version), so questions with the same name in different
- * containers never collide. The question's own declared {@code dataType} is reported as the resolved operand's
- * type, steering the evaluator's comparison type unification.
+ * Resolves {@code answer} operands: a submission's recorded answer to one of its schema's questions. The operand
+ * value identifies the question by its UUID, or by its path within the schema version the submission answers. Paths
+ * keep questions with the same name in different sections apart, and mean the same wherever the condition is
+ * defined: in that schema version, or in a workflow running over the submission. The question's own declared
+ * {@code dataType} is reported as the resolved operand's type, steering the evaluator's comparison type unification.
  *
  * <p>
  * The answer itself is any node whose {@code question} property references the identified question. It is looked
@@ -106,12 +109,16 @@ public class AnswerOperandResolver implements OperandResolver
             LOGGER.warn("Answer operand at {} does not identify a question", operand.getPath());
             return Operand.NO_VALUES;
         }
-        final Question question = this.resolveQuestion(value[0], operand, context);
+        final List<Content> scopes = scopesUpToSubmission(context);
+        if (scopes.isEmpty()) {
+            return Operand.NO_VALUES;
+        }
+        final Question question = this.resolveQuestion(value[0], operand, scopes.getLast());
         if (question == null) {
             return Operand.NO_VALUES;
         }
         Content searched = null;
-        for (final Content scope : scopesUpToSubmission(context)) {
+        for (final Content scope : scopes) {
             final Optional<Content> answer = this.findAnswer(scope, searched, question.identifier);
             if (answer.isPresent()) {
                 return Operand.of(answer.get().get(VALUE_PROPERTY), question.type);
@@ -133,28 +140,41 @@ public class AnswerOperandResolver implements OperandResolver
         return List.of();
     }
 
-    private Question resolveQuestion(final String reference, final ConditionOperand operand, final Content context)
+    private Question resolveQuestion(final String reference, final ConditionOperand operand, final Content submission)
     {
         if (UUID_FORMAT.matcher(reference).matches()) {
             // The identifier is usable as-is; the question node is only needed for its declared type,
             // so failing to load it just leaves the type to be inferred from the answer values.
-            return new Question(reference, declaredType(context.getReference(reference, Content.class)));
+            return new Question(reference, declaredType(submission.getReference(reference, Content.class)));
         }
-        // A relative reference is resolved against the entity the operand itself belongs to, e.g. the schema
-        // version, not against the context the condition is evaluated for
-        final Content base = OperandResolver.findEnclosingEntity(operand);
-        final Content question = base == null ? null : base.getChild(reference, Content.class);
+        final SchemaVersion version = schemaVersionOf(submission);
+        final Content question = version == null ? null : version.getChild(reference, Content.class);
         if (question == null) {
-            LOGGER.warn("Answer operand at {} references unresolvable question {}", operand.getPath(), reference);
+            LOGGER.warn("Answer operand at {} names question {}, which the schema version of {} lacks",
+                operand.getPath(), reference, submission.getPath());
+            ErrorLogger.logProblem("An answer operand names a question the submission's schema version does not have",
+                problemIn(operand).with("question", reference).with("submission", submission.getPath()));
             return null;
         }
         final String questionId = question.get("jcr:uuid", String.class);
         if (questionId == null) {
             LOGGER.warn("Answer operand at {} references non-referenceable question {}", operand.getPath(),
                 question.getPath());
+            ErrorLogger.logProblem("An answer operand names something that is not a question",
+                problemIn(operand).with("question", question.getPath()));
             return null;
         }
         return new Question(questionId, declaredType(question));
+    }
+
+    private static ErrorContext problemIn(final ConditionOperand operand)
+    {
+        return ErrorContext.of(AnswerOperandResolver.class, "resolve").about(operand.getPath());
+    }
+
+    private static SchemaVersion schemaVersionOf(final Content submission)
+    {
+        return Optional.ofNullable(submission.as(Submission.class)).map(Submission::findSchemaVersion).orElse(null);
     }
 
     private static OperandType declaredType(final Content question)

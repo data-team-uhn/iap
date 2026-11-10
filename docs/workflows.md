@@ -1014,11 +1014,6 @@ each completed on its own.
   since nothing could wake it: the engine's door opens onto a homepage or a task.
 - **Read access is never revoked.** It lasts for the life of the instance rather than
   while a task is open.
-- **A gateway's guards cannot name a question by its path.** They are evaluated against
-  the instance, a part of its host, so `variable` reaches what the run knows and `tags`
-  and `property` read the host; but an `answer` operand resolves a relative question
-  path against its own definition, and a workflow holds no questions, so routing on a
-  request's answers needs the question's identifier.
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created
   without it and the problem recorded; a guard is written as a `cond:condition` in the
   arc's `extensionElements`.

@@ -37,6 +37,8 @@ import io.uhndata.iap.conditions.api.OperandType;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.submissions.models.Submission;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -61,6 +63,10 @@ class AnswerOperandResolverTest
 
     private static final String QUESTION_ID = "11111111-2222-3333-4444-555555555555";
 
+    private static final String VERSION_ID = "66666666-7777-8888-9999-000000000000";
+
+    private static final String VERSION_PATH = "/Schemas/schema/1.0";
+
     private final SlingContext context = new SlingContext();
 
     private final AnswerOperandResolver resolver = new AnswerOperandResolver();
@@ -68,24 +74,41 @@ class AnswerOperandResolverTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, ConditionOperand.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, ConditionOperand.class, Submission.class,
+            SchemaVersion.class);
+        this.context.create().resource(VERSION_PATH, SLING_RESOURCE_TYPE, SchemaVersion.RESOURCE_TYPE);
     }
 
-    /** Creates an operand identifying the target question by the given reference. */
+    /** Creates an operand identifying the target question by the given reference, in a condition of the schema. */
     private ConditionOperand createOperand(final String... reference)
     {
-        // The operand definition lives inside a schema-version-like entity, the base for relative path references
-        this.context.create().resource("/Schemas/schema/1.0",
-            SLING_RESOURCE_TYPE, ENTITY_TYPE);
-        return this.context.create().resource("/Schemas/schema/1.0/req/cond:condition/operandA", Map.of(
+        return this.createOperandAt(VERSION_PATH + "/req/cond:condition/operandA", reference);
+    }
+
+    private ConditionOperand createOperandAt(final String path, final String... reference)
+    {
+        return this.context.create().resource(path, Map.of(
             SLING_RESOURCE_TYPE, ConditionOperand.RESOURCE_TYPE,
             "source", "answer",
             "value", reference)).adaptTo(ConditionOperand.class);
     }
 
+    /** Creates a submission answering the schema version. */
     private Content createSubmission(final String path)
     {
-        return this.context.create().resource(path, SLING_RESOURCE_TYPE, SUBMISSION_TYPE).adaptTo(Content.class);
+        return this.context.create().resource(path, SLING_RESOURCE_TYPE, SUBMISSION_TYPE, "schemaVersion", VERSION_ID)
+            .adaptTo(Content.class);
+    }
+
+    /** Lets submissions reach the schema version they answer through the session. */
+    private void makeTheVersionReachable()
+        throws RepositoryException
+    {
+        final Node versionNode = Mockito.mock(Node.class);
+        Mockito.when(versionNode.getPath()).thenReturn(VERSION_PATH);
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getNodeByIdentifier(VERSION_ID)).thenReturn(versionNode);
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
     }
 
     private void createAnswer(final String path, final String question, final String value)
@@ -116,7 +139,9 @@ class AnswerOperandResolverTest
 
     @Test
     void resolvesAnswersByQuestionPath()
+        throws RepositoryException
     {
+        this.makeTheVersionReachable();
         final ConditionOperand operand = this.createOperand("form/q1");
         this.context.create().resource("/Schemas/schema/1.0/form/q1", Map.of(
             "jcr:uuid", QUESTION_ID, "dataType", "long"));
@@ -129,6 +154,42 @@ class AnswerOperandResolverTest
         assertEquals("42", resolved.get(0));
         // The question's own declared data type steers the comparison type unification
         assertEquals(OperandType.LONG, resolved.getType());
+    }
+
+    @Test
+    void resolvesAQuestionPathInAWorkflowsGuardAgainstTheSubmissionsSchemaVersion()
+        throws RepositoryException
+    {
+        this.makeTheVersionReachable();
+        this.context.create().resource("/WorkflowDefinitions/timeOff/v1", SLING_RESOURCE_TYPE, ENTITY_TYPE);
+        final ConditionOperand operand =
+            this.createOperandAt("/WorkflowDefinitions/timeOff/v1/route/toLong/cond:condition/operandA", "form/q1");
+        this.context.create().resource("/Schemas/schema/1.0/form/q1", Map.of(
+            "jcr:uuid", QUESTION_ID, "dataType", "long"));
+        this.createSubmission("/Submissions/sub");
+        this.createAnswer("/Submissions/sub/a1", QUESTION_ID, "42");
+        final Content instance = this.context.create().resource("/Submissions/sub/wf:instances/timeOff",
+            SLING_RESOURCE_TYPE, INSTANCE_TYPE).adaptTo(Content.class);
+
+        final Operand resolved = this.resolver.resolve(operand, instance);
+
+        assertEquals("42", resolved.get(0));
+        assertEquals(OperandType.LONG, resolved.getType());
+    }
+
+    @Test
+    void resolvesAQuestionPathInASystemWorkflowsStartGuardAgainstTheTargetsSchemaVersion()
+        throws RepositoryException
+    {
+        this.makeTheVersionReachable();
+        this.context.create().resource("/SystemWorkflows/escalate/v1", SLING_RESOURCE_TYPE, ENTITY_TYPE);
+        final ConditionOperand operand =
+            this.createOperandAt("/SystemWorkflows/escalate/v1/requested/cond:condition/operandA", "form/q1");
+        this.context.create().resource("/Schemas/schema/1.0/form/q1", Map.of("jcr:uuid", QUESTION_ID));
+        final Content target = this.createSubmission("/Submissions/sub");
+        this.createAnswer("/Submissions/sub/a1", QUESTION_ID, "yes");
+
+        assertEquals("yes", this.resolver.resolve(operand, target).get(0));
     }
 
     @Test
@@ -266,7 +327,9 @@ class AnswerOperandResolverTest
 
     @Test
     void resolvesToEmptyWhenThePathDoesNotResolve()
+        throws RepositoryException
     {
+        this.makeTheVersionReachable();
         final ConditionOperand operand = this.createOperand("form/missing");
         final Content submission = this.createSubmission("/Submissions/sub");
 
@@ -275,7 +338,9 @@ class AnswerOperandResolverTest
 
     @Test
     void resolvesToEmptyWhenThePathIsNotReferenceable()
+        throws RepositoryException
     {
+        this.makeTheVersionReachable();
         final ConditionOperand operand = this.createOperand("form/q1");
         // The question exists but has no jcr:uuid to match answers against
         this.context.create().resource("/Schemas/schema/1.0/form/q1", Map.of("text", "Question?"));
@@ -285,13 +350,12 @@ class AnswerOperandResolverTest
     }
 
     @Test
-    void resolvesToEmptyWhenTheOperandIsOutsideAnyEntity()
+    void resolvesToEmptyWhenTheSubmissionCannotReachItsSchemaVersion()
     {
-        final ConditionOperand operand = this.context.create().resource("/orphan/operandA", Map.of(
-            SLING_RESOURCE_TYPE, ConditionOperand.RESOURCE_TYPE,
-            "source", "answer",
-            "value", new String[]{ "form/q1" })).adaptTo(ConditionOperand.class);
+        final ConditionOperand operand = this.createOperand("form/q1");
+        this.context.create().resource("/Schemas/schema/1.0/form/q1", Map.of("jcr:uuid", QUESTION_ID));
         final Content submission = this.createSubmission("/Submissions/sub");
+        this.createAnswer("/Submissions/sub/a1", QUESTION_ID, "yes");
 
         assertTrue(this.resolver.resolve(operand, submission).isEmpty());
     }
