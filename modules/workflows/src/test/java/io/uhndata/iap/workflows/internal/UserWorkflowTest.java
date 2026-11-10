@@ -911,6 +911,34 @@ class UserWorkflowTest
     }
 
     @Test
+    void recordsWhomADelegateCompletedTheTaskFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.ADMIN), APPROVED, EngineFixture.REQUESTER);
+
+        assertEquals("completed", read(TASK).get("status"));
+        assertEquals(EngineFixture.REQUESTER, read(TASK).get("assignee"));
+        final RecordedAction decision = this.history.described().get(this.history.described().size() - 1);
+        assertEquals(EngineFixture.ADMIN, decision.getRequestedBy());
+        assertEquals(EngineFixture.REQUESTER, decision.getOnBehalfOf());
+    }
+
+    @Test
+    void grantsReadToWhomADelegateStartedTheProcessFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        createBootstrap();
+        reference(HOST, "workflow", PROCESS);
+
+        engine().receiveEvent(host(EngineFixture.ADMIN), START, EngineFixture.REQUESTER);
+
+        assertTrue(EngineFixture.GRANTED.contains(EngineFixture.REQUESTER));
+        assertFalse(EngineFixture.GRANTED.contains(EngineFixture.ADMIN));
+    }
+
+    @Test
     void takesTheDefaultArcWhenNoConditionMatches() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);

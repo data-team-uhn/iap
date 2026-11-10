@@ -125,12 +125,12 @@ final class DeliveryConsequences
     /**
      * The delivery as its history records it, when a system workflow handled its event.
      *
-     * @param actor the user who sent the event
+     * @param actor who sent the event, and whom for
      * @param event the event
      * @param start the start event of the system workflow that caught it
      * @return the action, with the instance the delivery started and what its steps said they did
      */
-    RecordedAction recordedAsSystemWorkflow(final String actor, final WorkflowEvent event, final FlowNode start)
+    RecordedAction recordedAsSystemWorkflow(final Actor actor, final WorkflowEvent event, final FlowNode start)
     {
         return withEffects(DeliveryCauses.ofSystemWorkflow(actor, event, start, this.startedInstance));
     }
@@ -138,12 +138,12 @@ final class DeliveryConsequences
     /**
      * The delivery as its history records it, when its event completed a task of a running instance.
      *
-     * @param actor the user who sent the event
+     * @param actor who sent the event, and whom for
      * @param event the event
      * @param task the task the event completed, as the event left it
      * @return the action, with what its steps said they did
      */
-    RecordedAction recordedAsTask(final String actor, final WorkflowEvent event, final Resource task)
+    RecordedAction recordedAsTask(final Actor actor, final WorkflowEvent event, final Resource task)
     {
         return withEffects(DeliveryCauses.ofTask(actor, event, task));
     }

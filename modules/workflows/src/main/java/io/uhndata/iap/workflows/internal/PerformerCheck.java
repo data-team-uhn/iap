@@ -53,8 +53,8 @@ import io.uhndata.iap.workflows.models.FlowNode;
  */
 final class PerformerCheck
 {
-    /** What an actor is told when the definition does not admit them. The same words whatever the reason. */
-    private static final String REFUSAL_MESSAGE = "You are not allowed to do this";
+    /** What an actor is told when they may not do something. The same words whatever the reason. */
+    static final String REFUSAL_MESSAGE = "You are not allowed to do this";
 
     /** Says who the names in a definition stand for. */
     private final Performers performers;
@@ -76,7 +76,7 @@ final class PerformerCheck
      *
      * @param performers says who the names in a definition stand for
      * @param serviceResolver the engine's own session, used to look the actor up
-     * @param actor the user who fired the event, as their repository user id
+     * @param actor the user the event counts as, as their repository user id
      * @throws WorkflowFailedException when the repository cannot say who the actor is
      */
     PerformerCheck(final Performers performers, final ResourceResolver serviceResolver, final String actor)

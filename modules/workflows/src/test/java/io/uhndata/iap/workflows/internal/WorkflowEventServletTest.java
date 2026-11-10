@@ -39,6 +39,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
@@ -48,6 +50,7 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.TaskInstance;
@@ -90,7 +93,7 @@ class WorkflowEventServletTest
     @Test
     void redirectsToTheCreatedEntity() throws WorkflowException, IOException, ServletException
     {
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of(WorkflowResult.CREATED_PATH_VARIABLE, "/Workflows/myCoolWorkflow")));
         final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
 
@@ -104,7 +107,7 @@ class WorkflowEventServletTest
     @Test
     void answersPlainCompletionWhenNothingWasCreated() throws WorkflowException, IOException, ServletException
     {
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of()));
         final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
 
@@ -117,7 +120,7 @@ class WorkflowEventServletTest
     @Test
     void translatesThePostIntoACreateEvent() throws WorkflowException, IOException, ServletException
     {
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of()));
         final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
 
@@ -127,7 +130,7 @@ class WorkflowEventServletTest
             ":redirect", "/elsewhere",
             "_charset_", "utf-8")), new MockSlingJakartaHttpServletResponse());
 
-        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture(), Mockito.any());
         final WorkflowEvent event = sent.getValue();
         assertEquals(WorkflowEventServlet.CREATE_EVENT, event.getName());
         assertEquals("My cool workflow", event.get("title"));
@@ -138,11 +141,61 @@ class WorkflowEventServletTest
     }
 
     @Test
+    void passesOnWhomTheEventIsSentFor() throws WorkflowException, IOException, ServletException
+    {
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request(Map.of(WorkflowEventServlet.ON_BEHALF_OF_PARAMETER, "alice")),
+            new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture(), Mockito.eq("alice"));
+        assertFalse(sent.getValue().getPayload().containsKey(WorkflowEventServlet.ON_BEHALF_OF_PARAMETER));
+    }
+
+    @Test
+    void passesOnWhomTheEventIsSentForWithoutSurroundingSpaces()
+        throws WorkflowException, IOException, ServletException
+    {
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+
+        this.servlet.doPost(request(Map.of(WorkflowEventServlet.ON_BEHALF_OF_PARAMETER, " alice ")),
+            new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), Mockito.any(), Mockito.eq("alice"));
+    }
+
+    @Test
+    void sendsForNobodyElseWhenOnBehalfOfIsLeftBlank() throws WorkflowException, IOException, ServletException
+    {
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+
+        this.servlet.doPost(request(Map.of(WorkflowEventServlet.ON_BEHALF_OF_PARAMETER, " ")),
+            new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), Mockito.any(), Mockito.isNull());
+    }
+
+    @Test
+    void sendsForNobodyElseWithoutOnBehalfOf() throws WorkflowException, IOException, ServletException
+    {
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+
+        this.servlet.doPost(request(Map.of("title", "My cool workflow")), new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), Mockito.any(), Mockito.isNull());
+    }
+
+    @Test
     void translatesAPostToATaskIntoACompleteEvent() throws WorkflowException, IOException, ServletException
     {
         // What a POST means is decided by what it was aimed at: a homepage is asked to create something, a user
         // task is being told it has been decided. The servlet names the event and hands it over; that is all.
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of()));
         final Resource task = this.context.create().resource(
             "/Submissions/x/wf:instances/timeOffRequest/approveRequest", WorkflowFixture.TYPE,
@@ -153,7 +206,7 @@ class WorkflowEventServletTest
 
         this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
 
-        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture(), Mockito.any());
         assertEquals(TaskCompletion.COMPLETE_EVENT, sent.getValue().getName());
         assertEquals("approved", sent.getValue().get(TaskCompletion.OUTCOME_PARAMETER));
     }
@@ -163,7 +216,7 @@ class WorkflowEventServletTest
     {
         // Aimed at one submission rather than at the homepage holding them: that means changing this one, not
         // making another, which is the difference between filling a request in and raising it
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of()));
         final Resource submission = this.context.create().resource(
             "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000", WorkflowFixture.TYPE, "sub/Submission");
@@ -173,7 +226,7 @@ class WorkflowEventServletTest
 
         this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
 
-        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture(), Mockito.any());
         assertEquals(WorkflowEventServlet.SAVE_EVENT, sent.getValue().getName());
         assertEquals("2026-10-06", sent.getValue().get("details/startDate"));
     }
@@ -184,7 +237,7 @@ class WorkflowEventServletTest
     {
         // Unbound, a POST here would reach the Sling POST servlet and rename the tree by setting `title` on the
         // homepage node. Bound, an unmatched event is a 409 instead.
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of()));
         final Resource homepage = this.context.create().resource("/SystemWorkflows",
             WorkflowFixture.TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE,
@@ -195,7 +248,7 @@ class WorkflowEventServletTest
 
         this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
 
-        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture(), Mockito.any());
         assertEquals(WorkflowEventServlet.CREATE_EVENT, sent.getValue().getName());
         assertEquals("Announce approvals", sent.getValue().get("title"));
     }
@@ -205,7 +258,7 @@ class WorkflowEventServletTest
     {
         // A version is an entity, so the default is to change this one -- which is how the editor saves a diagram.
         // The moves of its lifecycle name their events outright, being the less obvious things to do to it.
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of()));
         final Resource version = this.context.create().resource("/Workflows/review/1-0",
             WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, WorkflowFixture.SUPER_TYPE, "data/Entity");
@@ -215,7 +268,7 @@ class WorkflowEventServletTest
 
         this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
 
-        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture(), Mockito.any());
         assertEquals(WorkflowEventServlet.SAVE_EVENT, sent.getValue().getName());
     }
 
@@ -225,7 +278,7 @@ class WorkflowEventServletTest
         // An entity has one obvious thing that happens to it and any number of less obvious ones, and no reading of
         // the URL tells `save` from `attachDocument`. Naming it changes nothing about who may fire it: the engine
         // still answers 409 when nothing is waiting for that message
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of()));
         final Resource submission = this.context.create().resource(
             "/Submissions/ab/cd/ef/0a1b2c3d-1111-1111-1111-111111111111", WorkflowFixture.TYPE, "sub/Submission");
@@ -236,7 +289,7 @@ class WorkflowEventServletTest
 
         this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
 
-        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture(), Mockito.any());
         assertEquals("attachDocument", sent.getValue().getName());
         assertEquals("doctorsNote", sent.getValue().get("requirement"));
     }
@@ -247,7 +300,7 @@ class WorkflowEventServletTest
     {
         // Sling reports "no selectors" as an empty string in some paths and as null in others, and an event named
         // "" would be a 409 blaming the definitions for a URL quirk
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of()));
         final MockSlingJakartaHttpServletRequest request = request(Map.of("title", "My cool workflow"));
         ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString("");
@@ -255,14 +308,14 @@ class WorkflowEventServletTest
 
         this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
 
-        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture(), Mockito.any());
         assertEquals(WorkflowEventServlet.CREATE_EVENT, sent.getValue().getName());
     }
 
     @Test
     void aSelectorOverridesTheTaskDefault() throws WorkflowException, IOException, ServletException
     {
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of()));
         final Resource task = this.context.create().resource(
             "/Submissions/x/wf:instances/timeOffRequest/approveRequest", WorkflowFixture.TYPE,
@@ -274,7 +327,7 @@ class WorkflowEventServletTest
 
         this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
 
-        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture(), Mockito.any());
         assertEquals("reassign", sent.getValue().getName());
     }
 
@@ -328,6 +381,53 @@ class WorkflowEventServletTest
     }
 
     @Test
+    void refusesAnEventSentOnSomeoneElsesBehalfLikeAnyOther() throws WorkflowException, IOException, ServletException
+    {
+        // Logged for whoever audits delegation, but the caller learns no more than from any other refusal
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
+            .thenThrow(new NotAuthorizedException("not allowed"));
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doPost(request(Map.of(WorkflowEventServlet.ON_BEHALF_OF_PARAMETER, "alice\nforged")), response);
+
+        assertEquals(403, response.getStatus());
+        assertTrue(response.getOutputAsString().contains("not allowed"));
+    }
+
+    @Test
+    void recordsWhomAFailedEventWasSentFor() throws WorkflowException, IOException, ServletException
+    {
+        final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(errors);
+        try {
+            Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any()))
+                .thenThrow(new WorkflowFailedException("the repository is down"));
+            final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+            this.servlet.doPost(request(Map.of(WorkflowEventServlet.ON_BEHALF_OF_PARAMETER, "alice\nforged")),
+                response);
+
+            assertEquals(500, response.getStatus());
+            Mockito.verify(errors).logError(Mockito.any(WorkflowFailedException.class),
+                Mockito.argThat(recorded -> "alice?forged".equals(recorded.getDetails().get("onBehalfOf"))));
+        } finally {
+            ErrorLogger.unsetService(errors);
+        }
+    }
+
+    @Test
+    void replacesWhatCouldForgeALogLine()
+    {
+        assertEquals("alice?forged?a?b?c?d", WorkflowEventServlet.loggable("alice\nforged\ra\u0085b\u2028c\u2029d"));
+    }
+
+    @Test
+    void logsOrdinaryTextAsItIs()
+    {
+        assertEquals("Alice Ng", WorkflowEventServlet.loggable("Alice Ng"));
+    }
+
+    @Test
     void mapsInvalidStateToConflict() throws WorkflowException, IOException, ServletException
     {
         assertEquals(409, statusFor(new InvalidStateException("already submitted")));
@@ -356,7 +456,7 @@ class WorkflowEventServletTest
      */
     private int statusFor(final WorkflowException failure) throws WorkflowException, IOException, ServletException
     {
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenThrow(failure);
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any(), Mockito.any())).thenThrow(failure);
         final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
 
         this.servlet.doPost(request(Map.of("title", "irrelevant")), response);
