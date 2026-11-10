@@ -1,0 +1,55 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Set the template of a document requirement",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sch/DocumentRequirement",
+    "description": "Gives a document requirement of a draft version the uploaded file as its template, replacing any it had: a blank for the submitter to start from, or, for a generated document, the .docx the platform fills in.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Requested",
+      "messageName": "setTemplate",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "includes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": ["tags"]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": ["draft"]
+        }
+      },
+      "toSet": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toSet",
+        "targetRef": "set"
+      }
+    },
+    "set": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "set",
+      "label": "Store the template",
+      "handler": "setTemplate",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Template set",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

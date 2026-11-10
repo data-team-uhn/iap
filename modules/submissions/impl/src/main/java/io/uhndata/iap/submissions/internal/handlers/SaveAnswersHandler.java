@@ -255,8 +255,14 @@ public class SaveAnswersHandler implements ServiceTaskHandler
             return;
         }
         if (existing != null) {
-            modifiable(Objects.requireNonNull(target.getResourceResolver().getResource(existing),
-                "An answer the submission just reported is still where it said")).put(VALUE_PROPERTY, values);
+            final ModifiableValueMap answer = modifiable(Objects.requireNonNull(
+                target.getResourceResolver().getResource(existing),
+                "An answer the submission just reported is still where it said"));
+            if (Arrays.equals(answer.get(VALUE_PROPERTY, new String[0]), values)) {
+                // Saved again unchanged to avoid stamping jcr:lastModified and marking a generated document out of date
+                return;
+            }
+            answer.put(VALUE_PROPERTY, values);
             return;
         }
         final Resource answer = target.getResourceResolver().create(target, UUID.randomUUID().toString(),

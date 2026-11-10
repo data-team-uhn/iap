@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.submissions.internal.describers;
 
+import java.util.Calendar;
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -58,6 +60,15 @@ public class DocumentRequirementDescriber implements RequirementDescriber
 
     private static final String REQUIRED_KEY = "required";
 
+    private static final String GENERATED_KEY = "generated";
+
+    private static final String OUTDATED_KEY = "outdated";
+
+    private static final String DOCX_KEY = "docx";
+
+    /** Stamped by the save workflow when it changes an answer, see SaveAnswersHandler. */
+    private static final String LAST_MODIFIED = "jcr:lastModified";
+
     private final MimeTypeService mimeTypes;
 
     /**
@@ -83,6 +94,13 @@ public class DocumentRequirementDescriber implements RequirementDescriber
         final DocumentRequirement asked = (DocumentRequirement) requirement;
         // Stated always, not only when false
         json.add(REQUIRED_KEY, asked.isRequired());
+        // Stated always, for the same reason: the form offers to generate a generated document, as well as to upload
+        json.add(GENERATED_KEY, asked.isGenerated());
+        // Until submitting is a workflow step (IAP-88): generated while the request is still being answered, a
+        // document can fall behind the answers it was filled in from
+        if (asked.isGenerated()) {
+            json.add(OUTDATED_KEY, isOutdated(asked, submission));
+        }
         json.add(ACCEPTED_FILE_TYPES_KEY, acceptedFileTypes(asked));
         addTemplate(json, asked);
         json.add(ATTACHED_KEY, attachments(asked, submission));
@@ -111,7 +129,8 @@ public class DocumentRequirementDescriber implements RequirementDescriber
     private void addTemplate(final JsonObjectBuilder json, final DocumentRequirement asked)
     {
         final Resource template = asked.getTemplate();
-        if (template != null) {
+        // A generated document's template is what the platform fills in, not a blank for the submitter
+        if (template != null && !asked.isGenerated()) {
             json.add(TEMPLATE_KEY, template.getPath());
             json.add(TEMPLATE_NAME_KEY, getTemplateFileName(asked, template));
         }
@@ -136,7 +155,32 @@ public class DocumentRequirementDescriber implements RequirementDescriber
     }
 
     /**
-     * One attached document: its title, and the path of its newest file, which is where it downloads from.
+     * Whether an answer changed after the newest generation of a generated document. Until submitting is a workflow
+     * step (IAP-88).
+     *
+     * @param asked the generated requirement
+     * @param submission the submission whose answers it was filled in from
+     * @return {@code false} when nothing was generated yet, which is missing rather than outdated, or when the newest
+     *         version is one the submitter uploaded, which is theirs whatever it says
+     */
+    private static boolean isOutdated(final DocumentRequirement asked, final Submission submission)
+    {
+        final Optional<Calendar> generated = submission.getDocuments().stream()
+            .filter(document -> document.isFulfilling(asked))
+            .filter(document -> editableOf(document).isPresent())
+            .map(Document::getCurrentVersion)
+            .map(DocumentVersion::getCreated)
+            .filter(Objects::nonNull)
+            .max(Comparator.naturalOrder());
+        return generated.isPresent() && submission.getAnswers().stream()
+            .map(answer -> Optional.ofNullable(answer.get(LAST_MODIFIED, Calendar.class)).orElse(answer.getCreated()))
+            .filter(Objects::nonNull)
+            .anyMatch(changed -> changed.after(generated.get()));
+    }
+
+    /**
+     * One attached document: its title, the path of its newest file, which is where it downloads from, and, when the
+     * platform generated that file, the path of the {@code .docx} it was filled in as, for the submitter to edit.
      *
      * @param document the attached document
      * @return the document's JSON, without a path when no file has landed yet
@@ -149,7 +193,21 @@ public class DocumentRequirementDescriber implements RequirementDescriber
             .map(DocumentVersion::getFile)
             .map(File::getUploadedFile)
             .ifPresent(file -> json.add(FormKeys.PATH_KEY, file.getPath()));
+        editableOf(document).ifPresent(docx -> json.add(DOCX_KEY, docx.getPath()));
         return json;
+    }
+
+    /**
+     * The filled {@code .docx} beside a document's newest file, which only a generated version has.
+     *
+     * @param document the document
+     * @return the {@code .docx}, or empty when the newest version is an upload, or there is none
+     */
+    private static Optional<Resource> editableOf(final Document document)
+    {
+        return Optional.ofNullable(document.getCurrentVersion())
+            .map(DocumentVersion::getFile)
+            .map(File::getGeneratedDocx);
     }
 
     /**

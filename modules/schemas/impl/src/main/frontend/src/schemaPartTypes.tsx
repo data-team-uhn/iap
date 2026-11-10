@@ -163,6 +163,7 @@ function questionChips(part: SerializedNode): SchemaPartChip[] {
 
 const documentChips = (part: SerializedNode): string[] => [
   part.required === false ? "Optional" : "Required",
+  ...part.generated === true ? [ "Generated" ] : [],
   ...typeof part.template === "object" ? [ "Template provided" ] : [],
 ];
 
