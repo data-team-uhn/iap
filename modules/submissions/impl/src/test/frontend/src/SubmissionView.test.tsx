@@ -785,6 +785,29 @@ describe("SubmissionView", () => {
       expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeDisabled();
     });
 
+    it("says where reading the document got to, in both modes", async () => {
+      const read = { ...DEEP_SUBMISSION, extractionStatus: "done" };
+      const form = { ...ONE_QUESTION, readsDocuments: true, extraction: { status: "done" as const } };
+      vi.stubGlobal("fetch", withATaskWaiting({ submission: () => read, form }));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText(/Answers were read from your document/)).toBeInTheDocument();
+    });
+
+    it("holds the step back once a reading said the request cannot go on", async () => {
+      const said = { ...DEEP_SUBMISSION, extractionBlocked: true, extractionMessage: "Not a research proposal." };
+      vi.stubGlobal("fetch", withATaskWaiting({ submission: () => said }));
+      renderAt("/Submissions/demo-1");
+      expect(await screen.findByText("Not a research proposal.")).toBeInTheDocument();
+    });
+
+    it("says a blocked request cannot go on when the reading gave no reason", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting({ submission: () => ({ ...DEEP_SUBMISSION, extractionBlocked: true }) }));
+      renderAt("/Submissions/demo-1");
+      expect(await screen.findByText("The uploaded document does not let this request go on.")).toBeInTheDocument();
+    });
+
     // The reading adds suggestions to the questions, so an answer saved meanwhile could clash with it
     it("hides the questions until the document has been read, then shows what it filled in", async () => {
       await loadAnswerComponents();

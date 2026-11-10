@@ -35,6 +35,7 @@ import {
   type SubmissionForm,
   fetchForm,
   isFormRequirement,
+  reviewExtraction,
   saveAnswer,
 } from "./submissionForm";
 
@@ -136,6 +137,19 @@ function SubmissionEditor({ path, reading = false, onSaving = ignoreSave, onChan
       .catch((e: unknown) => setError(message(e)));
   }, [ doFetch, path, reload, onSaving, onChanged ]);
 
+  // A note about the quotes changes no answer, so only the form is read again to show it
+  const rejectEvidence = useCallback((question: FormQuestion, rejected: boolean) => {
+    const token = latestFormRead.current + 1;
+    latestFormRead.current = token;
+    reviewExtraction(doFetch, path, question.path, rejected)
+      .then(
+        () => reload(token),
+        (e: unknown) => setStates(current => (
+          { ...current, [question.path]: { state: "failed", error: message(e) } })),
+      )
+      .catch((e: unknown) => setError(message(e)));
+  }, [ doFetch, path, reload ]);
+
   // Reads the form again after a requirement's component changed the submission, such as by
   // attaching a file
   const changed = useCallback(() => {
@@ -172,7 +186,14 @@ function SubmissionEditor({ path, reading = false, onSaving = ignoreSave, onChan
         </Alert>
       ) }
       { form.requirements.map(requirement => (
-        <Panel key={requirement.name} title={requirement.label || requirement.name} subtitle={requirement.description}>
+        <Panel
+          key={requirement.name}
+          title={requirement.label || requirement.name}
+          subtitle={isFormRequirement(requirement) && requirement.extracted
+            ? [ requirement.description, "Filled in from your uploaded document. Check each answer." ]
+              .filter(Boolean).join(" ")
+            : requirement.description}
+        >
           <ErrorBoundary fallback={CANNOT_COMPLETE_HERE}>
             <RequirementBody
               path={path}
@@ -181,6 +202,7 @@ function SubmissionEditor({ path, reading = false, onSaving = ignoreSave, onChan
               reading={reading}
               states={states}
               onAnswered={answered}
+              onRejectEvidence={rejectEvidence}
               onSaving={onSaving}
               onChanged={changed}
             />

@@ -46,6 +46,7 @@ import { carriesTag } from "@iap/tags/carriesTag";
 import TagChip from "@iap/tags/TagChip";
 
 import ApprovalState from "./ApprovalState";
+import ReadingBanner from "./ReadingBanner";
 import SubmissionEditor from "./SubmissionEditor";
 import {
   type DocumentRequirement,
@@ -329,6 +330,8 @@ const INCOMPLETE_REASON = "Answer everything this request asks for first.";
 
 const READING_REASON = "Wait until the document has been read.";
 
+const BLOCKED_REASON = "The uploaded document does not let this request go on.";
+
 // How often to fetch the submission again while a document is being read, to see when the reading ends
 const READING_RECHECK_MILLISECONDS = 3000;
 
@@ -338,9 +341,18 @@ function isReading(submission: SerializedNode | undefined): boolean {
 }
 
 // Why the submission is not ready for its next step, or nothing when it is
+// Whether a reading of the documents was ever asked for, so there is something to say about it
+function isReadingAsked(submission: SerializedNode | undefined): boolean {
+  return typeof submission?.extractionStatus === "string";
+}
+
 function whyNotReady(submission: SerializedNode | undefined): string | undefined {
   if (isReading(submission)) {
     return READING_REASON;
+  }
+  // A reading can end with the request unable to go on, such as for a document that is not what it asks for
+  if (submission?.extractionBlocked === true) {
+    return typeof submission.extractionMessage === "string" ? submission.extractionMessage : BLOCKED_REASON;
   }
   return carriesTag(submission, INCOMPLETE_TAG) ? INCOMPLETE_REASON : undefined;
 }
@@ -491,6 +503,7 @@ function SubmissionView() {
     return (
       <Stack spacing={2}>
         {header}
+        {isReadingAsked(submission) && <ReadingBanner path={path} reloads={reloads} onChanged={readAgain} />}
         {/* Keyed by path, so that another submission gets a new editor rather than showing the
             previous one's answers until its form arrives */}
         <SubmissionEditor key={path} path={path} reading={reading} onSaving={trackSave} onChanged={readAgain} />
@@ -523,6 +536,7 @@ function SubmissionView() {
   return (
     <Stack spacing={2}>
       {header}
+      {isReadingAsked(submission) && <ReadingBanner path={path} reloads={reloads} onChanged={readAgain} />}
       <Box>
         <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           <Typography variant="h4">{String(submission.title ?? submission["@name"])}</Typography>

@@ -20,14 +20,18 @@ import { Box, TextField } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
 import { isRequired } from "../submissionForm";
+import { getInputFrame } from "./answerFrame";
 import AnswerRow from "./AnswerRow";
+import { getCornerAdornment } from "./cornerAdornment";
 import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // A calendar day, stored as `yyyy-mm-dd` whatever the reader's locale displays. It is saved when the
 // field is left, since a day can also be typed in digit by digit.
-function DateAnswer({ question, values, disabled, onChange, onAnswered, aside }: AnswerComponentProps) {
+function DateAnswer(
+  { question, values, disabled, onChange, onAnswered, suggested, aside, corner }: AnswerComponentProps,
+) {
   return (
     <Box>
       <QuestionText question={question} />
@@ -37,8 +41,12 @@ function DateAnswer({ question, values, disabled, onChange, onAnswered, aside }:
           required={isRequired(question)}
           disabled={disabled}
           fullWidth
+          sx={getInputFrame(suggested === true)}
           value={values[0] ?? ""}
-          slotProps={{ htmlInput: { "aria-labelledby": getQuestionTextId(question) } }}
+          slotProps={{
+            input: { endAdornment: getCornerAdornment(corner) },
+            htmlInput: { "aria-labelledby": getQuestionTextId(question) },
+          }}
           helperText={question.description}
           onChange={event => onChange([ event.target.value ])}
           // A half-typed day reads as "", like a cleared field, and would clear the stored answer.

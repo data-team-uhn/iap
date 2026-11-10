@@ -654,3 +654,44 @@ describe("SubmissionEditor", () => {
     expect(screen.getByText("Newest")).toBeInTheDocument();
   });
 });
+
+describe("SubmissionEditor with a reading", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function read(): SubmissionForm {
+    return form({
+      requirements: [ details([ {
+        ...duration(),
+        provenance: {
+          suggested: [ "multiple days" ], offered: [ "multiple days" ], confidence: 0.9,
+          passages: [ { quote: "The leave runs over several days" } ], evidenceRejected: false, actedOn: false,
+        },
+      } ], { extracted: true }) ],
+    });
+  }
+
+  it("says a form is filled in from the document, and records a note about its quotes", async () => {
+    const fetchMock = serving(read());
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SubmissionEditor path={PATH} />);
+    expect(await screen.findByText(/Filled in from your uploaded document/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /The leave runs over/ }));
+    await userEvent.click(screen.getByRole("button", { name: "This passage does not support the answer" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([ url ]) => url === `${PATH}.reviewExtraction.json`))
+      .toBe(true));
+  });
+
+  it("says when a note about the quotes was refused", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
+      ? json({ error: "Nothing was read for this question" }, { ok: false, status: 400 })
+      : json(read())));
+
+    render(<SubmissionEditor path={PATH} />);
+    await userEvent.click(await screen.findByRole("button", { name: /The leave runs over/ }));
+    await userEvent.click(screen.getByRole("button", { name: "This passage does not support the answer" }));
+
+    expect(await screen.findByText("Not saved")).toBeInTheDocument();
+  });
+});
