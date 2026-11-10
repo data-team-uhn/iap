@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
 
 import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.httprequests.api.HttpResponse;
+import io.uhndata.iap.httprequests.api.Multipart;
 import io.uhndata.iap.slacknotifications.spi.SlackNotificationProducer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -70,6 +71,12 @@ class SlackNotificationsTaskTest
             throws IOException
         {
             return post(url, body, contentType);
+        }
+
+        @Override
+        public HttpResponse post(final String url, final Map<String, String> headers, final Multipart body)
+        {
+            throw new UnsupportedOperationException("Slack is only sent text");
         }
     }
 
