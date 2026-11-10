@@ -104,7 +104,7 @@ public class SetTemplateHandler implements ServiceTaskHandler
         final Resource target = context.getTarget();
         // The model registers as a Requirement, which picks the subtype by resource type
         if (!target.isResourceType(DocumentRequirement.RESOURCE_TYPE)
-            || !(target.adaptTo(Requirement.class) instanceof DocumentRequirement requirement)) {
+            || !(target.adaptTo(Requirement.class) instanceof final DocumentRequirement requirement)) {
             throw SchemaContent.unsupportedTarget(HANDLER_NAME, target);
         }
         final EventAttachment file = Payloads.attachment(context.getEvent(), FILE_PARAMETER);

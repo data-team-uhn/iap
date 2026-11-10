@@ -116,6 +116,9 @@ class GenerateDocumentHandlerTest
 
     private final Map<String, Object> variables = new HashMap<>();
 
+    /** The roles the step recorded, by the path of what it recorded them on. */
+    private final Map<String, String> roles = new HashMap<>();
+
     private Resource target;
 
     private Node node;
@@ -169,6 +172,14 @@ class GenerateDocumentHandlerTest
         assertEquals("application/pdf",
             file.getChild("uploadedFile").getValueMap().get("jcr:content/jcr:mimeType", String.class));
         assertArrayEquals(DOCX, bytes(file.getChild(File.GENERATED_DOCX_CHILD)));
+    }
+
+    @Test
+    void recordsWhatItGeneratedForWhichRequirement() throws Exception
+    {
+        this.handler.execute(context(LETTER));
+
+        assertEquals(Map.of(onlyDocument().getPath(), "generated a document for Decision letter"), this.roles);
     }
 
     @Test
@@ -347,6 +358,7 @@ class GenerateDocumentHandlerTest
             }
         };
         final Map<String, Object> shared = this.variables;
+        final Map<String, String> recorded = this.roles;
         return new WorkflowTaskContext()
         {
             @Override
@@ -407,6 +419,18 @@ class GenerateDocumentHandlerTest
             public void replaceWorkflow(final Resource host, final WorkflowVersion version)
             {
                 throw new IllegalStateException("No workflow was expected to be replaced here");
+            }
+
+            @Override
+            public void recordRole(final Resource resource, final String role)
+            {
+                recorded.put(resource.getPath(), role);
+            }
+
+            @Override
+            public void checkInAfterCommit(final String path)
+            {
+                throw new IllegalStateException("No check-in was expected to be deferred here");
             }
         };
     }
