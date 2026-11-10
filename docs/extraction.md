@@ -1095,10 +1095,9 @@ Keep in mind:
 - Tag the reading workflow's version `active`. An inactive one is treated as no reading
   workflow: nothing is parsed, and a reading already queued fails with "Nothing is set up
   to read this request's documents".
-- A gateway guard cannot name a question by its path (see "Known gaps" in
-  [workflows.md](workflows.md)), so routing on the category needs the question's UUID.
-  That ties the guard to one schema version: a version copied from it holds a copy of
-  the question, with its own UUID.
+- A gateway guard names the category question by its path in the schema version, such
+  as `classification/category` (see `answer` in [conditions.md](conditions.md)). A path
+  keeps working when the schema is copied to a new version; a UUID would not.
 
 ## Measuring the extraction
 
