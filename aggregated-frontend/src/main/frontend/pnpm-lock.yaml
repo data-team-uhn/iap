@@ -12,9 +12,6 @@ importers:
 
   .:
     dependencies:
-      '@babel/runtime':
-        specifier: ^7.29.7
-        version: 7.29.10
       '@emotion/react':
         specifier: 11.14.0
         version: 11.14.0(@types/react@19.3.0)(react@19.3.1)
