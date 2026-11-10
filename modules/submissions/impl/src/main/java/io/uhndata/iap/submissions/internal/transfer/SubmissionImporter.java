@@ -160,7 +160,7 @@ public class SubmissionImporter
      */
     static JsonObject object(final JsonObject json, final String key) throws InvalidPayloadException
     {
-        if (json.get(key) instanceof JsonObject object) {
+        if (json.get(key) instanceof final JsonObject object) {
             return object;
         }
         throw missing(key);
@@ -168,7 +168,7 @@ public class SubmissionImporter
 
     private static JsonArray array(final JsonObject json, final String key) throws InvalidPayloadException
     {
-        if (json.get(key) instanceof JsonArray array) {
+        if (json.get(key) instanceof final JsonArray array) {
             return array;
         }
         throw missing(key);
@@ -176,7 +176,7 @@ public class SubmissionImporter
 
     private static String text(final JsonObject json, final String key) throws InvalidPayloadException
     {
-        if (json.get(key) instanceof JsonString text) {
+        if (json.get(key) instanceof final JsonString text) {
             return text.getString();
         }
         throw missing(key);

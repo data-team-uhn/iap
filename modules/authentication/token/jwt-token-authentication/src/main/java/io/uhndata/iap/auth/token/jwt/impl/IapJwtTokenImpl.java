@@ -82,7 +82,7 @@ public final class IapJwtTokenImpl implements IapToken
             this.attributes = parsedAttributes;
             final Map<String, String> extra = new HashMap<>();
             claims.forEach((name, value) -> {
-                if (value instanceof String text) {
+                if (value instanceof final String text) {
                     extra.put(name, text);
                 }
             });
