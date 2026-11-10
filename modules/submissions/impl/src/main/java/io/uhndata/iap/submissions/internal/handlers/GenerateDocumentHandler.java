@@ -131,6 +131,7 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
             GeneratedDocument.PDF_MIME_TYPE);
         StoredDocuments.write(stored, File.GENERATED_DOCX_CHILD, generated.openDocx(),
             GeneratedDocument.DOCX_MIME_TYPE);
+        context.recordRole(document, "generated a document for " + requirement.getLabel());
         context.setVariable(GENERATED_PATH_VARIABLE, stored.getPath() + "/" + StoredDocuments.UPLOADED_FILE_NODE);
     }
 
@@ -153,7 +154,7 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
         if (named == null) {
             return requested(submission, context);
         }
-        if (!(named instanceof String name) || name.isBlank()) {
+        if (!(named instanceof final String name) || name.isBlank()) {
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " does not say which requirement to generate");
         }

@@ -99,10 +99,10 @@ final class TemplateValues
             || number instanceof Byte) {
             return Json.createValue(number.longValue());
         }
-        if (number instanceof BigInteger big) {
+        if (number instanceof final BigInteger big) {
             return Json.createValue(big);
         }
-        if (number instanceof BigDecimal decimal) {
+        if (number instanceof final BigDecimal decimal) {
             return Json.createValue(decimal);
         }
         final double floating = number.doubleValue();
@@ -116,7 +116,7 @@ final class TemplateValues
     {
         final JsonObjectBuilder object = Json.createObjectBuilder();
         for (final Map.Entry<?, ?> entry : map.entrySet()) {
-            if (!(entry.getKey() instanceof String key)) {
+            if (!(entry.getKey() instanceof final String key)) {
                 throw new IllegalArgumentException(path + " has a key that is not text: " + entry.getKey());
             }
             object.add(key, toJson(entry.getValue(), path + "." + key));
