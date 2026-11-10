@@ -143,13 +143,15 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         version.getRequirements().stream()
             .filter(requirement -> this.applies(requirement, submission))
             .forEach(requirement -> requirements.add(requirement(requirement, submission, current)));
-        return Json.createObjectBuilder()
+        final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(FormKeys.PATH_KEY, submission.getPath())
             .add(FormKeys.TITLE_KEY, Objects.toString(submission.getTitle(), ""))
             // The two rules the save workflow enforces, so an editor offers editing only where a save is accepted
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
-            .add("requirements", requirements)
-            .build();
+            .add("readsDocuments", ReadingProjection.isReadingDocuments(version))
+            .add("requirements", requirements);
+        ReadingProjection.describe(submission).ifPresent(reading -> json.add("extraction", reading));
+        return json.build();
     }
 
     /**
