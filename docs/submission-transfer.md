@@ -43,7 +43,7 @@ Three kinds of value are translated on the way:
 |---|---|---|
 | Reference | The path of its target: relative inside the submission, absolute outside it | Points at whatever is at that path. A missing target refuses the submission, unless the reference is weak, in which case it is dropped |
 | User (`createdBy`, `author`, `reviewer`, `checkedBy`, `jcr:lastModifiedBy`) | Their email | Whoever has that email. **Someone with no account there keeps their email** in place of an id |
-| Creation time | `created` on each node | Kept in `originalCreated` |
+| Creation time | `created` on each node | Kept in `originalCreated`, where the node's type allows it. A stored file's `nt:file` does not, so it shows when it arrived |
 
 References travel as paths because schemas and other shared content have the same paths on
 every instance, but not the same identifiers. The submission itself keeps its name, which is
