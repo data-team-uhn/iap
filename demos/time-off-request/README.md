@@ -83,7 +83,9 @@ extension, because the node it becomes has to be called `template`. Replace it w
 a letterhead with a logo say, edited in Word. It is a Jinja template (docxtpl), and may use:
 
 - `{{ submission.title }}`, and `{{ submission.created }}`, an ISO date-time (`[:10]` keeps the date)
-- `{{ submission.answers.details.day }}`: each answer, nested as the schema nests its questions
+- `{{ submission.answers.details.startDate }}`, `{{ submission.answers.details.endDate }}`: each answer,
+  nested as the schema nests its questions. One the request was not asked, such as the last day of a
+  single-day request, is blank
 - `{{ submitter.name }}`, `{{ submitter.email }}`, `{{ submitter.id }}`
 
 A name the template uses that the request does not have fails the generation with that name, rather than

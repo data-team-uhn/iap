@@ -87,7 +87,7 @@ public class SubmitterTemplateValues implements TemplateContextProvider
     private static Resource account(final ResourceResolver resolver, final String userId)
     {
         final Session session = resolver.adaptTo(Session.class);
-        if (!(session instanceof JackrabbitSession jackrabbit)) {
+        if (!(session instanceof final JackrabbitSession jackrabbit)) {
             throw new IllegalStateException("The submitter's account cannot be looked up from this session");
         }
         try {
