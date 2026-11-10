@@ -48,7 +48,7 @@ final class UserDirectory
      */
     UserDirectory(final Session session) throws RepositoryException
     {
-        if (!(session instanceof JackrabbitSession jackrabbit)) {
+        if (!(session instanceof final JackrabbitSession jackrabbit)) {
             throw new RepositoryException("The repository keeps no users");
         }
         this.users = jackrabbit.getUserManager();
@@ -80,7 +80,7 @@ final class UserDirectory
      */
     boolean isServiceUser(final String id) throws RepositoryException
     {
-        return this.users.getAuthorizable(id) instanceof User user && user.isSystemUser();
+        return this.users.getAuthorizable(id) instanceof final User user && user.isSystemUser();
     }
 
     /**
