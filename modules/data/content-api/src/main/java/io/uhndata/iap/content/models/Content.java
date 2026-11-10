@@ -60,6 +60,10 @@ public class Content
     @ValueMapValue(name = "jcr:created")
     private Calendar created;
 
+    /** When content brought over from another instance was created there. */
+    @ValueMapValue
+    private Calendar originalCreated;
+
     @ValueMapValue(name = "jcr:createdBy")
     private String writtenBy;
 
@@ -143,13 +147,18 @@ public class Content
     /**
      * The date when the resource was created.
      *
+     * <p>The repository stamps {@code jcr:created} itself and lets nobody set it, so content brought over from
+     * another instance would date from its arrival. That content keeps the date it was created at its source in
+     * {@code originalCreated}, which is the answer when present.</p>
+     *
      * @return a copy of the creation date, or {@code null} if the creation date is not recorded
      */
     @Nullable
     public Calendar getCreated()
     {
+        final Calendar date = this.originalCreated == null ? this.created : this.originalCreated;
         // A copy, since Calendar is mutable and callers must not be able to alter the model's own state
-        return this.created == null ? null : (Calendar) this.created.clone();
+        return date == null ? null : (Calendar) date.clone();
     }
 
     /**

@@ -19,6 +19,7 @@ package io.uhndata.iap.httprequests.api;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.Map;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -69,4 +70,24 @@ public interface HttpRequests
     @NotNull
     HttpResponse post(@NotNull String url, @NotNull String body, @NotNull String contentType,
         @NotNull Charset charset) throws IOException;
+
+    /**
+     * Sends a POST request with a {@code multipart/form-data} body, streaming each part as it goes.
+     *
+     * <p>
+     * Headers are never quoted in a failure either, since they often carry credentials. The body's own
+     * {@code Content-Type} replaces any given here, since only it names the boundary between the parts.
+     * </p>
+     *
+     * @param url the address to post to
+     * @param headers headers to send, e.g. {@code Authorization}; may be empty
+     * @param body the parts to send
+     * @return what the service answered
+     * @throws IOException if the request could not be made, e.g. the address is not a valid http(s) URL, a header is
+     *     one that cannot be set, the service is unreachable or stopped answering, or a part's content could not be
+     *     read
+     */
+    @NotNull
+    HttpResponse post(@NotNull String url, @NotNull Map<String, String> headers, @NotNull Multipart body)
+        throws IOException;
 }

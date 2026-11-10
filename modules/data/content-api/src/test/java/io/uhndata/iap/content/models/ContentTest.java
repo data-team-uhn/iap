@@ -170,6 +170,20 @@ class ContentTest
     }
 
     @Test
+    void contentFromAnotherInstanceIsAsOldAsItWasThere()
+    {
+        // The repository stamps jcr:created on arrival, and nobody may set it
+        final Calendar there = Calendar.getInstance();
+        there.add(Calendar.DAY_OF_MONTH, -30);
+        final Resource resource = this.context.create().resource("/content/transferred", Map.of(
+            SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE,
+            "jcr:created", this.created,
+            "originalCreated", there));
+
+        assertEquals(there, resource.adaptTo(Content.class).getCreated());
+    }
+
+    @Test
     void toleratesMissingOptionalMetadata()
     {
         // A node without the optional jcr:created / jcr:createdBy still adapts, thanks to the

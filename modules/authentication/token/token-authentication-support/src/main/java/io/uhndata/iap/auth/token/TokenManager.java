@@ -19,6 +19,7 @@ package io.uhndata.iap.auth.token;
 
 import java.util.Calendar;
 import java.util.Map;
+import java.util.Set;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -43,6 +44,28 @@ public interface TokenManager
      */
     @Nullable
     IapToken create(@NotNull String user, @NotNull Calendar expiration, @NotNull Map<String, String> extraData);
+
+    /**
+     * Create a new token for other instances to accept. Nothing checks that they will: see {@link #isTrustedPeer}.
+     *
+     * @param user username to associate with the token, as the audience knows it
+     * @param expiration date after which the token becomes invalid
+     * @param extraData data to store in the token, may be empty
+     * @param audiences the identities of the instances the token is meant for
+     * @return a new token, or {@code null} if this manager is not able to issue tokens
+     */
+    @Nullable
+    IapToken create(@NotNull String user, @NotNull Calendar expiration, @NotNull Map<String, String> extraData,
+        @NotNull Set<String> audiences);
+
+    /**
+     * Whether an identity belongs to another instance whose tokens this one accepts. Trust is registered both ways,
+     * so this is also the list of instances that are expected to accept this one's tokens.
+     *
+     * @param identity an instance's identity, as it appears in the {@code iss} of its tokens
+     * @return {@code true} if a key is registered for that identity
+     */
+    boolean isTrustedPeer(@NotNull String identity);
 
     /**
      * Parse a token's data from its identifier.

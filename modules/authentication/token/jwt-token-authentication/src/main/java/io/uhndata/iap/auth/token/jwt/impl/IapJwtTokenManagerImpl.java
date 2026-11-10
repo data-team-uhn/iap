@@ -189,15 +189,7 @@ public final class IapJwtTokenManagerImpl implements TokenManager
         return create(userId, expiration, extraData, Set.of(this.identity));
     }
 
-    /**
-     * Create a JWT with the given specifications.
-     *
-     * @param userId The user ID to assign as a subject
-     * @param expiration An expiration time for the JWT
-     * @param extraData Additional data to include in the JWT payload
-     * @param audiences A set of audiences that the JWT is meant for
-     * @return A IapJwtTokenImpl corresponding to a newly minted JWT with the given parameters.
-     */
+    @Override
     public IapJwtTokenImpl create(final String userId, final Calendar expiration,
         final Map<String, String> extraData, final Set<String> audiences)
     {
@@ -214,7 +206,26 @@ public final class IapJwtTokenManagerImpl implements TokenManager
             .header().keyId(this.selfID).and()
             .signWith(this.signingKey)
             .compact();
-        return new IapJwtTokenImpl(jws, userId, expiration, extraData);
+        return new IapJwtTokenImpl(jws, this.identity, userId, expiration, extraData);
+    }
+
+    @Override
+    public boolean isTrustedPeer(final String identity)
+    {
+        try (ResourceResolver resolver = this.rrf.getServiceResourceResolver(null)) {
+            final Resource keys = resolver.getResource(KEY_ROOT);
+            if (keys == null) {
+                return false;
+            }
+            for (final Resource key : keys.getChildren()) {
+                if (identity.equals(key.getValueMap().get(ISSUER_PROP, String.class))) {
+                    return true;
+                }
+            }
+        } catch (final LoginException e) {
+            LOGGER.error("Service access not granted: {}", e.getMessage());
+        }
+        return false;
     }
 
     /**

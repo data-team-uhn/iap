@@ -36,6 +36,9 @@
         // The group the shipped system workflows name as the performer of administrative acts. It exists so that
         // the definitions have something real to point at; who belongs to it is a deployment's business.
         "create group iap-administrators",
+        // Who may send an event on behalf of someone else. Administrators may, and a module that needs another
+        // user to adds it to this group in its own repoinit, so granting delegation is a membership change.
+        "create group iap-delegates \n add iap-administrators to group iap-delegates",
         // Authorization does not live here. Users get no rights on the content workflows manage: the engine
         // writes as its own service user, once the definition has said the actor may, so the only grant anyone
         // needs is the one that lets a request reach a workflow endpoint at all. Sling resolves the posted-to

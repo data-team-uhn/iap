@@ -18,20 +18,28 @@
 package io.uhndata.iap.httprequests.internal;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.httprequests.api.HttpResponse;
+import io.uhndata.iap.httprequests.api.Multipart;
 
 /**
  * Default implementation of {@link HttpRequests}, built on the HTTP client the Java platform provides. Using it
@@ -49,6 +57,8 @@ public class JdkHttpRequests implements HttpRequests
     /** How long to wait for a service to answer, once it accepted the connection. */
     private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(30);
 
+    private static final String LINE_BREAK = "\r\n";
+
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
 
     @Override
@@ -61,7 +71,29 @@ public class JdkHttpRequests implements HttpRequests
     public HttpResponse post(final String url, final String body, final String contentType, final Charset charset)
         throws IOException
     {
-        final HttpRequest request = buildRequest(url, body, contentType, charset);
+        return exchange(buildRequest(url, Map.of(), contentType + "; charset=" + charset.name(),
+            BodyPublishers.ofString(body, charset)));
+    }
+
+    @Override
+    public HttpResponse post(final String url, final Map<String, String> headers, final Multipart body)
+        throws IOException
+    {
+        // When POSTing a multipart body, split the parts on a random string that should not occur inside any part
+        final String boundary = "iap-" + UUID.randomUUID();
+        return exchange(buildRequest(url, headers, "multipart/form-data; boundary=" + boundary,
+            encode(body, boundary)));
+    }
+
+    /**
+     * Sends a request and waits for the answer.
+     *
+     * @param request the request to send
+     * @return what the service answered
+     * @throws IOException if the request could not be made
+     */
+    private HttpResponse exchange(final HttpRequest request) throws IOException
+    {
         try {
             final java.net.http.HttpResponse<String> response = send(request);
             return new HttpResponse(response.statusCode(), response.body());
@@ -74,35 +106,92 @@ public class JdkHttpRequests implements HttpRequests
 
     /**
      * Turns the parameters of a request into a request. The platform refuses to build one for an address that is not
-     * a valid {@code http(s)} URL, or for a content type that is not a valid header value, and it does so with
-     * unchecked exceptions; since both come from the caller, and neither leaves any request made, they are reported
-     * as the failure to make a request that this API promises.
+     * a valid {@code http(s)} URL, or for a header that is not a valid header or is one it sets itself, and it does
+     * so with unchecked exceptions; since these come from the caller, and none leaves any request made, they are
+     * reported as the failure to make a request that this API promises.
      *
      * @param url the address to post to
+     * @param headers the caller's headers
+     * @param contentType the full {@code Content-Type} of the body, which replaces any the caller gave
      * @param body the body to send
-     * @param contentType the media type of the body
-     * @param charset the charset to encode the body with
      * @return the request to send
-     * @throws IOException if the address or the content type cannot be turned into a request
+     * @throws IOException if the address or a header cannot be turned into a request
      */
-    private HttpRequest buildRequest(final String url, final String body, final String contentType,
-        final Charset charset) throws IOException
+    private HttpRequest buildRequest(final String url, final Map<String, String> headers, final String contentType,
+        final BodyPublisher body) throws IOException
     {
         try {
-            return HttpRequest.newBuilder(URI.create(url))
-                .timeout(RESPONSE_TIMEOUT)
-                .header("Content-Type", contentType + "; charset=" + charset.name())
-                .POST(BodyPublishers.ofString(body, charset))
-                .build();
+            final HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url)).timeout(RESPONSE_TIMEOUT);
+            headers.forEach(request::header);
+            return request.setHeader("Content-Type", contentType).POST(body).build();
         } catch (final IllegalArgumentException e) {
-            // Deliberately not chained: both URI.create and the request builder quote the address they rejected,
-            // and the address can itself be a secret, as explained on describe(URI)
+            // Deliberately not chained: both URI.create and the request builder quote what they rejected, and both
+            // an address and a header can be secrets, as explained on describe(URI)
             throw new IOException("Cannot post to the given address: " + explain(e));
         }
     }
 
     /**
-     * Says why an address or a content type could not be turned into a request, without repeating either of them.
+     * Lays the parts out as a {@code multipart/form-data} body. Opens each part's content only when the client
+     * gets to it.
+     *
+     * @param body the parts
+     * @param boundary what separates the parts, which must not occur in any of them
+     * @return the body to send
+     */
+    private static BodyPublisher encode(final Multipart body, final String boundary)
+    {
+        // Note: There's no Java builtin for creating multipart bodies, and the libraries that have it (e.g.
+        // Apache HttpClient 4) introduce a dependency, which we are avoiding in this module.
+        // Thus, we implement a multipart body encoder here.
+        final List<BodyPublisher> pieces = new ArrayList<>();
+        for (final Multipart.Part part : body.getParts()) {
+            final StringBuilder head = new StringBuilder("--").append(boundary).append(LINE_BREAK)
+                .append("Content-Disposition: form-data; name=\"").append(quote(part.name())).append('"');
+            final String filename = part.filename();
+            if (filename != null) {
+                head.append("; filename=\"").append(quote(filename)).append('"');
+            }
+            head.append(LINE_BREAK).append("Content-Type: ").append(part.contentType())
+                .append(LINE_BREAK).append(LINE_BREAK);
+            pieces.add(BodyPublishers.ofString(head.toString(), StandardCharsets.UTF_8));
+            pieces.add(BodyPublishers.ofInputStream(() -> open(part.content())));
+            pieces.add(BodyPublishers.ofString(LINE_BREAK));
+        }
+        pieces.add(BodyPublishers.ofString("--" + boundary + "--" + LINE_BREAK));
+        return BodyPublishers.concat(pieces.toArray(BodyPublisher[]::new));
+    }
+
+    /**
+     * Makes a name safe to quote in a part's headers, the same way browsers do.
+     *
+     * @param name a field or file name
+     * @return the name, with quotes and line break characters percent-encoded
+     */
+    private static String quote(final String name)
+    {
+        // Quotes would end a name in quotes early, and a line break would start a new header line
+        return name.replace("\"", "%22").replace("\r", "%0D").replace("\n", "%0A");
+    }
+
+    /**
+     * Opens a part's content for the client, which can only be handed unchecked exceptions; it reports them as a
+     * failure to send the request.
+     *
+     * @param content the part's content
+     * @return the open content
+     */
+    private static InputStream open(final Multipart.Content content)
+    {
+        try {
+            return content.open();
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Obtain the reason why an address or a header could not be turned into a request.
      *
      * @param failure why the platform refused to build the request
      * @return an explanation safe to log
@@ -114,7 +203,7 @@ public class JdkHttpRequests implements HttpRequests
         if (failure.getCause() instanceof final URISyntaxException syntaxError) {
             return syntaxError.getReason() + " at index " + syntaxError.getIndex();
         }
-        return "it must be a valid http(s) URL, and the content type a valid header value";
+        return "it must be a valid http(s) URL, and every header a valid one that may be set";
     }
 
     /**

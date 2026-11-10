@@ -37,6 +37,7 @@ public @interface DelegationConfiguration
      */
     @AttributeDefinition(name = "Delegates",
         description = "The principal name of the group whose members may send an event on behalf of another user, "
-            + "with the :onBehalfOf request parameter. The admin user always may.")
-    String delegates() default "iap-administrators";
+            + "with the :onBehalfOf request parameter. The admin user may always do this, and members of groups "
+            + "nested in this group may also do this as well.")
+    String delegates() default "iap-delegates";
 }

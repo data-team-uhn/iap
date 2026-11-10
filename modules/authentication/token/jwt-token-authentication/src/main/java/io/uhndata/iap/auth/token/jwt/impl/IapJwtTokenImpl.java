@@ -42,6 +42,9 @@ public final class IapJwtTokenImpl implements IapToken
     /** The login token string. */
     private final String loginToken;
 
+    /** The identity of the instance that issued the token. */
+    private final String issuer;
+
     /** The username that the token authenticates. */
     private final String userId;
 
@@ -53,6 +56,9 @@ public final class IapJwtTokenImpl implements IapToken
      * attributes.
      */
     private final Map<String, String> attributes;
+
+    /** The token's string-valued claims. */
+    private final Map<String, String> stringClaims;
 
     /**
      * Parse the attributes forming a token from an existing JWT and the login token containing said JWT.
@@ -66,6 +72,7 @@ public final class IapJwtTokenImpl implements IapToken
         Object payload = jwt.getPayload();
         if (payload instanceof final Claims claims) {
             this.loginToken = token;
+            this.issuer = claims.getIssuer();
             this.userId = claims.getSubject();
             this.expirationTime = new Calendar.Builder().setInstant(claims.getExpiration()).build();
             Map<String, String> parsedAttributes = new HashMap<>();
@@ -73,6 +80,13 @@ public final class IapJwtTokenImpl implements IapToken
                 parsedAttributes.put("iap:sessionSubject", String.valueOf(claims.get("iap:sessionSubject")));
             }
             this.attributes = parsedAttributes;
+            final Map<String, String> extra = new HashMap<>();
+            claims.forEach((name, value) -> {
+                if (value instanceof final String text) {
+                    extra.put(name, text);
+                }
+            });
+            this.stringClaims = extra;
         } else {
             throw new JwtException("Unhandled payload type");
         }
@@ -83,17 +97,23 @@ public final class IapJwtTokenImpl implements IapToken
      * This should generally be used when creating a new token from scratch.
      *
      * @param jws the signed token string that can be provided to users to authenticate with later
+     * @param issuer the identity of the instance issuing this token
      * @param userId the userId of encoded within this token
      * @param expiration the date and time when this token should stop being valid
      * @param attributes any other attributes that are encoded within this token
      */
-    public IapJwtTokenImpl(final String jws, final String userId, final Calendar expiration,
+    public IapJwtTokenImpl(final String jws, final String issuer, final String userId, final Calendar expiration,
         final Map<String, String> attributes)
     {
         this.loginToken = jws;
+        this.issuer = issuer;
         this.userId = userId;
         this.expirationTime = (Calendar) expiration.clone();
         this.attributes = new HashMap<String, String>(attributes);
+        this.stringClaims = new HashMap<String, String>(attributes);
+        // Signing sets these over whatever the attributes said
+        this.stringClaims.put(Claims.ISSUER, issuer);
+        this.stringClaims.put(Claims.SUBJECT, userId);
     }
 
     // ------------------------------------------------------< TokenInfo >---
@@ -153,5 +173,17 @@ public final class IapJwtTokenImpl implements IapToken
     public Calendar getExpirationTime()
     {
         return (Calendar) this.expirationTime.clone();
+    }
+
+    @Override
+    public String getIssuer()
+    {
+        return this.issuer;
+    }
+
+    @Override
+    public String getClaim(final String name)
+    {
+        return this.stringClaims.get(name);
     }
 }

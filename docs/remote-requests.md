@@ -4,8 +4,9 @@ Two IAP instances that know each other's public keys can act on each other's beh
 [token module](../modules/authentication/token/) mints and verifies the JWTs that say who is
 calling; this module is the first thing on the receiving side that does anything with one.
 
-Currently we only have a working example of the request: `POST /system/remote` with a valid token
-creates an empty node under `/remote`. Later work will expand on remote access rights, etc.
+`POST /system/remote` is a working example of the request: with a valid token it creates an empty
+node under `/remote`. The first real use is `POST /system/remote/submissions`, which takes in a
+submission another instance hands over; [submission transfer](submission-transfer.md) describes it.
 
 ## The endpoint
 
@@ -96,3 +97,24 @@ suits a development instance.
 Several keys may be registered with the same issuer; that is what lets an old and a new key coexist
 during rotation. Registration is add-only. To rotate a peer's key, register the new one and
 remove the old node by hand (there is no endpoint for removal yet).
+
+## Calling a peer
+
+The calling side mints its token through the token module's `TokenManager`, naming the peer
+as the audience:
+
+```java
+if (!this.tokens.isTrustedPeer(peer)) {
+    // refuse: nothing checks the audience when minting
+}
+final IapToken token = this.tokens.create(user, expiry, Map.of("email", email), Set.of(peer));
+```
+
+`isTrustedPeer` answers whether `peer` is an issuer registered here. Trust is assumed to run
+both ways, so a peer this instance accepts tokens from is one it may send them to. Check it
+first: `create` signs for any audience it is given. The extra data becomes string claims,
+which the receiving side reads with `IapToken.getClaim(name)`, alongside `getIssuer()` for the
+instance that sent it.
+
+A token for a peer should be short-lived. It is only good for the audience it names, but
+until it expires, anyone who obtains it can use it there.
