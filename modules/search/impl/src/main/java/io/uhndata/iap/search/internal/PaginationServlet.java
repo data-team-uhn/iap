@@ -398,5 +398,4 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             return null;
         }
     }
-
 }

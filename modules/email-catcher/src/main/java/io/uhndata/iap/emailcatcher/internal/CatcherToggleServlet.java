@@ -172,12 +172,12 @@ public class CatcherToggleServlet extends SlingJakartaAllMethodsServlet
     private static boolean isSuperuser(final ResourceResolver resolver, final String caller)
     {
         final Session session = resolver.adaptTo(Session.class);
-        if (!(session instanceof JackrabbitSession jackrabbit)) {
+        if (!(session instanceof final JackrabbitSession jackrabbit)) {
             return false;
         }
         try {
             final Authorizable authorizable = jackrabbit.getUserManager().getAuthorizable(caller);
-            return authorizable instanceof User user && user.isAdmin();
+            return authorizable instanceof final User user && user.isAdmin();
         } catch (final RepositoryException e) {
             // Not recorded as an error: the group check below asks the same question.
             LOGGER.debug("Could not ask the user store about {}", caller, e);

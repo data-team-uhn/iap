@@ -81,12 +81,12 @@ final class EventJson
     private static JsonObject read(final WorkflowTaskContext context, final String parameter, final boolean nullable)
         throws InvalidPayloadException
     {
-        if (!(context.getEvent().get(parameter) instanceof String text)) {
+        if (!(context.getEvent().get(parameter) instanceof final String text)) {
             throw new InvalidPayloadException("The " + parameter + " is required");
         }
         try (JsonReader reader = Json.createReader(new StringReader(text))) {
             final JsonValue value = reader.readValue();
-            if (value instanceof JsonObject object) {
+            if (value instanceof final JsonObject object) {
                 return object;
             }
             if (nullable && value == JsonValue.NULL) {

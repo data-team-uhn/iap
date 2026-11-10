@@ -81,8 +81,8 @@ public class CacheHeadersFilter implements Filter
     public void doFilter(final ServletRequest request, final ServletResponse response, final FilterChain chain)
         throws IOException, ServletException
     {
-        if (request instanceof SlingJakartaHttpServletRequest slingRequest
-            && response instanceof HttpServletResponse httpResponse) {
+        if (request instanceof final SlingJakartaHttpServletRequest slingRequest
+            && response instanceof final HttpServletResponse httpResponse) {
             httpResponse.setHeader("Cache-Control", policyFor(slingRequest.getResource().getPath()));
         }
         chain.doFilter(request, response);

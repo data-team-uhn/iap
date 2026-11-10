@@ -191,6 +191,5 @@ class ValidateAnswersHandlerTest
             this.askedBy = actor;
             return this.refusal;
         }
-
     }
 }

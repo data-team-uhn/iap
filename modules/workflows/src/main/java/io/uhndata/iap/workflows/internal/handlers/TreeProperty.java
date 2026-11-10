@@ -64,7 +64,7 @@ record TreeProperty(String name, Value[] values, boolean multiple)
         final JsonValue json, final NodeType type) throws InvalidPayloadException
     {
         final boolean multiple = json instanceof JsonArray;
-        final Value[] given = json instanceof JsonArray array ? values(factory, at, array)
+        final Value[] given = json instanceof final JsonArray array ? values(factory, at, array)
             : new Value[] { value(factory, at, json) };
         final TreeProperty written =
             new TreeProperty(name, converted(factory, at, given, declaredType(type, name)), multiple);
@@ -141,11 +141,12 @@ record TreeProperty(String name, Value[] values, boolean multiple)
     private static Value[] values(final ValueFactory factory, final String at, final JsonArray array)
         throws InvalidPayloadException
     {
-        final boolean decimals = array.stream().anyMatch(value -> value instanceof JsonNumber number
+        final boolean decimals = array.stream().anyMatch(value -> value instanceof final JsonNumber number
             && !number.isIntegral());
         final List<Value> values = new ArrayList<>();
         for (final JsonValue element : array) {
-            values.add(decimals && element instanceof JsonNumber number ? factory.createValue(number.doubleValue())
+            values.add(decimals && element instanceof final JsonNumber number
+                ? factory.createValue(number.doubleValue())
                 : value(factory, at, element));
         }
         if (values.stream().map(Value::getType).collect(Collectors.toSet()).size() > 1) {

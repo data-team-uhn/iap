@@ -81,7 +81,7 @@ public class SelectorParameterFilter implements Filter
     public void doFilter(final ServletRequest request, final ServletResponse response, final FilterChain chain)
         throws IOException, ServletException
     {
-        final String[] extras = request instanceof SlingJakartaHttpServletRequest slingRequest
+        final String[] extras = request instanceof final SlingJakartaHttpServletRequest slingRequest
             ? slingRequest.getParameterValues(SELECTOR_PARAMETER) : null;
         if (extras == null || extras.length == 0) {
             chain.doFilter(request, response);

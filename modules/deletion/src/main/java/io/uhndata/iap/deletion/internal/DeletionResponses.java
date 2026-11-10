@@ -199,5 +199,4 @@ final class DeletionResponses
             .forEach(result::add);
         return result;
     }
-
 }

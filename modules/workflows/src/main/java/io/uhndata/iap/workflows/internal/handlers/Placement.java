@@ -57,7 +57,7 @@ final class Placement
             return null;
         }
         // A sibling is named, never reached by a path, which hasNode would accept as well
-        if (!(before instanceof String name) || name.contains("/") || !parent.hasNode(name)) {
+        if (!(before instanceof final String name) || name.contains("/") || !parent.hasNode(name)) {
             throw new InvalidPayloadException("There is nothing called " + before + " to go before");
         }
         if (!parent.getPrimaryNodeType().hasOrderableChildNodes()) {

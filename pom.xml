@@ -1236,7 +1236,7 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-enforcer-plugin</artifactId>
           <!-- Lock down plugin version for build reproducibility -->
-          <version>3.6.3</version>
+          <version>3.7.0</version>
         </plugin>
         <!-- Apply checkstyle rules and fail the build in case of errors. The checkstyle config
              files are taken from the build-tools JAR module.-->
@@ -1249,7 +1249,7 @@
             <dependency>
               <groupId>com.puppycrawl.tools</groupId>
               <artifactId>checkstyle</artifactId>
-              <version>14.3.0</version>
+              <version>14.4.0</version>
             </dependency>
           </dependencies>
           <configuration>
@@ -1383,6 +1383,8 @@
 
                       <module name="AvoidStaticImport" />
 
+                      <module name="BlockCommentEndPosition" />
+
                       <module name="BooleanExpressionComplexity" />
 
                       <module name="ClassDataAbstractionCoupling" />
@@ -1390,6 +1392,9 @@
                       <module name="ClassFanOutComplexity">
                         <property name="excludedPackages" value="java.io, java.math, java.text, java.util, java.util.concurrent, java.util.concurrent.atomic, java.util.function, java.util.stream, javax.annotation, javax.inject, javax.servlet, org.apache.commons.collections4, org.apache.commons.lang3, org.json, org.slf4j, org.xwiki.component.annotation, org.apache.sling.servlets.annotations, org.osgi.service.component.annotations, org.jetbrains.annotations" />
                       </module>
+
+                      <!-- Follows the OpenJDK style guide, at its 80-column limit. -->
+                      <!--module name="ClassHeaderWrapOpenjdk" /-->
 
                       <!-- We use the opposite, RedundantModifier. -->
                       <!--module name="ClassMemberImpliedModifier"/-->
@@ -1442,11 +1447,19 @@
                         <property name="tokens" value="IMPORT, STATIC_IMPORT, MODULE_IMPORT, CLASS_DEF, INTERFACE_DEF, ENUM_DEF, STATIC_INIT, INSTANCE_INIT, METHOD_DEF, CTOR_DEF, RECORD_DEF, COMPACT_CTOR_DEF" />
                       </module>
 
+                      <module name="EmptyLineWrappingInBlock">
+                        <property name="topSeparator" value="no_empty_line" />
+                        <property name="bottomSeparator" value="no_empty_line" />
+                      </module>
+
                       <module name="EmptyStatement" />
 
                       <module name="EqualsAvoidNull" />
 
                       <module name="EqualsHashCode" />
+
+                      <!-- Wants the inputs in the message; we pass the cause, and keep caller-supplied text out. -->
+                      <!--module name="ExceptionThrowShouldUseContext" /-->
 
                       <module name="ExecutableStatementCount" />
 
@@ -1461,6 +1474,8 @@
                       <!--module name="FinalLocalVariable"/-->
 
                       <module name="FinalParameters" />
+
+                      <module name="FinalPatternVariable" />
 
                       <module name="GenericWhitespace" />
 
@@ -1665,6 +1680,8 @@
                       <!--module name="NoArrayTrailingComma" /-->
                       <!--module name="NoEnumTrailingComma" /-->
 
+                      <module name="NoCauseGetMessageInExceptionConstructor" />
+
                       <!--module name="NoClone"/-->
 
                       <module name="NoFinalizer" />
@@ -1688,6 +1705,9 @@
                       <module name="OneStatementPerLine" />
 
                       <module name="OneTopLevelClass" />
+
+                      <!-- Follows the OpenJDK style guide; we indent wrapped parameters by 4. -->
+                      <!--module name="OpenjdkMethodParameterAlignment" /-->
 
                       <module name="OperatorWrap" />
 
@@ -1729,6 +1749,12 @@
                       <module name="RedundantImport" />
 
                       <module name="RedundantModifier" />
+
+                      <!-- Compact source files are Java 25 syntax; this build targets 21. -->
+                      <!--module name="RedundantModifierCompactSource" /-->
+
+                      <!-- The opposite of RequireThis. -->
+                      <!--module name="RedundantThis" /-->
 
                       <!-- No direct printing to System.out or System.err -->
                       <module name="RegexpSinglelineJava">
@@ -2024,6 +2050,8 @@
 
                       <!--module name="AvoidStaticImport"/-->
 
+                      <module name="BlockCommentEndPosition" />
+
                       <module name="BooleanExpressionComplexity" />
 
                       <!--module name="ClassDataAbstractionCoupling"/-->
@@ -2031,6 +2059,9 @@
                       <!--module name="ClassFanOutComplexity">
                         <property name="excludedPackages" value="java.io, java.math, java.text, java.util, java.util.concurrent, java.util.concurrent.atomic, java.util.function, java.util.stream, javax.annotation, javax.inject, javax.servlet, org.apache.commons.collections4, org.apache.commons.lang3, org.json, org.slf4j, org.xwiki.component.annotation, org.apache.sling.servlets.annotations, org.osgi.service.component.annotations, org.jetbrains.annotations" />
                       </module-->
+
+                      <!-- Follows the OpenJDK style guide, at its 80-column limit. -->
+                      <!--module name="ClassHeaderWrapOpenjdk" /-->
 
                       <!-- We use the opposite, RedundantModifier. -->
                       <!--module name="ClassMemberImpliedModifier"/-->
@@ -2080,11 +2111,19 @@
                         <property name="tokens" value="IMPORT, STATIC_IMPORT, MODULE_IMPORT, CLASS_DEF, INTERFACE_DEF, ENUM_DEF, STATIC_INIT, INSTANCE_INIT, METHOD_DEF, CTOR_DEF, RECORD_DEF, COMPACT_CTOR_DEF" />
                       </module>
 
+                      <module name="EmptyLineWrappingInBlock">
+                        <property name="topSeparator" value="no_empty_line" />
+                        <property name="bottomSeparator" value="no_empty_line" />
+                      </module>
+
                       <module name="EmptyStatement" />
 
                       <module name="EqualsAvoidNull" />
 
                       <module name="EqualsHashCode" />
+
+                      <!-- Wants the inputs in the message; we pass the cause, and keep caller-supplied text out. -->
+                      <!--module name="ExceptionThrowShouldUseContext" /-->
 
                       <!--module name="ExecutableStatementCount"/-->
 
@@ -2101,6 +2140,8 @@
                       <!-- TODO: Enable this after fixing violations
                       <module name="FinalParameters" />
                       -->
+
+                      <module name="FinalPatternVariable" />
 
                       <module name="GenericWhitespace" />
 
@@ -2312,6 +2353,8 @@
                       <!--module name="NoArrayTrailingComma" /-->
                       <!--module name="NoEnumTrailingComma" /-->
 
+                      <module name="NoCauseGetMessageInExceptionConstructor" />
+
                       <!--module name="NoClone"/-->
 
                       <module name="NoFinalizer" />
@@ -2335,6 +2378,9 @@
                       <module name="OneStatementPerLine" />
 
                       <module name="OneTopLevelClass" />
+
+                      <!-- Follows the OpenJDK style guide; we indent wrapped parameters by 4. -->
+                      <!--module name="OpenjdkMethodParameterAlignment" /-->
 
                       <module name="OperatorWrap" />
 
@@ -2376,6 +2422,12 @@
                       <module name="RedundantImport" />
 
                       <module name="RedundantModifier" />
+
+                      <!-- Compact source files are Java 25 syntax; this build targets 21. -->
+                      <!--module name="RedundantModifierCompactSource" /-->
+
+                      <!-- The opposite of RequireThis. -->
+                      <!--module name="RedundantThis" /-->
 
                       <!-- No direct printing to System.out or System.err -->
                       <module name="RegexpSinglelineJava">

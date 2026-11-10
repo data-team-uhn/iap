@@ -76,10 +76,10 @@ public final class ContentNames
      */
     static String requested(final Object given, final String pattern) throws InvalidPayloadException
     {
-        if (given == null || given instanceof String text && text.isBlank()) {
+        if (given == null || given instanceof final String text && text.isBlank()) {
             return null;
         }
-        if (!(given instanceof String name) || !allowed(name, pattern)) {
+        if (!(given instanceof final String name) || !allowed(name, pattern)) {
             throw new InvalidPayloadException(given + " is not a name this can take");
         }
         return name;

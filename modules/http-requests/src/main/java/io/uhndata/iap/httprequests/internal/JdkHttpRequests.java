@@ -111,7 +111,7 @@ public class JdkHttpRequests implements HttpRequests
     {
         // A malformed address is rejected with a syntax error that says only what is wrong and where, unlike the
         // message of the exception carrying it, so that much can be passed on
-        if (failure.getCause() instanceof URISyntaxException syntaxError) {
+        if (failure.getCause() instanceof final URISyntaxException syntaxError) {
             return syntaxError.getReason() + " at index " + syntaxError.getIndex();
         }
         return "it must be a valid http(s) URL, and the content type a valid header value";
