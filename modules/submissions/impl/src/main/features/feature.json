@@ -44,6 +44,10 @@
         // grants that, not even its author can read it back. A grant on a submission reaches it by path
         // without any on the buckets above it.
         "set ACL on /Submissions \n allow jcr:read for everyone restriction(rep:ntNames,sub:SubmissionsHomepage) \n end",
+        // Let administrators read every submission: an act a system workflow names them for has to reach the
+        // submission first. Writing still goes through the engine. The group is the workflows module's, created
+        // here too in case this script runs first.
+        "create group iap-administrators \n set ACL on /Submissions \n allow jcr:read for iap-administrators \n end",
         // Define a service user whom another instance's submissions are taken in as. It only reads: accounts, to
         // find the submitter by email, and submissions, to recognise one sent again; the engine does the writing,
         // on behalf of the submitter. The delegates group is the workflows module's, created here too in case
