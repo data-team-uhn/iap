@@ -54,6 +54,9 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     /** How many sent events deep the execution is. */
     private final int depth;
 
+    /** What the delivery leaves behind besides its writes. */
+    private final DeliveryConsequences consequences;
+
     /**
      * Constructor.
      *
@@ -75,6 +78,7 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
         this.variables = variables;
         this.actor = actor;
         this.dispatcher = dispatcher;
+        this.consequences = dispatcher.consequences();
         this.depth = depth;
     }
 
@@ -130,7 +134,7 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     public void startWorkflow(final Resource host, final WorkflowVersion version)
         throws WorkflowException, PersistenceException
     {
-        this.dispatcher.noteStartedInstance(
+        this.consequences.noteStartedInstance(
             this.dispatcher.createRunner(getResourceResolver(), this.event, this.actor).startInstance(host, version)
                 .getPath());
     }
@@ -139,7 +143,7 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     public void replaceWorkflow(final Resource host, final WorkflowVersion version)
         throws WorkflowException, PersistenceException
     {
-        this.dispatcher.noteStartedInstance(
+        this.consequences.noteStartedInstance(
             this.dispatcher.createRunner(getResourceResolver(), this.event, this.actor).replaceInstance(host, version)
                 .getPath());
     }
@@ -147,12 +151,18 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     @Override
     public void recordRole(final Resource resource, final String role)
     {
-        this.dispatcher.recordRole(resource.getPath(), role);
+        this.consequences.recordRole(resource.getPath(), role);
     }
 
     @Override
     public void checkInAfterCommit(final String path)
     {
-        this.dispatcher.checkInAfterCommit(path);
+        this.consequences.checkInAfterCommit(path);
+    }
+
+    @Override
+    public void afterCommit(final Runnable work)
+    {
+        this.consequences.afterCommit(work, this.activity);
     }
 }

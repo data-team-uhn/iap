@@ -132,4 +132,10 @@ final class TaskContext implements WorkflowTaskContext
     {
         // No handler tested here asks for a check-in
     }
+
+    @Override
+    public void afterCommit(final Runnable work)
+    {
+        // No handler tested here leaves work for after the commit
+    }
 }

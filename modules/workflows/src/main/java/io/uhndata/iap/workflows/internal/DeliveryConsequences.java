@@ -18,10 +18,9 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.Consumer;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -38,14 +37,15 @@ import io.uhndata.iap.history.api.RecordedAction;
 import io.uhndata.iap.history.api.RecordedEffect;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.Event;
 import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.spi.Execution;
 
 /**
  * What one delivery leaves behind besides its writes. What its steps said they did, and the instance it started, are
- * recorded by its commit. The notifications its message events announced are sent once it commits, and the nodes its
- * steps checked out are checked back in.
+ * recorded by its commit. Once it commits, the notifications its message events announced are sent, and the work its
+ * steps left for after the commit is done, such as checking back in the nodes they checked out.
  *
  * @version $Id$
  * @since 0.1.0
@@ -58,7 +58,7 @@ final class DeliveryConsequences
 
     private final List<RecordedEffect> effects = new ArrayList<>();
 
-    private final Set<String> toCheckIn = new LinkedHashSet<>();
+    private final List<CommittedWork> afterCommit = new ArrayList<>();
 
     private String startedInstance;
 
@@ -119,7 +119,20 @@ final class DeliveryConsequences
      */
     void checkInAfterCommit(final String path)
     {
-        this.toCheckIn.add(path);
+        this.afterCommit.add(new CommittedWork(resolver -> checkIn(resolver, path),
+            ErrorContext.of(DeliveryConsequences.class, "checkIn").about(path)));
+    }
+
+    /**
+     * Notes work to do once the delivery has committed.
+     *
+     * @param work what to do
+     * @param step the activity whose step left it, which a failure is recorded against
+     */
+    void afterCommit(final Runnable work, final Activity step)
+    {
+        this.afterCommit.add(new CommittedWork(resolver -> work.run(),
+            ErrorContext.of(step.getHandler(), "afterCommit").about(step.getPath())));
     }
 
     /**
@@ -155,22 +168,24 @@ final class DeliveryConsequences
     }
 
     /**
-     * Finishes what waited for the commit: sends the notifications, and checks in the nodes the steps checked out.
-     * The delivery has committed by then, so a node that cannot be checked in is reported rather than thrown.
+     * Finishes what waited for the commit: sends the notifications, then does the work the steps left, in the order
+     * they left it. The delivery has committed by then, so a piece of work that fails is reported rather than thrown,
+     * and the rest still runs.
      *
      * @param resolver the engine's resolver, which committed the delivery
      */
     void completeAfterCommit(final ResourceResolver resolver)
     {
         this.notifications.send();
-        final Session session = resolver.adaptTo(Session.class);
-        if (session != null) {
-            this.toCheckIn.forEach(path -> checkIn(session, path));
-        }
+        this.afterCommit.forEach(work -> work.perform(resolver));
     }
 
-    private static void checkIn(final Session session, final String path)
+    private static void checkIn(final ResourceResolver resolver, final String path)
     {
+        final Session session = resolver.adaptTo(Session.class);
+        if (session == null) {
+            return;
+        }
         try {
             if (!session.nodeExists(path)) {
                 return;
@@ -182,6 +197,27 @@ final class DeliveryConsequences
         } catch (final RepositoryException e) {
             LOGGER.error("Could not check {} back in after its delivery committed: {}", path, e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(DeliveryConsequences.class, "checkIn").about(path));
+        }
+    }
+
+    /**
+     * A piece of work waiting for the delivery's commit, and what to record if it fails.
+     *
+     * @param work what to do, given the engine's resolver
+     * @param failure what to record if it fails
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private record CommittedWork(Consumer<ResourceResolver> work, ErrorContext failure)
+    {
+        void perform(final ResourceResolver resolver)
+        {
+            try {
+                this.work.accept(resolver);
+            } catch (final RuntimeException e) {
+                LOGGER.error("Work left for after a delivery's commit failed, {}: {}", this.failure, e.getMessage(), e);
+                ErrorLogger.logError(e, this.failure);
+            }
         }
     }
 

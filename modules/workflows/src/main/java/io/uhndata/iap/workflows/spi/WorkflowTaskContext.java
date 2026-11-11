@@ -134,4 +134,14 @@ public interface WorkflowTaskContext extends Execution
      * @param path the absolute path of the versionable node
      */
     void checkInAfterCommit(@NotNull String path);
+
+    /**
+     * Leaves work to do once this delivery has committed. It is for what must happen only if the delivery does, but
+     * cannot be part of its commit, such as a write through a session of its own. Work left by a delivery that fails,
+     * or by an attempt the engine retries after a conflict, never runs. A failure cannot undo the delivery, so it is
+     * recorded against this step, and the rest of the work still runs.
+     *
+     * @param work what to do, run once, in the order the steps left it
+     */
+    void afterCommit(@NotNull Runnable work);
 }
