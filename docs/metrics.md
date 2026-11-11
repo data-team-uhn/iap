@@ -45,6 +45,24 @@ void          increment();           // + increment(long amount)
 void          rollOver();
 ```
 
+### From a workflow
+
+The `incrementMetric` service task counts in a metric as part of a workflow. The activity
+names the metric in `metric`, and may give a whole-number `amount` other than 1:
+
+```json
+"count": {
+  "jcr:primaryType": "wf:Activity",
+  "handler": "incrementMetric",
+  "metric": "submittedProposals",
+  "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask"
+}
+```
+
+The count lands after the delivery commits, so a delivery that fails counts nothing. A
+metric that does not exist refuses the definition rather than starting a counter: define
+it first, with its label and audience.
+
 ### Handles and staleness
 
 A metric from `create()` or `getMetric(name)` reads the repository on every call. It
