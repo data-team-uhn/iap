@@ -44,6 +44,7 @@ import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.schemas.models.ValidationRequirement;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstances;
@@ -136,6 +137,21 @@ public class Submission extends Entity
     public List<Answer> getAnswers()
     {
         return this.getChildren(Answer.RESOURCE_TYPE, Answer.class);
+    }
+
+    /**
+     * Returns what a model decided about an upload for one requirement.
+     *
+     * @param requirement the validation requirement to look up
+     * @return the validation, or {@code null} while the model has not been asked
+     */
+    @Nullable
+    public Validation findValidation(@NotNull final ValidationRequirement requirement)
+    {
+        return this.getChildren(Validation.RESOURCE_TYPE, Validation.class).stream()
+            .filter(validation -> validation.isAbout(requirement))
+            .findFirst()
+            .orElse(null);
     }
 
     /**

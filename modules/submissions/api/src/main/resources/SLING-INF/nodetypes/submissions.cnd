@@ -92,6 +92,9 @@
 
   // The submitter's answers to the schema's questions
   + * (sub:Answer) = sub:Answer
+au
+  // What a model decided about an upload, one per sch:ValidationRequirement
+  + * (sub:Validation)
 
   // The attached documents, such as the signed patient consent
   + * (sub:Document) = sub:Document
@@ -131,10 +134,35 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One extraction run against one answer: what a model read out of the submitted
-// documents, and what it read to get there. The run's own existence is the
-// record that extraction happened, so a run that found nothing is a node
-// with no extractedValues rather than a flag, and jcr:created is when it ran.
+// What a model decided about an upload for one sch:ValidationRequirement, such
+// as whether it is a research proposal. Not an answer: nobody fills it in, so
+// it has no value of its own, only the runs.
+[sub:Validation] > data:EntityPart
+  // The runs are orderable, so they are kept in the order they ran, the
+  // newest last.
+  orderable
+
+  - sling:resourceType (STRING) = "sub/Validation" mandatory autocreated protected
+
+  // The sch:ValidationRequirement this decides
+  - requirement (REFERENCE) mandatory
+
+  // One child per run; extractedValues holds yes or no
+  + * (sub:Extraction) = sub:Extraction
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One extraction run against one answer or validation: what a model read out
+// of the submitted documents, and what it read to get there. The run's own
+// existence is the record that extraction happened, so a run that found
+// nothing is a node with no extractedValues rather than a flag, and
+// jcr:created is when it ran.
 [sub:Extraction] > data:EntityPart
   - sling:resourceType (STRING) = "sub/Extraction" mandatory autocreated protected
 
