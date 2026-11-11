@@ -61,27 +61,9 @@ public class SelectorUtilsTest
     }
 
     @Test
-    public void testDotEscaping()
-        throws Exception
+    public void testEveryDotInThePathSeparatesSelectors()
     {
-        Assertions.assertEquals(List.of("a.b", "c.d"), SelectorUtils.parseSelectors("a\\.b...c\\.d"));
-        Assertions.assertEquals(List.of("a\\.b", "c\\.d"), SelectorUtils.parseSelectors("a\\\\\\.b...c\\\\\\.d"));
-    }
-
-    @Test
-    public void testBackslashEscaping()
-        throws Exception
-    {
-        Assertions.assertEquals(List.of("a\\", "b", "c\\", "d"), SelectorUtils.parseSelectors("a\\\\.b...c\\\\.d"));
-    }
-
-    @Test
-    public void testTrailingBackslash()
-        throws Exception
-    {
-        Assertions.assertEquals(List.of("a", "b", "c", "d\\"), SelectorUtils.parseSelectors("a.b.c.d\\"));
-        Assertions.assertEquals(List.of("a", "b", "c", "d\\"), SelectorUtils.parseSelectors("a.b.c.d\\\\"));
-        Assertions.assertEquals(List.of("a", "b", "c", "d\\\\"), SelectorUtils.parseSelectors("a.b.c.d\\\\\\"));
+        Assertions.assertEquals(List.of("a\\", "b", "c\\\\", "d"), SelectorUtils.parseSelectors("a\\.b.c\\\\.d"));
     }
 
     @Test
@@ -91,14 +73,6 @@ public class SelectorUtilsTest
         Assertions.assertEquals(List.of("csvReplaceColumnLabels: ID=", "csvReplaceColumnLabels:@=#", "csv"),
             SelectorUtils
                 .parseSelectors(".csvReplaceColumnLabels:%20ID%3D.csvReplaceColumnLabels:%40%3D%23.csv"));
-    }
-
-    @Test
-    public void testFullEscaping()
-        throws Exception
-    {
-        Assertions.assertEquals(List.of("a\\\\", "b\\.c\\", "d\\"),
-            SelectorUtils.parseSelectors("a\\\\\\\\.b\\\\\\.c\\\\.d\\\\"));
     }
 
     @Test
@@ -128,7 +102,7 @@ public class SelectorUtilsTest
         Assertions.assertTrue(SelectorUtils.parseDepth("").isEmpty());
         Assertions.assertTrue(SelectorUtils.parseDepth(".deep.json").isEmpty());
         // Only whole numbers are depths
-        Assertions.assertTrue(SelectorUtils.parseDepth(".1b.2\\.5.v3.json").isEmpty());
+        Assertions.assertTrue(SelectorUtils.parseDepth(".1b.2,5.v3.json").isEmpty());
         // Numbers too large to be a real depth are ignored, instead of overflowing
         Assertions.assertTrue(SelectorUtils.parseDepth(".12345678901234567890.json").isEmpty());
     }
@@ -195,46 +169,35 @@ public class SelectorUtilsTest
     }
 
     @Test
-    public void testEscapesInOptionParsing()
-        throws Exception
-    {
-        Assertions.assertEquals(List.of(Pair.of("a.1", "1.1"), Pair.of("b=2", "2=2")),
-            SelectorUtils.parseOptions("dataFilter", ".data.dataFilter:a\\.1=1\\.1.dataFilter:b\\=2=2\\=2"));
-    }
-
-    @Test
     public void testValuelessOptionParsing()
         throws Exception
     {
-        Assertions.assertEquals(List.of(Pair.of("a", ""), Pair.of("b=2", "")),
-            SelectorUtils.parseOptions("dataFilter", ".data.dataFilter:a.dataFilter:b\\=2"));
+        Assertions.assertEquals(List.of(Pair.of("a", ""), Pair.of("b", "")),
+            SelectorUtils.parseOptions("dataFilter", ".data.dataFilter:a.dataFilter:b"));
     }
 
     @Test
     public void testRealOptionParsing()
         throws Exception
     {
-        final String pathInfo = ".data"
-            + ".deep"
-            + ".dataOption:formSelectors=deep\\.-identify\\.simple"
-            + ".dataFilter:createdAfter=2025-01-01T00:00:00\\.000-05:00"
-            + ".dataFilter:status=SUBMITTED"
-            + ".json";
+        final String pathInfo = ".data.deep.dataFilter:status=SUBMITTED.json";
+        final List<String> dotted = List.of("dataOption:formSelectors=deep.-identify.simple",
+            "dataFilter:createdAfter=2025-01-01T00:00:00.000-05:00");
         Assertions.assertEquals(
             List.of("data",
                 "deep",
-                "dataOption:formSelectors=deep.-identify.simple",
-                "dataFilter:createdAfter=2025-01-01T00:00:00.000-05:00",
                 "dataFilter:status=SUBMITTED",
-                "json"),
-            SelectorUtils.parseSelectors(pathInfo));
+                "json",
+                "dataOption:formSelectors=deep.-identify.simple",
+                "dataFilter:createdAfter=2025-01-01T00:00:00.000-05:00"),
+            SelectorUtils.withSelectors(dotted, () -> SelectorUtils.parseSelectors(pathInfo)));
         Assertions.assertEquals(List.of(Pair.of("formSelectors", "deep.-identify.simple")),
-            SelectorUtils.parseOptions("dataOption:", pathInfo));
+            SelectorUtils.withSelectors(dotted, () -> SelectorUtils.parseOptions("dataOption:", pathInfo)));
         Assertions.assertEquals(
             List.of(
-                Pair.of("createdAfter", "2025-01-01T00:00:00.000-05:00"),
-                Pair.of("status", "SUBMITTED")),
-            SelectorUtils.parseOptions("dataFilter:", pathInfo));
+                Pair.of("status", "SUBMITTED"),
+                Pair.of("createdAfter", "2025-01-01T00:00:00.000-05:00")),
+            SelectorUtils.withSelectors(dotted, () -> SelectorUtils.parseOptions("dataFilter:", pathInfo)));
     }
 
     @Test
@@ -251,12 +214,12 @@ public class SelectorUtilsTest
     public void testParseToMap()
     {
         Assertions.assertEquals(Map.of("formSelectors", "deep.-identify.simple", "descendantData", "2"),
-            SelectorUtils.parseOptionsToMap("dataOption:",
-                ".data"
-                    + ".dataOption:formSelectors=deep\\.-identify\\.simple"
-                    + ".dataOption:descendantData=true"
-                    + ".dataOption:descendantData=5"
-                    + ".dataOption:descendantData=2"));
+            SelectorUtils.withSelectors(List.of("dataOption:formSelectors=deep.-identify.simple"),
+                () -> SelectorUtils.parseOptionsToMap("dataOption:",
+                    ".data"
+                        + ".dataOption:descendantData=true"
+                        + ".dataOption:descendantData=5"
+                        + ".dataOption:descendantData=2")));
     }
 
     @Test
@@ -363,5 +326,46 @@ public class SelectorUtilsTest
         } finally {
             SelectorUtils.clearRequestSelectors();
         }
+    }
+
+    @Test
+    public void testAnOptionValueKeepsItsBackslashes()
+    {
+        Assertions.assertEquals(List.of(Pair.of("path", "C:\\x\\\\y=z")),
+            SelectorUtils.withSelectors(List.of("dataFilter:path=C:\\x\\\\y=z"),
+                () -> SelectorUtils.parseOptions("dataFilter:", null)));
+    }
+
+    @Test
+    public void testExplicitSelectorsReplaceTheRequestOnesUntilTheCodeReturns()
+    {
+        try {
+            SelectorUtils.setRequestSelectors(List.of("deep"));
+
+            Assertions.assertEquals(List.of("json", "2"),
+                SelectorUtils.withSelectors(List.of("2"), () -> SelectorUtils.parseSelectors(".json")));
+            Assertions.assertEquals(List.of("json", "deep"), SelectorUtils.parseSelectors(".json"));
+        } finally {
+            SelectorUtils.clearRequestSelectors();
+        }
+    }
+
+    @Test
+    public void testExplicitSelectorsLeaveNothingBehind()
+    {
+        Assertions.assertEquals(List.of("deep"),
+            SelectorUtils.withSelectors(List.of("deep"), () -> SelectorUtils.parseSelectors(null)));
+        Assertions.assertEquals(List.of(), SelectorUtils.parseSelectors(null));
+    }
+
+    @Test
+    public void testExplicitSelectorsAreClearedWhenTheCodeThrows()
+    {
+        final IllegalStateException thrown = new IllegalStateException();
+        Assertions.assertSame(thrown, Assertions.assertThrows(IllegalStateException.class,
+            () -> SelectorUtils.withSelectors(List.of("deep"), () -> {
+                throw thrown;
+            })));
+        Assertions.assertEquals(List.of(), SelectorUtils.parseSelectors(null));
     }
 }

@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -37,7 +38,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Reads the selectors of a request: a list of selectors, the depth they ask for, or the options they give one
- * processor. A selector is separated from the next by a dot. A backslash escapes a dot, or another backslash.
+ * processor. In a path, every dot separates one selector from the next. A selector whose value holds a dot is given
+ * whole instead, through a {@code selector} query parameter or by code calling {@link #withSelectors}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -54,7 +56,7 @@ public final class SelectorUtils
     private static final Pattern DEPTH_SELECTOR = Pattern.compile("-?\\d{1,9}");
 
     /**
-     * The selectors the current request gives outside its path, for as long as the request runs.
+     * The selectors given outside the path, by the current request or by code, for as long as they apply.
      *
      * <p>
      * A thread-local, because the code that reads selectors works from a resource and not from the request. Sling
@@ -62,7 +64,7 @@ public final class SelectorUtils
      * help either, since {@code adaptTo} on it adapts the resource it wraps.
      * </p>
      */
-    private static final ThreadLocal<List<String>> REQUEST_SELECTORS = new ThreadLocal<>();
+    private static final ThreadLocal<List<String>> EXPLICIT_SELECTORS = new ThreadLocal<>();
 
     private SelectorUtils()
     {
@@ -73,34 +75,23 @@ public final class SelectorUtils
      * them: {@code .deep.json} gives {@code deep} and {@code json}.
      *
      * <p>
-     * The selectors the current request gives outside its path, if any, follow them; see {@link #setRequestSelectors}.
-     * A depth or an option given that way therefore overrides one in the path.
+     * The selectors given outside the path, if any, follow them; see {@link #setRequestSelectors} and
+     * {@link #withSelectors}. A depth or an option given that way therefore overrides one in the path.
      * </p>
      *
      * @param resolutionPathInfo the part of the request path after the resource's path, such as
      *     {@code .deep.json}, possibly URL-encoded; {@code null} or blank if there is none
-     * @return the selectors, unescaped and without the dots between them; empty if there are none
+     * @return the selectors, without the dots between them; empty if there are none
      */
     @NotNull
     public static List<String> parseSelectors(@Nullable final String resolutionPathInfo)
     {
-        if (StringUtils.isBlank(resolutionPathInfo)) {
-            return requestSelectors();
-        }
-        // Split at each dot preceded by an even number of backslashes. A Java lookbehind needs a bounded length, so
-        // it counts at most 10 pairs.
-        final List<String> fromPath = Arrays
-            .asList(URLDecoder.decode(resolutionPathInfo, StandardCharsets.UTF_8)
-                .split("(?<=([^\\\\]|^)(\\\\\\\\){0,10})\\."))
-            .stream()
-            // Unescape a dot preceded by an odd number of backslashes, keeping the pairs before it
-            .map(s -> s.replaceAll("(?<!\\\\)((\\\\\\\\)*+)\\\\\\.", "$1.")
-                // Then turn each pair of backslashes into one
-                .replace("\\\\", "\\"))
-            .filter(StringUtils::isNotBlank)
-            .collect(Collectors.toCollection(ArrayList::new));
-        fromPath.addAll(requestSelectors());
-        return fromPath;
+        final List<String> selectors = StringUtils.isBlank(resolutionPathInfo) ? new ArrayList<>()
+            : Arrays.stream(URLDecoder.decode(resolutionPathInfo, StandardCharsets.UTF_8).split("\\."))
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(ArrayList::new));
+        selectors.addAll(explicitSelectors());
+        return selectors;
     }
 
     /**
@@ -127,7 +118,7 @@ public final class SelectorUtils
     /**
      * The options the selectors give one processor: {@code .dataFilter:status=SUBMITTED} gives {@code dataFilter} the
      * pair {@code (status, SUBMITTED)}. A key given several times appears once for each. The key ends at the first
-     * {@code =} not escaped with a backslash.
+     * {@code =}, and the value keeps everything after it.
      *
      * @param optionPrefix the name of the processor the options are for, such as {@code dataFilter}, with or without
      *     the colon after it; {@code null} or blank to read no options
@@ -146,13 +137,7 @@ public final class SelectorUtils
         return parseSelectors(resolutionPathInfo).stream()
             .filter(s -> Strings.CS.startsWith(s, prefix))
             .map(s -> StringUtils.substringAfter(s, prefix))
-            .map(s -> {
-                String[] bits = s.split("(?<=([^\\\\]|^)(\\\\\\\\){0,10})=", 2);
-                if (bits.length == 2) {
-                    return Pair.of(bits[0].replace("\\=", "="), bits[1].replace("\\=", "=").replace("\\\\", "\\"));
-                }
-                return Pair.of(bits[0].replace("\\=", "=").replace("\\\\", "\\"), "");
-            })
+            .map(s -> Pair.of(StringUtils.substringBefore(s, "="), StringUtils.substringAfter(s, "=")))
             .collect(Collectors.toList());
     }
 
@@ -185,8 +170,33 @@ public final class SelectorUtils
      */
     public static void setRequestSelectors(@Nullable final List<String> selectors)
     {
-        REQUEST_SELECTORS.set(selectors == null ? List.of()
+        EXPLICIT_SELECTORS.set(selectors == null ? List.of()
             : selectors.stream().filter(StringUtils::isNotBlank).collect(Collectors.toList()));
+    }
+
+    /**
+     * Runs code with the given selectors in place of those given outside the path, such as code serializing a
+     * resource it resolved itself. Every parse on this thread includes them until the code returns. The request's own
+     * {@code selector} parameters do not apply meanwhile, and apply again afterwards.
+     *
+     * @param <T> the type of what the code returns
+     * @param selectors the selectors, each one whole and with nothing escaped; blank ones are ignored
+     * @param code the code to run
+     * @return what the code returns
+     */
+    public static <T> T withSelectors(@NotNull final List<String> selectors, @NotNull final Supplier<T> code)
+    {
+        final List<String> previous = EXPLICIT_SELECTORS.get();
+        setRequestSelectors(selectors);
+        try {
+            return code.get();
+        } finally {
+            if (previous == null) {
+                EXPLICIT_SELECTORS.remove();
+            } else {
+                EXPLICIT_SELECTORS.set(previous);
+            }
+        }
     }
 
     /**
@@ -195,7 +205,7 @@ public final class SelectorUtils
      */
     public static void clearRequestSelectors()
     {
-        REQUEST_SELECTORS.remove();
+        EXPLICIT_SELECTORS.remove();
     }
 
     /**
@@ -204,9 +214,9 @@ public final class SelectorUtils
      * @return the selectors; empty if none are recorded
      */
     @NotNull
-    private static List<String> requestSelectors()
+    private static List<String> explicitSelectors()
     {
-        final List<String> recorded = REQUEST_SELECTORS.get();
+        final List<String> recorded = EXPLICIT_SELECTORS.get();
         return recorded == null ? List.of() : recorded;
     }
 

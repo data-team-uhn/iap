@@ -63,8 +63,8 @@ import io.uhndata.iap.utils.SelectorUtils;
  * <p>
  * Selectors can also come as {@code selector} query parameters, one per selector:
  * {@code /path/to/resource.json?selector=deep&selector=simple} means {@code .deep.simple.json}. A parameter holds one
- * whole selector, so a dot in it needs no escaping. A path escapes a dot with a backslash, and Jetty refuses a
- * backslash in a path by default. {@code SelectorParameterFilter} reads the parameters.
+ * whole selector, so a dot in it does not split it, as it would in a path. {@code SelectorParameterFilter} reads the
+ * parameters.
  * </p>
  *
  * @version $Id$
