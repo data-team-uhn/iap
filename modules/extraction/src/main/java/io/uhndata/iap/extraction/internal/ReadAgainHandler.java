@@ -77,8 +77,8 @@ public class ReadAgainHandler implements ServiceTaskHandler
         ExtractionStatus.releaseClaim(target);
         // Queued before this walk commits, so the job is told to wait until it sees the `running` written above
         if (this.jobManager.addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
-            Map.of(ExtractAnswersJobConsumer.SUBMISSION_PROPERTY,
-            target.getPath(), ExtractAnswersJobConsumer.READ_AGAIN_PROPERTY, Boolean.TRUE)) == null) {
+            Map.of(ReadingJobs.SUBMISSION_PROPERTY, target.getPath(), ReadingJobs.READ_AGAIN_PROPERTY,
+                Boolean.TRUE)) == null) {
             throw new PersistenceException("The reading of " + target.getPath() + " could not be queued");
         }
         LOGGER.info("Reading asked for again: submission={}", target.getPath());

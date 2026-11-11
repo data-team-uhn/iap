@@ -109,11 +109,11 @@ final class SubmissionFiles
      * Tells an administrator that the schema of a submission names a reading workflow that cannot run.
      *
      * @param reporter the class that found it
-     * @param submission the submission's resource
+     * @param submission the submission's path
      */
-    static void reportReadingWorkflowCannotRun(final Class<?> reporter, final Resource submission)
+    static void reportReadingWorkflowCannotRun(final Class<?> reporter, final String submission)
     {
-        LOGGER.warn("The schema of {} names a reading workflow that cannot run", submission.getPath());
+        LOGGER.warn("The schema of {} names a reading workflow that cannot run", submission);
         ErrorLogger.logProblem("The schema version names a reading workflow that does not exist or is not active",
             ErrorContext.of(reporter, "findReadingWorkflow").about(submission));
     }

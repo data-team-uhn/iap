@@ -114,7 +114,7 @@ public class StopProcessingHandler implements ServiceTaskHandler
     private void dropQueuedReadings(final String path)
     {
         final Collection<Job> waiting = this.jobManager.findJobs(JobManager.QueryType.QUEUED,
-            ExtractAnswersJobConsumer.JOB_TOPIC, 0, Map.of(ExtractAnswersJobConsumer.SUBMISSION_PROPERTY, path));
+            ExtractAnswersJobConsumer.JOB_TOPIC, 0, Map.of(ReadingJobs.SUBMISSION_PROPERTY, path));
         if (waiting == null) {
             return;
         }

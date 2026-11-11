@@ -64,7 +64,7 @@ public class QueueExtractionHandler implements ServiceTaskHandler
     {
         final Resource target = context.getTarget();
         if (this.jobManager.addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
-            Map.of(ExtractAnswersJobConsumer.SUBMISSION_PROPERTY, target.getPath())) == null) {
+            Map.of(ReadingJobs.SUBMISSION_PROPERTY, target.getPath())) == null) {
             throw new PersistenceException("The reading of " + target.getPath() + " could not be queued");
         }
         LOGGER.info("Reading queued: submission={}", target.getPath());

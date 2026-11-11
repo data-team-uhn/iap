@@ -83,7 +83,7 @@ class QueueExtractionHandlerTest
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), new HashMap<>()));
 
         Mockito.verify(this.jobManager).addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
-            Map.of(ExtractAnswersJobConsumer.SUBMISSION_PROPERTY, this.submission.getPath()));
+            Map.of(ReadingJobs.SUBMISSION_PROPERTY, this.submission.getPath()));
     }
 
     // Every parse that lands queues a job, even while another parse is still going. The job decides if it is
@@ -100,7 +100,7 @@ class QueueExtractionHandlerTest
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), new HashMap<>()));
 
         Mockito.verify(this.jobManager).addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
-            Map.of(ExtractAnswersJobConsumer.SUBMISSION_PROPERTY, this.submission.getPath()));
+            Map.of(ReadingJobs.SUBMISSION_PROPERTY, this.submission.getPath()));
     }
 
     @Test

@@ -241,7 +241,8 @@ with the folder.
 
 ## Step 5: whose turn it is to read
 
-**Class:** `ExtractAnswersJobConsumer`. **Job topic:** `iap/extraction/extract`.
+**Class:** `ExtractAnswersJobConsumer`, with the steps every reading job shares in
+`ReadingJobs`. **Job topic:** `iap/extraction/extract`.
 **Queue:** `iap-extraction`, one job at a time (`queue.maxparallel` = 1).
 
 Every parse that lands queues a job, so a submission with three uploads queues three
@@ -946,7 +947,7 @@ without adding anything. In order, for one submission:
 | `Parse read in` | `ParseResultIngester` | The Markdown and PDF sizes in bytes, `tokens`, and the milliseconds to store them |
 | `Reading queued` | `QueueExtractionHandler` | The submission, once per parse that lands; the job waits until every parse has settled |
 | `Parse staging removed` | documents (`ParseJobService`) | The staging folder, once the parse is in the repository |
-| `Reading run started` / `Reading run done` | `ExtractAnswersJobConsumer` | Marks the start and end of a reading that finishes; `done` carries the status and `ms`. A failed reading logs an `ERROR` instead, and a stopped one `Reading of ... was stopped`. |
+| `Reading run started` / `Reading run done` | `ReadingJobs` | Marks the start and end of a reading that finishes, with the job's topic; `done` carries the status and `ms`. A failed reading logs an `ERROR` instead, and a stopped one `Reading of ... was stopped`. |
 | `Reading step started` / `Reading step done` | `ClassifyDocumentHandler`, `IntakeAnswersHandler` | `step=classify` with the file and the number of classifications, or `step=intake` with the requirement and the number of questions; `done` adds how many were decided or found, and `ms` |
 | `Document cut to fit` | `AnswerIntakeService` | The file, and how many characters were sent and left out |
 | `LLM request served` | `OpenAIClient` (llm) | The model, with `gateWaitMs` and `callMs` kept apart |
@@ -1018,7 +1019,8 @@ from the submission's own workflow, replaces the reading workflow each schema na
 | `IngestParseHandler` | handler `ingestParse` | `documentParsed` | `ParseResultIngester.ingest` |
 | `ParseResultIngester` | component | the two above | `ParseService.isStagedPath`, `.discardStaging` |
 | `QueueExtractionHandler` | handler `queueExtraction` | `documentParsed` | `JobManager.addJob` |
-| `ExtractAnswersJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingRuns`, engine (`readingStarted`, `extractAnswers`, `readingFailed`) |
+| `ExtractAnswersJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingJobs.run`, `SubmissionFiles.checkReadingWorkflow`, engine (`extractAnswers`) |
+| `ReadingJobs` | component | each reading job | `ReadingRuns`, `SubmissionFiles.isEveryParseSettled`, engine (`readingStarted`, `readingFailed`) |
 | `ClaimReadingHandler` | handler `claimReading` | `readingStarted` | `ExtractionStatus` |
 | `GiveUpReadingHandler` | handler `giveUpReading` | `readingFailed` | `ExtractionStatus` |
 | `ClassifyDocumentHandler` | handler `classifyDocument` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, `DocumentText.readText` (templates), `ExtractionFields.getAnswered`, `.write` |
@@ -1130,6 +1132,17 @@ a public dataset from ClinicalTrials.gov and run it:
 | No chat over the document (two calls: a router, then an answer) | The submitter cannot ask the document a question of their own |
 | Nothing better than asking the submitter when the model cannot place a study | The reading ends with a message; once the submitter picks the category in the form, nothing starts the intake until they press Read again |
 
+## Waiting for the engine
+
+Two things the workflow engine cannot do yet are worked around here (see Known gaps in
+[workflows.md](workflows.md)). Each workaround lives in one place, so it can go once the
+engine catches up.
+
+| Workaround | Where | Replaced by |
+| --- | --- | --- |
+| A job queued inside a walk can start before that walk commits, so it fails and Sling runs it again until it sees the data (step 5) | `ReadingJobs.isTooEarly` | Listeners that run after the commit. Only the check for a parse that is really still going stays. |
+| A parse outcome can arrive before the walk that queued the parse commits, so the file is looked at again a few times (step 3) | `ParseCompletionHandler.findFile` | Listeners that run after the commit |
+
 ## Files
 
 Paths are under `modules/extraction/`, except the packaging file, whose path is from the
@@ -1193,7 +1206,8 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | `IngestParseHandler` | Service task `ingestParse`: reads the parse onto the file, or records that it failed |
 | `QueueExtractionHandler` | Service task `queueExtraction`: queues the reading job; the job reads once every parse has settled |
 | `ReadAgainHandler` | Service task `readAgain`: the submitter asks for the reading again; queues the same job |
-| `ExtractAnswersJobConsumer` | The background job that decides whose turn it is to read, and fires `extractAnswers` |
+| `ExtractAnswersJobConsumer` | The background job that fires `extractAnswers` once the schema's reading workflow can run |
+| `ReadingJob`, `ReadingJobs` | What one kind of reading job decides, and the steps every one shares: waiting for the parses, the claim, giving up, and a Stop |
 | `ClassifyDocumentHandler` | Service task `classifyDocument`: one call per document for the classification requirements that point at it; only sure picks are written as suggestions |
 | `IntakeAnswersHandler` | Service task `intakeAnswers`: the intake for one or more requirements, over the named documents (see step 8) |
 | `FinishReadingHandler` | Service task `finishReading`: moves a submission still `running` to `done` with the step's `message`, and marks it blocked when the step sets `blocks` |

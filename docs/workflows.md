@@ -1040,7 +1040,8 @@ each completed on its own.
   own way to wait for it: the extraction module queues Sling jobs that retry until the
   walk's data is visible, re-reads a file until a commit lands, and deletes a staging
   folder only once `receiveEvent` has returned. Listeners that run after the commit
-  would give such work one place.
+  would give such work one place. [extraction.md](extraction.md#waiting-for-the-engine)
+  lists each workaround and where it lives.
 - **A failed step undoes the whole walk.** A walk is one commit, so a handler that
   throws reverts everything the walk wrote before it. An `ErrorBoundaryEvent` is
   imported but never fires: nothing catches a step's failure and carries on. A handler

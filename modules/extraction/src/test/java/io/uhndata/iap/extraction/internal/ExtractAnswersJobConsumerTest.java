@@ -72,6 +72,8 @@ class ExtractAnswersJobConsumerTest
 
     private final ExtractAnswersJobConsumer consumer = new ExtractAnswersJobConsumer();
 
+    private final ReadingJobs jobs = new ReadingJobs();
+
     /** What the stand-in engine does for each event, by name. */
     private final Map<String, Answer<Object>> steps = new HashMap<>();
 
@@ -85,24 +87,26 @@ class ExtractAnswersJobConsumerTest
         this.tree = new SubmissionTree(this.context);
         this.tree.createSchemaVersion();
         this.submission = this.tree.createSubmission();
-        inject("resolverFactory", new TestResolverFactory(this.context.resourceResolver()));
-        inject("engine", this.engine);
-        inject("runs", new ReadingRuns());
+        inject(this.jobs, "resolverFactory", new TestResolverFactory(this.context.resourceResolver()));
+        inject(this.jobs, "engine", this.engine);
+        inject(this.jobs, "runs", new ReadingRuns());
+        inject(this.consumer, "jobs", this.jobs);
+        inject(this.consumer, "engine", this.engine);
         Mockito.when(this.job.getId()).thenReturn(JOB_ID);
-        this.steps.put(ExtractAnswersJobConsumer.READING_STARTED_EVENT,
+        this.steps.put(ReadingJobs.READING_STARTED_EVENT,
             call -> runStep(new ClaimReadingHandler(), call));
-        this.steps.put(ExtractAnswersJobConsumer.READING_FAILED_EVENT,
+        this.steps.put(ReadingJobs.READING_FAILED_EVENT,
             call -> runStep(new GiveUpReadingHandler(), call));
         this.steps.put(ExtractAnswersJobConsumer.EXTRACT_ANSWERS_EVENT, call -> null);
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(
             call -> this.steps.get(call.<WorkflowEvent>getArgument(1).getName()).answer(call));
     }
 
-    private void inject(final String name, final Object value) throws Exception
+    private static void inject(final Object component, final String name, final Object value) throws Exception
     {
-        final Field field = ExtractAnswersJobConsumer.class.getDeclaredField(name);
+        final Field field = component.getClass().getDeclaredField(name);
         field.setAccessible(true);
-        field.set(this.consumer, value);
+        field.set(component, value);
     }
 
     /**
@@ -124,7 +128,7 @@ class ExtractAnswersJobConsumerTest
 
     private void setJobSubmission(final String path)
     {
-        Mockito.when(this.job.getProperty(ExtractAnswersJobConsumer.SUBMISSION_PROPERTY,
+        Mockito.when(this.job.getProperty(ReadingJobs.SUBMISSION_PROPERTY,
             String.class)).thenReturn(path);
     }
 
@@ -192,7 +196,7 @@ class ExtractAnswersJobConsumerTest
     void dropsTheJobWhoseClaimLostTheRace() throws Exception
     {
         setJobSubmission(this.submission.getPath());
-        this.steps.put(ExtractAnswersJobConsumer.READING_STARTED_EVENT, call -> {
+        this.steps.put(ReadingJobs.READING_STARTED_EVENT, call -> {
             throw new InvalidStateException("Somebody else changed this at the same time");
         });
 
@@ -206,7 +210,7 @@ class ExtractAnswersJobConsumerTest
     void givesUpWhenTheEngineRefusesTheClaimForAnotherReason() throws Exception
     {
         setJobSubmission(this.submission.getPath());
-        this.steps.put(ExtractAnswersJobConsumer.READING_STARTED_EVENT, call -> {
+        this.steps.put(ReadingJobs.READING_STARTED_EVENT, call -> {
             throw new NotAuthorizedException("not the extraction user");
         });
 
@@ -215,7 +219,7 @@ class ExtractAnswersJobConsumerTest
         assertEquals(0, countReadings());
         assertEquals(ExtractionStatus.STATUS_FAILED,
             getProperties().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals(ExtractAnswersJobConsumer.COULD_NOT_READ_MESSAGE,
+        assertEquals(ReadingJobs.COULD_NOT_READ_MESSAGE,
             getProperties().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
@@ -227,7 +231,7 @@ class ExtractAnswersJobConsumerTest
             ExtractionStatus.STATUS_DONE);
         claim("job-0");
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.job.getProperty(ExtractAnswersJobConsumer.READ_AGAIN_PROPERTY, Boolean.class))
+        Mockito.when(this.job.getProperty(ReadingJobs.READ_AGAIN_PROPERTY, Boolean.class))
             .thenReturn(Boolean.TRUE);
 
         assertEquals(JobResult.FAILED, this.consumer.process(this.job));
@@ -241,7 +245,7 @@ class ExtractAnswersJobConsumerTest
         this.submission.adaptTo(ModifiableValueMap.class).put(ExtractionStatus.STATUS_PROPERTY,
             ExtractionStatus.STATUS_RUNNING);
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.job.getProperty(ExtractAnswersJobConsumer.READ_AGAIN_PROPERTY, Boolean.class))
+        Mockito.when(this.job.getProperty(ReadingJobs.READ_AGAIN_PROPERTY, Boolean.class))
             .thenReturn(Boolean.TRUE);
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
@@ -325,7 +329,7 @@ class ExtractAnswersJobConsumerTest
         assertEquals(List.of("readingFailed"), getFiredEvents());
         assertEquals(ExtractionStatus.STATUS_FAILED,
             getProperties().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals(ExtractAnswersJobConsumer.COULD_NOT_READ_MESSAGE,
+        assertEquals(ReadingJobs.COULD_NOT_READ_MESSAGE,
             getProperties().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
@@ -445,7 +449,7 @@ class ExtractAnswersJobConsumerTest
             }
             return real.getServiceResourceResolver(invocation.getArgument(0));
         });
-        inject("resolverFactory", flaky);
+        inject(this.jobs, "resolverFactory", flaky);
         setReading(call -> {
             throw new ReadingStoppedException();
         });
@@ -484,7 +488,7 @@ class ExtractAnswersJobConsumerTest
             Thread.interrupted();
         }
 
-        assertEquals(ExtractAnswersJobConsumer.COULD_NOT_READ_MESSAGE,
+        assertEquals(ReadingJobs.COULD_NOT_READ_MESSAGE,
             getProperties().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
@@ -526,7 +530,7 @@ class ExtractAnswersJobConsumerTest
     void dropsTheJobWithoutTheServiceUser() throws Exception
     {
         setJobSubmission(this.submission.getPath());
-        inject("resolverFactory", new TestResolverFactory(null));
+        inject(this.jobs, "resolverFactory", new TestResolverFactory(null));
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
@@ -556,7 +560,7 @@ class ExtractAnswersJobConsumerTest
         setJobSubmission(this.submission.getPath());
 
         final Job other = Mockito.mock(Job.class);
-        Mockito.when(other.getProperty(ExtractAnswersJobConsumer.SUBMISSION_PROPERTY, String.class))
+        Mockito.when(other.getProperty(ReadingJobs.SUBMISSION_PROPERTY, String.class))
             .thenReturn(this.submission.getPath());
         Mockito.when(other.getId()).thenReturn("job-2");
 
@@ -590,7 +594,7 @@ class ExtractAnswersJobConsumerTest
         setReading(call -> {
             throw new NotAuthorizedException("not yours");
         });
-        this.steps.put(ExtractAnswersJobConsumer.READING_FAILED_EVENT, call -> {
+        this.steps.put(ReadingJobs.READING_FAILED_EVENT, call -> {
             throw new InvalidStateException("the repository has moved on");
         });
 
