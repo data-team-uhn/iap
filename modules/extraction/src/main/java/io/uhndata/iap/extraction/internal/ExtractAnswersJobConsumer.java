@@ -18,11 +18,8 @@
 package io.uhndata.iap.extraction.internal;
 
 import java.util.Map;
-import java.util.function.Predicate;
 
 import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.ModifiableValueMap;
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -36,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -48,6 +46,9 @@ import io.uhndata.iap.workflows.api.WorkflowException;
  * whether the reading can start. It sees only committed data: when a parse still looks unfinished, the job fails
  * so Sling runs it again shortly. It then claims the reading on the submission, so two jobs never both pay a
  * model to read the same document.</p>
+ *
+ * <p>The job writes nothing itself. The claim and a give-up are events too ({@code readingStarted},
+ * {@code readingFailed}), so the engine makes every change to the submission.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -70,6 +71,12 @@ public class ExtractAnswersJobConsumer implements JobConsumer
 
     /** The event that starts the reading. */
     static final String EXTRACT_ANSWERS_EVENT = "extractAnswers";
+
+    /** The event that claims the reading for a job. */
+    static final String READING_STARTED_EVENT = "readingStarted";
+
+    /** The event that gives a reading up. */
+    static final String READING_FAILED_EVENT = "readingFailed";
 
     /** What the submitter is told when the schema names no reading workflow, or one that cannot run. */
     static final String NO_READING_WORKFLOW_MESSAGE = "Nothing is set up to read this request's documents";
@@ -130,7 +137,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     /**
      * Reads the submission, if this job is the one to do it.
      *
-     * @param resolver the session to read and claim through; it sees only committed data
+     * @param resolver the session to read through; it sees only committed data
      * @param job the job; its id is written as the claim
      * @param path the submission to read
      * @return {@code OK} when the reading ran, {@code FAILED} to have Sling run the job again later, or
@@ -163,7 +170,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             }
             // The engine reverted the walk, but `running` and this job's claim were committed before it. Left as
             // they are, nothing could ever read the submission again and its spinner would never stop.
-            giveUpOwnReading(resolver, submission, job.getId(), COULD_NOT_READ_MESSAGE);
+            giveUp(submission, job.getId(), COULD_NOT_READ_MESSAGE, true);
             throw e;
         }
         LOGGER.info("Reading run done: submission={} status={} ms={}", path,
@@ -175,14 +182,15 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     /**
      * Checks that this job may read the submission now, and claims the reading for it.
      *
-     * @param resolver the session to read and claim through
+     * @param resolver the session to read through
      * @param job the job; its id is written as the claim
      * @param submission the submission to read
      * @return {@code FAILED} to have Sling run the job again later, {@code CANCEL} when there is nothing for this job
      *     to do, or {@code null} when the reading is this job's to run
+     * @throws WorkflowException when the engine refuses the claim for a reason other than another job having it
      */
-    private static JobResult claimReadingOrGetEarlyResult(final ResourceResolver resolver, final Job job,
-        final Resource submission)
+    private JobResult claimReadingOrGetEarlyResult(final ResourceResolver resolver, final Job job,
+        final Resource submission) throws WorkflowException
     {
         final String reason;
         try {
@@ -190,41 +198,22 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             if (isTooEarly(job, submission, model)) {
                 return JobResult.FAILED;
             }
-            reason = checkOut(submission) ? findReasonNotToStart(resolver, submission, model) : COULD_NOT_READ_MESSAGE;
+            reason = findReasonNotToStart(resolver, submission, model);
         } catch (final RuntimeException e) {
             // `running` was committed before this job: left as it is, its spinner would never stop
-            giveUpBeforeClaiming(resolver, submission, job.getId(), COULD_NOT_READ_MESSAGE);
+            giveUp(submission, job.getId(), COULD_NOT_READ_MESSAGE, false);
             throw e;
         }
         if (reason != null) {
             // Fired anyway, the event would start nothing and leave `running` on the submission for good
-            giveUpBeforeClaiming(resolver, submission, job.getId(), reason);
+            giveUp(submission, job.getId(), reason, false);
             return JobResult.CANCEL;
         }
-        if (!claimReading(resolver, submission, job.getId())) {
+        if (!claimReading(submission, job.getId())) {
             LOGGER.debug("The reading of {} is already somebody else's", submission.getPath());
             return JobResult.CANCEL;
         }
         return null;
-    }
-
-    /**
-     * Checks the submission out if it is checked in, so this job and the reading can write to it.
-     *
-     * @param submission the submission to read
-     * @return {@code false} when it cannot be checked out, which this job cannot fix
-     */
-    private static boolean checkOut(final Resource submission)
-    {
-        try {
-            ExtractionStatus.checkOut(submission);
-            return true;
-        } catch (final PersistenceException e) {
-            LOGGER.error("Cannot check out {} to read it: {}", submission.getPath(), e.getMessage(), e);
-            // The service user lacks the right to check it out: a deployment fault
-            ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "checkOut").about(submission));
-            return false;
-        }
     }
 
     /**
@@ -281,74 +270,52 @@ public class ExtractAnswersJobConsumer implements JobConsumer
     }
 
     /**
-     * Gives up a reading this job claimed, unless the claim is no longer its own. A stop takes the claim down, and
-     * a read again request may have queued a new reading since, whose status this job must not overwrite.
+     * Claims the reading of a submission for this job through the {@code readingStarted} system workflow
+     * ({@link ClaimReadingHandler}).
      *
-     * @param resolver this job's session
-     * @param submission the submission whose reading failed
-     * @param jobId this job's id
-     * @param reason the message shown to the person looking at the submission
+     * @param submission the submission to read
+     * @param jobId the job's id, written as the claim
+     * @return {@code true} when this job has the reading, {@code false} when another job has it
+     * @throws WorkflowException when the engine refuses the claim for another reason
      */
-    private static void giveUpOwnReading(final ResourceResolver resolver, final Resource submission,
-        final String jobId, final String reason)
+    private boolean claimReading(final Resource submission, final String jobId) throws WorkflowException
     {
-        giveUp(resolver, submission, reason, claimedBy -> jobId.equals(claimedBy));
-    }
-
-    /**
-     * Gives up a reading before this job claimed it, unless another job has it.
-     *
-     * @param resolver this job's session
-     * @param submission the submission that cannot be read
-     * @param jobId this job's id
-     * @param reason the message shown to the person looking at the submission
-     */
-    private static void giveUpBeforeClaiming(final ResourceResolver resolver, final Resource submission,
-        final String jobId, final String reason)
-    {
-        giveUp(resolver, submission, reason, claimedBy -> claimedBy == null || jobId.equals(claimedBy));
-    }
-
-    /**
-     * Gives the reading up: marks it failed on the submission and releases the claim, in a commit of its own.
-     *
-     * <p>The failed status stops the spinner in the view, and the released claim lets a later parse or a read
-     * again request start a new reading.</p>
-     *
-     * @param resolver this job's session
-     * @param submission the submission whose reading failed
-     * @param reason the message shown to the person looking at the submission
-     * @param mayGiveUp tells, from the job holding the claim or {@code null} when none does, whether this job may
-     *     give the reading up
-     */
-    private static void giveUp(final ResourceResolver resolver, final Resource submission, final String reason,
-        final Predicate<String> mayGiveUp)
-    {
-        resolver.refresh();
-        final ModifiableValueMap properties = submission.adaptTo(ModifiableValueMap.class);
-        if (properties == null) {
-            LOGGER.error("The reading of {} failed and its claim cannot be taken back down", submission.getPath());
-            // The submission now spins forever; only missing rights for the service user can cause this
-            ErrorLogger.logProblem("The extraction service user cannot write the submission",
-                ErrorContext.of(ExtractAnswersJobConsumer.class, "giveUp").about(submission));
-            return;
-        }
-        final String claimedBy = properties.get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.FALSE).booleanValue()
-            ? properties.get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class) : null;
-        if (!mayGiveUp.test(claimedBy)) {
-            LOGGER.info("Not giving up the reading of {}: it is now {}'s", submission.getPath(), claimedBy);
-            return;
-        }
-        ExtractionStatus.releaseClaim(properties);
         try {
-            ExtractionStatus.recordStatus(submission, ExtractionStatus.STATUS_FAILED, reason);
-            resolver.commit();
-        } catch (final PersistenceException e) {
+            this.engine.receiveEvent(submission,
+                new WorkflowEvent(READING_STARTED_EVENT, Map.of(ClaimReadingHandler.JOB_KEY, jobId)));
+            return true;
+        } catch (final InvalidStateException e) {
+            // Another job has the claim, or claimed it at the same time and committed first
+            LOGGER.debug("The reading of {} was claimed by another job: {}", submission.getPath(), e.getMessage());
+            return false;
+        } catch (final WorkflowException | RuntimeException e) {
+            // `running` was committed before this job: left as it is, its spinner would never stop
+            giveUp(submission, jobId, COULD_NOT_READ_MESSAGE, false);
+            throw e;
+        }
+    }
+
+    /**
+     * Gives the reading up through the {@code readingFailed} system workflow ({@link GiveUpReadingHandler}): marks
+     * it failed on the submission and releases the claim. A failure here is only logged, since nothing else is left
+     * to help the submission.
+     *
+     * @param submission the submission whose reading failed
+     * @param jobId this job's id
+     * @param reason the message shown to the person looking at the submission
+     * @param claimed whether this job had claimed the reading
+     */
+    private void giveUp(final Resource submission, final String jobId, final String reason, final boolean claimed)
+    {
+        try {
+            this.engine.receiveEvent(submission, new WorkflowEvent(READING_FAILED_EVENT, Map.of(
+                ClaimReadingHandler.JOB_KEY, jobId, GiveUpReadingHandler.MESSAGE_KEY, reason,
+                GiveUpReadingHandler.CLAIMED_KEY, claimed)));
+        } catch (final WorkflowException | RuntimeException e) {
             LOGGER.error("Could not record that the reading of {} failed: {}", submission.getPath(),
                 e.getMessage(), e);
             // The submission now spins forever, and nothing else will say why
             ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "giveUp").about(submission));
-            resolver.revert();
         }
     }
 
@@ -365,52 +332,11 @@ public class ExtractAnswersJobConsumer implements JobConsumer
             Map.of(ResourceResolverFactory.SUBSERVICE, ParseCompletionHandler.SUBSERVICE_NAME))) {
             final Resource submission = resolver.getResource(path);
             if (submission != null) {
-                giveUpOwnReading(resolver, submission, jobId, reason);
+                giveUp(submission, jobId, reason, true);
             }
         } catch (final LoginException e) {
             LOGGER.error("Cannot record that the reading of {} was stopped: {}", path, e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(ExtractAnswersJobConsumer.class, "recordStop").about(path));
-        }
-    }
-
-    /**
-     * Claims the reading of a submission for this job, unless another job already has it.
-     *
-     * <p>The claim is written and committed on its own. When two jobs both find it unset, the second commit
-     * conflicts with the first and the repository refuses it, so only one job pays a model to read the
-     * document.</p>
-     *
-     * <p>A claim that already holds this job's id still counts as this job's: Sling runs a job again, with the
-     * same id, when the instance stopped before the job finished.</p>
-     *
-     * @param resolver the session to claim through
-     * @param submission the submission to read
-     * @param jobId the job's id, written as the claim
-     * @return {@code true} when this job has the reading
-     */
-    private static boolean claimReading(final ResourceResolver resolver, final Resource submission,
-        final String jobId)
-    {
-        final ModifiableValueMap properties = submission.adaptTo(ModifiableValueMap.class);
-        if (properties == null) {
-            LOGGER.warn("Not allowed to claim the reading of {}", submission.getPath());
-            // No reading can ever start: the service user's rights are a deployment fault
-            ErrorLogger.logProblem("The extraction service user cannot write the submission",
-                ErrorContext.of(ExtractAnswersJobConsumer.class, "claim").about(submission));
-            return false;
-        }
-        if (properties.get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.FALSE).booleanValue()) {
-            return jobId.equals(properties.get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class));
-        }
-        properties.put(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.TRUE);
-        properties.put(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, jobId);
-        try {
-            resolver.commit();
-            return true;
-        } catch (final PersistenceException e) {
-            LOGGER.debug("The reading of {} was claimed by another job: {}", submission.getPath(), e.getMessage());
-            resolver.revert();
-            return false;
         }
     }
 }

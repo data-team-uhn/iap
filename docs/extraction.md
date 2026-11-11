@@ -256,20 +256,26 @@ The checks, in order:
 | The job names a submission, and it still exists | The job is dropped. |
 | A job queued by Read again (job property `readAgain=true`) finds `extractionStatus` at `running` | The job returns `FAILED`, so Sling runs it again later. The job was queued before the Read again walk committed, and until that commit the old status and claim are still there. |
 | No current file is still `queued` (`SubmissionFiles.isEveryParseSettled`) | The job returns `FAILED`, so Sling runs it again later. A parse that landed but is not committed yet looks "queued" for a moment. |
-| The submission can be checked out, if it was checked in (`ExtractionStatus.checkOut`) | The job gives up with "The document could not be read", and an error is recorded for an administrator. A submission is versionable, and when checked in it is read-only, with everything under it. One checkout covers every later write. |
 | The job's session can read the submission's schema version | `extractionStatus=failed`, "The document could not be read", and a problem is logged for an administrator. Throwing instead would end the job with `running` left behind. |
 | The schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists and is tagged `active` (`SubmissionFiles.checkReadingWorkflow`, the same check parsing makes; only one that is named but cannot run is reported to the administrator) | `extractionStatus=failed`, "Nothing is set up to read this request's documents". Firing the event anyway would start nothing, or be refused, and leave `running` forever. |
-| `extractionReadingClaimed` is not set, and setting it (with the job's Sling job id in `extractionReadingClaimedBy`) commits. A claim that already holds this job's own id counts as its own: after a restart, Sling runs an unfinished job again with the same id. | A claim held by another id means another job has the reading, and this one is dropped. Two jobs that race write different ids, so the repository refuses the second commit. |
+| The engine takes `readingStarted` (job id in the payload): `claimReading` sets `extractionReadingClaimed`, with the job's Sling job id in `extractionReadingClaimedBy`, and the walk commits. A claim that already holds this job's own id counts as its own: after a restart, Sling runs an unfinished job again with the same id. | A claim held by another id means another job has the reading: the step throws, and this job is dropped. Two jobs that race write different ids, so the engine refuses the second commit the same way. Any other refusal gives up the reading. |
 
 Then the job fires `extractAnswers` on the submission. If that throws, the job "gives
-up": in a commit of its own, it writes `extractionStatus=failed` with "The document
-could not be read", and removes the claim. Without this, the submission would stay
-`running` forever. A check above that throws gives up the same way.
+up": it fires `readingFailed`, whose `giveUpReading` step writes
+`extractionStatus=failed` with "The document could not be read" and removes the claim.
+Without this, the submission would stay `running` forever. A check above that throws
+gives up the same way. If the engine refuses the give-up too, the job only logs it.
 
-A job gives up only a reading that is still its own. Once it holds the claim, it gives
-up only while the claim holds its id: a Stop takes the claim down, and Read again may
-already have queued a new reading whose status this job must not overwrite. Before it
-claims, it gives up unless another job holds the claim.
+The job writes nothing itself: the claim and the give-up are events like any other, so
+the engine makes every change to the submission, and `iap-extraction` only reads. The
+two steps check the submission out first when it is checked in: a submission is
+versionable, and when checked in it is read-only, with everything under it.
+
+A job gives up only a reading that is still its own. The event says whether it had
+claimed the reading (`claimed`). Once it holds the claim, it gives up only while the
+claim holds its id: a Stop takes the claim down, and Read again may already have queued
+a new reading whose status this job must not overwrite. Before it claims, it gives up
+unless another job holds the claim.
 
 `ReadingRuns.begin` registers the job's thread under the submission path, so that Stop
 can reach it (see "Stop" below). A stopped reading gives up the same way, but records
@@ -306,8 +312,8 @@ give-up does not cover it, the view shows no spinner, and a failed model call un
 what the person just did. So the reading never waits for the submitter: when it needs
 them, it ends with a message saying what to do.
 
-Only the `iap-extraction` user may fire `documentParsed` and `extractAnswers`: their
-start events name it as the only performer. Administrators can too, since they pass
+Only the `iap-extraction` user may fire `documentParsed`, `extractAnswers`,
+`readingStarted` and `readingFailed`: their start events name it as the only performer. Administrators can too, since they pass
 every performer check. The `documentParsed` payload carries paths on the shared volume,
 and no ordinary user should be able to have files read from there.
 
@@ -1012,7 +1018,9 @@ from the submission's own workflow, replaces the reading workflow each schema na
 | `IngestParseHandler` | handler `ingestParse` | `documentParsed` | `ParseResultIngester.ingest` |
 | `ParseResultIngester` | component | the two above | `ParseService.isStagedPath`, `.discardStaging` |
 | `QueueExtractionHandler` | handler `queueExtraction` | `documentParsed` | `JobManager.addJob` |
-| `ExtractAnswersJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingRuns`, engine (`extractAnswers`) |
+| `ExtractAnswersJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingRuns`, engine (`readingStarted`, `extractAnswers`, `readingFailed`) |
+| `ClaimReadingHandler` | handler `claimReading` | `readingStarted` | `ExtractionStatus` |
+| `GiveUpReadingHandler` | handler `giveUpReading` | `readingFailed` | `ExtractionStatus` |
 | `ClassifyDocumentHandler` | handler `classifyDocument` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, `DocumentText.readText` (templates), `ExtractionFields.getAnswered`, `.write` |
 | `IntakeAnswersHandler` | handler `intakeAnswers` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, or `DocumentText.readText` and `DocumentScan.join`, `ExtractionFields`, `Prompts` |
 | `FinishReadingHandler` | handler `finishReading` | a reading workflow | `ExtractionStatus` |
@@ -1046,14 +1054,14 @@ reading. These writes happen outside that commit:
 | `queueExtraction`, `readAgain` | A Sling job | The JobManager commits the job node in its own session |
 | `stopProcessing` | Removes queued reading jobs; `ParseControl.stopParse` marks the parse job record failed in its own session; the staging folder is deleted only when no job record names it | A Stop has to reach work that is already outside the submission |
 
-The claim and the give-up in step 5 also commit on their own, and the staging folder in
-step 4 is deleted only after the commit; those steps say why.
+The claim and the give-up in step 5 are walks of their own, each committed by the engine,
+and the staging folder in step 4 is deleted only after the commit; those steps say why.
 
 ## Configuration
 
 | Where | Setting | Default | Meaning |
 | --- | --- | --- | --- |
-| `modules/extraction/.../feature.json` | service user `iap-extraction` | | `jcr:read`, `jcr:modifyProperties` and `jcr:versionManagement` on `/Submissions`: it only sets the claim and the status, and checks the submission out first when it is checked in; the engine writes everything else as its own user. `jcr:read` on `/Schemas` and `/Workflows`, to check that the reading workflow exists. Granted by name: a service user mapped as `[iap-extraction]` holds only that principal, so what `/Schemas` grants to `everyone` does not reach it. |
+| `modules/extraction/.../feature.json` | service user `iap-extraction` | | `jcr:read` on `/Submissions`: it writes nothing, since even the claim and the give-up are events the engine runs as its own user. `jcr:read` on `/Schemas` and `/Workflows`, to check that the reading workflow exists. Granted by name: a service user mapped as `[iap-extraction]` holds only that principal, so what `/Schemas` grants to `everyone` does not reach it. |
 | same | queue `iap-extraction` | `maxparallel` 1 | One submission read at a time |
 | same | bundle start order | 29 | After the LLM client, the engine and the models |
 | documents `feature.json` | `daemonUrl` on PID `io.uhndata.iap.documents.internal.DaemonConnection` | `${docling.url}` (`http://docling:18765`; `http://localhost:18765` with no configuration) | Where the daemon is. The one PID is read by both `ParseJobConsumer` (dispatch) and `ParseAbandonment` (Stop). |
@@ -1198,6 +1206,8 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | `ExtractedAnswers` | Writes an answer, its run and its quotes. References are set with `ReferenceUtils` from `iap-java-utils`. |
 | `SystemWorkflows/documentParsed` (`.json`, `bpmn.xml`) | Reads a finished parse in, then queues the reading. Performer: `iap-extraction` only. |
 | `SystemWorkflows/extractAnswers` (`.json`, `bpmn.xml`) | Starts the reading workflow the schema names, ending an earlier one still open. Performer: `iap-extraction` only. |
+| `SystemWorkflows/readingStarted` (`.json`, `bpmn.xml`) | Claims the reading for one job (`claimReading`). Performer: `iap-extraction` only. |
+| `SystemWorkflows/readingFailed` (`.json`, `bpmn.xml`) | Marks the reading failed and releases the claim (`giveUpReading`). Performer: `iap-extraction` only. |
 | `SystemWorkflows/readAgain` (`.json`, `bpmn.xml`) | Queues the reading again for the submitter |
 | `SystemWorkflows/retryParse` (`.json`, `bpmn.xml`) | Sends again the uploads whose parse failed, and any never sent. Today the only workflow that runs `parseDocuments`. |
 | `SystemWorkflows/stopProcessing` (`.json`, `bpmn.xml`) | Stops a parse or a reading that is still in progress |

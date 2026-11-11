@@ -18,21 +18,16 @@
 package io.uhndata.iap.extraction.internal;
 
 import java.lang.reflect.Field;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
-
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.api.resource.ValueMap;
-import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.event.jobs.Job;
 import org.apache.sling.event.jobs.consumer.JobConsumer.JobResult;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
@@ -43,10 +38,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -73,6 +72,9 @@ class ExtractAnswersJobConsumerTest
 
     private final ExtractAnswersJobConsumer consumer = new ExtractAnswersJobConsumer();
 
+    /** What the stand-in engine does for each event, by name. */
+    private final Map<String, Answer<Object>> steps = new HashMap<>();
+
     private SubmissionTree tree;
 
     private Resource submission;
@@ -87,6 +89,13 @@ class ExtractAnswersJobConsumerTest
         inject("engine", this.engine);
         inject("runs", new ReadingRuns());
         Mockito.when(this.job.getId()).thenReturn(JOB_ID);
+        this.steps.put(ExtractAnswersJobConsumer.READING_STARTED_EVENT,
+            call -> runStep(new ClaimReadingHandler(), call));
+        this.steps.put(ExtractAnswersJobConsumer.READING_FAILED_EVENT,
+            call -> runStep(new GiveUpReadingHandler(), call));
+        this.steps.put(ExtractAnswersJobConsumer.EXTRACT_ANSWERS_EVENT, call -> null);
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(
+            call -> this.steps.get(call.<WorkflowEvent>getArgument(1).getName()).answer(call));
     }
 
     private void inject(final String name, final Object value) throws Exception
@@ -96,14 +105,48 @@ class ExtractAnswersJobConsumerTest
         field.set(this.consumer, value);
     }
 
+    /**
+     * Runs a status step as the engine would: through its own session, committed when the step succeeds.
+     */
+    private Object runStep(final ServiceTaskHandler handler, final InvocationOnMock call) throws Exception
+    {
+        final Resource target =
+            this.context.resourceResolver().getResource(call.<Resource>getArgument(0).getPath());
+        handler.execute(TaskContexts.of(target, call.<WorkflowEvent>getArgument(1).getPayload(), new HashMap<>()));
+        this.context.resourceResolver().commit();
+        return null;
+    }
+
+    private void setReading(final Answer<Object> reading)
+    {
+        this.steps.put(ExtractAnswersJobConsumer.EXTRACT_ANSWERS_EVENT, reading);
+    }
+
     private void setJobSubmission(final String path)
     {
         Mockito.when(this.job.getProperty(ExtractAnswersJobConsumer.SUBMISSION_PROPERTY,
             String.class)).thenReturn(path);
     }
 
+    private List<String> getFiredEvents() throws Exception
+    {
+        final ArgumentCaptor<WorkflowEvent> events = ArgumentCaptor.forClass(WorkflowEvent.class);
+        Mockito.verify(this.engine, Mockito.atLeast(0)).receiveEvent(Mockito.any(), events.capture());
+        return events.getAllValues().stream().map(WorkflowEvent::getName).toList();
+    }
+
+    private long countReadings() throws Exception
+    {
+        return getFiredEvents().stream().filter(ExtractAnswersJobConsumer.EXTRACT_ANSWERS_EVENT::equals).count();
+    }
+
+    private ValueMap getProperties()
+    {
+        return this.context.resourceResolver().getResource(this.submission.getPath()).getValueMap();
+    }
+
     @Test
-    void firesTheEventOnTheSubmission() throws Exception
+    void claimsTheReadingThenFiresTheEventOnTheSubmission() throws Exception
     {
         setJobSubmission(this.submission.getPath());
 
@@ -111,13 +154,13 @@ class ExtractAnswersJobConsumerTest
 
         final ArgumentCaptor<Resource> target = ArgumentCaptor.forClass(Resource.class);
         final ArgumentCaptor<WorkflowEvent> event = ArgumentCaptor.forClass(WorkflowEvent.class);
-        Mockito.verify(this.engine).receiveEvent(target.capture(), event.capture());
-        assertEquals(this.submission.getPath(), target.getValue().getPath());
-        assertEquals("extractAnswers", event.getValue().getName());
-        assertTrue(event.getValue().getPayload().isEmpty());
-        // The claim holds this job's id, so when two jobs race their writes differ and one commit is refused
-        assertEquals(JOB_ID, this.context.resourceResolver().getResource(this.submission.getPath()).getValueMap()
-            .get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class));
+        Mockito.verify(this.engine, Mockito.times(2)).receiveEvent(target.capture(), event.capture());
+        assertEquals(List.of("readingStarted", "extractAnswers"),
+            event.getAllValues().stream().map(WorkflowEvent::getName).toList());
+        assertEquals(this.submission.getPath(), target.getAllValues().get(1).getPath());
+        assertEquals(JOB_ID, event.getAllValues().get(0).getPayload().get(ClaimReadingHandler.JOB_KEY));
+        assertTrue(event.getAllValues().get(1).getPayload().isEmpty());
+        assertEquals(JOB_ID, getProperties().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class));
     }
 
     // Sling runs an unfinished job again after a restart, with the same id
@@ -129,7 +172,7 @@ class ExtractAnswersJobConsumerTest
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
 
-        Mockito.verify(this.engine).receiveEvent(Mockito.any(), Mockito.any());
+        assertEquals(1, countReadings());
     }
 
     @Test
@@ -140,7 +183,40 @@ class ExtractAnswersJobConsumerTest
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
-        Mockito.verifyNoInteractions(this.engine);
+        assertEquals(List.of("readingStarted"), getFiredEvents());
+        assertEquals("job-2", getProperties().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class));
+    }
+
+    // Two jobs both found the claim unset and both claimed; the engine refuses the second commit
+    @Test
+    void dropsTheJobWhoseClaimLostTheRace() throws Exception
+    {
+        setJobSubmission(this.submission.getPath());
+        this.steps.put(ExtractAnswersJobConsumer.READING_STARTED_EVENT, call -> {
+            throw new InvalidStateException("Somebody else changed this at the same time");
+        });
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(List.of("readingStarted"), getFiredEvents(), "and it does not give up the winner's reading");
+    }
+
+    // `running` was committed before the job: left as it is, the spinner would never stop
+    @Test
+    void givesUpWhenTheEngineRefusesTheClaimForAnotherReason() throws Exception
+    {
+        setJobSubmission(this.submission.getPath());
+        this.steps.put(ExtractAnswersJobConsumer.READING_STARTED_EVENT, call -> {
+            throw new NotAuthorizedException("not the extraction user");
+        });
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(0, countReadings());
+        assertEquals(ExtractionStatus.STATUS_FAILED,
+            getProperties().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        assertEquals(ExtractAnswersJobConsumer.COULD_NOT_READ_MESSAGE,
+            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
     // The job can start before the walk that asked for it commits, so the old claim may still be there
@@ -156,7 +232,7 @@ class ExtractAnswersJobConsumerTest
 
         assertEquals(JobResult.FAILED, this.consumer.process(this.job));
 
-        Mockito.verifyNoInteractions(this.engine);
+        assertTrue(getFiredEvents().isEmpty());
     }
 
     @Test
@@ -170,7 +246,7 @@ class ExtractAnswersJobConsumerTest
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
 
-        Mockito.verify(this.engine).receiveEvent(Mockito.any(), Mockito.any());
+        assertEquals(1, countReadings());
     }
 
     private void claim(final String jobId) throws Exception
@@ -246,12 +322,11 @@ class ExtractAnswersJobConsumerTest
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
-        Mockito.verifyNoInteractions(this.engine);
-        final ValueMap properties = this.context.resourceResolver().getResource(this.submission.getPath())
-            .getValueMap();
-        assertEquals(ExtractionStatus.STATUS_FAILED, properties.get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        assertEquals(List.of("readingFailed"), getFiredEvents());
+        assertEquals(ExtractionStatus.STATUS_FAILED,
+            getProperties().get(ExtractionStatus.STATUS_PROPERTY, String.class));
         assertEquals(ExtractAnswersJobConsumer.COULD_NOT_READ_MESSAGE,
-            properties.get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
+            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
     private ModifiableValueMap getSchemaVersionProperties()
@@ -260,11 +335,10 @@ class ExtractAnswersJobConsumerTest
             .adaptTo(ModifiableValueMap.class);
     }
 
-    private void assertGaveUpBeforeReading()
+    private void assertGaveUpBeforeReading() throws Exception
     {
-        Mockito.verifyNoInteractions(this.engine);
-        final ValueMap properties = this.context.resourceResolver().getResource(this.submission.getPath())
-            .getValueMap();
+        assertEquals(List.of("readingFailed"), getFiredEvents());
+        final ValueMap properties = getProperties();
         assertEquals(ExtractionStatus.STATUS_FAILED, properties.get(ExtractionStatus.STATUS_PROPERTY, String.class));
         assertEquals(ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE,
             properties.get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
@@ -289,28 +363,19 @@ class ExtractAnswersJobConsumerTest
         Mockito.verifyNoInteractions(this.engine);
     }
 
-    @Test
-    void doesNotRetryWhenTheEngineRefuses() throws Exception
-    {
-        setJobSubmission(this.submission.getPath());
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
-            .thenThrow(new NotAuthorizedException("not yours"));
-
-        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
-    }
-
     // The engine undoes the whole walk, so the `running` status and this job's claim are still there. Left
     // alone, nothing could ever read the submission again.
     @Test
     void saysSoAndLetsTheClaimGoWhenTheReadingFails() throws Exception
     {
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
-            .thenThrow(new NotAuthorizedException("not yours"));
+        setReading(call -> {
+            throw new NotAuthorizedException("not yours");
+        });
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
-        final ValueMap properties = this.submission.getValueMap();
+        final ValueMap properties = getProperties();
         assertEquals(ExtractionStatus.STATUS_FAILED, properties.get(ExtractionStatus.STATUS_PROPERTY, String.class));
         assertNotNull(properties.get(ExtractionStatus.MESSAGE_PROPERTY, String.class), "and the person is told why");
         assertNull(properties.get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.class),
@@ -324,13 +389,14 @@ class ExtractAnswersJobConsumerTest
     void saysSoWhenTheReadingFailsWithSomethingUnchecked() throws Exception
     {
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
-            .thenThrow(new IllegalStateException("a definition nobody can walk"));
+        setReading(call -> {
+            throw new IllegalStateException("a definition nobody can walk");
+        });
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
         assertEquals(ExtractionStatus.STATUS_FAILED,
-            this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+            getProperties().get(ExtractionStatus.STATUS_PROPERTY, String.class));
     }
 
     // A stop that comes after the last model call has nothing to stop. It must not stay on the pooled thread,
@@ -339,7 +405,7 @@ class ExtractAnswersJobConsumerTest
     void clearsAStopThatCameAfterTheLastModelCall() throws Exception
     {
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
+        setReading(call -> {
             new ReadingRuns().stop(this.submission.getPath());
             return null;
         });
@@ -355,13 +421,14 @@ class ExtractAnswersJobConsumerTest
     void recordsAStopAndDoesNotRetry() throws Exception
     {
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
-            .thenThrow(new ReadingStoppedException());
+        setReading(call -> {
+            throw new ReadingStoppedException();
+        });
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
         assertEquals(ExtractionStatus.STOPPED_MESSAGE,
-            this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
+            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
     @Test
@@ -379,8 +446,9 @@ class ExtractAnswersJobConsumerTest
             return real.getServiceResourceResolver(invocation.getArgument(0));
         });
         inject("resolverFactory", flaky);
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
-            .thenThrow(new ReadingStoppedException());
+        setReading(call -> {
+            throw new ReadingStoppedException();
+        });
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
     }
@@ -389,7 +457,7 @@ class ExtractAnswersJobConsumerTest
     void aReadingStoppedMidCallIsAStop() throws Exception
     {
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
+        setReading(call -> {
             new ReadingRuns().stop(this.submission.getPath());
             throw new NotAuthorizedException("closed");
         });
@@ -397,7 +465,7 @@ class ExtractAnswersJobConsumerTest
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
         assertEquals(ExtractionStatus.STOPPED_MESSAGE,
-            this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
+            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
     // An interrupt from elsewhere, such as the instance shutting down, is not the submitter's stop
@@ -405,7 +473,7 @@ class ExtractAnswersJobConsumerTest
     void anInterruptFromElsewhereIsNotAStop() throws Exception
     {
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
+        setReading(call -> {
             Thread.currentThread().interrupt();
             throw new NotAuthorizedException("closed");
         });
@@ -417,7 +485,7 @@ class ExtractAnswersJobConsumerTest
         }
 
         assertEquals(ExtractAnswersJobConsumer.COULD_NOT_READ_MESSAGE,
-            this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
+            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
     // After a stop, Read again may already have queued a new reading; this job's late give-up must not touch it
@@ -425,7 +493,7 @@ class ExtractAnswersJobConsumerTest
     void leavesAReadingAnotherJobHasClaimedAlone() throws Exception
     {
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(invocation -> {
+        setReading(call -> {
             final ModifiableValueMap properties = this.submission.adaptTo(ModifiableValueMap.class);
             properties.put(ExtractionStatus.STATUS_PROPERTY, ExtractionStatus.STATUS_RUNNING);
             properties.put(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, "job-2");
@@ -436,9 +504,8 @@ class ExtractAnswersJobConsumerTest
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
         assertEquals(ExtractionStatus.STATUS_RUNNING,
-            this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals("job-2",
-            this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class));
+            getProperties().get(ExtractionStatus.STATUS_PROPERTY, String.class));
+        assertEquals("job-2", getProperties().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class));
     }
 
     // `running` was committed before the job: left as it is, the spinner would never stop
@@ -452,7 +519,7 @@ class ExtractAnswersJobConsumerTest
 
         assertEquals(ExtractionStatus.STATUS_FAILED,
             notASubmission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        Mockito.verifyNoInteractions(this.engine);
+        assertEquals(List.of("readingFailed"), getFiredEvents());
     }
 
     @Test
@@ -496,7 +563,7 @@ class ExtractAnswersJobConsumerTest
         assertEquals(JobResult.OK, this.consumer.process(this.job));
         assertEquals(JobResult.CANCEL, this.consumer.process(other));
 
-        Mockito.verify(this.engine, Mockito.times(1)).receiveEvent(Mockito.any(), Mockito.any());
+        assertEquals(1, countReadings());
     }
 
     // New documents need a new reading, so parsing them removes the claim the last reading left
@@ -510,181 +577,23 @@ class ExtractAnswersJobConsumerTest
         this.submission.adaptTo(ModifiableValueMap.class).remove("extractionReadingClaimed");
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
-        Mockito.verify(this.engine, Mockito.times(2)).receiveEvent(Mockito.any(), Mockito.any());
+        assertEquals(2, countReadings());
     }
 
-    @Test
-    void dropsTheJobWhenTheClaimCannotBeWritten() throws Exception
-    {
-        this.tree.createFile("completed");
-        setJobSubmission(this.submission.getPath());
-        inject("resolverFactory", new TestResolverFactory(createReadOnlyResolver()));
-
-        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
-
-        Mockito.verifyNoInteractions(this.engine);
-    }
-
-    // A checked-in submission is read-only. A service user that cannot check it out cannot read it.
-    @Test
-    void dropsTheJobWhenTheSubmissionCannotBeCheckedOut() throws Exception
-    {
-        this.tree.createFile("completed");
-        setJobSubmission(this.submission.getPath());
-        final Node checkedIn = Mockito.mock(Node.class);
-        Mockito.when(checkedIn.isNodeType("mix:versionable")).thenThrow(new RepositoryException("no right"));
-        inject("resolverFactory", new TestResolverFactory(new ResourceResolverWrapper(
-            this.context.resourceResolver())
-        {
-            @Override
-            public Resource getResource(final String path)
-            {
-                final Resource found = super.getResource(path);
-                return found == null ? null : new ResourceWrapper(found)
-                {
-                    @Override
-                    public <T> T adaptTo(final Class<T> type)
-                    {
-                        return type == Node.class ? type.cast(checkedIn) : super.adaptTo(type);
-                    }
-                };
-            }
-        }));
-
-        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
-
-        Mockito.verifyNoInteractions(this.engine);
-        assertNull(this.submission.getValueMap().get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.class));
-    }
-
-    // Two jobs both found every parse settled and both wrote the claim; the repository refuses the second
-    @Test
-    void dropsTheJobWhoseClaimTheRepositoryRefuses() throws Exception
-    {
-        this.tree.createFile("completed");
-        setJobSubmission(this.submission.getPath());
-        inject("resolverFactory", new TestResolverFactory(new ResourceResolverWrapper(
-            this.context.resourceResolver())
-        {
-            @Override
-            public void commit() throws PersistenceException
-            {
-                throw new PersistenceException("somebody else got there first");
-            }
-
-            @Override
-            public void revert()
-            {
-                // The mock repository has no session to roll back
-            }
-        }));
-
-        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
-
-        Mockito.verifyNoInteractions(this.engine);
-    }
-
-    // Giving up is the last thing that can help this submission. When it cannot be saved, the job still ends
-    // instead of throwing an error that nobody handles.
+    // Giving up is the last thing that can help this submission. When the engine refuses it too, the job still
+    // ends instead of throwing an error that nobody handles.
     @Test
     void endsTheJobEvenWhenGivingUpCannotBeRecorded() throws Exception
     {
         this.tree.createFile("completed");
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
-            .thenThrow(new NotAuthorizedException("not yours"));
-        inject("resolverFactory", new TestResolverFactory(createClaimableThenReadOnlyResolver()));
+        setReading(call -> {
+            throw new NotAuthorizedException("not yours");
+        });
+        this.steps.put(ExtractAnswersJobConsumer.READING_FAILED_EVENT, call -> {
+            throw new InvalidStateException("the repository has moved on");
+        });
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
-    }
-
-    @Test
-    void endsTheJobWhenTheGivingUpCommitIsRefused() throws Exception
-    {
-        this.tree.createFile("completed");
-        setJobSubmission(this.submission.getPath());
-        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
-            .thenThrow(new NotAuthorizedException("not yours"));
-        inject("resolverFactory", new TestResolverFactory(new ResourceResolverWrapper(
-            this.context.resourceResolver())
-        {
-            private boolean claimed;
-
-            @Override
-            public void commit() throws PersistenceException
-            {
-                // The claim goes through; the giving-up that follows it does not
-                if (this.claimed) {
-                    throw new PersistenceException("the repository has moved on");
-                }
-                this.claimed = true;
-                super.commit();
-            }
-
-            @Override
-            public void revert()
-            {
-                // The mock repository has no session to roll back
-            }
-        }));
-
-        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
-    }
-
-    /**
-     * A session that lets the claim be written, then refuses every later write, so giving up cannot save
-     * anything.
-     *
-     * @return the session
-     */
-    private ResourceResolver createClaimableThenReadOnlyResolver()
-    {
-        final ResourceResolver real = this.context.resourceResolver();
-        final int[] writes = { 0 };
-        return new ResourceResolverWrapper(real)
-        {
-            @Override
-            public Resource getResource(final String path)
-            {
-                final Resource found = real.getResource(path);
-                // The first write is the claim; giving up writes through the same resource again
-                return found == null ? null : new ResourceWrapper(found)
-                {
-                    @Override
-                    public <T> T adaptTo(final Class<T> type)
-                    {
-                        if (type == ModifiableValueMap.class && ++writes[0] > 1) {
-                            return null;
-                        }
-                        return super.adaptTo(type);
-                    }
-                };
-            }
-        };
-    }
-
-    /**
-     * A session whose resources cannot be written. A mock repository does not do this on its own.
-     *
-     * @return the session
-     */
-    private ResourceResolver createReadOnlyResolver()
-    {
-        return new ResourceResolverWrapper(this.context.resourceResolver())
-        {
-            @Override
-            public Resource getResource(final String path)
-            {
-                final Resource found = super.getResource(path);
-                return found == null ? null : new ResourceWrapper(found)
-                {
-                    @Override
-                    public <T> T adaptTo(final Class<T> type)
-                    {
-                        return type == ModifiableValueMap.class ? null : super.adaptTo(type);
-                    }
-                };
-            }
-        };
     }
 }
