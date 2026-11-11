@@ -257,28 +257,43 @@
   + * (sch:FormItem)
 
 //-----------------------------------------------------------------------------
-// A decision a model makes about an uploaded document before anything is read
-// out of it, e.g. "is this a research proposal" or "which kind of study is
-// it". It is a form requirement holding one question, whose options are the
-// categories to choose from. The model's pick is saved as a suggestion on that
-// question's answer, for the submitter to accept or change. Workflows read the
-// pick through the `decision` condition source.
-[sch:ClassificationRequirement] > sch:FormRequirement
-  - sling:resourceType (STRING) = "sch/ClassificationRequirement" mandatory autocreated protected
+// A decision a model makes about an uploaded document before anything else is
+// read out of it. Abstract: a validation or a classification.
+[sch:DecisionRequirement] > sch:Requirement
+  abstract
 
   // What the model is asked to decide, and how to tell
   - prompt (STRING) mandatory
 
-  // The name of the document requirement whose upload is classified
+  // The name of the document requirement whose upload is read
   - document (STRING) mandatory
 
-  // The confidence a pick needs to be saved. A less sure pick is not saved,
-  // and the question waits for the submitter.
+  // The confidence the model's answer needs to count. A less sure answer
+  // counts as unsure.
   - confidenceThreshold (DOUBLE) = '0.7' autocreated
 
   // Optional reference text the model is shown with the prompt, e.g. the
   // typical structure of a research protocol. A template.md child also works.
   + template (nt:file)
+
+//-----------------------------------------------------------------------------
+// Whether an uploaded document is what the request needs, e.g. "is this a
+// research proposal". It is not a question: the verdict is saved on the
+// submission as a sub:Validation, and the submitter never answers it.
+[sch:ValidationRequirement] > sch:DecisionRequirement
+  - sling:resourceType (STRING) = "sch/ValidationRequirement" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
+// Which kind of request an uploaded document is, e.g. "which kind of study".
+// The categories are the options of an ordinary question in a form
+// requirement. The model's pick is saved as a suggestion on that question's
+// answer, and the submitter confirms it.
+[sch:ClassificationRequirement] > sch:DecisionRequirement
+  - sling:resourceType (STRING) = "sch/ClassificationRequirement" mandatory autocreated protected
+
+  // The question whose options are the categories. A reference, so the
+  // question stays in its form requirement, where the form shows it.
+  - question (REFERENCE) mandatory
 
 //-----------------------------------------------------------------------------
 // A document the submitter provides, such as the patient consent form.

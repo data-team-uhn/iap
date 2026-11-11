@@ -201,24 +201,34 @@ final class SubmissionTree
     }
 
     /**
-     * Creates a yes/no classification requirement that reads one document requirement, with its one question.
+     * Creates a classification requirement that reads one document requirement and picks one category. Its
+     * question sits in the {@code classification} form requirement, under the same name, and the requirement
+     * references it.
      *
-     * @param name the requirement's name
+     * @param name the requirement's name, also its question's
      * @param document the name of the document requirement it reads
      * @param prompt what the model is asked to decide
+     * @param categories the values the question offers, one option each
      * @return the question the pick is saved under
      */
-    Resource createClassificationQuestion(final String name, final String document, final String prompt)
+    Resource createClassificationQuestion(final String name, final String document, final String prompt,
+        final String... categories)
     {
-        final String path = VERSION_PATH + "/" + name;
-        this.context.create().resource(path, Map.of(TYPE, "sch/ClassificationRequirement", SUPER_TYPE,
-            "sch/Requirement", "label", "Is it one?", "prompt", prompt, "document", document));
-        final Resource question = this.context.create().resource(path + "/decision", Map.of(TYPE, "sch/Question",
-            SUPER_TYPE, "sch/FormItem", "text", "Is it one?", "dataType", "text", "maxAnswers", 1L));
-        this.context.create().resource(path + "/decision/yes", Map.of(TYPE, "sch/AnswerOption", "value", "yes",
-            "label", "Yes"));
-        this.context.create().resource(path + "/decision/no", Map.of(TYPE, "sch/AnswerOption", "value", "no",
-            "label", "No"));
+        final String form = VERSION_PATH + "/classification";
+        if (this.context.resourceResolver().getResource(form) == null) {
+            this.context.create().resource(form,
+                Map.of(TYPE, "sch/FormRequirement", SUPER_TYPE, "sch/Requirement", "label", "Classification"));
+        }
+        final Resource question = this.context.create().resource(form + "/" + name, Map.of(TYPE, "sch/Question",
+            SUPER_TYPE, "sch/FormItem", "text", "What kind of study is it?", "dataType", "text", "maxAnswers", 1L));
+        for (final String category : categories) {
+            this.context.create().resource(question.getPath() + "/" + category,
+                Map.of(TYPE, "sch/AnswerOption", "value", category, "label", category));
+        }
+        final Resource requirement = this.context.create().resource(VERSION_PATH + "/" + name, Map.of(TYPE,
+            "sch/ClassificationRequirement", SUPER_TYPE, "sch/Requirement", "label", "Kind of study", "prompt",
+            prompt, "document", document));
+        reference(requirement, "question", question);
         return question;
     }
 

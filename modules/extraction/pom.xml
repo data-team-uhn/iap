@@ -71,6 +71,11 @@
     </dependency>
     <dependency>
       <groupId>io.uhndata.iap</groupId>
+      <artifactId>iap-conditions</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.uhndata.iap</groupId>
       <artifactId>iap-data-content-api</artifactId>
       <version>${project.version}</version>
     </dependency>

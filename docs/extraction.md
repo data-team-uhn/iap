@@ -316,9 +316,9 @@ and no ordinary user should be able to have files read from there.
 **Class:** `ClassifyDocumentHandler`. **Handler name:** `classifyDocument`. **Schema
 type:** `sch:ClassificationRequirement`.
 
-A classification requirement is a form requirement with one question (found by walking
-its children, sections included). The question's options are the categories to pick
-from. The requirement also has:
+A classification requirement references one question (`question`), an ordinary question
+in a form requirement. The question's options are the categories to pick from. The
+requirement also has (from `sch:DecisionRequirement`, see [schemas.md](schemas.md)):
 
 | Property | Meaning | Default |
 | --- | --- | --- |

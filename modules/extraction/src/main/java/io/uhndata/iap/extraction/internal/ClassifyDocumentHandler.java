@@ -149,7 +149,7 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         final Map<String, Double> thresholds = new HashMap<>();
         final List<ExtractionField> fields = new ArrayList<>();
         for (final ClassificationRequirement classification : classifications) {
-            final Question question = Objects.requireNonNull(classification.getDecision(),
+            final Question question = Objects.requireNonNull(classification.getQuestion(),
                 "Only a classification holding a question is put to the model");
             final String key = ExtractionField.getKey(versionPath, question);
             questions.put(key, question);
@@ -214,11 +214,11 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         final Map<String, List<ClassificationRequirement>> open = new LinkedHashMap<>();
         for (final Requirement requirement : submission.getSchemaVersion().getRequirements()) {
             if (!(requirement instanceof final ClassificationRequirement classification)
-                || classification.getDocumentRequirementName() == null) {
+                || classification.getDocumentRequirementName() == null || !submission.isApplicable(classification)) {
                 continue;
             }
-            final List<Question> decisionQuestions = submission.getQuestions(classification.getName());
-            if (decisionQuestions.isEmpty() || answeredOrSuggested.contains(decisionQuestions.get(0).getPath())) {
+            final Question question = classification.getQuestion();
+            if (question == null || answeredOrSuggested.contains(question.getPath())) {
                 continue;
             }
             open.computeIfAbsent(classification.getDocumentRequirementName(), name -> new ArrayList<>())

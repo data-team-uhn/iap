@@ -20,24 +20,28 @@ package io.uhndata.iap.schemas.models;
 import java.util.List;
 import java.util.Map;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ClassificationRequirement}: the prompt and document it names, its threshold, and the one
- * question whose options are the categories.
+ * Unit tests for {@link ClassificationRequirement}: the question it references, whose options are the categories.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,119 +49,94 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class ClassificationRequirementTest
 {
-    private static final String PATH = "/Schemas/schema/1.0/is_proposal";
+    private static final String VERSION = "/Schemas/schema/1.0";
+
+    private static final String PATH = VERSION + "/study_kind";
+
+    private static final String QUESTION_PATH = VERSION + "/classification/kind";
+
+    private static final String QUESTION_ID = "6f1c2a3b-0000-4000-8000-000000000001";
 
     private static final String TYPE = "sling:resourceType";
 
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
-    void setUp()
+    void setUp() throws RepositoryException
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Question.class, AnswerOption.class,
-            Section.class, ClassificationRequirement.class);
+            ClassificationRequirement.class);
+        final Node target = Mockito.mock(Node.class);
+        Mockito.when(target.getPath()).thenReturn(QUESTION_PATH);
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getNodeByIdentifier(QUESTION_ID)).thenReturn(target);
+        Mockito.when(session.getNodeByIdentifier(Mockito.argThat(id -> !QUESTION_ID.equals(id))))
+            .thenThrow(new RepositoryException("No such node"));
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+    }
+
+    private ClassificationRequirement createRequirement(final Map<String, Object> properties)
+    {
+        return this.context.create().resource(PATH, properties).adaptTo(ClassificationRequirement.class);
+    }
+
+    private void createQuestion()
+    {
+        this.context.create().resource(QUESTION_PATH, Map.of(TYPE, Question.RESOURCE_TYPE,
+            "sling:resourceSuperType", FormItem.RESOURCE_TYPE, "text", "Which kind of study is it?"));
+        this.context.create().resource(QUESTION_PATH + "/prospective",
+            Map.of(TYPE, AnswerOption.RESOURCE_TYPE, "value", "prospective", "label", "Prospective"));
+        this.context.create().resource(QUESTION_PATH + "/retrospective",
+            Map.of(TYPE, AnswerOption.RESOURCE_TYPE, "value", "retrospective", "label", "Retrospective"));
     }
 
     @Test
-    void exposesWhatTheModelIsAskedAndAboutWhichDocument()
+    void offersTheOptionsOfTheQuestionItReferences()
     {
-        final Resource resource = this.context.create().resource(PATH, Map.of(
-            TYPE, ClassificationRequirement.RESOURCE_TYPE,
-            "label", "Is this a research proposal?",
-            "prompt", "Decide whether the document is a research protocol.",
-            "document", "proposal",
-            "confidenceThreshold", 0.8));
-        final ClassificationRequirement requirement = resource.adaptTo(ClassificationRequirement.class);
-
-        assertEquals("Decide whether the document is a research protocol.", requirement.getPrompt());
-        assertEquals("proposal", requirement.getDocumentRequirementName());
-        assertEquals(0.8, requirement.getConfidenceThreshold());
-    }
-
-    // A schema sets a threshold only when it wants a different one
-    @Test
-    void usesTheDefaultThresholdWhenNoneIsGiven()
-    {
-        final Resource resource = this.context.create().resource(PATH, TYPE, ClassificationRequirement.RESOURCE_TYPE);
-        final ClassificationRequirement requirement = resource.adaptTo(ClassificationRequirement.class);
-
-        assertEquals(ClassificationRequirement.DEFAULT_CONFIDENCE_THRESHOLD, requirement.getConfidenceThreshold());
-        assertNull(requirement.getPrompt());
-        assertNull(requirement.getDocumentRequirementName());
-        assertNull(requirement.getTemplate(), "a template is optional");
-    }
-
-    @Test
-    void offersTheOptionsOfItsOneQuestionAsTheCategories()
-    {
-        this.context.create().resource(PATH, TYPE, ClassificationRequirement.RESOURCE_TYPE);
-        this.context.create().resource(PATH + "/decision", Map.of(TYPE, Question.RESOURCE_TYPE,
-            "sling:resourceSuperType", FormItem.RESOURCE_TYPE, "text", "Is this a research proposal?"));
-        this.context.create().resource(PATH + "/decision/yes",
-            Map.of(TYPE, AnswerOption.RESOURCE_TYPE, "value", "yes", "label", "Yes"));
-        this.context.create().resource(PATH + "/decision/no",
-            Map.of(TYPE, AnswerOption.RESOURCE_TYPE, "value", "no", "label", "No"));
-        this.context.create().resource(PATH + "/template", "jcr:primaryType", "nt:file");
+        createQuestion();
         final ClassificationRequirement requirement =
-            this.context.resourceResolver().getResource(PATH).adaptTo(ClassificationRequirement.class);
+            createRequirement(Map.of(TYPE, ClassificationRequirement.RESOURCE_TYPE, "question", QUESTION_ID));
 
-        assertEquals("decision", requirement.getDecision().getName());
-        assertEquals(List.of("yes", "no"),
+        assertEquals(QUESTION_PATH, requirement.getQuestion().getPath());
+        assertEquals(List.of("prospective", "retrospective"),
             requirement.getCategories().stream().map(OfferedOption::value).toList());
-        assertNotNull(requirement.getTemplate());
-    }
-
-    // A Markdown file loaded as initial content keeps its extension in its node name
-    @Test
-    void findsATemplateLoadedAsMarkdown()
-    {
-        this.context.create().resource(PATH, TYPE, ClassificationRequirement.RESOURCE_TYPE);
-        this.context.create().resource(PATH + "/template.md", "jcr:primaryType", "nt:file");
-        final ClassificationRequirement requirement =
-            this.context.resourceResolver().getResource(PATH).adaptTo(ClassificationRequirement.class);
-
-        assertEquals("template.md", requirement.getTemplate().getName());
-    }
-
-    // A section with no question in it is not where the decision is
-    @Test
-    void looksPastASectionThatHoldsNoQuestion()
-    {
-        this.context.create().resource(PATH, TYPE, ClassificationRequirement.RESOURCE_TYPE);
-        this.context.create().resource(PATH + "/intro", Map.of(TYPE, Section.RESOURCE_TYPE,
-            "sling:resourceSuperType", FormItem.RESOURCE_TYPE, "title", "About this step"));
-        this.context.create().resource(PATH + "/decision", Map.of(TYPE, Question.RESOURCE_TYPE,
-            "sling:resourceSuperType", FormItem.RESOURCE_TYPE, "text", "Is this a research proposal?"));
-        final ClassificationRequirement requirement =
-            this.context.resourceResolver().getResource(PATH).adaptTo(ClassificationRequirement.class);
-
-        assertEquals("decision", requirement.getDecision().getName());
-    }
-
-    // A schema may nest the decision question in a section, e.g. to give it a heading
-    @Test
-    void findsItsQuestionNestedInASection()
-    {
-        this.context.create().resource(PATH, TYPE, ClassificationRequirement.RESOURCE_TYPE);
-        this.context.create().resource(PATH + "/group", Map.of(TYPE, Section.RESOURCE_TYPE,
-            "sling:resourceSuperType", FormItem.RESOURCE_TYPE, "title", "Decision"));
-        this.context.create().resource(PATH + "/group/decision", Map.of(TYPE, Question.RESOURCE_TYPE,
-            "sling:resourceSuperType", FormItem.RESOURCE_TYPE, "text", "Is this a research proposal?"));
-        final ClassificationRequirement requirement =
-            this.context.resourceResolver().getResource(PATH).adaptTo(ClassificationRequirement.class);
-
-        assertEquals("decision", requirement.getDecision().getName());
     }
 
     // Without its question, a requirement has no categories to pick from
     @Test
     void offersNothingWithoutAQuestion()
     {
-        final Resource resource = this.context.create().resource(PATH, TYPE, ClassificationRequirement.RESOURCE_TYPE);
-        final ClassificationRequirement requirement = resource.adaptTo(ClassificationRequirement.class);
+        final ClassificationRequirement requirement =
+            createRequirement(Map.of(TYPE, ClassificationRequirement.RESOURCE_TYPE));
 
-        assertNull(requirement.getDecision());
+        assertNull(requirement.getQuestion());
         assertTrue(requirement.getCategories().isEmpty());
+    }
+
+    // A reference to a question that is gone counts as no question
+    @Test
+    void offersNothingWhenTheQuestionIsGone()
+    {
+        final ClassificationRequirement requirement = createRequirement(
+            Map.of(TYPE, ClassificationRequirement.RESOURCE_TYPE, "question", "6f1c2a3b-0000-4000-8000-0000000000ff"));
+
+        assertNull(requirement.getQuestion());
+        assertTrue(requirement.getCategories().isEmpty());
+    }
+
+    // The prompt, document, threshold and template come from DecisionRequirement, shared with a validation
+    @Test
+    void readsWhatEveryDecisionNames()
+    {
+        final ClassificationRequirement requirement = createRequirement(Map.of(
+            TYPE, ClassificationRequirement.RESOURCE_TYPE,
+            "prompt", "Decide which kind of study the protocol describes.",
+            "document", "proposal",
+            "confidenceThreshold", 0.8));
+
+        assertEquals("Decide which kind of study the protocol describes.", requirement.getPrompt());
+        assertEquals("proposal", requirement.getDocumentRequirementName());
+        assertEquals(0.8, requirement.getConfidenceThreshold());
     }
 
     // It reads as a Requirement, so the schema version lists it with the others

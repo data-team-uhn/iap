@@ -36,7 +36,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
+import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -56,9 +58,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class ClassifyDocumentHandlerTest
 {
-    private static final String DECISION = "is_proposal.decision";
+    private static final String CATEGORY = "classification.study_kind";
 
-    private static final String PROMPT = "Decide whether the document is a research protocol.";
+    private static final String PROMPT = "Decide what kind of study the document describes.";
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
@@ -72,7 +74,7 @@ class ClassifyDocumentHandlerTest
 
     private Resource proposal;
 
-    private Resource decision;
+    private Resource category;
 
     @BeforeEach
     void setUp() throws Exception
@@ -81,7 +83,8 @@ class ClassifyDocumentHandlerTest
         this.tree.createSchemaVersion();
         this.submission = this.tree.createSubmission();
         this.proposal = this.tree.createDocumentRequirement("proposal");
-        this.decision = this.tree.createClassificationQuestion("is_proposal", "proposal", PROMPT);
+        this.category = this.tree.createClassificationQuestion("study_kind", "proposal", PROMPT,
+            "interventional", "observational", "chart_review");
         inject("intake", this.intake);
         inject("documents", new ParsedDocuments());
         inject("runs", new ReadingRuns());
@@ -108,7 +111,7 @@ class ClassifyDocumentHandlerTest
     {
         Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenReturn(degraded ? IntakeResult.createNotRead(IntakeResult.REPLY_UNREADABLE_MESSAGE)
-                : IntakeResult.createRead(Map.of(DECISION, new FieldResult(DECISION, List.of(value),
+                : IntakeResult.createRead(Map.of(CATEGORY, new FieldResult(CATEGORY, List.of(value),
                     "It has objectives and methods.", confidence, List.of(), 0))));
     }
 
@@ -144,8 +147,8 @@ class ClassifyDocumentHandlerTest
     void putsTheClassificationToTheModelWithItsPromptOptionsAndReference() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        this.tree.addTemplate("is_proposal", "B.1 General information");
-        stubModelPick("yes", false);
+        this.tree.addTemplate("study_kind", "B.1 General information");
+        stubModelPick("interventional", false);
 
         this.handler.execute(createTask());
 
@@ -155,12 +158,12 @@ class ClassifyDocumentHandlerTest
         Mockito.verify(this.intake).askQuestions(Mockito.any(), Mockito.any(), groups.capture(), reference.capture());
         assertEquals(1, groups.getValue().size(), "one document's classifications are asked together");
         final ExtractionField field = groups.getValue().get(0).fields().get(0);
-        assertEquals(DECISION, field.key());
+        assertEquals(CATEGORY, field.key());
         assertTrue(field.instructions().startsWith(PROMPT), "the instructions come from the requirement");
-        assertEquals(List.of("yes", "no"),
+        assertEquals(List.of("interventional", "observational", "chart_review"),
             field.answer().options().stream().map(ExtractionField.Option::value).toList());
         assertTrue(reference.getValue().contains("B.1 General information"));
-        assertEquals("yes", getPick(getAnswers().get(0)), "the pick is kept as a suggestion");
+        assertEquals("interventional", getPick(getAnswers().get(0)), "the pick is kept as a suggestion");
         assertNull(getAnswers().get(0).getValueMap().get("value", String[].class),
             "and is not the answer until the submitter acts on it");
         assertNull(getStatus(), "the reading goes on, so it is not marked done here");
@@ -171,7 +174,7 @@ class ClassifyDocumentHandlerTest
     void leavesTheQuestionUnansweredWhenThePickIsUnsure() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        stubModelPick("yes", 0.5, false);
+        stubModelPick("interventional", 0.5, false);
 
         this.handler.execute(createTask());
 
@@ -183,7 +186,7 @@ class ClassifyDocumentHandlerTest
     void leavesTheQuestionUnansweredWhenThePickNamesNoCategory() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        stubModelPick("Probably a protocol", false);
+        stubModelPick("Probably a trial", false);
 
         this.handler.execute(createTask());
 
@@ -194,9 +197,9 @@ class ClassifyDocumentHandlerTest
     void storesAPickAsSureAsTheThresholdTheSchemaSets() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/is_proposal")
+        this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/study_kind")
             .adaptTo(ModifiableValueMap.class).put("confidenceThreshold", 0.4);
-        stubModelPick("yes", 0.5, false);
+        stubModelPick("interventional", 0.5, false);
 
         this.handler.execute(createTask());
 
@@ -207,7 +210,7 @@ class ClassifyDocumentHandlerTest
     void asksWithoutAReferenceWhenThereIsNone() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        stubModelPick("no", false);
+        stubModelPick("observational", false);
 
         this.handler.execute(createTask());
 
@@ -219,7 +222,7 @@ class ClassifyDocumentHandlerTest
     void leavesAClassificationAlreadySuggestedAlone() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        stubModelPick("yes", false);
+        stubModelPick("interventional", false);
         this.handler.execute(createTask());
         this.tree.stampTypes();
 
@@ -236,8 +239,8 @@ class ClassifyDocumentHandlerTest
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
         final Resource answer = this.context.create().resource(SubmissionTree.SUBMISSION_PATH + "/given",
             Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer", "value",
-                new String[] { "yes" }));
-        SubmissionTree.reference(answer, "question", this.decision);
+                new String[] { "interventional" }));
+        SubmissionTree.reference(answer, "question", this.category);
 
         this.handler.execute(createTask());
 
@@ -252,12 +255,12 @@ class ClassifyDocumentHandlerTest
         final Resource answer = this.context.create().resource(SubmissionTree.SUBMISSION_PATH + "/given",
             Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer", "value",
                 new String[] { "" }));
-        SubmissionTree.reference(answer, "question", this.decision);
-        stubModelPick("yes", false);
+        SubmissionTree.reference(answer, "question", this.category);
+        stubModelPick("interventional", false);
 
         this.handler.execute(createTask());
 
-        assertEquals("yes", getPick(this.context.resourceResolver().getResource(answer.getPath())),
+        assertEquals("interventional", getPick(this.context.resourceResolver().getResource(answer.getPath())),
             "the run goes under the empty answer");
     }
 
@@ -297,7 +300,7 @@ class ClassifyDocumentHandlerTest
     void failsWhenTheModelsAnswerCouldNotBeRead() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        stubModelPick("yes", true);
+        stubModelPick("interventional", true);
 
         this.handler.execute(createTask());
 
@@ -360,8 +363,37 @@ class ClassifyDocumentHandlerTest
     void skipsAClassificationNamingNoDocument() throws Exception
     {
         this.tree.createParsedFileFor(this.proposal, "# Objectives");
-        this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/is_proposal")
+        this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/study_kind")
             .adaptTo(ModifiableValueMap.class).remove("document");
+
+        this.handler.execute(createTask());
+
+        Mockito.verifyNoInteractions(this.intake);
+    }
+
+    // The question it references was removed from the schema: there are no categories to pick from
+    @Test
+    void skipsAClassificationWhoseQuestionIsGone() throws Exception
+    {
+        this.tree.createParsedFileFor(this.proposal, "# Objectives");
+        this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/study_kind")
+            .adaptTo(ModifiableValueMap.class).remove("question");
+
+        this.handler.execute(createTask());
+
+        Mockito.verifyNoInteractions(this.intake);
+    }
+
+    // A classification whose condition does not hold for this submission is not asked
+    @Test
+    void skipsAClassificationThatDoesNotApply() throws Exception
+    {
+        final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
+        Mockito.when(conditions.applies(Mockito.any(), Mockito.any())).thenAnswer(call -> !(call
+            .getArgument(0) instanceof final ClassificationRequirement requirement
+            && "study_kind".equals(requirement.getName())));
+        this.context.registerService(ConditionEvaluator.class, conditions);
+        this.tree.createParsedFileFor(this.proposal, "# Objectives");
 
         this.handler.execute(createTask());
 
@@ -389,8 +421,8 @@ class ClassifyDocumentHandlerTest
         Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
             .thenAnswer(invocation -> {
                 new ReadingRuns().stop(this.submission.getPath());
-                return IntakeResult.createRead(Map.of(DECISION,
-                    new FieldResult(DECISION, List.of("yes"), "", 0.9, List.of(), 0)));
+                return IntakeResult.createRead(Map.of(CATEGORY,
+                    new FieldResult(CATEGORY, List.of("interventional"), "", 0.9, List.of(), 0)));
             });
 
         try {

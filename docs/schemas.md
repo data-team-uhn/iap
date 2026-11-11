@@ -22,6 +22,8 @@ version. Once a version is published, only its wording can change.
         ├── consent              sch:DocumentRequirement  required, skipParsing, acceptedFileTypes, template
         ├── protocol             sch:DocumentRequirement
         │   └── funding          sch:SectionRequirement   label, required, headings, locationPrompt
+        ├── is_proposal          sch:ValidationRequirement      prompt, document, confidenceThreshold, template
+        ├── study_kind           sch:ClassificationRequirement  …, question → sch:Question (e.g. basics/kind)
         └── reb                  sch:ApprovalRequirement  approverGroup
             └── privacy          sch:Topic            text, description, assessmentPrompt, sources
 ```
@@ -42,6 +44,23 @@ topic is a broad area, such as privacy or consent. Its `description` says what t
 for, `sources` names the requirements and questions that bear on it, and
 `assessmentPrompt` is what the AI is asked. Each review, and the AI's screening,
 assesses every topic on its own.
+
+### Decisions about an upload
+
+Two requirements ask a model about an uploaded document before anything else is read
+out of it. Both name the document requirement whose upload is read (`document`), what
+to ask (`prompt`), how sure the answer must be (`confidenceThreshold`, default 0.7), and
+optional reference text (a `template` or `template.md` child). They share the abstract
+`sch:DecisionRequirement`.
+
+| Type | Asks | The answer is saved as |
+|---|---|---|
+| `sch:ValidationRequirement` | Is the upload what the request needs, e.g. a research proposal? | a `sub:Validation` on the submission; the submitter never answers it |
+| `sch:ClassificationRequirement` | Which kind of request is it? | a suggestion on the answer to the question it references (`question`), which the submitter confirms |
+
+The classification's question is an ordinary question in a form requirement, so the form
+shows it like any other. A reference to a question of the same version still points at
+the right question when the version is copied.
 
 ### Questions
 
