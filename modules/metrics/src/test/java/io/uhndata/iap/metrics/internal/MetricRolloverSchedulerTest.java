@@ -35,6 +35,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.osgi.framework.Constants;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
+import io.uhndata.iap.metrics.api.MetricsException;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -209,17 +214,52 @@ class MetricRolloverSchedulerTest
     }
 
     @Test
-    void failedSchedulingIsRetriedOnTheNextChange()
+    void aRefusedScheduleIsNotRetriedAsTheMetricIsIncremented()
+    {
+        Mockito.when(this.scheduler.schedule(Mockito.any(), Mockito.any())).thenReturn(false);
+        this.manager.createMetric("nightly").withRolloverSchedule(NIGHTLY).create();
+        final MetricRolloverScheduler rolloverScheduler = startScheduler();
+
+        for (int increment = 0; increment < 3; ++increment) {
+            this.manager.getMetric("nightly").orElseThrow().increment();
+            rolloverScheduler.onChange(List.of());
+        }
+
+        Mockito.verify(this.scheduler, Mockito.times(1)).schedule(Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    void aRefusedScheduleIsRetriedOnceTheScheduleChanges()
     {
         Mockito.when(this.scheduler.schedule(Mockito.any(), Mockito.any())).thenReturn(false, true);
-        this.manager.createMetric("nightly").withRolloverSchedule(NIGHTLY).create();
-
+        this.manager.createMetric("periodic").withRolloverSchedule(NIGHTLY).create();
         final MetricRolloverScheduler rolloverScheduler = startScheduler();
+
+        this.manager.createMetric("periodic").withRolloverSchedule(NOON).create();
+        rolloverScheduler.onChange(List.of());
         rolloverScheduler.onChange(List.of());
 
+        Mockito.verify(this.scheduler).EXPR(NIGHTLY);
+        Mockito.verify(this.scheduler).EXPR(NOON);
         Mockito.verify(this.scheduler, Mockito.times(2)).schedule(Mockito.any(), Mockito.any());
-        // A job that started is not started again
+        Mockito.verify(this.scheduler, Mockito.never()).unschedule(Mockito.anyString());
+    }
+
+    @Test
+    void aRefusedScheduleIsRetriedWhenTheMetricIsRecreatedWithIt() throws Exception
+    {
+        Mockito.when(this.scheduler.schedule(Mockito.any(), Mockito.any())).thenReturn(false, true);
+        this.manager.createMetric("periodic").withRolloverSchedule(NIGHTLY).create();
+        final MetricRolloverScheduler rolloverScheduler = startScheduler();
+
+        try (ResourceResolver resolver = open()) {
+            resolver.delete(resolver.getResource("/Metrics/periodic"));
+            resolver.commit();
+        }
         rolloverScheduler.onChange(List.of());
+        this.manager.createMetric("periodic").withRolloverSchedule(NIGHTLY).create();
+        rolloverScheduler.onChange(List.of());
+
         Mockito.verify(this.scheduler, Mockito.times(2)).schedule(Mockito.any(), Mockito.any());
     }
 
@@ -244,6 +284,27 @@ class MetricRolloverSchedulerTest
 
         assertDoesNotThrow(this::startScheduler);
         Mockito.verifyNoInteractions(this.scheduler);
+    }
+
+    @Test
+    void unreadableSchedulesAreRecorded() throws Exception
+    {
+        final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
+            .thenThrow(new LoginException("no service user"));
+        outrankTheContextFactory(broken);
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+
+        try {
+            startScheduler();
+
+            final ArgumentCaptor<ErrorContext> recorded = ArgumentCaptor.forClass(ErrorContext.class);
+            Mockito.verify(recorder).logError(Mockito.any(MetricsException.class), recorded.capture());
+            assertEquals("readSchedules", recorded.getValue().getOperation());
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
     }
 
     @Test

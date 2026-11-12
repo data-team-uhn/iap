@@ -79,6 +79,12 @@ public class MetricRolloverScheduler implements ResourceChangeListener
     /** The jobs started: each one's cron expression, by the name of its metric. */
     private final Map<String, String> scheduled = new HashMap<>();
 
+    /**
+     * The schedules the scheduler refused: each cron expression, by the name of its metric. Each is not tried again
+     * until its metric's schedule changes, since every increment of a metric is a change under {@code /Metrics}.
+     */
+    private final Map<String, String> refused = new HashMap<>();
+
     @Activate
     void activate()
     {
@@ -100,8 +106,8 @@ public class MetricRolloverScheduler implements ResourceChangeListener
 
     /**
      * Bring the jobs in line with the metrics' schedules. A job whose metric is gone, or whose schedule changed, is
-     * stopped. A metric with a schedule and no job gets one, including a metric whose schedule was refused before. If
-     * the schedules cannot be read, the jobs stay as they are.
+     * stopped. A metric with a schedule and no job gets one, unless the scheduler already refused that same schedule.
+     * If the schedules cannot be read, the jobs stay as they are.
      */
     private synchronized void synchronizeSchedules()
     {
@@ -109,9 +115,13 @@ public class MetricRolloverScheduler implements ResourceChangeListener
         try {
             desired = readSchedules();
         } catch (final MetricsException e) {
+            // Recorded because nothing else notices: the jobs silently stop following the metrics' schedules
             LOGGER.warn("Cannot read the metric roll-over schedules: {}", e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(MetricRolloverScheduler.class, "readSchedules"));
             return;
         }
+        // A refusal stands only while the metric keeps the schedule that was refused
+        this.refused.entrySet().retainAll(desired.entrySet());
         this.scheduled.entrySet().removeIf(job -> {
             if (!job.getValue().equals(desired.get(job.getKey()))) {
                 this.scheduler.unschedule(JOB_NAME_PREFIX + job.getKey());
@@ -120,8 +130,8 @@ public class MetricRolloverScheduler implements ResourceChangeListener
             return false;
         });
         desired.forEach((name, schedule) -> {
-            if (!this.scheduled.containsKey(name) && schedule(name, schedule)) {
-                this.scheduled.put(name, schedule);
+            if (!this.scheduled.containsKey(name) && !this.refused.containsKey(name)) {
+                startJob(name, schedule);
             }
         });
     }
@@ -150,7 +160,22 @@ public class MetricRolloverScheduler implements ResourceChangeListener
     }
 
     /**
-     * Start the job that rolls over one metric. A refusal is logged and recorded as an error.
+     * Start the job that rolls over one metric, and remember whether the scheduler accepted it or refused it.
+     *
+     * @param name the metric's name
+     * @param schedule the Quartz cron expression to follow
+     */
+    private void startJob(final String name, final String schedule)
+    {
+        if (schedule(name, schedule)) {
+            this.scheduled.put(name, schedule);
+        } else {
+            this.refused.put(name, schedule);
+        }
+    }
+
+    /**
+     * Ask the scheduler for the job that rolls over one metric. A refusal is logged and recorded as an error.
      *
      * @param name the metric's name
      * @param schedule the Quartz cron expression to follow
