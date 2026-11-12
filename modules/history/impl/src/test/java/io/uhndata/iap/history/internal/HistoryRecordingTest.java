@@ -337,11 +337,11 @@ class HistoryRecordingTest
     @Test
     void namesAnEntityTheCommitRemovedFromWhereItWas() throws Exception
     {
-        final String path = commit(RecordedAction.by(REQUESTER, "purge")
-            .affecting(new RecordedEffect(REQUEST, "purged"))
+        final String path = commit(RecordedAction.by(REQUESTER, "delete")
+            .affecting(new RecordedEffect(REQUEST, "erased"))
             .build(), () -> this.session.getNode(REQUEST).remove());
 
-        assertEquals("purged", this.session.getNode(path).getNode(this.requestId).getProperty(ROLE).getString());
+        assertEquals("erased", this.session.getNode(path).getNode(this.requestId).getProperty(ROLE).getString());
     }
 
     @Test

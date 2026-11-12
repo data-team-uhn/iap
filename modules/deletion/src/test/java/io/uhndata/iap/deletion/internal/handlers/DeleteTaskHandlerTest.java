@@ -128,14 +128,14 @@ class DeleteTaskHandlerTest
     }
 
     @Test
-    void namesTheTargetPurgedForTheHistoryWhenRemovedForGood() throws Exception
+    void namesTheTargetErasedForTheHistoryWhenRemovedForGood() throws Exception
     {
         Mockito.when(this.activity.get("permanent")).thenReturn(true);
         answer(DeletionResult.Status.DELETED);
 
         this.handler.execute(this.context);
 
-        Mockito.verify(this.context).recordRole(this.target, "purged");
+        Mockito.verify(this.context).recordRole(this.target, "erased");
     }
 
     @Test

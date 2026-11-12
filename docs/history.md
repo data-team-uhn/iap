@@ -76,7 +76,7 @@ person who requested the action is `createdBy`, which `Action.getRequestedBy()` 
 [Recording](#recording) lists.
 
 **The record holds where the subject changed, never the values.** A record carrying a
-value would have to be redacted when the content it describes is purged.
+value would have to be redacted when the content it describes is erased.
 
 An entry is named after its subject's `jcr:uuid`, so an action holds at most one entry
 for each resource.
