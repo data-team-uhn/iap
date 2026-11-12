@@ -24,6 +24,7 @@ import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.VersioningUtils;
 
 /**
@@ -130,6 +131,17 @@ final class ExtractionStatus
     static boolean isRunning(final Resource submission)
     {
         return STATUS_RUNNING.equals(submission.getValueMap().get(STATUS_PROPERTY, String.class));
+    }
+
+    /**
+     * Whether a reading of the submission is going on, read from its model.
+     *
+     * @param submission the submission
+     * @return {@code true} when its status is {@link #STATUS_RUNNING}
+     */
+    static boolean isRunning(final Submission submission)
+    {
+        return STATUS_RUNNING.equals(submission.get(STATUS_PROPERTY, String.class));
     }
 
     /**

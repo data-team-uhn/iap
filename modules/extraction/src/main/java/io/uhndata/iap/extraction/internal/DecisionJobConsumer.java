@@ -48,8 +48,9 @@ import io.uhndata.iap.workflows.api.WorkflowException;
  *
  * <p>A validation is asked through {@link DocumentValidator}, a categorisation through {@link DocumentCategoriser}.
  * A validation's {@code no} ends the reading, so nothing after it is asked. Once every decision is made, the job
- * fires {@code decided}, which ends the reading as {@code done} and asks the submitter to confirm the category
- * ({@link FinishDecisionsHandler}).</p>
+ * fires {@code decided}, which ends the reading as {@code done} and, while a category is not confirmed, asks the
+ * submitter to confirm it ({@link FinishDecisionsHandler}). A job that finds nothing left to decide still ends the
+ * reading it was queued for, such as the parse of a document already checked: nothing else would end it.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -65,7 +66,7 @@ public class DecisionJobConsumer implements JobConsumer, ReadingJob
     static final String DECIDED_EVENT = "decided";
 
     /**
-     * What the submitter is told once a document was categorised. The same whether or not the model was sure: the
+     * What the submitter is told while a category is not confirmed. The same whether or not the model was sure: the
      * submitter is asked the same question either way, with or without a suggestion.
      */
     static final String CONFIRM_CATEGORY_MESSAGE = "Confirm the category to continue";
@@ -90,10 +91,14 @@ public class DecisionJobConsumer implements JobConsumer, ReadingJob
         return this.jobs.run(job, this);
     }
 
+    /**
+     * Whether the reading this job was queued for has ended: another job of the same submission ended it, or a
+     * Stop did. One still running is this job's to end, even when every decision is made already.
+     */
     @Override
     public boolean isAlreadyRead(final Submission submission)
     {
-        return DecisionChain.isFinished(submission);
+        return !ExtractionStatus.isRunning(submission);
     }
 
     @Override
@@ -108,7 +113,6 @@ public class DecisionJobConsumer implements JobConsumer, ReadingJob
         final ResourceResolver resolver = submission.getResourceResolver();
         final List<DecisionRequirement> pending =
             DecisionChain.getPendingDecisions(SubmissionFiles.getSubmission(submission));
-        boolean categorised = false;
         // One round per decision, and a last one that ends the chain
         for (int next = 0; next <= pending.size(); next++) {
             // Each step is saved through the engine's session, which this one sees only after a refresh
@@ -119,11 +123,9 @@ public class DecisionJobConsumer implements JobConsumer, ReadingJob
                 return;
             }
             if (next == pending.size()) {
-                finish(current, jobId, categorised);
+                finish(current, jobId);
             } else if (!decide(current, jobId, pending.get(next))) {
                 return;
-            } else {
-                categorised |= pending.get(next) instanceof ClassificationRequirement;
             }
         }
     }
@@ -144,15 +146,15 @@ public class DecisionJobConsumer implements JobConsumer, ReadingJob
     }
 
     /**
-     * Ends the checks through the {@code decided} system workflow, asking the submitter to confirm the category when
-     * a document was categorised.
+     * Ends the checks through the {@code decided} system workflow, asking the submitter to confirm the category while
+     * it is not confirmed.
      */
-    private void finish(final Resource submission, final String jobId, final boolean categorised)
+    private void finish(final Resource submission, final String jobId)
         throws WorkflowException
     {
         final Map<String, Object> payload = new HashMap<>();
         payload.put(ClaimReadingHandler.JOB_KEY, jobId);
-        if (categorised) {
+        if (!DecisionChain.isCategoryConfirmed(SubmissionFiles.getSubmission(submission))) {
             payload.put(FinishDecisionsHandler.MESSAGE_KEY, CONFIRM_CATEGORY_MESSAGE);
         }
         try {

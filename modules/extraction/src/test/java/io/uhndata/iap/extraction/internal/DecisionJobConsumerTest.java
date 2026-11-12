@@ -384,9 +384,10 @@ class DecisionJobConsumerTest
         assertEquals(List.of(), getFiredEventNames());
     }
 
-    // Each parse queues a job: the second must not ask again, nor complete a task the intake reached since
+    // Each parse queues a job: once the first ended the reading, the second must not ask again, nor complete a
+    // task the intake reached since
     @Test
-    void stopsWithoutClaimingWhenTheUploadWasAlreadyValidated() throws Exception
+    void stopsWithoutClaimingOnceTheReadingEnded() throws Exception
     {
         createWaitingTask();
         this.consumer.process(this.job);
@@ -765,9 +766,9 @@ class DecisionJobConsumerTest
         assertEquals(List.of("observational"), getSuggestion(category));
     }
 
-    // A category the submitter already gave is not asked again
+    // A category the submitter already gave is not asked again, but the reading still has to end
     @Test
-    void stopsWithoutClaimingWhenTheCategoryIsAlreadyAnswered() throws Exception
+    void asksNothingWhenTheCategoryIsAlreadyAnswered() throws Exception
     {
         this.context.resourceResolver().delete(
             this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/is_proposal"));
@@ -777,9 +778,50 @@ class DecisionJobConsumerTest
                 new String[] { "interventional" }));
         SubmissionTree.reference(answer, "question", category);
 
-        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
 
-        assertEquals(List.of(), getFiredEventNames());
+        assertEquals(List.of("readingStarted", "decided"), getFiredEventNames());
+        Mockito.verifyNoInteractions(this.intake);
+        assertEquals(ExtractionStatus.STATUS_DONE, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
+        assertNull(getProperties().get(ExtractionStatus.MESSAGE_PROPERTY), "the category is confirmed");
+    }
+
+    // Parsing a document again starts a reading that nothing but this job would end
+    @Test
+    void endsAReadingStartedByAParseOfADocumentAlreadyChecked() throws Exception
+    {
+        createStudyKind();
+        createWaitingTask();
+        this.consumer.process(this.job);
+        getSubmissionResource().adaptTo(ModifiableValueMap.class).put(ExtractionStatus.STATUS_PROPERTY,
+            ExtractionStatus.STATUS_RUNNING);
+        this.context.resourceResolver().commit();
+        Mockito.clearInvocations(this.engine, this.intake);
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of("readingStarted", "decided"), getFiredEventNames());
+        Mockito.verifyNoInteractions(this.intake);
+        assertEquals(ExtractionStatus.STATUS_DONE, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
+        assertEquals(DecisionJobConsumer.CONFIRM_CATEGORY_MESSAGE,
+            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY), "the category is still to be confirmed");
+    }
+
+    // Nothing to check, so the reading ends at once and the forms are read on Next
+    @Test
+    void endsTheReadingAtOnceWhenOnlyAFormReadsTheDocuments() throws Exception
+    {
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/is_proposal"));
+        this.context.resourceResolver().getResource(SubmissionTree.FORM_PATH).adaptTo(ModifiableValueMap.class)
+            .put("documents", new String[] { "proposal" });
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of("readingStarted", "decided"), getFiredEventNames());
+        Mockito.verifyNoInteractions(this.intake);
+        assertEquals(ExtractionStatus.STATUS_DONE, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
+        assertNull(getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
     }
 
     @Test

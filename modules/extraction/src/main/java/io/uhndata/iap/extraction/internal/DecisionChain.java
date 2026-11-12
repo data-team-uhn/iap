@@ -47,22 +47,10 @@ final class DecisionChain
     }
 
     /**
-     * Whether nothing is left to decide: a validation said no, which ends the reading, or every decision whose
-     * document was uploaded is made.
-     *
-     * @param submission the submission
-     * @return {@code true} when the model has nothing left to be asked
-     */
-    static boolean isFinished(final Submission submission)
-    {
-        final List<DecisionRequirement> uploaded = getUploadedDecisions(submission);
-        return !uploaded.isEmpty() && (uploaded.stream().anyMatch(decision -> isRejected(submission, decision))
-            || uploaded.stream().allMatch(decision -> isMade(submission, decision)));
-    }
-
-    /**
-     * Why the chain cannot start: the schema has no validation or classification, a document still to be checked
-     * is missing, or none of their documents was uploaded.
+     * Why the chain cannot start: nothing in the schema reads the documents, a document still to be checked is
+     * missing, or none of the checked documents was uploaded. A schema with no validation or classification, but
+     * with a form that names its documents, starts and ends at once: nothing is checked, and the forms are read on
+     * Next. So does a chain whose every decision is made, such as when a document is parsed again.
      *
      * @param submission the submission
      * @return the message for the submitter, or {@code null} when every document still to be checked is parsed
@@ -71,7 +59,7 @@ final class DecisionChain
     {
         final List<DecisionRequirement> decisions = getDecisions(submission);
         if (decisions.isEmpty()) {
-            return ReadingJobs.NOT_SET_UP_MESSAGE;
+            return hasFormReadingDocuments(submission) ? null : ReadingJobs.NOT_SET_UP_MESSAGE;
         }
         final String missing = decisions.stream()
             .filter(decision -> !isMade(submission, decision)
@@ -82,7 +70,7 @@ final class DecisionChain
         if (missing != null) {
             return missing;
         }
-        return getPendingDecisions(submission).isEmpty() ? SubmissionFiles.NO_DOCUMENT_MESSAGE : null;
+        return getUploadedDecisions(submission).isEmpty() ? SubmissionFiles.NO_DOCUMENT_MESSAGE : null;
     }
 
     /**
@@ -146,6 +134,13 @@ final class DecisionChain
             .toList();
     }
 
+    /** Whether a form of the schema names documents to be read from. */
+    private static boolean hasFormReadingDocuments(final Submission submission)
+    {
+        return submission.getSchemaVersion().getFormRequirements().stream()
+            .anyMatch(form -> !form.getDocumentRequirementNames().isEmpty());
+    }
+
     /** The decisions whose document has an upload, in chain order. */
     private static List<DecisionRequirement> getUploadedDecisions(final Submission submission)
     {
@@ -165,13 +160,6 @@ final class DecisionChain
         }
         return ExtractionFields.isAnsweredOrRead(submission,
             ((ClassificationRequirement) decision).getQuestion());
-    }
-
-    /** Whether the decision is a validation that said no. */
-    private static boolean isRejected(final Submission submission, final DecisionRequirement decision)
-    {
-        return decision instanceof final ValidationRequirement validation
-            && Validation.OUTCOME_NO.equals(getVerdict(submission, validation));
     }
 
     /** The document requirement the decision reads; {@link #getDecisions} keeps only those that have one. */

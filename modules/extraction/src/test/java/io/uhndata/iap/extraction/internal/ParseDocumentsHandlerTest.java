@@ -113,6 +113,22 @@ class ParseDocumentsHandlerTest
         Mockito.verifyNoInteractions(this.parseService);
     }
 
+    // A validation said no: parsing again would reopen a request the intake already ended
+    @Test
+    void refusesARejectedRequest()
+    {
+        this.tree.createFile(null);
+        final ModifiableValueMap properties = this.submission.adaptTo(ModifiableValueMap.class);
+        properties.put(ExtractionStatus.BLOCKED_PROPERTY, true);
+        properties.put(ExtractionStatus.MESSAGE_PROPERTY, "Unable to identify the research proposal");
+
+        final InvalidStateException refusal =
+            assertThrows(InvalidStateException.class, () -> this.handler.execute(createTask(this.submission)));
+
+        assertEquals("Unable to identify the research proposal", refusal.getMessage());
+        Mockito.verifyNoInteractions(this.parseService);
+    }
+
     @Test
     void stagesAndQueuesEveryUploadNotParsedYet() throws Exception
     {

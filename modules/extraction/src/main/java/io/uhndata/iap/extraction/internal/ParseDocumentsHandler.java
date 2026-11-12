@@ -83,6 +83,8 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         final Resource target = context.getTarget();
         final Submission submission = SubmissionFiles.getSubmission(target);
         SubmitterAccess.checkMayChange(submission, context.getActor());
+        // Parsing again would start a reading a rejected request must not have
+        ReadingRequests.checkNotBlocked(target);
         int queued = 0;
         for (final File file : SubmissionFiles.getFilesToParse(submission)) {
             // Send only an upload never sent, or one whose parse failed: a failure is usually the daemon being

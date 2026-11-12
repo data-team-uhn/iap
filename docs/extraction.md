@@ -107,13 +107,16 @@ What it does, in order:
 1. Checks the caller with `SubmitterAccess.checkMayChange`: only the person who created
    the submission, and only while it is a draft. Anyone else gets a 403. A submitted
    request gets a 409.
-2. Takes the latest upload of each document (`SubmissionFiles.getFilesToParse`). A
+2. Refuses (409) a request a validation rejected, with the validation's message
+   (`ReadingRequests.checkNotBlocked`). The intake ended there, and a parse would start a
+   reading it must not have.
+3. Takes the latest upload of each document (`SubmissionFiles.getFilesToParse`). A
    document whose requirement sets `skipParsing` is left out, so its uploads are never
    parsed and no reading uses them. An upload is sent when its `parseStatus` is empty
    (never sent) or `failed`. One that is `queued` or `completed` is left alone. An
    upload with no content is skipped, and the problem "An uploaded file holds no content
    to parse" is recorded.
-3. For each upload it sends:
+4. For each upload it sends:
    - `ParseService.stage` copies the bytes into a new folder on the shared volume,
      `/shared-docs/<uuid>/<name>`. The name is `fileName` on the `sub:File`, or the
      document's `title` when that is missing (the upload handler keeps the uploaded name
@@ -126,7 +129,7 @@ What it does, in order:
    - If queueing fails, the staged folder is deleted at once, because usually no job
      node names it and no sweep would find it. If staging itself fails partway, the
      half-written folder stays on the volume.
-4. If it sent at least one upload, the submission gets `extractionStatus=running` and
+5. If it sent at least one upload, the submission gets `extractionStatus=running` and
    loses `extractionMessage` and `extractionBlocked`. The claim
    (`extractionReadingClaimed`, `extractionReadingClaimedBy`) is removed too, since a
    new document means a new reading.
@@ -271,8 +274,8 @@ queued by Next and by Read again), with the steps every reading job shares in
 **Queue:** `iap-extraction`, one job at a time (`queue.maxparallel` = 1).
 
 Every parse that lands queues a decision job, so a submission whose three documents
-are parsed together queues three jobs. The first checks every document; the others find
-nothing left and drop out. The job decides who reads, not the workflow step. A workflow
+are parsed together queues three jobs. The first checks every document and ends the
+reading; the others find it ended and drop out. The job decides who reads, not the workflow step. A workflow
 step runs before its commit and cannot see what other requests are doing. The job's own
 session sees committed data.
 
@@ -283,9 +286,9 @@ The checks, in order:
 | The job names a submission, and it still exists | The job is dropped. |
 | A job queued by a submitter's request, Read again or Next (job property `requested=true`), finds `extractionStatus` at `running` | The job returns `FAILED`, so Sling runs it again later. The job was queued before the request's walk committed, and until that commit the old status and claim are still there. |
 | No current file is still `queued` (`SubmissionFiles.isEveryParseSettled`) | The job returns `FAILED`, so Sling runs it again later. A parse that landed but is not committed yet looks "queued" for a moment. |
-| What this kind of job reads was not read yet (`ReadingJob.isAlreadyRead`). The decision job: no validation said `no`, and some validation or categorisation whose document was uploaded is not made yet. The main extraction job: never; one is queued per request, and one that finds nothing open still ends the reading. | The job is dropped, before it claims and without giving up: another job of the same submission already did the work. |
+| What this kind of job reads was not read yet (`ReadingJob.isAlreadyRead`). The decision job: the submission is still `running`. A parse of a document already checked sets `running` again, and only this job ends it, even with every decision made. The main extraction job: never; one is queued per request, and one that finds nothing open still ends the reading. | The job is dropped, before it claims and without giving up: another job of the same submission, or a Stop, already ended the reading. |
 | The job's session can read the submission's schema version | `extractionStatus=failed`, "The document could not be read", and a problem is logged for an administrator. Throwing instead would end the job with `running` left behind. |
-| What this kind of job needs (`ReadingJob.findReasonNotToStart`). The decision job: an applicable validation or classification that names one of the schema's documents; every document still to be checked that is required (and whose condition holds) uploaded and parsed; and at least one of those documents uploaded. The main extraction job: every document a form with open questions names that is required (and whose condition holds) uploaded and parsed. | `extractionStatus=failed` with the reason: "Nothing is set up to read this request's documents", "The <document label> is missing, please upload it", or "No document to read has been uploaded". Reading anyway would find nothing to do and leave `running` forever. |
+| What this kind of job needs (`ReadingJob.findReasonNotToStart`). The decision job: an applicable validation or classification that names one of the schema's documents, or else a form that names documents (then nothing is checked, and the job only ends the reading); every document still to be checked that is required (and whose condition holds) uploaded and parsed; and at least one of the checked documents uploaded. The main extraction job: every document a form with open questions names that is required (and whose condition holds) uploaded and parsed. | `extractionStatus=failed` with the reason: "Nothing is set up to read this request's documents", "The <document label> is missing, please upload it", or "No document to read has been uploaded". Reading anyway would find nothing to do and leave `running` forever. |
 | The engine takes `readingStarted` (job id in the payload): `claimReading` sets `extractionReadingClaimed`, with the job's Sling job id in `extractionReadingClaimedBy`, and the walk commits. A claim that already holds this job's own id counts as its own: after a restart, Sling runs an unfinished job again with the same id. | A claim held by another id means another job has the reading: the step throws, and this job is dropped. Two jobs that race write different ids, so the engine refuses the second commit the same way. Any other refusal gives up the reading. |
 
 Then the job reads (see "Checking the uploads" and "The main extraction"). If that
@@ -392,8 +395,9 @@ read, is not asked again. One whose question is gone is left out.
 ### Ending the chain
 
 Once every decision is made, the job fires `decided`. Its `finishDecisions` step sets
-`extractionStatus=done`, with "Confirm the category to continue" (or no message when
-nothing was categorised), and releases the claim. The `categorised` and `decided` steps,
+`extractionStatus=done`, with "Confirm the category to continue" while a category is not
+confirmed (or no message), and releases the claim. A job with nothing left to decide
+fires `decided` at once. The `categorised` and `decided` steps,
 like `validated`, save only while the claim holds this job's id; after a Stop or a Read
 again the job drops what it has and stops.
 
@@ -929,7 +933,7 @@ Messages the submitter can see in `extractionMessage`:
 | The document's text could not be read | The stored Markdown could not be read back from the repository |
 | The document could not be read | Firing the reading threw in the job (a step failed), or the job cannot read the schema version |
 | Reading was stopped. | Stop |
-| Nothing is set up to read this request's documents | The schema has no validation or classification that reads an uploaded document, or no intake task waits for a validation |
+| Nothing is set up to read this request's documents | Nothing in the schema reads the documents: no validation or classification names one, and no form names any. Or no intake task waits for a validation. |
 | Some questions could not be read. Read again to try them again | Some calls of the main extraction did not go through; it still ends as `done` |
 
 ## What a reading leaves in the log

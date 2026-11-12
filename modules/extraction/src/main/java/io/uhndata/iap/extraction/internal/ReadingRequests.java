@@ -60,9 +60,20 @@ public class ReadingRequests
         if (ExtractionStatus.isRunning(target)) {
             throw new InvalidStateException("This request is already being read");
         }
+        checkNotBlocked(target);
+    }
+
+    /**
+     * Checks that no validation rejected a document of the request. The same documents get the same answer, and
+     * the intake that ended there never takes a new one, so nothing more is read.
+     *
+     * @param target the submission's resource
+     * @throws WorkflowException when the request is blocked, with the validation's message
+     */
+    static void checkNotBlocked(final Resource target) throws WorkflowException
+    {
         final ValueMap properties = target.getValueMap();
         if (Boolean.TRUE.equals(properties.get(ExtractionStatus.BLOCKED_PROPERTY, Boolean.class))) {
-            // The validation said the upload is not what the request needs: only a new document helps
             throw new InvalidStateException(
                 properties.get(ExtractionStatus.MESSAGE_PROPERTY, "This request cannot go on with these documents"));
         }
