@@ -50,7 +50,9 @@ import io.jsonwebtoken.io.Encoders;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -345,6 +347,41 @@ public class IapJwtTokenManagerImplTest
                 () -> new IapJwtTokenManagerImpl(this.resolverFactory, configWithIdentity(identity)),
                 "Activated with the identity '" + identity + "'");
         }
+    }
+
+    @Test
+    public void anUnreadableKeyNodeRefusesToActivate()
+    {
+        when(this.keyResource.adaptTo(Node.class)).thenReturn(null);
+
+        Assertions.assertThrows(IllegalStateException.class,
+            () -> new IapJwtTokenManagerImpl(this.resolverFactory, configWithIdentity(SELF_ID)));
+    }
+
+    @Test
+    public void undecodableKeysActivateButMintNothing() throws Exception
+    {
+        when(this.keyProperty.getString()).thenReturn("not BASE64!");
+
+        final IapJwtTokenManagerImpl withoutKeys =
+            new IapJwtTokenManagerImpl(this.resolverFactory, configWithIdentity(SELF_ID));
+
+        Assertions.assertNull(withoutKeys.create("guest-patient", oneHourFromNow(), Map.of()));
+    }
+
+    @Test
+    public void anEmptyKeyNodeGetsANewKeyPair() throws Exception
+    {
+        when(this.keyNode.hasProperty("key")).thenReturn(false);
+
+        final IapJwtTokenManagerImpl withNewKeys =
+            new IapJwtTokenManagerImpl(this.resolverFactory, configWithIdentity(SELF_ID));
+
+        verify(this.keyNode).setProperty(eq("key"), anyString());
+        verify(this.keyNode).setProperty(eq("verify"), anyString());
+        verify(this.resolver).commit();
+        final String token = withNewKeys.create("guest-patient", oneHourFromNow(), Map.of()).getToken();
+        Assertions.assertNotNull(withNewKeys.parse(token), "A token signed with the new key pair must parse back");
     }
 
     /**
