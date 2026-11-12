@@ -199,6 +199,23 @@ final class ExtractionFields
             || answer.getExtractions().stream().anyMatch(run -> !run.getExtractedValues().isEmpty()));
     }
 
+    /**
+     * Whether the submitter answered the question, or the model was already asked it: the categorisation the
+     * upload job skips.
+     *
+     * @param submission the submission
+     * @param question the question
+     * @return {@code true} when its answer has a value or a run
+     */
+    static boolean isAnsweredOrRead(final Submission submission, final Question question)
+    {
+        return submission.getAnswers().stream().anyMatch(answer -> {
+            final Question asked = answer.getQuestion();
+            return asked != null && asked.getPath().equals(question.getPath())
+                && (hasValue(answer) || !answer.getExtractions().isEmpty());
+        });
+    }
+
     private static Set<String> getQuestionPaths(final Submission submission, final Predicate<Answer> chosen)
     {
         final Set<String> paths = new HashSet<>();

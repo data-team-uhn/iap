@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Save the category of an upload",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Saves what the model picked as an upload's category, as a suggestion on the category question.",
+    "received": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "received",
+      "label": "Pick received",
+      "messageName": "categorised",
+      "performers": ["iap-extraction"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toTask": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toTask",
+        "targetRef": "record"
+      }
+    },
+    "record": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "record",
+      "label": "Save the pick",
+      "handler": "recordCategory",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "recorded"
+      }
+    },
+    "recorded": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "recorded",
+      "label": "Pick saved",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

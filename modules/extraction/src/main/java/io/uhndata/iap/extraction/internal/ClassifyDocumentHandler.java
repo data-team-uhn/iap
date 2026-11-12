@@ -38,7 +38,6 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
 import io.uhndata.iap.schemas.models.ClassificationRequirement;
-import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.submissions.models.File;
@@ -173,8 +172,8 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         // The gate must never guess: a pick less sure than the schema asks, or one naming no category the question
         // offers, is left for the submitter to make
         final Map<String, FieldResult> sure = result.fields().entrySet().stream()
-            .filter(entry -> isSure(entry.getValue(), thresholds.get(entry.getKey())))
-            .filter(entry -> isOffered(entry.getValue(), questions.get(entry.getKey())))
+            .filter(entry -> questions.containsKey(entry.getKey()) && DocumentCategoriser.isSurePick(entry.getValue(),
+                thresholds.get(entry.getKey()), questions.get(entry.getKey())))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         // Only a sure pick is recorded, so an unsure one leaves the question open for the submitter and the next
         // reading. A pick recorded once is not asked again, even of a newer version.
@@ -182,24 +181,6 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
         LOGGER.info("Reading step done: step=classify submission={} decided={} of={} ms={}", target.getPath(),
             sure.size(), fields.size(), (System.nanoTime() - startedAt) / 1_000_000L);
         return true;
-    }
-
-    /** Whether the model found a pick at least as sure as its classification asks. */
-    private static boolean isSure(final FieldResult result, final Double threshold)
-    {
-        return result.isFound() && threshold != null && result.confidence() >= threshold;
-    }
-
-    /**
-     * Whether every value of a pick is one of the categories its question offers. Not every provider holds the
-     * reply to the schema's list, and a pick outside it would count as an answer that matches no condition.
-     */
-    private static boolean isOffered(final FieldResult result, final Question question)
-    {
-        final Set<String> offered = question.getOfferedOptions().stream()
-            .map(OfferedOption::value)
-            .collect(Collectors.toSet());
-        return offered.containsAll(result.values());
     }
 
     /**

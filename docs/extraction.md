@@ -46,20 +46,31 @@ says which class does the work, who calls it, and what it checks.
  DecisionJobConsumer (background, one job at a time)
    every parse settled? -- no: try again later
    claim the reading ----- another job has it: stop
-   for each validation whose document was uploaded, in document order:
-     ask it (yes or no), fire validated
+   for each uploaded document, in document order (see "Checking the uploads"):
+     1. its validation, if it has one: ask it (yes or no), fire validated
           |
           v
-     validated (system workflow)
-       recordValidation --- save the verdict under the submission
+        validated (system workflow)
+          recordValidation --- save the verdict under the submission
           |
           v
-     complete the task the intake workflow waits at (performer iap-extraction)
-     (no intake workflow ships on this branch)
-       gateway on the validation operand -- act on the verdict (see "Validating the upload")
-         no ------------ stop: done, blocked, "Unable to identify the <document label>";
-                         the validations after it are not asked
-         yes, unsure --- go on: the next validation, then the categorisation
+        complete the task the intake workflow waits at (performer iap-extraction)
+        (no intake workflow ships on this branch)
+          gateway on the validation operand -- act on the verdict
+            no ------------ stop: done, blocked, "Unable to identify the <document label>";
+                            nothing after it is asked
+            yes, unsure --- go on
+     2. its categorisation, if it has one: ask its category question, fire categorised
+          |
+          v
+        categorised (system workflow)
+          recordCategory ----- save the pick as a suggestion; an unsure pick as not found
+   fire decided
+        |
+        v
+ decided (system workflow)
+   finishDecisions ---- done, "Confirm the category to continue" when a document was
+                        categorised; release the claim
 
  Read again still queues the older reading:
  ExtractAnswersJobConsumer (background, one job at a time)
@@ -278,9 +289,9 @@ The checks, in order:
 | The job names a submission, and it still exists | The job is dropped. |
 | A job queued by Read again (job property `readAgain=true`) finds `extractionStatus` at `running` | The job returns `FAILED`, so Sling runs it again later. The job was queued before the Read again walk committed, and until that commit the old status and claim are still there. |
 | No current file is still `queued` (`SubmissionFiles.isEveryParseSettled`) | The job returns `FAILED`, so Sling runs it again later. A parse that landed but is not committed yet looks "queued" for a moment. |
-| What this kind of job reads was not read yet (`ReadingJob.isAlreadyRead`). The decision job: no validation said `no`, and some validation whose document was uploaded has no verdict yet. The Read again job: always true; it keeps its claim when done, so the next job finds the claim taken. | The job is dropped, before it claims and without giving up: another job of the same submission already did the work. |
+| What this kind of job reads was not read yet (`ReadingJob.isAlreadyRead`). The decision job: no validation said `no`, and some validation or categorisation whose document was uploaded is not made yet. The Read again job: always true; it keeps its claim when done, so the next job finds the claim taken. | The job is dropped, before it claims and without giving up: another job of the same submission already did the work. |
 | The job's session can read the submission's schema version | `extractionStatus=failed`, "The document could not be read", and a problem is logged for an administrator. Throwing instead would end the job with `running` left behind. |
-| What this kind of job needs (`ReadingJob.findReasonNotToStart`). The decision job: an applicable validation requirement that names one of the schema's documents; every document still to be validated that is required (and whose condition holds) uploaded and parsed; and at least one of those documents uploaded. The Read again job: the schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists and is tagged `active` (`SubmissionFiles.checkReadingWorkflow`, the same check parsing makes; only one that is named but cannot run is reported to the administrator). | `extractionStatus=failed` with the reason: "Nothing is set up to read this request's documents", "The <document label> is missing, please upload it" (the decision job), "No document to read has been uploaded", or "The document could not be read. Please try again" (the Read again job). Reading anyway would find nothing to do and leave `running` forever. |
+| What this kind of job needs (`ReadingJob.findReasonNotToStart`). The decision job: an applicable validation or classification that names one of the schema's documents; every document still to be checked that is required (and whose condition holds) uploaded and parsed; and at least one of those documents uploaded. The Read again job: the schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists and is tagged `active` (`SubmissionFiles.checkReadingWorkflow`, the same check parsing makes; only one that is named but cannot run is reported to the administrator). | `extractionStatus=failed` with the reason: "Nothing is set up to read this request's documents", "The <document label> is missing, please upload it" (the decision job), "No document to read has been uploaded", or "The document could not be read. Please try again" (the Read again job). Reading anyway would find nothing to do and leave `running` forever. |
 | The engine takes `readingStarted` (job id in the payload): `claimReading` sets `extractionReadingClaimed`, with the job's Sling job id in `extractionReadingClaimedBy`, and the walk commits. A claim that already holds this job's own id counts as its own: after a restart, Sling runs an unfinished job again with the same id. | A claim held by another id means another job has the reading: the step throws, and this job is dropped. Two jobs that race write different ids, so the engine refuses the second commit the same way. Any other refusal gives up the reading. |
 
 Then the job reads (below for the decision job; the Read again job fires
@@ -305,11 +316,22 @@ can reach it (see "Stop" below). A stopped reading gives up the same way, but re
 "Reading was stopped." instead. Only a Stop counts as one: an interrupt from elsewhere,
 such as the instance shutting down, is not taken for the submitter's Stop.
 
-## Validating the upload
+## Checking the uploads
 
-**Classes:** `DecisionJobConsumer`, `DocumentValidator`, `DecisionReader`,
-`RecordValidationHandler`.
-**System workflow:** `validated`.
+**Classes:** `DecisionJobConsumer`, `DecisionChain`, `DocumentValidator`,
+`DocumentCategoriser`, `DecisionReader`, `RecordValidationHandler`,
+`RecordCategoryHandler`, `FinishDecisionsHandler`.
+**System workflows:** `validated`, `categorised`, `decided`.
+
+One job checks every uploaded document, one document at a time, in the order of the
+schema's document requirements. For each document it runs the validation that names it,
+if there is one, then the classification that names it, if there is one, then moves to
+the next document. The two calls about one document come back to back so the second
+reuses the model's prompt cache: the prompt puts the document text first, then the
+template, then the question. `DecisionChain` keeps this order and says which decisions
+are made already.
+
+### Validating
 
 Each validation requirement belongs to one document requirement (`document`), such as
 `is_proposal` for the proposal and `is_consent` for the consent form, each with its own
@@ -318,14 +340,13 @@ asked. A required document that is missing, or whose parse failed, stops the job
 anything is asked: "The <label> is missing, please upload it". The submission view
 should not have let the submitter on without it, so this means something failed earlier.
 
-One job asks them all, one at a time, in the order of their document requirements in the
-schema. For each, it asks the model one yes or no question about that document's upload:
-the requirement's `prompt` is the question, and its template is the reference text. The
+The job asks the model one yes or no question about the document's upload: the
+requirement's `prompt` is the question, and its template is the reference text. The
 verdict comes back under the key `verdict`.
 
-The job fires `validated` with the verdict, the requirement, the file, and whether it is
-the job's last validation (`last`). Its `recordValidation` step saves one run under the
-submission's `sub:Validation` for that requirement, made on the first run. The
+The job fires `validated` with the verdict, the requirement and the file. Its
+`recordValidation` step saves one run under the submission's `sub:Validation` for that
+requirement, made on the first run. The
 validation reads the run as `yes`, `no` or `unsure`: an answer less sure than the
 requirement's `confidenceThreshold` is `unsure`, and so is a question the model did not
 answer.
@@ -333,7 +354,7 @@ answer.
 | Verdict | `recordValidation` | The intake's gateway |
 | --- | --- | --- |
 | `no` | `extractionStatus=done`, blocked, "Unable to identify the " and the document requirement's `label`; releases the claim | Ends the intake: nothing more is read |
-| `yes` | Leaves the reading `running`; releases the claim only after the last validation | Goes on to the next validation, or the categorisation |
+| `yes` | Leaves the reading `running`, and the claim with the job | Goes on; the job categorises the document, then moves to the next one |
 | `unsure` | Same as `yes` | Same as `yes`: only a sure `no` stops the reading |
 
 The same `label` is the one the submission view shows when it asks for the upload
@@ -346,12 +367,41 @@ or a Read again it refuses, and the job drops the verdict and stops.
 After each verdict, the job completes the open task of the submission's workflows whose
 performers include `iap-extraction`: the task the intake workflow waits at, one per
 validation and in the same order. The intake's gateway reads the verdict through the
-`validation` operand and goes on, or ends. Before the next validation the job looks at
-the submission again: once a `no` or a Stop ended the reading, it asks nothing more. The intake waits
-at a task because the engine cannot yet wake a workflow with a named event (see "Waiting
-for the engine"). If no such task is open, or completing it fails, the error is recorded
-for an administrator, and a reading still `running` is given up: nothing else would end
-it.
+`validation` operand and goes on, or ends. The intake waits at a task because the engine
+cannot yet wake a workflow with a named event (see "Waiting for the engine"). If no such
+task is open, or completing it fails, the error is recorded for an administrator, and a
+reading still `running` is given up: nothing else would end it. The intake does not wait
+for the categorisation: it acts on the category only once the submitter confirms it.
+
+Before each step the job looks at the submission again: once a `no` or a Stop ended the
+reading, it asks nothing more.
+
+### Categorising
+
+A classification requirement names its document and a category question in an ordinary
+form requirement; the question's options are the categories. The job asks that question
+with the classification's `prompt`, and its template as the reference text, and fires
+`categorised`. Its `recordCategory` step saves one run under the question's answer. The
+answer's `value` stays empty: the submitter always confirms the category.
+
+| The model's pick | Saved run |
+| --- | --- |
+| One of the question's options, at least as sure as `confidenceThreshold` | The pick, as a suggestion |
+| Less sure, or not one of the options | Not found: the gate must not guess, and the submitter picks |
+
+Either way the chain ends with "Confirm the category to continue": the submitter is asked
+the same question, with or without a suggestion.
+
+A classification whose question the submitter already answered, or that was already
+read, is not asked again. One whose question is gone is left out.
+
+### Ending the chain
+
+Once every decision is made, the job fires `decided`. Its `finishDecisions` step sets
+`extractionStatus=done`, with "Confirm the category to continue" (or no message when
+nothing was categorised), and releases the claim. The `categorised` and `decided` steps,
+like `validated`, save only while the claim holds this job's id; after a Stop or a Read
+again the job drops what it has and stops.
 
 ## Step 6: starting the schema's reading workflow
 
@@ -384,7 +434,8 @@ what the person just did. So the reading never waits for the submitter: when it 
 them, it ends with a message saying what to do.
 
 Only the `iap-extraction` user may fire `documentParsed`, `extractAnswers`,
-`readingStarted`, `readingFailed` and `validated`: their start events name it as the only
+`readingStarted`, `readingFailed`, `validated`, `categorised` and `decided`: their start
+events name it as the only
 performer. Administrators can too, since they pass every performer check. The `documentParsed` payload carries paths on the shared volume,
 and no ordinary user should be able to have files read from there.
 
@@ -1091,8 +1142,11 @@ from the submission's own workflow, replaces the reading workflow each schema na
 | `QueueDecisionsHandler` | handler `queueDecisions` | `documentParsed` | `JobManager.addJob` |
 | `DecisionJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingJobs.run`, `DocumentValidator.validate` |
 | `DocumentValidator` | component | the decision job | `DecisionReader.ask`, engine (`validated`, `complete` on the intake's task) |
-| `DecisionReader` | component | `DocumentValidator` | `ReadingRuns.setFiles`, `ParsedDocuments`, `AnswerIntakeService`, `DecisionTemplates.readTemplate` |
+| `DocumentCategoriser` | component | the decision job | `DecisionReader.ask`, engine (`categorised`) |
+| `DecisionReader` | component | `DocumentValidator`, `DocumentCategoriser` | `ReadingRuns.setFiles`, `ParsedDocuments`, `AnswerIntakeService`, `DecisionTemplates.readTemplate` |
 | `RecordValidationHandler` | handler `recordValidation` | `validated` | `ExtractedAnswers.writeRun`, `ExtractionStatus`, `Validation.getOutcome` |
+| `RecordCategoryHandler` | handler `recordCategory` | `categorised` | `ExtractionFields.write` |
+| `FinishDecisionsHandler` | handler `finishDecisions` | `decided` | `ExtractionStatus` |
 | `ExtractAnswersJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingJobs.run`, `SubmissionFiles.checkReadingWorkflow`, engine (`extractAnswers`) |
 | `ReadingJobs` | component | each reading job | `ReadingRuns`, `SubmissionFiles.isEveryParseSettled`, engine (`readingStarted`, `readingFailed`) |
 | `ClaimReadingHandler` | handler `claimReading` | `readingStarted` | `ExtractionStatus` |
@@ -1216,7 +1270,7 @@ engine catches up.
 | --- | --- | --- |
 | A job queued inside a walk can start before that walk commits, so it fails and Sling runs it again until it sees the data (step 5) | `ReadingJobs.isTooEarly` | Listeners that run after the commit. Only the check for a parse that is really still going stays. |
 | A parse outcome can arrive before the walk that queued the parse commits, so the file is looked at again a few times (step 3) | `ParseCompletionHandler.findFile` | Listeners that run after the commit |
-| The intake workflow cannot wait for `validated`, so it waits at a task the decision job completes (see "Validating the upload") | the intake workflow (not on this branch), `DocumentValidator.handOver` | Message delivery to catching events |
+| The intake workflow cannot wait for `validated`, so it waits at a task the decision job completes (see "Checking the uploads") | the intake workflow (not on this branch), `DocumentValidator.handOver` | Message delivery to catching events |
 
 ## Files
 
@@ -1281,10 +1335,14 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | `IngestParseHandler` | Service task `ingestParse`: reads the parse onto the file, or records that it failed |
 | `QueueDecisionsHandler` | Service task `queueDecisions`: queues the decision job; the job reads once every parse has settled |
 | `DecisionJobConsumer` | The background job that checks each uploaded document in schema order |
+| `DecisionChain` | The decisions about the uploads in the order the job makes them, and which are made already |
 | `DocumentValidator` | One validation: asks it, saves the verdict through `validated`, and completes the task the intake waits at |
+| `DocumentCategoriser` | One categorisation: asks the category question, saves the pick through `categorised`; an unsure pick as not found |
 | `DecisionReader` | Asks the model one decision about an upload, with the decision's template as reference |
 | `DecisionTemplates` | Reads a decision's template under a heading naming it |
 | `RecordValidationHandler` | Service task `recordValidation`: saves the verdict as a run under the submission's validation; a sure no ends the reading |
+| `RecordCategoryHandler` | Service task `recordCategory`: saves the pick as a run under the category question's answer |
+| `FinishDecisionsHandler` | Service task `finishDecisions`: ends the reading as `done` with the category message, and releases the claim |
 | `ReadAgainHandler` | Service task `readAgain`: the submitter asks for the reading again; queues the same job |
 | `ExtractAnswersJobConsumer` | The background job that fires `extractAnswers` once the schema's reading workflow can run |
 | `ReadingJob`, `ReadingJobs` | What one kind of reading job decides, and the steps every one shares: waiting for the parses, the claim, giving up, and a Stop |
@@ -1303,6 +1361,8 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | `SystemWorkflows/readingStarted` (`.json`, `bpmn.xml`) | Claims the reading for one job (`claimReading`). Performer: `iap-extraction` only. |
 | `SystemWorkflows/readingFailed` (`.json`, `bpmn.xml`) | Marks the reading failed and releases the claim (`giveUpReading`). Performer: `iap-extraction` only. |
 | `SystemWorkflows/validated` (`.json`, `bpmn.xml`) | Saves the verdict on the upload (`recordValidation`). Performer: `iap-extraction` only. |
+| `SystemWorkflows/categorised` (`.json`, `bpmn.xml`) | Saves the category pick (`recordCategory`). Performer: `iap-extraction` only. |
+| `SystemWorkflows/decided` (`.json`, `bpmn.xml`) | Ends the checks of the uploads (`finishDecisions`). Performer: `iap-extraction` only. |
 | `SystemWorkflows/readAgain` (`.json`, `bpmn.xml`) | Queues the reading again for the submitter |
 | `SystemWorkflows/retryParse` (`.json`, `bpmn.xml`) | Sends again the uploads whose parse failed, and any never sent. Today the only workflow that runs `parseDocuments`. |
 | `SystemWorkflows/stopProcessing` (`.json`, `bpmn.xml`) | Stops a parse or a reading that is still in progress |

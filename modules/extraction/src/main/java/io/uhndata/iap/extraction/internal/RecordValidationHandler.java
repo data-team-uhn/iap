@@ -50,8 +50,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * request is marked blocked, with "Unable to identify the" and the label of the document requirement.
  *
  * <p>Only the job that holds the reading may save it: after a Stop or a Read again the reading is someone else's,
- * and a late verdict must not land on it. The claim is released with the job's last verdict, or with a no, so the
- * intake's next job can claim the reading.</p>
+ * and a late verdict must not land on it. A no releases the claim, since it ends the reading; otherwise the job
+ * keeps it for its next step.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -70,9 +70,6 @@ public class RecordValidationHandler implements ServiceTaskHandler
 
     /** The payload entry holding what the model answered, a {@link FieldResult}. */
     static final String RESULT_KEY = "result";
-
-    /** The payload entry saying whether this is the job's last verdict, so the claim is released. */
-    static final String LAST_KEY = "last";
 
     /** What the submitter is told when the model is sure an upload is not its document; the label follows. */
     static final String NOT_IDENTIFIED_MESSAGE = "Unable to identify the ";
@@ -116,11 +113,8 @@ public class RecordValidationHandler implements ServiceTaskHandler
         ExtractedAnswers.writeRun(resolver, validation, result, List.of(file));
         final String outcome = Objects.requireNonNull(validation.adaptTo(Validation.class),
             "A validation node reads as a validation").getOutcome();
-        final boolean rejected = Validation.OUTCOME_NO.equals(outcome);
-        if (rejected || Boolean.TRUE.equals(event.get(LAST_KEY))) {
+        if (Validation.OUTCOME_NO.equals(outcome)) {
             ExtractionStatus.releaseClaim(properties);
-        }
-        if (rejected) {
             ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_DONE,
                 NOT_IDENTIFIED_MESSAGE + getDocumentLabel(target, validationRequirement));
             ExtractionStatus.markBlocked(target);

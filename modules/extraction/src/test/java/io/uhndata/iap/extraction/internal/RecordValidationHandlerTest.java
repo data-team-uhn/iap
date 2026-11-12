@@ -90,17 +90,11 @@ class RecordValidationHandlerTest
 
     private Map<String, Object> createPayload(final String verdict, final double confidence)
     {
-        return createPayload(verdict, confidence, true);
-    }
-
-    private Map<String, Object> createPayload(final String verdict, final double confidence, final boolean last)
-    {
         return Map.of(ClaimReadingHandler.JOB_KEY, JOB_ID,
             RecordValidationHandler.REQUIREMENT_KEY, this.requirement.getPath(),
             RecordValidationHandler.FILE_KEY, this.file.getPath(),
             RecordValidationHandler.RESULT_KEY, new FieldResult(DocumentValidator.VERDICT_KEY, List.of(verdict),
-                "It has aims and methods.", confidence, List.of(), 0),
-            RecordValidationHandler.LAST_KEY, last);
+                "It has aims and methods.", confidence, List.of(), 0));
     }
 
     private void record(final Map<String, Object> payload) throws Exception
@@ -137,9 +131,9 @@ class RecordValidationHandlerTest
         assertEquals("recordValidation", this.handler.getName());
     }
 
-    // The job's last yes leaves the reading running and lets the claim go, so the intake's next job can claim it
+    // A yes leaves the reading running and the claim with the job, for its next step
     @Test
-    void savesTheLastYesAndLetsTheClaimGo() throws Exception
+    void savesAYesAndKeepsTheClaim() throws Exception
     {
         record(createPayload("yes", 0.9));
 
@@ -149,23 +143,14 @@ class RecordValidationHandlerTest
         assertEquals(this.file.getParent().getPath(),
             getValidation().getLatestExtraction().getSources().get(0).getPath());
         assertEquals(ExtractionStatus.STATUS_RUNNING, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
-        assertNull(getProperties().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY));
-        assertNull(getProperties().get(ExtractionStatus.BLOCKED_PROPERTY));
-    }
-
-    // The job still has validations to ask
-    @Test
-    void keepsTheClaimAfterAYesThatIsNotTheLast() throws Exception
-    {
-        record(createPayload("yes", 0.9, false));
-
         assertEquals(JOB_ID, getProperties().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY));
+        assertNull(getProperties().get(ExtractionStatus.BLOCKED_PROPERTY));
     }
 
     @Test
     void endsTheReadingOnANoNamingTheDocument() throws Exception
     {
-        record(createPayload("no", 0.9, false));
+        record(createPayload("no", 0.9));
 
         assertEquals(ExtractionStatus.STATUS_DONE, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
         assertEquals("Unable to identify the proposal", getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));

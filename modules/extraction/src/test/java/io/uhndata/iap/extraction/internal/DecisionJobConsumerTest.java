@@ -86,6 +86,14 @@ class DecisionJobConsumerTest
 
     private SubmissionTree tree;
 
+    private String verdict = "yes";
+
+    private double verdictConfidence = 0.9;
+
+    private String pick = "observational";
+
+    private double pickConfidence = 0.9;
+
     private Resource submission;
 
     private Resource document;
@@ -113,8 +121,14 @@ class DecisionJobConsumerTest
         inject(validator, "jobs", jobs);
         inject(validator, "engine", this.engine);
         inject(validator, "reader", this.reader);
+        final DocumentCategoriser categoriser = new DocumentCategoriser();
+        inject(categoriser, "jobs", jobs);
+        inject(categoriser, "engine", this.engine);
+        inject(categoriser, "reader", this.reader);
         inject(this.consumer, "jobs", jobs);
+        inject(this.consumer, "engine", this.engine);
         inject(this.consumer, "validator", validator);
+        inject(this.consumer, "categoriser", categoriser);
         Mockito.when(this.job.getId()).thenReturn(JOB_ID);
         Mockito.when(this.job.getProperty(ReadingJobs.SUBMISSION_PROPERTY, String.class))
             .thenReturn(this.submission.getPath());
@@ -122,9 +136,12 @@ class DecisionJobConsumerTest
         this.steps.put(ReadingJobs.READING_FAILED_EVENT, call -> runStep(new GiveUpReadingHandler(), call));
         this.steps.put(DocumentValidator.VALIDATED_EVENT, call -> runStep(new RecordValidationHandler(), call));
         this.steps.put(DocumentValidator.COMPLETE_EVENT, this::closeTask);
+        this.steps.put(DocumentCategoriser.CATEGORISED_EVENT, call -> runStep(new RecordCategoryHandler(), call));
+        this.steps.put(DecisionJobConsumer.DECIDED_EVENT, call -> runStep(new FinishDecisionsHandler(), call));
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(
             call -> this.steps.get(call.<WorkflowEvent>getArgument(1).getName()).answer(call));
-        stubVerdict("yes", 0.9);
+        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
+            .thenAnswer(this::answer);
     }
 
     private static void inject(final Object component, final String name, final Object value) throws Exception
@@ -183,12 +200,54 @@ class DecisionJobConsumerTest
         return path.substring(path.lastIndexOf('/') + 1);
     }
 
-    private void stubVerdict(final String verdict, final double confidence)
+    /** The stand-in model: the verdict for a validation, the pick for a categorisation. */
+    private IntakeResult answer(final InvocationOnMock call)
     {
-        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenReturn(IntakeResult.createRead(Map.of(DocumentValidator.VERDICT_KEY, new FieldResult(
-                DocumentValidator.VERDICT_KEY, List.of(verdict), "It has aims and methods.", confidence,
-                List.of(), 0))));
+        final List<ExtractionPrompt.Group> groups = call.getArgument(2);
+        final String key = groups.get(0).fields().get(0).key();
+        final boolean validation = DocumentValidator.VERDICT_KEY.equals(key);
+        return IntakeResult.createRead(Map.of(key, new FieldResult(key,
+            List.of(validation ? this.verdict : this.pick), "It says so.",
+            validation ? this.verdictConfidence : this.pickConfidence, List.of(), 0)));
+    }
+
+    private void stubVerdict(final String answer, final double confidence)
+    {
+        this.verdict = answer;
+        this.verdictConfidence = confidence;
+    }
+
+    private void stubPick(final String answer, final double confidence)
+    {
+        this.pick = answer;
+        this.pickConfidence = confidence;
+    }
+
+    /** Adds the classification of the proposal: what kind of study it is. */
+    private Resource createStudyKind()
+    {
+        return this.tree.createClassificationQuestion("study_kind", "proposal", "Decide what kind of study it is.",
+            "interventional", "observational");
+    }
+
+    /** The values of the newest run on the question's answer, or {@code null} when it has no answer. */
+    private List<String> getSuggestion(final Resource question)
+    {
+        return SubmissionFiles.getSubmission(getSubmissionResource()).getAnswers().stream()
+            .filter(answer -> answer.getQuestion() != null
+                && question.getPath().equals(answer.getQuestion().getPath()))
+            .map(answer -> answer.getLatestExtraction().getExtractedValues())
+            .findFirst()
+            .orElse(null);
+    }
+
+    private List<String> getAskedKeys()
+    {
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<List<ExtractionPrompt.Group>> groups = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(this.intake, Mockito.atLeast(0)).askQuestions(Mockito.any(), Mockito.any(), groups.capture(),
+            Mockito.any());
+        return groups.getAllValues().stream().map(asked -> asked.get(0).fields().get(0).key()).toList();
     }
 
     private Resource createWaitingTask()
@@ -220,11 +279,14 @@ class DecisionJobConsumerTest
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
 
-        assertEquals(List.of("readingStarted", "validated", "complete"), getFiredEventNames());
+        assertEquals(List.of("readingStarted", "validated", "complete", "decided"), getFiredEventNames());
         final ArgumentCaptor<Resource> targets = ArgumentCaptor.forClass(Resource.class);
-        Mockito.verify(this.engine, Mockito.times(3)).receiveEvent(targets.capture(), Mockito.any());
+        Mockito.verify(this.engine, Mockito.times(4)).receiveEvent(targets.capture(), Mockito.any());
         assertEquals(task.getPath(), targets.getAllValues().get(2).getPath());
-        assertEquals(ExtractionStatus.STATUS_RUNNING, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
+        // Nothing was categorised, so there is nothing to confirm
+        assertEquals(ExtractionStatus.STATUS_DONE, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
+        assertNull(getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+        assertNull(getProperties().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY));
     }
 
     @Test
@@ -240,14 +302,10 @@ class DecisionJobConsumerTest
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
 
-        assertEquals(List.of("readingStarted", "validated", "complete", "validated", "complete"),
+        assertEquals(List.of("readingStarted", "validated", "complete", "validated", "complete", "decided"),
             getFiredEventNames());
         assertEquals(List.of("is_proposal", "is_consent"),
             getVerdicts().stream().map(DecisionJobConsumerTest::getRequirementName).toList());
-        assertEquals(List.of(false, true),
-            getVerdicts().stream().map(event -> event.get(RecordValidationHandler.LAST_KEY)).toList());
-        assertNull(getProperties().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY));
-        assertEquals(ExtractionStatus.STATUS_RUNNING, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
     }
 
     @Test
@@ -274,7 +332,6 @@ class DecisionJobConsumerTest
 
         assertEquals(List.of("is_proposal"),
             getVerdicts().stream().map(DecisionJobConsumerTest::getRequirementName).toList());
-        assertEquals(true, getVerdicts().get(0).get(RecordValidationHandler.LAST_KEY));
     }
 
     @Test
@@ -351,13 +408,16 @@ class DecisionJobConsumerTest
         for (final Resource run : validation.getChildren()) {
             this.context.resourceResolver().delete(run);
         }
+        // A new parse starts a new reading
+        getSubmissionResource().adaptTo(ModifiableValueMap.class).put(ExtractionStatus.STATUS_PROPERTY,
+            ExtractionStatus.STATUS_RUNNING);
         this.context.resourceResolver().commit();
         Mockito.clearInvocations(this.engine);
         createWaitingTask();
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
 
-        assertEquals(List.of("readingStarted", "validated", "complete"), getFiredEventNames());
+        assertEquals(List.of("readingStarted", "validated", "complete", "decided"), getFiredEventNames());
     }
 
     private Resource getValidation()
@@ -478,8 +538,8 @@ class DecisionJobConsumerTest
     @Test
     void givesUpWhenTheModelCouldNotBeAsked() throws Exception
     {
-        Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenReturn(IntakeResult.createNotRead(IntakeResult.UNREACHABLE_MESSAGE));
+        Mockito.doReturn(IntakeResult.createNotRead(IntakeResult.UNREACHABLE_MESSAGE)).when(this.intake)
+            .askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any());
 
         this.consumer.process(this.job);
 
@@ -598,5 +658,165 @@ class DecisionJobConsumerTest
         final Resource consent = this.tree.createDocumentRequirement("consent");
         this.tree.createValidationRequirement("is_consent", "consent", "Decide whether it is a consent form.");
         return consent;
+    }
+
+    // Asked back to back, the two calls about the proposal share the prompt cache
+    @Test
+    void categorisesEachDocumentRightAfterItsValidation() throws Exception
+    {
+        final Resource category = createStudyKind();
+        createConsentValidation(true);
+        createWaitingTask();
+        this.tree.createIntakeTask("checkConsent", "created", this.context.resourceResolver().getUserID());
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of("verdict", "classification.study_kind", "verdict"), getAskedKeys());
+        assertEquals(List.of("readingStarted", "validated", "complete", "categorised", "validated", "complete",
+            "decided"), getFiredEventNames());
+        assertEquals(List.of("observational"), getSuggestion(category));
+        assertEquals(ExtractionStatus.STATUS_DONE, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
+        assertEquals(DecisionJobConsumer.CONFIRM_CATEGORY_MESSAGE,
+            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+        assertNull(getProperties().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY));
+    }
+
+    @Test
+    void validatesADocumentBeforeCategorisingItWhateverTheSchemaOrder() throws Exception
+    {
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/is_proposal"));
+        createStudyKind();
+        this.tree.createValidationRequirement("is_proposal", "proposal", PROMPT);
+        createWaitingTask();
+
+        this.consumer.process(this.job);
+
+        assertEquals(List.of("verdict", "classification.study_kind"), getAskedKeys());
+    }
+
+    // The gate must not guess: the submitter picks
+    @Test
+    void savesNoPickTheModelIsUnsureOf() throws Exception
+    {
+        final Resource category = createStudyKind();
+        createWaitingTask();
+        stubPick("observational", 0.4);
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of(), getSuggestion(category));
+        assertEquals(DecisionJobConsumer.CONFIRM_CATEGORY_MESSAGE,
+            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+    }
+
+    @Test
+    void savesNoPickOutsideTheCategories() throws Exception
+    {
+        final Resource category = createStudyKind();
+        createWaitingTask();
+        stubPick("chart_review", 0.95);
+
+        this.consumer.process(this.job);
+
+        assertEquals(List.of(), getSuggestion(category));
+        assertEquals(DecisionJobConsumer.CONFIRM_CATEGORY_MESSAGE,
+            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+    }
+
+    @Test
+    void doesNotCategoriseADocumentItRejected() throws Exception
+    {
+        final Resource category = createStudyKind();
+        createWaitingTask();
+        stubVerdict("no", 0.9);
+
+        this.consumer.process(this.job);
+
+        assertEquals(List.of("verdict"), getAskedKeys());
+        assertNull(getSuggestion(category));
+    }
+
+    @Test
+    void categorisesADocumentWithoutAValidation() throws Exception
+    {
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/is_proposal"));
+        final Resource category = createStudyKind();
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of("readingStarted", "categorised", "decided"), getFiredEventNames());
+        assertEquals(List.of("observational"), getSuggestion(category));
+    }
+
+    // A category the submitter already gave is not asked again
+    @Test
+    void stopsWithoutClaimingWhenTheCategoryIsAlreadyAnswered() throws Exception
+    {
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/is_proposal"));
+        final Resource category = createStudyKind();
+        final Resource answer = this.context.create().resource(SubmissionTree.SUBMISSION_PATH + "/a1",
+            Map.of("jcr:primaryType", "sub:Answer", "sling:resourceType", "sub/Answer", "value",
+                new String[] { "interventional" }));
+        SubmissionTree.reference(answer, "question", category);
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(List.of(), getFiredEventNames());
+    }
+
+    @Test
+    void leavesOutAClassificationWhoseQuestionIsGone() throws Exception
+    {
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/is_proposal"));
+        this.context.resourceResolver().delete(createStudyKind());
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(ReadingJobs.NOT_SET_UP_MESSAGE, getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+    }
+
+    @Test
+    void givesUpWhenTheModelCouldNotBeAskedTheCategory() throws Exception
+    {
+        createStudyKind();
+        createWaitingTask();
+        Mockito.doAnswer(this::answer).doReturn(IntakeResult.createNotRead(IntakeResult.UNREACHABLE_MESSAGE))
+            .when(this.intake).askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any());
+
+        this.consumer.process(this.job);
+
+        assertEquals(List.of("readingStarted", "validated", "complete", "readingFailed"), getFiredEventNames());
+        assertEquals(IntakeResult.UNREACHABLE_MESSAGE, getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+    }
+
+    @Test
+    void dropsThePickWhenTheReadingIsNoLongerItsOwn() throws Exception
+    {
+        createStudyKind();
+        createWaitingTask();
+        this.steps.put(DocumentCategoriser.CATEGORISED_EVENT, call -> {
+            throw new InvalidStateException("The reading is no longer this job's");
+        });
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of("readingStarted", "validated", "complete", "categorised"), getFiredEventNames());
+    }
+
+    @Test
+    void leavesTheEndToTheReadingThatTookOver() throws Exception
+    {
+        createWaitingTask();
+        this.steps.put(DecisionJobConsumer.DECIDED_EVENT, call -> {
+            throw new InvalidStateException("The reading is no longer this job's");
+        });
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(ExtractionStatus.STATUS_RUNNING, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
     }
 }

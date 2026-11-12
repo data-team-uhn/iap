@@ -17,9 +17,9 @@
  */
 package io.uhndata.iap.extraction.internal;
 
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -27,22 +27,29 @@ import org.apache.sling.event.jobs.Job;
 import org.apache.sling.event.jobs.consumer.JobConsumer;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.schemas.models.ClassificationRequirement;
+import io.uhndata.iap.schemas.models.DecisionRequirement;
 import io.uhndata.iap.schemas.models.ValidationRequirement;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
-import io.uhndata.iap.submissions.models.Validation;
+import io.uhndata.iap.workflows.api.InvalidStateException;
+import io.uhndata.iap.workflows.api.WorkflowEngine;
+import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 
 /**
- * The background job that checks a submission's uploads, the first steps of the intake: whether each document is
- * what its requirement asks for, such as a research proposal. Each validation belongs to one document requirement
- * and has its own prompt, and its template as reference text. A validation whose document was optional and left
- * out is not asked.
+ * The background job that checks a submission's uploads, the first steps of the intake. For each document, in the
+ * order of the schema's document requirements, it runs the document's validation, if it has one, then its
+ * categorisation, if it has one ({@link DecisionChain}). Asking about the same document twice in a row lets the
+ * second model call reuse the prompt cache the first one filled, since the document text comes first in the prompt.
  *
- * <p>The job asks the validations one at a time, in the order of their document requirements, each through
- * {@link DocumentValidator}. A {@code no} ends the reading, so the validations after it are not asked.</p>
+ * <p>A validation is asked through {@link DocumentValidator}, a categorisation through {@link DocumentCategoriser}.
+ * A validation's {@code no} ends the reading, so nothing after it is asked. Once every decision is made, the job
+ * fires {@code decided}, which ends the reading as {@code done} and asks the submitter to confirm the category
+ * ({@link FinishDecisionsHandler}).</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -54,11 +61,28 @@ public class DecisionJobConsumer implements JobConsumer, ReadingJob
     /** The job topic. */
     public static final String JOB_TOPIC = "iap/extraction/decide";
 
+    /** The event that ends the checks. */
+    static final String DECIDED_EVENT = "decided";
+
+    /**
+     * What the submitter is told once a document was categorised. The same whether or not the model was sure: the
+     * submitter is asked the same question either way, with or without a suggestion.
+     */
+    static final String CONFIRM_CATEGORY_MESSAGE = "Confirm the category to continue";
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(DecisionJobConsumer.class);
+
     @Reference
     private ReadingJobs jobs;
 
     @Reference
+    private WorkflowEngine engine;
+
+    @Reference
     private DocumentValidator validator;
+
+    @Reference
+    private DocumentCategoriser categoriser;
 
     @Override
     public JobResult process(final Job job)
@@ -66,145 +90,76 @@ public class DecisionJobConsumer implements JobConsumer, ReadingJob
         return this.jobs.run(job, this);
     }
 
-    /**
-     * Whether nothing is left to validate: a validation said no, which ends the reading, or every validation whose
-     * document was uploaded has a verdict.
-     *
-     * @param submission the submission to read
-     * @return {@code true} when the model has nothing left to be asked
-     */
     @Override
     public boolean isAlreadyRead(final Submission submission)
     {
-        final List<String> verdicts = getUploadedValidations(submission).stream()
-            .map(requirement -> getVerdict(submission, requirement))
-            .toList();
-        return !verdicts.isEmpty()
-            && (verdicts.contains(Validation.OUTCOME_NO) || verdicts.stream().allMatch(Objects::nonNull));
+        return DecisionChain.isFinished(submission);
     }
 
-    /**
-     * Why the validation cannot start: the schema has no validation, a document still to be validated is missing,
-     * or none of their documents was uploaded.
-     *
-     * @param resolver this job's session
-     * @param submission the submission to read
-     * @return the message for the submitter, or {@code null} when every document still to be validated is parsed
-     */
     @Override
     public String findReasonNotToStart(final ResourceResolver resolver, final Submission submission)
     {
-        final List<ValidationRequirement> validations = getValidations(submission);
-        if (validations.isEmpty()) {
-            return ReadingJobs.NOT_SET_UP_MESSAGE;
-        }
-        final String missing = validations.stream()
-            .filter(requirement -> getVerdict(submission, requirement) == null && isMissing(submission, requirement))
-            .map(requirement -> describeMissing(getDocument(submission, requirement).getLabel()))
-            .findFirst()
-            .orElse(null);
-        if (missing != null) {
-            return missing;
-        }
-        return getPendingValidations(submission).isEmpty() ? SubmissionFiles.NO_DOCUMENT_MESSAGE : null;
-    }
-
-    /**
-     * What the submitter is told when a document to validate is missing.
-     *
-     * @param label the document requirement's label
-     * @return the message
-     */
-    static String describeMissing(final String label)
-    {
-        return "The " + label + " is missing, please upload it";
-    }
-
-    /**
-     * Whether a document the validation reads should be there and cannot be read: a required one was never uploaded,
-     * which the submission view should have prevented, or its parse failed. An optional one left out is not missing.
-     */
-    private static boolean isMissing(final Submission submission, final ValidationRequirement requirement)
-    {
-        final File file = getFile(submission, requirement);
-        if (file == null) {
-            final DocumentRequirement document = getDocument(submission, requirement);
-            return document.isRequired() && submission.isApplicable(document);
-        }
-        // Every parse has settled by now, so one that is not completed failed or was stopped
-        return !ParsePropertyNames.STATUS_COMPLETED.equals(file.getParseStatus());
+        return DecisionChain.findReasonNotToStart(submission);
     }
 
     @Override
     public void read(final Resource submission, final String jobId) throws WorkflowException
     {
         final ResourceResolver resolver = submission.getResourceResolver();
-        final List<ValidationRequirement> pending = getPendingValidations(SubmissionFiles.getSubmission(submission));
-        for (int next = 0; next < pending.size(); next++) {
-            // Each verdict is saved through the engine's session, which this one sees only after a refresh
+        final List<DecisionRequirement> pending =
+            DecisionChain.getPendingDecisions(SubmissionFiles.getSubmission(submission));
+        boolean categorised = false;
+        // One round per decision, and a last one that ends the chain
+        for (int next = 0; next <= pending.size(); next++) {
+            // Each step is saved through the engine's session, which this one sees only after a refresh
             resolver.refresh();
             final Resource current = resolver.getResource(submission.getPath());
             if (current == null || next > 0 && !ExtractionStatus.isRunning(current)) {
                 // A no or a Stop ended the reading
                 return;
             }
-            final ValidationRequirement requirement = pending.get(next);
-            if (!this.validator.validate(current, jobId, requirement,
-                getFile(SubmissionFiles.getSubmission(current), requirement), next == pending.size() - 1)) {
+            if (next == pending.size()) {
+                finish(current, jobId, categorised);
+            } else if (!decide(current, jobId, pending.get(next))) {
                 return;
+            } else {
+                categorised |= pending.get(next) instanceof ClassificationRequirement;
             }
         }
     }
 
     /**
-     * The schema's validations that apply and name one of its documents, in the order of those documents.
+     * Makes one decision about one document.
+     *
+     * @return {@code false} when the job must stop: the reading was given up, or is no longer this job's
      */
-    private static List<ValidationRequirement> getValidations(final Submission submission)
+    private boolean decide(final Resource submission, final String jobId, final DecisionRequirement decision)
+        throws WorkflowException
     {
-        final List<String> documents = submission.getSchemaVersion().getDocumentRequirements().stream()
-            .map(DocumentRequirement::getName)
-            .toList();
-        return submission.getSchemaVersion().getRequirements().stream()
-            .filter(ValidationRequirement.class::isInstance)
-            .map(ValidationRequirement.class::cast)
-            .filter(requirement -> documents.contains(requirement.getDocumentRequirementName())
-                && submission.isApplicable(requirement))
-            .sorted(Comparator.comparingInt(requirement -> documents.indexOf(requirement.getDocumentRequirementName())))
-            .toList();
+        final File file = DecisionChain.getFile(SubmissionFiles.getSubmission(submission), decision);
+        if (decision instanceof final ValidationRequirement validation) {
+            return this.validator.validate(submission, jobId, validation, file);
+        }
+        return this.categoriser.categorise(submission, jobId, (ClassificationRequirement) decision, file);
     }
 
-    /** The validations whose document has an upload, in document order. */
-    private static List<ValidationRequirement> getUploadedValidations(final Submission submission)
+    /**
+     * Ends the checks through the {@code decided} system workflow, asking the submitter to confirm the category when
+     * a document was categorised.
+     */
+    private void finish(final Resource submission, final String jobId, final boolean categorised)
+        throws WorkflowException
     {
-        return getValidations(submission).stream()
-            .filter(requirement -> getFile(submission, requirement) != null)
-            .toList();
-    }
-
-    /** The validations whose document has an upload and that have no verdict yet, in document order. */
-    private static List<ValidationRequirement> getPendingValidations(final Submission submission)
-    {
-        return getUploadedValidations(submission).stream()
-            .filter(requirement -> getVerdict(submission, requirement) == null)
-            .toList();
-    }
-
-    /** The document requirement the validation reads; {@link #getValidations} keeps only those that have one. */
-    private static DocumentRequirement getDocument(final Submission submission,
-        final ValidationRequirement requirement)
-    {
-        return SubmissionFiles.findDocumentRequirement(submission, requirement.getDocumentRequirementName());
-    }
-
-    private static File getFile(final Submission submission, final ValidationRequirement requirement)
-    {
-        return SubmissionFiles.getCurrentFile(submission, requirement.getDocumentRequirementName());
-    }
-
-    /** The validation's {@code yes}, {@code no} or {@code unsure}, or {@code null} before the model was asked. */
-    private static String getVerdict(final Submission submission, final ValidationRequirement requirement)
-    {
-        final Validation validation = submission.findValidation(requirement);
-        return validation == null ? null : validation.getOutcome();
+        final Map<String, Object> payload = new HashMap<>();
+        payload.put(ClaimReadingHandler.JOB_KEY, jobId);
+        if (categorised) {
+            payload.put(FinishDecisionsHandler.MESSAGE_KEY, CONFIRM_CATEGORY_MESSAGE);
+        }
+        try {
+            this.engine.receiveEvent(submission, new WorkflowEvent(DECIDED_EVENT, payload));
+        } catch (final InvalidStateException e) {
+            // A Stop or a Read again took the reading after the last step
+            LOGGER.info("Not finishing the checks of {}: {}", submission.getPath(), e.getMessage());
+        }
     }
 }

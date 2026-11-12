@@ -81,12 +81,11 @@ public class DocumentValidator
      * @param jobId the job's id, which the claim holds
      * @param requirement the validation to ask
      * @param file the parsed upload it reads
-     * @param last whether this is the job's last step, after which it lets the reading go
      * @return {@code false} when the job must stop: the reading was given up, or is no longer this job's
      * @throws WorkflowException when the engine refuses the verdict for a reason other than a lost claim
      */
     boolean validate(final Resource submission, final String jobId, final ValidationRequirement requirement,
-        final File file, final boolean last) throws WorkflowException
+        final File file) throws WorkflowException
     {
         final IntakeResult result = this.reader.ask(submission.getPath(), file, requirement,
             ExtractionField.createYesNo(VERDICT_KEY, requirement.getLabel(), requirement.getPrompt()));
@@ -95,25 +94,22 @@ public class DocumentValidator
             return false;
         }
         final FieldResult verdict = result.fields().getOrDefault(VERDICT_KEY, FieldResult.createNotFound(VERDICT_KEY));
-        return recordVerdict(submission, jobId, requirement, file, verdict, last) && handOver(submission, jobId);
+        return recordVerdict(submission, jobId, requirement, file, verdict) && handOver(submission, jobId);
     }
 
     /**
      * Saves the verdict through the {@code validated} system workflow.
      *
-     * @param last whether this is the job's last step, so the claim is released with it
      * @return {@code false} when the reading is no longer this job's, so the verdict was dropped
      * @throws WorkflowException when the engine refuses the verdict for another reason
      */
     private boolean recordVerdict(final Resource submission, final String jobId,
-        final ValidationRequirement requirement, final File file, final FieldResult verdict, final boolean last)
-        throws WorkflowException
+        final ValidationRequirement requirement, final File file, final FieldResult verdict) throws WorkflowException
     {
         try {
             this.engine.receiveEvent(submission, new WorkflowEvent(VALIDATED_EVENT, Map.of(
                 ClaimReadingHandler.JOB_KEY, jobId, RecordValidationHandler.REQUIREMENT_KEY, requirement.getPath(),
-                RecordValidationHandler.FILE_KEY, file.getPath(), RecordValidationHandler.RESULT_KEY, verdict,
-                RecordValidationHandler.LAST_KEY, last)));
+                RecordValidationHandler.FILE_KEY, file.getPath(), RecordValidationHandler.RESULT_KEY, verdict)));
             return true;
         } catch (final InvalidStateException e) {
             // A Stop or a Read again took the reading while the model was answering
@@ -172,7 +168,7 @@ public class DocumentValidator
 
     /**
      * Gives the reading up unless a verdict already ended it. A no ends it as done; a yes or an unsure leaves it
-     * running for the next step.
+     * running for the job's next step.
      */
     private void giveUpIfRunning(final Resource submission, final String jobId, final String reason)
     {
@@ -181,7 +177,7 @@ public class DocumentValidator
         resolver.refresh();
         final Resource current = resolver.getResource(submission.getPath());
         if (current != null && ExtractionStatus.isRunning(current)) {
-            // The claim may be this job's still, or released with the last verdict: either way it is not another's
+            // The claim is this job's still: a yes or an unsure keeps it
             this.jobs.giveUp(current, jobId, reason, false);
         }
     }
