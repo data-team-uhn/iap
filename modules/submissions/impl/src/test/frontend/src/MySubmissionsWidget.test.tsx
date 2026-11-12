@@ -18,8 +18,9 @@
 
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, useLocation } from "react-router";
+import { MemoryRouter } from "react-router";
 
+import { LocationProbe, probedPath } from "@iap/frontend-commons/location.fixture";
 import MySubmissionsWidget from "@iap/submissions/MySubmissionsWidget";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
@@ -58,16 +59,11 @@ const SCHEMAS = {
   },
 };
 
-// Reports where the router ended up, so navigation can be asserted on rather than assumed
-function Whereabouts() {
-  return <span data-testid="where">{useLocation().pathname}</span>;
-}
-
 function inRouter({ children }: { children: React.ReactNode }) {
   return (
     <MemoryRouter>
       {children}
-      <Whereabouts />
+      <LocationProbe />
     </MemoryRouter>
   );
 }
@@ -183,7 +179,7 @@ describe("MySubmissionsWidget", () => {
     await raiseOne();
 
     await waitFor(() => expect(screen.queryByRole("radio")).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(SUBMISSION_PATH));
+    await waitFor(() => expect(probedPath()).toBe(SUBMISSION_PATH));
   });
 
   it("stays on the dashboard when the engine created nothing to open, and re-reads the listing", async () => {
@@ -198,7 +194,7 @@ describe("MySubmissionsWidget", () => {
     await raiseOne();
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(screen.getByTestId("where")).toHaveTextContent("/");
+    expect(probedPath()).toBe("/");
     await waitFor(() => expect(listings()).toBe(2));
   });
 

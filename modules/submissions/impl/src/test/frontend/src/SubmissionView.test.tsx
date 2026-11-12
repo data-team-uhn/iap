@@ -18,9 +18,10 @@
 
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router";
+import { MemoryRouter, Route, Routes } from "react-router";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { LocationProbe, probedPath } from "@iap/frontend-commons/location.fixture";
 import { loadAnswerComponents } from "@iap/submissions/answers";
 // Registers the text answer component, which a browser would fetch as an asset of its own
 import "@iap/submissions/answers/TextAnswer";
@@ -270,11 +271,6 @@ function bothModes(submission: unknown = DEEP_SUBMISSION, form: SubmissionForm =
   return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
     ? jsonResponse(form)
     : otherwise(url));
-}
-
-// Where the router is, for a test that checks the page did not navigate
-function Location() {
-  return <p data-testid="location">{useLocation().pathname}</p>;
 }
 
 function renderAt(path: string) {
@@ -855,7 +851,7 @@ describe("SubmissionView", () => {
       render(
         <MemoryRouter initialEntries={["/Submissions/demo-1.edit"]}>
           <Routes>
-            <Route path="/" element={<Location />} />
+            <Route path="/" element={<LocationProbe />} />
             <Route path="*" element={<SubmissionView />} />
           </Routes>
         </MemoryRouter>,
@@ -869,7 +865,7 @@ describe("SubmissionView", () => {
         await completion.promise;
       });
 
-      expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
+      expect(probedPath()).toBe("/");
     });
   });
 

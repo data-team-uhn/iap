@@ -122,10 +122,11 @@ function serving(...reads: SubmissionForm[]) {
   });
 }
 
-// Refuses every save, as the server does once the request is no longer a draft.
+// Refuses every save, as the server does once the request is no longer a draft: the request is
+// not in a state that admits the save, which is a conflict rather than a refusal of the user.
 function refusingSaves() {
   return vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
-    ? json({ error: "This request has been submitted" }, { ok: false, status: 403 })
+    ? json({ error: "This request has been submitted and can no longer be changed" }, { ok: false, status: 409 })
     : json(form()));
 }
 
