@@ -31,6 +31,7 @@ import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.ValidationRequirement;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Validation;
@@ -46,11 +47,11 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 /**
  * The service task that saves what the model decided about an upload: one run under the submission's validation
  * for that requirement, made first when there is none. When the verdict is no, the reading ends there and the
- * request is marked blocked.
+ * request is marked blocked, with "Unable to identify the" and the label of the document requirement.
  *
  * <p>Only the job that holds the reading may save it: after a Stop or a Read again the reading is someone else's,
- * and a late verdict must not land on it. The claim is released whatever the verdict, so the intake's next job can
- * claim the reading.</p>
+ * and a late verdict must not land on it. The claim is released with the job's last verdict, or with a no, so the
+ * intake's next job can claim the reading.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -70,8 +71,11 @@ public class RecordValidationHandler implements ServiceTaskHandler
     /** The payload entry holding what the model answered, a {@link FieldResult}. */
     static final String RESULT_KEY = "result";
 
-    /** What the submitter is told when the model is sure the upload is not what the request needs. */
-    static final String NO_PROPOSAL_MESSAGE = "Unable to identify a proposal";
+    /** The payload entry saying whether this is the job's last verdict, so the claim is released. */
+    static final String LAST_KEY = "last";
+
+    /** What the submitter is told when the model is sure an upload is not its document; the label follows. */
+    static final String NOT_IDENTIFIED_MESSAGE = "Unable to identify the ";
 
     private static final String REQUIREMENT_PROPERTY = "requirement";
 
@@ -96,6 +100,8 @@ public class RecordValidationHandler implements ServiceTaskHandler
         final ResourceResolver resolver = context.getResourceResolver();
         final Resource requirement = getRequirement(resolver, Payloads.requireText(event, REQUIREMENT_KEY,
             "The event does not name the validation"));
+        final ValidationRequirement validationRequirement = Objects.requireNonNull(
+            requirement.adaptTo(ValidationRequirement.class), "A validation requirement node reads as one");
         final File file = getFile(resolver, Payloads.requireText(event, FILE_KEY,
             "The event does not name the document that was read"));
         ExtractionStatus.checkOut(target);
@@ -106,13 +112,17 @@ public class RecordValidationHandler implements ServiceTaskHandler
         if (!jobId.equals(properties.get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY, String.class))) {
             throw new InvalidStateException("The reading of " + target.getPath() + " is no longer this job's");
         }
-        final Resource validation = getOrCreateValidation(resolver, target, requirement);
+        final Resource validation = getOrCreateValidation(resolver, target, requirement, validationRequirement);
         ExtractedAnswers.writeRun(resolver, validation, result, List.of(file));
-        ExtractionStatus.releaseClaim(properties);
         final String outcome = Objects.requireNonNull(validation.adaptTo(Validation.class),
             "A validation node reads as a validation").getOutcome();
-        if (Validation.OUTCOME_NO.equals(outcome)) {
-            ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_DONE, NO_PROPOSAL_MESSAGE);
+        final boolean rejected = Validation.OUTCOME_NO.equals(outcome);
+        if (rejected || Boolean.TRUE.equals(event.get(LAST_KEY))) {
+            ExtractionStatus.releaseClaim(properties);
+        }
+        if (rejected) {
+            ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_DONE,
+                NOT_IDENTIFIED_MESSAGE + getDocumentLabel(target, validationRequirement));
             ExtractionStatus.markBlocked(target);
         }
         LOGGER.info("Validation recorded: submission={} requirement={} outcome={}", target.getPath(),
@@ -129,6 +139,14 @@ public class RecordValidationHandler implements ServiceTaskHandler
         return requirement;
     }
 
+    /** The label of the document the validation reads, the one the submitter was asked to upload. */
+    private static String getDocumentLabel(final Resource target, final ValidationRequirement requirement)
+    {
+        final DocumentRequirement document = SubmissionFiles.findDocumentRequirement(
+            SubmissionFiles.getSubmission(target), requirement.getDocumentRequirementName());
+        return document == null ? requirement.getLabel() : document.getLabel();
+    }
+
     private static File getFile(final ResourceResolver resolver, final String path) throws InvalidPayloadException
     {
         final Resource file = resolver.getResource(path);
@@ -140,11 +158,9 @@ public class RecordValidationHandler implements ServiceTaskHandler
 
     /** The submission's validation for the requirement, made when this is its first run. */
     private static Resource getOrCreateValidation(final ResourceResolver resolver, final Resource target,
-        final Resource requirement) throws PersistenceException
+        final Resource requirement, final ValidationRequirement validationRequirement) throws PersistenceException
     {
-        final Validation existing = SubmissionFiles.getSubmission(target)
-            .findValidation(Objects.requireNonNull(requirement.adaptTo(ValidationRequirement.class),
-                "A validation requirement node reads as one"));
+        final Validation existing = SubmissionFiles.getSubmission(target).findValidation(validationRequirement);
         if (existing != null) {
             return resolver.getResource(existing.getPath());
         }

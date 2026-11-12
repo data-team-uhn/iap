@@ -64,6 +64,18 @@ public class ExtractAnswersJobConsumer implements JobConsumer, ReadingJob
     }
 
     /**
+     * Never: this reading keeps its claim when it is done, so the other jobs of the same reading find it taken.
+     *
+     * @param submission the submission to read
+     * @return {@code false}
+     */
+    @Override
+    public boolean isAlreadyRead(final Submission submission)
+    {
+        return false;
+    }
+
+    /**
      * Why the reading cannot start: the schema version names no reading workflow, or one that cannot run.
      *
      * @param resolver this job's session

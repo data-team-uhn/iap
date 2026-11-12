@@ -41,7 +41,10 @@ import org.mockito.stubbing.Answer;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.extraction.internal.AnswerIntakeService.IntakeResult;
+import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.schemas.models.ValidationRequirement;
 import io.uhndata.iap.submissions.models.File;
+import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -49,6 +52,7 @@ import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -114,7 +118,7 @@ class ValidationJobConsumerTest
         this.steps.put(ReadingJobs.READING_STARTED_EVENT, call -> runStep(new ClaimReadingHandler(), call));
         this.steps.put(ReadingJobs.READING_FAILED_EVENT, call -> runStep(new GiveUpReadingHandler(), call));
         this.steps.put(ValidationJobConsumer.VALIDATED_EVENT, call -> runStep(new RecordValidationHandler(), call));
-        this.steps.put(ValidationJobConsumer.COMPLETE_EVENT, call -> null);
+        this.steps.put(ValidationJobConsumer.COMPLETE_EVENT, this::closeTask);
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(
             call -> this.steps.get(call.<WorkflowEvent>getArgument(1).getName()).answer(call));
         stubVerdict("yes", 0.9);
@@ -137,6 +141,43 @@ class ValidationJobConsumerTest
         handler.execute(TaskContexts.of(target, call.<WorkflowEvent>getArgument(1).getPayload(), new HashMap<>()));
         this.context.resourceResolver().commit();
         return null;
+    }
+
+    /** Completes a task as the engine would, so the intake moves on to its next one. */
+    private Object closeTask(final InvocationOnMock call) throws Exception
+    {
+        this.context.resourceResolver().getResource(call.<Resource>getArgument(0).getPath())
+            .adaptTo(ModifiableValueMap.class).put("status", "completed");
+        this.context.resourceResolver().commit();
+        return null;
+    }
+
+    /**
+     * Adds a consent form the schema asks for after the proposal, and its validation. One not uploaded is optional,
+     * so leaving it out is allowed.
+     */
+    private void createConsentValidation(final boolean uploaded)
+    {
+        final Resource consent = this.tree.createDocumentRequirement("consent");
+        this.tree.createValidationRequirement("is_consent", "consent", "Decide whether it is a consent form.");
+        if (uploaded) {
+            this.tree.createParsedFileFor(consent, "I agree to take part.");
+        } else {
+            consent.adaptTo(ModifiableValueMap.class).put("required", false);
+        }
+    }
+
+    private List<WorkflowEvent> getVerdicts() throws Exception
+    {
+        return getFiredEvents().stream()
+            .filter(event -> ValidationJobConsumer.VALIDATED_EVENT.equals(event.getName()))
+            .toList();
+    }
+
+    private static String getRequirementName(final WorkflowEvent event)
+    {
+        final String path = (String) event.get(RecordValidationHandler.REQUIREMENT_KEY);
+        return path.substring(path.lastIndexOf('/') + 1);
     }
 
     private void stubVerdict(final String verdict, final double confidence)
@@ -181,6 +222,155 @@ class ValidationJobConsumerTest
         Mockito.verify(this.engine, Mockito.times(3)).receiveEvent(targets.capture(), Mockito.any());
         assertEquals(task.getPath(), targets.getAllValues().get(2).getPath());
         assertEquals(ExtractionStatus.STATUS_RUNNING, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
+    }
+
+    @Test
+    void asksEachValidationInTheOrderOfItsDocument() throws Exception
+    {
+        // The validations are listed consent first; the documents, proposal first
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/is_proposal"));
+        createConsentValidation(true);
+        this.tree.createValidationRequirement("is_proposal", "proposal", PROMPT);
+        createWaitingTask();
+        this.tree.createIntakeTask("checkConsent", "created", this.context.resourceResolver().getUserID());
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of("readingStarted", "validated", "complete", "validated", "complete"),
+            getFiredEventNames());
+        assertEquals(List.of("is_proposal", "is_consent"),
+            getVerdicts().stream().map(ValidationJobConsumerTest::getRequirementName).toList());
+        assertEquals(List.of(false, true),
+            getVerdicts().stream().map(event -> event.get(RecordValidationHandler.LAST_KEY)).toList());
+        assertNull(getProperties().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY));
+        assertEquals(ExtractionStatus.STATUS_RUNNING, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
+    }
+
+    @Test
+    void asksNothingAfterANo() throws Exception
+    {
+        createConsentValidation(true);
+        createWaitingTask();
+        stubVerdict("no", 0.9);
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of("readingStarted", "validated", "complete"), getFiredEventNames());
+        Mockito.verify(this.intake, Mockito.times(1)).askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(),
+            Mockito.any());
+    }
+
+    @Test
+    void skipsAValidationWhoseDocumentWasNotUploaded() throws Exception
+    {
+        createConsentValidation(false);
+        createWaitingTask();
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of("is_proposal"),
+            getVerdicts().stream().map(ValidationJobConsumerTest::getRequirementName).toList());
+        assertEquals(true, getVerdicts().get(0).get(RecordValidationHandler.LAST_KEY));
+    }
+
+    @Test
+    void asksNothingMoreAfterAStop() throws Exception
+    {
+        createConsentValidation(true);
+        createWaitingTask();
+        this.steps.put(ValidationJobConsumer.COMPLETE_EVENT, call -> {
+            closeTask(call);
+            getSubmissionResource().adaptTo(ModifiableValueMap.class).put(ExtractionStatus.STATUS_PROPERTY,
+                ExtractionStatus.STATUS_FAILED);
+            this.context.resourceResolver().commit();
+            return null;
+        });
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of("is_proposal"),
+            getVerdicts().stream().map(ValidationJobConsumerTest::getRequirementName).toList());
+    }
+
+    @Test
+    void asksNothingMoreWhenTheSubmissionWentAway() throws Exception
+    {
+        createConsentValidation(true);
+        createWaitingTask();
+        this.steps.put(ValidationJobConsumer.COMPLETE_EVENT, call -> {
+            this.context.resourceResolver().delete(getSubmissionResource());
+            this.context.resourceResolver().commit();
+            return null;
+        });
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(1, getVerdicts().size());
+    }
+
+    // The no ended the reading, so the validations after it are never asked
+    @Test
+    void stopsWithoutClaimingAfterANo() throws Exception
+    {
+        createConsentValidation(true);
+        createWaitingTask();
+        stubVerdict("no", 0.9);
+        this.consumer.process(this.job);
+        Mockito.clearInvocations(this.engine, this.intake);
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(List.of(), getFiredEventNames());
+    }
+
+    // Each parse queues a job: the second must not ask again, nor complete a task the intake reached since
+    @Test
+    void stopsWithoutClaimingWhenTheUploadWasAlreadyValidated() throws Exception
+    {
+        createWaitingTask();
+        this.consumer.process(this.job);
+        Mockito.clearInvocations(this.engine, this.intake);
+        createWaitingTask();
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(List.of(), getFiredEventNames());
+        Mockito.verifyNoInteractions(this.intake);
+    }
+
+    @Test
+    void validatesWhenAnEarlierValidationSavedNoRun() throws Exception
+    {
+        createWaitingTask();
+        this.consumer.process(this.job);
+        final Resource validation = getValidation();
+        for (final Resource run : validation.getChildren()) {
+            this.context.resourceResolver().delete(run);
+        }
+        this.context.resourceResolver().commit();
+        Mockito.clearInvocations(this.engine);
+        createWaitingTask();
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of("readingStarted", "validated", "complete"), getFiredEventNames());
+    }
+
+    private Resource getValidation()
+    {
+        final Submission model =
+            getSubmissionResource().adaptTo(Submission.class);
+        return this.context.resourceResolver().getResource(model.findValidation(
+            model.getSchemaVersion().getRequirements().stream()
+                .filter(ValidationRequirement.class::isInstance)
+                .map(ValidationRequirement.class::cast)
+                .findFirst().orElseThrow()).getPath());
+    }
+
+    private Resource getSubmissionResource()
+    {
+        return this.context.resourceResolver().getResource(this.submission.getPath());
     }
 
     @Test
@@ -342,8 +532,9 @@ class ValidationJobConsumerTest
     }
 
     @Test
-    void doesNotStartWithoutAnUpload() throws Exception
+    void doesNotStartWhenNoValidatedDocumentWasUploaded() throws Exception
     {
+        this.tree.createDocumentRequirement("consent").adaptTo(ModifiableValueMap.class).put("required", false);
         this.tree.createValidationRequirement("is_signed", "consent", PROMPT);
         this.context.resourceResolver().delete(
             this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH + "/is_proposal"));
@@ -365,6 +556,44 @@ class ValidationJobConsumerTest
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
-        assertEquals(SubmissionFiles.describeUnreadable(), getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+        assertEquals("The consent is missing, please upload it",
+            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+    }
+
+    // The submission view should not have let the submitter on without it
+    @Test
+    void doesNotStartWhenARequiredDocumentIsMissing() throws Exception
+    {
+        createRequiredConsent();
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals("The consent is missing, please upload it",
+            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+        Mockito.verifyNoInteractions(this.intake);
+    }
+
+    @Test
+    void skipsARequiredDocumentWhoseConditionDoesNotHold() throws Exception
+    {
+        final Resource consent = createRequiredConsent();
+        final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
+        Mockito.when(conditions.applies(Mockito.any(), Mockito.any())).thenReturn(true);
+        Mockito.when(conditions.applies(Mockito.argThat(item -> item instanceof final DocumentRequirement requirement
+            && consent.getPath().equals(requirement.getPath())), Mockito.any())).thenReturn(false);
+        this.context.registerService(ConditionEvaluator.class, conditions);
+        createWaitingTask();
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals(List.of("is_proposal"),
+            getVerdicts().stream().map(ValidationJobConsumerTest::getRequirementName).toList());
+    }
+
+    private Resource createRequiredConsent()
+    {
+        final Resource consent = this.tree.createDocumentRequirement("consent");
+        this.tree.createValidationRequirement("is_consent", "consent", "Decide whether it is a consent form.");
+        return consent;
     }
 }

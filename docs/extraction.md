@@ -46,18 +46,20 @@ says which class does the work, who calls it, and what it checks.
  ValidationJobConsumer (background, one job at a time)
    every parse settled? -- no: try again later
    claim the reading ----- another job has it: stop
-   ask the schema's validation (yes or no), fire validated
-        |
-        v
- validated (system workflow)
-   recordValidation --- save the verdict under the submission
-        |
-        v
- complete the task the intake workflow waits at (performer iap-extraction)
- (no intake workflow ships on this branch)
-   gateway on the validation operand -- act on the verdict (see "Validating the upload")
-     no ------------ stop: done, blocked, "Unable to identify a proposal"
-     yes, unsure --- go on to the categorisation
+   for each validation whose document was uploaded, in document order:
+     ask it (yes or no), fire validated
+          |
+          v
+     validated (system workflow)
+       recordValidation --- save the verdict under the submission
+          |
+          v
+     complete the task the intake workflow waits at (performer iap-extraction)
+     (no intake workflow ships on this branch)
+       gateway on the validation operand -- act on the verdict (see "Validating the upload")
+         no ------------ stop: done, blocked, "Unable to identify the <document label>";
+                         the validations after it are not asked
+         yes, unsure --- go on: the next validation, then the categorisation
 
  Read again still queues the older reading:
  ExtractAnswersJobConsumer (background, one job at a time)
@@ -263,8 +265,9 @@ parse) and `ExtractAnswersJobConsumer` (topic `iap/extraction/extract`, queued b
 again), with the steps every reading job shares in `ReadingJobs`.
 **Queue:** `iap-extraction`, one job at a time (`queue.maxparallel` = 1).
 
-Every parse that lands queues a validation job, so a submission with three uploads
-queues three jobs. The job decides who reads, not the workflow step. A workflow step runs before its
+Every parse that lands queues a validation job, so a submission whose three documents
+are parsed together queues three jobs. The first validates every document; the others
+find nothing left and drop out. The job decides who reads, not the workflow step. A workflow step runs before its
 commit and cannot see what other requests are doing. The job's own session sees
 committed data.
 
@@ -275,8 +278,9 @@ The checks, in order:
 | The job names a submission, and it still exists | The job is dropped. |
 | A job queued by Read again (job property `readAgain=true`) finds `extractionStatus` at `running` | The job returns `FAILED`, so Sling runs it again later. The job was queued before the Read again walk committed, and until that commit the old status and claim are still there. |
 | No current file is still `queued` (`SubmissionFiles.isEveryParseSettled`) | The job returns `FAILED`, so Sling runs it again later. A parse that landed but is not committed yet looks "queued" for a moment. |
+| What this kind of job reads was not read yet (`ReadingJob.isAlreadyRead`). The validation job: no validation said `no`, and some validation whose document was uploaded has no verdict yet. The Read again job: always true; it keeps its claim when done, so the next job finds the claim taken. | The job is dropped, before it claims and without giving up: another job of the same submission already did the work. |
 | The job's session can read the submission's schema version | `extractionStatus=failed`, "The document could not be read", and a problem is logged for an administrator. Throwing instead would end the job with `running` left behind. |
-| What this kind of job needs (`ReadingJob.findReasonNotToStart`). The validation job: an applicable validation requirement that names its document, an upload for that document, and a completed parse of it. The Read again job: the schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists and is tagged `active` (`SubmissionFiles.checkReadingWorkflow`, the same check parsing makes; only one that is named but cannot run is reported to the administrator). | `extractionStatus=failed` with the reason: "Nothing is set up to read this request's documents", "No document to read has been uploaded", or "The document could not be read. Please try again". Reading anyway would find nothing to do and leave `running` forever. |
+| What this kind of job needs (`ReadingJob.findReasonNotToStart`). The validation job: an applicable validation requirement that names one of the schema's documents; every document still to be validated that is required (and whose condition holds) uploaded and parsed; and at least one of those documents uploaded. The Read again job: the schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists and is tagged `active` (`SubmissionFiles.checkReadingWorkflow`, the same check parsing makes; only one that is named but cannot run is reported to the administrator). | `extractionStatus=failed` with the reason: "Nothing is set up to read this request's documents", "The <document label> is missing, please upload it" (the validation job), "No document to read has been uploaded", or "The document could not be read. Please try again" (the Read again job). Reading anyway would find nothing to do and leave `running` forever. |
 | The engine takes `readingStarted` (job id in the payload): `claimReading` sets `extractionReadingClaimed`, with the job's Sling job id in `extractionReadingClaimedBy`, and the walk commits. A claim that already holds this job's own id counts as its own: after a restart, Sling runs an unfinished job again with the same id. | A claim held by another id means another job has the reading: the step throws, and this job is dropped. Two jobs that race write different ids, so the engine refuses the second commit the same way. Any other refusal gives up the reading. |
 
 Then the job reads (below for the validation job; the Read again job fires
@@ -306,28 +310,43 @@ such as the instance shutting down, is not taken for the submitter's Stop.
 **Classes:** `ValidationJobConsumer`, `DecisionReader`, `RecordValidationHandler`.
 **System workflow:** `validated`.
 
-The validation job asks the model one yes or no question about the upload the schema's
-validation requirement names: the requirement's `prompt` is the question, and its
-template is the reference text. The verdict comes back under the key `verdict`.
+Each validation requirement belongs to one document requirement (`document`), such as
+`is_proposal` for the proposal and `is_consent` for the consent form, each with its own
+`prompt` and template. A validation whose document is optional and was left out is not
+asked. A required document that is missing, or whose parse failed, stops the job before
+anything is asked: "The <label> is missing, please upload it". The submission view
+should not have let the submitter on without it, so this means something failed earlier.
 
-The job fires `validated` with the verdict, the requirement and the file in the payload.
-Its `recordValidation` step saves one run under the submission's `sub:Validation` for
-that requirement, made on the first run, and releases the claim. The validation reads
-the run as `yes`, `no` or `unsure`: an answer less sure than the requirement's
-`confidenceThreshold` is `unsure`, and so is a question the model did not answer.
+One job asks them all, one at a time, in the order of their document requirements in the
+schema. For each, it asks the model one yes or no question about that document's upload:
+the requirement's `prompt` is the question, and its template is the reference text. The
+verdict comes back under the key `verdict`.
+
+The job fires `validated` with the verdict, the requirement, the file, and whether it is
+the job's last validation (`last`). Its `recordValidation` step saves one run under the
+submission's `sub:Validation` for that requirement, made on the first run. The
+validation reads the run as `yes`, `no` or `unsure`: an answer less sure than the
+requirement's `confidenceThreshold` is `unsure`, and so is a question the model did not
+answer.
 
 | Verdict | `recordValidation` | The intake's gateway |
 | --- | --- | --- |
-| `no` | `extractionStatus=done`, blocked, "Unable to identify a proposal" | Ends the intake: nothing more is read |
-| `yes` | Leaves the reading `running` | Goes on to the categorisation |
-| `unsure` | Leaves the reading `running` | Goes on to the categorisation: only a sure `no` stops the reading |
+| `no` | `extractionStatus=done`, blocked, "Unable to identify the " and the document requirement's `label`; releases the claim | Ends the intake: nothing more is read |
+| `yes` | Leaves the reading `running`; releases the claim only after the last validation | Goes on to the next validation, or the categorisation |
+| `unsure` | Same as `yes` | Same as `yes`: only a sure `no` stops the reading |
+
+The same `label` is the one the submission view shows when it asks for the upload
+("Please upload the <label>"), so a schema writes it to fit all three sentences, such as
+"research proposal".
 
 The step saves the verdict only while the claim still holds this job's id. After a Stop
-or a Read again it refuses, and the job drops the verdict.
+or a Read again it refuses, and the job drops the verdict and stops.
 
-Then the job completes the open task of the submission's workflows whose performers
-include `iap-extraction`: the task the intake workflow waits at. The intake's gateway
-reads the verdict through the `validation` operand and goes on, or ends. The intake waits
+After each verdict, the job completes the open task of the submission's workflows whose
+performers include `iap-extraction`: the task the intake workflow waits at, one per
+validation and in the same order. The intake's gateway reads the verdict through the
+`validation` operand and goes on, or ends. Before the next validation the job looks at
+the submission again: once a `no` or a Stop ended the reading, it asks nothing more. The intake waits
 at a task because the engine cannot yet wake a workflow with a named event (see "Waiting
 for the engine"). If no such task is open, or completing it fails, the error is recorded
 for an administrator, and a reading still `running` is given up: nothing else would end

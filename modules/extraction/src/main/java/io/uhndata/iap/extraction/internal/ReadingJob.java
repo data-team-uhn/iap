@@ -33,6 +33,17 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 interface ReadingJob
 {
     /**
+     * Whether what this job reads was already read. Every parse queues a job, so a submission whose documents are
+     * parsed together queues one job per document; the first reads, and the others find it done and stop without
+     * claiming.
+     * Only stops another job of the same kind.
+     *
+     * @param submission the submission to read
+     * @return {@code true} when there is nothing left for this job to read
+     */
+    boolean isAlreadyRead(Submission submission);
+
+    /**
      * Why this reading cannot start, if it cannot. It is asked after every parse has settled and the schema version
      * was found readable, and before the reading is claimed.
      *

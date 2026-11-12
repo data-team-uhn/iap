@@ -261,6 +261,21 @@ final class SubmissionFiles
     }
 
     /**
+     * The schema's document requirement with the given name.
+     *
+     * @param submission the submission whose schema version is searched
+     * @param name the document requirement's node name
+     * @return the requirement, or {@code null} when the schema version has none by that name
+     */
+    static DocumentRequirement findDocumentRequirement(final Submission submission, final String name)
+    {
+        return submission.getSchemaVersion().getDocumentRequirements().stream()
+            .filter(document -> document.getName().equals(name))
+            .findFirst()
+            .orElse(null);
+    }
+
+    /**
      * Whether no parse is still waiting, so what can be read now is all there will be.
      *
      * @param submission the submission

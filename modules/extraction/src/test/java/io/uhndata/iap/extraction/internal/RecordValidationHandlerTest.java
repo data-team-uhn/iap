@@ -90,11 +90,17 @@ class RecordValidationHandlerTest
 
     private Map<String, Object> createPayload(final String verdict, final double confidence)
     {
+        return createPayload(verdict, confidence, true);
+    }
+
+    private Map<String, Object> createPayload(final String verdict, final double confidence, final boolean last)
+    {
         return Map.of(ClaimReadingHandler.JOB_KEY, JOB_ID,
             RecordValidationHandler.REQUIREMENT_KEY, this.requirement.getPath(),
             RecordValidationHandler.FILE_KEY, this.file.getPath(),
             RecordValidationHandler.RESULT_KEY, new FieldResult(ValidationJobConsumer.VERDICT_KEY, List.of(verdict),
-                "It has aims and methods.", confidence, List.of(), 0));
+                "It has aims and methods.", confidence, List.of(), 0),
+            RecordValidationHandler.LAST_KEY, last);
     }
 
     private void record(final Map<String, Object> payload) throws Exception
@@ -131,9 +137,9 @@ class RecordValidationHandlerTest
         assertEquals("recordValidation", this.handler.getName());
     }
 
-    // A yes leaves the reading running and lets the claim go, so the intake's next job can claim it
+    // The job's last yes leaves the reading running and lets the claim go, so the intake's next job can claim it
     @Test
-    void savesAYesAndLetsTheClaimGo() throws Exception
+    void savesTheLastYesAndLetsTheClaimGo() throws Exception
     {
         record(createPayload("yes", 0.9));
 
@@ -147,15 +153,35 @@ class RecordValidationHandlerTest
         assertNull(getProperties().get(ExtractionStatus.BLOCKED_PROPERTY));
     }
 
+    // The job still has validations to ask
     @Test
-    void endsTheReadingOnANo() throws Exception
+    void keepsTheClaimAfterAYesThatIsNotTheLast() throws Exception
     {
-        record(createPayload("no", 0.9));
+        record(createPayload("yes", 0.9, false));
+
+        assertEquals(JOB_ID, getProperties().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY));
+    }
+
+    @Test
+    void endsTheReadingOnANoNamingTheDocument() throws Exception
+    {
+        record(createPayload("no", 0.9, false));
 
         assertEquals(ExtractionStatus.STATUS_DONE, getProperties().get(ExtractionStatus.STATUS_PROPERTY));
-        assertEquals(RecordValidationHandler.NO_PROPOSAL_MESSAGE,
-            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+        assertEquals("Unable to identify the proposal", getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
         assertTrue(getProperties().get(ExtractionStatus.BLOCKED_PROPERTY, Boolean.FALSE));
+        assertNull(getProperties().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY));
+    }
+
+    @Test
+    void namesTheValidationWhenItsDocumentIsNotInTheSchema() throws Exception
+    {
+        this.context.resourceResolver().delete(this.document);
+
+        record(createPayload("no", 0.9));
+
+        assertEquals("Unable to identify the Research proposal",
+            getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
     }
 
     // The gate must not guess: a no the model is not sure of does not block the request

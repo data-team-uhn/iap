@@ -199,6 +199,10 @@ public class ReadingJobs
             if (isTooEarly(job, submission, model)) {
                 return JobResult.FAILED;
             }
+            if (reading.isAlreadyRead(model)) {
+                LOGGER.info("Nothing left to read: submission={} topic={}", submission.getPath(), job.getTopic());
+                return JobResult.CANCEL;
+            }
             reason = findReasonNotToStart(resolver, reading, submission, model);
         } catch (final RuntimeException e) {
             // `running` was committed before this job: left as it is, its spinner would never stop
