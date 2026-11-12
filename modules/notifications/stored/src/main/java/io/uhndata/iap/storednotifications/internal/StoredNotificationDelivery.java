@@ -114,11 +114,10 @@ public class StoredNotificationDelivery implements NotificationDelivery
      * @param notification what happened
      * @param recipient the person it is for
      * @param message the rendered message
-     * @return the created notification
      * @throws RepositoryException if the folder or the bucket cannot be created, or the folder cannot be granted
      * @throws PersistenceException if the notification cannot be written
      */
-    private static Resource store(final ResourceResolver resolver, final NotificationContext notification,
+    private static void store(final ResourceResolver resolver, final NotificationContext notification,
         final Recipient recipient, final String message) throws RepositoryException, PersistenceException
     {
         final Node home = recipientHome(resolver, recipient.userId());
@@ -136,7 +135,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
         if (notification.getActor() != null) {
             properties.put("actor", notification.getActor());
         }
-        return resolver.create(parent, name, properties);
+        resolver.create(parent, name, properties);
     }
 
     /**

@@ -54,8 +54,8 @@ class RecipientsTest
     @Test
     void findsEachPersonsAccount() throws Exception
     {
-        Accounts.create(this.context, "ann", "ann@example.com");
-        Accounts.create(this.context, "bob", null);
+        Accounts.create(this.context, "ann");
+        Accounts.create(this.context, "bob");
 
         final List<Recipient> found =
             Recipients.of(this.context.resourceResolver(), List.of("ann", "bob"));
@@ -69,7 +69,7 @@ class RecipientsTest
     @Test
     void skipsAnUnknownAccount() throws Exception
     {
-        Accounts.create(this.context, "ann", "ann@example.com");
+        Accounts.create(this.context, "ann");
 
         final List<Recipient> found =
             Recipients.of(this.context.resourceResolver(), List.of("ghost", "ann"));
