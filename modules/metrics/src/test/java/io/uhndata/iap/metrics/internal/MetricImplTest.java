@@ -135,6 +135,15 @@ class MetricImplTest
     }
 
     @Test
+    void aBlankCategoryIsNoCategory() throws Exception
+    {
+        createMetricNode(Map.of("jcr:primaryType", "metric:Metric", "category", "   "));
+
+        assertNull(this.metric.getCategory());
+        assertEquals("", this.metric.toJson().getString("category"));
+    }
+
+    @Test
     void incrementRequestsAnAtomicIncrement() throws Exception
     {
         createMetricNode(Map.of("jcr:primaryType", "metric:Metric"));

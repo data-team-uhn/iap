@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.metrics.internal;
 
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 
@@ -31,11 +30,14 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.osgi.framework.Constants;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -61,17 +63,12 @@ class MetricRolloverSchedulerTest
 
     private MetricsManagerImpl manager;
 
-    private MetricRolloverScheduler rolloverScheduler;
-
     @BeforeEach
     void setUp() throws Exception
     {
         this.factory = this.context.getService(ResourceResolverFactory.class);
-        this.manager = new MetricsManagerImpl();
-        inject(this.manager, "resolverFactory", this.factory);
-        this.rolloverScheduler = new MetricRolloverScheduler();
-        inject(this.rolloverScheduler, "scheduler", this.scheduler);
-        inject(this.rolloverScheduler, "resolverFactory", this.factory);
+        this.manager = this.context.registerInjectActivateService(MetricsManagerImpl.class);
+        this.context.registerService(Scheduler.class, this.scheduler);
         Mockito.when(this.scheduler.EXPR(Mockito.anyString())).thenReturn(this.options);
         Mockito.when(this.scheduler.schedule(Mockito.any(), Mockito.any())).thenReturn(true);
         try (ResourceResolver resolver = open()) {
@@ -88,7 +85,7 @@ class MetricRolloverSchedulerTest
         this.manager.createMetric("manual").create();
         this.manager.createMetric("noon").withRolloverSchedule(NOON).create();
 
-        this.rolloverScheduler.activate();
+        startScheduler();
 
         Mockito.verify(this.scheduler).EXPR(NIGHTLY);
         Mockito.verify(this.scheduler).EXPR(NOON);
@@ -109,7 +106,7 @@ class MetricRolloverSchedulerTest
             resolver.commit();
         }
 
-        this.rolloverScheduler.activate();
+        startScheduler();
 
         Mockito.verify(this.scheduler, Mockito.never()).schedule(Mockito.any(), Mockito.any());
     }
@@ -122,7 +119,7 @@ class MetricRolloverSchedulerTest
             resolver.commit();
         }
 
-        this.rolloverScheduler.activate();
+        startScheduler();
 
         Mockito.verify(this.scheduler, Mockito.never()).schedule(Mockito.any(), Mockito.any());
     }
@@ -131,10 +128,10 @@ class MetricRolloverSchedulerTest
     void newMetricsAreScheduledOnChangeEvents()
     {
         this.manager.createMetric("nightly").withRolloverSchedule(NIGHTLY).create();
-        this.rolloverScheduler.activate();
+        final MetricRolloverScheduler rolloverScheduler = startScheduler();
 
         this.manager.createMetric("noon").withRolloverSchedule(NOON).create();
-        this.rolloverScheduler.onChange(List.of());
+        rolloverScheduler.onChange(List.of());
 
         Mockito.verify(this.scheduler, Mockito.times(2)).schedule(Mockito.any(), Mockito.eq(this.options));
         Mockito.verify(this.scheduler).EXPR(NOON);
@@ -145,10 +142,10 @@ class MetricRolloverSchedulerTest
     void irrelevantChangesDoNotDisturbTheSchedules()
     {
         this.manager.createMetric("nightly").withRolloverSchedule(NIGHTLY).create();
-        this.rolloverScheduler.activate();
+        final MetricRolloverScheduler rolloverScheduler = startScheduler();
 
         this.manager.getMetric("nightly").orElseThrow().increment();
-        this.rolloverScheduler.onChange(List.of());
+        rolloverScheduler.onChange(List.of());
 
         Mockito.verify(this.scheduler, Mockito.times(1)).schedule(Mockito.any(), Mockito.any());
         Mockito.verify(this.scheduler, Mockito.never()).unschedule(Mockito.anyString());
@@ -158,10 +155,10 @@ class MetricRolloverSchedulerTest
     void changedSchedulesAreRescheduled()
     {
         this.manager.createMetric("periodic").withRolloverSchedule(NIGHTLY).create();
-        this.rolloverScheduler.activate();
+        final MetricRolloverScheduler rolloverScheduler = startScheduler();
 
         this.manager.createMetric("periodic").withRolloverSchedule(NOON).create();
-        this.rolloverScheduler.onChange(List.of());
+        rolloverScheduler.onChange(List.of());
 
         Mockito.verify(this.scheduler).unschedule("iap-metrics-rollover-periodic");
         Mockito.verify(this.scheduler).EXPR(NIGHTLY);
@@ -173,10 +170,10 @@ class MetricRolloverSchedulerTest
     void removedSchedulesAreUnscheduled()
     {
         this.manager.createMetric("periodic").withRolloverSchedule(NIGHTLY).create();
-        this.rolloverScheduler.activate();
+        final MetricRolloverScheduler rolloverScheduler = startScheduler();
 
         this.manager.createMetric("periodic").create();
-        this.rolloverScheduler.onChange(List.of());
+        rolloverScheduler.onChange(List.of());
 
         Mockito.verify(this.scheduler).unschedule("iap-metrics-rollover-periodic");
         Mockito.verify(this.scheduler, Mockito.times(1)).schedule(Mockito.any(), Mockito.any());
@@ -186,13 +183,13 @@ class MetricRolloverSchedulerTest
     void deletedMetricsAreUnscheduled() throws Exception
     {
         this.manager.createMetric("periodic").withRolloverSchedule(NIGHTLY).create();
-        this.rolloverScheduler.activate();
+        final MetricRolloverScheduler rolloverScheduler = startScheduler();
 
         try (ResourceResolver resolver = open()) {
             resolver.delete(resolver.getResource("/Metrics/periodic"));
             resolver.commit();
         }
-        this.rolloverScheduler.onChange(List.of());
+        rolloverScheduler.onChange(List.of());
 
         Mockito.verify(this.scheduler).unschedule("iap-metrics-rollover-periodic");
         Mockito.verify(this.scheduler, Mockito.times(1)).schedule(Mockito.any(), Mockito.any());
@@ -203,9 +200,9 @@ class MetricRolloverSchedulerTest
     {
         this.manager.createMetric("nightly").withRolloverSchedule(NIGHTLY).create();
         this.manager.createMetric("noon").withRolloverSchedule(NOON).create();
-        this.rolloverScheduler.activate();
+        final MetricRolloverScheduler rolloverScheduler = startScheduler();
 
-        this.rolloverScheduler.deactivate();
+        rolloverScheduler.deactivate();
 
         Mockito.verify(this.scheduler).unschedule("iap-metrics-rollover-nightly");
         Mockito.verify(this.scheduler).unschedule("iap-metrics-rollover-noon");
@@ -217,12 +214,12 @@ class MetricRolloverSchedulerTest
         Mockito.when(this.scheduler.schedule(Mockito.any(), Mockito.any())).thenReturn(false, true);
         this.manager.createMetric("nightly").withRolloverSchedule(NIGHTLY).create();
 
-        this.rolloverScheduler.activate();
-        this.rolloverScheduler.onChange(List.of());
+        final MetricRolloverScheduler rolloverScheduler = startScheduler();
+        rolloverScheduler.onChange(List.of());
 
         Mockito.verify(this.scheduler, Mockito.times(2)).schedule(Mockito.any(), Mockito.any());
         // A job that started is not started again
-        this.rolloverScheduler.onChange(List.of());
+        rolloverScheduler.onChange(List.of());
         Mockito.verify(this.scheduler, Mockito.times(2)).schedule(Mockito.any(), Mockito.any());
     }
 
@@ -233,18 +230,19 @@ class MetricRolloverSchedulerTest
             .thenThrow(new IllegalArgumentException("Expression cannot be parsed"));
         this.manager.createMetric("broken").withRolloverSchedule("not a cron expression").create();
 
-        assertDoesNotThrow(() -> this.rolloverScheduler.activate());
+        assertDoesNotThrow(this::startScheduler);
     }
 
     @Test
     void unreadableRepositoriesAreNotFatal() throws Exception
     {
+        this.manager.createMetric("nightly").withRolloverSchedule(NIGHTLY).create();
         final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("no service user"));
-        inject(this.rolloverScheduler, "resolverFactory", broken);
+        outrankTheContextFactory(broken);
 
-        assertDoesNotThrow(() -> this.rolloverScheduler.activate());
+        assertDoesNotThrow(this::startScheduler);
         Mockito.verifyNoInteractions(this.scheduler);
     }
 
@@ -258,7 +256,7 @@ class MetricRolloverSchedulerTest
             resolver.commit();
         }
         final ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-        this.rolloverScheduler.activate();
+        startScheduler();
         Mockito.verify(this.scheduler).schedule(job.capture(), Mockito.any());
 
         job.getValue().run();
@@ -273,7 +271,7 @@ class MetricRolloverSchedulerTest
     {
         this.manager.createMetric("counted").withRolloverSchedule(NIGHTLY).create();
         final ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-        this.rolloverScheduler.activate();
+        startScheduler();
         Mockito.verify(this.scheduler).schedule(job.capture(), Mockito.any());
 
         try (ResourceResolver resolver = open()) {
@@ -287,18 +285,20 @@ class MetricRolloverSchedulerTest
     @Test
     void theJobSurvivesRollOverFailures() throws Exception
     {
+        final ResourceResolverFactory failing =
+            Mockito.mock(ResourceResolverFactory.class, AdditionalAnswers.delegatesTo(this.factory));
+        outrankTheContextFactory(failing);
         this.manager.createMetric("counted").withRolloverSchedule(NIGHTLY).create();
         final ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
-        this.rolloverScheduler.activate();
+        startScheduler();
         Mockito.verify(this.scheduler).schedule(job.capture(), Mockito.any());
 
         // The service user can no longer log in once the job has started
-        final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
-            .thenThrow(new LoginException("repository unavailable"));
-        inject(this.rolloverScheduler, "resolverFactory", broken);
+        Mockito.doThrow(new LoginException("repository unavailable"))
+            .when(failing).getServiceResourceResolver(Mockito.anyMap());
 
         assertDoesNotThrow(() -> job.getValue().run());
+        assertNull(this.manager.getMetric("counted").orElseThrow().getLastRollover());
     }
 
     private ResourceResolver open() throws Exception
@@ -306,10 +306,15 @@ class MetricRolloverSchedulerTest
         return this.factory.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, "metrics"));
     }
 
-    private void inject(final Object target, final String fieldName, final Object value) throws Exception
+    private MetricRolloverScheduler startScheduler()
     {
-        final Field reference = target.getClass().getDeclaredField(fieldName);
-        reference.setAccessible(true);
-        reference.set(target, value);
+        return this.context.registerInjectActivateService(MetricRolloverScheduler.class);
+    }
+
+    /** Have the scheduler started next reach the repository through the given factory instead of the context's. */
+    private void outrankTheContextFactory(final ResourceResolverFactory resolverFactory)
+    {
+        this.context.registerService(ResourceResolverFactory.class, resolverFactory,
+            Constants.SERVICE_RANKING, Integer.MAX_VALUE);
     }
 }

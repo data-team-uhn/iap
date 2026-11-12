@@ -17,14 +17,16 @@
  */
 package io.uhndata.iap.metrics.internal;
 
-import java.lang.reflect.Field;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.metrics.api.Metric;
@@ -40,21 +42,22 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * @version $Id$
  * @since 0.1.0
  */
+@ExtendWith(SlingContextExtension.class)
 class MetricsStatusReporterTest
 {
     private static final ZonedDateTime RESET_DATE = ZonedDateTime.of(2026, 7, 20, 8, 30, 0, 0, ZoneOffset.UTC);
+
+    private final SlingContext context = new SlingContext();
 
     private final MetricsManager manager = Mockito.mock(MetricsManager.class);
 
     private MetricsStatusReporter reporter;
 
     @BeforeEach
-    void setUp() throws Exception
+    void setUp()
     {
-        this.reporter = new MetricsStatusReporter();
-        final Field reference = MetricsStatusReporter.class.getDeclaredField("metricsManager");
-        reference.setAccessible(true);
-        reference.set(this.reporter, this.manager);
+        this.context.registerService(MetricsManager.class, this.manager);
+        this.reporter = this.context.registerInjectActivateService(MetricsStatusReporter.class);
     }
 
     @Test

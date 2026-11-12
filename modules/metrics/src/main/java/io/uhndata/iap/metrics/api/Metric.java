@@ -105,7 +105,8 @@ public interface Metric
     /**
      * The category that groups this metric with related ones in reports.
      *
-     * @return a category name, such as {@code Submissions}; {@code null} if this metric has no category
+     * @return a category name, such as {@code Submissions}; {@code null} if this metric has no category, or a
+     *         blank one
      */
     @Nullable
     String getCategory();
