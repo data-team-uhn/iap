@@ -35,6 +35,13 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class WorkflowEvent
 {
+    /**
+     * What marks an event sent to a host as a message for a task waiting there, rather than an event for the host's
+     * system workflows: {@code message.assessmentReady} carries the {@code assessmentReady} message. The marker keeps
+     * the two apart, so a message can never be taken for a system workflow's event, or the other way round.
+     */
+    public static final String MESSAGE_PREFIX = "message.";
+
     private final String name;
 
     private final Map<String, Object> payload;
@@ -61,6 +68,17 @@ public final class WorkflowEvent
     public String getName()
     {
         return this.name;
+    }
+
+    /**
+     * The message this event carries, when its name is marked as one with the {@link #MESSAGE_PREFIX}.
+     *
+     * @return the message's name without the marker, or {@code null} if this event is not marked as a message
+     */
+    @Nullable
+    public String getMarkedMessage()
+    {
+        return this.name.startsWith(MESSAGE_PREFIX) ? this.name.substring(MESSAGE_PREFIX.length()) : null;
     }
 
     /**

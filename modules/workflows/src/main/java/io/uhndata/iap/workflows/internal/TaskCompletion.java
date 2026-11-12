@@ -200,7 +200,7 @@ public class TaskCompletion
             throws WorkflowException, PersistenceException
         {
             final String message = definition.getMessageName();
-            if (!event.getName().equals(message)) {
+            if (!event.getName().equals(message) && !event.getName().equals(WorkflowEvent.MESSAGE_PREFIX + message)) {
                 throw new NoApplicableWorkflowException(this.task.getPath() + " waits for the " + message
                     + " message, not for a " + event.getName() + " event");
             }

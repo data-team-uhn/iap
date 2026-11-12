@@ -114,8 +114,18 @@ final class PerformerCheck
     void verify(final List<String> admitted, final Resource subject) throws WorkflowException
     {
         if (!admits(admitted, subject)) {
-            throw new NotAuthorizedException(REFUSAL_MESSAGE);
+            throw refusal();
         }
+    }
+
+    /**
+     * The refusal an actor gets when nothing they asked for admits them, in the same words whatever the reason.
+     *
+     * @return the exception to throw
+     */
+    NotAuthorizedException refusal()
+    {
+        return new NotAuthorizedException(REFUSAL_MESSAGE);
     }
 
     /**
@@ -149,6 +159,25 @@ final class PerformerCheck
         if (this.authorizable instanceof User && ((User) this.authorizable).isAdmin()) {
             return true;
         }
+        return names(admitted, subject);
+    }
+
+    /**
+     * Whether the node names the actor, directly or through a group they belong to, leaving aside the pass an
+     * administrator has everywhere. Where several nodes admit an administrator, this tells which of them meant them.
+     *
+     * @param node a flow node
+     * @param subject the resource being worked on, whose creator {@code @creator} names
+     * @return {@code true} if the node's performers include the actor
+     * @throws WorkflowFailedException when the actor's group membership cannot be read
+     */
+    boolean names(final FlowNode node, final Resource subject) throws WorkflowFailedException
+    {
+        return this.authorizable != null && names(node.getPerformers(), subject);
+    }
+
+    private boolean names(final List<String> admitted, final Resource subject) throws WorkflowFailedException
+    {
         final List<String> resolved = this.performers.resolve(admitted, subject);
         Boolean member = this.memberships.get(resolved);
         if (member == null) {

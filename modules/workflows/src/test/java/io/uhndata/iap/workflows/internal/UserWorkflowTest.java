@@ -58,6 +58,7 @@ import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.ExclusiveGateway;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.IntermediateThrowingEvent;
+import io.uhndata.iap.workflows.models.ParallelGateway;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
@@ -116,7 +117,16 @@ class UserWorkflowTest
     /** The task an instance waits on at the catching event before its approval. */
     private static final String WAIT = HOST + "/wf:instances/timeOffRequest/" + ASSESSED;
 
+    private static final String REASSESSED = "reassessed";
+
+    /** The task a second catching event, on another branch, waits on for the same message. */
+    private static final String SECOND_WAIT = HOST + "/wf:instances/timeOffRequest/" + REASSESSED;
+
     private static final WorkflowEvent ASSESSMENT_READY = new WorkflowEvent("assessmentReady", Map.of());
+
+    /** The assessment, sent to the host rather than to the task waiting for it. */
+    private static final WorkflowEvent ASSESSMENT_SENT_TO_HOST =
+        new WorkflowEvent(WorkflowEvent.MESSAGE_PREFIX + ASSESSMENT_READY.getName(), Map.of());
 
     private static final String MESSAGE_NAME = "messageName";
 
@@ -638,6 +648,24 @@ class UserWorkflowTest
     }
 
     /**
+     * Replaces what follows the start of the process with a fork into two branches. Each waits for the assessment at
+     * a catching event of its own, the {@link #WAIT} and the {@link #SECOND_WAIT}, and then ends.
+     *
+     * @param assessedSender who may send the message the first wait is for
+     * @param reassessedSender who may send the message the second wait is for
+     */
+    private void waitTwiceForAssessment(final String assessedSender, final String reassessedSender)
+    {
+        EngineFixture.modify(this.context, PROCESS + "/requestSubmitted/toApproval").put(TARGET_REF, "fork");
+        this.context.create().resource(PROCESS + "/fork", Map.of(
+            TYPE, ParallelGateway.RESOURCE_TYPE, ELEMENT_ID, "fork"));
+        addNode(PROCESS + "/fork", PROCESS + "/" + ASSESSED, catchingAssessment(assessedSender));
+        addNode(PROCESS + "/fork", PROCESS + "/" + REASSESSED, catchingAssessment(reassessedSender));
+        addEnd(PROCESS + "/" + ASSESSED, PROCESS + "/assessedEnd");
+        addEnd(PROCESS + "/" + REASSESSED, PROCESS + "/reassessedEnd");
+    }
+
+    /**
      * A catching event waiting for the assessment.
      *
      * @param sender who may send the message it waits for
@@ -1129,6 +1157,127 @@ class UserWorkflowTest
         started();
 
         assertTrue(EngineFixture.GRANTED.contains(EngineFixture.ADMIN));
+    }
+
+    @Test
+    void deliversAMessageSentToTheHostToTheTaskWaitingForIt() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitForAssessmentBeforeApproval(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(host(EngineFixture.REQUESTER), ASSESSMENT_SENT_TO_HOST);
+
+        assertEquals("completed", read(WAIT).get(STATUS));
+        assertEquals("created", read(TASK).get(STATUS));
+    }
+
+    @Test
+    void leavesAnEventNotMarkedAsAMessageToTheHostsSystemWorkflows() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitForAssessmentBeforeApproval(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        assertThrows(NoApplicableWorkflowException.class,
+            () -> engine.receiveEvent(host(EngineFixture.REQUESTER), ASSESSMENT_READY));
+        assertEquals("created", read(WAIT).get(STATUS));
+    }
+
+    @Test
+    void refusesAMessageNothingOnTheHostWaitsFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        final NoApplicableWorkflowException refusal = assertThrows(NoApplicableWorkflowException.class,
+            () -> engine.receiveEvent(host(EngineFixture.REQUESTER), ASSESSMENT_SENT_TO_HOST));
+        assertTrue(refusal.getMessage().contains("waits for the assessmentReady message"));
+    }
+
+    @Test
+    void tellsTwoTasksWaitingForOneMessageApartByWhoMaySendIt() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitTwiceForAssessment(EngineFixture.ADMIN, EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(host(EngineFixture.REQUESTER), ASSESSMENT_SENT_TO_HOST);
+
+        assertEquals("created", read(WAIT).get(STATUS));
+        assertEquals("completed", read(SECOND_WAIT).get(STATUS));
+    }
+
+    @Test
+    void findsTheTaskThatNamesAnAdministratorAmongOthersThatOnlyLetThemThrough() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitTwiceForAssessment(EngineFixture.ADMIN, EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(host(EngineFixture.ADMIN), ASSESSMENT_SENT_TO_HOST);
+
+        assertEquals("completed", read(WAIT).get(STATUS));
+        assertEquals("created", read(SECOND_WAIT).get(STATUS));
+    }
+
+    @Test
+    void refusesAnAdministratorWhenSeveralTasksLetThemThroughAndNoneNamesThem() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitTwiceForAssessment(EngineFixture.REQUESTERS, EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        assertThrows(InvalidStateException.class,
+            () -> engine.receiveEvent(host(EngineFixture.ADMIN), ASSESSMENT_SENT_TO_HOST));
+    }
+
+    @Test
+    void refusesAMessageSentToTheHostWhenSeveralTasksWaitForItFromTheSender() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitTwiceForAssessment(EngineFixture.REQUESTERS, EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        final InvalidStateException refusal = assertThrows(InvalidStateException.class,
+            () -> engine.receiveEvent(host(EngineFixture.REQUESTER), ASSESSMENT_SENT_TO_HOST));
+        assertTrue(refusal.getMessage().contains(WAIT));
+        assertTrue(refusal.getMessage().contains(SECOND_WAIT));
+        assertEquals("created", read(WAIT).get(STATUS));
+    }
+
+    @Test
+    void refusesAMessageSentToTheHostBySomeoneNoWaitingTaskNames() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitForAssessmentBeforeApproval(EngineFixture.ADMIN);
+        final WorkflowEngine engine = started();
+
+        assertThrows(NotAuthorizedException.class,
+            () -> engine.receiveEvent(host(EngineFixture.REQUESTER), ASSESSMENT_SENT_TO_HOST));
+        assertEquals("created", read(WAIT).get(STATUS));
+    }
+
+    @Test
+    void offersTheMessagesTasksWaitForAmongTheHostsEvents() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitForAssessmentBeforeApproval(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        assertTrue(engine.getAvailableEvents(host(EngineFixture.REQUESTER))
+            .contains(ASSESSMENT_SENT_TO_HOST.getName()));
+    }
+
+    @Test
+    void doesNotOfferAMessageSeveralTasksWaitForFromTheSameSender() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitTwiceForAssessment(EngineFixture.REQUESTERS, EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        assertFalse(engine.getAvailableEvents(host(EngineFixture.REQUESTER))
+            .contains(ASSESSMENT_SENT_TO_HOST.getName()));
     }
 
     @Test

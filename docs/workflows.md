@@ -290,10 +290,11 @@ as sending it would:
   resource in its current state. On a task, the event that completes it while it is open
   and its `performers` admit the user: `complete`, or the message a catching event waits
   for. Anywhere else, the message of every system start event for the resource's type
-  whose guard holds and whose `performers` admit them. Over HTTP it is the `events`
-  serialization processor, off by default: `GET /Schemas.1.simple.events.json` adds
-  `@events` to the homepage and to each schema, so a listing learns its rows' actions in
-  one request.
+  whose guard holds and whose `performers` admit them, and each message a task on the
+  resource waits for from the user, with its `message.` prefix. Over HTTP it is the
+  `events` serialization processor, off by default: `GET
+  /Schemas.1.simple.events.json` adds `@events` to the homepage and to each schema, so a
+  listing learns its rows' actions in one request.
 - **`findApplicableWorkflow(resource, event)`** — which system workflow would handle an
   event, to read what sending it would do. It is chosen through the engine's own
   session, since a guard may read content the user cannot, and returned through the
@@ -938,6 +939,24 @@ get read access with everyone else the process involves, so they can reach the t
 catching event that names no message cannot be activated, since nothing could wake a
 token there.
 
+**A message can also be sent to the host,** for a sender that knows the resource a
+workflow runs over but not where its task sits. Its name carries the `message.` prefix:
+`POST <host>.message.assessmentReady.json` sends `assessmentReady`. An event without the
+prefix is for the host's system workflows, so the two can never be confused. Of the open
+tasks on the host waiting for the message, those admitting the sender are candidates.
+Where several are, those whose `performers` name the sender come first, so an
+administrator still finds the task meant for them.
+
+| Candidates | Result |
+| --- | --- |
+| One | It takes the message |
+| Several | Refused (409), naming the tasks to send it to instead |
+| None, though tasks wait for it | Refused (403) |
+| No task waits for it | Refused (409) |
+
+A host lists a message among its available events, prefix included, only where sending
+it would find exactly one task for the asking user.
+
 **A decision can be written down as a review.** A `recordReview` service task placed
 directly after the user task that decides records a `sub:Review` of the approval
 requirement its `requirement` names: by whoever completed the task, tagged with the
@@ -1044,8 +1063,14 @@ each completed on its own.
   that delivery.
 - **Event-based gateways are not executed,** a free-standing timer catch is refused, and
   a thrown message becomes a notification, never an event for another workflow.
+- **An event a workflow sends never reaches a waiting task.** `sendEvent` and
+  `callActivity` hand it to the target's system workflows only, so a message sent to a
+  host that way is refused even when a task there waits for it.
 - **A message's `outcome` is not checked.** A catching event's task offers no outcomes,
   yet one sent with the message is written to the history as the task's decision.
+- **A message reaches a host only where its type is under workflow control.** The event
+  servlet is registered for the types some system workflow targets, so a host with
+  content workflows and no system workflow of its own takes messages only at its tasks.
 - **Read access is never revoked.** It lasts for the life of the instance rather than
   while a task is open.
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created
