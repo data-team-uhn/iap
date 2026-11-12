@@ -19,9 +19,7 @@
 import { getURLParameters, loadAsset, LazyAsset } from '@iap/frontend-commons/assetManager';
 import { readJson } from '@iap/frontend-commons/requestFailure';
 
-// One `ext:Extension`, as the server serializes it. Each extension point gives its extensions
-// properties of its own.
-type Extension = Record<string, unknown>;
+import { type Extension } from './ExtensionList';
 
 // The enabled extensions of an extension point, in their `defaultOrder`, as the server serializes them.
 //

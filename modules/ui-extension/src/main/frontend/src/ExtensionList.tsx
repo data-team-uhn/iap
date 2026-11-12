@@ -18,7 +18,9 @@
 
 import { type ComponentType } from "react";
 
-// One `ext:Extension`, with its `asset:` properties loaded
+// One `ext:Extension`, as the server serializes it. Each extension point gives its extensions
+// properties of its own. Once `loadExtensions` has loaded them, the asset each `asset:` property names
+// sits under that property's name without a final `URL`.
 type Extension = Record<string, unknown>;
 
 // Each extension's `ext:render` component, in the order given. A component gets its extension as the
