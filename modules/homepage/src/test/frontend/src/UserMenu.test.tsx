@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import UserMenu from "@iap/homepage/UserMenu";
 import { STORE_KEY, getActivePersona } from "@iap/ui-extension/personas";
@@ -30,6 +30,9 @@ const stubUserEndpoints = (userId: string, userProperties: Record<string, unknow
     json: () => Promise.resolve(
       url.endsWith("sessionInfo.json") ? { userID: userId } : userProperties),
   } as unknown as Response)));
+
+// Lets the menu finish with what the session reported, which reaches it through a chain of promises
+const sessionRead = () => act(() => new Promise<void>(resolve => { setTimeout(resolve, 0); }));
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -95,16 +98,17 @@ describe("UserMenu", () => {
     } as unknown as Response)));
 
     const { container } = render(<UserMenu />);
+    await sessionRead();
 
-    await waitFor(() => { expect(container).toBeEmptyDOMElement(); });
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("shows no initials for a user whose name is all whitespace", async () => {
     stubUserEndpoints("   ", { displayName: "   " });
 
-    const { container } = render(<UserMenu />);
+    render(<UserMenu />);
 
-    await waitFor(() => { expect(container).toBeEmptyDOMElement(); });
+    expect((await screen.findByRole("button", { name: "Account:" })).textContent).toBe("");
   });
 
   it("reports a failure to identify the user, and renders nothing", async () => {

@@ -34,10 +34,11 @@ const views = [
   { "ext:name": "Dashboard", "ext:targetURL": "/" },
   { "ext:name": "Administration", "ext:targetURL": "/admin" },
   { "ext:name": "Submission categories", "ext:targetURL": "/admin/categories" },
-  // A splat with no page of its own, and a splat beside the page it details
+  // A splat with no page of its own, and a splat beside the page it details. The splat comes
+  // first, so that a trail taking the first view matching an ancestor would name it.
   { "ext:name": "Submission", "ext:targetURL": "/Submissions/*" },
-  { "ext:name": "Archive", "ext:targetURL": "/admin/archive" },
   { "ext:name": "Archive entry", "ext:targetURL": "/admin/archive/*" },
+  { "ext:name": "Archive", "ext:targetURL": "/admin/archive" },
 ];
 
 const renderAt = (url: string) => render(
