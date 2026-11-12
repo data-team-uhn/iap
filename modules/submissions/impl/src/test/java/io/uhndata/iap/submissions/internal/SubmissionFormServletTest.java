@@ -76,6 +76,7 @@ import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.schemas.models.ValidationRequirement;
 import io.uhndata.iap.submissions.internal.describers.ApprovalRequirementDescriber;
 import io.uhndata.iap.submissions.internal.describers.DocumentRequirementDescriber;
 import io.uhndata.iap.submissions.internal.describers.FormRequirementDescriber;
@@ -139,6 +140,12 @@ class SubmissionFormServletTest
 
     private static final String EXTRACTED = "extracted";
 
+    private static final String CONFIRMS_CATEGORY = "confirmsCategory";
+
+    private static final String DOCTORS_NOTE = "doctorsNote";
+
+    private static final String REQUIREMENTS = "requirements";
+
     private static final String PROVENANCE = "provenance";
 
     /** The schema parts these tests hide, by name; everything else applies. */
@@ -157,8 +164,8 @@ class SubmissionFormServletTest
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
             Section.class, Question.class, AnswerOption.class, Answer.class, Document.class, DocumentVersion.class,
-            File.class, Review.class, Submission.class, ClassificationRequirement.class, Extraction.class,
-            Context.class);
+            File.class, Review.class, Submission.class, ClassificationRequirement.class,
+            ValidationRequirement.class, Extraction.class, Context.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -316,7 +323,7 @@ class SubmissionFormServletTest
     @Test
     void leavesOutAWholeRequirementThatDoesNotApply() throws IOException
     {
-        this.hidden.add("doctorsNote");
+        this.hidden.add(DOCTORS_NOTE);
         this.hidden.add("signedForm");
         this.hidden.add(APPROVAL);
 
@@ -331,9 +338,9 @@ class SubmissionFormServletTest
 
         final JsonObject form = form(REQUESTER);
 
-        assertEquals(Set.of(DETAILS, "doctorsNote", "signedForm", APPROVAL),
+        assertEquals(Set.of(DETAILS, DOCTORS_NOTE, "signedForm", APPROVAL),
             names(form.getJsonArray("requirements")));
-        final JsonObject note = requirement(form, "doctorsNote");
+        final JsonObject note = requirement(form, DOCTORS_NOTE);
         assertEquals(DocumentRequirement.RESOURCE_TYPE, note.getString("type"));
         assertEquals("Doctor's note", note.getString("label"));
         // Nothing of the kind's own, because nothing claimed it
@@ -348,7 +355,7 @@ class SubmissionFormServletTest
         this.servlet.setDescribers(withBuiltins(new FailingDescriber(fault)));
         final ErrorLoggerService recorder = recordInto();
         try {
-            final JsonObject note = requirement(form(REQUESTER), "doctorsNote");
+            final JsonObject note = requirement(form(REQUESTER), DOCTORS_NOTE);
 
             assertTrue(note.containsKey("acceptedFileTypes"), "the other describers still ran");
             assertFalse(note.containsKey(FailingDescriber.HALF_WRITTEN_KEY), "what it wrote before failing is dropped");
@@ -369,9 +376,9 @@ class SubmissionFormServletTest
         try {
             final JsonObject form = form(REQUESTER);
 
-            assertEquals(Set.of(DETAILS, "doctorsNote", "signedForm", APPROVAL),
+            assertEquals(Set.of(DETAILS, DOCTORS_NOTE, "signedForm", APPROVAL),
                 names(form.getJsonArray("requirements")));
-            assertTrue(requirement(form, "doctorsNote").containsKey("acceptedFileTypes"));
+            assertTrue(requirement(form, DOCTORS_NOTE).containsKey("acceptedFileTypes"));
             Mockito.verify(recorder, Mockito.atLeastOnce()).logError(Mockito.any(IllegalStateException.class),
                 Mockito.any(ErrorContext.class));
         } finally {
@@ -384,7 +391,7 @@ class SubmissionFormServletTest
     {
         this.servlet.setDescribers(withBuiltins(new KeyWriter("description", "Worded by its kind")));
 
-        assertEquals("Worded by its kind", requirement(form(REQUESTER), "doctorsNote").getString("description"));
+        assertEquals("Worded by its kind", requirement(form(REQUESTER), DOCTORS_NOTE).getString("description"));
     }
 
     @Test
@@ -392,13 +399,13 @@ class SubmissionFormServletTest
     {
         this.servlet.setDescribers(List.of(new KeyWriter("shade", "first"), new KeyWriter("shade", "last")));
 
-        assertEquals("last", requirement(form(REQUESTER), "doctorsNote").getString("shade"));
+        assertEquals("last", requirement(form(REQUESTER), DOCTORS_NOTE).getString("shade"));
     }
 
     @Test
     void describesRequirementsThatHoldNoQuestions() throws IOException
     {
-        final JsonObject note = requirement(form(REQUESTER), "doctorsNote");
+        final JsonObject note = requirement(form(REQUESTER), DOCTORS_NOTE);
 
         assertEquals(DocumentRequirement.RESOURCE_TYPE, note.getString("type"));
         assertEquals("Doctor's note", note.getString("label"));
@@ -419,7 +426,7 @@ class SubmissionFormServletTest
         final JsonObject form = form(REQUESTER);
 
         // A requirement without the flag is required, and the form says so
-        assertTrue(requirement(form, "doctorsNote").getBoolean("required"));
+        assertTrue(requirement(form, DOCTORS_NOTE).getBoolean("required"));
         assertFalse(requirement(form, "sponsorLetter").getBoolean("required"));
         // Only document requirements carry the key. Each question of a form says whether it is required.
         assertFalse(requirement(form, DETAILS).containsKey("required"));
@@ -433,7 +440,7 @@ class SubmissionFormServletTest
         reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
         uploaded(document);
 
-        final JsonObject attached = requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached")
+        final JsonObject attached = requirement(form(REQUESTER), DOCTORS_NOTE).getJsonArray("attached")
             .getJsonObject(0);
         assertEquals("note.pdf", attached.getString("title"));
     }
@@ -453,7 +460,7 @@ class SubmissionFormServletTest
                 Map.of("jcr:primaryType", "nt:file"));
         }
 
-        assertEquals(document.getPath() + "/new/file/uploadedFile", requirement(form(REQUESTER), "doctorsNote")
+        assertEquals(document.getPath() + "/new/file/uploadedFile", requirement(form(REQUESTER), DOCTORS_NOTE)
             .getJsonArray("attached").getJsonObject(0).getString("path"));
     }
 
@@ -464,7 +471,7 @@ class SubmissionFormServletTest
             TYPE, Document.RESOURCE_TYPE, "title", "empty"));
         reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
 
-        assertEquals(0, requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").size());
+        assertEquals(0, requirement(form(REQUESTER), DOCTORS_NOTE).getJsonArray("attached").size());
     }
 
     @Test
@@ -476,7 +483,7 @@ class SubmissionFormServletTest
         reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
         uploaded(document);
 
-        assertEquals("d2", requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").getJsonObject(0)
+        assertEquals("d2", requirement(form(REQUESTER), DOCTORS_NOTE).getJsonArray("attached").getJsonObject(0)
             .getString("title"));
     }
 
@@ -488,7 +495,7 @@ class SubmissionFormServletTest
         reference(document.getPath(), VERSION_PATH + "/signedForm", "fulfills");
         uploaded(document);
 
-        assertTrue(requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").isEmpty());
+        assertTrue(requirement(form(REQUESTER), DOCTORS_NOTE).getJsonArray("attached").isEmpty());
         assertFalse(requirement(form(REQUESTER), "signedForm").getJsonArray("attached").isEmpty());
     }
 
@@ -498,7 +505,7 @@ class SubmissionFormServletTest
         this.context.create().resource(SUBMISSION_PATH + "/d4", Map.of(
             TYPE, Document.RESOURCE_TYPE, "title", "stray.pdf"));
 
-        assertTrue(requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").isEmpty());
+        assertTrue(requirement(form(REQUESTER), DOCTORS_NOTE).getJsonArray("attached").isEmpty());
     }
 
     @Test
@@ -692,7 +699,7 @@ class SubmissionFormServletTest
     @Test
     void leavesOutADecisionOnAnotherRequirement() throws IOException
     {
-        about(review("r1", APPROVER, 27, Submission.APPROVED_TAG), "doctorsNote");
+        about(review("r1", APPROVER, 27, Submission.APPROVED_TAG), DOCTORS_NOTE);
 
         assertFalse(requirement(form(REQUESTER), APPROVAL).containsKey(DECISION));
     }
@@ -715,13 +722,27 @@ class SubmissionFormServletTest
     }
 
     @Test
-    void saysWhetherAnythingReadsTheDocuments() throws IOException
+    void saysAFormNamingItsDocumentsReadsThem() throws IOException
     {
         assertFalse(form(REQUESTER).getBoolean("readsDocuments"));
 
-        modify(VERSION_PATH, "readingWorkflow", "a-reading-workflow");
+        modify(VERSION_PATH + "/" + DETAILS, "documents", new String[] {DOCTORS_NOTE});
 
         assertTrue(form(REQUESTER).getBoolean("readsDocuments"));
+    }
+
+    // A model decides it and nobody fills it in, so it reads the documents but is not shown
+    @Test
+    void saysAValidationReadsTheDocumentsWithoutShowingIt() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/isNote", Map.of(
+            TYPE, ValidationRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Is it a note?",
+            "prompt", "Is this a doctor's note?", "document", DOCTORS_NOTE));
+
+        final JsonObject form = form(REQUESTER);
+
+        assertTrue(form.getBoolean("readsDocuments"));
+        assertFalse(names(form.getJsonArray(REQUIREMENTS)).contains("isNote"));
     }
 
     @Test
@@ -786,17 +807,28 @@ class SubmissionFormServletTest
         this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/when/returning", Map.of(
             TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Returning?",
             "extractionPrompt", "When does the leave end?"));
+        assertFalse(requirement(form(REQUESTER), DETAILS).getBoolean(EXTRACTED), "no document to read it from");
+
+        modify(VERSION_PATH + "/" + DETAILS, "documents", new String[] {DOCTORS_NOTE});
         assertTrue(requirement(form(REQUESTER), DETAILS).getBoolean(EXTRACTED));
     }
 
     @Test
-    void saysAModelFillsInAClassification() throws IOException
+    void saysWhichFormHoldsTheCategoryToConfirm() throws IOException
     {
+        this.context.create().resource(VERSION_PATH + "/notes", Map.of(
+            TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Notes"));
         this.context.create().resource(VERSION_PATH + "/kind", Map.of(
             TYPE, ClassificationRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Kind of leave",
-            "prompt", "What kind of leave is this?", "document", "doctorsNote"));
+            "prompt", "What kind of leave is this?", "document", DOCTORS_NOTE));
+        assertFalse(requirement(form(REQUESTER), DETAILS).getBoolean(CONFIRMS_CATEGORY), "it names no question");
 
-        assertTrue(requirement(form(REQUESTER), "kind").getBoolean(EXTRACTED));
+        reference(VERSION_PATH + "/kind", VERSION_PATH + "/" + START_DATE, "question");
+        final JsonObject form = form(REQUESTER);
+
+        assertTrue(requirement(form, DETAILS).getBoolean(CONFIRMS_CATEGORY));
+        assertFalse(requirement(form, "notes").getBoolean(CONFIRMS_CATEGORY));
+        assertFalse(names(form.getJsonArray(REQUIREMENTS)).contains("kind"), "the submitter confirms it in its form");
     }
 
     @Test

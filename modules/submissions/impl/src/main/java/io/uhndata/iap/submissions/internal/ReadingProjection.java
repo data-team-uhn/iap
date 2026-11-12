@@ -22,6 +22,8 @@ import java.util.Optional;
 import jakarta.json.Json;
 import jakarta.json.JsonObjectBuilder;
 
+import io.uhndata.iap.schemas.models.DecisionRequirement;
+import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Submission;
 
@@ -34,9 +36,6 @@ import io.uhndata.iap.submissions.models.Submission;
  */
 final class ReadingProjection
 {
-    /** The schema version property naming the workflow that reads its documents. */
-    private static final String READING_WORKFLOW_PROPERTY = "readingWorkflow";
-
     private static final String STATUS_PROPERTY = "extractionStatus";
 
     private static final String MESSAGE_PROPERTY = "extractionMessage";
@@ -53,14 +52,16 @@ final class ReadingProjection
     }
 
     /**
-     * Whether the schema version names a workflow that reads its documents.
+     * Whether a model reads the uploads: the schema version checks them with a validation or a classification, or
+     * has a form that names the documents it is read from.
      *
      * @param version the schema version
      * @return {@code true} when uploads are read for answers
      */
     static boolean isReadingDocuments(final SchemaVersion version)
     {
-        return version.get(READING_WORKFLOW_PROPERTY, String.class) != null;
+        return version.getRequirements().stream().anyMatch(requirement -> requirement instanceof DecisionRequirement
+            || requirement instanceof final FormRequirement form && !form.getDocumentRequirementNames().isEmpty());
     }
 
     /**

@@ -41,6 +41,7 @@ import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
@@ -62,6 +63,9 @@ public class FormRequirementDescriber implements RequirementDescriber
 
     /** Whether a model fills the form in from an uploaded document. */
     private static final String EXTRACTED_KEY = "extracted";
+
+    /** Whether the form holds the category a classification suggests, which the submitter confirms first. */
+    private static final String CONFIRMS_CATEGORY_KEY = "confirmsCategory";
 
     /** Where a question's suggested answer came from, present only when a reading found one. */
     private static final String PROVENANCE_KEY = "provenance";
@@ -114,18 +118,37 @@ public class FormRequirementDescriber implements RequirementDescriber
         final FormRequirement form = (FormRequirement) requirement;
         json.add(ITEMS_KEY, new ItemsWriter(submission).items(form.getChildren(), requirement.getName()));
         json.add(EXTRACTED_KEY, isExtracted(form));
+        json.add(CONFIRMS_CATEGORY_KEY, isConfirmingCategory(form, submission));
     }
 
     /**
-     * Whether a model fills this form in from an uploaded document: a classification always, any other form when
-     * one of its questions, at any depth, says how to ask a model.
+     * Whether a model fills this form in from an uploaded document: the form names the documents to read, and one
+     * of its questions, at any depth, says how to ask a model.
      *
      * @param form the form requirement
      * @return {@code true} when a reading answers something here
      */
     private static boolean isExtracted(final FormRequirement form)
     {
-        return form instanceof ClassificationRequirement || hasExtractionPrompt(form.getChildren());
+        return !form.getDocumentRequirementNames().isEmpty() && hasExtractionPrompt(form.getChildren());
+    }
+
+    /**
+     * Whether this form holds the question a classification picks a category for. The submitter confirms it
+     * before the rest of the request is read, since the category decides which forms apply.
+     *
+     * @param form the form requirement
+     * @param submission the submission whose form is being served
+     * @return {@code true} when a classification's question is in this form
+     */
+    private static boolean isConfirmingCategory(final FormRequirement form, final Submission submission)
+    {
+        final String inside = form.getPath() + "/";
+        final SchemaVersion version = submission.findSchemaVersion();
+        return version != null && version.getRequirements().stream()
+            .filter(ClassificationRequirement.class::isInstance)
+            .map(classification -> ((ClassificationRequirement) classification).getQuestion())
+            .anyMatch(question -> question != null && question.getPath().startsWith(inside));
     }
 
     private static boolean hasExtractionPrompt(final List<FormItem> children)

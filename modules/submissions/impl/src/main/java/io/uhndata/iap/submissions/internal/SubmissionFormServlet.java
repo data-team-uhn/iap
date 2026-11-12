@@ -45,6 +45,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.schemas.models.DecisionRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.internal.describers.FormKeys;
@@ -141,6 +142,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         final List<RequirementDescriber> current = Objects.requireNonNullElse(this.describers, List.of());
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
         version.getRequirements().stream()
+            // A model makes these decisions and nobody fills them in; the category is confirmed in its own form
+            .filter(requirement -> !(requirement instanceof DecisionRequirement))
             .filter(requirement -> this.applies(requirement, submission))
             .forEach(requirement -> requirements.add(requirement(requirement, submission, current)));
         final JsonObjectBuilder json = Json.createObjectBuilder()
