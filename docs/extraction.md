@@ -89,7 +89,9 @@ says which class does the work, who calls it, and what it checks.
  extracted (system workflow)
    recordExtraction --- save every answer as a suggestion; done; release the claim
 
- Read again still queues the older reading:
+ Read again runs the first step not done yet (see "Read again" below).
+
+ The older reading, which nothing queues any more (step 8 of the plan removes it):
  ExtractAnswersJobConsumer (background, one job at a time)
    every parse settled? -- no: try again later
    claim the reading ----- another job has it: stop
@@ -967,7 +969,7 @@ only while it is a draft. An administrator who is not the submitter is refused.
 | Event | Handler | What it does |
 | --- | --- | --- |
 | `stopProcessing` | `StopProcessingHandler` | Stops a parse or a reading that is in progress |
-| `readAgain` | `ReadAgainHandler` | Runs the reading again over the documents already parsed, asking every question the submitter has not answered. Refused when the schema names no reading workflow. |
+| `readAgain` | `ReadAgainHandler` | Runs the first step not done yet: the document checks, or the main extraction for the questions never read. Refused while a category is unconfirmed, after a rejected document, or when every question was read. |
 | `retryParse` | `ParseDocumentsHandler` | Sends every upload that was never parsed or whose parse failed, when the schema names a reading workflow that can run |
 | `reviewExtraction` | `ReviewExtractionHandler` | Records that the quotes behind a suggestion do not support it. Refused when the newest run found nothing, since there is no evidence to reject. |
 
@@ -1027,21 +1029,27 @@ record depends on the Stop's own walk:
 
 ### Read again
 
-Refused with a 409 while `extractionStatus` is `running` ("This request is already being
-read"). Otherwise it sets `running`, removes the claim, and queues the same job that a
-parse queues (step 5), with the job property `requested=true`. The job is queued before
-this walk commits, so that property tells it to wait until it sees `running`.
+Read again runs the first step not done yet, so it picks up wherever a reading stopped,
+such as when the model could not be reached:
 
-Read again on the same version asks every question of each intake step that the
-submitter has not answered: a question with only a suggestion is asked again, and so is
-one whose value is empty. Each gets a new run, and the newest run is the one shown, even
-when it found nothing where an older run found something. A question the submitter
-answered is skipped.
+| What is saved | What Read again does |
+| --- | --- |
+| A validation or categorisation not made yet | Queues the document checks (`iap/extraction/decide`) |
+| Every decision made, a category not confirmed | Refused: "Confirm the category to continue" |
+| The category confirmed, some question never read | Queues the main extraction (`iap/extraction/main`), for the questions never read |
+| Every question read or answered | Refused: "Every question has been read already" |
 
-A newer version goes further: the first reading of it asks every question of an intake
-step, answered or not (see "A newer version"). The gate is different: a classification
-that already has a value or a pick is never asked again, because the pick decides the
-reading's route.
+It is refused (409) while `extractionStatus` is `running` ("This request is already
+being read"), and after a validation said `no`, with that message: the same document
+gets the same answer, so only a new one helps. The submission view hides the button
+then. Otherwise it sets `running`, removes the claim, and queues the job with the job
+property `requested=true`. The job is queued before this walk commits, so that property
+tells it to wait until it sees `running`. Next does the same for the main extraction
+(`ReadingRequests` holds what the two share).
+
+A question read once is not asked again, found or not: Read again asks only what was
+never read, such as the questions of a call that failed. Until re-uploads are decided, a
+question not yet read from a newer version of a document is asked too.
 
 ### Retry a failed parse
 
@@ -1210,7 +1218,8 @@ from the submission's own workflow, replaces the reading workflow each schema na
 | `RecordValidationHandler` | handler `recordValidation` | `validated` | `ExtractedAnswers.writeRun`, `ExtractionStatus`, `Validation.getOutcome` |
 | `RecordCategoryHandler` | handler `recordCategory` | `categorised` | `ExtractionFields.write` |
 | `FinishDecisionsHandler` | handler `finishDecisions` | `decided` | `ExtractionStatus` |
-| `QueueMainExtractionHandler` | handler `queueMainExtraction` | `runMainExtraction` | `DecisionChain.isCategoryConfirmed`, `FormsToRead`, `JobManager.addJob` |
+| `QueueMainExtractionHandler` | handler `queueMainExtraction` | `runMainExtraction` | `ReadingRequests`, `FormsToRead` |
+| `ReadingRequests` | component | `queueMainExtraction`, `readAgain` | `SubmitterAccess`, `DecisionChain.isCategoryConfirmed`, `JobManager.addJob` |
 | `MainExtractionJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingJobs.run`, `FormsToRead`, `FormReader.ask`, engine (`extracted`) |
 | `FormReader` | component | the main extraction job | `ReadingRuns.setFiles`, `ParsedDocuments`, `DocumentScan.join`, `AnswerIntakeService`, `ReferenceTemplates.readTemplate` |
 | `RecordExtractionHandler` | handler `recordExtraction` | `extracted` | `ExtractionFields.write`, `ExtractionStatus` |
@@ -1221,7 +1230,7 @@ from the submission's own workflow, replaces the reading workflow each schema na
 | `ClassifyDocumentHandler` | handler `classifyDocument` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, `ReferenceTemplates.readTemplate`, `ExtractionFields.getAnswered`, `.write` |
 | `IntakeAnswersHandler` | handler `intakeAnswers` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, or `DocumentText.readText` and `DocumentScan.join`, `ExtractionFields`, `Prompts` |
 | `FinishReadingHandler` | handler `finishReading` | a reading workflow | `ExtractionStatus` |
-| `ReadAgainHandler` | handler `readAgain` | `readAgain` | `JobManager.addJob` |
+| `ReadAgainHandler` | handler `readAgain` | `readAgain` | `ReadingRequests`, `DecisionChain`, `FormsToRead` |
 | `StopProcessingHandler` | handler `stopProcessing` | `stopProcessing` | `ReadingRuns.getFiles`, `.stop`, `JobManager.findJobs`, `.removeJobById`, `ParseControl.stopParse`, `ParseService.discardStaging` |
 | `ReviewExtractionHandler` | handler `reviewExtraction` | `reviewExtraction` | `Answer.getLatestExtraction` |
 | `AnswerIntakeService` | component | classify, intake | `LLMClientFactory`, `ExtractionPrompt.plan`, `DocumentReader.read` (which calls `ModelCall`, `ExtractionReply`, `DocumentScan.locate`) |
@@ -1413,10 +1422,11 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | `QueueMainExtractionHandler` | Service task `queueMainExtraction`: the submitter's Next; queues the main extraction once the category is confirmed |
 | `MainExtractionJobConsumer` | The background job that reads each form's open questions out of the documents it names |
 | `FormsToRead` | The forms the main extraction reads, their documents and their open questions |
+| `ReadingRequests` | What Next and Read again share: who may ask and when, and queueing the job |
 | `FormReader` | Asks the model one form's questions about its documents, joined under their labels when several |
 | `ExtractedForm` | What the model read for one form, as the job hands it to `recordExtraction` |
 | `RecordExtractionHandler` | Service task `recordExtraction`: saves every answer as a suggestion and ends the reading |
-| `ReadAgainHandler` | Service task `readAgain`: the submitter asks for the reading again; queues the same job |
+| `ReadAgainHandler` | Service task `readAgain`: the submitter asks for the reading again; queues the first step not done yet |
 | `ExtractAnswersJobConsumer` | The background job that fires `extractAnswers` once the schema's reading workflow can run |
 | `ReadingJob`, `ReadingJobs` | What one kind of reading job decides, and the steps every one shares: waiting for the parses, the claim, giving up, and a Stop |
 | `ClassifyDocumentHandler` | Service task `classifyDocument`: one call per document for the classification requirements that point at it; only sure picks are written as suggestions |

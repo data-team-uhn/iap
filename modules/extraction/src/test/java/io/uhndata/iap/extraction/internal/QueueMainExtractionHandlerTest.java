@@ -82,9 +82,13 @@ class QueueMainExtractionHandlerTest
         properties.put(ExtractionStatus.STATUS_PROPERTY, ExtractionStatus.STATUS_DONE);
         properties.put(ExtractionStatus.MESSAGE_PROPERTY, DecisionJobConsumer.CONFIRM_CATEGORY_MESSAGE);
         properties.put(ExtractionStatus.READING_CLAIMED_PROPERTY, true);
-        final Field field = QueueMainExtractionHandler.class.getDeclaredField("jobManager");
+        final ReadingRequests requests = new ReadingRequests();
+        final Field jobs = ReadingRequests.class.getDeclaredField("jobManager");
+        jobs.setAccessible(true);
+        jobs.set(requests, this.jobManager);
+        final Field field = QueueMainExtractionHandler.class.getDeclaredField("requests");
         field.setAccessible(true);
-        field.set(this.handler, this.jobManager);
+        field.set(this.handler, requests);
         Mockito.when(this.jobManager.addJob(Mockito.anyString(), Mockito.anyMap()))
             .thenReturn(Mockito.mock(Job.class));
     }

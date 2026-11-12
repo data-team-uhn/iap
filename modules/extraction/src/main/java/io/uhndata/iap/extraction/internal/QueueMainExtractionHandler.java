@@ -17,19 +17,14 @@
  */
 package io.uhndata.iap.extraction.internal;
 
-import java.util.Map;
-
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ValueMap;
-import org.apache.sling.event.jobs.JobManager;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.submissions.models.Submission;
-import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -37,7 +32,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 /**
  * Service task {@code queueMainExtraction}: the submitter clicked Next after confirming the category, so the
  * answers are read out of the documents. The reading is queued as a job ({@link MainExtractionJobConsumer}), with
- * the same claim, progress and Stop as the document checks, instead of running inside the request.
+ * the same claim, progress and Stop as the document checks ({@link ReadingRequests}).
  *
  * <p>It is refused while a reading runs, after a document was rejected, and until every category is confirmed,
  * since the category decides which forms apply. When no form has an open question, nothing is queued.</p>
@@ -54,7 +49,7 @@ public class QueueMainExtractionHandler implements ServiceTaskHandler
     private static final Logger LOGGER = LoggerFactory.getLogger(QueueMainExtractionHandler.class);
 
     @Reference
-    private JobManager jobManager;
+    private ReadingRequests requests;
 
     @Override
     public String getName()
@@ -67,31 +62,13 @@ public class QueueMainExtractionHandler implements ServiceTaskHandler
     {
         final Resource target = context.getTarget();
         final Submission submission = SubmissionFiles.getSubmission(target);
-        SubmitterAccess.checkMayChange(submission, context.getActor());
-        final ValueMap properties = target.getValueMap();
-        if (ExtractionStatus.isRunning(target)) {
-            throw new InvalidStateException("This request is already being read");
-        }
-        if (Boolean.TRUE.equals(properties.get(ExtractionStatus.BLOCKED_PROPERTY, Boolean.class))) {
-            // The validation said the upload is not what the request needs: only a new document helps
-            throw new InvalidStateException(
-                properties.get(ExtractionStatus.MESSAGE_PROPERTY, "This request cannot go on with these documents"));
-        }
-        if (!DecisionChain.isCategoryConfirmed(submission)) {
-            throw new InvalidStateException(DecisionJobConsumer.CONFIRM_CATEGORY_MESSAGE);
-        }
+        ReadingRequests.checkMayRead(target, submission, context.getActor());
+        ReadingRequests.checkCategoryConfirmed(submission);
         if (FormsToRead.getFormsToRead(submission).isEmpty()) {
             LOGGER.info("Nothing left to read: submission={}", target.getPath());
             return;
         }
-        ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_RUNNING, null);
-        // Otherwise the document checks' claim would turn the new job away
-        ExtractionStatus.releaseClaim(target);
-        // Queued before this walk commits, so the job is told to wait until it sees the `running` written above
-        if (this.jobManager.addJob(MainExtractionJobConsumer.JOB_TOPIC, Map.of(ReadingJobs.SUBMISSION_PROPERTY,
-            target.getPath(), ReadingJobs.REQUESTED_PROPERTY, Boolean.TRUE)) == null) {
-            throw new PersistenceException("The reading of " + target.getPath() + " could not be queued");
-        }
+        this.requests.queue(target, MainExtractionJobConsumer.JOB_TOPIC);
         LOGGER.info("Main extraction queued: submission={}", target.getPath());
     }
 }

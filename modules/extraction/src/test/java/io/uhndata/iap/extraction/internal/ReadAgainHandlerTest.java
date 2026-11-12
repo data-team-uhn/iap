@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Unit tests for {@link ReadAgainHandler}: when the submitter can ask for a new reading, and how it is queued.
+ * Unit tests for {@link ReadAgainHandler}: which step it runs again, and when the submitter may ask.
  *
  * @version $Id$
  * @since 0.1.0
@@ -59,28 +59,69 @@ class ReadAgainHandlerTest
 
     private final ReadAgainHandler handler = new ReadAgainHandler();
 
+    private SubmissionTree tree;
+
     private Resource submission;
+
+    private Resource category;
 
     @BeforeEach
     void setUp() throws Exception
     {
-        final SubmissionTree tree = new SubmissionTree(this.context);
-        tree.createSchemaVersion();
-        this.submission = tree.createSubmission();
+        this.tree = new SubmissionTree(this.context);
+        this.tree.createSchemaVersion();
+        this.submission = this.tree.createSubmission();
+        this.tree.createParsedFileFor(this.tree.createDocumentRequirement("proposal"),
+            "A study of sleep in shift workers.");
+        this.context.resourceResolver().getResource(SubmissionTree.FORM_PATH).adaptTo(ModifiableValueMap.class)
+            .put("documents", new String[] { "proposal" });
+        this.tree.createQuestion("title", "The study's full title.");
+        this.category = this.tree.createClassificationQuestion("study_kind", "proposal", "What kind of study?",
+            "interventional", "observational");
         final ModifiableValueMap properties = this.submission.adaptTo(ModifiableValueMap.class);
         properties.put(ExtractionStatus.STATUS_PROPERTY, ExtractionStatus.STATUS_FAILED);
-        properties.put(ExtractionStatus.MESSAGE_PROPERTY, "The model's answer could not be read");
+        properties.put(ExtractionStatus.MESSAGE_PROPERTY, "The model could not be reached");
         properties.put(ExtractionStatus.READING_CLAIMED_PROPERTY, true);
-        final Field field = ReadAgainHandler.class.getDeclaredField("jobManager");
-        field.setAccessible(true);
-        field.set(this.handler, this.jobManager);
+        final ReadingRequests requests = new ReadingRequests();
+        inject(requests, "jobManager", this.jobManager);
+        inject(this.handler, "requests", requests);
         Mockito.when(this.jobManager.addJob(Mockito.anyString(), Mockito.anyMap()))
             .thenReturn(Mockito.mock(Job.class));
+    }
+
+    private static void inject(final Object component, final String name, final Object value) throws Exception
+    {
+        final Field field = component.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(component, value);
+    }
+
+    private Resource answer(final Resource question, final String value)
+    {
+        final Resource answer = this.context.create().resource(
+            SubmissionTree.SUBMISSION_PATH + "/a-" + question.getName(), Map.of("jcr:primaryType", "sub:Answer",
+                "sling:resourceType", "sub/Answer", "value", new String[] { value }));
+        SubmissionTree.reference(answer, "question", question);
+        return answer;
+    }
+
+    /** The model read the category before, and the submitter has not confirmed it yet. */
+    private void readCategory()
+    {
+        final Resource answer = answer(this.category, "");
+        this.context.create().resource(answer.getPath() + "/e1", Map.of("jcr:primaryType", "sub:Extraction",
+            "sling:resourceType", "sub/Extraction", "extractedValues", "interventional"));
     }
 
     private WorkflowTaskContext createTask()
     {
         return TaskContexts.of(this.submission, Map.of(), new HashMap<>());
+    }
+
+    private void verifyQueued(final String topic)
+    {
+        Mockito.verify(this.jobManager).addJob(topic, Map.of(ReadingJobs.SUBMISSION_PROPERTY,
+            this.submission.getPath(), ReadingJobs.REQUESTED_PROPERTY, Boolean.TRUE));
     }
 
     @Test
@@ -89,21 +130,66 @@ class ReadAgainHandlerTest
         assertEquals("readAgain", this.handler.getName());
     }
 
-    // Queued as a job, like after a parse, so the reading gets the same claim, progress and stop
+    // The categorisation never ran, such as when the model could not be reached
     @Test
-    void queuesTheReadingAsAJobAndSaysItIsRunning() throws Exception
+    void runsTheDocumentChecksWhenACategoryWasNeverRead() throws Exception
     {
         this.handler.execute(createTask());
 
-        Mockito.verify(this.jobManager).addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
-            Map.of(ReadingJobs.SUBMISSION_PROPERTY, this.submission.getPath(),
-                ReadingJobs.REQUESTED_PROPERTY, Boolean.TRUE));
+        verifyQueued(DecisionJobConsumer.JOB_TOPIC);
         final ValueMap recorded = this.submission.getValueMap();
         assertEquals(ExtractionStatus.STATUS_RUNNING, recorded.get(ExtractionStatus.STATUS_PROPERTY, String.class));
         assertNull(recorded.get(ExtractionStatus.MESSAGE_PROPERTY, String.class),
             "the old failure is no longer the news");
         assertFalse(recorded.containsKey(ExtractionStatus.READING_CLAIMED_PROPERTY),
             "or the job would turn itself away");
+    }
+
+    @Test
+    void runsTheDocumentChecksWhenAValidationHasNoVerdict() throws Exception
+    {
+        answer(this.category, "interventional");
+        this.tree.createValidationRequirement("is_proposal", "proposal", "Is it a proposal?");
+
+        this.handler.execute(createTask());
+
+        verifyQueued(DecisionJobConsumer.JOB_TOPIC);
+    }
+
+    @Test
+    void refusesUntilTheCategoryIsConfirmed()
+    {
+        readCategory();
+
+        final InvalidStateException refused =
+            assertThrows(InvalidStateException.class, () -> this.handler.execute(createTask()));
+
+        assertEquals(DecisionJobConsumer.CONFIRM_CATEGORY_MESSAGE, refused.getMessage());
+        Mockito.verifyNoInteractions(this.jobManager);
+    }
+
+    @Test
+    void readsTheAnswersOnceTheCategoryIsConfirmed() throws Exception
+    {
+        answer(this.category, "interventional");
+
+        this.handler.execute(createTask());
+
+        verifyQueued(MainExtractionJobConsumer.JOB_TOPIC);
+    }
+
+    // A question read once is not asked again, found or not
+    @Test
+    void refusesWhenEveryQuestionWasRead()
+    {
+        answer(this.category, "interventional");
+        answer(this.context.resourceResolver().getResource(SubmissionTree.FORM_PATH + "/title"), "Sleep");
+
+        final InvalidStateException refused =
+            assertThrows(InvalidStateException.class, () -> this.handler.execute(createTask()));
+
+        assertEquals(ReadAgainHandler.NOTHING_LEFT_MESSAGE, refused.getMessage());
+        Mockito.verifyNoInteractions(this.jobManager);
     }
 
     @Test
@@ -116,18 +202,29 @@ class ReadAgainHandlerTest
         Mockito.verifyNoInteractions(this.jobManager);
     }
 
-    // A schema that names no reading workflow never reads its documents, so there is nothing to read again
+    // The same document gets the same answer: only a new one helps
     @Test
-    void refusesWhenTheSchemaReadsNothing()
+    void refusesAfterADocumentWasRejected()
     {
-        this.context.resourceResolver().getResource(SubmissionTree.VERSION_PATH).adaptTo(ModifiableValueMap.class)
-            .remove(SubmissionFiles.READING_WORKFLOW_PROPERTY);
+        final ModifiableValueMap properties = this.submission.adaptTo(ModifiableValueMap.class);
+        properties.put(ExtractionStatus.BLOCKED_PROPERTY, true);
+        properties.put(ExtractionStatus.MESSAGE_PROPERTY, "Unable to identify the proposal");
 
         final InvalidStateException refused =
             assertThrows(InvalidStateException.class, () -> this.handler.execute(createTask()));
 
-        assertEquals(ReadingJobs.NOT_SET_UP_MESSAGE, refused.getMessage());
+        assertEquals("Unable to identify the proposal", refused.getMessage());
         Mockito.verifyNoInteractions(this.jobManager);
+    }
+
+    @Test
+    void refusesARejectedRequestEvenWithoutAMessage()
+    {
+        final ModifiableValueMap properties = this.submission.adaptTo(ModifiableValueMap.class);
+        properties.put(ExtractionStatus.BLOCKED_PROPERTY, true);
+        properties.remove(ExtractionStatus.MESSAGE_PROPERTY);
+
+        assertThrows(InvalidStateException.class, () -> this.handler.execute(createTask()));
     }
 
     @Test

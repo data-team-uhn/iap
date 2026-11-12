@@ -17,11 +17,8 @@
  */
 package io.uhndata.iap.extraction.internal;
 
-import java.util.Map;
-
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.event.jobs.JobManager;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
@@ -34,9 +31,17 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Service task {@code readAgain}: the submitter asks to read the submission again after a reading ended. The
- * reading is queued as a job, like the one a parse queues, so it has the same claim, progress and way to stop it,
- * instead of running inside the request that asked. It is refused while a reading is still running.
+ * Service task {@code readAgain}: the submitter asks to read the submission again, such as after the model could
+ * not be reached. It runs the first step not done yet:
+ *
+ * <ol>
+ * <li>a validation or categorisation not made yet: the document checks ({@link DecisionJobConsumer});</li>
+ * <li>a category not confirmed yet: refused, the submitter confirms it first;</li>
+ * <li>otherwise the main extraction ({@link MainExtractionJobConsumer}), for the questions never read.</li>
+ * </ol>
+ *
+ * <p>It is refused while a reading runs, after a document was rejected (the same document gets the same answer),
+ * and when every question was read already.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -47,10 +52,13 @@ public class ReadAgainHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "readAgain";
 
+    /** What the submitter is told when every question was read already. */
+    static final String NOTHING_LEFT_MESSAGE = "Every question has been read already";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(ReadAgainHandler.class);
 
     @Reference
-    private JobManager jobManager;
+    private ReadingRequests requests;
 
     @Override
     public String getName()
@@ -63,24 +71,17 @@ public class ReadAgainHandler implements ServiceTaskHandler
     {
         final Resource target = context.getTarget();
         final Submission submission = SubmissionFiles.getSubmission(target);
-        SubmitterAccess.checkMayChange(submission, context.getActor());
-        if (ExtractionStatus.STATUS_RUNNING.equals(
-            target.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class))) {
-            throw new InvalidStateException("This request is already being read");
+        ReadingRequests.checkMayRead(target, submission, context.getActor());
+        if (!DecisionChain.getPendingDecisions(submission).isEmpty()) {
+            this.requests.queue(target, DecisionJobConsumer.JOB_TOPIC);
+            LOGGER.info("Reading asked for again: submission={} step=checks", target.getPath());
+            return;
         }
-        if (SubmissionFiles.checkReadingWorkflow(submission, context.getResourceResolver())
-            == SubmissionFiles.ReadingWorkflowState.NONE) {
-            throw new InvalidStateException(ReadingJobs.NOT_SET_UP_MESSAGE);
+        ReadingRequests.checkCategoryConfirmed(submission);
+        if (FormsToRead.getFormsToRead(submission).isEmpty()) {
+            throw new InvalidStateException(NOTHING_LEFT_MESSAGE);
         }
-        ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_RUNNING, null);
-        // Otherwise the last reading's claim would turn the new job away
-        ExtractionStatus.releaseClaim(target);
-        // Queued before this walk commits, so the job is told to wait until it sees the `running` written above
-        if (this.jobManager.addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
-            Map.of(ReadingJobs.SUBMISSION_PROPERTY, target.getPath(), ReadingJobs.REQUESTED_PROPERTY,
-                Boolean.TRUE)) == null) {
-            throw new PersistenceException("The reading of " + target.getPath() + " could not be queued");
-        }
-        LOGGER.info("Reading asked for again: submission={}", target.getPath());
+        this.requests.queue(target, MainExtractionJobConsumer.JOB_TOPIC);
+        LOGGER.info("Reading asked for again: submission={} step=answers", target.getPath());
     }
 }
