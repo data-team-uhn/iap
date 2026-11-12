@@ -369,20 +369,26 @@ describe("DeleteItem", () => {
     expect(screen.getByRole("button", { name: "Delete submission" })).toBeInTheDocument();
   });
 
-  it("warns about referring resources the user cannot see", async () => {
+  // Those referrers are hidden by access control or archived, and a recursive deletion cannot take
+  // them either
+  it("offers no deletion when some referring resources are out of the user's reach", async () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(dryRun({
+      ...referenced,
+      status: "dryRun",
       executable: false,
-      "status.message": "This item is referenced by 2 items you cannot see.",
-      referrers: [],
-      inaccessibleReferrers: 2
+      "status.message": "This item is referenced by 2 submissions (S-1, S-2) and 1 other item you cannot see.",
+      inaccessibleReferrers: 1
     }));
     renderButton();
 
     await user.click(screen.getByRole("button", { name: "Delete submission" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("you cannot see");
-    expect(screen.getByRole("button", { name: "Delete all of them" })).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("1 other item you cannot see");
+    expect(screen.getByRole("heading", { name: "Cannot delete this submission" })).toBeInTheDocument();
+    expect(screen.getByText(/cannot be deleted along with it/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Delete/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
   it("pluralizes the links it reports", async () => {
