@@ -53,7 +53,10 @@ public class NotificationServiceImpl implements NotificationService
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
-    /** Every registered delivery. A bundle can register or withdraw one at any time. */
+    /**
+     * Every registered delivery. A bundle can register or withdraw one at any time, and the component runtime
+     * keeps the field set, to an empty list while there are none.
+     */
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
         policyOption = ReferencePolicyOption.GREEDY)
     private volatile List<NotificationDelivery> deliveries;
@@ -117,7 +120,6 @@ public class NotificationServiceImpl implements NotificationService
      */
     private List<NotificationDelivery> currentDeliveries()
     {
-        final List<NotificationDelivery> current = this.deliveries;
-        return current == null ? List.of() : List.copyOf(current);
+        return List.copyOf(this.deliveries);
     }
 }
