@@ -30,9 +30,9 @@ import io.uhndata.iap.llm.CallBudget;
  *
  * <p>Every call opens with the same text: the system prompt, then the document. Only what follows differs: the
  * reference text a step adds, then the questions. A provider caches the start of a prompt, so after the first call
- * on a document the document costs little, for the gate and for every intake call. The questions can then be asked in
- * several small calls of at most {@link #MAX_FIELDS_PER_CALL}. A small call gives a short reply, and a reply that
- * cannot be read loses only its own questions.</p>
+ * on a document the document costs little, for its checks and for every form read from it. The questions can
+ * then be asked in several small calls of at most {@link #MAX_FIELDS_PER_CALL}. A small call gives a short reply,
+ * and a reply that cannot be read loses only its own questions.</p>
  *
  * <p>The document is fitted once, against the largest call, so it is the same in every call.</p>
  *

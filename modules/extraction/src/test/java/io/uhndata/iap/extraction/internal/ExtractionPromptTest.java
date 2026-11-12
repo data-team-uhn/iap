@@ -104,7 +104,7 @@ class ExtractionPromptTest
         assertFalse(plan.document().wasCut());
     }
 
-    // After the document, so the gate's and the intake's calls still open with the same text
+    // After the document, so the checks and the forms read from it still open with the same text
     @Test
     void putsTheReferenceTextBetweenTheDocumentAndTheQuestions()
     {

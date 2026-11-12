@@ -37,7 +37,7 @@ import io.uhndata.iap.utils.ReferenceUtils;
  * {@code sub:Validation}, with what the model read and from which document versions, and a {@code sub:Context} for
  * each quote. The answer's value belongs to the submitter, so nothing here writes it.
  *
- * <p>Kept apart from the intake so that every step that saves runs writes the same nodes.
+ * <p>Kept in one place so that every step that saves runs writes the same nodes.
  *
  * @version $Id$
  * @since 0.1.0
@@ -165,7 +165,7 @@ final class ExtractedAnswers
             context.put("page", passage.page());
         }
         final Resource written = resolver.create(extracted, UUID.randomUUID().toString(), context);
-        // Only when the step named its documents; then each quote points at the version it came from
+        // Only when several documents were joined; then each quote points at the version it came from
         if (source != null) {
             ReferenceUtils.setWeakReference(written, "source", source);
         }

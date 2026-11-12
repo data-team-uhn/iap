@@ -58,6 +58,14 @@ optional reference text (a `template` or `template.md` child). They share the ab
 | `sch:ValidationRequirement` | Is the upload what the request needs, e.g. a research proposal? | a `sub:Validation` on the submission; the submitter never answers it |
 | `sch:ClassificationRequirement` | Which kind of request is it? | a suggestion on the answer to the question it references (`question`), which the submitter confirms |
 
+Each validation reads one document: the proposal has its own, the consent form its own,
+each with its own prompt and template. Once the uploads are parsed, the decisions are
+made one document at a time, in the order of the document requirements: the document's
+validation, then its classification. A sure `no` stops there. The document
+requirement's `label` goes into what the submitter is told, so it is written to fit
+"Please upload the <label>", "Unable to identify the <label>" and "The <label> is
+missing, please upload it", such as "research proposal".
+
 The classification's question is an ordinary question in a form requirement, so the form
 shows it like any other. A reference to a question of the same version still points at
 the right question when the version is copied.

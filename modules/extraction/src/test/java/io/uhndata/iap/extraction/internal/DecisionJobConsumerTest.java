@@ -710,7 +710,7 @@ class DecisionJobConsumerTest
         assertEquals(List.of("verdict", "classification.study_kind"), getAskedKeys());
     }
 
-    // The gate must not guess: the submitter picks
+    // The model must not guess: the submitter picks
     @Test
     void savesNoPickTheModelIsUnsureOf() throws Exception
     {

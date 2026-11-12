@@ -43,9 +43,9 @@ import io.uhndata.iap.workflows.api.WorkflowException;
  * and saves the pick as a suggestion on the category question. One step of {@link DecisionJobConsumer}.
  *
  * <p>The question's options are the categories, and the classification's prompt and template guide the model.
- * The gate must never guess: a pick less sure than the classification's threshold, or one naming no category the
- * question offers, is saved as not found, and the submitter picks. Either way the submitter is asked to confirm
- * the category before the reading goes on.</p>
+ * A categorisation must never guess: a pick less sure than the classification's threshold, or one naming no
+ * category the question offers, is saved as not found, and the submitter picks. Either way the submitter is asked
+ * to confirm the category before the reading goes on.</p>
  *
  * @version $Id$
  * @since 0.1.0

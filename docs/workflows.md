@@ -1032,7 +1032,9 @@ each completed on its own.
   gateways are not executed: a thrown message becomes a notification, never an event for
   another workflow.
   An instance reaching a free-standing catching event is refused rather than parked,
-  since nothing could wake it: the engine's door opens onto a homepage or a task.
+  since nothing could wake it: the engine's door opens onto a homepage or a task. So
+  the extraction's intake waits at a task that a background job completes; see
+  [extraction.md](extraction.md#waiting-for-the-engine).
 - **Read access is never revoked.** It lasts for the life of the instance rather than
   while a task is open.
 - **No phase after the commit.** `receiveEvent` commits and returns, and nothing runs

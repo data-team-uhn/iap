@@ -169,7 +169,7 @@ class RecordValidationHandlerTest
             getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
     }
 
-    // The gate must not guess: a no the model is not sure of does not block the request
+    // The model must not guess: a no the model is not sure of does not block the request
     @Test
     void keepsReadingAfterANoItIsNotSureOf() throws Exception
     {

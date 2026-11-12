@@ -94,9 +94,9 @@ final class ExtractionFields
     }
 
     /**
-     * Saves one run for each entry in {@code results}, found or not, under that question's answer. The intake
-     * passes every question whose call went through; the gate passes only its sure picks. An entry whose key is
-     * not in {@code questions} is skipped.
+     * Saves one run for each entry in {@code results}, found or not, under that question's answer. The main
+     * extraction passes every question whose call went through; a categorisation passes its one question. An entry
+     * whose key is not in {@code questions} is skipped.
      *
      * <p>Each run names the document versions it read, which is how a later reading knows those versions were
      * already read for that question. No answer's value is written: what the model read stays a suggestion until
@@ -173,8 +173,8 @@ final class ExtractionFields
     }
 
     /**
-     * The paths of the questions the submitter answered: the ones the intake skips, unless it reads a newer
-     * version. A question with only a suggestion is asked again, and so is one whose saved value is blank.
+     * The paths of the questions the submitter answered, such as a confirmed category. A question with only a
+     * suggestion, or a blank saved value, is not answered.
      *
      * @param submission the submission
      * @return the full question paths, empty when nothing is answered yet

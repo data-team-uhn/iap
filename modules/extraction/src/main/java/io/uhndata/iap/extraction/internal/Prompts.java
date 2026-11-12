@@ -36,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 final class Prompts
 {
-    /** The system prompt every extraction call opens with, the gate's and the intake's alike. */
+    /** The system prompt every extraction call opens with: the checks of the uploads and the main extraction. */
     static final String EXTRACTION_SYSTEM_FILE_NAME = "extraction_system.md";
 
     private static final String PROMPT_DIRECTORY = "/prompts/";

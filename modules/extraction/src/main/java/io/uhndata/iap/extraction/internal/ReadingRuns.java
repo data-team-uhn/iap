@@ -29,9 +29,9 @@ import org.osgi.service.component.annotations.Component;
 /**
  * Tracks which thread is reading each submission, so a stop can interrupt the model call that thread waits on.
  *
- * <p>The same thread enters a reading more than once: first the job, then each reading step. So each thread's
- * entries are counted, and it stays registered until its outermost entry ends. That way a stop in the middle of a
- * step still finds it. Two threads reading one submission each keep their own entry, and a stop reaches both.</p>
+ * <p>A thread may enter a reading more than once, so each thread's entries are counted, and it stays registered
+ * until its outermost entry ends. That way a stop in the middle of a step still finds it. Two threads reading one
+ * submission each keep their own entry, and a stop reaches both.</p>
  *
  * <p>A stop is noted on the thread, and interrupts it only inside a model call. Anywhere else the thread may be
  * in the repository, which an interrupt can break, so the next model call or step sees the stop instead. Only a
