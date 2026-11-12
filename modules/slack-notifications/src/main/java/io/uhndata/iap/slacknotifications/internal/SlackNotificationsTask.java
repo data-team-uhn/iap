@@ -19,6 +19,7 @@ package io.uhndata.iap.slacknotifications.internal;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -56,6 +57,8 @@ public class SlackNotificationsTask implements Runnable
 
     private final String endpoint;
 
+    private final String name;
+
     private final String title;
 
     private final List<String> include;
@@ -69,31 +72,28 @@ public class SlackNotificationsTask implements Runnable
      *
      * @param httpRequests the client that posts the message
      * @param producers the registered producers, a list that changes as producers come and go
-     * @param endpoint the webhook URL to post to
-     * @param title the title of the message, or an empty string for none
-     * @param include the names of the producers to ask, such as {@code status}, or an empty list to ask every one
-     * @param extraParameters the extra parameters for the producers, by name
-     * @param skipEmpty {@code true} to post nothing when no producer has an attachment, {@code false} to post
-     *            "Nothing to report" instead
+     * @param endpoint the webhook URL to post to, resolved from the configuration
+     * @param config the notification's configuration: its name, title, included producers, extra parameters, and
+     *            whether to stay quiet when there is nothing to report
      */
     public SlackNotificationsTask(final HttpRequests httpRequests, final List<SlackNotificationProducer> producers,
-        final String endpoint, final String title, final List<String> include,
-        final Map<String, String> extraParameters, final boolean skipEmpty)
+        final String endpoint, final SlackNotificationConfiguration config)
     {
         this.httpRequests = httpRequests;
         // Wrapped, not copied: every run must see the producers registered by then
         this.producers = Collections.unmodifiableList(producers);
         this.endpoint = endpoint;
-        this.title = title;
-        this.include = List.copyOf(include);
-        this.extraParameters = Map.copyOf(extraParameters);
-        this.skipEmpty = skipEmpty;
+        this.name = config.name();
+        this.title = config.title();
+        this.include = asList(config.include());
+        this.extraParameters = Map.copyOf(asParameters(config.notificationParameters()));
+        this.skipEmpty = config.skipEmpty();
     }
 
     @Override
     public void run()
     {
-        LOGGER.debug("Running the {} notification", this.title);
+        LOGGER.debug("Running the {} notification", this.name);
         final List<JsonObject> attachments = this.producers.stream()
             .filter(producer -> this.include.isEmpty() || this.include.contains(producer.getName()))
             .map(producer -> producer.prepareMessages(this.extraParameters))
@@ -149,5 +149,32 @@ public class SlackNotificationsTask implements Runnable
             .add(SlackNotificationProducer.TEXT_KEY, "Nothing to report")
             .add(SlackNotificationProducer.TITLE_KEY, "All is good")
             .add(SlackNotificationProducer.COLOR_KEY, SlackNotificationProducer.INFO_COLOR));
+    }
+
+    /**
+     * Parses the configured extra parameters. A string with no {@code =} is logged, recorded and skipped.
+     *
+     * @param configured {@code key=value} strings, or {@code null} for none. The key is trimmed, the value is not
+     * @return the values by key, empty if there are none
+     */
+    static Map<String, String> asParameters(final String[] configured)
+    {
+        final Map<String, String> result = new HashMap<>();
+        for (final String parameter : asList(configured)) {
+            final String[] keyAndValue = parameter.split("=", 2);
+            if (keyAndValue.length == 2) {
+                result.put(keyAndValue[0].trim(), keyAndValue[1]);
+            } else {
+                LOGGER.warn("Ignoring the notification parameter {}, it is not in the key=value format", parameter);
+                ErrorLogger.logProblem("notification parameter is not in the key=value format",
+                    ErrorContext.of(SlackNotificationsTask.class, "readParameters"));
+            }
+        }
+        return result;
+    }
+
+    private static List<String> asList(final String[] configured)
+    {
+        return configured == null ? List.of() : List.of(configured);
     }
 }

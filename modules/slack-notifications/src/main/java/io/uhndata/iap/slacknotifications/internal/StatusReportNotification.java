@@ -31,6 +31,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.slacknotifications.spi.SlackNotificationProducer;
 import io.uhndata.iap.status.api.StatusReportManager;
 import io.uhndata.iap.status.spi.StatusReport;
@@ -123,6 +125,9 @@ public class StatusReportNotification implements SlackNotificationProducer
             return StatusReport.Status.valueOf(configured.trim().toUpperCase(java.util.Locale.ROOT));
         } catch (final IllegalArgumentException e) {
             LOGGER.warn("{} is not a known status level, reporting from INFO up instead", configured);
+            // A mistyped level quietly widens every report, and only whoever wrote the configuration can fix it
+            ErrorLogger.logProblem("not a known status level",
+                ErrorContext.of(StatusReportNotification.class, "readTargetLevel").with("level", configured));
             return StatusReport.Status.INFO;
         }
     }

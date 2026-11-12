@@ -28,25 +28,34 @@ import org.apache.sling.commons.scheduler.ScheduleOptions;
 import org.apache.sling.commons.scheduler.Scheduler;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.httprequests.api.HttpResponse;
 import io.uhndata.iap.slacknotifications.spi.SlackNotificationProducer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.ArgumentMatchers.startsWith;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -80,6 +89,8 @@ class ScheduledSlackNotificationTest
 
     private static final String UNSET_VARIABLE = "%ENV%IAP_NO_SUCH_VARIABLE_EXISTS";
 
+    private static final String NIGHTLY = "nightly";
+
     private final SlingContext context = new SlingContext();
 
     private final Scheduler scheduler = mock(Scheduler.class);
@@ -88,15 +99,25 @@ class ScheduledSlackNotificationTest
 
     private final HttpRequests webhook = mock(HttpRequests.class);
 
+    private final ErrorLoggerService errors = mock(ErrorLoggerService.class);
+
     @BeforeEach
     void setUp() throws IOException
     {
         when(this.options.name(anyString())).thenReturn(this.options);
         when(this.options.canRunConcurrently(true)).thenReturn(this.options);
         when(this.scheduler.EXPR(MONTHLY)).thenReturn(this.options);
+        when(this.scheduler.schedule(any(), eq(this.options))).thenReturn(true);
         when(this.webhook.post(anyString(), anyString(), anyString())).thenReturn(new HttpResponse(200, "ok"));
         this.context.registerService(Scheduler.class, this.scheduler);
         this.context.registerService(HttpRequests.class, this.webhook);
+        ErrorLogger.setService(this.errors);
+    }
+
+    @AfterEach
+    void tearDown()
+    {
+        ErrorLogger.unsetService(this.errors);
     }
 
     @Test
@@ -127,62 +148,84 @@ class ScheduledSlackNotificationTest
     }
 
     @Test
-    void parametersAreReadAsKeyValuePairs()
-    {
-        final Map<String, String> parameters = ScheduledSlackNotification.asParameters(
-            new String[] { "statusReport.unprivileged=true", " spaced =  value with = signs " });
-
-        assertEquals("true", parameters.get("statusReport.unprivileged"));
-        assertEquals("  value with = signs ", parameters.get("spaced"));
-    }
-
-    @Test
-    void malformedParametersAreIgnoredRatherThanRefusingTheConfiguration()
-    {
-        final Map<String, String> parameters =
-            ScheduledSlackNotification.asParameters(new String[] { "nonsense", "good=value" });
-
-        assertEquals(Map.of("good", "value"), parameters);
-        assertTrue(ScheduledSlackNotification.asParameters(null).isEmpty());
-    }
-
-    @Test
     void schedulesTheConfiguredNotification()
     {
-        this.activate(ENDPOINT, MONTHLY);
+        this.activate(NIGHTLY, MONTHLY);
 
-        verify(this.options).name(ScheduledSlackNotification.JOB_PREFIX + "nightly");
+        verify(this.options).name(startsWith(ScheduledSlackNotification.JOB_PREFIX));
         verify(this.scheduler).schedule(any(SlackNotificationsTask.class), eq(this.options));
+        verifyNoInteractions(this.errors);
     }
 
     @Test
     void aNotificationWithNoEndpointIsNotScheduled()
     {
-        this.activate(UNSET_VARIABLE, MONTHLY);
+        this.context.registerInjectActivateService(new ScheduledSlackNotification(),
+            "name", NIGHTLY, "endpoint", UNSET_VARIABLE, "schedule", MONTHLY);
 
         verify(this.scheduler, never()).schedule(any(), any());
     }
 
+    // The scheduler answers an invalid cron expression with false, not with an exception
     @Test
-    void anUnusableScheduleDoesNotStopTheModuleFromStarting()
+    void aScheduleTheSchedulerRefusesIsRecordedAsAProblem()
     {
-        when(this.scheduler.EXPR("nonsense")).thenThrow(new IllegalArgumentException("not a schedule"));
+        final ScheduleOptions refused = mock(ScheduleOptions.class);
+        when(this.scheduler.EXPR("nonsense")).thenReturn(refused);
+        when(this.scheduler.schedule(any(), eq(refused))).thenReturn(false);
 
-        this.activate(ENDPOINT, "nonsense");
+        this.activate(NIGHTLY, "nonsense");
 
-        verify(this.scheduler, never()).schedule(any(), any());
+        verify(this.errors).logProblem(contains("refused"),
+            argThat((final ErrorContext context) -> "nonsense".equals(context.getDetails().get("schedule"))));
+    }
+
+    // The scheduler throws only when it is going away while the notification is being scheduled
+    @Test
+    void aSchedulerShuttingDownDoesNotStopTheModuleFromStarting()
+    {
+        final IllegalStateException shutdown = new IllegalStateException("Scheduler is not available anymore.");
+        when(this.scheduler.schedule(any(), eq(this.options))).thenThrow(shutdown);
+
+        this.activate(NIGHTLY, MONTHLY);
+
+        verify(this.errors).logError(same(shutdown), any(ErrorContext.class));
     }
 
     @Test
-    void removingAConfigurationUnschedulesItsJob()
+    void notificationsSharingANameGetAJobEach()
     {
-        final ScheduledSlackNotification notification = this.activate(ENDPOINT, MONTHLY);
-        final SlackNotificationConfiguration removed = mock(SlackNotificationConfiguration.class);
-        when(removed.name()).thenReturn("nightly");
+        this.activate(NIGHTLY, MONTHLY);
+        this.activate(NIGHTLY, MONTHLY);
 
-        notification.deactivate(removed);
+        final List<String> jobs = this.jobNames();
+        assertEquals(2, jobs.size());
+        assertNotEquals(jobs.get(0), jobs.get(1));
+    }
 
-        verify(this.scheduler).unschedule(ScheduledSlackNotification.JOB_PREFIX + "nightly");
+    @Test
+    void anUnnamedNotificationGetsAJobOfItsOwn()
+    {
+        this.context.registerInjectActivateService(new ScheduledSlackNotification(),
+            "endpoint", ENDPOINT, "schedule", MONTHLY);
+        this.context.registerInjectActivateService(new ScheduledSlackNotification(),
+            "endpoint", ENDPOINT, "schedule", MONTHLY);
+
+        final List<String> jobs = this.jobNames();
+        assertNotEquals(jobs.get(0), jobs.get(1));
+    }
+
+    @Test
+    void removingAConfigurationUnschedulesOnlyItsOwnJob()
+    {
+        final ScheduledSlackNotification removed = this.activate(NIGHTLY, MONTHLY);
+        this.activate(NIGHTLY, MONTHLY);
+        final List<String> jobs = this.jobNames();
+
+        removed.deactivate();
+
+        verify(this.scheduler).unschedule(jobs.get(0));
+        verify(this.scheduler, never()).unschedule(jobs.get(1));
     }
 
     // A producer bundle can start after the notification is scheduled, and its next run must ask it
@@ -197,17 +240,28 @@ class ScheduledSlackNotificationTest
         verify(this.webhook).post(eq(ENDPOINT), contains("late arrival"), eq("application/json"));
     }
 
-    /** Activates a notification the way the component runtime would, with its references wired. */
-    private ScheduledSlackNotification activate(final String endpoint, final String schedule)
+    /**
+     * Activates a notification the way the component runtime would, with its references wired and a
+     * {@code component.id} of its own.
+     */
+    private ScheduledSlackNotification activate(final String name, final String schedule)
     {
         return this.context.registerInjectActivateService(new ScheduledSlackNotification(),
-            "name", "nightly", "endpoint", endpoint, "schedule", schedule, "title", "Nightly");
+            "name", name, "endpoint", ENDPOINT, "schedule", schedule, "title", "Nightly");
+    }
+
+    /** The names given to the jobs scheduled so far, in the order they were scheduled. */
+    private List<String> jobNames()
+    {
+        final ArgumentCaptor<String> names = ArgumentCaptor.forClass(String.class);
+        verify(this.options, atLeastOnce()).name(names.capture());
+        return names.getAllValues();
     }
 
     /** The job a monthly notification hands the scheduler. */
     private Runnable scheduledJob()
     {
-        this.activate(ENDPOINT, MONTHLY);
+        this.activate(NIGHTLY, MONTHLY);
         final ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
         verify(this.scheduler).schedule(job.capture(), eq(this.options));
         return job.getValue();

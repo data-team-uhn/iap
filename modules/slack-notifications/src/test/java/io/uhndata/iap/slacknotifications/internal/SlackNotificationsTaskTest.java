@@ -220,11 +220,37 @@ class SlackNotificationsTaskTest
         assertEquals("two", second.getJsonArray("attachments").getJsonObject(0).getString("title"));
     }
 
+    @Test
+    void parametersAreReadAsKeyValuePairs()
+    {
+        final Map<String, String> parameters = SlackNotificationsTask.asParameters(
+            new String[] { "statusReport.unprivileged=true", " spaced =  value with = signs " });
+
+        assertEquals("true", parameters.get("statusReport.unprivileged"));
+        assertEquals("  value with = signs ", parameters.get("spaced"));
+    }
+
+    @Test
+    void malformedParametersAreIgnoredRatherThanRefusingTheConfiguration()
+    {
+        final Map<String, String> parameters =
+            SlackNotificationsTask.asParameters(new String[] { "nonsense", "good=value" });
+
+        assertEquals(Map.of("good", "value"), parameters);
+        assertTrue(SlackNotificationsTask.asParameters(null).isEmpty());
+        Mockito.verify(this.errors).logProblem(ArgumentMatchers.contains("key=value"),
+            ArgumentMatchers.any(ErrorContext.class));
+    }
+
     private SlackNotificationsTask task(final List<SlackNotificationProducer> producers, final List<String> include,
         final String title, final boolean skipEmpty)
     {
-        return new SlackNotificationsTask(this.webhook, producers, "https://example.invalid/hook", title, include,
-            Map.of(), skipEmpty);
+        final SlackNotificationConfiguration config = Mockito.mock(SlackNotificationConfiguration.class);
+        Mockito.when(config.name()).thenReturn("nightly");
+        Mockito.when(config.title()).thenReturn(title);
+        Mockito.when(config.include()).thenReturn(include.toArray(String[]::new));
+        Mockito.when(config.skipEmpty()).thenReturn(skipEmpty);
+        return new SlackNotificationsTask(this.webhook, producers, "https://example.invalid/hook", config);
     }
 
     private SlackNotificationProducer producer(final String name, final String title)

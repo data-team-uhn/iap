@@ -31,9 +31,10 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 public @interface SlackNotificationConfiguration
 {
     /**
-     * The name of this notification, which also names its scheduled job.
+     * The name of this notification, which the log uses to tell notifications apart. Its scheduled job is named
+     * after the component instead, so that two notifications sharing a name, or having none, keep a job each.
      *
-     * @return a name such as {@code nightly}, different for each notification
+     * @return a name such as {@code nightly}, best kept different for each notification
      */
     @AttributeDefinition(name = "Name")
     String name();
