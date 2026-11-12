@@ -77,7 +77,7 @@ public class FilesProcessor implements ResourceJsonProcessor
             return input;
         }
         try {
-            if ("jcr:content".equals(child.getName()) && child.isNodeType("nt:resource")) {
+            if (CONTENT_CHILD.equals(child.getName()) && child.isNodeType("nt:resource")) {
                 return serializeFile(child);
             }
         } catch (RepositoryException e) {
@@ -89,9 +89,6 @@ public class FilesProcessor implements ResourceJsonProcessor
     @Override
     public void leave(final Node node, final JsonObjectBuilder json, final Function<Node, JsonValue> serializeNode)
     {
-        if (json == null) {
-            return;
-        }
         try {
             if (node.isNodeType("nt:file") && node.hasNode(CONTENT_CHILD)) {
                 final Node content = node.getNode(CONTENT_CHILD);

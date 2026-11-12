@@ -18,7 +18,6 @@
 
 package io.uhndata.iap.serialization.internal;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -39,9 +38,11 @@ import jakarta.json.JsonValue;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceMetadata;
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
@@ -53,23 +54,15 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
  * @version $Id$
  * @since 0.1.0
  */
+@ExtendWith(SlingContextExtension.class)
 public class ResourceToJsonAdapterFactoryTest
 {
-    private ResourceToJsonAdapterFactory factory;
-
-    @BeforeEach
-    public void setup()
-        throws Exception
-    {
-        this.factory = new ResourceToJsonAdapterFactory();
-        injectProcessors(new PropertiesProcessor(), new IdentificationProcessor(), new DereferenceProcessor(),
-            new DeepProcessor());
-    }
+    private final SlingContext context = new SlingContext();
 
     @Test
     public void testNullAdaptable()
     {
-        Assertions.assertNull(this.factory.getAdapter(null, JsonObject.class));
+        Assertions.assertNull(defaultFactory().getAdapter(null, JsonObject.class));
     }
 
     @Test
@@ -83,7 +76,7 @@ public class ResourceToJsonAdapterFactoryTest
         Mockito.when(node.getProperties()).thenReturn(properties);
         Mockito.when(node.getNodes()).thenReturn(children);
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".deep.json"), JsonObject.class);
+        final JsonObject result = serialize(node, ".deep.json");
 
         Assertions.assertEquals("Hello, dashboard!", result.getString("title"));
         Assertions.assertEquals("/parent", result.getString("@path"));
@@ -100,7 +93,7 @@ public class ResourceToJsonAdapterFactoryTest
         final NodeIterator children = mockNodeIterator(child);
         Mockito.when(node.getNodes()).thenReturn(children);
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".json"), JsonObject.class);
+        final JsonObject result = serialize(node, ".json");
 
         Assertions.assertFalse(result.containsKey("child"));
     }
@@ -111,7 +104,7 @@ public class ResourceToJsonAdapterFactoryTest
     {
         final Node node = mockChain("parent", "child", "grandchild");
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".1.json"), JsonObject.class);
+        final JsonObject result = serialize(node, ".1.json");
 
         final JsonObject child = result.getJsonObject("child");
         Assertions.assertEquals("/parent/child", child.getString("@path"));
@@ -126,7 +119,7 @@ public class ResourceToJsonAdapterFactoryTest
         final Node node = mockChain("parent", "child", "grandchild", "greatgrandchild");
 
         // `deep` and `1b` are not depths, and `2` comes after `3`
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".3.deep.2.1b.json"), JsonObject.class);
+        final JsonObject result = serialize(node, ".3.deep.2.1b.json");
 
         final JsonObject grandchild = result.getJsonObject("child").getJsonObject("grandchild");
         Assertions.assertEquals("/parent/child/grandchild", grandchild.getString("@path"));
@@ -139,7 +132,7 @@ public class ResourceToJsonAdapterFactoryTest
     {
         final Node node = mockChain("parent", "child", "grandchild");
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".infinity.json"), JsonObject.class);
+        final JsonObject result = serialize(node, ".infinity.json");
 
         Assertions.assertEquals("/parent/child/grandchild",
             result.getJsonObject("child").getJsonObject("grandchild").getString("@path"));
@@ -151,7 +144,7 @@ public class ResourceToJsonAdapterFactoryTest
     {
         final Node node = mockChain("parent", "child", "grandchild");
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".deep.json"), JsonObject.class);
+        final JsonObject result = serialize(node, ".deep.json");
 
         Assertions.assertEquals("/parent/child/grandchild",
             result.getJsonObject("child").getJsonObject("grandchild").getString("@path"));
@@ -166,7 +159,7 @@ public class ResourceToJsonAdapterFactoryTest
         final PropertyIterator properties = mockPropertyIterator(mockReferenceProperty("reference", target));
         Mockito.when(node.getProperties()).thenReturn(properties);
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".0.json"), JsonObject.class);
+        final JsonObject result = serialize(node, ".0.json");
 
         Assertions.assertFalse(result.containsKey("child"));
         // A referenced node is nested too, so it is past depth 0
@@ -182,7 +175,7 @@ public class ResourceToJsonAdapterFactoryTest
         final NodeIterator children = mockNodeIterator(node);
         Mockito.when(node.getNodes()).thenReturn(children);
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".deep.json"), JsonObject.class);
+        final JsonObject result = serialize(node, ".deep.json");
 
         Assertions.assertEquals("/parent", result.getString("parent"));
     }
@@ -196,7 +189,7 @@ public class ResourceToJsonAdapterFactoryTest
         final PropertyIterator properties = mockPropertyIterator(mockReferenceProperty("reference", target));
         Mockito.when(node.getProperties()).thenReturn(properties);
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".json"), JsonObject.class);
+        final JsonObject result = serialize(node, ".json");
 
         Assertions.assertEquals("/target", result.getJsonObject("reference").getString("@path"));
     }
@@ -210,7 +203,7 @@ public class ResourceToJsonAdapterFactoryTest
         final PropertyIterator properties = mockPropertyIterator(mockReferenceProperty("reference", target));
         Mockito.when(node.getProperties()).thenReturn(properties);
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".-dereference.json"), JsonObject.class);
+        final JsonObject result = serialize(node, ".-dereference.json");
 
         // The stored value, the target's `jcr:uuid`
         Assertions.assertEquals("uuid-of-target", result.getString("reference"));
@@ -224,7 +217,7 @@ public class ResourceToJsonAdapterFactoryTest
         final PropertyIterator properties = mockPropertyIterator(mockStringProperty("title", "Hello, dashboard!"));
         Mockito.when(node.getProperties()).thenReturn(properties);
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, null), JsonObject.class);
+        final JsonObject result = serialize(node, null);
 
         Assertions.assertEquals("Hello, dashboard!", result.getString("title"));
         Assertions.assertEquals("/parent", result.getString("@path"));
@@ -237,13 +230,13 @@ public class ResourceToJsonAdapterFactoryTest
         final Node node = mockNode("/parent", "parent");
         Mockito.when(node.getProperties()).thenThrow(new RepositoryException());
 
-        Assertions.assertNull(this.factory.getAdapter(mockResource(node, ".json"), JsonObject.class));
+        Assertions.assertNull(serialize(node, ".json"));
     }
 
     @Test
     public void testResourceWithoutNode()
     {
-        Assertions.assertNull(this.factory.getAdapter(mockResource(null, ".json"), JsonObject.class));
+        Assertions.assertNull(serialize(null, ".json"));
     }
 
     @Test
@@ -253,7 +246,7 @@ public class ResourceToJsonAdapterFactoryTest
         final Node node = Mockito.mock(Node.class);
         Mockito.when(node.getPath()).thenThrow(new RepositoryException());
 
-        Assertions.assertNull(this.factory.getAdapter(mockResource(node, ".json"), JsonObject.class));
+        Assertions.assertNull(serialize(node, ".json"));
     }
 
     @Test
@@ -295,12 +288,13 @@ public class ResourceToJsonAdapterFactoryTest
                 return "secret".equals(input) ? null : input;
             }
         };
-        injectProcessors(new PropertiesProcessor(), new IdentificationProcessor(), custom);
+        final ResourceToJsonAdapterFactory factory =
+            activateFactory(new PropertiesProcessor(), new IdentificationProcessor(), custom);
         final Node node = mockNode("/parent", "parent");
         final PropertyIterator properties = mockPropertyIterator(mockStringProperty("secret", "hidden"));
         Mockito.when(node.getProperties()).thenReturn(properties);
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".custom.json"), JsonObject.class);
+        final JsonObject result = factory.getAdapter(mockResource(node, ".custom.json"), JsonObject.class);
 
         // The node is still being serialized, so serializeNode gives its path
         Assertions.assertEquals("/parent", result.getString("fromEnter"));
@@ -340,11 +334,11 @@ public class ResourceToJsonAdapterFactoryTest
                 ended.add(resource);
             }
         };
-        injectProcessors(new PropertiesProcessor(), failing);
+        final ResourceToJsonAdapterFactory factory = activateFactory(new PropertiesProcessor(), failing);
         final Resource resource = mockResource(mockNode("/parent", "parent"), ".failing.json");
 
         Assertions.assertThrows(IllegalStateException.class,
-            () -> this.factory.getAdapter(resource, JsonObject.class));
+            () -> factory.getAdapter(resource, JsonObject.class));
         Assertions.assertEquals(List.of(resource), ended);
     }
 
@@ -353,10 +347,11 @@ public class ResourceToJsonAdapterFactoryTest
         throws Exception
     {
         final List<String> entered = new ArrayList<>();
-        injectProcessors(new PropertiesProcessor(), enteringProcessor("last", Integer.MAX_VALUE, entered),
+        final ResourceToJsonAdapterFactory factory = activateFactory(new PropertiesProcessor(),
+            enteringProcessor("last", Integer.MAX_VALUE, entered),
             enteringProcessor("first", Integer.MIN_VALUE, entered));
 
-        this.factory.getAdapter(mockResource(mockNode("/parent", "parent"), ".last.first.json"), JsonObject.class);
+        factory.getAdapter(mockResource(mockNode("/parent", "parent"), ".last.first.json"), JsonObject.class);
 
         Assertions.assertEquals(List.of("first", "last"), entered);
     }
@@ -369,7 +364,7 @@ public class ResourceToJsonAdapterFactoryTest
         final PropertyIterator properties = mockPropertyIterator(mockStringProperty("title", "Hello, dashboard!"));
         Mockito.when(node.getProperties()).thenReturn(properties);
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".-properties.json"), JsonObject.class);
+        final JsonObject result = serialize(node, ".-properties.json");
 
         Assertions.assertFalse(result.containsKey("title"));
         Assertions.assertEquals("/parent", result.getString("@path"));
@@ -402,12 +397,24 @@ public class ResourceToJsonAdapterFactoryTest
         };
     }
 
-    private void injectProcessors(final ResourceJsonProcessor... processors)
-        throws Exception
+    /** Serializes the node with the default processors, as requested with the given selectors and extension. */
+    private JsonObject serialize(final Node node, final String resolutionPathInfo)
     {
-        final Field allProcessors = ResourceToJsonAdapterFactory.class.getDeclaredField("allProcessors");
-        allProcessors.setAccessible(true);
-        allProcessors.set(this.factory, List.of(processors));
+        return defaultFactory().getAdapter(mockResource(node, resolutionPathInfo), JsonObject.class);
+    }
+
+    /** The factory with the {@code properties}, {@code identify}, {@code dereference} and {@code deep} processors. */
+    private ResourceToJsonAdapterFactory defaultFactory()
+    {
+        return activateFactory(new PropertiesProcessor(), new IdentificationProcessor(), new DereferenceProcessor(),
+            new DeepProcessor());
+    }
+
+    /** Registers the processors, then the factory that binds them. */
+    private ResourceToJsonAdapterFactory activateFactory(final ResourceJsonProcessor... processors)
+    {
+        List.of(processors).forEach(processor -> this.context.registerService(ResourceJsonProcessor.class, processor));
+        return this.context.registerInjectActivateService(new ResourceToJsonAdapterFactory());
     }
 
     private Resource mockResource(final Node node, final String resolutionPathInfo)
