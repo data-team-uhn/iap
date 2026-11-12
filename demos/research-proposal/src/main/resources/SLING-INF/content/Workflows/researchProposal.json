@@ -6,20 +6,71 @@
     "version": "1.0",
     "bpmnAuthoritative": true,
     "tags": ["active"],
-    "description": "A researcher uploads a proposal, checks what was read into the form, and sends it for review. A reviewer then accepts or refuses it.",
+    "description": "A researcher uploads a proposal, which is first checked to be one, checks what was read into the form, and sends it for review. A reviewer then accepts or refuses it.",
     "created": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "created",
       "label": "Proposal started",
       "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toCheckProposal": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCheckProposal",
+        "targetRef": "checkProposal"
+      }
+    },
+    // The intake: waits here until the extraction job has checked the upload (only iap-extraction
+    // performs it), then goes on unless the model is sure the upload is not what was asked for.
+    "checkProposal": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "checkProposal",
+      "label": "Check the upload is a research proposal",
+      "performers": [ "iap-extraction" ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toIsProposal": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toIsProposal",
+        "targetRef": "isProposal"
+      }
+    },
+    "isProposal": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "isProposal",
+      "label": "Is it a research proposal?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toNotAProposal": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toNotAProposal",
+        "label": "Surely not",
+        "targetRef": "notAProposal",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "validation",
+            "value": [ "is_proposal" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "no" ]
+          }
+        }
+      },
       "toComplete": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toComplete",
-        "targetRef": "complete"
+        "targetRef": "complete",
+        "isDefault": true
       }
     },
-    // Uploading the proposal starts its parse, classification and reading, which land while this step is
-    // open. The researcher checks what was read, answers the rest, and sends it.
+    "notAProposal": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "notAProposal",
+      "label": "Not a research proposal",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    // The researcher confirms the kind of study, checks what was read from the proposal, answers the
+    // rest, and sends it.
     "complete": {
       "jcr:primaryType": "wf:Activity",
       "elementId": "complete",

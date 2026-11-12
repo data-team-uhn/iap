@@ -6,9 +6,6 @@
     "version": "1.0",
     "tags": ["active"],
     "jcr:reference:workflow": "/Workflows/pfq/v1",
-    // What reads the uploaded questionnaire once the daemon has parsed it. Like the proposal, it first
-    // checks that the upload is a patient facing questionnaire (is_questionnaire below).
-    "jcr:reference:readingWorkflow": "/Workflows/readPfq/v1",
     "description": "Ask the PFQ Council to authorize a patient facing questionnaire. Answer the screening questions and upload the questionnaire; what it says about itself is read out of it and filled in below for you to check.",
     "screening": {
       "jcr:primaryType": "sch:FormRequirement",
@@ -81,36 +78,20 @@
       ],
       "required": false
     },
-    // Decided by the model from the uploaded questionnaire before anything is read out of it, and shown
-    // pre-filled to confirm or change. Only a settled yes lets the reading fill in the questions below.
+    // Checked by the model as soon as the questionnaire is parsed. A sure no stops the request: the
+    // intake in /Workflows/pfq ends there. Not a question, so the submitter never answers it.
     "is_questionnaire": {
-      "jcr:primaryType": "sch:ClassificationRequirement",
+      "jcr:primaryType": "sch:ValidationRequirement",
       "label": "Is this a patient facing questionnaire?",
-      "description": "Decided from the uploaded questionnaire. Confirm it, or change it if it is wrong.",
+      "description": "Checked from the uploaded questionnaire.",
       "document": "questionnaire",
       "confidenceThreshold": 0.7,
-      "prompt": "Decide whether this document is a patient facing questionnaire: a set of questions or items that a patient, or someone answering for them, fills in, with the answer choices, rating scales or spaces to write that go with them. Instructions, a preamble or a consent statement may come with it. Surveys, symptom scales, quality-of-life instruments and experience surveys count, on paper or online. It is not a questionnaire when it only describes one without its items - a study protocol, a report of results, a summary or a letter - or when it is another kind of document altogether, such as a consent form on its own, a clinical note, a policy or a slide deck. Judge what the document IS, not what it mentions. Do not guess: if you cannot tell safely, report that the answer was not found.",
-      "decision": {
-        "jcr:primaryType": "sch:Question",
-        "text": "Is this a patient facing questionnaire?",
-        "dataType": "text",
-        "minAnswers": 1,
-        "maxAnswers": 1,
-        "yes": {
-          "jcr:primaryType": "sch:AnswerOption",
-          "value": "yes",
-          "label": "Yes, a questionnaire"
-        },
-        "no": {
-          "jcr:primaryType": "sch:AnswerOption",
-          "value": "no",
-          "label": "No, not a questionnaire"
-        }
-      }
+      "prompt": "Decide whether this document is a patient facing questionnaire: a set of questions or items that a patient, or someone answering for them, fills in, with the answer choices, rating scales or spaces to write that go with them. Instructions, a preamble or a consent statement may come with it. Surveys, symptom scales, quality-of-life instruments and experience surveys count, on paper or online. It is not a questionnaire when it only describes one without its items - a study protocol, a report of results, a summary or a letter - or when it is another kind of document altogether, such as a consent form on its own, a clinical note, a policy or a slide deck. Judge what the document IS, not what it mentions. Do not guess: if you cannot tell safely, report that the answer was not found."
     },
     "extracted": {
       "jcr:primaryType": "sch:FormRequirement",
       "label": "Read from the questionnaire",
+      "documents": [ "preamble", "questionnaire" ],
       "description": "Read out of the uploaded document. Check every answer: each one carries the words it came from.",
       // Shown from the moment a reading starts, and not before: the status is unset until the
       // questionnaire is uploaded, and is set to running by the step that queues its parse.
@@ -132,7 +113,7 @@
           "value": [ "running", "done", "failed" ]
         }
       },
-      // Named by the askTheModel step of the reading workflow. Every question here has an extractionPrompt,
+      // Read from the preamble and the questionnaire, joined. Every question here has an extractionPrompt,
       // which is what makes it one the model is asked.
       "name": {
         "jcr:primaryType": "sch:Question",

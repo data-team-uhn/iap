@@ -21,21 +21,20 @@ categories. Delete `.iap-data` before the first demo run.
 
 | Path                           | What                                                                    |
 |--------------------------------|-------------------------------------------------------------------------|
-| `/Schemas/researchProposal`    | The proposal document first, then two classification requirements read from it: whether it is a research proposal (with the protocol structure as reference) and what kind of study it is (options from `/Categories/Proposal`); the common questions about the study, each with an extraction prompt; a requirement per study type (consent for prospective studies, data sources for retrospective ones); two administrative questions filled in by hand; then a scientific review |
-| `/Schemas/pfq`                 | A patient facing questionnaire: a few questions answered by hand, the questionnaire and an optional preamble, a classification of whether the upload is a questionnaire, the questions read out of it, then a review |
-| `/Workflows/researchProposal`  | The process, as BPMN: check and complete → review → approved or refused. Uploading the proposal is what starts the reading |
-| `/Workflows/readProposal`      | The reading: classify the upload, stop if it is not a proposal, then the common questions and those of its study type, in one call |
-| `/Workflows/pfq`, `/Workflows/readPfq` | The same for a questionnaire: classify, then read the questions only if it is one |
+| `/Schemas/researchProposal`    | The proposal document first; a validation that it is a research proposal (`is_proposal`, with the protocol structure as reference); the kind of study, a question in the `category` form that the classification `proposal_category` suggests (options from `/Categories/Proposal`); the common questions about the study, each with an extraction prompt; a form per study type (consent for prospective studies, data sources for retrospective ones); two administrative questions filled in by hand; then a scientific review. Each form that is read names `proposal` as its document |
+| `/Schemas/pfq`                 | A patient facing questionnaire: a few questions answered by hand, the questionnaire and an optional preamble, a validation that the upload is a questionnaire, the questions read out of both documents, then a review |
+| `/Workflows/researchProposal`  | The process, as BPMN: wait for the check of the upload → stop if it is surely not a proposal → check and complete → review → approved or refused |
+| `/Workflows/pfq`               | The same for a questionnaire |
 | `/Categories/Proposal`, `/Categories/PFQ` | The top categories a submission is raised under, each naming its schema, with the study types (and PROM/PREM) below |
-| `/Schemas/ethicsReviewDemo`, `/Workflows/ethicsReviewDemo`, `/Categories/EthicsReview` | A study document checked against TCPS2 on its own, with no classification first |
+| `/Schemas/ethicsReviewDemo`, `/Categories/EthicsReview` | A study document checked against TCPS2, with TCPS2 as the form's reference text. It shares the proposal's workflow and its validation, but asks no kind of study |
 | `demo-researcher`              | Raises proposals. Member of `proposal-researchers`                     |
 | `demo-reviewer`                | Decides. Member of `proposal-reviewers`, which the schema routes review to |
 
 Passwords match the usernames; this only ever runs behind `--demo`.
 
-The demo has no Java of its own. Everything it uses is a platform capability: the `parseDocuments`,
-`classifyDocument` and `intakeAnswers` service tasks and the `documentParsed` and `extractAnswers`
-system workflows ship with the extraction module, the upload with the submissions module.
+The demo has no Java of its own. Everything it uses is a platform capability: the parse, the checks
+of the upload and the main extraction ship with the extraction module, the upload and the `validation`
+condition source with the submissions module. See [docs/extraction.md](../../docs/extraction.md).
 
 ## Running it on a developer machine
 
@@ -75,46 +74,43 @@ provider with the `Qwen3.8-27B` model, so a
    form's upload control does. The upload becomes a `sub:Document` holding a version, whose `sub:File`
    holds the bytes as `uploadedFile`. The `attachDocument` system workflow then runs
    `parseDocuments`: every upload not parsed yet is staged on the volume shared with the document
-   daemon and queued, and the submission records `extractionStatus: running`. A schema that names no
-   `readingWorkflow` is left alone.
+   daemon and queued, and the submission records `extractionStatus: running`.
 3. **The daemon parses in the background** and POSTs the outcome back. The platform fires
-   `documentParsed` on the submission: the `ingestParse` service task reads the Markdown, the PDF
-   rendition onto the file, the parse job record is deleted, and once no parse is
-   still going, `queueExtraction` queues the reading.
-4. **A background job fires `extractAnswers`**, which runs `/Workflows/readProposal`. It starts with
-   `classifyDocument`: one call asks every classification requirement that points at the uploaded
-   document, `is_proposal` and `proposal_category`, with their prompts, their options and the protocol
-   structure as reference. A sure pick is stored as a run beside its answer; the answer itself stays
-   empty until the researcher confirms or changes it. A pick below `confidenceThreshold` is not kept.
-5. **The reading acts on a pick only once it is settled**: the researcher's own answer, or else a pick
-   the model made with a confidence at or above the requirement's `confidenceThreshold` (0.7).
-   - The classify call failed (no API key, provider down): the reading ends as failed, and *Try again*
-     reads it once more.
-   - `is_proposal` settled as *no*: the reading ends and nothing else is read.
-   - `is_proposal` settled as *yes* and a settled study type: one more call reads the common questions
-     and those of the study type, and `extractionStatus` becomes `done`. A settled study type that
-     neither list names reads the common questions only.
-   - Anything not settled: the reading ends with a message asking the researcher to pick the answer
-     in the form, then press *Read again*. A reading never waits on a task for a person.
+   `documentParsed` on the submission: `ingestParse` reads the Markdown and the PDF rendition onto the
+   file, and `queueDecisions` queues the checks of the upload.
+4. **A background job checks the upload**, one document at a time, in the schema's order. For the
+   proposal it asks `is_proposal` (yes or no), saves the verdict, and completes `checkProposal`, the task
+   the proposal's workflow waits at. Then it asks `proposal_category` from the same parse, and saves the
+   pick as a suggestion on `category/kind`; a pick below `confidenceThreshold` (0.7) is saved as not
+   found.
+   - The model is sure it is not a proposal: the workflow ends at *Not a research proposal*, the
+     submission is blocked with "Unable to identify the Research proposal", and nothing else is read.
+   - Yes, or unsure: the workflow goes on to *Send for review*, and the reading ends with "Confirm the
+     category to continue".
+   - A call failed (no API key, provider down): the reading ends as failed, and *Read again* runs the
+     check once more.
+5. **The researcher confirms the kind of study** in the form, then presses *Read again*. With the
+   category confirmed, that runs the main extraction: one call per form for the common questions and
+   those of the confirmed study type, reading `proposal`. Each answer is saved as a suggestion, and
+   `extractionStatus` becomes `done`.
 6. **The researcher checks the answers** in the form: each suggestion is shown framed beside its quotes,
-   and is saved only once they confirm or edit it. They complete what was not found,
-   and completes the step. The `markSubmitted` step (`addTag` with `replaceExisting`) swaps `draft`
-   for `submitted`, and `demo-reviewer` sees it. The end event then places `approved` or `rejected`.
+   and is saved only once they confirm or edit it. They complete what was not found, and complete the
+   step. The `markSubmitted` step (`addTag` with `replaceExisting`) swaps `draft` for `submitted`, and
+   `demo-reviewer` sees it. The end event then places `approved` or `rejected`.
 7. **`demo-reviewer` decides** — `POST` to the `review` task with `outcome=approved` or `rejected`.
 
-The researcher can ask for the reading again with *Read again* (`POST <submission>.readAgain.json`), or
-send a failed parse back with *Try again* (`retryParse`). A newer version of the document is read for
-every question; where it says something other than the researcher's answer, the field offers it from
-its corner, and the answer stays until they take it.
+*Read again* (`POST <submission>.readAgain.json`) runs the first step not done yet: the checks of the
+upload, or the questions never read. *Try again* (`retryParse`) sends a failed parse back. A newer
+version of the document is read for every question; where it says something other than the
+researcher's answer, the field offers it from its corner, and the answer stays until they take it.
 
 A questionnaire goes the same way: *Patient facing questionnaire* in the dialog, then the upload, then
-`is_questionnaire`. A settled *yes* reads the questions out of the questionnaire and its preamble; a
-settled *no* ends the reading and leaves them to be answered by hand. A preamble uploaded later reads
-again, and fills only what is still unanswered.
+`is_questionnaire`. Surely not a questionnaire ends the request; otherwise the questions are read out
+of the preamble and the questionnaire together. There is no kind of questionnaire to confirm.
 
 ## Questions that depend on the category
 
-The category is the answer to `proposal_category/decision`: one path, such as
+The category is the answer to `category/kind`: one path, such as
 `/Categories/Proposal/Prospective/Interventional/ClinicalTrials`. A condition compares value sets and
 has no "starts with", so a requirement meant for every prospective study lists every path in that
 branch and asks whether the answer is among them:
@@ -123,16 +119,16 @@ branch and asks whether the answer is among them:
 "cond:condition": {
   "jcr:primaryType": "cond:SingleCondition",
   "comparator": "includes any",
-  "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "decision", "value": [ "proposal_category/decision" ] },
+  "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "category/kind" ] },
   "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "/Categories/Proposal/Prospective", "/Categories/Proposal/Prospective/Observational", "..." ] }
 }
 ```
 
-The `decision` source reads the answer to a question of the submission's schema, but only once it is
-settled, as above. It works from a workflow gateway too, which the `answer` source does not.
+The `answer` source reads only what the submitter saved, never the model's suggestion, so these
+forms apply once the kind of study is confirmed. The main extraction waits for that too.
 
-The lists in the schema and in `readProposal` mirror the `/Categories/Proposal` tree. A category
-added there has to be added here too, or proposals filed under it get only the common questions.
+The lists in the schema mirror the `/Categories/Proposal` tree. A category added there has to be added
+here too, or proposals filed under it get only the common questions.
 
 ## Where it is going
 

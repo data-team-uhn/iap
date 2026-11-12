@@ -6,20 +6,70 @@
     "version": "1.0",
     "bpmnAuthoritative": true,
     "tags": ["active"],
-    "description": "A requester answers the screening questions, uploads the questionnaire, checks what was read, and sends it. The PFQ Council then accepts or refuses it.",
+    "description": "A requester answers the screening questions, uploads the questionnaire, which is first checked to be one, checks what was read, and sends it. The PFQ Council then accepts or refuses it.",
     "created": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "created",
       "label": "Request started",
       "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toCheckQuestionnaire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCheckQuestionnaire",
+        "targetRef": "checkQuestionnaire"
+      }
+    },
+    // The intake: waits here until the extraction job has checked the upload (only iap-extraction
+    // performs it), then goes on unless the model is sure the upload is not what was asked for.
+    "checkQuestionnaire": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "checkQuestionnaire",
+      "label": "Check the upload is a questionnaire",
+      "performers": [ "iap-extraction" ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toIsQuestionnaire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toIsQuestionnaire",
+        "targetRef": "isQuestionnaire"
+      }
+    },
+    "isQuestionnaire": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "isQuestionnaire",
+      "label": "Is it a questionnaire?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toNotAQuestionnaire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toNotAQuestionnaire",
+        "label": "Surely not",
+        "targetRef": "notAQuestionnaire",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "validation",
+            "value": [ "is_questionnaire" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "no" ]
+          }
+        }
+      },
       "toCheck": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toCheck",
-        "targetRef": "check"
+        "targetRef": "check",
+        "isDefault": true
       }
     },
-    // Where the requester waits while the reading runs, and then checks it. An instance cannot be in two
-    // places, so the reading is a workflow of its own and this task is what this one does meanwhile.
+    "notAQuestionnaire": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "notAQuestionnaire",
+      "label": "Not a questionnaire",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    // The requester checks what was read from the questionnaire, answers the rest, and sends it.
     "check": {
       "jcr:primaryType": "wf:Activity",
       "elementId": "check",

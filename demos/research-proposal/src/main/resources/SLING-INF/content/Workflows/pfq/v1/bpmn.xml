@@ -27,11 +27,55 @@
                   targetNamespace="https://iap.uhndata.io/demos/pfq">
   <bpmn:process id="pfq" name="Patient facing questionnaire" isExecutable="true">
     <bpmn:startEvent id="created" name="Request started">
-      <bpmn:outgoing>toCheck</bpmn:outgoing>
+      <bpmn:outgoing>toCheckQuestionnaire</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="toCheck" sourceRef="created" targetRef="check" />
-    <!-- Where the requester waits while the reading runs, and then checks it. An instance cannot be in two
-         places, so the reading is /Workflows/readPfq and this task is what this one does meanwhile. -->
+    <bpmn:sequenceFlow id="toCheckQuestionnaire" sourceRef="created" targetRef="checkQuestionnaire" />
+    <bpmn:userTask id="checkQuestionnaire" iap:performers="iap-extraction" name="Check the upload is a questionnaire">
+      <bpmn:incoming>toCheckQuestionnaire</bpmn:incoming>
+      <bpmn:outgoing>toIsQuestionnaire</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toIsQuestionnaire" sourceRef="checkQuestionnaire" targetRef="isQuestionnaire" />
+    <bpmn:exclusiveGateway id="isQuestionnaire" default="toCheck" name="Is it a questionnaire?">
+      <bpmn:incoming>toIsQuestionnaire</bpmn:incoming>
+      <bpmn:outgoing>toNotAQuestionnaire</bpmn:outgoing>
+      <bpmn:outgoing>toCheck</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toNotAQuestionnaire" name="Surely not" sourceRef="isQuestionnaire" targetRef="notAQuestionnaire">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>validation</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>is_questionnaire</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>no</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="notAQuestionnaire" name="Not a questionnaire">
+      <bpmn:incoming>toNotAQuestionnaire</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="toCheck" sourceRef="isQuestionnaire" targetRef="check" />
+    <!-- The requester checks what was read from the questionnaire, answers the rest, and sends it. -->
     <bpmn:userTask id="check" iap:performers="@creator" name="Send to the PFQ Council review">
       <bpmn:incoming>toCheck</bpmn:incoming>
       <bpmn:outgoing>toMarkSubmitted</bpmn:outgoing>
@@ -135,8 +179,38 @@
           <dc:Bounds x="1244" y="303" width="69" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="toCheckEdge" bpmnElement="toCheck">
+      <bpmndi:BPMNShape id="checkQuestionnaireShape" bpmnElement="checkQuestionnaire">
+        <dc:Bounds x="250" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="isQuestionnaireShape" bpmnElement="isQuestionnaire" isMarkerVisible="true">
+        <dc:Bounds x="410" y="173" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="370" y="143" width="130" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="notAQuestionnaireShape" bpmnElement="notAQuestionnaire">
+        <dc:Bounds x="417" y="280" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="385" y="323" width="100" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toCheckQuestionnaireEdge" bpmnElement="toCheckQuestionnaire">
         <di:waypoint x="196" y="198" />
+        <di:waypoint x="250" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toIsQuestionnaireEdge" bpmnElement="toIsQuestionnaire">
+        <di:waypoint x="350" y="198" />
+        <di:waypoint x="410" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toNotAQuestionnaireEdge" bpmnElement="toNotAQuestionnaire">
+        <di:waypoint x="435" y="223" />
+        <di:waypoint x="435" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="442" y="245" width="55" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toCheckEdge" bpmnElement="toCheck">
+        <di:waypoint x="460" y="198" />
         <di:waypoint x="550" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toMarkSubmittedEdge" bpmnElement="toMarkSubmitted">
