@@ -34,9 +34,6 @@ public abstract class DecisionRequirement extends Requirement
     /** The confidence an answer needs when the schema names none. */
     public static final double DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
 
-    /** The child holding the reference text, when there is one. */
-    private static final String TEMPLATE_CHILD = "template";
-
     @ValueMapValue
     private String prompt;
 
@@ -87,7 +84,6 @@ public abstract class DecisionRequirement extends Requirement
     @Nullable
     public Resource getTemplate()
     {
-        final Resource template = this.resource.getChild(TEMPLATE_CHILD);
-        return template != null ? template : this.resource.getChild(TEMPLATE_CHILD + ".md");
+        return getReferenceTemplate();
     }
 }

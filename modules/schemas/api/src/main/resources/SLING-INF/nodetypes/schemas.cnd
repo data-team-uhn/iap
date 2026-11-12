@@ -253,6 +253,16 @@
 
   - sling:resourceType (STRING) = "sch/FormRequirement" mandatory autocreated protected
 
+  // The names of the document requirements whose uploads a model reads to
+  // answer this form's questions, in the order they are sent. A form that
+  // names none is not read: its questions are left to the submitter.
+  - documents (STRING) multiple
+
+  // Optional reference text the model is shown with this form's questions,
+  // e.g. where a protocol usually states its sample size. A template.md child
+  // also works.
+  + template (nt:file)
+
   // The questions and sections of the form
   + * (sch:FormItem)
 

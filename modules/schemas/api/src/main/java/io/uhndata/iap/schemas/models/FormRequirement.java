@@ -22,7 +22,9 @@ import java.util.List;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A Sling Model wrapping a {@code sch:FormRequirement} node: a form, made of questions grouped into sections, that the
@@ -37,6 +39,33 @@ public class FormRequirement extends Requirement
 {
     /** The {@code sling:resourceType} of a {@code sch:FormRequirement} node. */
     public static final String RESOURCE_TYPE = "sch/FormRequirement";
+
+    @ValueMapValue
+    private String[] documents;
+
+    /**
+     * The names of the document requirements whose uploads a model reads to answer this form's questions, in the
+     * order they are sent. A form that names none is not read: its questions are left to the submitter.
+     *
+     * @return the names, empty when the form names none
+     */
+    @NotNull
+    public List<String> getDocumentRequirementNames()
+    {
+        return this.documents == null ? List.of() : List.of(this.documents);
+    }
+
+    /**
+     * Optional reference text the model is shown with this form's questions. Read from a {@code template} child,
+     * or else a {@code template.md} child.
+     *
+     * @return the template file, or {@code null} if there is none
+     */
+    @Nullable
+    public Resource getTemplate()
+    {
+        return getReferenceTemplate();
+    }
 
     /**
      * The sections directly in this form.

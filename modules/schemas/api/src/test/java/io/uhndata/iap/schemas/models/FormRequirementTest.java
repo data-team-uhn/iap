@@ -33,6 +33,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -113,6 +114,61 @@ class FormRequirementTest
         assertEquals("Study details", ((Section) children.get(0)).getTitle());
         assertEquals(Question.class, children.get(1).getClass());
         assertEquals("Does this involve human subjects?", ((Question) children.get(1)).getText());
+    }
+
+    @Test
+    void namesTheDocumentsItReadsInOrder()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form", Map.of(
+            "sling:resourceType", FormRequirement.RESOURCE_TYPE,
+            "documents", new String[] { "proposal", "consent" }));
+
+        assertEquals(List.of("proposal", "consent"),
+            resource.adaptTo(FormRequirement.class).getDocumentRequirementNames());
+    }
+
+    // A form that names no documents is not read
+    @Test
+    void namesNoDocumentsByDefault()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form",
+            "sling:resourceType", FormRequirement.RESOURCE_TYPE);
+        final FormRequirement requirement = resource.adaptTo(FormRequirement.class);
+
+        assertTrue(requirement.getDocumentRequirementNames().isEmpty());
+        assertNull(requirement.getTemplate(), "a template is optional");
+    }
+
+    @Test
+    void findsItsTemplate()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form",
+            "sling:resourceType", FormRequirement.RESOURCE_TYPE);
+        this.context.create().resource("/Schemas/schema/1.0/form/template", "jcr:primaryType", "nt:file");
+
+        assertEquals("template", resource.adaptTo(FormRequirement.class).getTemplate().getName());
+    }
+
+    // A Markdown file loaded as initial content keeps its extension in its node name
+    @Test
+    void findsATemplateLoadedAsMarkdown()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form",
+            "sling:resourceType", FormRequirement.RESOURCE_TYPE);
+        this.context.create().resource("/Schemas/schema/1.0/form/template.md", "jcr:primaryType", "nt:file");
+
+        assertEquals("template.md", resource.adaptTo(FormRequirement.class).getTemplate().getName());
+    }
+
+    // The template is reference text for the model, not one of the form's items
+    @Test
+    void leavesTheTemplateOutOfTheItems()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form",
+            "sling:resourceType", FormRequirement.RESOURCE_TYPE);
+        this.context.create().resource("/Schemas/schema/1.0/form/template", "jcr:primaryType", "nt:file");
+
+        assertTrue(resource.adaptTo(FormRequirement.class).getChildren().isEmpty());
     }
 
     @Test

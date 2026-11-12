@@ -14,7 +14,7 @@ version. Once a version is published, only its wording can change.
 /Schemas                         sch:SchemasHomepage
 └── clinicalStudy                sch:Schema           title
     └── v1                       sch:SchemaVersion    version, description, workflow → wf:WorkflowVersion
-        ├── basics               sch:FormRequirement  label
+        ├── basics               sch:FormRequirement  label, documents, template
         │   ├── design           sch:Section          title
         │   │   └── arms         sch:Question         text, dataType, minAnswers, maxAnswers, …
         │   │       └── placebo  sch:AnswerOption     value, label
@@ -61,6 +61,25 @@ optional reference text (a `template` or `template.md` child). They share the ab
 The classification's question is an ordinary question in a form requirement, so the form
 shows it like any other. A reference to a question of the same version still points at
 the right question when the version is copied.
+
+### What a model reads for a form
+
+A form requirement names the documents whose uploads a model reads to answer its
+questions (`documents`, the names of document requirements, in the order they are
+sent). It may carry reference text the model is shown with the questions, such as where
+a protocol usually states its sample size (a `template` or `template.md` child, as the
+decisions have). A form that names no documents is not read: its questions are left to
+the submitter.
+
+| Form | `documents` | What the model reads |
+|---|---|---|
+| Study details | `["proposal"]` | the proposal |
+| Clinical trial | `["proposal", "consent"]` | both, joined, each under its own heading |
+| Category | none | nothing: the classification fills its question |
+
+Only the questions with an `extractionPrompt` are asked, and only while the form applies,
+so a form whose condition reads the confirmed category is read only for that category.
+See [extraction.md](extraction.md).
 
 ### Questions
 
