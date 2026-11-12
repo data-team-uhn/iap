@@ -51,10 +51,8 @@ public class CreatorResolver implements SpecialNameResolver
             return List.of();
         }
         final Content content = subject.adaptTo(Content.class);
-        String creator = content == null ? null : content.getCreatedBy();
-        if (creator == null) {
-            creator = subject.getValueMap().get("createdBy", String.class);
-        }
+        final String creator = content == null ? subject.getValueMap().get("createdBy", String.class)
+            : content.getCreatedBy();
         return creator == null || creator.isBlank() ? List.of() : List.of(creator);
     }
 }

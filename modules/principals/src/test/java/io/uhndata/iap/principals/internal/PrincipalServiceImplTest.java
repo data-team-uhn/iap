@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.principals.internal;
 
-import java.lang.reflect.Field;
 import java.security.Principal;
 import java.util.Collections;
 import java.util.Iterator;
@@ -34,8 +33,11 @@ import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.principals.api.PrincipalContext;
@@ -56,11 +58,16 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  * @since 0.1.0
  */
+@ExtendWith(SlingContextExtension.class)
 class PrincipalServiceImplTest
 {
     private static final String ALICE = "alice";
 
+    private static final String BOB = "bob";
+
     private static final String TEAM = "team";
+
+    private final SlingContext osgi = new SlingContext();
 
     private final PrincipalServiceImpl service = new PrincipalServiceImpl();
 
@@ -89,45 +96,47 @@ class PrincipalServiceImplTest
     @Test
     void literalNamesPassThroughUntouched()
     {
-        assertEquals(List.of(TEAM, "bob"), this.service.resolve(List.of(TEAM, "bob"), this.context));
+        assertEquals(List.of(TEAM, BOB), this.service.resolve(List.of(TEAM, BOB), this.context));
     }
 
     @Test
-    void aSpecialNameIsAnsweredByItsResolver() throws Exception
+    void aSpecialNameIsAnsweredByItsResolver()
     {
-        this.vocabulary(resolver("@several", List.of(ALICE, "bob")));
-        assertEquals(List.of(ALICE, "bob", "carol"),
-            this.service.resolve(List.of("@several", "carol"), this.context));
+        final PrincipalServiceImpl answering = this.serviceAnswering(resolver("@several", List.of(ALICE, BOB)));
+        assertEquals(List.of(ALICE, BOB, "carol"),
+            answering.resolve(List.of("@several", "carol"), this.context));
     }
 
     @Test
-    void anUnclaimedSpecialNameNamesNobody() throws Exception
+    void anUnclaimedSpecialNameNamesNobody()
     {
-        this.vocabulary(resolver("@known", List.of(ALICE)));
-        assertEquals(List.of("bob"), this.service.resolve(List.of("@nonsense", "bob"), this.context));
+        final PrincipalServiceImpl answering = this.serviceAnswering(resolver("@known", List.of(ALICE)));
+        assertEquals(List.of(BOB), answering.resolve(List.of("@nonsense", BOB), this.context));
     }
 
     @Test
-    void somebodyNamedTwiceIsNamedOnce() throws Exception
+    void somebodyNamedTwiceIsNamedOnce()
     {
-        this.vocabulary(resolver("@several", List.of(ALICE, "bob")));
-        assertEquals(List.of(ALICE, "bob"), this.service.resolve(List.of(ALICE, "@several"), this.context));
+        final PrincipalServiceImpl answering = this.serviceAnswering(resolver("@several", List.of(ALICE, BOB)));
+        assertEquals(List.of(ALICE, BOB), answering.resolve(List.of(ALICE, "@several"), this.context));
     }
 
     @Test
-    void aBrokenResolverNamesNobody() throws Exception
+    void aBrokenResolverNamesNobody()
     {
         final SpecialNameResolver broken = resolver("@broken", List.of());
         when(broken.resolve(this.context)).thenThrow(new IllegalStateException("boom"));
-        this.vocabulary(broken);
-        assertEquals(List.of("bob"), this.service.resolve(List.of("@broken", "bob"), this.context));
+        assertEquals(List.of(BOB),
+            this.serviceAnswering(broken).resolve(List.of("@broken", BOB), this.context));
     }
 
+    // Which of the two is asked is left undefined, so only that exactly one of them answers is pinned
     @Test
-    void twoResolversForOneNameDoNotCollide() throws Exception
+    void twoResolversForOneNameDoNotCollide()
     {
-        this.vocabulary(resolver("@twice", List.of(ALICE)), resolver("@twice", List.of("bob")));
-        assertEquals(List.of(ALICE), this.service.resolve(List.of("@twice"), this.context));
+        final PrincipalServiceImpl answering =
+            this.serviceAnswering(resolver("@twice", List.of(ALICE)), resolver("@twice", List.of(BOB)));
+        assertTrue(Set.of(List.of(ALICE), List.of(BOB)).contains(answering.resolve(List.of("@twice"), this.context)));
     }
 
     // ---------------------------------------------------------------------------------------- expandToUsers
@@ -145,9 +154,9 @@ class PrincipalServiceImplTest
     void aLocalGroupExpandsToItsPeople() throws Exception
     {
         // getMembers lists a nested group beside its members, and only the users count
-        final Group team = group(user(ALICE), group(), user("bob"));
+        final Group team = group(user(ALICE), group(), user(BOB));
         when(this.users.getAuthorizable(TEAM)).thenReturn(team);
-        assertEquals(List.of(ALICE, "bob"), this.service.expandToUsers(List.of(TEAM), this.resolver));
+        assertEquals(List.of(ALICE, BOB), this.service.expandToUsers(List.of(TEAM), this.resolver));
     }
 
     @Test
@@ -188,10 +197,10 @@ class PrincipalServiceImplTest
     @Test
     void aFailingLookupLosesOnlyItsOwnName() throws Exception
     {
-        final Authorizable bob = user("bob");
+        final Authorizable bob = user(BOB);
         when(this.users.getAuthorizable("broken")).thenThrow(new RepositoryException("gone"));
-        when(this.users.getAuthorizable("bob")).thenReturn(bob);
-        assertEquals(List.of("bob"), this.service.expandToUsers(List.of("broken", "bob"), this.resolver));
+        when(this.users.getAuthorizable(BOB)).thenReturn(bob);
+        assertEquals(List.of(BOB), this.service.expandToUsers(List.of("broken", BOB), this.resolver));
     }
 
     @Test
@@ -259,17 +268,17 @@ class PrincipalServiceImplTest
     void otherPeopleAndUnknownNamesDoNotAdmit() throws Exception
     {
         final Authorizable alice = user(ALICE);
-        final Authorizable bob = user("bob");
+        final Authorizable bob = user(BOB);
         when(this.users.getAuthorizable(ALICE)).thenReturn(alice);
         // A user named among the principals who is somebody else
-        when(this.users.getAuthorizable("bob")).thenReturn(bob);
+        when(this.users.getAuthorizable(BOB)).thenReturn(bob);
         // A name neither store knows
         when(this.users.getAuthorizable("ghost")).thenReturn(null);
         when(this.principalManager.getPrincipal("ghost")).thenReturn(null);
         // A name that is a principal, but not a group
         when(this.users.getAuthorizable("flat")).thenReturn(null);
         when(this.principalManager.getPrincipal("flat")).thenReturn(name("flat"));
-        assertFalse(this.service.isOneOf(ALICE, List.of("bob", "ghost", "flat"), this.resolver));
+        assertFalse(this.service.isOneOf(ALICE, List.of(BOB, "ghost", "flat"), this.resolver));
     }
 
     @Test
@@ -333,11 +342,10 @@ class PrincipalServiceImplTest
         return resolver;
     }
 
-    private void vocabulary(final SpecialNameResolver... resolvers) throws Exception
+    private PrincipalServiceImpl serviceAnswering(final SpecialNameResolver... resolvers)
     {
-        final Field field = PrincipalServiceImpl.class.getDeclaredField("resolvers");
-        field.setAccessible(true);
-        field.set(this.service, List.of(resolvers));
+        List.of(resolvers).forEach(nameResolver -> this.osgi.registerService(SpecialNameResolver.class, nameResolver));
+        return this.osgi.registerInjectActivateService(new PrincipalServiceImpl());
     }
 
     private static Authorizable user(final String id) throws RepositoryException
