@@ -19,8 +19,10 @@
 package io.uhndata.iap.utils.internal;
 
 import javax.jcr.Node;
+import javax.jcr.PathNotFoundException;
 import javax.jcr.Property;
 import javax.jcr.RepositoryException;
+import javax.jcr.nodetype.NodeType;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -34,6 +36,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
+
 /**
  * Unit tests for {@link PreventVersionOverrideServletFilter}.
  *
@@ -45,6 +51,8 @@ public class PreventVersionOverrideServletFilterTest
     private static final String BASE_VERSION_PARAM = ":baseVersion";
 
     private static final String CURRENT_VERSION_PATH = "/jcr:system/jcr:versionStorage/current";
+
+    private static final String STALE_VERSION_PATH = "/some/stale/version";
 
     private PreventVersionOverrideServletFilter filter;
 
@@ -101,13 +109,37 @@ public class PreventVersionOverrideServletFilterTest
         throws Exception
     {
         final SlingJakartaHttpServletRequest request = mockRequestWithNodeVersion(CURRENT_VERSION_PATH);
-        Mockito.when(request.getParameter(BASE_VERSION_PARAM)).thenReturn("/some/stale/version");
+        Mockito.when(request.getParameter(BASE_VERSION_PARAM)).thenReturn(STALE_VERSION_PATH);
 
-        Assertions.assertThrows(ServletException.class,
+        final ServletException refusal = Assertions.assertThrows(ServletException.class,
             () -> this.filter.doFilter(request, this.response, this.chain));
 
+        Assertions.assertEquals("This content changed after you opened it. Reload it to see the latest version.",
+            refusal.getMessage());
         Mockito.verify(request).setAttribute("jakarta.servlet.error.status_code", 409);
         Mockito.verify(this.chain, Mockito.never()).doFilter(Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    public void testNonVersionableNodeIgnoresBaseVersionAndRecordsNothing()
+        throws Exception
+    {
+        final SlingJakartaHttpServletRequest request = Mockito.mock(SlingJakartaHttpServletRequest.class);
+        Mockito.when(request.getParameter(BASE_VERSION_PARAM)).thenReturn(STALE_VERSION_PATH);
+        final Node node = Mockito.mock(Node.class);
+        Mockito.when(node.getProperty("jcr:baseVersion"))
+            .thenThrow(new PathNotFoundException("jcr:baseVersion"));
+        mockResource(request, node);
+        final ErrorLoggerService recorder = recordInto();
+
+        try {
+            this.filter.doFilter(request, this.response, this.chain);
+
+            Mockito.verify(this.chain).doFilter(request, this.response);
+            Mockito.verifyNoInteractions(recorder);
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
     }
 
     @Test
@@ -116,9 +148,7 @@ public class PreventVersionOverrideServletFilterTest
     {
         final SlingJakartaHttpServletRequest request = Mockito.mock(SlingJakartaHttpServletRequest.class);
         Mockito.when(request.getParameter(BASE_VERSION_PARAM)).thenReturn("v1");
-        final Resource resource = Mockito.mock(Resource.class);
-        Mockito.when(resource.adaptTo(Node.class)).thenReturn(null);
-        Mockito.when(request.getResource()).thenReturn(resource);
+        mockResource(request, null);
 
         this.filter.doFilter(request, this.response, this.chain);
 
@@ -131,16 +161,20 @@ public class PreventVersionOverrideServletFilterTest
     {
         final SlingJakartaHttpServletRequest request = Mockito.mock(SlingJakartaHttpServletRequest.class);
         Mockito.when(request.getParameter(BASE_VERSION_PARAM)).thenReturn("v1");
-        final Resource resource = Mockito.mock(Resource.class);
-        final Node node = Mockito.mock(Node.class);
-        Mockito.when(node.getProperty("jcr:baseVersion")).thenThrow(new RepositoryException("boom"));
-        Mockito.when(resource.adaptTo(Node.class)).thenReturn(node);
-        Mockito.when(request.getResource()).thenReturn(resource);
+        final Node node = mockVersionableNode();
+        final RepositoryException fault = new RepositoryException("boom");
+        Mockito.when(node.getProperty("jcr:baseVersion")).thenThrow(fault);
+        mockResource(request, node);
+        final ErrorLoggerService recorder = recordInto();
 
-        this.filter.doFilter(request, this.response, this.chain);
+        try {
+            this.filter.doFilter(request, this.response, this.chain);
 
-        // A repository failure is logged and the request is allowed to proceed
-        Mockito.verify(this.chain).doFilter(request, this.response);
+            Mockito.verify(this.chain).doFilter(request, this.response);
+            Mockito.verify(recorder).logError(Mockito.same(fault), Mockito.any(ErrorContext.class));
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
     }
 
     @Test
@@ -155,15 +189,41 @@ public class PreventVersionOverrideServletFilterTest
         throws RepositoryException
     {
         final SlingJakartaHttpServletRequest request = Mockito.mock(SlingJakartaHttpServletRequest.class);
-        final Resource resource = Mockito.mock(Resource.class);
-        final Node node = Mockito.mock(Node.class);
+        final Node node = mockVersionableNode();
         final Property property = Mockito.mock(Property.class);
         final Node versionNode = Mockito.mock(Node.class);
         Mockito.when(versionNode.getPath()).thenReturn(versionPath);
         Mockito.when(property.getNode()).thenReturn(versionNode);
         Mockito.when(node.getProperty("jcr:baseVersion")).thenReturn(property);
+        mockResource(request, node);
+        return request;
+    }
+
+    private Node mockVersionableNode()
+        throws RepositoryException
+    {
+        final Node node = Mockito.mock(Node.class);
+        Mockito.when(node.isNodeType(NodeType.MIX_VERSIONABLE)).thenReturn(true);
+        return node;
+    }
+
+    private void mockResource(final SlingJakartaHttpServletRequest request, final Node node)
+    {
+        final Resource resource = Mockito.mock(Resource.class);
         Mockito.when(resource.adaptTo(Node.class)).thenReturn(node);
         Mockito.when(request.getResource()).thenReturn(resource);
-        return request;
+    }
+
+    /**
+     * Publishes a recorder to the static facade, so that a test can see what was recorded. The facade is
+     * process-global, so every test that calls this withdraws it in a {@code finally}.
+     *
+     * @return the recorder, to verify against
+     */
+    private ErrorLoggerService recordInto()
+    {
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        return recorder;
     }
 }
