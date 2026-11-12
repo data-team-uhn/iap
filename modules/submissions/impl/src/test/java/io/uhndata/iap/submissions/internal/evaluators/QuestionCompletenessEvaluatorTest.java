@@ -57,12 +57,13 @@ class QuestionCompletenessEvaluatorTest
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
-    private final QuestionCompletenessEvaluator evaluator = new QuestionCompletenessEvaluator();
+    private QuestionCompletenessEvaluator evaluator;
 
     @BeforeEach
     void setUp() throws Exception
     {
-        CompletenessFixture.inject(this.evaluator, "conditions", CompletenessFixture.setUp(this.context, this.hidden));
+        CompletenessFixture.setUp(this.context, this.hidden);
+        this.evaluator = this.context.registerInjectActivateService(new QuestionCompletenessEvaluator());
     }
 
     @Test

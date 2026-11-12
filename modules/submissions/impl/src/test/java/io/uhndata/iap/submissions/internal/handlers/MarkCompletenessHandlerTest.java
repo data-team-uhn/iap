@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.submissions.internal.RankedServices;
 import io.uhndata.iap.submissions.internal.Tagging;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
@@ -71,12 +73,13 @@ class MarkCompletenessHandlerTest
 
     private final SlingContext context = new SlingContext();
 
-    private final MarkCompletenessHandler handler = new MarkCompletenessHandler();
+    private MarkCompletenessHandler handler;
 
     @BeforeEach
     void setUp()
     {
         Tagging.enable(this.context);
+        this.handler = this.context.registerInjectActivateService(new MarkCompletenessHandler());
         this.context.create().resource(SUBMISSION_PATH, Map.of(TYPE, Submission.RESOURCE_TYPE));
         this.context.create().resource(ANSWER, Map.of(TYPE, Answer.RESOURCE_TYPE));
         this.context.create().resource(DOCUMENT, Map.of(TYPE, Document.RESOURCE_TYPE,
@@ -136,9 +139,10 @@ class MarkCompletenessHandlerTest
     @Test
     void untagsTheSubmissionOnceNoEvaluatorReportsIt() throws Exception
     {
-        evaluators(reporting(SUBMISSION_PATH));
+        final List<String> missing = new ArrayList<>(List.of(SUBMISSION_PATH));
+        evaluators(reportingEach(missing));
         this.handler.execute(context());
-        evaluators();
+        missing.clear();
 
         this.handler.execute(context());
 
@@ -191,11 +195,9 @@ class MarkCompletenessHandlerTest
         return homepage;
     }
 
-    private void evaluators(final CompletenessEvaluator... evaluators) throws ReflectiveOperationException
+    private void evaluators(final CompletenessEvaluator... evaluators)
     {
-        final var reference = MarkCompletenessHandler.class.getDeclaredField("evaluators");
-        reference.setAccessible(true);
-        reference.set(this.handler, List.of(evaluators));
+        RankedServices.registerInOrder(this.context, CompletenessEvaluator.class, List.of(evaluators));
     }
 
     /**
@@ -206,7 +208,20 @@ class MarkCompletenessHandlerTest
      */
     private CompletenessEvaluator reporting(final String path)
     {
-        return submission -> List.of(Objects.requireNonNull(submission.getResourceResolver().getResource(path)));
+        return reportingEach(List.of(path));
+    }
+
+    /**
+     * An evaluator reporting as incomplete whatever parts the list holds when it is asked.
+     *
+     * @param paths the parts, which the test may change between runs
+     * @return the evaluator
+     */
+    private CompletenessEvaluator reportingEach(final List<String> paths)
+    {
+        return submission -> paths.stream()
+            .map(path -> Objects.requireNonNull(submission.getResourceResolver().getResource(path)))
+            .toList();
     }
 
     /**

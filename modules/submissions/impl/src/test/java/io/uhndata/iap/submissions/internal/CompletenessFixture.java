@@ -86,14 +86,14 @@ public final class CompletenessFixture
     }
 
     /**
-     * Builds the schema and an empty submission answering it.
+     * Builds the schema and an empty submission answering it, and registers the condition evaluator that hides the
+     * given parts, for the submission model and the components under test to bind.
      *
      * @param context the mock context, JCR-backed for the references
      * @param hidden the names of the schema parts whose condition does not hold
-     * @return the condition evaluator the evaluators under test are to be given
      * @throws Exception when a reference cannot be written
      */
-    public static ConditionEvaluator setUp(final SlingContext context, final Set<String> hidden) throws Exception
+    public static void setUp(final SlingContext context, final Set<String> hidden) throws Exception
     {
         context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
@@ -101,7 +101,6 @@ public final class CompletenessFixture
         final ConditionEvaluator evaluator = Mockito.mock(ConditionEvaluator.class);
         Mockito.when(evaluator.applies(Mockito.any(), Mockito.any()))
             .thenAnswer(call -> !hidden.contains(((Content) call.getArgument(0)).getName()));
-        // The submission model asks for the evaluator through @OSGiService
         context.registerService(ConditionEvaluator.class, evaluator);
 
         context.create().resource("/Schemas/timeOffRequest", Map.of(
@@ -125,7 +124,6 @@ public final class CompletenessFixture
         context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", "demo-requester"));
         reference(context, SUBMISSION_PATH, VERSION_PATH, "schemaVersion");
-        return evaluator;
     }
 
     /**
@@ -251,22 +249,5 @@ public final class CompletenessFixture
             Objects.requireNonNull(context.resourceResolver().getResource(toPath)).adaptTo(Node.class);
         Objects.requireNonNull(source).setProperty(property, Objects.requireNonNull(target));
         context.resourceResolver().commit();
-    }
-
-    /**
-     * Sets a reference field on a component under test, by reflection. The DS metadata exists only in the packaged
-     * bundle.
-     *
-     * @param component the component
-     * @param field the field to set
-     * @param value what to set it to
-     * @throws ReflectiveOperationException never, for the fields these tests name
-     */
-    public static void inject(final Object component, final String field, final Object value)
-        throws ReflectiveOperationException
-    {
-        final var reference = component.getClass().getDeclaredField(field);
-        reference.setAccessible(true);
-        reference.set(component, value);
     }
 }

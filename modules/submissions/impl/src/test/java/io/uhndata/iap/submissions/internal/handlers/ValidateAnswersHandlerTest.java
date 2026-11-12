@@ -17,7 +17,7 @@
  */
 package io.uhndata.iap.submissions.internal.handlers;
 
-import java.util.List;
+import java.util.Arrays;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -30,7 +30,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
-import io.uhndata.iap.submissions.internal.CompletenessFixture;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.AnswerValidator;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -78,7 +77,7 @@ class ValidateAnswersHandlerTest
 
     // Nothing registered is the ordinary case for a deployment with no rules of its own
     @Test
-    void acceptsWhenNothingIsRegistered() throws ReflectiveOperationException
+    void acceptsWhenNothingIsRegistered()
     {
         final ValidateAnswersHandler handler = handlerWith();
 
@@ -86,7 +85,7 @@ class ValidateAnswersHandlerTest
     }
 
     @Test
-    void refusesToRunOnAnythingButASubmission() throws ReflectiveOperationException
+    void refusesToRunOnAnythingButASubmission()
     {
         final Resource schema = this.context.create().resource("/Schemas/timeOffRequest",
             "sling:resourceType", "sch/Schema");
@@ -96,7 +95,7 @@ class ValidateAnswersHandlerTest
     }
 
     @Test
-    void acceptsWhenEveryRuleIsContent() throws ReflectiveOperationException
+    void acceptsWhenEveryRuleIsContent()
     {
         final ValidateAnswersHandler handler =
             handlerWith(RecordingValidator.accepting(), RecordingValidator.accepting());
@@ -105,7 +104,7 @@ class ValidateAnswersHandlerTest
     }
 
     @Test
-    void refusesWithTheReasonTheRuleGave() throws ReflectiveOperationException
+    void refusesWithTheReasonTheRuleGave()
     {
         final ValidateAnswersHandler handler =
             handlerWith(RecordingValidator.accepting(), RecordingValidator.refusing("You have 2 days left"));
@@ -118,7 +117,7 @@ class ValidateAnswersHandlerTest
 
     // Which rule objects first is not promised, only that the others are not asked once one has
     @Test
-    void stopsAtTheFirstObjection() throws ReflectiveOperationException
+    void stopsAtTheFirstObjection()
     {
         final RecordingValidator first = RecordingValidator.refusing("first");
         final RecordingValidator second = RecordingValidator.refusing("second");
@@ -133,7 +132,7 @@ class ValidateAnswersHandlerTest
     }
 
     @Test
-    void handsEachRuleTheSubmissionAndWhoIsSaving() throws ReflectiveOperationException
+    void handsEachRuleTheSubmissionAndWhoIsSaving()
     {
         final RecordingValidator validator = RecordingValidator.accepting();
         final ValidateAnswersHandler handler = handlerWith(validator);
@@ -144,12 +143,10 @@ class ValidateAnswersHandlerTest
         assertEquals(SAVER, validator.askedBy);
     }
 
-    private static ValidateAnswersHandler handlerWith(final AnswerValidator... validators)
-        throws ReflectiveOperationException
+    private ValidateAnswersHandler handlerWith(final AnswerValidator... validators)
     {
-        final ValidateAnswersHandler handler = new ValidateAnswersHandler();
-        CompletenessFixture.inject(handler, "validators", List.of(validators));
-        return handler;
+        Arrays.stream(validators).forEach(validator -> this.context.registerService(AnswerValidator.class, validator));
+        return this.context.registerInjectActivateService(new ValidateAnswersHandler());
     }
 
     private TaskContext savingTo(final Resource target)

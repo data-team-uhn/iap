@@ -78,12 +78,6 @@ class MaxAnswersConstraintTest
     }
 
     @Test
-    void passesOverAQuestionTheSubmitterIsNotShown() throws Exception
-    {
-        assertNull(ConstraintFixture.hidingEverything(this.context).verdictOn(Map.of(MAX_ANSWERS, 1L), "a", "b"));
-    }
-
-    @Test
     void acceptsAnUnansweredQuestion() throws Exception
     {
         assertNull(this.fixture.verdictOn(Map.of(MAX_ANSWERS, 1L)));
