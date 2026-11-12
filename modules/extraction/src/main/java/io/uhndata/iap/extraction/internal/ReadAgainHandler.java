@@ -70,7 +70,7 @@ public class ReadAgainHandler implements ServiceTaskHandler
         }
         if (SubmissionFiles.checkReadingWorkflow(submission, context.getResourceResolver())
             == SubmissionFiles.ReadingWorkflowState.NONE) {
-            throw new InvalidStateException(ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE);
+            throw new InvalidStateException(ReadingJobs.NOT_SET_UP_MESSAGE);
         }
         ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_RUNNING, null);
         // Otherwise the last reading's claim would turn the new job away

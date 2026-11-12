@@ -344,7 +344,7 @@ class ExtractAnswersJobConsumerTest
         assertEquals(List.of("readingFailed"), getFiredEvents());
         final ValueMap properties = getProperties();
         assertEquals(ExtractionStatus.STATUS_FAILED, properties.get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals(ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE,
+        assertEquals(ReadingJobs.NOT_SET_UP_MESSAGE,
             properties.get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
         assertNull(properties.get(ExtractionStatus.READING_CLAIMED_PROPERTY, Boolean.class));
     }

@@ -233,24 +233,11 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
      */
     private static String getTemplates(final List<ClassificationRequirement> classifications)
     {
-        final StringBuilder templates = new StringBuilder();
-        for (final ClassificationRequirement classification : classifications) {
-            final Resource template = classification.getTemplate();
-            if (template == null) {
-                continue;
-            }
-            try {
-                templates.append("# Reference for \"").append(classification.getLabel()).append("\"\n\n")
-                    .append(DocumentText.readText(template).strip()).append("\n\n");
-            } catch (final IOException e) {
-                // A classification is still worth making without its reference, which only sharpens it
-                LOGGER.warn("The template of {} could not be read: {}", classification.getPath(), e.getMessage());
-                // Broken schema content: the classification goes on without it, so nobody else would notice
-                ErrorLogger.logError(e, ErrorContext.of(ClassifyDocumentHandler.class, "readTemplate")
-                    .about(classification.getPath()));
-            }
-        }
-        return templates.isEmpty() ? null : templates.toString().strip();
+        final String templates = classifications.stream()
+            .map(classification -> DecisionTemplates.readTemplate(classification, ClassifyDocumentHandler.class))
+            .filter(Objects::nonNull)
+            .collect(Collectors.joining("\n\n"));
+        return templates.isEmpty() ? null : templates;
     }
 
     /**

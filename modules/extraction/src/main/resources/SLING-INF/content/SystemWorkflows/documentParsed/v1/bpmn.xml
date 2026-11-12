@@ -36,7 +36,7 @@
       <bpmn:outgoing>toQueue</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toQueue" sourceRef="ingest" targetRef="queue" />
-    <bpmn:serviceTask id="queue" iap:handler="queueExtraction" name="Queue the reading of the answers">
+    <bpmn:serviceTask id="queue" iap:handler="queueValidation" name="Queue the validation">
       <bpmn:incoming>toQueue</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>

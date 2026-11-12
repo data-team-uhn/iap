@@ -29,7 +29,8 @@
       "scripts":[
         // The user that hands a finished parse to the workflow engine and later asks it to read the answers.
         // The workflow definitions decide which events it may fire: the documentParsed, extractAnswers,
-        // readingStarted and readingFailed start events name only this user.
+        // readingStarted, readingFailed and validated start events name only this user, and so does the task an
+        // intake workflow waits at for the validation.
         //
         // It writes nothing: even the claim on a reading and a give-up are events, so the workflow engine makes
         // every change as its own user.
@@ -50,7 +51,8 @@
     "org.apache.sling.event.jobs.QueueConfiguration~iapextraction":{
       "queue.name":"iap-extraction",
       "queue.topics":[
-        "iap/extraction/extract"
+        "iap/extraction/extract",
+        "iap/extraction/validate"
       ],
       "queue.type":"UNORDERED",
       "queue.maxparallel:Double":1.0

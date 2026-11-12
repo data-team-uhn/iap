@@ -31,6 +31,9 @@ import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceWrapper;
+import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
@@ -232,7 +235,74 @@ final class SubmissionTree
         return question;
     }
 
-    /** Stores the reference text that a classification requirement shows the model. */
+    /**
+     * Creates a validation requirement that reads one document requirement.
+     *
+     * @param name the requirement's name
+     * @param document the name of the document requirement it reads
+     * @param prompt what the model is asked to decide
+     * @return the requirement
+     */
+    Resource createValidationRequirement(final String name, final String document, final String prompt)
+    {
+        return this.context.create().resource(VERSION_PATH + "/" + name, Map.of(TYPE, "sch/ValidationRequirement",
+            SUPER_TYPE, "sch/Requirement", "label", "Research proposal", "prompt", prompt, "document", document));
+    }
+
+    /**
+     * Creates a task of the submission's intake workflow, as the engine raises it.
+     *
+     * @param name the task's node name
+     * @param status the task's status, such as {@code created} while it is open
+     * @param performer who may complete it
+     * @return the task
+     */
+    Resource createIntakeTask(final String name, final String status, final String performer)
+    {
+        final String instances = SUBMISSION_PATH + "/wf:instances";
+        if (this.context.resourceResolver().getResource(instances) == null) {
+            this.context.create().resource(instances, Map.of(TYPE, "wf/WorkflowInstances"));
+            this.context.create().resource(instances + "/intake",
+                Map.of(TYPE, "wf/WorkflowInstance", "status", "active"));
+        }
+        return this.context.create().resource(instances + "/intake/" + name, Map.of(TYPE, "wf/TaskInstance",
+            "status", status, "performers", new String[] { performer }));
+    }
+
+    /**
+     * The resource, seen through a resolver that sets each node it creates a resource type from its node type, as
+     * the repository's autocreated property does. The models find validations and runs by their type.
+     *
+     * @param resource the resource a handler writes under
+     * @return the same resource
+     */
+    static Resource withTypedCreates(final Resource resource)
+    {
+        final ResourceResolver typing = new ResourceResolverWrapper(resource.getResourceResolver())
+        {
+            @Override
+            public Resource create(final Resource parent, final String name, final Map<String, Object> properties)
+                throws PersistenceException
+            {
+                final Map<String, Object> typed = new HashMap<>(properties);
+                if (properties.get(JcrConstants.JCR_PRIMARYTYPE) instanceof final String type
+                    && type.startsWith("sub:")) {
+                    typed.putIfAbsent(TYPE, type.replace(':', '/'));
+                }
+                return super.create(parent, name, typed);
+            }
+        };
+        return new ResourceWrapper(resource)
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return typing;
+            }
+        };
+    }
+
+    /** Stores the reference text that a classification or validation requirement shows the model. */
     void addTemplate(final String requirement, final String text)
     {
         storeText(VERSION_PATH + "/" + requirement + "/template", text);

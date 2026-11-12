@@ -31,8 +31,9 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that queues the reading of a submission's answers as a background job. It is queued, not run
- * here, because the reading takes the model minutes and the request that delivered the parse should not wait.
+ * The service task that queues the validation of a submission's upload as a background job, the first step of
+ * the intake. It is queued, not run here, because the model takes a while and the request that delivered the parse
+ * should not wait.
  *
  * <p>Every finished parse queues one job, and the job decides whether the reading can start. This task cannot
  * decide, because its transaction has not committed yet: two parses ending at the same time could each see the
@@ -43,12 +44,12 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * @since 0.1.0
  */
 @Component(service = ServiceTaskHandler.class)
-public class QueueExtractionHandler implements ServiceTaskHandler
+public class QueueValidationHandler implements ServiceTaskHandler
 {
     /** The name activities use to point at this handler. */
-    public static final String HANDLER_NAME = "queueExtraction";
+    public static final String HANDLER_NAME = "queueValidation";
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(QueueExtractionHandler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(QueueValidationHandler.class);
 
     @Reference
     private JobManager jobManager;
@@ -63,10 +64,10 @@ public class QueueExtractionHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws PersistenceException
     {
         final Resource target = context.getTarget();
-        if (this.jobManager.addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
+        if (this.jobManager.addJob(ValidationJobConsumer.JOB_TOPIC,
             Map.of(ReadingJobs.SUBMISSION_PROPERTY, target.getPath())) == null) {
-            throw new PersistenceException("The reading of " + target.getPath() + " could not be queued");
+            throw new PersistenceException("The validation of " + target.getPath() + " could not be queued");
         }
-        LOGGER.info("Reading queued: submission={}", target.getPath());
+        LOGGER.info("Validation queued: submission={}", target.getPath());
     }
 }

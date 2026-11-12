@@ -70,6 +70,9 @@ public class ReadingJobs
     /** The event that gives a reading up. */
     static final String READING_FAILED_EVENT = "readingFailed";
 
+    /** What the submitter is told when the schema sets up nothing that can read the documents. */
+    static final String NOT_SET_UP_MESSAGE = "Nothing is set up to read this request's documents";
+
     /** What the submitter is told when the reading failed for a reason an administrator must fix. */
     static final String COULD_NOT_READ_MESSAGE = "The document could not be read";
 

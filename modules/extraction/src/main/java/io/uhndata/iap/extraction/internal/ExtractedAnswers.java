@@ -33,9 +33,9 @@ import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.utils.ReferenceUtils;
 
 /**
- * Saves one model run for one question: a {@code sub:Extraction} under the question's {@code sub:Answer}, with
- * what the model read and from which document versions, and a {@code sub:Context} for each quote. The answer's
- * value belongs to the submitter, so nothing here writes it.
+ * Saves one model run: a {@code sub:Extraction} under a question's {@code sub:Answer} or under a
+ * {@code sub:Validation}, with what the model read and from which document versions, and a {@code sub:Context} for
+ * each quote. The answer's value belongs to the submitter, so nothing here writes it.
  *
  * <p>Kept apart from the intake so that every step that saves runs writes the same nodes.
  *
@@ -91,6 +91,21 @@ final class ExtractedAnswers
         }
     }
 
+    /**
+     * Saves one run under a node that holds runs directly, such as a validation.
+     *
+     * @param resolver the session to write through
+     * @param parent the node to write the run under
+     * @param result what the model found, or that it found nothing
+     * @param files the files it was read from
+     * @throws PersistenceException if a file or any node cannot be read or written; nothing is left half-written
+     */
+    static void writeRun(final ResourceResolver resolver, final Resource parent, final FieldResult result,
+        final List<File> files) throws PersistenceException
+    {
+        writeExtraction(resolver, parent, result, getVersions(resolver, files));
+    }
+
     /** The document version of each file, which is what a run cites as read. Throws if a file cannot be found. */
     private static List<Resource> getVersions(final ResourceResolver resolver, final List<File> files)
         throws PersistenceException
@@ -107,9 +122,9 @@ final class ExtractedAnswers
     }
 
     /**
-     * Writes the run under an answer, with its quotes, and removes it again if any part fails. A run that found
-     * nothing has no {@code extractedValues}, but still names the versions it read. Its values are saved one each, so
-     * a value holding a comma stays one value.
+     * Writes the run under an answer or a validation, with its quotes, and removes it again if any part fails. A run
+     * that found nothing has no {@code extractedValues}, but still names the versions it read. Its values are saved
+     * one each, so a value holding a comma stays one value.
      */
     private static void writeExtraction(final ResourceResolver resolver, final Resource answer,
         final FieldResult result, final List<Resource> versions) throws PersistenceException

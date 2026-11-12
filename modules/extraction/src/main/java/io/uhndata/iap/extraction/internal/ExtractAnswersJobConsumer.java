@@ -51,9 +51,6 @@ public class ExtractAnswersJobConsumer implements JobConsumer, ReadingJob
     /** The event that starts the reading. */
     static final String EXTRACT_ANSWERS_EVENT = "extractAnswers";
 
-    /** What the submitter is told when the schema names no reading workflow, or one that cannot run. */
-    static final String NO_READING_WORKFLOW_MESSAGE = "Nothing is set up to read this request's documents";
-
     @Reference
     private ReadingJobs jobs;
 
@@ -81,7 +78,7 @@ public class ExtractAnswersJobConsumer implements JobConsumer, ReadingJob
         if (reading == SubmissionFiles.ReadingWorkflowState.CANNOT_RUN) {
             SubmissionFiles.reportReadingWorkflowCannotRun(ExtractAnswersJobConsumer.class, submission.getPath());
         }
-        return reading == SubmissionFiles.ReadingWorkflowState.CAN_RUN ? null : NO_READING_WORKFLOW_MESSAGE;
+        return reading == SubmissionFiles.ReadingWorkflowState.CAN_RUN ? null : ReadingJobs.NOT_SET_UP_MESSAGE;
     }
 
     @Override

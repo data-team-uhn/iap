@@ -186,7 +186,7 @@ class ParseDocumentsHandlerTest
             Mockito.eq("The schema version names a reading workflow that does not exist or is not active"),
             Mockito.any());
         assertEquals("failed", this.submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals(ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE,
+        assertEquals(ReadingJobs.NOT_SET_UP_MESSAGE,
             this.submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 

@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Save the validation of an upload",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Saves what the model decided about an upload under the submission, and ends the reading when it is not what the request needs.",
+    "received": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "received",
+      "label": "Verdict received",
+      "messageName": "validated",
+      "performers": ["iap-extraction"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toTask": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toTask",
+        "targetRef": "record"
+      }
+    },
+    "record": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "record",
+      "label": "Save the verdict",
+      "handler": "recordValidation",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "recorded"
+      }
+    },
+    "recorded": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "recorded",
+      "label": "Verdict saved",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

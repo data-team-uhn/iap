@@ -92,7 +92,7 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
             SubmissionFiles.reportReadingWorkflowCannotRun(ParseDocumentsHandler.class, target.getPath());
             // Told, so the submitter does not retry a parse nothing would read
             ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_FAILED,
-                ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE);
+                ReadingJobs.NOT_SET_UP_MESSAGE);
             return;
         }
         int queued = 0;

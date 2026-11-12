@@ -37,19 +37,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Unit tests for {@link QueueExtractionHandler}: queuing the job that reads a submission.
+ * Unit tests for {@link QueueValidationHandler}: queuing the job that reads a submission.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class QueueExtractionHandlerTest
+class QueueValidationHandlerTest
 {
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
     private final JobManager jobManager = Mockito.mock(JobManager.class);
 
-    private final QueueExtractionHandler handler = new QueueExtractionHandler();
+    private final QueueValidationHandler handler = new QueueValidationHandler();
 
     private SubmissionTree tree;
 
@@ -61,7 +61,7 @@ class QueueExtractionHandlerTest
         this.tree = new SubmissionTree(this.context);
         this.tree.createSchemaVersion();
         this.submission = this.tree.createSubmission();
-        final Field field = QueueExtractionHandler.class.getDeclaredField("jobManager");
+        final Field field = QueueValidationHandler.class.getDeclaredField("jobManager");
         field.setAccessible(true);
         field.set(this.handler, this.jobManager);
     }
@@ -69,7 +69,7 @@ class QueueExtractionHandlerTest
     @Test
     void hasItsAdvertisedName()
     {
-        assertEquals("queueExtraction", this.handler.getName());
+        assertEquals("queueValidation", this.handler.getName());
     }
 
     @Test
@@ -77,12 +77,12 @@ class QueueExtractionHandlerTest
     {
         this.tree.createFile("completed");
         this.tree.createFile("failed");
-        Mockito.when(this.jobManager.addJob(Mockito.eq(ExtractAnswersJobConsumer.JOB_TOPIC), Mockito.anyMap()))
+        Mockito.when(this.jobManager.addJob(Mockito.eq(ValidationJobConsumer.JOB_TOPIC), Mockito.anyMap()))
             .thenReturn(Mockito.mock(Job.class));
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), new HashMap<>()));
 
-        Mockito.verify(this.jobManager).addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
+        Mockito.verify(this.jobManager).addJob(ValidationJobConsumer.JOB_TOPIC,
             Map.of(ReadingJobs.SUBMISSION_PROPERTY, this.submission.getPath()));
     }
 
@@ -94,12 +94,12 @@ class QueueExtractionHandlerTest
     {
         this.tree.createFile("completed");
         this.tree.createFile("queued");
-        Mockito.when(this.jobManager.addJob(Mockito.eq(ExtractAnswersJobConsumer.JOB_TOPIC), Mockito.anyMap()))
+        Mockito.when(this.jobManager.addJob(Mockito.eq(ValidationJobConsumer.JOB_TOPIC), Mockito.anyMap()))
             .thenReturn(Mockito.mock(Job.class));
 
         this.handler.execute(TaskContexts.of(this.submission, Map.of(), new HashMap<>()));
 
-        Mockito.verify(this.jobManager).addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
+        Mockito.verify(this.jobManager).addJob(ValidationJobConsumer.JOB_TOPIC,
             Map.of(ReadingJobs.SUBMISSION_PROPERTY, this.submission.getPath()));
     }
 

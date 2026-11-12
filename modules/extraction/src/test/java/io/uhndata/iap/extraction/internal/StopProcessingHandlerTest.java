@@ -185,6 +185,11 @@ class StopProcessingHandlerTest
         Mockito.when(this.jobManager.findJobs(Mockito.eq(JobManager.QueryType.QUEUED),
             Mockito.eq(ExtractAnswersJobConsumer.JOB_TOPIC), Mockito.eq(0L), Mockito.anyMap()))
             .thenReturn(List.of(waiting));
+        final Job validation = Mockito.mock(Job.class);
+        Mockito.when(validation.getId()).thenReturn("validation-1");
+        Mockito.when(this.jobManager.findJobs(Mockito.eq(JobManager.QueryType.QUEUED),
+            Mockito.eq(ValidationJobConsumer.JOB_TOPIC), Mockito.eq(0L), Mockito.anyMap()))
+            .thenReturn(List.of(validation));
 
         // The record still names the folder, so the sweep removes both together
         Mockito.when(this.parses.stopParse(JOB_ID)).thenReturn(false);
@@ -194,6 +199,7 @@ class StopProcessingHandlerTest
         Mockito.verify(this.parses).stopParse(JOB_ID);
         Mockito.verify(this.parseService, Mockito.never()).discardStaging(Mockito.any());
         Mockito.verify(this.jobManager).removeJobById("reading-1");
+        Mockito.verify(this.jobManager).removeJobById("validation-1");
         assertEquals("failed", file.getValueMap().get("parseStatus", String.class));
         assertNull(file.getValueMap().get(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, String.class));
         assertEquals(ExtractionStatus.STATUS_FAILED,

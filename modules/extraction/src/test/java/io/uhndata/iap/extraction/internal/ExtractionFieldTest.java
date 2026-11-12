@@ -59,6 +59,19 @@ class ExtractionFieldTest
     }
 
     @Test
+    void asksAYesOrNoDecision()
+    {
+        final ExtractionField field = ExtractionField.createYesNo("verdict", "Research proposal", "  Is it one?  ");
+
+        assertEquals("verdict", field.key());
+        assertEquals("Is it one?", field.instructions());
+        assertEquals(List.of("yes", "no"), field.answer().options().stream().map(ExtractionField.Option::value)
+            .toList());
+        assertFalse(field.answer().multiple());
+        assertEquals("", ExtractionField.createYesNo("verdict", "Research proposal", null).instructions());
+    }
+
+    @Test
     void keysAQuestionByItsPathInsideTheSchemaVersion()
     {
         assertEquals("common.title", ExtractionField.getKey(VERSION, question("Find it.")));

@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Records a finished parse on its file, and queues the reading of the submission's answers.",
+    "description": "Records a finished parse on its file, and queues the validation of the upload, the first step of the intake.",
     "parsed": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "parsed",
@@ -35,8 +35,8 @@
     "queue": {
       "jcr:primaryType": "wf:Activity",
       "elementId": "queue",
-      "label": "Queue the reading of the answers",
-      "handler": "queueExtraction",
+      "label": "Queue the validation",
+      "handler": "queueValidation",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",

@@ -18,14 +18,15 @@
 package io.uhndata.iap.extraction.internal;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.event.jobs.Job;
 import org.apache.sling.event.jobs.JobManager;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -54,6 +55,10 @@ public class StopProcessingHandler implements ServiceTaskHandler
 {
     /** The name activities use to point at this handler. */
     public static final String HANDLER_NAME = "stopProcessing";
+
+    /** The topics of the jobs that read a submission, queued ones of which a Stop removes. */
+    private static final List<String> READING_TOPICS =
+        List.of(ExtractAnswersJobConsumer.JOB_TOPIC, ValidationJobConsumer.JOB_TOPIC);
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StopProcessingHandler.class);
 
@@ -113,14 +118,12 @@ public class StopProcessingHandler implements ServiceTaskHandler
     @SuppressWarnings("unchecked")
     private void dropQueuedReadings(final String path)
     {
-        final Collection<Job> waiting = this.jobManager.findJobs(JobManager.QueryType.QUEUED,
-            ExtractAnswersJobConsumer.JOB_TOPIC, 0, Map.of(ReadingJobs.SUBMISSION_PROPERTY, path));
-        if (waiting == null) {
-            return;
-        }
-        for (final Job job : waiting) {
-            this.jobManager.removeJobById(job.getId());
-        }
+        READING_TOPICS.stream()
+            .map(topic -> this.jobManager.findJobs(JobManager.QueryType.QUEUED, topic, 0,
+                Map.of(ReadingJobs.SUBMISSION_PROPERTY, path)))
+            .filter(Objects::nonNull)
+            .flatMap(Collection::stream)
+            .forEach(job -> this.jobManager.removeJobById(job.getId()));
     }
 
     /**

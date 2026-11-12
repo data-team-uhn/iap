@@ -22,6 +22,7 @@ import java.util.regex.Pattern;
 
 import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.submissions.models.Validation;
 
 /**
  * One schema question, ready to ask the model. The model's answer is saved as an {@code Extraction}, not here.
@@ -133,6 +134,22 @@ record ExtractionField(String key, String text, String description, String purpo
             new Answer(dataType, question.isMultiple(), question.getMinValue(), question.getMaxValue(),
                 collapseWhitespace(pattern),
                 question.getOfferedOptions().stream().map(ExtractionField::toOption).toList()));
+    }
+
+    /**
+     * A field the model answers with {@code yes} or {@code no}, for a decision that is not a question, such as a
+     * validation.
+     *
+     * @param key the name the answer comes back under
+     * @param text what is being decided, as a person reads it
+     * @param instructions what the model is told to look for, and how to decide
+     * @return the field
+     */
+    static ExtractionField createYesNo(final String key, final String text, final String instructions)
+    {
+        return new ExtractionField(key, text, null, null, instructions == null ? "" : instructions.strip(),
+            new Answer(TEXT_TYPE, false, null, null, null, List.of(new Option(Validation.OUTCOME_YES, "Yes", null),
+                new Option(Validation.OUTCOME_NO, "No", null))));
     }
 
     /**

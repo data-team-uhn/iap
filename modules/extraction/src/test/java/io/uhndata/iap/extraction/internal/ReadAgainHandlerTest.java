@@ -126,7 +126,7 @@ class ReadAgainHandlerTest
         final InvalidStateException refused =
             assertThrows(InvalidStateException.class, () -> this.handler.execute(createTask()));
 
-        assertEquals(ExtractAnswersJobConsumer.NO_READING_WORKFLOW_MESSAGE, refused.getMessage());
+        assertEquals(ReadingJobs.NOT_SET_UP_MESSAGE, refused.getMessage());
         Mockito.verifyNoInteractions(this.jobManager);
     }
 

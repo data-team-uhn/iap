@@ -40,9 +40,26 @@ says which class does the work, who calls it, and what it checks.
         v
  documentParsed (system workflow)
    ingestParse -------- copy the Markdown and the PDF onto the file node
-   queueExtraction ---- add a Sling job on topic iap/extraction/extract
+   queueValidation ---- add a Sling job on topic iap/extraction/validate
         |
         v  (the engine commits, then the staging folder is deleted)
+ ValidationJobConsumer (background, one job at a time)
+   every parse settled? -- no: try again later
+   claim the reading ----- another job has it: stop
+   ask the schema's validation (yes or no), fire validated
+        |
+        v
+ validated (system workflow)
+   recordValidation --- save the verdict under the submission
+        |
+        v
+ complete the task the intake workflow waits at (performer iap-extraction)
+ (no intake workflow ships on this branch)
+   gateway on the validation operand -- act on the verdict (see "Validating the upload")
+     no ------------ stop: done, blocked, "Unable to identify a proposal"
+     yes, unsure --- go on to the categorisation
+
+ Read again still queues the older reading:
  ExtractAnswersJobConsumer (background, one job at a time)
    every parse settled? -- no: try again later
    claim the reading ----- another job has it: stop
@@ -205,9 +222,9 @@ The `documentParsed` system workflow runs two steps:
      parse failed without details").
    - On a success, the Markdown and the PDF are copied onto the file node. Details
      below.
-2. **`queueExtraction`** (`QueueExtractionHandler`): adds a Sling job on
-   `iap/extraction/extract` that names the submission. It does this for failed parses
-   too, so the reading can report the failure.
+2. **`queueValidation`** (`QueueValidationHandler`): adds a Sling job on
+   `iap/extraction/validate` that names the submission. It does this for failed parses
+   too, so the validation can report the failure.
 
 Only after the engine has committed does `ParseCompletionHandler` delete the staging
 folder (`ParseResultIngester.discardStaging`, which calls
@@ -241,12 +258,13 @@ with the folder.
 
 ## Step 5: whose turn it is to read
 
-**Class:** `ExtractAnswersJobConsumer`, with the steps every reading job shares in
-`ReadingJobs`. **Job topic:** `iap/extraction/extract`.
+**Classes:** `ValidationJobConsumer` (topic `iap/extraction/validate`, queued by each
+parse) and `ExtractAnswersJobConsumer` (topic `iap/extraction/extract`, queued by Read
+again), with the steps every reading job shares in `ReadingJobs`.
 **Queue:** `iap-extraction`, one job at a time (`queue.maxparallel` = 1).
 
-Every parse that lands queues a job, so a submission with three uploads queues three
-jobs. The job decides who reads, not the workflow step. A workflow step runs before its
+Every parse that lands queues a validation job, so a submission with three uploads
+queues three jobs. The job decides who reads, not the workflow step. A workflow step runs before its
 commit and cannot see what other requests are doing. The job's own session sees
 committed data.
 
@@ -258,11 +276,11 @@ The checks, in order:
 | A job queued by Read again (job property `readAgain=true`) finds `extractionStatus` at `running` | The job returns `FAILED`, so Sling runs it again later. The job was queued before the Read again walk committed, and until that commit the old status and claim are still there. |
 | No current file is still `queued` (`SubmissionFiles.isEveryParseSettled`) | The job returns `FAILED`, so Sling runs it again later. A parse that landed but is not committed yet looks "queued" for a moment. |
 | The job's session can read the submission's schema version | `extractionStatus=failed`, "The document could not be read", and a problem is logged for an administrator. Throwing instead would end the job with `running` left behind. |
-| The schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists and is tagged `active` (`SubmissionFiles.checkReadingWorkflow`, the same check parsing makes; only one that is named but cannot run is reported to the administrator) | `extractionStatus=failed`, "Nothing is set up to read this request's documents". Firing the event anyway would start nothing, or be refused, and leave `running` forever. |
+| What this kind of job needs (`ReadingJob.findReasonNotToStart`). The validation job: an applicable validation requirement that names its document, an upload for that document, and a completed parse of it. The Read again job: the schema version's `readingWorkflow` points at a `wf:WorkflowVersion` that exists and is tagged `active` (`SubmissionFiles.checkReadingWorkflow`, the same check parsing makes; only one that is named but cannot run is reported to the administrator). | `extractionStatus=failed` with the reason: "Nothing is set up to read this request's documents", "No document to read has been uploaded", or "The document could not be read. Please try again". Reading anyway would find nothing to do and leave `running` forever. |
 | The engine takes `readingStarted` (job id in the payload): `claimReading` sets `extractionReadingClaimed`, with the job's Sling job id in `extractionReadingClaimedBy`, and the walk commits. A claim that already holds this job's own id counts as its own: after a restart, Sling runs an unfinished job again with the same id. | A claim held by another id means another job has the reading: the step throws, and this job is dropped. Two jobs that race write different ids, so the engine refuses the second commit the same way. Any other refusal gives up the reading. |
 
-Then the job fires `extractAnswers` on the submission. If that throws, the job "gives
-up": it fires `readingFailed`, whose `giveUpReading` step writes
+Then the job reads (below for the validation job; the Read again job fires
+`extractAnswers` on the submission). If that throws, the job "gives up": it fires `readingFailed`, whose `giveUpReading` step writes
 `extractionStatus=failed` with "The document could not be read" and removes the claim.
 Without this, the submission would stay `running` forever. A check above that throws
 gives up the same way. If the engine refuses the give-up too, the job only logs it.
@@ -282,6 +300,38 @@ unless another job holds the claim.
 can reach it (see "Stop" below). A stopped reading gives up the same way, but records
 "Reading was stopped." instead. Only a Stop counts as one: an interrupt from elsewhere,
 such as the instance shutting down, is not taken for the submitter's Stop.
+
+## Validating the upload
+
+**Classes:** `ValidationJobConsumer`, `DecisionReader`, `RecordValidationHandler`.
+**System workflow:** `validated`.
+
+The validation job asks the model one yes or no question about the upload the schema's
+validation requirement names: the requirement's `prompt` is the question, and its
+template is the reference text. The verdict comes back under the key `verdict`.
+
+The job fires `validated` with the verdict, the requirement and the file in the payload.
+Its `recordValidation` step saves one run under the submission's `sub:Validation` for
+that requirement, made on the first run, and releases the claim. The validation reads
+the run as `yes`, `no` or `unsure`: an answer less sure than the requirement's
+`confidenceThreshold` is `unsure`, and so is a question the model did not answer.
+
+| Verdict | `recordValidation` | The intake's gateway |
+| --- | --- | --- |
+| `no` | `extractionStatus=done`, blocked, "Unable to identify a proposal" | Ends the intake: nothing more is read |
+| `yes` | Leaves the reading `running` | Goes on to the categorisation |
+| `unsure` | Leaves the reading `running` | Goes on to the categorisation: only a sure `no` stops the reading |
+
+The step saves the verdict only while the claim still holds this job's id. After a Stop
+or a Read again it refuses, and the job drops the verdict.
+
+Then the job completes the open task of the submission's workflows whose performers
+include `iap-extraction`: the task the intake workflow waits at. The intake's gateway
+reads the verdict through the `validation` operand and goes on, or ends. The intake waits
+at a task because the engine cannot yet wake a workflow with a named event (see "Waiting
+for the engine"). If no such task is open, or completing it fails, the error is recorded
+for an administrator, and a reading still `running` is given up: nothing else would end
+it.
 
 ## Step 6: starting the schema's reading workflow
 
@@ -314,8 +364,8 @@ what the person just did. So the reading never waits for the submitter: when it 
 them, it ends with a message saying what to do.
 
 Only the `iap-extraction` user may fire `documentParsed`, `extractAnswers`,
-`readingStarted` and `readingFailed`: their start events name it as the only performer. Administrators can too, since they pass
-every performer check. The `documentParsed` payload carries paths on the shared volume,
+`readingStarted`, `readingFailed` and `validated`: their start events name it as the only
+performer. Administrators can too, since they pass every performer check. The `documentParsed` payload carries paths on the shared volume,
 and no ordinary user should be able to have files read from there.
 
 ## Step 7: the gate (classifying the document)
@@ -579,8 +629,8 @@ a setting to fix.
 
 The LLM module allows one model call at a time on the whole instance (`LLMCallGate`,
 implemented by `CallGateImpl`, a fair semaphore with one slot). There is nothing to
-configure. The extraction queue (`iap-extraction`, topic `iap/extraction/extract`) also
-reads one submission at a time. A wider queue would not read anything sooner. It would
+configure. The extraction queue (`iap-extraction`, topics `iap/extraction/validate` and
+`iap/extraction/extract`) also reads one submission at a time. A wider queue would not read anything sooner. It would
 only move the waiting from the queue, where a job can wait as long as needed, to the
 gate, where a call fails when its timeout runs out.
 
@@ -945,7 +995,7 @@ without adding anything. In order, for one submission:
 | `Parse outcome handed over` | documents (`ParseOutcomeDispatcher`) | The job, the target, whether it succeeded, how many handlers |
 | `Parse came back` | `ParseCompletionHandler` | The job, the file, the submission, whether it succeeded, `tokens` |
 | `Parse read in` | `ParseResultIngester` | The Markdown and PDF sizes in bytes, `tokens`, and the milliseconds to store them |
-| `Reading queued` | `QueueExtractionHandler` | The submission, once per parse that lands; the job waits until every parse has settled |
+| `Validation queued` | `QueueValidationHandler` | The submission, once per parse that lands; the job waits until every parse has settled |
 | `Parse staging removed` | documents (`ParseJobService`) | The staging folder, once the parse is in the repository |
 | `Reading run started` / `Reading run done` | `ReadingJobs` | Marks the start and end of a reading that finishes, with the job's topic; `done` carries the status and `ms`. A failed reading logs an `ERROR` instead, and a stopped one `Reading of ... was stopped`. |
 | `Reading step started` / `Reading step done` | `ClassifyDocumentHandler`, `IntakeAnswersHandler` | `step=classify` with the file and the number of classifications, or `step=intake` with the requirement and the number of questions; `done` adds how many were decided or found, and `ms` |
@@ -1018,12 +1068,15 @@ from the submission's own workflow, replaces the reading workflow each schema na
 | `ParseCompletionHandler` | `ParseOutcomeHandler` | `ParseOutcomeDispatcher` | engine (`documentParsed`), `ParseResultIngester.discardStaging` |
 | `IngestParseHandler` | handler `ingestParse` | `documentParsed` | `ParseResultIngester.ingest` |
 | `ParseResultIngester` | component | the two above | `ParseService.isStagedPath`, `.discardStaging` |
-| `QueueExtractionHandler` | handler `queueExtraction` | `documentParsed` | `JobManager.addJob` |
+| `QueueValidationHandler` | handler `queueValidation` | `documentParsed` | `JobManager.addJob` |
+| `ValidationJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingJobs.run`, `DecisionReader.ask`, engine (`validated`, `complete` on the intake's task) |
+| `DecisionReader` | component | the validation job | `ReadingRuns.setFiles`, `ParsedDocuments`, `AnswerIntakeService`, `DecisionTemplates.readTemplate` |
+| `RecordValidationHandler` | handler `recordValidation` | `validated` | `ExtractedAnswers.writeRun`, `ExtractionStatus`, `Validation.getOutcome` |
 | `ExtractAnswersJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingJobs.run`, `SubmissionFiles.checkReadingWorkflow`, engine (`extractAnswers`) |
 | `ReadingJobs` | component | each reading job | `ReadingRuns`, `SubmissionFiles.isEveryParseSettled`, engine (`readingStarted`, `readingFailed`) |
 | `ClaimReadingHandler` | handler `claimReading` | `readingStarted` | `ExtractionStatus` |
 | `GiveUpReadingHandler` | handler `giveUpReading` | `readingFailed` | `ExtractionStatus` |
-| `ClassifyDocumentHandler` | handler `classifyDocument` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, `DocumentText.readText` (templates), `ExtractionFields.getAnswered`, `.write` |
+| `ClassifyDocumentHandler` | handler `classifyDocument` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, `DecisionTemplates.readTemplate`, `ExtractionFields.getAnswered`, `.write` |
 | `IntakeAnswersHandler` | handler `intakeAnswers` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, or `DocumentText.readText` and `DocumentScan.join`, `ExtractionFields`, `Prompts` |
 | `FinishReadingHandler` | handler `finishReading` | a reading workflow | `ExtractionStatus` |
 | `ReadAgainHandler` | handler `readAgain` | `readAgain` | `JobManager.addJob` |
@@ -1053,7 +1106,7 @@ reading. These writes happen outside that commit:
 | Step | What it writes on its own | Why |
 | --- | --- | --- |
 | `parseDocuments` | The staged copy on the shared volume, and the job node, committed by `ParseService.queue` in a session of its own | The job node must exist before the Sling job runs. It is also why a failure to queue deletes what was staged: no job node names that folder, so no sweep would find it. |
-| `queueExtraction`, `readAgain` | A Sling job | The JobManager commits the job node in its own session |
+| `queueValidation`, `readAgain` | A Sling job | The JobManager commits the job node in its own session |
 | `stopProcessing` | Removes queued reading jobs; `ParseControl.stopParse` marks the parse job record failed in its own session; the staging folder is deleted only when no job record names it | A Stop has to reach work that is already outside the submission |
 
 The claim and the give-up in step 5 are walks of their own, each committed by the engine,
@@ -1064,7 +1117,7 @@ and the staging folder in step 4 is deleted only after the commit; those steps s
 | Where | Setting | Default | Meaning |
 | --- | --- | --- | --- |
 | `modules/extraction/.../feature.json` | service user `iap-extraction` | | `jcr:read` on `/Submissions`: it writes nothing, since even the claim and the give-up are events the engine runs as its own user. `jcr:read` on `/Schemas` and `/Workflows`, to check that the reading workflow exists. Granted by name: a service user mapped as `[iap-extraction]` holds only that principal, so what `/Schemas` grants to `everyone` does not reach it. |
-| same | queue `iap-extraction` | `maxparallel` 1 | One submission read at a time |
+| same | queue `iap-extraction` | `maxparallel` 1 | One submission read at a time, by any reading job (`iap/extraction/validate`, `iap/extraction/extract`) |
 | same | bundle start order | 29 | After the LLM client, the engine and the models |
 | documents `feature.json` | `daemonUrl` on PID `io.uhndata.iap.documents.internal.DaemonConnection` | `${docling.url}` (`http://docling:18765`; `http://localhost:18765` with no configuration) | Where the daemon is. The one PID is read by both `ParseJobConsumer` (dispatch) and `ParseAbandonment` (Stop). |
 | same PID | `responseTimeout` | 30 s | How long to wait for the daemon to answer a dispatch or a `/cancel`. A Stop does not wait for `/cancel`; only the log sees the answer. |
@@ -1142,6 +1195,7 @@ engine catches up.
 | --- | --- | --- |
 | A job queued inside a walk can start before that walk commits, so it fails and Sling runs it again until it sees the data (step 5) | `ReadingJobs.isTooEarly` | Listeners that run after the commit. Only the check for a parse that is really still going stays. |
 | A parse outcome can arrive before the walk that queued the parse commits, so the file is looked at again a few times (step 3) | `ParseCompletionHandler.findFile` | Listeners that run after the commit |
+| The intake workflow cannot wait for `validated`, so it waits at a task the validation job completes (see "Validating the upload") | the intake workflow (not on this branch), `ValidationJobConsumer.handOver` | Message delivery to catching events |
 
 ## Files
 
@@ -1204,7 +1258,11 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | `ParseDocumentsHandler` | Service task `parseDocuments`: stages every upload that still needs a parse, and queues it |
 | `ParseCompletionHandler` | Takes a finished parse from the documents module and fires `documentParsed` on the submission |
 | `IngestParseHandler` | Service task `ingestParse`: reads the parse onto the file, or records that it failed |
-| `QueueExtractionHandler` | Service task `queueExtraction`: queues the reading job; the job reads once every parse has settled |
+| `QueueValidationHandler` | Service task `queueValidation`: queues the validation job; the job reads once every parse has settled |
+| `ValidationJobConsumer` | The background job that asks the schema's validation, saves the verdict through `validated`, and completes the task the intake waits at |
+| `DecisionReader` | Asks the model one decision about an upload, with the decision's template as reference |
+| `DecisionTemplates` | Reads a decision's template under a heading naming it |
+| `RecordValidationHandler` | Service task `recordValidation`: saves the verdict as a run under the submission's validation; a sure no ends the reading |
 | `ReadAgainHandler` | Service task `readAgain`: the submitter asks for the reading again; queues the same job |
 | `ExtractAnswersJobConsumer` | The background job that fires `extractAnswers` once the schema's reading workflow can run |
 | `ReadingJob`, `ReadingJobs` | What one kind of reading job decides, and the steps every one shares: waiting for the parses, the claim, giving up, and a Stop |
@@ -1222,6 +1280,7 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | `SystemWorkflows/extractAnswers` (`.json`, `bpmn.xml`) | Starts the reading workflow the schema names, ending an earlier one still open. Performer: `iap-extraction` only. |
 | `SystemWorkflows/readingStarted` (`.json`, `bpmn.xml`) | Claims the reading for one job (`claimReading`). Performer: `iap-extraction` only. |
 | `SystemWorkflows/readingFailed` (`.json`, `bpmn.xml`) | Marks the reading failed and releases the claim (`giveUpReading`). Performer: `iap-extraction` only. |
+| `SystemWorkflows/validated` (`.json`, `bpmn.xml`) | Saves the verdict on the upload (`recordValidation`). Performer: `iap-extraction` only. |
 | `SystemWorkflows/readAgain` (`.json`, `bpmn.xml`) | Queues the reading again for the submitter |
 | `SystemWorkflows/retryParse` (`.json`, `bpmn.xml`) | Sends again the uploads whose parse failed, and any never sent. Today the only workflow that runs `parseDocuments`. |
 | `SystemWorkflows/stopProcessing` (`.json`, `bpmn.xml`) | Stops a parse or a reading that is still in progress |
