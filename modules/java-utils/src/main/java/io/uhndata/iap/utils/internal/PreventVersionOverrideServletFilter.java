@@ -21,6 +21,7 @@ import java.io.IOException;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.nodetype.NodeType;
 
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
@@ -41,8 +42,8 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 /**
  * Refuses a {@code POST} or {@code PUT} whose {@code :baseVersion} parameter is not the path of the resource's
  * current base version. The resource was then checked in again after the client read it. The filter records
- * {@code 409} as the error's status code and throws. If the resource is not a node, or its base version cannot be
- * read, the request goes ahead.
+ * {@code 409} as the error's status code and throws. If the resource is not a versionable node, the request goes
+ * ahead and the parameter is ignored. The request also goes ahead when the base version cannot be read.
  *
  * @version $Id$
  * @since 0.1.0
@@ -75,11 +76,10 @@ public class PreventVersionOverrideServletFilter implements Filter
         }
         SlingJakartaHttpServletRequest slingRequest = (SlingJakartaHttpServletRequest) request;
         try {
-            Node node = slingRequest.getResource().adaptTo(Node.class);
-            if (node != null && !requestBaseVersion.equals(node.getProperty("jcr:baseVersion").getNode().getPath())) {
+            if (isOutdated(slingRequest.getResource().adaptTo(Node.class), requestBaseVersion)) {
                 slingRequest.setAttribute("jakarta.servlet.error.status_code", HttpServletResponse.SC_CONFLICT);
-                throw new ServletException("The answers to this form were modified while you were editing. "
-                    + "Please refresh to see the latest data.");
+                throw new ServletException("This content changed after you opened it. "
+                    + "Reload it to see the latest version.");
             }
         } catch (RepositoryException e) {
             LOGGER.warn("Failed to determine current resource version: {}", e.getMessage(), e);
@@ -87,6 +87,13 @@ public class PreventVersionOverrideServletFilter implements Filter
                 .about(slingRequest.getResource().getPath()));
         }
         chain.doFilter(request, response);
+    }
+
+    private static boolean isOutdated(final Node node, final String requestBaseVersion)
+        throws RepositoryException
+    {
+        return node != null && node.isNodeType(NodeType.MIX_VERSIONABLE)
+            && !requestBaseVersion.equals(node.getProperty("jcr:baseVersion").getNode().getPath());
     }
 
     @Override

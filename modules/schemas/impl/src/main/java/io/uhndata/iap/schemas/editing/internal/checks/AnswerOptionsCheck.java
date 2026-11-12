@@ -30,8 +30,8 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
- * Checks that every answer option has a value, and that no two options of a question share one. Also checks that no
- * question both lists its options and takes them from elsewhere.
+ * Checks that no answer option's value is blank, which its node type cannot prevent, and that no two options of a
+ * question share a value. Also checks that no question both lists its options and takes them from elsewhere.
  *
  * @version $Id$
  * @since 0.1.0
@@ -57,7 +57,7 @@ public class AnswerOptionsCheck extends SchemaVersionCheck
         final Set<String> values = new HashSet<>();
         for (final AnswerOption option : options) {
             final String value = option.getValue();
-            if (value == null || value.isBlank()) {
+            if (value.isBlank()) {
                 problems.add(where + " has an option without a value");
             } else if (!values.add(value)) {
                 problems.add(where + " offers the value \"" + value + "\" more than once");

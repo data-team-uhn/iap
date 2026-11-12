@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "tag:Definition",
   "label": "Won't fix",
-  "description": "This failure is understood and deliberately left as it is. It needs no further attention unless the circumstances that made it acceptable change.",
+  "description": "The failure is understood and deliberately left as it is.",
   "category": ["error-triage"],
   "targetResourceTypes": ["err/LoggedError"],
   "system": true,

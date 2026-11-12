@@ -6,6 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/SubmissionsHomepage",
+    "description": "Creates a submission with a part for each item its schema asks for, then starts its workflow.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

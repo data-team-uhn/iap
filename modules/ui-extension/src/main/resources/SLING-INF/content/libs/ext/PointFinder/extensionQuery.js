@@ -35,6 +35,6 @@ use(function(){
     }
 
     return {
-      uixp: queryResults.hasNext() ? queryResults.next().getPath() : ""
+      uixp: queryResults.next().getPath()
     };
   });

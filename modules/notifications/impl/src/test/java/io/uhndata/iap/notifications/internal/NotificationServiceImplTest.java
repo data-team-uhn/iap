@@ -121,7 +121,7 @@ class NotificationServiceImplTest
         final Recording first = new Recording(true);
         final Recording second = new Recording(true);
         this.deliveries(first, second);
-        Accounts.create(this.context, CREATOR, "requester@example.com");
+        Accounts.create(this.context, CREATOR);
 
         this.service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
 
@@ -136,7 +136,7 @@ class NotificationServiceImplTest
     {
         final Recording channel = new Recording(true);
         this.deliveries(channel);
-        final var ann = Accounts.create(this.context, "ann", "ann@example.com");
+        final var ann = Accounts.create(this.context, "ann");
         Accounts.group(this.context, "reviewers", ann);
 
         // ann is named twice, directly and through the group, and told once
@@ -151,7 +151,7 @@ class NotificationServiceImplTest
     {
         final Recording declining = new Recording(false);
         this.deliveries(declining);
-        Accounts.create(this.context, CREATOR, "requester@example.com");
+        Accounts.create(this.context, CREATOR);
 
         this.service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
 
@@ -165,7 +165,7 @@ class NotificationServiceImplTest
         this.deliveries((notification, recipient) -> {
             throw new IllegalStateException("the mail server is on fire");
         }, working);
-        Accounts.create(this.context, CREATOR, "requester@example.com");
+        Accounts.create(this.context, CREATOR);
 
         this.service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
 

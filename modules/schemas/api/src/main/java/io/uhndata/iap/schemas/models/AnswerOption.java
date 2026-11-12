@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.Objects;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -49,14 +51,16 @@ public class AnswerOption extends EntityPart
     private String description;
 
     /**
-     * What an answer that picks this option stores, and what conditions compare against.
+     * What an answer that picks this option stores, and what conditions compare against. The node type makes it
+     * mandatory.
      *
      * @return the value
+     * @throws NullPointerException if the node has no value, which its node type does not allow
      */
     @NotNull
     public String getValue()
     {
-        return this.value;
+        return Objects.requireNonNull(this.value, "Missing mandatory value");
     }
 
     /**
@@ -67,7 +71,7 @@ public class AnswerOption extends EntityPart
     @NotNull
     public String getLabel()
     {
-        return this.label == null || this.label.isEmpty() ? this.value : this.label;
+        return this.label == null || this.label.isEmpty() ? this.getValue() : this.label;
     }
 
     /**

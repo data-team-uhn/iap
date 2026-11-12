@@ -97,7 +97,7 @@ class StoredNotificationDeliveryTest
     }
 
     @Test
-    void storesTheRenderedLineWhereItsRecipientWillFindIt()
+    void storesTheRenderedMessageWhereItsRecipientWillFindIt()
     {
         this.context.create().resource(TEMPLATE,
             "uiMessage", "Your request “${subjectTitle}” was ${event} for ${days} days");
@@ -159,7 +159,7 @@ class StoredNotificationDeliveryTest
 
     // A template folder with no uiMessage, then a template folder that is missing
     @Test
-    void fallsBackWhenTheWordingFolderSaysNothing()
+    void fallsBackWhenTheTemplateSaysNothing()
     {
         this.context.create().resource(TEMPLATE, "someOtherProperty", "yes");
 
@@ -183,7 +183,7 @@ class StoredNotificationDeliveryTest
     }
 
     @Test
-    void declinesABlankLine()
+    void declinesABlankMessage()
     {
         this.context.create().resource(TEMPLATE, "uiMessage", "  ");
 

@@ -26,16 +26,13 @@ import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 
 /**
- * Creates user accounts and groups for the tests. An account can have an email address at {@code profile/email}.
+ * Creates user accounts and groups for the tests.
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class Accounts
 {
-    /** The account property holding an email address. */
-    static final String EMAIL_PROPERTY = "profile/email";
-
     private Accounts()
     {
         // Utility class
@@ -46,18 +43,12 @@ final class Accounts
      *
      * @param context the test's Sling context, which must be JCR-backed
      * @param userId the user id of the account to create
-     * @param address its email address, or {@code null} for none
      * @return the account
      * @throws Exception if it cannot be created
      */
-    static User create(final SlingContext context, final String userId, final String address) throws Exception
+    static User create(final SlingContext context, final String userId) throws Exception
     {
-        final UserManager users = users(context);
-        final User user = users.createUser(userId, userId);
-        if (address != null) {
-            user.setProperty(EMAIL_PROPERTY,
-                context.resourceResolver().adaptTo(Session.class).getValueFactory().createValue(address));
-        }
+        final User user = users(context).createUser(userId, userId);
         context.resourceResolver().commit();
         return user;
     }

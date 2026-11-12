@@ -40,12 +40,8 @@ public @interface ErrorReportConfiguration
      * @return a number of minutes; a value of zero or less is ignored, and the default is used instead
      */
     @AttributeDefinition(name = "Recent failure window",
-        description = "How long, in minutes, after a failure was last seen it still counts as happening now. An "
-            + "unacknowledged failure seen inside this window makes the report an ERROR; one last seen before it is "
-            + "reported as a WARNING, since it is a fault somebody should look at rather than a sign that this "
-            + "instance is unwell right now. Nothing recorded is ever deleted, so a deployment that wants every "
-            + "unacknowledged failure to be an ERROR should set a window longer than an instance ever runs, rather "
-            + "than zero — a window of zero or less cannot say what is happening now, and is ignored.")
+        description = "For how many minutes after it was last seen an unacknowledged failure makes the report an "
+            + "ERROR rather than a WARNING. Zero or less means the default, 60.")
     int recentFailureWindow() default DEFAULT_RECENT_WINDOW;
 
     /**
@@ -54,9 +50,7 @@ public @interface ErrorReportConfiguration
      * @return {@code true} if a recent problem makes the report an {@code ERROR}, as a recent failure does
      */
     @AttributeDefinition(name = "Problems are urgent",
-        description = "Whether something this instance found wrong without anything being thrown — a mis-authored "
-            + "definition, most often — can make the report an ERROR the way a failure does. Off by default: an "
-            + "authoring mistake is somebody's to correct, and however often it is hit, it does not mean this "
-            + "instance is unwell. Turn it on where a definition being wrong is itself an emergency.")
+        description = "Whether a recent problem, such as a mis-authored definition, makes the report an ERROR as a "
+            + "recent failure does.")
     boolean problemsAreUrgent() default false;
 }

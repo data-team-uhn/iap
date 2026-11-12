@@ -23,7 +23,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import javax.jcr.RepositoryException;
 import javax.script.Bindings;
 
 import jakarta.json.Json;
@@ -31,6 +30,7 @@ import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.sling.api.SlingException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.scripting.sightly.pojo.Use;
@@ -84,8 +84,8 @@ public class ExtensionsManager implements Use
 
         try {
             findExtensions(uixp);
-        } catch (Exception e) {
-            LOGGER.error("Unexpected error while querying extensions: {}", e.getMessage(), e);
+        } catch (SlingException e) {
+            LOGGER.error("Could not query the extensions: {}", e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(ExtensionsManager.class, "findExtensions")
                 .with("extensionPoint", uixp));
         }
@@ -97,7 +97,7 @@ public class ExtensionsManager implements Use
      *
      * @param extensionPointId the {@code ext:pointId} of the extension point, such as {@code iap/coreUI/view}
      */
-    private void findExtensions(final String extensionPointId) throws RepositoryException
+    private void findExtensions(final String extensionPointId)
     {
         LOGGER.debug("Looking for extensions for [{}]", extensionPointId);
         final Iterator<Resource> result = this.resourceResolver.findResources(
