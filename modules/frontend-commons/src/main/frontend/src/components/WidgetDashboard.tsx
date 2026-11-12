@@ -31,6 +31,7 @@ import Widget from "./Widget";
 import {
   gridColumns,
   groupWidgets,
+  isRenderableWidget,
   isWidgetGroup,
   type DashboardExtension,
   type WidgetGroupSlot,
@@ -254,6 +255,8 @@ interface WidgetDashboardProps {
 //   - `ext:personas`: the personas the widget is shown to; all of them if absent.
 //   - `ext:widgetGroup`: the node name of the widget group it is listed under.
 //
+// A widget with no component to render, in `ext:render`, is left off the dashboard.
+//
 // Widgets are filed under widget groups, which collapse, as widgetDashboardModel.ts describes.
 function WidgetDashboard({ point, empty }: WidgetDashboardProps) {
   const [ extensions, setExtensions ] = useState<DashboardExtension[]>([]);
@@ -269,7 +272,7 @@ function WidgetDashboard({ point, empty }: WidgetDashboardProps) {
   }, [point]);
 
   const groups = useMemo(() => extensions.filter(isWidgetGroup), [extensions]);
-  const widgets = useMemo(() => extensions.filter(extension => !isWidgetGroup(extension)), [extensions]);
+  const widgets = useMemo(() => extensions.filter(isRenderableWidget), [extensions]);
 
   // Filtered by the current persona here, not at load time, so switching persona fetches nothing
   const slots = useMemo(

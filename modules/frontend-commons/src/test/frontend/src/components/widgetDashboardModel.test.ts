@@ -19,6 +19,7 @@
 import {
   gridColumns,
   groupWidgets,
+  isRenderableWidget,
   isWidgetGroup,
   OTHER_LABEL,
 } from "@iap/frontend-commons/components/widgetDashboardModel";
@@ -56,6 +57,22 @@ describe("isWidgetGroup", () => {
   it("only accepts a true marker", () => {
     expect(isWidgetGroup({ ...group("G", "G"), "ext:isWidgetGroup": false })).toBe(false);
     expect(isWidgetGroup({ ...group("G", "G"), "ext:isWidgetGroup": "true" })).toBe(false);
+  });
+});
+
+describe("isRenderableWidget", () => {
+  const Content = () => null;
+
+  it("accepts a widget with a component to render", () => {
+    expect(isRenderableWidget({ ...widget("Shown"), "ext:render": Content })).toBe(true);
+  });
+
+  it("refuses a widget with nothing to render", () => {
+    expect(isRenderableWidget(widget("Link only"))).toBe(false);
+  });
+
+  it("refuses a group, even one carrying a component", () => {
+    expect(isRenderableWidget({ ...group("G", "G"), "ext:render": Content })).toBe(false);
   });
 });
 

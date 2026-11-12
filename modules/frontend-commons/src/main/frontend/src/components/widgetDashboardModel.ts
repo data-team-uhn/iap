@@ -42,6 +42,11 @@ export interface WidgetGroupSlot {
 // Whether an extension of a dashboard's point is a widget group rather than a widget.
 export const isWidgetGroup = (extension: DashboardExtension): boolean => extension["ext:isWidgetGroup"] === true;
 
+// Whether an extension of a dashboard's point is a widget that can be shown: it has a component in
+// `ext:render`. Only an `asset:` property loads one, so a widget declaring none has nothing to show.
+export const isRenderableWidget = (extension: DashboardExtension): boolean =>
+  !isWidgetGroup(extension) && Boolean(extension["ext:render"]);
+
 const nonEmptyString = (value: unknown): string | undefined =>
   typeof value === "string" && value !== "" ? value : undefined;
 
