@@ -26,25 +26,22 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Computes the <em>derived</em> tags of a node: tags not explicitly placed on it, but implied by its surroundings, or
- * triggered by its content. Implementations are registered as OSGi services and invoked by a commit editor every time
- * the tags in a subtree change, or the subtree itself does, so that the derived tags are materialized in the
- * repository and both queries and status displays can read them directly, without walking the tree.
+ * Computes the <em>derived</em> tags of a node: the tags nobody placed on it, copied from its surroundings or
+ * computed from its content. A processor is an OSGi service, and a commit editor runs it on the nodes each commit
+ * changes. The results are stored, so a query or a page reads them without walking the tree.
  *
  * <p>
- * Derived tags are stored per {@link Phase phase}, not per processor: all the processors of a phase contribute to the
- * single multivalued String property that phase {@link Phase#getPropertyName() owns}, and the editor stores the union
- * of what they computed, removing the property when that union is empty. A fixed, statically known set of property
- * names is what lets a query filter on derived tags without enumerating the registered processors, and what lets an
- * index be defined over them.
+ * Derived tags are stored per {@link Phase phase}, not per processor. The editor stores the union of what a phase's
+ * processors computed in the one multivalued String property the phase {@link Phase#getPropertyName() owns}. It
+ * removes the property when the union is empty. A query or an index can therefore name the properties without
+ * knowing which processors are registered.
  * </p>
  *
  * <p>
- * Every processor must compute a deterministic function of the inputs its {@link #getScope() scope} grants it, so
- * that recomputing it in any order always converges to the same result. Which inputs those are differs by phase: the
- * propagating processors read their node's neighbors, while a {@link Phase#LOCAL} one reads the node's own content.
- * A processor may read state outside the repository, or outside its scope, only when that state is immutable for the
- * lifetime of the node it tags — nothing else re-triggers the computation when such state changes.
+ * A processor must compute a deterministic function of what its {@link #getScope() scope} lets it read, so that
+ * recomputing in any order gives the same result. It may read state outside the repository, or outside its scope,
+ * only if that state never changes while the node it tags exists. Nothing recomputes the tags when such state
+ * changes.
  * </p>
  *
  * @version $Id$
@@ -53,31 +50,31 @@ import org.jetbrains.annotations.NotNull;
 public interface TagProcessor
 {
     /**
-     * The tree traversal phase in which a processor runs, which determines both the information available to it and
-     * the property its results are stored in. Phases run in declaration order on each node: the ancestors' tags flow
-     * in first, the node's own content is examined next, and the descendants' tags flow up last.
+     * The phase of the tree traversal a processor runs in, which decides what it can read and the property its
+     * results are stored in. Phases run in declaration order on each node: the ancestors' tags flow in first, the
+     * node's own content is examined next, and the descendants' tags flow up last.
      *
      * @since 0.1.0
      */
     enum Phase
     {
         /**
-         * Computed on the way down, before the node's children are processed; the parent's properties, already
-         * recomputed in this commit, are available, e.g. for copying tags from ancestors to their descendants.
+         * Runs on the way down, before the node's children, when only the parent's aggregated tags may still be out
+         * of date. This is the phase for copying tags from ancestors to descendants.
          */
         TOP_DOWN("inheritedTags"),
 
         /**
-         * Computed on the way down, after {@link #TOP_DOWN} and before the node's children are processed; the node's
-         * own content and the tags that flowed into it from its ancestors are available, e.g. for tagging a node
-         * according to the data it holds. A local processor must not read the {@link #BOTTOM_UP} property of its own
-         * node: reading what its own results feed into is what would let a computation cycle form.
+         * Runs on the way down, after {@link #TOP_DOWN} and before the node's children. The node's own content and
+         * the tags it inherited are up to date, for tagging a node by the data it holds. A local processor must not
+         * read its node's {@link #BOTTOM_UP} property, which is not yet recomputed. Reading it could also let a
+         * computation cycle form, through the tags the node's descendants inherit.
          */
         LOCAL("computedTags"),
 
         /**
-         * Computed on the way up, after all the node's children were processed; the children's properties, already
-         * recomputed in this commit, are available, e.g. for copying tags from descendants to their ancestors.
+         * Runs on the way up, after the node's children, whose properties are all recomputed by then. This is the
+         * phase for copying tags from descendants to ancestors.
          */
         BOTTOM_UP("aggregatedTags");
 
@@ -89,8 +86,7 @@ public interface TagProcessor
         }
 
         /**
-         * The name of the multivalued String property holding the tags computed in this phase, shared by all the
-         * processors running in it.
+         * The name of the multivalued String property holding the tags computed in this phase by all its processors.
          *
          * @return a property name
          */
@@ -102,32 +98,30 @@ public interface TagProcessor
     }
 
     /**
-     * How much of the repository a processor may look at, and — equivalently — how much of it re-triggers the
-     * processor when it changes. Anything beyond the widest scope, e.g. a tag depending on a sibling entity, cannot
-     * be computed by a processor at all: it belongs in a listener or a job placing explicit {@code system} tags after
-     * the fact, accepting the staleness that comes with it.
+     * How much of the repository a processor may read, which is also how much of it makes the processor run again
+     * when it changes. A tag that depends on something wider, such as another entity, cannot come from a processor.
+     * A listener or a job can place it as a {@code system} tag after the fact, and it is stale until then.
      *
      * @since 0.1.0
      */
     enum Scope
     {
         /**
-         * The processed node and its parent. Recomputed when the tags of the node or of its neighbors change, which
-         * is the cheapest and by far the most common case.
+         * The processed node and its parent, and for a {@link Phase#BOTTOM_UP} processor its children. The processor
+         * runs on the nodes a commit changes, and on the descendants the changed tags flow down to.
          */
         NODE,
 
         /**
-         * The whole {@code data:Entity} subtree enclosing the processed node, e.g. for a tag depending on more than
-         * one of an entity's parts. Every such processor is recomputed on every node of an entity whenever anything
-         * inside that entity changes, so the cost is bounded by the size of one entity, not of the repository.
+         * The whole {@code data:Entity} subtree enclosing the processed node, for a tag that depends on more than one
+         * part of an entity. When anything inside an entity changes, every entity-scoped processor runs again on every
+         * node of that entity.
          */
         ENTITY,
     }
 
     /**
-     * The traversal phase in which this processor must be invoked, which also decides the property its results are
-     * stored in.
+     * The phase this processor runs in, which also decides the property its results are stored in.
      *
      * @return the phase
      */
@@ -135,7 +129,7 @@ public interface TagProcessor
     Phase getPhase();
 
     /**
-     * How much of the repository this processor needs to see. Defaults to the cheap {@link Scope#NODE}.
+     * How much of the repository this processor reads. The default is {@link Scope#NODE}.
      *
      * @return the scope
      */
@@ -146,10 +140,8 @@ public interface TagProcessor
     }
 
     /**
-     * The order in which processors are invoked within a phase: processors with a lower priority are invoked first.
-     * Since a phase's property holds the union of what its processors computed, and a union does not depend on the
-     * order its members were added in, this only makes the invocation order deterministic; it is not a way for one
-     * processor to influence another.
+     * The order processors run in within a phase, lowest first. The phase stores the union of their results, so the
+     * order never changes the result, and one processor cannot affect another through it.
      *
      * @return a priority number
      */
@@ -167,8 +159,8 @@ public interface TagProcessor
     Set<String> computeTags(@NotNull TagContext context);
 
     /**
-     * Reads a multivalued String property of a node state as a set, e.g. the explicit {@code tags} or one of the
-     * derived tag properties maintained by the phases.
+     * Reads a multivalued String property of a node state as a set, such as {@code tags} or one of the derived tag
+     * properties.
      *
      * @param node a node state
      * @param property the name of the property to read

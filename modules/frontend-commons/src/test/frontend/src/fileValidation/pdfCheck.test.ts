@@ -104,7 +104,6 @@ function spyOnErrors() {
 }
 
 describe("checkPdf", () => {
-  // A worker of its own per check would fetch and compile the PDF.js worker script again
   it("opens a PDF on the shared PDF.js worker", async () => {
     await checkPdf(openNextAs({ pages: 3 }), MAX_PAGES);
 

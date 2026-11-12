@@ -25,7 +25,8 @@ import { describeRequestFailure } from "../requestFailure";
 import { type ContentField, type ReferenceCandidate } from "./fieldsModel";
 import { readCandidates } from "./referenceCandidates";
 
-// The nodes a reference field may point at, read once, sorted by what they are offered as
+// The nodes a reference field may point at, sorted by label, read again only when its type or root
+// changes. `loadError` says why they could not be read, worded for the person using the UI.
 function useCandidates(field: ContentField) {
   const doFetch = useAuthenticatedFetch();
   const [ candidates, setCandidates ] = useState<ReferenceCandidate[]>([]);
@@ -58,18 +59,19 @@ function useCandidates(field: ContentField) {
 
 interface ReferenceInputProps {
   field: ContentField;
-  // The path of each node pointed at
+  // The path of the node pointed at, or of each for a field that holds several; empty for none
   value: string | string[];
   disabled: boolean;
   helperText?: string;
   onChange: (value: string | string[]) => void;
 }
 
-// Picks what a reference field points at among the nodes it may. A field naming no type takes any path.
+// Picks the node a reference field points at, among the nodes it may. A field naming no type takes
+// any path typed in.
 function ReferenceInput({ field, value, disabled, helperText, onChange }: ReferenceInputProps) {
   const { candidates, loadError } = useCandidates(field);
   const chosen = Array.isArray(value) ? value : [ value ].filter(path => path !== "");
-  // What is pointed at stays offered even when it is no longer a candidate, so it still shows
+  // What is pointed at stays offered when it is no longer a candidate, so that it still shows
   const options = [ ...new Set([ ...candidates.map(candidate => candidate.path), ...chosen ]) ];
   const labelOf = (path: string) => candidates.find(candidate => candidate.path === path)?.label ?? path;
 

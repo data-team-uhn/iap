@@ -27,15 +27,12 @@ import { CAUGHT_MAIL_PATH } from "./caughtMailModel";
 import { useCatcherStatus } from "./useCaughtMail";
 
 /**
- * The dashboard summary of the mail catcher: whether it is on, and how much it has caught.
- *
- * Both halves are needed to say anything at all. A count on its own cannot distinguish "nothing has
- * been sent" from "everything that was sent went out by mail", and those call for opposite reactions
- * from somebody who came to the dashboard to check whether a notification worked.
+ * The dashboard summary of the mail catcher: whether it is on, how many messages it has caught,
+ * and the switch.
  */
 function CaughtMailWidget() {
   const { status, reload } = useCatcherStatus();
-  // Bumped once the switch has written the setting, so the list reads the summary again
+  // Bumped once the switch has written the setting, so that the stat list reads the summary again
   const [ generation, setGeneration ] = useState(0);
 
   const changed = () => {

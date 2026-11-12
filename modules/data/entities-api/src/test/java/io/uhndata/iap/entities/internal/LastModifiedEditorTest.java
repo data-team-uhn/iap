@@ -330,7 +330,7 @@ class LastModifiedEditorTest
     @Test
     void countsReorderingTheChildrenItKeeps() throws RepositoryException
     {
-        // Whichever of the two kept children comes first, moved last, so the order surely changes
+        // Whichever of the two kept children comes first moves to the end, so the order changes
         final String first = childOrder(RECORD).stream().filter(List.of("part", "folder")::contains).findFirst()
             .orElseThrow();
         this.session.getNode(RECORD).orderBefore(first, null);
@@ -342,7 +342,7 @@ class LastModifiedEditorTest
     @Test
     void ignoresMovingOnlyAChildLeftOutOfTheVersions() throws RepositoryException
     {
-        // To the other end from wherever it is, so that it surely moves
+        // Moved to the end it is not at, so that it moves
         final List<String> order = childOrder(RECORD);
         final String before = order.get(order.size() - 1).equals("log") ? order.get(0) : null;
         this.session.getNode(RECORD).orderBefore("log", before);

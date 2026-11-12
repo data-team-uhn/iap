@@ -23,24 +23,20 @@ import org.jetbrains.annotations.NotNull;
  * Recomputes derived tags that have gone out of date.
  *
  * <p>
- * Tags are normally maintained as content changes: whatever a commit touches has its derived tags recomputed before
- * the commit completes. Two things escape that, and this service exists for them.
+ * A commit recomputes the derived tags of the content it changes. Two things leave derived tags out of date anyway.
  * </p>
  *
  * <ul>
- * <li>A tag processor that fails leaves the values it could not recompute as they were, and marks the node. Those
- * nodes are repaired routinely, since there are few of them and they are indexed.</li>
- * <li>Editing a tag <em>definition</em> — deleting it, or changing whether it is inheritable or aggregated —
- * invalidates copies of that tag anywhere in the repository, without changing any of the content carrying them. No
- * commit touches those nodes, so nothing recomputes them; until they are repaired, {@code getEffectiveTagNames}
- * (which reads the stored values) and {@code hasTag} (which filters by definition) disagree about them, permanently
- * and in opposite directions.</li>
+ * <li>A tag processor that fails leaves the values it could not compute as they were, and marks the node.</li>
+ * <li>Deleting a tag definition, or changing whether the tag is inheritable or aggregated, changes what the copies
+ * of that tag should be, but changes no content. No commit recomputes them. Until they are repaired,
+ * {@code getEffectiveTagNames}, which reads the stored copies, and {@code hasTag}, which reads the definitions,
+ * disagree about them.</li>
  * </ul>
  *
  * <p>
- * Repair does not compute anything itself. It marks the affected nodes as stale and commits, and the propagation
- * editor — the one piece that knows the phase order, the entity scopes and the failure policy — recomputes them in
- * full and clears the mark. A repair that finds nothing to do writes nothing.
+ * A repair computes nothing itself. It marks the affected nodes as stale and commits, and the propagation editor
+ * recomputes them in full in that commit and removes the mark. A repair that finds nothing to do writes nothing.
  * </p>
  *
  * @version $Id$
@@ -49,8 +45,8 @@ import org.jetbrains.annotations.NotNull;
 public interface TagRepairService
 {
     /**
-     * Repairs every node whose derived tags could not be computed. Cheap enough to run on a schedule: the marker is
-     * indexed, and a healthy repository has no such nodes.
+     * Repairs every node marked as stale, whatever the reason recorded on it. The mark is indexed, so this costs
+     * little when there are none.
      *
      * @return what the repair did
      */
@@ -58,23 +54,21 @@ public interface TagRepairService
     RepairReport repairFailed();
 
     /**
-     * Repairs every node carrying a tag, in any of the four properties a tag name can appear in. This is the repair
-     * to run after a definition changed, naming the tag that changed; it is bounded by how widely that one tag is
-     * used rather than by the size of the repository.
+     * Repairs every node carrying a tag, in any of the four properties a tag name can appear in. Run it after
+     * changing the tag's definition.
      *
-     * @param tagName the name of the tag whose definition changed
+     * @param tagName the name of the tag whose definition changed, as stored in a {@code tags} property; a name made
+     *            of anything but letters, digits, {@code -} and {@code _} is refused, and nothing is repaired
      * @return what the repair did
      */
     @NotNull
     RepairReport repair(@NotNull String tagName);
 
     /**
-     * What a repair did. A repair is best-effort: it reports what it could not do rather than failing, since the
-     * alternative — abandoning the rest of the repository because one node is unwritable — leaves more stale tags
-     * behind than it fixes.
+     * What a repair did. A node that cannot be marked is counted and skipped, and the repair goes on with the rest.
      *
      * @param marked the number of nodes marked for recomputation
-     * @param failed the number of nodes that could not be marked, already logged with their reason
+     * @param failed the number of nodes that could not be marked, already logged with the reason
      * @version $Id$
      * @since 0.1.0
      */

@@ -26,11 +26,11 @@ import org.jetbrains.annotations.NotNull;
  * Judges one kind of part of a submission: whether what its author is asked for has been supplied.
  *
  * <p>Every item the author is asked for has a part of its own, which a {@link PartCreator} made. An item that
- * applies but has no part is a fault: the evaluator reports the submission itself, so that it never reads as
+ * applies but has no part is a fault. The evaluator then reports the submission itself, so that it never reads as
  * complete.</p>
  *
- * <p>Implementations are OSGi services. The {@code markCompleteness} service task asks every one of them after each
- * change to a submission, and tags each part they report as {@code incomplete}.</p>
+ * <p>Implementations are OSGi services. The {@code markCompleteness} service task asks every one of them, and tags
+ * each part they report as {@code incomplete}.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -40,8 +40,8 @@ public interface CompletenessEvaluator
     /**
      * Names the parts of a submission still lacking something their author has to supply.
      *
-     * @param submission the submission
-     * @return the parts still incomplete, or the submission itself when an item that applies has no part; empty when
+     * @param submission the submission's resource
+     * @return the parts still incomplete, and the submission itself when an item that applies has no part; empty when
      *     nothing is missing
      */
     @NotNull

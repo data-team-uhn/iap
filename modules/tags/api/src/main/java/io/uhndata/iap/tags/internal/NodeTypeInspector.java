@@ -29,28 +29,26 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import io.uhndata.iap.tags.api.TagManager;
 
 /**
- * Answers the three node type questions the tag propagation needs, against the node type registry materialized at
- * {@code /jcr:system/jcr:nodeTypes}: whether a node may store the tag properties at all, whether it is the
- * {@code data:Entity} that bounds an {@link io.uhndata.iap.tags.spi.TagProcessor.Scope#ENTITY} computation, and
- * whether it is the {@code tag:Boundary} that aggregated tags travel up to and no further. Verdicts are cached
- * per type name, so one instance must not outlive the commit it was created for.
+ * Answers the three node type questions of tag propagation, from the node type registry under
+ * {@code /jcr:system/jcr:nodeTypes}. May a node store the tag properties? Is it a {@code data:Entity}, the scope of an
+ * {@link io.uhndata.iap.tags.spi.TagProcessor.Scope#ENTITY} computation? Is it a {@code tag:Boundary}, where
+ * aggregated tags stop? The answers are cached per type name, so an instance must not outlive its commit.
  *
  * @version $Id$
  * @since 0.1.0
  */
 public final class NodeTypeInspector
 {
-    /** The node type of the standalone records that bound an entity-scoped computation. */
+    /** The node type of the entities that scope an entity-scoped computation. */
     private static final String ENTITY_TYPE = "data:Entity";
 
-    /** The mixin declaring that aggregated tags stop at a node rather than climbing past it. */
     private static final String BOUNDARY_TYPE = TagManager.BOUNDARY_MIXIN;
 
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
     private static final String MIXIN_TYPES = "jcr:mixinTypes";
 
-    /** Holds the full, transitively expanded set of supertypes of a registered node type. */
+    /** Holds every supertype of a registered node type, the supertypes of its supertypes included. */
     private static final String SUPERTYPES_PROPERTY = "rep:supertypes";
 
     private final NodeState registry;
@@ -72,15 +70,13 @@ public final class NodeTypeInspector
     }
 
     /**
-     * Checks whether tag properties may be stored on the given node: one of the node's primary or mixin types, or one
-     * of their supertypes, must declare the tag properties by name, which is what {@code tag:Taggable} does and what
-     * every {@code data:Content} node inherits.
+     * Checks whether the tag properties may be stored on the given node. One of the node's types, or one of their
+     * supertypes, must declare the {@code tags} property by name, as {@code tag:Taggable} does.
      *
      * <p>
-     * Taggability has to be <em>declared</em> rather than merely tolerated. A type that happens to accept residual
-     * properties — {@code nt:unstructured}, and therefore {@code rep:root} and every free-form container in the
-     * repository — has not opted into tags, and derived properties written onto such nodes are how an aggregated tag
-     * used to reach the repository root. A node of such a type becomes taggable by adding the mixin.
+     * A type that only accepts any property, such as {@code nt:unstructured}, does not count. The repository root
+     * extends it, and a derived tag written there would fail the commit of anybody who may not write the root. A node
+     * of such a type becomes taggable by adding the {@code tag:Taggable} mixin.
      * </p>
      *
      * @param node the node to check
@@ -93,9 +89,8 @@ public final class NodeTypeInspector
     }
 
     /**
-     * Checks whether the given node is where aggregated tags stop, i.e. whether it carries the
-     * {@code tag:Boundary} mixin, either directly or through one of its types' supertypes as
-     * {@code data:EntityHomepage} does.
+     * Checks whether aggregated tags stop at the given node: whether it carries the {@code tag:Boundary} mixin, or one
+     * of its types extends it, as {@code data:EntityHomepage} does.
      *
      * @param node the node to check
      * @return {@code true} if aggregated tags may not travel past this node
@@ -107,8 +102,8 @@ public final class NodeTypeInspector
     }
 
     /**
-     * Checks whether the given node is one of the standalone records that bound an entity-scoped computation, i.e.
-     * whether its primary type is {@code data:Entity} or a subtype of it.
+     * Checks whether the given node is an entity, the scope of an entity-scoped computation: whether its primary type
+     * is {@code data:Entity} or a subtype of it.
      *
      * @param node the node to check
      * @return {@code true} if the node is an entity

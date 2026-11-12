@@ -57,8 +57,6 @@ describe("SignInMethods", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Use a local account instead" }));
     expect(screen.getByText("Local content")).toBeInTheDocument();
-    // The revealed method is its own titled section, so it is not read as part of the
-    // primary method above it
     expect(screen.getByRole("heading", { name: "Local" })).toBeInTheDocument();
   });
 

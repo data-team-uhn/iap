@@ -53,7 +53,7 @@ describe("RedirectSignIn", () => {
   });
 
   it("renders nothing for a target that is not a URL at all", () => {
-    // An unparseable host, so building the URL throws rather than just producing something odd
+    // A host that cannot be parsed, so `new URL` throws
     const { container } = render(<RedirectSignIn extension={{ "ext:targetURL": "http://[" }} />);
 
     expect(container).toBeEmptyDOMElement();

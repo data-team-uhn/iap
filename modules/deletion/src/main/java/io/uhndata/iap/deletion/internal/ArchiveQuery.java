@@ -25,15 +25,11 @@ import java.util.Set;
 import io.uhndata.iap.utils.DateUtils;
 
 /**
- * The JCR-SQL2 statements behind the archive browser: one listing the archive entries under a subtree, one counting
- * those created since a given instant.
+ * The JCR-SQL2 statements that list and count the archive entries under a node.
  *
  * <p>
- * Nothing a client sends is interpolated raw. The sort column is chosen from a fixed set rather than quoted, since a
- * column name cannot be a bound variable and an unrecognised one is a bug or an attack rather than a value to escape;
- * the free-text filter is escaped twice over, once for the {@code LIKE} pattern it becomes and once for the string
- * literal that carries it, because those are two different escapes and composing them at the call site is what keeps
- * them from being confused for one another.
+ * Nothing a client sends reaches a statement unescaped. A column name cannot be a bound variable, so the sort column
+ * is taken from a fixed set. The filter is escaped twice: once as a {@code LIKE} pattern, then as a string literal.
  * </p>
  *
  * @version $Id$
@@ -44,7 +40,7 @@ final class ArchiveQuery
     /** The columns an entry may be ordered by, as JCR property names. */
     static final Set<String> SORTABLE_PROPERTIES = Set.of("jcr:created", "deletedBy", "requestedPath");
 
-    /** The column used when none is asked for: most recently archived first. */
+    /** The column to sort by when none, or an unknown one, is asked for. */
     static final String DEFAULT_SORT = "jcr:created";
 
     private ArchiveQuery()
@@ -53,13 +49,14 @@ final class ArchiveQuery
     }
 
     /**
-     * The statement listing the archive entries under a subtree.
+     * The statement listing the archive entries under a node.
      *
      * @param root the absolute path to look under, usually {@code /Archive}
-     * @param filter a case-insensitive substring the requested path or the requesting user must contain; ignored
-     *            when blank
-     * @param sortBy the property to order by; anything outside {@link #SORTABLE_PROPERTIES} falls back to {@link #DEFAULT_SORT}
-     * @param descending whether to reverse the order
+     * @param filter text the requested path or the requesting user must contain, ignoring case; {@code null} or
+     *            blank to keep every entry
+     * @param sortBy the property to sort by; anything outside {@link #SORTABLE_PROPERTIES} sorts by
+     *            {@link #DEFAULT_SORT}
+     * @param descending {@code true} to sort in descending order
      * @return a JCR-SQL2 statement
      */
     static String entries(final String root, final String filter, final String sortBy, final boolean descending)
@@ -76,10 +73,10 @@ final class ArchiveQuery
     }
 
     /**
-     * The statement counting the archive entries under a subtree that were created at or after an instant.
+     * The statement counting the archive entries under a node that were created at or after an instant.
      *
      * @param root the absolute path to look under, usually {@code /Archive}
-     * @param since the earliest creation instant to count, as an ISO-8601 timestamp
+     * @param since the earliest creation instant to count, as {@link #timestamp} formats it
      * @return a JCR-SQL2 statement
      */
     static String createdSince(final String root, final String since)
@@ -88,7 +85,7 @@ final class ArchiveQuery
     }
 
     /**
-     * The statement counting every archive entry under a subtree.
+     * The statement counting every archive entry under a node.
      *
      * @param root the absolute path to look under, usually {@code /Archive}
      * @return a JCR-SQL2 statement
@@ -99,10 +96,10 @@ final class ArchiveQuery
     }
 
     /**
-     * Formats an instant the way {@link #createdSince} expects it.
+     * Formats an instant for {@link #createdSince}.
      *
      * @param epochMillis the instant, in milliseconds since the epoch
-     * @return an ISO-8601 timestamp
+     * @return an ISO-8601 timestamp in UTC, such as {@code 2026-11-05T14:00:00.000+00:00}
      */
     static String timestamp(final long epochMillis)
     {
@@ -121,10 +118,10 @@ final class ArchiveQuery
     }
 
     /**
-     * Escapes a value for a JCR-SQL2 string literal, where a quote is written twice.
+     * Escapes a value for a JCR-SQL2 string literal, where a single quote is written twice.
      *
      * @param value the raw value
-     * @return the value, safe to place between single quotes
+     * @return the value, ready to place between single quotes
      */
     static String literal(final String value)
     {
@@ -132,12 +129,11 @@ final class ArchiveQuery
     }
 
     /**
-     * Escapes a value for use inside a {@code LIKE} pattern, so that its wildcards are matched literally. Separate
-     * from {@link #literal} on purpose: this one decides what the pattern <em>means</em>, that one decides how it
-     * survives being written into a statement, and a value normally needs both.
+     * Escapes a value for a {@code LIKE} pattern, so that {@code %} and {@code _} match themselves. A pattern still
+     * needs {@link #literal} to go into a statement.
      *
      * @param value the raw value
-     * @return the value with the pattern metacharacters escaped
+     * @return the value with {@code \}, {@code %} and {@code _} escaped by a backslash
      */
     static String likePattern(final String value)
     {

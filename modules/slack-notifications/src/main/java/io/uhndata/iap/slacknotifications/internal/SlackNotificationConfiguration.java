@@ -33,15 +33,16 @@ public @interface SlackNotificationConfiguration
     /**
      * The name of this notification, which also names its scheduled job.
      *
-     * @return a simple string
+     * @return a name such as {@code nightly}, different for each notification
      */
     @AttributeDefinition(name = "Name")
     String name();
 
     /**
-     * When the notification job runs.
+     * When the notification is posted.
      *
-     * @return a Quartz-readable schedule expression, or an {@code %ENV%}-prefixed environment variable holding one
+     * @return a Quartz cron expression such as {@code 0 0 0 * * ? *}, or {@code %ENV%} followed by the name of an
+     *         environment variable holding one
      */
     @AttributeDefinition(name = "Schedule",
         description = "A Quartz-readable schedule expression determining when the notification job runs, for example "
@@ -52,7 +53,7 @@ public @interface SlackNotificationConfiguration
     /**
      * Where to post the message.
      *
-     * @return a webhook address, or an {@code %ENV%}-prefixed environment variable holding one
+     * @return a webhook URL, or {@code %ENV%} followed by the name of an environment variable holding one
      */
     @AttributeDefinition(name = "Endpoint",
         description = "A webhook endpoint that will receive the message. A value starting with %ENV% is read from "
@@ -60,26 +61,26 @@ public @interface SlackNotificationConfiguration
     String endpoint() default "%ENV%SLACK_NOTIFICATIONS_ENDPOINT";
 
     /**
-     * An optional title to include in the message.
+     * The title of the message, posted above the attachments.
      *
-     * @return a simple string, empty for no title
+     * @return the title, or an empty string for none
      */
     @AttributeDefinition(name = "Message title", description = "An optional title to include in the message.")
     String title() default "";
 
     /**
-     * Which notification producers to include.
+     * Which producers to ask for attachments.
      *
-     * @return the names of the producers to use, empty to use all of them
+     * @return producer names such as {@code status}, or an empty array to ask every producer
      */
     @AttributeDefinition(name = "Include notifications",
         description = "Customize which notifications to include in the message. Leave empty to include all.")
     String[] include();
 
     /**
-     * Extra parameters to pass to the notification producers.
+     * Extra parameters for the producers.
      *
-     * @return parameters in the {@code key=value} format
+     * @return {@code key=value} strings such as {@code statusReport.unprivileged=true}
      */
     @AttributeDefinition(name = "Extra parameters",
         description = "Optional extra parameters to pass to the notification producers."
@@ -87,9 +88,10 @@ public @interface SlackNotificationConfiguration
     String[] notificationParameters();
 
     /**
-     * Whether to stay quiet when there is nothing to report.
+     * Whether to post nothing when there is nothing to report.
      *
-     * @return {@code true} to post nothing at all when no producer had anything to say
+     * @return {@code true} to post nothing when no producer has an attachment, {@code false} to post "Nothing to
+     *         report" instead
      */
     @AttributeDefinition(name = "Don't post empty messages",
         description = "If the message ends up containing nothing at all, don't post anything."

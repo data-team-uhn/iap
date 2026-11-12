@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link NotificationContext}: what a notification says about itself.
+ * Tests for {@link NotificationContext}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -81,7 +81,6 @@ class NotificationContextTest
             NotificationContext.about(this.subject).urgency("  ").build().getUrgency());
     }
 
-    // Nobody caused a deadline passing, and no template is needed by a delivery that renders nothing
     @Test
     void toleratesHavingNoActorAndNoTemplate()
     {
@@ -93,8 +92,6 @@ class NotificationContextTest
         assertTrue(notification.getVariables().isEmpty());
     }
 
-    // A null is what a caller passes for something it has nothing to say about, so it leaves the variable
-    // out. Before, it reached Map.copyOf and threw from build() naming nothing
     @Test
     void leavesOutAVariableWithNoValue()
     {
@@ -106,8 +103,6 @@ class NotificationContextTest
         assertEquals(Map.of("days", 3), notification.getVariables());
     }
 
-    // The variables are read by deliveries that may run later and elsewhere; handing out a live map would let a
-    // caller change a message after describing it
     @Test
     void doesNotLetItsVariablesBeChangedAfterwards()
     {

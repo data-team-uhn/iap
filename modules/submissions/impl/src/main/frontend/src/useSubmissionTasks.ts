@@ -20,13 +20,13 @@ import { useNode } from "@iap/frontend-commons/useNode";
 
 import { type SubmissionTask, tasksFrom } from "./taskModel";
 
-// The workflow container, with the events the reader may send each task. Not `simple`, which drops the
-// `sling:resourceType` tasks are found by. `-dereference` keeps each instance's workflow as its
-// identifier instead of embedding the whole definition.
+// The selectors for reading the workflow container, with the events the reader may send each task. Not
+// `simple`, which drops the `sling:resourceType` that tasks are found by. `-dereference` keeps each
+// instance's `workflowVersion` as its `jcr:uuid` rather than the whole workflow version.
 const CONTAINER_SELECTORS = "deep.-dereference.events";
 
-// The open tasks of a submission's workflows, read again whenever asked. A failed read offers nothing,
-// a failed re-read included, since what was read before may include a task that is already done.
+// The open tasks of a submission's workflows, and a way to read them again. A failed read gives no
+// tasks, a failed re-read included, since what was read before may include a task already done.
 export function useSubmissionTasks(path: string): { tasks: SubmissionTask[]; reload: () => Promise<void> } {
   const { value, loadError, reload } = useNode(`${path}/wf:instances`, CONTAINER_SELECTORS, tasksFrom);
   return { tasks: loadError === undefined ? value ?? [] : [], reload };

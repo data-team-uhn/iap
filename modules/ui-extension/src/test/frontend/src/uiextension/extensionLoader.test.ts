@@ -80,7 +80,6 @@ describe("createExtensionLoader", () => {
       await waitFor(() => expect(result.current).toBe(true));
     });
 
-    // Whatever waits on it is drawn without the extensions rather than held back for good
     it("turns true once a failed load is over", async () => {
       vi.spyOn(console, "error").mockImplementation(() => undefined);
       mockedLoadExtensions.mockRejectedValueOnce(new Error("the point could not be read"));

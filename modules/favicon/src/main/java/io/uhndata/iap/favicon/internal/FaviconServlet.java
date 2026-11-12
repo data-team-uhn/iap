@@ -35,17 +35,15 @@ import org.osgi.service.component.annotations.Component;
  * Answers {@code /favicon.ico} with the vector icon when the client says it can draw one.
  *
  * <p>
- * Browsers probe {@code /favicon.ico} by convention, whatever the page declares, and a client that asks for
- * {@code image/svg+xml} by name is better served by the crisp, dark-scheme-aware {@code /favicon.svg} than by the
- * fixed raster sizes. The two files are stored as they are generated; this servlet only picks one per request, and
- * says so in {@code Vary: Accept} so that a cache does not hand one client's answer to another.
+ * Browsers ask for {@code /favicon.ico} whatever the page declares. A client whose {@code Accept} header names
+ * {@code image/svg+xml} gets {@code /favicon.svg}, which has a dark-scheme variant. Any other client gets the raster
+ * icon. The response says {@code Vary: Accept}, so that a cache does not hand one client's answer to another.
  * </p>
  *
  * <p>
- * It is bound by resource type, which the {@code favicon.ico} node carries, rather than mounted at the path: a
- * path-mounted servlet would shadow the node, and with it the access control that makes the icon readable before
- * login. Only an explicit {@code image/svg+xml} counts; a wildcard is what every client sends and says nothing
- * about vector support.
+ * The servlet binds to the resource type of the {@code favicon.ico} node, not to its path. A servlet mounted at the
+ * path would shadow the node, and with it the access control that lets anyone read the icon before signing in. A
+ * wildcard in {@code Accept} does not count, since every client sends one.
  * </p>
  *
  * @version $Id$
@@ -76,7 +74,7 @@ public class FaviconServlet extends SlingJakartaSafeMethodsServlet
         final Resource vector = acceptsSvg(request.getHeader("Accept"))
             ? request.getResourceResolver().getResource(SVG_PATH)
             : null;
-        // A missing vector icon is not worth failing the request over: the raster one is always there
+        // Without a vector icon, the raster one answers
         final boolean sendVector = vector != null;
         final Resource source = sendVector ? vector : request.getResource();
         final byte[] bytes = readContent(source);
@@ -103,7 +101,7 @@ public class FaviconServlet extends SlingJakartaSafeMethodsServlet
     /**
      * Whether an {@code Accept} header names {@code image/svg+xml} and does not refuse it with {@code q=0}.
      *
-     * @param accept the header's value, may be {@code null}
+     * @param accept the header's value; {@code null} if the request has none
      * @return {@code true} if the vector icon should be sent
      */
     static boolean acceptsSvg(final String accept)

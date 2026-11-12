@@ -21,13 +21,8 @@ import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
 /**
- * How loudly the status report speaks about the errors an instance recorded.
- *
- * <p>
- * Both settings exist for the same reason: the recorded errors are reported at {@code /system/status}, which is what
- * a monitoring tool polls, and an {@code ERROR} there is the loudest thing this platform can say about itself. It
- * should mean that something is going wrong now, and a deployment gets to decide what counts.
- * </p>
+ * What makes the status report about recorded errors an {@code ERROR}. A monitoring tool polls
+ * {@code /system/status}, and an {@code ERROR} there should mean that something is going wrong now.
  *
  * @version $Id$
  * @since 0.1.0
@@ -36,16 +31,13 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
     description = "How loudly the status report speaks about the errors this instance recorded.")
 public @interface ErrorReportConfiguration
 {
-    /**
-     * How long a failure counts as still happening, in minutes. Named here rather than only in the attribute below
-     * so that the reporter can fall back on it without a second copy of the number.
-     */
+    /** The default for {@link #recentFailureWindow()}, in minutes. */
     int DEFAULT_RECENT_WINDOW = 60;
 
     /**
      * How long after a failure was last seen it still counts as happening now.
      *
-     * @return a number of minutes
+     * @return a number of minutes; a value of zero or less is ignored, and the default is used instead
      */
     @AttributeDefinition(name = "Recent failure window",
         description = "How long, in minutes, after a failure was last seen it still counts as happening now. An "
@@ -57,9 +49,9 @@ public @interface ErrorReportConfiguration
     int recentFailureWindow() default DEFAULT_RECENT_WINDOW;
 
     /**
-     * Whether something the instance merely found wrong can make the report an {@code ERROR}.
+     * Whether a recorded problem, which nothing was thrown for, can make the report an {@code ERROR}.
      *
-     * @return {@code true} if a recorded problem is treated the way a failure is
+     * @return {@code true} if a recent problem makes the report an {@code ERROR}, as a recent failure does
      */
     @AttributeDefinition(name = "Problems are urgent",
         description = "Whether something this instance found wrong without anything being thrown — a mis-authored "

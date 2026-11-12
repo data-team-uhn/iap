@@ -21,34 +21,27 @@
 
 //-----------------------------------------------------------------------------
 //
-// Deletion: the node types supporting safe resource deletion. Deleted
-// resources are not removed outright: by default they are moved, together
-// with everything their deletion drags along, into the archive at /Archive,
-// where they wait to be either restored or purged. Since a move preserves
-// identifiers, all the references between archived resources remain intact,
-// which is what makes restoring them possible; keeping archived content
-// invisible to regular users is the job of access control, not of broken
-// references.
+// Deletion: the archive that deleted resources move into, to be restored or
+// purged later, and the mixin that protects a resource from deletion. The
+// design is in docs/deletion.md.
 //
-// The archive types deliberately do NOT extend data:Content: archive entries
-// are bookkeeping, not content, so they must not acquire tags, links, or the
-// data/Content resource supertype (which would hand them to the content
-// deletion endpoint itself).
+// The archive types do not extend data:Content. An entry is not content, so
+// it takes no tags or links, and the DELETE servlet for data/Content does not
+// serve it.
 //
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Marks a resource that must never be deleted: neither archived nor
-// permanently removed, and not purged if it somehow ends up in the archive.
-// Deleting it again becomes possible only by removing this mixin first.
+// Marks a resource that must never be deleted: not archived, not deleted for
+// good, and not purged if it is in the archive. Removing the mixin lifts the
+// protection.
 [del:Undeletable]
   mixin
 
 //-----------------------------------------------------------------------------
-// The archive root, at /Archive, and the buckets of the prefix tree under it.
-// Not granted to anyone by default: regular users cannot see it (and their
-// queries cannot return archived content), administrators bypass access
-// control, and the deletion service user manages its contents.
+// The archive root at /Archive, and the buckets of the prefix tree under it.
+// The repoinit grants it to nobody, so queries never return archived content
+// to ordinary users.
 [del:Archive] > sling:Folder, rep:AccessControllable
   - sling:resourceType (STRING) = "del/Archive" mandatory autocreated protected
 
@@ -56,26 +49,24 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // One entry per deletion operation, never a direct child of /Archive: the
-  // entries are spread over a PrefixTree of buckets, which are del:Archive
-  // nodes themselves, so that no single parent ends up holding every deletion
-  // ever performed. See docs/deletion.md.
+  // The entries, filed in a PrefixTree under buckets that are del:Archive
+  // nodes themselves. No entry is a direct child of /Archive.
   + * (del:ArchiveEntry) = del:ArchiveEntry
   + * (del:Archive) = del:Archive
 
 //-----------------------------------------------------------------------------
-// One deletion operation: records who requested it, when (jcr:created), and
-// which resource was targeted, and holds one del:DeletedItem wrapper for
-// each subtree the operation moved into the archive.
+// One archiving deletion: who requested it, when (jcr:created), and which
+// path, with one del:DeletedItem for each subtree it moved into the archive.
 [del:ArchiveEntry] > sling:Folder, mix:created
   - sling:resourceType (STRING) = "del/ArchiveEntry" mandatory autocreated protected
 
-  // The user who requested the deletion. jcr:createdBy cannot record this,
-  // since the moves are performed by the deletion service user.
+  // The user id of the user who requested the deletion. jcr:createdBy names
+  // whoever wrote the entry: the iap-deletion service user, or the session
+  // of a caller deleting within its own transaction.
   - deletedBy (STRING) mandatory
 
-  // The path whose deletion was requested; the other archived items were
-  // dragged along by references, links, or containment.
+  // The path whose deletion was requested, such as /Submissions/abc. The
+  // other items came along through references or links.
   - requestedPath (STRING) mandatory
 
   // Allow any other properties for extensibility
@@ -86,19 +77,18 @@
   + * (del:DeletedItem) = del:DeletedItem
 
 //-----------------------------------------------------------------------------
-// A wrapper around one deleted subtree, recording where it came from so it
-// can be restored. The wrapper stays untouched by the move itself, so
-// archiving doesn't need to modify - or check out - the resources it
-// archives, and restoring leaves no residue on them.
+// A wrapper around one archived subtree, recording where it came from so it
+// can be restored. The record is on the wrapper, so archiving and restoring
+// never change the archived resources themselves.
 [del:DeletedItem] > sling:Folder
   - sling:resourceType (STRING) = "del/DeletedItem" mandatory autocreated protected
 
-  // The absolute path the wrapped subtree was moved from
+  // The absolute path the subtree was moved from, such as /Submissions/abc
   - originalPath (STRING) mandatory
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // The archived subtree, exactly one child in practice
+  // The archived subtree. The archive puts exactly one here.
   + * (nt:base)

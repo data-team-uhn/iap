@@ -39,8 +39,8 @@ import io.uhndata.iap.httprequests.api.HttpResponse;
 import io.uhndata.iap.slacknotifications.spi.SlackNotificationProducer;
 
 /**
- * Gathers messages from the enabled {@link SlackNotificationProducer}s and posts them to a chat webhook as one
- * message. Scheduled by {@link ScheduledSlackNotification}, one task per configuration.
+ * Posts one notification to its chat webhook. Each run asks the included {@link SlackNotificationProducer}s for
+ * their attachments, and posts them all as one message.
  *
  * @version $Id$
  * @since 0.1.0
@@ -51,7 +51,7 @@ public class SlackNotificationsTask implements Runnable
 
     private final HttpRequests httpRequests;
 
-    /** All the available notification producers; the ones to use are picked out of it at every run. */
+    /** The registered producers. */
     private final List<SlackNotificationProducer> producers;
 
     private final String endpoint;
@@ -65,27 +65,26 @@ public class SlackNotificationsTask implements Runnable
     private final boolean skipEmpty;
 
     /**
-     * Basic constructor.
+     * Sets up the task for one notification.
      *
-     * @param httpRequests used to post the message
-     * @param producers all the available notification producers
-     * @param endpoint the webhook address to post to
-     * @param title an optional title to include in the message
-     * @param include the names of the producers to use, empty to use all of them
-     * @param extraParameters extra parameters to pass to the producers
-     * @param skipEmpty whether to post nothing at all when there is nothing to report
+     * @param httpRequests the client that posts the message
+     * @param producers the registered producers, a list that changes as producers come and go
+     * @param endpoint the webhook URL to post to
+     * @param title the title of the message, or an empty string for none
+     * @param include the names of the producers to ask, such as {@code status}, or an empty list to ask every one
+     * @param extraParameters the extra parameters for the producers, by name
+     * @param skipEmpty {@code true} to post nothing when no producer has an attachment, {@code false} to post
+     *            "Nothing to report" instead
      */
     public SlackNotificationsTask(final HttpRequests httpRequests, final List<SlackNotificationProducer> producers,
         final String endpoint, final String title, final List<String> include,
         final Map<String, String> extraParameters, final boolean skipEmpty)
     {
         this.httpRequests = httpRequests;
-        // Wrapped, not copied: the caller keeps updating this list as producers come and go, and every run must see
-        // the current set. Wrapping only takes away this task's ability to alter someone else's list
+        // Wrapped, not copied: every run must see the producers registered by then
         this.producers = Collections.unmodifiableList(producers);
         this.endpoint = endpoint;
         this.title = title;
-        // Copied, since these come from one configuration and are not meant to change under the task's feet
         this.include = List.copyOf(include);
         this.extraParameters = Map.copyOf(extraParameters);
         this.skipEmpty = skipEmpty;
@@ -95,8 +94,6 @@ public class SlackNotificationsTask implements Runnable
     public void run()
     {
         LOGGER.debug("Running the {} notification", this.title);
-        // Flattened, because a producer with nothing to say gives back an empty list rather than nothing at all:
-        // counting those as content would post an empty message on every run
         final List<JsonObject> attachments = this.producers.stream()
             .filter(producer -> this.include.isEmpty() || this.include.contains(producer.getName()))
             .map(producer -> producer.prepareMessages(this.extraParameters))
@@ -107,9 +104,10 @@ public class SlackNotificationsTask implements Runnable
     }
 
     /**
-     * Posts the gathered messages, unless there is nothing to say and the configuration asked to stay quiet.
+     * Posts the message, unless it has no attachments and {@code skipEmpty} is set. A failure is logged and
+     * recorded.
      *
-     * @param attachments the messages the producers prepared
+     * @param attachments the attachments the producers prepared, empty if they had nothing to report
      */
     private void post(final List<JsonObject> attachments)
     {
@@ -126,20 +124,14 @@ public class SlackNotificationsTask implements Runnable
             final HttpResponse response =
                 this.httpRequests.post(this.endpoint, message.build().toString(), "application/json");
             if (!response.isSuccessful()) {
-                // The webhook was reached and refused the message, which no exception would have told us about
                 LOGGER.warn("The notification was refused by the webhook with status {}: {}",
                     response.getStatusCode(), response.getBody());
-                // A problem rather than a failure, since nothing was thrown and the endpoint is configuration. The
-                // status goes in the context rather than the phrase: one refusing webhook is one thing to fix,
-                // however many status codes it answers with
                 ErrorLogger.logProblem("the webhook refused the notification",
                     ErrorContext.of(SlackNotificationsTask.class, "post")
                         .with("status", response.getStatusCode()));
             }
         } catch (final IOException e) {
             LOGGER.warn("Failed to post the notification: {}", e.getMessage(), e);
-            // The whole point of a notification is to tell somebody something, so a notification that never
-            // arrives is the one failure guaranteed to have nobody watching for it
             ErrorLogger.logError(e, ErrorContext.of(SlackNotificationsTask.class, "post"));
         }
     }

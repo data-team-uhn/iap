@@ -76,7 +76,7 @@ describe("LoggedErrorsBrowser", () => {
 
     expect(await screen.findByText("IllegalStateException")).toBeInTheDocument();
     expect(screen.getByText("computeTags")).toBeInTheDocument();
-    // The component is shown unqualified
+    // The simple class name of the component
     expect(screen.getByText("TagPropagationEditor")).toBeInTheDocument();
 
     const url = new URL(listings(fetchMock)[0], "http://localhost");
@@ -96,8 +96,6 @@ describe("LoggedErrorsBrowser", () => {
   });
 
   it("narrows the listing to what needs attention when asked, and puts it back when the switch is turned off", async () => {
-    // The grid's own column filter can express the same thing, but finding it takes several
-    // clicks and this is the question somebody opening the page is nearly always asking
     const fetchMock = answering();
     vi.stubGlobal("fetch", fetchMock);
     browser();
@@ -123,8 +121,6 @@ describe("LoggedErrorsBrowser", () => {
     vi.stubGlobal("fetch", fetchMock);
     browser();
 
-    // "Nothing has been recorded" and "nothing needs attention" are different facts, and showing
-    // the first while the switch is on would be wrong
     expect(await screen.findByText("Nothing has been recorded yet.")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("switch", { name: "Only what needs attention" }));

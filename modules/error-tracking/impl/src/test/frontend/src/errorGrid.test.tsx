@@ -38,7 +38,6 @@ describe("faultLabel", () => {
   });
 
   it("names a failure by its throwable's simple class name", () => {
-    // The package repeats down the whole column; the full name is on the error's own page
     expect(faultLabel({ type: "java.lang.IllegalStateException" })).toBe("IllegalStateException");
   });
 
@@ -49,7 +48,7 @@ describe("faultLabel", () => {
 
   it("is empty when the row carries neither", () => {
     expect(faultLabel({})).toBe("");
-    // A blank phrase is no phrase, and must not hide the throwable
+    // A blank phrase does not hide the throwable
     expect(faultLabel({ problem: "", type: "java.io.IOException" })).toBe("IOException");
   });
 });
@@ -64,8 +63,7 @@ describe("simpleName", () => {
   });
 
   it("is empty for anything that is not a string", () => {
-    // The grid types a value getter's parameter from the row, so this really is reached with
-    // undefined for an error that named no component
+    // A value getter receives undefined for an error that named no component
     expect(simpleName(undefined)).toBe("");
     expect(simpleName(42)).toBe("");
   });
@@ -74,12 +72,10 @@ describe("simpleName", () => {
 describe("the registered recorded-error grid configuration", () => {
   it("lists the errors from their own homepage, newest fault first", () => {
     expect(config?.homepage).toBe("/LoggedErrors");
-    // What has just started happening is what somebody triaging wants to see
     expect(config?.defaultSort).toEqual({ field: "lastOccurrence", sort: "desc" });
   });
 
   it("links each row to its console page, not to its repository path", () => {
-    // The two are different strings on purpose; the error is triaged at a console route
     expect(config?.rowLink?.({ "@name": "abc", "@path": "/LoggedErrors/abc" })).toBe("/admin/errors/abc");
   });
 
@@ -94,7 +90,6 @@ describe("the registered recorded-error grid configuration", () => {
   });
 
   it("falls back to the fingerprint on the card, which cannot be left blank", () => {
-    // The card's title is its tap target; an untitled card would be unreachable
     expect(columnOf("fault")?.cardValue?.({ "@name": "abc" })).toBe("abc");
     expect(columnOf("fault")?.cardValue?.({ "@name": "abc", problem: "boom" })).toBe("boom");
   });
@@ -106,7 +101,6 @@ describe("the registered recorded-error grid configuration", () => {
   it("offers the triage markers as a choice, and does not pretend they can be ordered", () => {
     const triage = columnOf("computedTags");
     expect(triage?.type).toBe("singleSelect");
-    // Ordering by a multivalued property has no meaningful semantics
     expect(triage?.sortable).toBe(false);
     expect(triage?.renderCell).toBeDefined();
   });
@@ -114,12 +108,11 @@ describe("the registered recorded-error grid configuration", () => {
   it("turns the timestamps into dates the grid can order and format", () => {
     expect(valueGetterOf("lastOccurrence")("2026-08-20T18:30:00.000+00:00")).toBeInstanceOf(Date);
     expect(valueGetterOf("jcr:created")("2026-08-01T10:00:00.000+00:00")).toBeInstanceOf(Date);
-    // An error that somehow carries no timestamp must not become an Invalid Date
+    // Not an Invalid Date
     expect(valueGetterOf("lastOccurrence")(undefined)).toBeNull();
   });
 
   it("keeps the last-seen day on the narrow-screen card and leaves first-seen off it", () => {
-    // One timestamp dates the card; a second would only crowd it
     expect(columnOf("lastOccurrence")?.cardValue?.({ lastOccurrence: "2026-08-20T18:30:00.000+00:00" }))
       .toEqual(expect.any(String));
     expect(columnOf("jcr:created")?.cardSlot).toBe("omit");

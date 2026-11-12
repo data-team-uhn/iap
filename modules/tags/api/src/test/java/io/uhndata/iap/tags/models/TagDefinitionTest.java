@@ -66,7 +66,7 @@ class TagDefinitionTest
     @Test
     void exposesDefinitionProperties()
     {
-        // Property pairs passed as varargs: Map.of tops out at ten pairs, which this outgrew
+        // Property pairs as varargs, since Map.of takes at most ten
         final Resource resource = this.context.create().resource("/Tags/incomplete",
             "sling:resourceType", "tag/Definition",
             "label", "Incomplete",
@@ -228,7 +228,6 @@ class TagDefinitionTest
     @Test
     void serializesTheFullDefinitionAsJson()
     {
-        // Property pairs passed as varargs: Map.of tops out at ten pairs, which this outgrew
         final Resource resource = this.context.create().resource("/Tags/sensitive",
             "sling:resourceType", "tag/Definition",
             "label", "Sensitive",

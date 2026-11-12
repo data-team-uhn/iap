@@ -27,15 +27,12 @@ import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
- * The abstract base for anything a submission must fulfill: a set of questions to answer
- * ({@link FormRequirement}), an expected document ({@link DocumentRequirement}), a required approval
- * ({@link ApprovalRequirement}), or future requirement types. Corresponds to the {@code sch:Requirement} node
- * type, which mixes in {@code cond:Conditionable} (see {@link Conditionable}) so every requirement may carry a
- * single condition controlling whether it applies to a submission. Like {@link FormItem}, this class is
- * deliberately not itself a registered Sling Model (no {@code @Model} annotation): each subtype instead declares
- * {@code adapters = Requirement.class} on its own {@code @Model}, so {@code resource.adaptTo(Requirement.class)}
- * dispatches to the actual concrete subtype (via Sling Models' {@code ResourceTypeBasedResourcePicker}), instead
- * of yielding a generic {@code Requirement} instance lacking a subtype's own fields.
+ * The base of the models of what a submission must fulfill, such as a form to answer or a document to provide. Each
+ * kind of requirement is a subtype that adds its own fields. Any requirement may carry one {@link Condition} deciding
+ * whether it applies to a submission.
+ *
+ * <p>This class is not a Sling Model itself. A subtype lists {@code Requirement} among its {@code adapters}, so
+ * {@code resource.adaptTo(Requirement.class)} returns the model of the resource's own type, with its own fields.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -52,9 +49,9 @@ public abstract class Requirement extends EntityPart implements Conditionable, R
     private String description;
 
     /**
-     * The short name of this requirement, e.g. "Patient consent".
+     * The requirement's short name, such as "Patient consent".
      *
-     * @return a label
+     * @return the label
      */
     @NotNull
     public String getLabel()
@@ -63,9 +60,9 @@ public abstract class Requirement extends EntityPart implements Conditionable, R
     }
 
     /**
-     * A description displayed to the submitter, explaining what is expected.
+     * What the submitter reads about what is expected.
      *
-     * @return a description, or {@code null} if not set
+     * @return the description; {@code null} if there is none
      */
     @Nullable
     public String getDescription()

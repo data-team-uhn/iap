@@ -44,7 +44,7 @@ function holding() {
   return { fetch, answer };
 }
 
-// Defined once rather than inline, since a new parser on every render would be a new read every time
+// Defined once: a new parser on every render would read the node again on every render
 const titleOf = (node: Record<string, unknown>) => node.title;
 
 describe("readNode", () => {
@@ -55,8 +55,6 @@ describe("readNode", () => {
     expect(doFetch).toHaveBeenCalledWith("/Schemas/consent.1.simple.json");
   });
 
-  // A refusal answers with an error page rather than with JSON, so the status has to be read before
-  // the body: parsing first reports how the body disappointed the parser, not what was refused.
   it("words a refusal from its status, without reading the body", async () => {
     const json = vi.fn().mockRejectedValue(new SyntaxError("Unexpected token '<'"));
     const doFetch = vi.fn<FetchStub>(() => Promise.resolve({ ok: false, status: 403, json } as unknown as Response));
@@ -113,8 +111,6 @@ describe("useNode", () => {
     expect(result.current.loadError).toBeUndefined();
   });
 
-  // A page moving from one node to another must not show, and offer actions on, the node before as if it
-  // were the new one while the new one loads
   it("starts from nothing when asked for another node", async () => {
     const server = holding();
     vi.stubGlobal("fetch", server.fetch);

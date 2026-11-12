@@ -80,7 +80,7 @@ describe("Notifications", () => {
 
     render(<Notifications />);
 
-    // The read one does not count, whether the boolean round-tripped as a boolean or as a string
+    // The read one is sent as the string "true"
     expect(await screen.findByText("2")).toBeInTheDocument();
   });
 
@@ -92,7 +92,7 @@ describe("Notifications", () => {
 
     expect(await screen.findByText("Something happened to one")).toBeInTheDocument();
     expect(screen.getByText("Something happened to two")).toBeInTheDocument();
-    // Shown is read: only the unread one is posted about
+    // Only the unread one is marked
     await waitFor(() => {
       expect(doFetch).toHaveBeenCalledWith(
         "/Notifications/me/aa/bb/cc/one.markRead.json", { method: "POST" });
@@ -101,7 +101,6 @@ describe("Notifications", () => {
       "/Notifications/me/aa/bb/cc/two.markRead.json", { method: "POST" });
   });
 
-  // Asking for one's own is not left to access control, which an administrative session bypasses
   it("asks only for the caller's own notifications", async () => {
     servesNotifications([ row("one", false) ]);
 
@@ -116,7 +115,7 @@ describe("Notifications", () => {
     expect(requested).toContain("fieldValue=%40me");
   });
 
-  // The dropdown holds one page, so an unread notification older than that page is still counted
+  // The server counts 120 unread, more than the page holds
   it("shows the server's count, not what the page it fetched happens to hold", async () => {
     servesNotifications([ row("one", true), row("two", true) ], 120);
 
@@ -178,7 +177,6 @@ describe("Notifications", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
 
-    // The entry loaded and is what the reader came for; only marking it failed
     expect(await screen.findByText("Something happened to one")).toBeInTheDocument();
     expect(screen.queryByText("The notifications could not be loaded")).not.toBeInTheDocument();
   });
@@ -187,7 +185,7 @@ describe("Notifications", () => {
     servesNotifications([]);
     vi.useFakeTimers();
     try {
-      // Listings, not requests: a refresh also asks the server for the unread count
+      // Counts the listings, without the requests for the unread count
       const listings = () => doFetch.mock.calls.map(call => String(call[0]))
         .filter(url => url.startsWith("/Notifications.paginate.json")
           && !url.includes("fieldName=read")).length;

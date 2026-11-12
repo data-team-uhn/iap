@@ -20,47 +20,51 @@
 
 //-----------------------------------------------------------------------------
 //
-// Email templates: the sender, subject and body of an email that the platform
-// sends, stored in the repository so that a deployment can reword it without
-// touching code.
+// Email templates: the sender, subject and bodies of an email that the
+// platform sends. A deployment can reword an email by editing its template.
+// docs/notifications.md describes them.
 //
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// One email template. The body parts live in `bodyTemplate.html` and
-// `bodyTemplate.txt` child files; any other file child is included in the email
-// as an inline attachment, referenced from the HTML body as `cid:<file name>`.
-// Every other property becomes a variable available to the body templates.
+// One email template. The bodies, and any header or footer of its own, are
+// child files. Any other file child is an inline attachment, which the HTML
+// body shows as `cid:<file name>`.
 [mail:Template] > sling:Folder
   // Attributes:
 
-  // We can look for templates in a query
+  // Templates can be found by a query
   query
 
   // Properties:
 
   - sling:resourceType (STRING) = "mail/Template" mandatory autocreated protected
 
-  // The address and name the email is sent from
+  // The address and display name the email is sent from, such as
+  // `noreply@example.org` and `IAP`
   - senderAddress (STRING) mandatory
   - senderName (STRING)
 
-  // Where replies should go, when that is not the sender
+  // The address and display name replies go to, if not the sender's
   - replyToAddress (STRING)
   - replyToName (STRING)
 
-  // The subject line, which is itself a template
+  // The subject line, a Velocity template such as `Your request ${subjectTitle}`
   - subject (STRING) mandatory
 
-  // Any other property is a variable the body templates can substitute
+  // Any other single-valued property, except a `jcr:` or `sling:` one, is a
+  // variable for the subject and the bodies. Multivalued ones are ignored.
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
   // Children:
 
-  // The body templates, either of which may be left out
+  // The Velocity templates of the HTML and plain text bodies. Either may be
+  // left out, and an email needs at least one.
   + bodyTemplate.html (nt:file)
   + bodyTemplate.txt (nt:file)
 
-  // Any other file is included as an inline attachment
+  // `bodyTemplate.header.html`, `bodyTemplate.footer.html` and their `.txt`
+  // twins replace the shared header and footer. Any other file is an inline
+  // attachment.
   + * (nt:file)

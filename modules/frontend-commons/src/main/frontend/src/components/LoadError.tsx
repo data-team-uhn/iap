@@ -23,27 +23,23 @@ import { useAsyncAction } from "../useAsyncAction";
 import type { SxProps, Theme } from "@mui/material";
 
 interface LoadErrorProps {
-  // What could not be loaded, e.g. "The categories could not be loaded".
+  // What could not be loaded, such as "The categories could not be loaded".
   title: string;
-  // Why, when the cause is known - which, on an administrative screen, is worth showing rather than
-  // hiding behind a generic sentence.
+  // Why, when the cause is known; nothing is shown under the title otherwise.
   message?: string;
-  // Fetches again. The attempt is tracked here so the button can show its progress; the fetch
-  // reports its own outcome by updating, or clearing, what is displayed.
+  // Fetches again, while the button shows its progress. The fetch reports its own outcome, by
+  // changing what this shows or by removing it.
   onRetry: () => Promise<void>;
   sx?: SxProps<Theme>;
 }
 
-// How a screen reports something it could not load: in place of what it failed to fill, with the
-// only useful remedy attached. A load failure is a state of the screen rather than an event to
-// acknowledge, so a modal would be a dead end - and reporting in place leaves whatever was last
-// fetched successfully visible underneath, stale but still readable.
+// Reports that a screen could not load something, with a Retry button.
 //
 // Sample usage:
 // { loadError && <LoadError title="The widgets could not be loaded" message={loadError} onRetry={load} /> }
 //
 function LoadError({ title, message, onRetry, sx }: LoadErrorProps) {
-  // Nothing to report from here: a retry that fails updates the very message being displayed
+  // A retry that fails changes `message`, so nothing is reported here
   const { working: retrying, run } = useAsyncAction<never>({ onFailure: () => undefined });
 
   return (

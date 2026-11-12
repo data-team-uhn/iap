@@ -24,32 +24,31 @@ import { useTheme } from "@mui/material/styles";
 import { chipStyle } from "@iap/frontend-commons/chipStyle";
 import Panel from "@iap/frontend-commons/components/Panel";
 
-// The theme's light-scheme error red; chipStyle adapts the text to either scheme.
+// The color of the "Admin" chip, MUI's default error red. chipStyle adapts its text to the color
+// scheme.
 const ADMIN_RED = "#d32f2f";
 
 interface AdminScreenProps {
-  // The name of the administrative tool this page hosts, e.g. "Submission categories". When unset
-  // (the landing page itself), the page is headed "Administration".
+  // The page's title, such as "Submission categories". Without one, the page is headed
+  // "Administration", as the landing page is.
   title?: string;
-  // Optional words before the title, in regular weight, naming what the titled page belongs to: e.g. the
-  // schema, on the page of one of its versions.
+  // What the page's subject belongs to, before the title and in regular weight, such as the schema
+  // on the page of one of its versions
   titlePrefix?: string;
-  // Optionally, where what the page shows stands, e.g. a lifecycle chip, displayed right after the title
+  // The state of the page's subject, such as its tags, right after the title
   status?: ReactNode;
-  // An optional main action, e.g. a "New category" button, displayed beside the heading.
+  // The page's main action, such as a "New category" button, on the heading's row
   action?: ReactNode;
-  // An optional line under the heading saying what the tool is for.
+  // A line under the heading saying what the tool is for
   description?: ReactNode;
-  // Lays the content directly on the page rather than on a panel, for content that brings its own
-  // surfaces (e.g. the landing page's widgets).
+  // Lays the content directly on the page, not on a panel, for content with surfaces of its own such
+  // as the landing page's widgets
   disablePanel?: boolean;
-  // The tool's page content.
   children?: ReactNode;
 }
 
-// The shared chrome of every page of the administration console: the page heading, with an optional
-// main action beside it, above the tool's content on a panel. Wayfinding is left to the shell (the
-// breadcrumb extension on the pageTop extension point).
+// The frame of a page of the administration console: a heading above the content, which is on a
+// panel. A page with a title also has an "Admin" chip in its heading.
 function AdminScreen({ title, titlePrefix, status, action, description, disablePanel, children }: AdminScreenProps) {
   const theme = useTheme();
   return (

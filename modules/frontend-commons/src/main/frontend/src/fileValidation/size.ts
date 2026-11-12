@@ -18,8 +18,9 @@
 
 export const MEGABYTE = 1024 * 1024;
 
-// A size for a person to read: KB under a megabyte, two decimals at most. A file's size rounds up and
-// a limit's down, so a file over a limit never shows the same number as the limit.
+// A size for a person to read: in KB under a megabyte and in MB above, with two decimals at most.
+// `rounding` is Math.ceil for a file's size and Math.floor for a limit, so a file over a limit never
+// shows the limit's number.
 export function formatSize(bytes: number, rounding: (value: number) => number): string {
   const [ unit, name ] = bytes < MEGABYTE ? [ 1024, "KB" ] : [ MEGABYTE, "MB" ];
   return `${rounding(bytes / unit * 100) / 100} ${name}`;

@@ -32,19 +32,16 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 
 /**
- * The default servlet of the {@link StartupPlaceholderContext}, serving the static "starting up" page. The whiteboard
- * dispatcher only routes requests into a context that has a matching servlet, so without this catch-all the
- * placeholder context — and with it the {@link StartupGateFilter} — would simply be skipped, and early visitors would
- * get the raw container 404. Since the placeholder context has the lowest possible ranking, this servlet only ever
- * sees requests that no real context could handle, which is exactly the early startup phase. Like the rest of the
- * gate, this component is disabled by the {@link StartupGateFilter} once the system is up, and enabled again by the
- * next restart.
+ * Serves the "starting up" page for every request in the {@link StartupPlaceholderContext}. The whiteboard sends a
+ * request only into a context that has a servlet for it. Without this one, it would skip the placeholder context, and
+ * the {@link StartupGateFilter} in it. The context has the lowest ranking, so this servlet only gets requests that no
+ * other context takes. The gate disables this component when it retires.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Component(service = Servlet.class, property = {
-    // "/" is the whiteboard notation for a context's default servlet, catching everything unmatched
+    // "/" makes this the context's default servlet, which gets every request no other servlet matches
     "osgi.http.whiteboard.servlet.pattern=/",
     "osgi.http.whiteboard.context.select=(osgi.http.whiteboard.context.name=io.uhndata.iap.startup)"
 })
@@ -52,13 +49,13 @@ public final class StartupPlaceholderServlet extends HttpServlet
 {
     private static final long serialVersionUID = 1L;
 
-    /** The static "starting up" page, also served by the launcher itself before the framework is up. */
+    /** The "starting up" page, as HTML. */
     private final String startupPage;
 
     /**
      * Loads the startup page from the bundle.
      *
-     * @throws IOException if the startup page cannot be read from the classpath, which means a broken build
+     * @throws IOException if the startup page cannot be read from the bundle, which means a broken build
      */
     @Activate
     public StartupPlaceholderServlet() throws IOException
@@ -76,7 +73,7 @@ public final class StartupPlaceholderServlet extends HttpServlet
     {
         response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
         response.setContentType("text/html;charset=UTF-8");
-        // The page changes from one moment to the next, and the stub itself must never be cached
+        // The real page replaces the stub at this URL once the gate opens, so the browser must not keep the stub
         response.setHeader("Cache-Control", "no-store");
         response.getWriter().write(this.startupPage);
     }

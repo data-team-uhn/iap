@@ -23,7 +23,7 @@ import { createdOf, nameOf, pathOf, tagsOf } from "./schemaModel";
 // Which version of a schema another is compared with when nobody has named one. No React, no fetch.
 
 /**
- * Whether a link's reference points at the version. The reference may be a path, an identifier, or the node it was
+ * Whether a link's reference points at the version. The reference may be a path, a `jcr:uuid`, or the node it was
  * dereferenced to, depending on how the link was serialized.
  */
 const pointsAt = (value: unknown, version: SerializedNode): boolean => (isNode(value)

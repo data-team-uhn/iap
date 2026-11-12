@@ -45,8 +45,9 @@ async function loadChecker(file: File): Promise<Pdfjs | undefined> {
   }
 }
 
-// Opens a PDF on the shared worker. Destroying a task does not settle its promise once the worker has
-// the file, and a worker that never started never answers, so both end the wait here.
+// Opens a PDF on the shared worker. The wait ends when the signal aborts or the worker fails to
+// start. Destroying a task does not settle its promise once the worker has the file, and a worker
+// that never started never answers.
 async function openPdf({ pdfjs, worker, failed }: Pdfjs, data: ArrayBuffer, signal?: AbortSignal)
   : Promise<PDFDocumentProxy> {
   // No password is passed. A file whose only password is empty opens; one that needs a password throws.
@@ -54,7 +55,7 @@ async function openPdf({ pdfjs, worker, failed }: Pdfjs, data: ArrayBuffer, sign
   try {
     return await stopOnAbort(Promise.race([ task.promise, failed ]), signal);
   } finally {
-    // Ends a parse still running, and the shared worker keeps the whole file until then
+    // Ends a parse still running. Until then the shared worker holds the whole file
     void task.destroy();
   }
 }

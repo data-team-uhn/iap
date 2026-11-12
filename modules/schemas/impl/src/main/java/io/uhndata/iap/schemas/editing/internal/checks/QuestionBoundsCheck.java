@@ -27,7 +27,7 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
- * Check that no question's bounds are reversed.
+ * Checks that no question asks for more answers than it allows, or accepts a smallest value above its largest.
  *
  * @version $Id$
  * @since 0.1.0

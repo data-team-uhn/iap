@@ -24,7 +24,7 @@ import { offers } from "@iap/frontend-commons/workflowEvents";
 
 import { useMoveMode } from "./schemaMove";
 
-// Starts moving a part of a draft, or, while it is the one moving, stops.
+// Starts moving a part of a draft. Pressed again while that part is moving, it cancels the move.
 function SchemaNodeMoveAction({ node, what }: { node: SerializedNode; what: string }) {
   const { isMoving, start, cancel } = useMoveMode();
   if (!offers(node, "move")) {

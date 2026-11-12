@@ -64,11 +64,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link JwtPeerRegistrationServlet}, the administrator-only way to trust another instance.
- *
- * <p>What matters is that nobody but an administrator can add a trust anchor, that a key is stored under the
- * fingerprint an inbound token's {@code kid} will actually carry, and that an existing peer is never silently
- * replaced.</p>
+ * Tests for {@link JwtPeerRegistrationServlet}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -81,7 +77,7 @@ public class JwtPeerRegistrationServletTest
 
     private static final String PEER_ISSUER = "https://peer.example.org";
 
-    /** Shared by every test, since generating an RSA key pair costs a good fraction of a second. */
+    /** Shared by every test, since generating an RSA key pair is slow. */
     private static final KeyPair PEER_PAIR = Jwts.SIG.RS256.keyPair().build();
 
     @Mock
@@ -147,9 +143,7 @@ public class JwtPeerRegistrationServletTest
     @Test
     public void aPeerRegisteredHereIsThenTrustedByTheTokenManager() throws Exception
     {
-        // The registration and the verification have to agree about the fingerprint, or a peer can be added and
-        // still have every one of its tokens rejected. Rather than assert that twice, feed what the servlet
-        // stored straight into the locator's lookup and present a token from that peer.
+        // The token manager's peer lookup finds what the servlet stored. A token from the peer must then verify.
         post(validBody());
         this.servlet.doPost(this.request, this.response);
 
@@ -181,7 +175,7 @@ public class JwtPeerRegistrationServletTest
 
         this.servlet.doPost(this.request, this.response);
 
-        // Stored under the same fingerprint as the unarmoured form, since the key is re-encoded before hashing
+        // The key is re-encoded before hashing, so the fingerprint is the unarmoured form's
         verify(this.serviceResolver).create(any(),
             eq(IapJwtTokenManagerImpl.getFingerprint(PEER_PAIR.getPublic())), any());
         verify(this.response).setStatus(HttpServletResponse.SC_CREATED);
@@ -214,7 +208,6 @@ public class JwtPeerRegistrationServletTest
     @Test
     public void aKeyTooShortToVerifyWithIsRefused() throws Exception
     {
-        // JJWT refuses RSA keys under 2048 bits when verifying, so such a peer could never be trusted
         final KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(1024);
         final String weak = Encoders.BASE64.encode(generator.generateKeyPair().getPublic().getEncoded());
@@ -241,7 +234,7 @@ public class JwtPeerRegistrationServletTest
     @Test
     public void anIssuerThatCouldNeverMatchIsRefused() throws Exception
     {
-        // JSON-escaped: the fourth is a real line break, the kind that would forge a log line
+        // JSON-escaped: the fourth ends in a line break once parsed
         final String[] issuers = {"", "   ", " https://peer.example.org", "https://peer.example.org\\n",
             "a/b:c", "https://exa mple.org", "x".repeat(2049)};
         for (final String issuer : issuers) {
@@ -265,7 +258,6 @@ public class JwtPeerRegistrationServletTest
             this.servlet.doPost(this.request, this.response);
         }
 
-        // Unnormalized, since the comparison against the token's claim is too
         final ArgumentCaptor<Map<String, Object>> stored = captor();
         verify(this.serviceResolver, times(issuers.length)).create(any(), anyString(),
             stored.capture());

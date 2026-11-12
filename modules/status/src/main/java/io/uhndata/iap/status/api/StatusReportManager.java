@@ -26,7 +26,8 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.status.spi.StatusReport;
 
 /**
- * Service for computing status reports.
+ * Gathers the reports on the state of the instance, at most one from each registered
+ * {@link io.uhndata.iap.status.spi.StatusReporter}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -34,12 +35,11 @@ import io.uhndata.iap.status.spi.StatusReport;
 public interface StatusReportManager
 {
     /**
-     * Get all the non-debug status reports.
+     * Asks every reporter for its report, and keeps those at {@code INFO} level or above.
      *
-     * @param unprivileged Whether the body of the report should not include sensitive information, since the report
-     *            will be posted into an unprivileged/unsecure location. {@code false} means that the report may
-     *            include confidential information, {@code true} means it should not.
-     * @return a list of status reports
+     * @param unprivileged {@code true} to ask for the reports without confidential details; {@code false} for the
+     *            privileged reports
+     * @return the reports; empty if no reporter has anything to say at {@code INFO} level or above
      */
     @NotNull
     default List<StatusReport> getReports(final boolean unprivileged)
@@ -48,15 +48,15 @@ public interface StatusReportManager
     }
 
     /**
-     * Compute and get status reports.
+     * Asks the reporters that have one of the given tags for their reports, and keeps those at the given level or
+     * above.
      *
-     * @param unprivileged Whether the body of the report should not include sensitive information, since the report
-     *            will be posted into an unprivileged/unsecure location. {@code false} means that the report may
-     *            include confidential information, {@code true} means it should not.
-     * @param level the target level, only include reports that are at this or a higher level of importance
-     * @param tags an optional set of tags of reporters to include, for example only {@code problems} or only
-     *            {@code activity}; {@code null} or an empty set includes all reporters
-     * @return a list of status reports
+     * @param unprivileged {@code true} to ask each reporter to leave confidential details out, for a reader who must
+     *            not see them; {@code false} for a privileged reader
+     * @param level the lowest level to keep, such as {@code WARNING} for the warnings and the errors
+     * @param tags the tags of the reporters to ask, such as {@code problems}; {@code null} or empty to ask every
+     *            reporter
+     * @return the reports; empty if no reporter asked has anything to say at that level or above
      */
     @NotNull
     List<StatusReport> getReports(boolean unprivileged, @NotNull StatusReport.Status level,

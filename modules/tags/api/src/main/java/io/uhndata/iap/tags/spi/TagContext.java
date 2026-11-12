@@ -23,16 +23,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Everything a {@link TagProcessor} may look at while computing the derived tags of one node. The context is created
- * by the commit editor for one node of one commit and must not be retained past the {@link TagProcessor#computeTags}
- * call that received it.
+ * What a {@link TagProcessor} may read while computing the derived tags of one node. The commit editor creates it for
+ * one node of one commit, and the processor must not keep it after the {@link TagProcessor#computeTags} call.
  *
  * <p>
- * What the context offers is deliberately bounded by the processor's {@link TagProcessor#getScope() scope}: the
- * editor only visits the nodes a commit changed, so a processor reading state that the editor does not watch would
- * produce tags that silently go stale when that state changes. Only {@link TagProcessor.Scope#ENTITY} processors get
- * a {@link #getScopeRoot() scope root}, and only because the editor recomputes all of them whenever anything inside
- * that entity changes.
+ * The context offers only what the processor's {@link TagProcessor#getScope() scope} covers. The editor recomputes a
+ * node only when something in that scope changes, so tags computed from anything else would go stale. Only an
+ * {@link TagProcessor.Scope#ENTITY} processor gets a {@link #getScopeRoot() scope root}.
  * </p>
  *
  * @version $Id$
@@ -41,8 +38,8 @@ import org.jetbrains.annotations.Nullable;
 public interface TagContext
 {
     /**
-     * The current state of the node being processed, including any derived tag properties already recomputed for it
-     * in this commit.
+     * The current state of the node being processed, with the derived tag properties already recomputed for it in
+     * this commit.
      *
      * @return a node state, never {@code null}
      */
@@ -50,8 +47,8 @@ public interface TagContext
     NodeState getNode();
 
     /**
-     * The current state of the processed node's parent. In the {@link TagProcessor.Phase#TOP_DOWN} and
-     * {@link TagProcessor.Phase#LOCAL} phases the parent's derived tags are already recomputed for this commit.
+     * The current state of the processed node's parent. See {@link TagProcessor.Phase} for which of its derived tags
+     * are recomputed by then.
      *
      * @return a node state, {@code null} when the processed node is the repository root
      */
@@ -59,7 +56,7 @@ public interface TagContext
     NodeState getParent();
 
     /**
-     * The absolute path of the node being processed, e.g. for resolving references or for logging.
+     * The absolute path of the node being processed, such as for resolving a relative reference or for logging.
      *
      * @return an absolute path, {@code /} for the repository root
      */
@@ -67,8 +64,9 @@ public interface TagContext
     String getPath();
 
     /**
-     * The state of the {@code data:Entity} node enclosing the processed node, the recomputation unit of an
-     * {@link TagProcessor.Scope#ENTITY} processor. The processed node itself is the scope root when it is the entity.
+     * The state of the {@code data:Entity} node enclosing the processed node, which an
+     * {@link TagProcessor.Scope#ENTITY} processor may read in full. When the processed node is an entity, it is its
+     * own scope root.
      *
      * @return a node state, {@code null} for a {@link TagProcessor.Scope#NODE} processor, and for an
      *         {@link TagProcessor.Scope#ENTITY} one processing a node outside any entity
@@ -77,16 +75,12 @@ public interface TagContext
     NodeState getScopeRoot();
 
     /**
-     * The children whose tags may flow up into the node being processed, which is what a
-     * {@link TagProcessor.Phase#BOTTOM_UP} processor must aggregate over instead of the node's own child list. Two
-     * kinds of child are left out: the ones that never take part in tagging at all — hidden nodes, the system and
-     * index subtrees, access control policies — and the {@code tag:Boundary} containers, which carry the aggregate
-     * of their own content and offer nothing above themselves.
+     * The children whose tags may flow up into the node being processed. A {@link TagProcessor.Phase#BOTTOM_UP}
+     * processor must aggregate over these, not over the node's own child list. They leave out the children that take
+     * no part in tagging, such as hidden nodes and access control policies, and every {@code tag:Boundary}.
      *
      * <p>
-     * Filtered here rather than left to each processor because getting it wrong is not a cosmetic mistake: a copy
-     * that climbs past a boundary reaches ancestors the committing session may have no right to write, and Oak
-     * evaluates permissions after the editors have run, so it fails that session's commit.
+     * A copy that climbed past a boundary would fail the commit of a session that may not write where it lands.
      * </p>
      *
      * @return the child entries that may contribute, never {@code null}

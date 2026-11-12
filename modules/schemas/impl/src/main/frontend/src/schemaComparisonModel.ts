@@ -71,7 +71,7 @@ export interface PartComparison {
   type: string;
   heading: string;
   change: Change;
-  // What held it before, when it moved from elsewhere: null for the top level of the version
+  // The heading of what held it before, when it moved from another holder, or null when that was the version
   movedFrom?: string | null;
   // Placed elsewhere among the same siblings
   reordered: boolean;

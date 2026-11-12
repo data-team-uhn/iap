@@ -23,21 +23,15 @@ import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 
 import { CAUGHT_MESSAGE_TYPE } from "./caughtMailModel";
 import { useCatcherStatus } from "./useCaughtMail";
-// Imported for its side effect: registers the presentation of mail/CaughtMessage before the first
-// render, which is what lets the grid above be asked for by type name alone
+// Imported for its side effect: it registers the grid columns of mail/CaughtMessage
 import "./caughtMailGrid";
 
 /**
- * The administration console page listing what the catcher has filed, at {@code /admin/mail}.
- *
- * Whether the catcher is on is stated here rather than left to be inferred from the list, because an
- * empty list means opposite things either way round: with the catcher on it means nothing has been
- * sent, with it off it means everything sent went out by mail and this page will never show it.
+ * The administration console page that lists the caught messages, at `/admin/mail`. It also says
+ * whether the catcher is on, since an empty list means nothing was sent only while it is.
  */
 function CaughtMailBrowser() {
-  // A failure comes back as a null status and is deliberately not reported here: the list below
-  // reports its own, and it is the page's substance, so a second report of the same unreadable
-  // folder would say nothing more
+  // A failure to read the status is not shown: the grid reports its own failure to read /CaughtMail
   const { status } = useCatcherStatus();
 
   return (

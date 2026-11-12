@@ -28,32 +28,31 @@ import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import Logo from "./Logo";
 
 const DATA_TEAM_URL = "https://uhndata.io";
-// Below this viewport width (px) the footer's links and version/credit stack vertically
+// Below this viewport width, in pixels, the footer's links and credits stack vertically
 const STACK_BELOW_WIDTH = 400;
-// The DATA logo pair follows the media naming convention: the plain variant suits dark
-// backgrounds, the _light_bg variant light ones. The same in every deployment, so not configurable.
+// The DATA logo: the plain image is for a dark background, and the `_light_bg` one for a light
+// background. It is the same in every deployment.
 const DATA_LOGO = {
   dark: "/libs/iap/resources/media/default/data-logo.png",
   light: "/libs/iap/resources/media/default/data-logo_light_bg.png",
 } as const;
 
 interface FooterCreditsProps {
-  // Anchors the cluster at the end of its row (via an auto start margin) instead of sitting
-  // in the normal flow — how the full-width app shell footer uses it.
+  // On a wide screen, puts the credits at the end of their row, with an automatic start margin
   endAnchored?: boolean;
-  // Container styles — placement is the caller's business.
+  // Styles for the container, such as its placement
   sx?: SystemStyleObject<Theme>;
 }
 
-// The platform version and the "Built by DATA" credit, usable on its own (e.g. at the bottom
-// of the login page's sign-in panel) or as part of FooterContent.
+// The platform's name and version, and the "Built by DATA" credit. FooterContent shows them, and a
+// page may show them elsewhere instead.
 function FooterCredits({ endAnchored = false, sx }: FooterCreditsProps) {
   const { mode, systemMode } = useColorScheme();
   const resolvedMode = (mode === "system" ? systemMode : mode) ?? "light";
   // Media query matching viewports wide enough for the credits to lay out as one row
   const oneRow = useTheme().breakpoints.up(STACK_BELOW_WIDTH);
   const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
-  // E.g. "QuorumPath 0.1.0-SNAPSHOT" — the platform identifies itself independently of the app branding
+  // Such as "QuorumPath 0.1.0-SNAPSHOT": the platform's own name, not the application's
   const platformVersion = [ meta("platformName"), meta("version") ].filter(Boolean).join(" ");
 
   return (
@@ -82,8 +81,7 @@ function FooterCredits({ endAnchored = false, sx }: FooterCreditsProps) {
         target="_blank"
         rel="noopener"
         underline="none"
-        // Baseline alignment sets the logo's bottom edge on the text's baseline, like a glyph,
-        // instead of letting it hang below (as centering the taller image would)
+        // The logo's bottom edge sits on the text's baseline, like a glyph
         sx={{ display: "flex", alignItems: "baseline", gap: 1, color: "text.secondary" }}
       >
         <Typography variant="caption">Built by</Typography>
@@ -94,27 +92,21 @@ function FooterCredits({ endAnchored = false, sx }: FooterCreditsProps) {
 }
 
 interface FooterContentProps {
-  // Container styles (padding, background) — placement is the caller's business. A single
-  // style object (not the full SxProps union) keeps the merge below simple and type-safe.
+  // Styles for the container, such as its padding and background
   sx?: SystemStyleObject<Theme>;
-  // Props for a link to an in-app path. The app shell passes a react-router Link here so
-  // navigation stays client-side; router-less pages (e.g. the login page) keep the default
-  // full-page anchor navigation.
+  // The props of a link to the given in-app path, such as those of a react-router Link, which keep
+  // the navigation in the app. By default a plain `href`, which loads the whole page.
   internalLinkProps?: (url: string) => object;
-  // Whether to include the version/credit cluster; a caller can omit it here and render
-  // <FooterCredits> somewhere else instead (as the login page does, at the bottom of its
-  // sign-in panel).
+  // Whether FooterCredits are shown at the end; true by default
   credits?: boolean;
 }
 
-// The footer content shared by the post-login page shell and the login page: the affiliated
-// institution's logo (configured through the affiliationLogo* properties of
-// /libs/iap/conf/Media), links contributed through the `iap/footer/link` extension point,
-// and the platform version and the "Built by DATA" credit.
+// The content of a page footer: the affiliated institution's logo, the links on the
+// `iap/footer/link` extension point, and FooterCredits.
 //
-// A footer link is a data-only extension — no component, just an `ext:name` (the
-// label) and an `ext:targetURL`: paths are navigated within the app, full URLs open in a new
-// tab.
+// A footer link is a data-only extension, with its label in `ext:name` and its target in
+// `ext:targetURL`. A URL with a scheme, such as `https:`, opens in a new tab. Any other target is
+// an in-app path.
 function FooterContent(
   { sx, internalLinkProps = (url: string) => ({ href: url }), credits = true }: FooterContentProps
 ) {
@@ -148,8 +140,7 @@ function FooterContent(
           aria-label="Footer"
           sx={{
             display: "flex",
-            // On narrow screens the links stack vertically on their own full-width row, instead
-            // of wrapping awkwardly around the other footer content
+            // On a narrow screen, the links stack on a full-width row of their own
             flexDirection: "column",
             flexWrap: "wrap",
             gap: 0.5,

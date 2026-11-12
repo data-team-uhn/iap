@@ -24,9 +24,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.osgi.service.component.annotations.Component;
 
@@ -34,8 +39,7 @@ import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.httprequests.api.HttpResponse;
 
 /**
- * Default implementation of {@link HttpRequests}, built on the HTTP client the Java platform provides. Using it
- * instead of an HTTP library keeps this module dependency-free, and gives every request a timeout for free.
+ * Sends requests through the JDK's {@link HttpClient}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -43,13 +47,31 @@ import io.uhndata.iap.httprequests.api.HttpResponse;
 @Component(service = HttpRequests.class)
 public class JdkHttpRequests implements HttpRequests
 {
-    /** How long to wait for a service to accept a connection. */
+    /** How long to wait for a service to accept the connection. */
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
 
-    /** How long to wait for a service to answer, once it accepted the connection. */
+    /** How long to wait for the whole response, body included, counted from sending, connecting included. */
     private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(30);
 
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+
+    private final Duration responseTimeout;
+
+    /** Constructor with the default response timeout. */
+    public JdkHttpRequests()
+    {
+        this(RESPONSE_TIMEOUT);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param responseTimeout how long to wait for the whole response, counted from sending
+     */
+    JdkHttpRequests(final Duration responseTimeout)
+    {
+        this.responseTimeout = responseTimeout;
+    }
 
     @Override
     public HttpResponse post(final String url, final String body, final String contentType) throws IOException
@@ -66,51 +88,46 @@ public class JdkHttpRequests implements HttpRequests
             final java.net.http.HttpResponse<String> response = send(request);
             return new HttpResponse(response.statusCode(), response.body());
         } catch (final InterruptedException e) {
-            // Whoever interrupted this thread wants it to stop, so pass the interruption on rather than swallowing it
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while posting to " + describe(request.uri()), e);
         }
     }
 
     /**
-     * Turns the parameters of a request into a request. The platform refuses to build one for an address that is not
-     * a valid {@code http(s)} URL, or for a content type that is not a valid header value, and it does so with
-     * unchecked exceptions; since both come from the caller, and neither leaves any request made, they are reported
-     * as the failure to make a request that this API promises.
+     * Builds the POST request. The JDK refuses an address that is not a valid {@code http(s)} URL, and a content type
+     * that is not a valid header value, with an {@link IllegalArgumentException}. This turns it into an
+     * {@link IOException}, as for any other request that could not be made.
      *
      * @param url the address to post to
      * @param body the body to send
      * @param contentType the media type of the body
      * @param charset the charset to encode the body with
-     * @return the request to send
-     * @throws IOException if the address or the content type cannot be turned into a request
+     * @return the request, not yet sent
+     * @throws IOException if the JDK refuses the address or the content type
      */
     private HttpRequest buildRequest(final String url, final String body, final String contentType,
         final Charset charset) throws IOException
     {
         try {
             return HttpRequest.newBuilder(URI.create(url))
-                .timeout(RESPONSE_TIMEOUT)
                 .header("Content-Type", contentType + "; charset=" + charset.name())
                 .POST(BodyPublishers.ofString(body, charset))
                 .build();
         } catch (final IllegalArgumentException e) {
-            // Deliberately not chained: both URI.create and the request builder quote the address they rejected,
-            // and the address can itself be a secret, as explained on describe(URI)
+            // Not chained: the JDK's message can quote the address, and an address can be a secret
             throw new IOException("Cannot post to the given address: " + explain(e));
         }
     }
 
     /**
-     * Says why an address or a content type could not be turned into a request, without repeating either of them.
+     * Says why the JDK refused to build the request, without quoting the address or the content type.
      *
-     * @param failure why the platform refused to build the request
-     * @return an explanation safe to log
+     * @param failure the JDK's refusal
+     * @return the reason, safe to log
      */
     private static String explain(final IllegalArgumentException failure)
     {
-        // A malformed address is rejected with a syntax error that says only what is wrong and where, unlike the
-        // message of the exception carrying it, so that much can be passed on
+        // getReason() leaves out the address that getMessage() quotes
         if (failure.getCause() instanceof final URISyntaxException syntaxError) {
             return syntaxError.getReason() + " at index " + syntaxError.getIndex();
         }
@@ -118,12 +135,11 @@ public class JdkHttpRequests implements HttpRequests
     }
 
     /**
-     * Describes where a request was going, in a form that is safe to log. An address can itself be a secret — a chat
-     * webhook carries its authorization token in its path, and a URL can even carry credentials in its user
-     * information — so only the service being reached is ever named, never the rest of the address.
+     * Names the service a request was going to, in a form safe to log. It takes the host and not the authority,
+     * since the authority can hold a username and password.
      *
-     * @param target the address the request was made to
-     * @return the scheme, host and port of the address
+     * @param target the address of the request
+     * @return the scheme and host, and the port if the address names one
      */
     private static String describe(final URI target)
     {
@@ -135,17 +151,29 @@ public class JdkHttpRequests implements HttpRequests
     }
 
     /**
-     * Actually sends the request. Overridable so that a test can stand in for a remote service that misbehaves in
-     * ways a real one cannot be made to on demand.
+     * Sends the request and waits for the whole response. The JDK's own request timeout stops at the headers, so the
+     * wait is bounded here, and an exchange still running when it ends is cancelled. Protected so that a test can
+     * simulate an interruption.
      *
      * @param request the request to send
-     * @return the raw response
-     * @throws IOException if the request could not be made
+     * @return the response, with its body as text
+     * @throws IOException if the request could not be made or got no whole answer in time
      * @throws InterruptedException if the calling thread was interrupted while waiting for the response
      */
     protected java.net.http.HttpResponse<String> send(final HttpRequest request)
         throws IOException, InterruptedException
     {
-        return this.client.send(request, BodyHandlers.ofString());
+        final CompletableFuture<java.net.http.HttpResponse<String>> exchange =
+            this.client.sendAsync(request, BodyHandlers.ofString());
+        try {
+            return exchange.get(this.responseTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (final TimeoutException e) {
+            throw new HttpTimeoutException("No whole response from " + describe(request.uri()) + " within "
+                + this.responseTimeout.toMillis() + " ms");
+        } catch (final ExecutionException e) {
+            throw new IOException("Could not post to " + describe(request.uri()), e.getCause());
+        } finally {
+            exchange.cancel(true);
+        }
     }
 }

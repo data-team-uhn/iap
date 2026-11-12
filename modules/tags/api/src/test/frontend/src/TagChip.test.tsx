@@ -34,9 +34,8 @@ describe("TagChip", () => {
 
     render(<TagChip tags={["in-review"]} category="lifecycle" />);
 
-    // The soft styling is derived color-mix()/light-dark() CSS that jsdom cannot compute
-    // (chipStyle's own tests pin it down exactly); what the DOM can vouch for is the label
-    // and the declared icon
+    // jsdom cannot compute the color-mix() and light-dark() CSS of the soft styling, so this
+    // checks the label and the icon
     expect(await screen.findByText("In review")).toBeInTheDocument();
     expect(screen.getByTestId("VisibilityOutlinedIcon")).toBeInTheDocument();
   });
@@ -55,12 +54,10 @@ describe("TagChip", () => {
   it("only shows tags actually belonging to the requested category", async () => {
     vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
 
-    // in-progress is a review state; from a lifecycle point of view this node has no state,
-    // and a category-scoped chip must not present a mis-categorized tag as one
+    // "in-progress" is in the review category, not the lifecycle one
     const { container } = render(<TagChip tags={["in-progress"]} category="lifecycle" />);
 
-    // Flush the resolved definitions, so emptiness means "decided to show nothing", not
-    // "still loading"
+    // Once the definitions have arrived, so that an empty chip is not just still loading
     await act(() => Promise.resolve());
     expect(container).toBeEmptyDOMElement();
   });
@@ -74,7 +71,7 @@ describe("TagChip", () => {
     // Defined tags come first, in definition order, styled by their definitions
     expect(await screen.findByText("Submitted")).toBeInTheDocument();
     expect(screen.getByText("In progress")).toBeInTheDocument();
-    // The unrecognized tag trails as a muted outlined chip with its raw name
+    // The undefined tag comes last, as an outlined chip with its raw name
     expect(screen.getByText("never-defined").closest(".MuiChip-root")).toHaveClass("MuiChip-outlined");
     expect(screen.getByText("Submitted").closest(".MuiChip-root")).not.toHaveClass("MuiChip-outlined");
     // The whole catalogue was fetched, not one category
@@ -84,16 +81,12 @@ describe("TagChip", () => {
   it("shows every tag of the category, in definition order", async () => {
     vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
 
-    // Several at once is not a contradiction to be resolved by picking one: a category is a
-    // subject, and only some categories are lifecycles. Recorded errors carry both the marker
-    // saying somebody dealt with them and the one naming what was decided
     const { container } = render(
       <TagChip tags={["rejected", "submitted", "not-a-state"]} category="lifecycle" />);
 
     expect(await screen.findByText("Submitted")).toBeInTheDocument();
     expect(screen.getByText("Rejected")).toBeInTheDocument();
-    // "submitted" is order 20 and "rejected" order 70, and the order is the definitions', not
-    // the one the node happens to list them in
+    // "submitted" has order 20 and "rejected" order 70, whatever order the node lists them in
     expect([ ...container.querySelectorAll(".MuiChip-label") ].map(chip => chip.textContent))
       .toEqual([ "Submitted", "Rejected" ]);
   });
@@ -101,8 +94,6 @@ describe("TagChip", () => {
   it("leaves a tag of another category out even when it shows several", async () => {
     vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
 
-    // "in-progress" is a review state; showing everything within a category must not become
-    // showing everything the node carries
     render(<TagChip tags={["submitted", "in-progress", "approved"]} category="lifecycle" />);
 
     expect(await screen.findByText("Submitted")).toBeInTheDocument();
@@ -163,9 +154,8 @@ describe("TagChip", () => {
   });
 
   it("tolerates definitions without labels or with unusable colors", async () => {
-    // A minimal definition falls back to the tag name; colors outside the hex/rgb/hsl
-    // whitelist — malformed ones, named ones, or attempts at smuggling CSS through the
-    // generated styles — fall back to a plain chip instead of breaking (or styling) anything
+    // A definition without a label shows the tag name. A color chipStyle refuses, such as a
+    // malformed one or one carrying more CSS, gives a plain chip.
     const tags = [
       { name: "odd", icon: "constructor" },
       { name: "broken", label: "Broken", color: "not-a-color" },
@@ -183,16 +173,14 @@ describe("TagChip", () => {
     );
 
     expect(await screen.findByText("odd")).toBeInTheDocument();
-    // An icon name outside the curated set — even one naming an inherited Object.prototype
-    // member — shows no icon rather than breaking
+    // An icon name tagIcons does not list shows no icon, even one naming an Object.prototype member
     expect(screen.getByText("odd").closest(".MuiChip-root")?.querySelector("svg")).toBeNull();
-    // The chips still render — as plain default chips — despite the unusable colors
+    // The chips with refused colors still show, as plain chips
     expect((await screen.findByText("Broken")).closest(".MuiChip-root")).toBeInTheDocument();
     const sneaky = (await screen.findByText("Sneaky")).closest(".MuiChip-root");
     expect(sneaky).toBeInTheDocument();
     expect(sneaky).not.toHaveStyle({ background: "url(https://evil.example/x)" });
-    // Filter choices from the same definitions: the label falls back to the name too, and
-    // the color rides along raw — consumers whitelist it at the point of styling
+    // The filter choices fall back to the name too, and carry the color as stored
     expect(tagValueOptions("custom")()).toEqual([
       { value: "odd", label: "odd" },
       { value: "broken", label: "Broken", color: "not-a-color" },
@@ -226,7 +214,7 @@ describe("TagChip", () => {
     vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
     const options = tagValueOptions("review");
 
-    // Synchronous by contract: empty until the fetch it triggers has resolved
+    // Empty until the fetch it started has resolved
     expect(options()).toEqual([]);
     await vi.waitFor(() => {
       expect(options()).toEqual([
@@ -236,12 +224,12 @@ describe("TagChip", () => {
         { value: "rejected", label: "Rejected", color: "#8e1b29" },
       ]);
     });
-    // The chips' own fetches share the same cache, so no second request was needed
+    // The returned function's own fetches hit the cache
     expect(vi.mocked(fetch).mock.calls.length).toBe(1);
   });
 
   it("degrades gracefully when the definitions cannot be fetched", async () => {
-    // A category-scoped chip has nothing trustworthy to show without definitions
+    // A chip for one category shows nothing without definitions
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
       () => Promise.reject(new Error("network down"))));
     const failed = render(<TagChip tags={["draft"]} category="lifecycle" />);
@@ -249,7 +237,7 @@ describe("TagChip", () => {
     expect(failed.container).toBeEmptyDOMElement();
     failed.unmount();
 
-    // The failure is not cached: the next consumer retries the fetch on its own
+    // The failure is not cached, and the next chip fetches again
     const retried = render(<TagChip tags={["draft"]} category="lifecycle" />);
     await vi.waitFor(() => {
       expect(vi.mocked(fetch).mock.calls.length).toBe(2);
@@ -257,7 +245,7 @@ describe("TagChip", () => {
     retried.unmount();
     clearTagDefinitionsCache();
 
-    // The full listing still shows the raw names, just muted
+    // A chip for all tags still shows the raw names, as outlined chips
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
       () => Promise.resolve({ ok: false, url: "", status: 503 } as unknown as Response)));
     render(<TagChip tags={["draft"]} />);

@@ -35,8 +35,9 @@ import io.uhndata.iap.deletion.spi.DeletionVeto;
 import io.uhndata.iap.utils.DateUtils;
 
 /**
- * Keeps a deletion's safety net in place for a while: an archive entry younger than the configured retention period
- * cannot be destroyed, so a mistaken purge cannot immediately undo what the archive exists to make reversible.
+ * Refuses to purge an archive entry younger than the configured number of days. A deletion stays reversible for at
+ * least that long. Only the entry is judged, by its {@code jcr:created}: the content archived in it keeps its own,
+ * older {@code jcr:created}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,7 +46,7 @@ import io.uhndata.iap.utils.DateUtils;
 @Designate(ocd = ArchiveRetentionConfiguration.class)
 public class ArchiveRetentionVeto implements DeletionVeto
 {
-    /** When an archive entry was created, which is when its contents were archived. */
+    /** The property holding when an archive entry was created, which is when its contents were archived. */
     static final String ARCHIVED_AT_PROPERTY = "jcr:created";
 
     private volatile int minimumRetentionDays;
@@ -70,22 +71,19 @@ public class ArchiveRetentionVeto implements DeletionVeto
             return null;
         }
         if (!node.hasProperty(ARCHIVED_AT_PROPERTY)) {
-            // Fail closed. mix:created autocreates this, so an entry without it was not built by the archive, and
-            // an entry of unknown age is exactly the case a retention period must not wave through.
+            // mix:created autocreates it, so this entry was not made by the archive. Its age is unknown.
             return "The age of this archive entry cannot be determined";
         }
         final ZonedDateTime destroyableFrom = this.destroyableFrom(node.getProperty(ARCHIVED_AT_PROPERTY).getDate());
         if (destroyableFrom.toInstant().isAfter(Instant.now())) {
-            // No count of remaining days in the message: a number would need English plural agreement, which is the
-            // one thing a translator cannot fix. An instant carries the same information and localizes cleanly.
+            // An instant rather than a count of days left, which would need a plural form
             return "This archive entry cannot be destroyed before " + DateUtils.toString(destroyableFrom);
         }
         return null;
     }
 
     /**
-     * The instant from which an entry archived at the given time may be destroyed, kept in the timestamp's own zone so
-     * that the reported instant reads the way the entry was recorded.
+     * The instant from which an entry archived at the given time may be purged, in the zone the entry was recorded in.
      */
     private ZonedDateTime destroyableFrom(final Calendar deletedAt)
     {

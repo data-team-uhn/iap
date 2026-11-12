@@ -32,15 +32,14 @@ import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.osgi.service.component.annotations.Component;
 
 /**
- * Sets an explicit {@code Cache-Control} policy on every read response, so that browsers never have to guess.
- * Without it, responses carrying a {@code Last-Modified} but no caching directives are cached heuristically,
- * each URL expiring on its own schedule - making a freshly deployed frontend visible on some pages and stale on
- * others, since the (mutable, stable-URL) HTML pages and asset manifest may keep pointing at a previous build.
+ * Sets a {@code Cache-Control} header on every {@code GET} and {@code HEAD} response. A browser caches a response
+ * that has a {@code Last-Modified} header and no {@code Cache-Control} for as long as it guesses. A page could then
+ * keep pointing at the frontend files of an earlier build.
  *
  * <p>
- * The policy is simple: the content-hashed frontend files under {@code /libs/iap/resources/} can never change
- * without also changing their URL, so they are cacheable forever; everything else - pages, the asset manifest,
- * data - must be revalidated on every use, which still allows cheap 304 responses where validators exist.
+ * A content-hashed file under {@code /libs/iap/resources/} changes its URL whenever it changes, so it is cached for
+ * a year without revalidation. Everything else, including pages and the asset manifest, is revalidated on every use,
+ * and can still be answered with a {@code 304}.
  * </p>
  *
  * @version $Id$
@@ -55,20 +54,20 @@ import org.osgi.service.component.annotations.Component;
     })
 public class CacheHeadersFilter implements Filter
 {
-    /** The webpack build outputs under this path are the candidates for indefinite caching. */
+    /** Where the frontend build's files are, the only ones cached without revalidation. */
     private static final String FRONTEND_RESOURCES_PATH = "/libs/iap/resources/";
 
     /**
-     * A content-hashed file name: some segment of it is a long hexadecimal content hash, e.g.
-     * {@code runtime.f6d1b7fad82256cf4412.js} or {@code vendor.0f3a[...].js.LICENSE.txt}. The asset manifest
-     * ({@code assets.json}) and other non-hashed names deliberately do not match.
+     * A content-hashed file name: it has ten or more hexadecimal digits between two dots, such as
+     * {@code runtime.f6d1b7fad82256cf4412.js} or {@code vendor.0f3a[...].js.LICENSE.txt}. The asset manifest,
+     * {@code assets.json}, does not match.
      */
     private static final Pattern CONTENT_HASHED = Pattern.compile(".*\\.[0-9a-f]{10,}\\..*");
 
-    /** Immutable content: cache for a year, and never even revalidate. */
+    /** For a file that never changes: cache it for a year, and never revalidate it. */
     private static final String CACHE_FOREVER = "public, max-age=31536000, immutable";
 
-    /** Mutable content: cache, but revalidate before every use. */
+    /** For anything that can change: cache it, but revalidate it before every use. */
     private static final String ALWAYS_REVALIDATE = "no-cache";
 
     @Override

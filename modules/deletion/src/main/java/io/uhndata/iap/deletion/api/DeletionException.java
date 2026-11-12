@@ -21,10 +21,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A deletion, restore, or purge failed for a non-business reason: the repository misbehaved, the deletion service
- * user is not available, or a conflict appeared between the impact analysis and the execution. Business outcomes —
- * vetoes, blocking referrers, missing permissions — are reported in the operations' result objects instead, never
- * as exceptions.
+ * A deletion, restore or purge failed. The repository failed, the {@code iap-deletion} service user is not
+ * available, or Oak refused the commit over a reference the analysis missed. A refusal is not a failure: vetoes,
+ * blocking referrers and missing permissions come back in the operation's result.
  *
  * @version $Id$
  * @since 0.1.0
@@ -34,10 +33,10 @@ public class DeletionException extends RuntimeException
     private static final long serialVersionUID = 1L;
 
     /**
-     * Record a failure.
+     * Report a failure.
      *
      * @param message what failed
-     * @param cause the underlying error, if any
+     * @param cause the error that caused it; {@code null} if nothing threw
      */
     public DeletionException(@NotNull final String message, @Nullable final Throwable cause)
     {

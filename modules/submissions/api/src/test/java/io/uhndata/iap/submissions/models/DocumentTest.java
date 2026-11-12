@@ -149,7 +149,7 @@ class DocumentTest
             SLING_RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/consent/v1",
             SLING_RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
-        // The uploads live under a version now, so a stray file child is not one of them
+        // The uploads live under a version, so a file directly under the document is not one of them
         this.context.create().resource("/Submissions/submission/consent/stray",
             SLING_RESOURCE_TYPE, "nt:file");
         final Document document = resource.adaptTo(Document.class);

@@ -32,8 +32,8 @@ import io.uhndata.iap.schemas.models.SectionRequirement;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
- * A Sling Model wrapping a {@code sub:Document} node: a document attached to the submission, e.g. the signed
- * patient consent.
+ * A Sling Model wrapping a {@code sub:Document} node: a document of the submission, such as the signed patient
+ * consent. It is empty until something is uploaded into it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -55,9 +55,9 @@ public class Document extends EntityPart implements Referenceable
     private String fulfills;
 
     /**
-     * The human-readable name of this document.
+     * The document's name, as people read it.
      *
-     * @return a title, or {@code null} if not set
+     * @return the title; {@code null} if none is set
      */
     @Nullable
     public String getTitle()
@@ -66,9 +66,9 @@ public class Document extends EntityPart implements Referenceable
     }
 
     /**
-     * An optional description of what this document contains.
+     * What this document contains.
      *
-     * @return a description, or {@code null} if not set
+     * @return the description; {@code null} if none is set
      */
     @Nullable
     public String getDescription()
@@ -77,9 +77,9 @@ public class Document extends EntityPart implements Referenceable
     }
 
     /**
-     * The requirement (typically a {@code DocumentRequirement}) this document fulfills.
+     * The requirement this document fulfills, usually a {@code DocumentRequirement}.
      *
-     * @return a requirement, or {@code null} if not set or unresolvable
+     * @return the requirement; {@code null} if none is set, or this session cannot resolve it
      */
     @Nullable
     public Requirement getFulfills()
@@ -88,9 +88,9 @@ public class Document extends EntityPart implements Referenceable
     }
 
     /**
-     * Whether this document was attached in answer to the given requirement.
+     * Whether this document fulfills the given requirement. Requirements are compared by path.
      *
-     * @param requirement the requirement in question
+     * @param requirement the requirement to compare with
      * @return {@code true} if this document says it fulfills that requirement
      */
     public boolean isFulfilling(@NotNull final Requirement requirement)
@@ -100,10 +100,10 @@ public class Document extends EntityPart implements Referenceable
     }
 
     /**
-     * The revisions of this document, oldest first. Uploading a replacement adds a revision rather than
-     * overwriting the file a reviewer has already read, so this is the document's whole history.
+     * The revisions of this document, oldest first. Uploading a replacement adds a revision, so this is the
+     * document's whole history.
      *
-     * @return a list of revisions, empty if nothing has been uploaded yet
+     * @return the revisions; empty if nothing has been uploaded yet
      */
     @NotNull
     public List<DocumentVersion> getVersions()
@@ -112,9 +112,9 @@ public class Document extends EntityPart implements Referenceable
     }
 
     /**
-     * The current revision of this document: the newest one, which is the last in the ordered list.
+     * The current revision of this document, which is the newest one.
      *
-     * @return the newest revision, or {@code null} if nothing has been uploaded yet
+     * @return the newest revision; {@code null} if nothing has been uploaded yet
      */
     @Nullable
     public DocumentVersion getCurrentVersion()
@@ -127,7 +127,7 @@ public class Document extends EntityPart implements Referenceable
      * Whether anything has been uploaded into this document. An empty one stands for a requirement nobody has
      * answered yet.
      *
-     * @return {@code true} once it has a version, which is where an upload is stored
+     * @return {@code true} once it has a version, which holds an upload
      */
     public boolean isAttached()
     {
@@ -142,11 +142,10 @@ public class Document extends EntityPart implements Referenceable
     }
 
     /**
-     * Where one section is found in this document. Only the current revision is read: it replaces the earlier
-     * ones.
+     * Where one section is found in the current revision of this document.
      *
      * @param requirement the section requirement to look up
-     * @return the section fulfilling it, or {@code null} if nothing was uploaded or the section was never looked for
+     * @return the section fulfilling it; {@code null} if nothing was uploaded, or the section was never looked for
      */
     @Nullable
     public Section getSection(@NotNull final SectionRequirement requirement)

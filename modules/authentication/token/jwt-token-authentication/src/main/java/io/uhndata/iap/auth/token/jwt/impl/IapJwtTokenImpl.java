@@ -31,35 +31,34 @@ import io.jsonwebtoken.JwtException;
 import io.uhndata.iap.auth.token.IapToken;
 
 /**
- * Custom implementation of {@link TokenInfo} which works both with the Oak API Tree, used during the authentication
- * process, and the JCR API Node, used post-authentication.
+ * A signed JWT, held as an Oak {@link TokenInfo}. The token is either just minted or read back from its string form.
+ *
+ * <p>A minted token keeps every extra claim it was signed with as a public attribute. A token read back keeps only
+ * the {@code iap:sessionSubject} claim.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 public final class IapJwtTokenImpl implements IapToken
 {
-    /** The login token string. */
+    /** The signed token string, in JWS compact form. */
     private final String loginToken;
 
-    /** The username that the token authenticates. */
+    /** The username the token authenticates: its {@code sub} claim. */
     private final String userId;
 
-    /** The expiration time of the token. */
+    /** The expiration time of the token: its {@code exp} claim. */
     private final Calendar expirationTime;
 
-    /**
-     * Public attributes stored in the token, that, once successfully authenticated, will also be exposed as session
-     * attributes.
-     */
+    /** The extra claims the token carries, such as {@code iap:sessionSubject}. */
     private final Map<String, String> attributes;
 
     /**
-     * Parse the attributes forming a token from an existing JWT and the login token containing said JWT.
-     * This should generally be used when parsing an inbound JWT from a user.
+     * Read a token from a JWT whose signature and claims were already checked.
      *
-     * @param jwt The JWT containing the attributes about the current token
-     * @param token The login token string said JWT was parsed from
+     * @param jwt the parsed JWT, with an {@code exp} claim
+     * @param token the string the JWT was parsed from
+     * @throws JwtException if the JWT's payload is not a set of claims
      */
     public IapJwtTokenImpl(final Jwt<?, ?> jwt, final String token)
     {
@@ -79,13 +78,12 @@ public final class IapJwtTokenImpl implements IapToken
     }
 
     /**
-     * Create a token from the raw attributes desired.
-     * This should generally be used when creating a new token from scratch.
+     * Hold a token that was just minted.
      *
-     * @param jws the signed token string that can be provided to users to authenticate with later
-     * @param userId the userId of encoded within this token
-     * @param expiration the date and time when this token should stop being valid
-     * @param attributes any other attributes that are encoded within this token
+     * @param jws the signed token string, in JWS compact form
+     * @param userId the username the token authenticates
+     * @param expiration the time after which the token is no longer valid
+     * @param attributes the extra claims signed into the token, as names and values; empty for none
      */
     public IapJwtTokenImpl(final String jws, final String userId, final Calendar expiration,
         final Map<String, String> attributes)
@@ -119,14 +117,14 @@ public final class IapJwtTokenImpl implements IapToken
     @Override
     public boolean resetExpiration(final long loginTime)
     {
-        // IAP tokens have a fixed expiration time, they don't reset
+        // The expiration time is signed into the token
         return false;
     }
 
     @Override
     public boolean remove()
     {
-        // JWT cannot be invalidated
+        // A signed JWT cannot be revoked
         return false;
     }
 
@@ -139,7 +137,7 @@ public final class IapJwtTokenImpl implements IapToken
     @Override
     public Map<String, String> getPrivateAttributes()
     {
-        // There are no private attributes supported/needed yet
+        // Anyone holding a JWT can read its claims
         return Collections.emptyMap();
     }
 

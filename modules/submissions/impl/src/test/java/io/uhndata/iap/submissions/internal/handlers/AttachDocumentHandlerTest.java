@@ -138,8 +138,7 @@ class AttachDocumentHandlerTest
             "acceptedFileTypes", new String[] {PDF}));
         this.context.create().resource(VERSION_PATH + "/anything", Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Anything at all"));
-        // A requirement of a kind nobody uploads a file for, to prove the search is not simply "the child by
-        // that name"
+        // A requirement of a kind nobody uploads a file for, so a name alone does not find a document requirement
         this.context.create().resource(VERSION_PATH + "/details", Map.of(
             TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Request details"));
         Referenceables.identify(this.context, NOTE_PATH, VERSION_PATH + "/anything");
@@ -205,8 +204,8 @@ class AttachDocumentHandlerTest
     @Test
     void fillsTheEmptyDocumentWaitingForTheRequirement() throws Exception
     {
-        // As completeness leaves one for each requirement nothing has been uploaded for; the other one, waiting for
-        // another requirement, is not this upload's to take
+        // As createParts leaves one for each requirement nothing has been uploaded for. The other one, waiting for
+        // another requirement, is not this upload's to take.
         final Resource other = this.context.create().resource(SUBMISSION_PATH + "/waitingForAnything",
             Map.of(TYPE, Document.RESOURCE_TYPE));
         reference(other, VERSION_PATH + "/anything", "fulfills");
@@ -239,7 +238,7 @@ class AttachDocumentHandlerTest
     @Test
     void takesARequirementNamedByItsFullPath() throws Exception
     {
-        // What the UI has to hand is the path it rendered the requirement from, so both spellings work
+        // The form names a requirement by its path
         this.handler.execute(context(payload(NOTE_PATH, upload("note.pdf", PDF))));
 
         assertEquals(identifierOf(NOTE_PATH), onlyDocument().getValueMap().get("fulfills", String.class));
@@ -257,8 +256,6 @@ class AttachDocumentHandlerTest
     @Test
     void recordsAnUndeclaredTypeAsTheGenericOne() throws Exception
     {
-        // The repository has to serve the file back with some type, and a wrong guess is worse than an honest
-        // "bytes"
         this.handler.execute(context(payload("anything", upload("notes", null))));
 
         assertEquals("application/octet-stream",
@@ -279,7 +276,6 @@ class AttachDocumentHandlerTest
     void acceptsAnyTypeForARequirementThatNamesNone()
         throws Exception
     {
-        // A requirement that has not said what it wants is not one that wants nothing
         this.handler.execute(context(payload("anything", upload("scan.png", "image/png"))));
 
         assertNotNull(uploadedFile());
@@ -291,7 +287,7 @@ class AttachDocumentHandlerTest
         final InvalidPayloadException failure = assertThrows(InvalidPayloadException.class, () -> this.handler
             .execute(context(payload(NOTE, upload("note.png", "image/png")))));
 
-        // Named, because a refusal that does not say what would have been accepted cannot be acted on
+        // The refusal says what would have been accepted
         assertTrue(failure.getMessage().contains(PDF));
         assertTrue(failure.getMessage().contains("Doctor's note"));
     }
@@ -368,7 +364,7 @@ class AttachDocumentHandlerTest
     @Test
     void checksOutTheRequestBeforeAttachingToIt() throws Exception
     {
-        // The Sling POST servlet checks in whatever it creates, and a checked-in request takes no documents
+        // A checked-in request takes no documents
         final Session session = Mockito.mock(Session.class);
         final Workspace workspace = Mockito.mock(Workspace.class);
         final VersionManager versions = Mockito.mock(VersionManager.class);
@@ -398,7 +394,6 @@ class AttachDocumentHandlerTest
     @Test
     void refusesARequestThatHasAlreadyBeenSent()
     {
-        // A document is part of what is being said, so it stops being changeable when the answers do
         modify(this.target, "tags", new String[] {"submitted"});
 
         assertThrows(InvalidStateException.class, () -> this.handler.execute(
@@ -430,8 +425,6 @@ class AttachDocumentHandlerTest
     @Test
     void refusesARequirementThisRequestDoesNotAskFor()
     {
-        // Resolved through the schema rather than by trusting the path, or a caller could attach a document that
-        // nothing on this submission ever asked for
         assertThrows(InvalidPayloadException.class, () -> this.handler.execute(
             context(payload("/Schemas/somethingElse/v1/aNote", upload("note.pdf", PDF)))));
     }
@@ -452,7 +445,7 @@ class AttachDocumentHandlerTest
     @Test
     void refusesARequirementThatIsNotAskingForAFile()
     {
-        // The form requirement is a child of the same version under a perfectly ordinary name
+        // The form requirement is a child of the same schema version
         assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(context(payload("details", upload("note.pdf", PDF)))));
     }
@@ -460,10 +453,9 @@ class AttachDocumentHandlerTest
     @Test
     void translatesAFailedReferenceIntoAPersistenceFailure()
     {
-        // The document is created but cannot be adapted to a node, so what it fulfills cannot be recorded. That has
-        // to reach the engine as a persistence problem it knows how to translate rather than as a raw repository
-        // error escaping a handler. Sabotaged at creation because that is the one resource the handler obtains
-        // through the resolver it was handed
+        // Every resource the handler creates reads as a node that fails on any use, so what the document fulfills
+        // cannot be recorded. That has to reach the engine as a persistence problem it can translate, and not as a
+        // raw repository error.
         final Node explosive = Mockito.mock(Node.class, invocation -> {
             throw new RepositoryException("boom");
         });
@@ -492,8 +484,8 @@ class AttachDocumentHandlerTest
     @Test
     void translatesAnUnreadableUploadIntoAPersistenceFailure()
     {
-        // A stream that dies halfway is the ordinary way an upload fails, and the document node is already there
-        // by then. The engine's own rollback is what undoes it, so all this owes is a failure it recognises
+        // The upload fails after the document node is created. The engine discards the uncommitted node, so the
+        // handler only has to fail in a way the engine recognises.
         final EventAttachment broken = new EventAttachment()
         {
             @Override
@@ -601,8 +593,8 @@ class AttachDocumentHandlerTest
     }
 
     /**
-     * The one document the handler created, with the {@code sling:resourceType} a real repository autocreates from
-     * the node type and a mock repository does not — the runtime cannot stamp it itself, the property is protected.
+     * The one document the handler created, with the {@code sling:resourceType} that Oak autocreates from the node
+     * type and a mock repository does not. The handler cannot set it, since the property is protected.
      */
     private Resource onlyDocument()
     {

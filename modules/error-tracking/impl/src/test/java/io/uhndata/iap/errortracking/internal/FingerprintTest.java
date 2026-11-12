@@ -54,8 +54,7 @@ class FingerprintTest
     @Test
     void theMessageDoesNotDecideIdentity()
     {
-        // The whole point: the same broken line reporting two different paths is one fault, not two. Both are
-        // thrown from one call site, since throwing them from two would be two faults quite correctly
+        // Both thrown from one call site, since two call sites are two faults
         final Throwable[] both = new Throwable[2];
         for (int i = 0; i < both.length; i++) {
             both[i] = failHere("Cannot read /Submissions/" + i);
@@ -111,8 +110,6 @@ class FingerprintTest
     @Test
     void doesNotSplitAFaultOverTheNumbersTheJvmMakesUp()
     {
-        // A lambda is $$Lambda$14 in one run and $$Lambda$27 in the next; left alone, that would make one fault
-        // look like as many faults as the JVM felt like making classes
         final Throwable first = withFrame("some.Thing$$Lambda$14/0x00007f0badc0ffee");
         final Throwable second = withFrame("some.Thing$$Lambda$29/0x00007f0bdeadbeef");
 
@@ -131,7 +128,6 @@ class FingerprintTest
     @Test
     void fallsBackToWhatTheCallerSaidWhenThereAreNoFramesAtAll()
     {
-        // A throwable built without a writable stack trace has nothing to go on but the caller's own labels
         final Throwable first = noStackTrace();
         final Throwable second = noStackTrace();
 
@@ -165,7 +161,6 @@ class FingerprintTest
     @Test
     void cutsAnEnormousTraceShort()
     {
-        // A cyclic StackOverflowError chain runs to megabytes of the same few frames
         final Throwable enormous = new IllegalStateException("boom");
         final StackTraceElement[] frames = new StackTraceElement[20000];
         for (int i = 0; i < frames.length; i++) {
@@ -195,7 +190,6 @@ class FingerprintTest
     @Test
     void stillNamesAFaultWhenThePlatformCannotHashItProperly()
     {
-        // A record under a lesser name is worth a great deal more than no record at all
         final String named = Fingerprint.digest("some identity", "NO-SUCH-ALGORITHM");
 
         assertNotNull(named);

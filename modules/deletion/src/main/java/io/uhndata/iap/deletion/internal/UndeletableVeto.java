@@ -28,8 +28,8 @@ import io.uhndata.iap.deletion.spi.DeletionMode;
 import io.uhndata.iap.deletion.spi.DeletionVeto;
 
 /**
- * The built-in deletion guard: resources bearing the {@code del:Undeletable} mixin cannot be deleted in any way —
- * not archived, not permanently removed, and not purged. The protection is lifted only by removing the mixin.
+ * Refuses every deletion of a node with the {@code del:Undeletable} mixin: archiving, permanent deletion and purging.
+ * Removing the mixin lifts the protection.
  *
  * @version $Id$
  * @since 0.1.0

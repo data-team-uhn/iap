@@ -39,10 +39,10 @@ interface SchemaNodeEditActionProps {
   title: string;
 }
 
-// Corrects what a part or an option says, when the server offers it: the fields are the ones its update
-// would change. A part's identifier is shown too, and can be renamed by itself where the server offers that. The
-// tree is read again only when the dialog closes. The dialog sits in the part's card, and reading the tree after a
-// rename would replace that card, and close the dialog with it.
+// Corrects what a part or an option says, when the server offers it: the fields are the ones its update would
+// change. A part's identifier is shown too, and can be renamed by itself where the server offers that. After a
+// rename, the tree is read again only when the dialog closes. The dialog sits in the part's card, and reading the
+// tree would replace that card, and close the dialog with it.
 function SchemaNodeEditAction({ node, parent, title }: SchemaNodeEditActionProps) {
   const [ editing, setEditing ] = useState(false);
   // The node's path while the dialog is open. A rename changes it.
@@ -86,7 +86,7 @@ function SchemaNodeEditAction({ node, parent, title }: SchemaNodeEditActionProps
             <SchemaNodeIdentifier
               name={lastSegmentOf(path)}
               rename={offers(node, "rename") ? rename : undefined}
-              // The create workflow's hint, since renaming keeps to the same pattern
+              // The create workflow's hint. The rename workflow allows the same names.
               hint={creatableOf(parent).find(type => type.type === node["jcr:primaryType"])?.nameHint}
             />
           ) : undefined}

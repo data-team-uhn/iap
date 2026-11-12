@@ -29,7 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link ValueRangeConstraint}: hard bounds on numbers, and nothing else's job taken on.
+ * Unit tests for {@link ValueRangeConstraint}: a number outside the bounds is refused, and a value that is not a
+ * number is left alone.
  *
  * @version $Id$
  * @since 0.1.0

@@ -1,49 +1,51 @@
 # Keycloak / OIDC sign-in
 
-IAP delegates authentication to an external **Keycloak** instance over OpenID Connect. Keycloak
-is the source of truth for users and their **realm roles**; a role becomes an Oak group principal
-that content ACLs are written against.
+IAP can sign users in through an external **Keycloak** instance over OpenID Connect.
+Keycloak holds the users and their **realm roles**. Each role becomes an Oak group
+principal that ACLs can name.
 
-This is implemented with the Apache Sling OAuth client
-(`org.apache.sling.auth.oauth-client`, pinned to **0.1.6**). That bundle carries an Oak
-`ExternalIdentityProvider` (`OidcIdentityProvider`), so a user who signs in through Keycloak is
-provisioned into Oak by Oak's own `DefaultSyncHandler` — no custom identity-provider code.
+The Apache Sling OAuth client (`org.apache.sling.auth.oauth-client`, pinned to
+**0.1.6**) does the work. It carries an Oak `ExternalIdentityProvider`,
+`OidcIdentityProvider`. Oak's own `DefaultSyncHandler` provisions each user who signs in
+through Keycloak.
 
-`OidcIdentityProvider` is **not** a declarative-services component and no configuration creates it:
-it has no descriptor in the bundle, and `OidcAuthenticationHandler.activate()` registers it
-programmatically under the handler's `idp` property. The IdP service therefore exists **if and only
-if that handler activates** — including its _mandatory_ `CryptoService` reference. If anything stops
-the handler activating, the only symptom is Oak logging `No IDP found with name keycloak` on every
-login attempt (and a login loop), far from the actual cause; see
+No configuration creates `OidcIdentityProvider`, and it has no component descriptor.
+`OidcAuthenticationHandler.activate()` registers it under the handler's `idp` property.
+The IdP exists **only while that handler is active**, and the handler needs a
+`CryptoService`. When the handler cannot activate, the only symptom is a login loop,
+with Oak logging `No IDP found with name keycloak` on every login attempt. See
 [Troubleshooting](#troubleshooting-no-idp-found-with-name-keycloak).
 
-Almost everything is configuration; the only Java is the logout handling (see [Sign-out flow](#sign-out-flow)) in the `iap-oidc-support` module. Keycloak sign-in is **opt-in** — its features are not in the default aggregates and are loaded only when asked (see [Enabling Keycloak sign-in](#enabling-keycloak-sign-in)). The pieces:
+Almost everything is configuration. The only Java is the logout handling in the
+`iap-oidc-support` module (see [Sign-out flow](#sign-out-flow)). Keycloak sign-in is
+**opt-in** (see [Enabling Keycloak sign-in](#enabling-keycloak-sign-in)). The pieces:
 
-| Concern                                                                                                                                                               | Where                                                                                                           |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Bundles + all OSGi config (connection, handler, claim mapping, crypto, Oak sync, external login module, logout) **and** the `/oidc-login` trigger node (repoinit)     | [oidc/support feature.json](../modules/authentication/oidc/support/src/main/features/feature.json)              |
-| `ExternalPrincipalConfiguration` added to the security provider's required services                                                                                   | [oak/oak_base.json](../packaging/slingfeature/src/main/features/oak/oak_base.json)                              |
-| "Institutional account" sign-in button (targets `/oidc-login`, renders login's generic `RedirectSignIn`) — shown by default whenever the Keycloak features are loaded | [Keycloak.json](../modules/keycloak/src/main/resources/SLING-INF/content/Extensions/SignInMethod/Keycloak.json) |
+| Concern                                                                                                                                                           | Where                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Bundles + all OSGi config (connection, handler, claim mapping, crypto, Oak sync, external login module, logout) **and** the `/oidc-login` trigger node (repoinit) | [oidc/support feature.json](../modules/authentication/oidc/support/src/main/features/feature.json)              |
+| `ExternalPrincipalConfiguration` added to the security provider's required services                                                                               | [oak/oak_base.json](../packaging/slingfeature/src/main/features/oak/oak_base.json)                              |
+| The "Institutional account" sign-in method: a button leading to `/oidc-login`, drawn by the login module's `RedirectSignIn`                                       | [Keycloak.json](../modules/keycloak/src/main/resources/SLING-INF/content/Extensions/SignInMethod/Keycloak.json) |
 
 ## Sign-in flow
 
-The branded `/login` page stays the default gate for unauthenticated users, and Keycloak is reached
-by clicking its "Continue with institutional credentials" button. The mechanism relies on two facts
-about Sling's authentication core: `requestCredentials` (which starts a login) is chosen by path
-**specificity** first, then service ranking; but `extractCredentials` (which reads an existing
-session) runs on **every** handler that covers the request path, regardless of ranking.
+A signed-out user still lands on the branded `/login` page. Its "Continue with
+institutional credentials" button leads to Keycloak. Sling's authentication core asks
+its handlers in one order: the most **specific** path first, then the highest service
+ranking. It asks each in turn to `requestCredentials` (start a login) until one does. It
+asks each in turn to `extractCredentials` (read an existing session) until one finds
+credentials.
 
-The OIDC handler is therefore registered at **both `/` and `/oidc-login`**, with a **low
+The OIDC handler is registered at **both `/` and `/oidc-login`**, with a **low
 `service.ranking`**:
 
-- **Unauthenticated `/anything`** → the form handler outranks the OIDC handler at `/`, so it wins
-  `requestCredentials` and shows `/login`. The gate is preserved.
-- **The button → `/oidc-login`** → the OIDC handler's `/oidc-login` holder is _more specific_ than
-  the form handler's `/`, so it wins `requestCredentials` regardless of ranking and starts the
-  Keycloak round trip.
-- **After login** → the OIDC handler covers `/`, so its `extractCredentials` validates the
-  `sling.oidcauth` session cookie (set at `Path=/`) on every request → the login is recognised
-  **app-wide**.
+- **A signed-out request for any page:** at `/` the form handler outranks the OIDC
+  handler. It starts the login, and the user sees `/login`.
+- **The button, leading to `/oidc-login`:** the OIDC handler's `/oidc-login` path is
+  more specific than the form handler's `/`. The OIDC handler starts the Keycloak round
+  trip, whatever its ranking.
+- **After sign-in:** the form handler finds no credentials of its own, so the OIDC
+  handler reads the `sling.oidcauth` session cookie (set at `Path=/`). The sign-in holds
+  on **every page**.
 
 ```
 /login ──button──▶ GET /oidc-login ─(OIDC requestCredentials)─▶ Keycloak
@@ -54,34 +56,35 @@ The OIDC handler is therefore registered at **both `/` and `/oidc-login`**, with
              /oidc-login is a sling:redirect → / that bounces the now-authenticated user to the app
 ```
 
-`/oidc-login` is a `sling:redirect` node (target `/`, readable by everyone) created by the OIDC
-support feature's repoinit. It exists because the OAuth client returns the user to the path that
-triggered login; that landing path redirects on to the app.
+`/oidc-login` is a `sling:redirect` node (target `/`, readable by everyone) created by
+the OIDC support feature's repoinit. The OAuth client returns the user to the path that
+started the login, and this node redirects them on to the home page.
 
 ## Sign-out flow
 
-Signing out is the reverse problem. The OAuth client's `dropCredentials` is a no-op, so
-`/system/sling/logout` (the generic Sign Out target) tears down the Sling session but leaves the
-`sling.oidcauth` cookie in place — and even once that is cleared, Keycloak's own SSO session lives
-on, so the next "Continue with institutional credentials" click signs the user straight back in with
-no password prompt. Two pieces in the OIDC support bundle close that gap:
+The OAuth client's `dropCredentials` does nothing. `/system/sling/logout`, the Sign Out
+target, ends the Sling session but leaves the `sling.oidcauth` cookie in place.
+Keycloak's own SSO session also outlives the logout. The next "Continue with
+institutional credentials" click would sign the user straight back in with no password
+prompt. Two pieces in the OIDC support bundle end both:
 
-- **`OidcLogoutAuthenticationHandler`** (registered at `/`, so Sling calls its `dropCredentials` on
-  every logout). When the `sling.oidcauth` cookie is present — the sole signal that this was an OIDC
-  session — it expires that cookie and ends Keycloak's SSO session **back-channel**: it reads the
-  user's stored refresh token and POSTs it to Keycloak itself, server to server. This can take up to
-  ~10s before falling back if the configured provider is unreacahable. A local (non-OIDC) logout is
-  left untouched and never involves Keycloak.
-- **`OidcEndSessionServlet`** (`/system/sling/oauth/logout`, auth-exempt). The **fallback**, used
-  only when the back-channel call could not be made. It redirects the browser to Keycloak's
-  `end_session_endpoint` with `client_id` and a registered `post_logout_redirect_uri`.
+- **`OidcLogoutAuthenticationHandler`**, registered at `/`. Sling calls its
+  `dropCredentials` on every logout. When the `sling.oidcauth` cookie is present, the
+  user signed in through Keycloak. The handler then expires the cookie and ends
+  Keycloak's SSO session **back-channel**: it reads the user's stored refresh token and
+  posts it to Keycloak, server to server. A Keycloak that cannot be reached delays the
+  logout by up to 10 seconds, and one that does not answer by up to 30, before the
+  fallback. A local logout never involves Keycloak.
+- **`OidcEndSessionServlet`**, at `/system/sling/oauth/logout`, which needs no
+  authentication. The **fallback**, used only when the back-channel call fails. It
+  redirects the browser to Keycloak's `end_session_endpoint` with `client_id` and a
+  registered `post_logout_redirect_uri`.
 
-The back-channel call is preferred because the redirect is **abandonable**: without an
-`id_token_hint` Keycloak shows a logout-confirmation screen, and a user who closes the tab there
-stays signed in to Keycloak, so the next sign-in click logs them straight back in with no prompt.
-The server-to-server call has no such window — Keycloak's session is gone before the response is
-written. Supplying `id_token_hint` would also skip the prompt, but the ID token is never persisted
-by the OAuth client, so it is not available at logout time.
+The redirect can be **abandoned**. Without an `id_token_hint`, Keycloak asks the user to
+confirm the logout. A user who closes the tab there stays signed in to Keycloak, and the
+next sign-in click logs them straight back in. The back-channel call asks nothing of the
+user, and Keycloak's session is gone before the logout's response is written. The OAuth
+client does not store the ID token, so the redirect cannot send an `id_token_hint`.
 
 ```
 Sign Out ──▶ GET /system/sling/logout
@@ -98,45 +101,51 @@ Sign Out ──▶ GET /system/sling/logout
                             └─ Keycloak prompts to end the SSO session ──▶ GET /login
 ```
 
-**The back-channel call needs the refresh token to be stored**, which takes two settings working
-together: `storeRefreshToken` on the OAuth client's UserInfo processor (which encrypts it into the
-credentials), and an entry in the sync handler's `user.propertyMapping` (`oauth/refresh_token=refresh_token`)
-that persists it onto the user's home node. Without the mapping the token is discarded at sync and
-every logout silently takes the fallback path. The handler reads it from the path named by its
-`refreshTokenPath`, so those two must agree.
+**The back-channel call needs the stored refresh token.** Two settings store it.
+`storeRefreshToken` on the OAuth client's UserInfo processor encrypts it into the
+credentials. The `oauth/refresh_token=refresh_token` entry in the sync handler's
+`user.propertyMapping` copies it onto the user's home node. Without the mapping the
+token is dropped at sync, and every logout takes the fallback path without a word. The
+handler reads the token from the path in its `refreshTokenPath`, which must match the
+mapping.
 
-Note the two different Keycloak URLs: the back-channel POST uses **`BACKEND_KEYCLOAK_REALM_URL`**
-because IAP makes the call itself, while the fallback servlet uses **`FRONTEND_KEYCLOAK_REALM_URL`**
-because the browser does.
+The two calls use different Keycloak URLs. IAP makes the back-channel POST itself,
+through **`BACKEND_KEYCLOAK_REALM_URL`**. The browser follows the fallback redirect,
+through **`FRONTEND_KEYCLOAK_REALM_URL`**.
 
-`dropCredentials` cannot redirect to Keycloak itself: Sling runs `redirectAfterLogout` immediately
-after it (a second redirect on an already-committed response), and its `AuthUtil.isRedirectValid`
-rejects any absolute/external URL. Steering to a local servlet that then does the cross-host hop is
-the way around both constraints — which is why the fallback needs a servlet at all.
+The handler sets the request's `resource` attribute to the servlet's path. Sling
+redirects to that path once the handlers have dropped their credentials. Sling's
+`AuthUtil.isRedirectValid` refuses any target containing `://`, and Sling then redirects
+to `/` instead. The servlet makes the redirect to Keycloak's host.
 
-The fallback's `post_logout_redirect_uri` (`{IAP_PUBLIC_URL}/login`) must be registered on the
-Keycloak client as a **Valid post logout redirect URI** — `keycloak_setup.sh` sets the client's
-`post.logout.redirect.uris` attribute — otherwise Keycloak refuses it and shows its own
-logout-confirmation page instead of returning to IAP.
+The fallback's `post_logout_redirect_uri` (`{IAP_PUBLIC_URL}/login`) must be registered
+on the Keycloak client as a **Valid post logout redirect URI**. Otherwise Keycloak
+refuses it, and shows its own logout page instead of returning to IAP.
+`keycloak_setup.sh` registers it, in the client's `post.logout.redirect.uris` attribute.
 
 ## Enabling Keycloak sign-in
 
-Keycloak sign-in is **opt-in**: `iap-oidc-support` and `iap-keycloak` are not in the default
-aggregates, so a deployment that hasn't configured Keycloak — including the bare-platform smoke
-tests — has neither the OIDC plumbing nor the button, and shows only the local credentials form.
+Keycloak sign-in comes from two features, `iap-oidc-support` and `iap-keycloak`. They
+are not in the `core_*` aggregates that `start.py` and Docker launch, so an instance
+shows only the local credentials form unless asked for them:
 
-- **Docker:** set `KEYCLOAK_ENABLED=true` in the container's environment. `docker_entry.sh` then adds
-  both features to the launcher (the same additive `-f` mechanism used by `SMTPS_ENABLED`).
+- **Docker:** set `KEYCLOAK_ENABLED=true` in the container's environment, and
+  `docker_entry.sh` adds both features to the launcher.
 - **Dev (`start.sh`/`start.py`):** pass `--keycloak`.
 
-Loading the features is the whole switch — the "Institutional account" button is then shown by
-default, and does not exist otherwise. Set the [runtime environment
-variables](#runtime-environment-variables) as well — the OIDC handler will not come up without them.
+The `test_tar` and `demo_tar` aggregates include both features. The integration tests
+that run against them see the Keycloak button.
+
+The "Institutional account" sign-in method is enabled by default. It is ordered before
+the local credentials form, so loading the features makes Keycloak the primary way to
+sign in. Set the [runtime environment variables](#runtime-environment-variables) as
+well, since the OIDC handler needs them.
 
 ## Runtime environment variables
 
-Resolved by the configadmin interpolation plugin (declared in `boot.json`). Set them wherever the
-Sling process runs (Docker/K8s env, systemd unit, etc.):
+The configadmin interpolation plugin, declared in `boot.json`, resolves them. Set them
+wherever the Sling process runs, such as a Docker or Kubernetes environment or a systemd
+unit:
 
 | Variable                        | Example                                   | Notes                                                                                                                                                                                   |
 | ------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -145,34 +154,39 @@ Sling process runs (Docker/K8s env, systemd unit, etc.):
 | `KEYCLOAK_CLIENT_ID`            | `iap-sling`                               | The confidential client below.                                                                                                                                                          |
 | `KEYCLOAK_CLIENT_SECRET`        | (secret)                                  | The client's secret; never commit it. Must match the client's Credentials in Keycloak exactly.                                                                                          |
 | `IAP_PUBLIC_URL`                | `https://iap.example.org`                 | Public base URL of IAP, without a trailing slash.                                                                                                                                       |
-| `IAP_OAUTH_ENCRYPTION_PASSWORD` | (secret)                                  | Key for encrypting any OAuth token stored in the user's JCR home. Any non-empty value in dev; if unset, the crypto service fails to activate and the OIDC handler won't come up.        |
+| `IAP_OAUTH_ENCRYPTION_PASSWORD` | (secret)                                  | Key for encrypting any OAuth token stored in the user's JCR home. Any non-empty value in dev. If unset, the crypto service fails to activate, and so does the OIDC handler.             |
 
 ## Keycloak realm setup
 
-For a running Keycloak, [`tools/dev/keycloak/keycloak_setup.sh`](../tools/dev/keycloak/keycloak_setup.sh)
-automates all of the steps below (realm, client, roles, and the `groups` mapper) and prints the
-`KEYCLOAK_*` env block to paste into IAP's environment. Run `keycloak_setup.sh --help` for its
-options. The manual steps are documented here as the reference the script implements:
+For a running Keycloak,
+[`tools/dev/keycloak/keycloak_setup.sh`](../tools/dev/keycloak/keycloak_setup.sh)
+automates all of the steps below (realm, client, roles, and the `groups` mapper) and
+prints the `KEYCLOAK_*` env block to paste into IAP's environment. Run
+`keycloak_setup.sh --help` for its options. The steps it implements:
 
-1. **Realm**: create a realm (e.g. `iap`) — this is the realm segment in the `*_KEYCLOAK_REALM_URL` values.
+1. **Realm**: create a realm, such as `iap`. Its name is the realm segment in the
+   `*_KEYCLOAK_REALM_URL` values.
 2. **Client**: create a confidential client:
    - Client ID: `iap-sling` (match `KEYCLOAK_CLIENT_ID`).
-   - Client authentication: **On** (confidential). Copy the secret into `KEYCLOAK_CLIENT_SECRET`.
+   - Client authentication: **On** (confidential). Copy the secret into
+     `KEYCLOAK_CLIENT_SECRET`.
    - Standard flow: **enabled** (authorization code flow).
-   - **Valid redirect URI**: `<IAP_PUBLIC_URL>/system/sling/oauth/callback` — must match the
-     `callbackUri` in the OIDC support feature exactly.
-3. **Roles**: define realm roles that map to your access tiers (e.g. `reader`, `writer`, `admin`)
-   and assign them to users/groups.
-4. **The groups claim (required)**: Keycloak does _not_ emit a flat `groups` claim by default — it
-   puts realm roles under `realm_access.roles`. The OAuth client's UserInfo processor reads a flat
-   list from the claim named by `groupsClaimName` (`groups`). Add a client (or client-scope)
-   protocol mapper that projects realm roles into a top-level `groups` claim:
+   - **Valid redirect URI**: `<IAP_PUBLIC_URL>/system/sling/oauth/callback`. It must
+     match the `callbackUri` in the OIDC support feature exactly.
+3. **Roles**: define realm roles for your access tiers, such as `reader`, `writer` and
+   `admin`, and assign them to users or groups.
+4. **The groups claim (required)**: by default Keycloak puts realm roles under
+   `realm_access.roles`, with no flat `groups` claim. The OAuth client's UserInfo
+   processor reads a flat list from the claim named by `groupsClaimName` (`groups`). Add
+   a client or client-scope protocol mapper that copies realm roles into a top-level
+   `groups` claim:
    - Mapper type: **User Realm Role** (`oidc-usermodel-realm-role-mapper`).
    - Token Claim Name: `groups`
-   - Multivalued: **On**; Add to ID token: **On** (we read groups from the ID token —
-     `groupsInIdToken: true`).
+   - Multivalued: **On**; Add to ID token: **On**. The groups are read from the ID token
+     (`groupsInIdToken: true`).
 
-   > If you prefer a different claim name, change `groupsClaimName` in the OIDC support feature to match.
+   > For a different claim name, change `groupsClaimName` in the OIDC support feature to
+   > match.
 
 ## Running locally with Docker Compose
 
@@ -214,26 +228,28 @@ and setting the environment variable KEYCLOAK_GENERATE_TEST_USER to 0 before run
 
 ## How the names line up
 
-Three independent names are wired across the configs; the defaults use `keycloak` for all three:
+Three names tie the configurations together. The feature uses `keycloak` for all three:
 
-- **connection** `keycloak` — the OIDC provider connection (`OidcConnectionImpl.name`,
-  `OidcAuthenticationHandler.defaultConnectionName`, `SlingUserInfoProcessorImpl.connection`). The
-  handler falls back to `defaultConnectionName` when no connection is specified on the request.
-- **idp** `keycloak` — the `ExternalIdentityProvider` the handler registers
+- **connection** `keycloak`: the OIDC provider connection (`OidcConnectionImpl.name`,
+  `OidcAuthenticationHandler.defaultConnectionName`,
+  `SlingUserInfoProcessorImpl.connection`). The handler uses `defaultConnectionName`
+  when the request names no connection.
+- **idp** `keycloak`: the `ExternalIdentityProvider` the handler registers
   (`OidcAuthenticationHandler.idp` = `ExternalLoginModuleFactory.idp.name` =
   `SlingLoginCookieManager.idpName`).
-- **sync handler** `keycloak` — links the JAAS login module to the sync handler
+- **sync handler** `keycloak`: links the JAAS login module to the sync handler
   (`ExternalLoginModuleFactory.sync.handlerName` = `DefaultSyncHandler.handler.name`).
 
 ## Authorization: ACLs keyed on Keycloak roles
 
-Sync runs with **dynamic membership** (`user.dynamicMembership: true`): the user's Keycloak roles
-are stored as `rep:externalPrincipalNames` rather than as local group nodes, and
-`ExternalPrincipalConfiguration` exposes them as principals so ACLs can reference them. Synced
-users live under `/home/users/oidc`.
+Sync runs with **dynamic membership** (`user.dynamicMembership: true`). The user's
+Keycloak roles are stored as `rep:externalPrincipalNames`, not as local group nodes.
+`ExternalPrincipalConfiguration` exposes them as principals, so ACLs can name them.
+Synced users live under `/home/users/oidc`.
 
-Because `idpNameInPrincipals` is **false**, a role principal is the plain role name. Write ordinary
-resource-based ACLs (e.g. in a repoinit, like [base-repoinit.txt](../packaging/slingfeature/src/main/features/base-repoinit.txt)):
+`idpNameInPrincipals` is **false**, so a role principal is the plain role name. Write
+ordinary resource-based ACLs, for example in a repoinit such as
+[base-repoinit.txt](../packaging/slingfeature/src/main/features/base-repoinit.txt):
 
 ```
 set ACL on /content/studies/cardiology
@@ -242,45 +258,53 @@ set ACL on /content/studies/cardiology
 end
 ```
 
-`importBehavior` is `besteffort` (see `oak_base.json`), so you can author ACEs for a role principal
-before anyone has logged in carrying it. **Decide `idpNameInPrincipals` once** — flipping it later
-changes every principal name and invalidates existing ACLs.
+`importBehavior` is `besteffort` (see `oak_base.json`), so an ACE can name a role
+principal before anyone carrying the role has signed in. **Decide `idpNameInPrincipals`
+once.** Changing it renames every principal, and the existing ACLs stop matching.
 
-> Note: principal-_based_ authorization is scoped to `/home/users/system/sling` (service users)
-> here, so it does **not** apply to human Keycloak users — use resource-based ACLs as above.
+> Note: principal-_based_ authorization covers only `/home/users/system/sling`, the
+> service users. It does **not** apply to Keycloak users, who need resource-based ACLs
+> as above.
 
 ## Local login fallback
 
 The external login module registers as `SUFFICIENT` (Oak default), so a local username/password
 login it can't handle falls through to Oak's `LoginModuleImpl`. The login page keeps the local
-credentials form behind the "Use a local account instead" link. To disable local login entirely,
-remove the form's sign-in method (`Extensions/SignInMethod/CredentialsForm.json`).
+credentials form behind the "Use a local account instead" link.
+
+To stop offering the form, set `ext:defaultDisabled` to `true` on
+`/Extensions/SignInMethod/CredentialsForm`. This only hides the form. Sling's form
+authentication handler still accepts a local username and password posted to
+`/j_security_check`.
 
 ## Verification
 
-1. Bring up Keycloak; create realm `iap`, client `iap-sling`, the `groups` mapper, and a test user
-   with a role (e.g. `test`/`test` with `reader`) — `keycloak_setup.sh` does all of this.
-2. Set the six env vars and start IAP (`mvn clean install` then `./start.sh --keycloak`).
-3. In Keycloak's token inspector (or decode the ID token), confirm the `groups` claim is a flat
-   list containing the role **before** wiring anything else — this is the most common failure point.
-4. Load the Keycloak features (`./start.sh --keycloak`, or `KEYCLOAK_ENABLED=true` in Docker — see
-   [Enabling Keycloak sign-in](#enabling-keycloak-sign-in)), then visit `/` unauthenticated → you get
-   the branded `/login` page. Click "Continue with institutional credentials" → Keycloak → sign in →
-   you land back on the app.
-5. Confirm the session is app-wide: open `/system/sling/info.sessionInfo.json` — `userID` should be
-   the synced Keycloak user, not `anonymous`. A `sling.oidcauth` cookie at path `/` should be present.
-6. Confirm provisioning: the user authorizable appears under `/home/users/oidc` with a
+1. Bring up Keycloak. Create realm `iap`, client `iap-sling`, the `groups` mapper, and a
+   test user with a role, such as `test`/`test` with `reader`. `keycloak_setup.sh` does
+   all of this.
+2. Set the six env vars and start IAP: `mvn clean install`, then
+   `./start.sh --keycloak`.
+3. In Keycloak's token inspector, or by decoding the ID token, confirm that the `groups`
+   claim is a flat list holding the role. Check this **before** anything else: it is
+   where setups most often fail.
+4. Visit `/` signed out. You get the branded `/login` page, with "Continue with
+   institutional credentials" as its main button. Click it and sign in at Keycloak. You
+   land on the home page.
+5. Confirm the session holds on every page: in `/system/sling/info.sessionInfo.json`,
+   `userID` is the synced Keycloak user, not `anonymous`. A `sling.oidcauth` cookie at
+   path `/` is set.
+6. Confirm provisioning: the user appears under `/home/users/oidc`, with a
    `rep:externalPrincipalNames` property listing the role.
-7. Confirm authorization once ACLs are written: the user can read/write the granted path; a user
-   without the role gets `403` (not a login bounce).
-8. Regression: local login still works via "Use a local account instead".
-9. Confirm logout: open `/system/sling/logout`, and confirm that no prompt from Keycloak appears.
-   Then re-check `/system/sling/info.sessionInfo.json`: The user should be back to anonymous.
-10. Confirm back-channel logout: open Keycloak's web console, go to the iap realm and users view ' (default
-    `http://localhost:8084/admin/master/console/#/iap`). Then go to the generated user and confirm that
-    no sessions exist under the sessions tab.
-11. Double-check back-channel logout: From the `/login` page, click "Continue with institutional
-    credentials" and confirm that it re-prompts you to log out with Keycloak
+7. Confirm authorization once ACLs are written: the user can read or write the granted
+   path. A user without the role gets `403`, not a redirect to the login page.
+8. Regression: local login still works through "Use a local account instead".
+9. Confirm logout: open `/system/sling/logout`, and check that Keycloak shows no prompt.
+   Then re-check `/system/sling/info.sessionInfo.json`: the user is back to `anonymous`.
+10. Confirm the back-channel logout: in Keycloak's admin console, open the `iap` realm's
+    users (by default `http://localhost:8084/admin/master/console/#/iap`). Open the test
+    user, and check that its Sessions tab lists no session.
+11. Check it again from the `/login` page: click "Continue with institutional
+    credentials", and confirm that Keycloak asks for your credentials again.
 
 ## Troubleshooting: `No IDP found with name keycloak`
 
@@ -288,64 +312,69 @@ remove the form's sign-in method (`Extensions/SignInMethod/CredentialsForm.json`
 *ERROR* ...external.impl.ExternalLoginModule No IDP found with name keycloak. Will not be used for login.
 ```
 
-Sign-in loops back to `/login`: Keycloak authenticates and the callback sets `sling.oidcauth`, but
-`extractCredentials` cannot produce a session without the IdP, so Sling re-gates the request.
+Sign-in loops back to `/login`. Keycloak authenticates and the callback sets
+`sling.oidcauth`, but `extractCredentials` cannot produce a session without the IdP, and
+Sling sends the request back to the login page.
 
-This never means the IdP is _misconfigured_ — there is no IdP configuration (see above). It means
-`OidcAuthenticationHandler` did not activate. Search the log for the real cause, which is always
-earlier in the startup, and always a reference the handler could not satisfy:
+The IdP has no configuration, so it cannot be _misconfigured_. The message means
+`OidcAuthenticationHandler` did not activate. The cause is earlier in the log, from
+startup: a reference the handler could not satisfy.
 
 ```
 OidcAuthenticationHandler(...) : Error during instantiation of the implementation object:
     Unable to get service for reference $005
 ```
 
-`$005` is the mandatory `CryptoService`. The usual reason is the Jasypt stack failing to activate:
+`$005` is the mandatory `CryptoService`. The usual reason is a Jasypt stack failing to
+activate:
 
 ```
 JasyptStandardPbeStringCryptoService(...) : The activate method has thrown an exception
     (java.lang.RuntimeException: environment variable 'SLING_COMMONS_CRYPTO_PASSWORD' not set)
 ```
 
-**Read the env var name in that message carefully.** `IAP_OAUTH_ENCRYPTION_PASSWORD` is this
-feature's variable; `SLING_COMMONS_CRYPTO_PASSWORD` belongs to `iap-email-notifications`, which
-configures a second, independent Jasypt stack and is part of the default build — so the two coexist
-whenever Keycloak sign-in is enabled. Every reference involved is an untargeted mandatory `1..1`,
-which OSGi resolves by lowest `service.id` — i.e. by feature install order, which a rebase can flip.
-That bites at two levels, and both are now pinned explicitly:
+**Read the variable name in that message carefully.** `IAP_OAUTH_ENCRYPTION_PASSWORD` is
+this feature's variable. `SLING_COMMONS_CRYPTO_PASSWORD` belongs to
+`iap-email-notifications`, which configures a second, independent Jasypt stack. That
+module is in the default build, so the two stacks run side by side whenever Keycloak
+sign-in is enabled. An untargeted `1..1` reference binds the service with the highest
+`service.ranking`, and among equals the lowest `service.id`. The `service.id` follows
+the order the features install in. Two kinds of reference are therefore pinned:
 
-- **Which `PasswordProvider` each crypto service uses** — `passwordProvider.target`,
-  `ivGenerator.target` and `saltGenerator.target` on both stacks.
-- **Which `CryptoService` each consumer uses** — the `oauth-client`'s consumers have
-  compiler-generated reference names (`$000`, `$005`, …) that cannot be targeted stably across
-  upgrades, so `~iapoauth` carries a `service.ranking` that steers them to it. `SimpleMailService`'s
-  `cryptoService` reference is _greedy_, so `iap-email-notifications` pins it with
-  `cryptoService.target` to stop it following that ranking and decrypting the SMTP password with the
-  wrong key.
+- **Which `PasswordProvider` and generators each crypto service uses:**
+  `passwordProvider.target`, `ivGenerator.target` and `saltGenerator.target`, on both
+  stacks.
+- **Which `CryptoService` each consumer uses:** the OAuth client's references have
+  generated names (`$000`, `$005`, …) that can change on upgrade, so they cannot be
+  targeted. Instead, `~iapoauth` has a `service.ranking` that draws them to it.
+  `SimpleMailService`'s `cryptoService` reference is _greedy_, and would follow that
+  ranking and decrypt the SMTP password with the wrong key. `iap-email-notifications`
+  pins it with `cryptoService.target`.
 
-Symptoms of the second level: `JcrUserHomeOAuthTokenStore`, `OAuthCallbackServlet` and
-`OAuthEntryPointServlet` sit at `failed activation` in `/system/console/components.json` while
-`OidcAuthenticationHandler` stays `satisfied` and never reaches `active`. Keep the filters and the
-ranking if you add a third crypto stack or copy one of these configs.
+When a `CryptoService` reference binds the wrong stack, `JcrUserHomeOAuthTokenStore`,
+`OAuthCallbackServlet` and `OAuthEntryPointServlet` sit at `failed activation` in
+`/system/console/components.json`. `OidcAuthenticationHandler` stays `satisfied` and
+never reaches `active`. Keep the filters and the ranking when adding a third crypto
+stack or copying one of these configurations.
 
 ## Caveats
 
-- `org.apache.sling.auth.oauth-client` is early-stage (0.1.x). Pin the version; expect config churn
-  on upgrade and re-verify the property names against the bundle you move to.
-- **Post-login always lands on `/`.** `/oidc-login` is a static `sling:redirect` to `/`, so a deep
-  link that first bounced the user to `/login` will not return them to that exact page — they land
-  on the home page. Honouring the original destination would need a small servlet that reads the
-  `resource` parameter instead of the static redirect node.
-- Dynamic membership is **not** exercised by the module's own integration test (which does full
-  sync). It is the higher-risk part of this setup — validate steps 6–7 against a live instance. To
-  fall back to full sync, set `user.dynamicMembership: false` in the OIDC support feature and remove
-  the `ExternalPrincipalConfiguration` entries from the OIDC support feature and `oak_base.json`.
-- `user.propertyMapping`'s profile claims (`name`, `email`) are best-effort; verify against a real
-  token and adjust. They do not affect authentication or authorization. Its `oauth/refresh_token`
-  entry is **not** cosmetic, though — removing it breaks back-channel logout (see
-  [Sign-out flow](#sign-out-flow)), which fails silently into the redirect fallback.
-- The refresh token is stored, encrypted, on the user's home node. That is a credential at rest, so
-  `IAP_OAUTH_ENCRYPTION_PASSWORD` must be a real secret in production, and rotating it makes every
-  stored token undecryptable — logout then falls back to the redirect until users sign in again.
-- The OIDC handler's `extractCredentials` runs on every request (it covers `/`) to validate the
-  session cookie. That's an intended cost of app-wide session recognition with a scoped login gate.
+- `org.apache.sling.auth.oauth-client` is at 0.1.x. Its configuration may change between
+  versions: re-check the property names against any new version before upgrading.
+- **After sign-in the user always lands on `/`.** `/oidc-login` is a static
+  `sling:redirect` to `/`. A user sent to `/login` from a deep link lands on the home
+  page, not on that link.
+- No automated test here exercises dynamic membership. Check steps 6 and 7 against a
+  live instance. To use full sync instead, set `user.dynamicMembership: false` in the
+  OIDC support feature, and remove the `ExternalPrincipalConfiguration` entries from
+  that feature and from `oak_base.json`.
+- The profile entries of `user.propertyMapping` (`name`, `email`) may need adjusting:
+  check them against a real token. They do not affect authentication or authorization.
+  Removing the `oauth/refresh_token` entry breaks the back-channel logout, which then
+  always takes the redirect (see [Sign-out flow](#sign-out-flow)).
+- The refresh token is stored, encrypted, on the user's home node. It is a credential at
+  rest, so `IAP_OAUTH_ENCRYPTION_PASSWORD` must be a real secret in production. Changing
+  that password leaves every stored token undecryptable, and logout takes the redirect
+  until users sign in again.
+- The OIDC handler covers `/`, so Sling asks it to read the session cookie on every
+  request the form handler finds no credentials in.

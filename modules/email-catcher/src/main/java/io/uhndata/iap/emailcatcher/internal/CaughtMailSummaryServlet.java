@@ -35,14 +35,8 @@ import org.osgi.service.component.annotations.ReferencePolicyOption;
 import io.uhndata.iap.utils.summary.AdminSummaryServlet;
 
 /**
- * Answers whether mail is being caught, and how much of it, as {@code /CaughtMail.adminSummary.json}.
- *
- * <p>
- * <strong>Whether it is on is a question only the service registry can answer.</strong> The configuration says
- * what somebody asked for; this says what is in force, which is not the same thing while a component is
- * settling or if something outranks the catcher in turn. So the answer is the presence of a mail service
- * carrying {@link CaughtMailService#CATCHER_PROPERTY}, not a reading of the configuration.
- * </p>
+ * Answers whether mail is being caught, and how many messages have been, at {@code /CaughtMail.adminSummary.json}.
+ * {@code enabled} is whether the catcher's mail service is registered, not what its setting asks for.
  *
  * {@snippet lang=json :
  * {
@@ -65,9 +59,8 @@ public class CaughtMailSummaryServlet extends AdminSummaryServlet
     private static final long serialVersionUID = 8195516947118220627L;
 
     /**
-     * The catcher's own mail service, present only while it is switched on. Dynamic and greedy so that toggling
-     * the setting is reflected without this component being restarted; optional because its absence is the
-     * answer rather than a reason not to run.
+     * The catcher's mail service; {@code null} while the catcher is off. Dynamic and greedy, so that a switch
+     * takes effect without restarting this component.
      */
     @Reference(target = "(" + CaughtMailService.CATCHER_PROPERTY + "=true)",
         cardinality = ReferenceCardinality.OPTIONAL,
@@ -86,9 +79,9 @@ public class CaughtMailSummaryServlet extends AdminSummaryServlet
     /**
      * How many messages have been caught.
      *
-     * @param home the folder they are filed in
-     * @return the number of messages, counting only those and not the access control policy that shares the
-     *         folder with them
+     * @param home the {@code /CaughtMail} resource
+     * @return the number of {@code mail:CaughtMessage} children, which leaves out the folder's access control
+     *         policy
      */
     private static int countMessages(final Resource home)
     {

@@ -41,20 +41,17 @@ import {
 
 import type { CategoryNode } from "./categoryModel";
 
-// Which way a row was asked to move among its siblings - as distinct from moving it to a different
-// parent, which the edit dialog does.
+// Which way a row moves among its siblings.
 export type MoveDirection = "up" | "down";
 
-// The operations a row of the category tree can trigger; provided once by the manager and shared
-// by every row.
+// The operations a row of the category tree can start. One set serves every row.
 export interface CategoryActions {
   onEdit: (node: CategoryNode) => void;
   onAddChild: (node: CategoryNode) => void;
   onDelete: (node: CategoryNode) => void;
   onToggleRetired: (node: CategoryNode) => void;
-  // `order` uses the Sling :order syntax, e.g. "before <siblingName>", which is what the repository
-  // needs; `direction` is the same move as the user asked for it, which is what a report needs. The
-  // node comes along so that the manager can name it.
+  // `order` is in Sling's :order syntax, such as "before <siblingName>". `direction` is the same
+  // move as the user asked for it.
   onReorder: (node: CategoryNode, order: string, direction: MoveDirection) => void;
 }
 
@@ -68,15 +65,14 @@ interface CategoryTreeItemProps {
   node: CategoryNode;
   actions: CategoryActions;
   depth: number;
-  // Reordering among siblings; undefined when already at the edge
+  // Move the row among its siblings; undefined for the first row, and for the last
   onMoveUp?: () => void;
   onMoveDown?: () => void;
 }
 
-// One row of the category tree: the category's label, status and schema binding, its management
-// actions, and (collapsibly) its subcategories. Each row is its own outlined card, standing out
-// against the administration area's tinted canvas, so the structure reads at a glance;
-// indentation comes from the nested lists, not the row itself.
+// One row of the category tree: the category's label, retirement and schema binding, its actions,
+// and its subcategories, which collapse. Each row is an outlined card. The indentation comes from
+// the nested lists, not from the row.
 function CategoryTreeItem({ node, actions, depth, onMoveUp, onMoveDown }: CategoryTreeItemProps) {
   const [ open, setOpen ] = useState(true);
   const hasChildren = node.children.length > 0;
@@ -123,11 +119,6 @@ function CategoryTreeItem({ node, actions, depth, onMoveUp, onMoveDown }: Catego
                 <EditOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            { /* The meaningful actions carry semantic color - primary for the constructive add,
-                 amber for the "soft delete", red for the real one - while the routine actions
-                 (move, edit, and the restorative unretire) stay quiet. */ }
-            { /* A category retired by an ancestor cannot be unretired here - the retirement is not
-                 its to lift - so the action says where it does belong instead of failing. */ }
             <Tooltip title={inheritedRetirement
               ? "Retired by a parent category: unretire that one to reopen this"
               : node.retired
@@ -209,10 +200,9 @@ function CategoryTreeItem({ node, actions, depth, onMoveUp, onMoveDown }: Catego
   );
 }
 
-// The recursive category tree listing. Sibling reordering is wired here, where the sibling names
-// needed by Sling's :order syntax are known. The category cards stand out directly against the
-// administration area's tinted canvas (see AdminScreen); nested lists indent their subtree (with
-// a logical property, so the indentation mirrors under a right-to-left locale).
+// A list of categories, each with its subcategories under it. The move actions are built here,
+// where the siblings' names are known. A nested list indents with a logical property, so the
+// indentation mirrors in a right-to-left language.
 function CategoryTree({ nodes, actions, depth = 0 }: CategoryTreeProps) {
   return (
     <List disablePadding sx={depth > 0 ? { paddingInlineStart: 4 } : undefined}>

@@ -31,10 +31,8 @@ import {
 } from "./errorTrackingApi";
 
 /**
- * What went wrong, in the shortest form that identifies it: the phrase for a problem, the
- * throwable's class for a failure. The two are separate properties because they are separate node
- * types, so this is computed and therefore neither sortable nor filterable server-side — `component`
- * and `operation` beside it are, and are the columns worth narrowing a long list by.
+ * What went wrong, in short: the name of a problem, or the simple class name of what was thrown.
+ * It comes from two properties, so the server can neither sort nor filter by it.
  */
 export function faultLabel(row: Record<string, unknown>): string {
   const problem = row.problem;
@@ -54,8 +52,7 @@ const ERROR_COLUMNS: EntityGridColumn[] = [
     filterable: false,
     valueGetter: (_value, row) => faultLabel(row),
     cardSlot: "title",
-    // The card cannot leave a row blank — the fault is its identity and its tap target — so an
-    // error carrying neither property falls back to its fingerprint
+    // The title is the card's tap target, so an error with neither property shows its fingerprint
     cardValue: row => faultLabel(row) || (row["@name"] as string | undefined),
   },
   {
@@ -64,7 +61,7 @@ const ERROR_COLUMNS: EntityGridColumn[] = [
     flex: 1,
     minWidth: 140,
     cardSlot: "caption",
-    // The class doing the work, shown unqualified for the same reason as the fault above
+    // The simple class name
     valueGetter: value => simpleName(value),
   },
   {
@@ -77,17 +74,14 @@ const ERROR_COLUMNS: EntityGridColumn[] = [
   {
     field: TRIAGE_PROPERTY,
     headerName: "Triage",
-    // Wide enough for the two markers a triaged error carries at once — that it was dealt with,
-    // and what was decided. Grid rows are a fixed height, so a third would wrap out of sight; the
-    // error's own page shows however many there are
+    // Wide enough for the two tags of an acknowledged error: `acknowledged` and the resolution.
+    // Grid rows have a fixed height, so a third tag would wrap out of sight
     width: 240,
     type: "singleSelect",
-    // The choices are the error-triage tag definitions under /Tags. Single-select is the filter,
-    // not the display: an equality filter on the multivalued property matches an error carrying
-    // that marker among others, which is what "show me what needs attention" needs, while the
-    // cell below shows every marker the error carries
+    // The filter's choices are the error-triage tags under /Tags. An equality filter on the
+    // multi-valued property matches an error that carries that tag among others
     valueOptions: tagValueOptions(TRIAGE_CATEGORY),
-    // Ordering by a multivalued property has no meaningful semantics
+    // A multi-valued property has no meaningful order
     sortable: false,
     renderCell: params => <TagChip tags={params.row[TRIAGE_PROPERTY]} category={TRIAGE_CATEGORY} />,
     cardSlot: "badge",
@@ -106,7 +100,7 @@ const ERROR_COLUMNS: EntityGridColumn[] = [
     type: "dateTime",
     valueGetter: value => dateValue(value),
     cardSlot: "caption",
-    // The full timestamp is too long for the caption line; the day is enough there
+    // The day only, since the full timestamp does not fit the caption line
     cardValue: row => dayOf(row.lastOccurrence),
   },
   {
@@ -115,19 +109,19 @@ const ERROR_COLUMNS: EntityGridColumn[] = [
     width: 160,
     type: "dateTime",
     valueGetter: value => dateValue(value),
-    // "Last seen" already dates the card; a second timestamp would only crowd it
+    // "Last seen" already dates the card
     cardSlot: "omit",
   },
 ];
 
-// Registering at import time means any component importing anything from this file can render an
-// EntityDataGrid for recorded errors.
+// Registered on import, so any component importing this file can render an EntityDataGrid of
+// recorded errors.
 registerEntityType(LOGGED_ERROR_TYPE, {
   homepage: LOGGED_ERRORS_PATH,
   columns: ERROR_COLUMNS,
-  // Newest fault first: what has just started happening is what somebody triaging wants to see
+  // Most recently seen first
   defaultSort: { field: "lastOccurrence", sort: "desc" },
-  // Each error is triaged on its own console page, which is not its repository path
+  // Each error is triaged on its own console page, not at its repository path
   rowLink: row => {
     const name = row["@name"];
     return typeof name === "string" && name.length > 0 ? errorRoute(name) : undefined;

@@ -30,7 +30,9 @@ import org.osgi.service.component.annotations.Component;
 import io.uhndata.iap.utils.UserIds;
 
 /**
- * For security purposes, deny uploading HTML or JavaScript files for anybody other than the admin.
+ * Refuses a Sling POST request that leaves a resource with a content type naming {@code script} or {@code html},
+ * such as an uploaded JavaScript or HTML file. Only the user whose canonical id is {@code admin} may. Served back,
+ * such a file would run in the browser with IAP's own origin.
  *
  * @version $Id$
  * @since 0.1.0

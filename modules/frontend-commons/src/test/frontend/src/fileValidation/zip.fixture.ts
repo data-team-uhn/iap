@@ -75,7 +75,7 @@ function createRecord(size: number, fill: (view: DataView, bytes: Uint8Array) =>
 
 /**
  * A zip of these parts. With `zip64`, every size and offset sits in a ZIP64 record, with the marker
- * in the plain fields, the way a writer that always uses ZIP64 leaves them.
+ * in the plain fields, as a writer that always uses ZIP64 leaves them.
  */
 export async function createZip(
   parts: ZipPart[],

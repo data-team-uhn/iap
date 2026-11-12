@@ -32,16 +32,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A configurable or extensible feature that documents itself at runtime: a title, an introduction, and a catalogue
- * of {@link DocumentedItem items} describing what is currently defined or supported, e.g. the defined tags or the
- * node types understood by the workflow engine. The default JSON and Markdown serializations group the items by
- * their categories, with items belonging to several categories repeated under each, and the section headings left
- * out entirely when nothing declares a category.
+ * A feature that documents itself at runtime: a title, an introduction, and a catalogue of the {@link DocumentedItem
+ * items} the running instance defines, such as its tags.
  *
- * <p>To serve the documentation over HTTP, implement this interface in a Sling Model registered as an adapter for
- * the resource, and mark the node with the {@code doc:Documented} mixin (directly, or as a supertype of its primary
- * type): the documentation then becomes available at the node's path with the {@code doc} selector and the
- * {@code json} or {@code md} extension.</p>
+ * <p>To serve the documentation over HTTP, implement this interface in a Sling Model that lists it among its
+ * adapters. Then give the node the {@code doc:Documented} mixin, directly or through its primary type, and it serves
+ * its documentation at {@code <path>.doc.json} and {@code <path>.doc.md}.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -51,7 +47,7 @@ public interface AutoDocumentable
     /** The mixin marking the nodes that serve documentation. */
     String DOCUMENTED_TYPE = "doc:Documented";
 
-    /** The category under which items without an explicit category are documented. */
+    /** The category of an item that names none. */
     String DEFAULT_CATEGORY = "uncategorized";
 
     /**
@@ -63,9 +59,9 @@ public interface AutoDocumentable
     String getDocumentationTitle();
 
     /**
-     * An introductory text displayed under the title, explaining what the catalogue holds.
+     * An introduction shown under the title, saying what the catalogue holds.
      *
-     * @return a piece of text, or {@code null} if there is nothing more to say than the title
+     * @return the text, or {@code null} if the title needs no introduction
      */
     @Nullable
     String getDocumentationIntro();
@@ -73,17 +69,17 @@ public interface AutoDocumentable
     /**
      * The items being documented, in display order.
      *
-     * @return the documented items, may be empty
+     * @return the items; empty if the instance defines none
      */
     @NotNull
     List<? extends DocumentedItem> getDocumentedItems();
 
     /**
-     * The {@link #getDocumentedItems items} grouped by their categories: categories sorted by name, items kept in
-     * display order, items belonging to several categories repeated under each, items without a category grouped
-     * under {@value #DEFAULT_CATEGORY}, which always comes last regardless of its alphabetical position.
+     * The {@link #getDocumentedItems items}, grouped by category. The categories are sorted by name, except
+     * {@value #DEFAULT_CATEGORY}, which comes last and holds the items that name no category. An item in several
+     * categories appears under each, and the items keep their display order.
      *
-     * @return the documented items, grouped by category
+     * @return each category's name, mapped to its items
      */
     @NotNull
     default Map<String, List<DocumentedItem>> getDocumentedItemsByCategory()
@@ -101,11 +97,10 @@ public interface AutoDocumentable
     }
 
     /**
-     * Serialize this documentation as a JSON object: the title, the introduction when present, and the items
-     * grouped by category.
+     * This documentation as JSON.
      *
-     * @return a JSON object with the {@code title}, optional {@code description}, and {@code items} keys, the
-     *         latter holding one array of items per category
+     * @return an object with the {@code title}, the {@code description} if there is an introduction, and
+     *         {@code items}: one array of items per category, under the category's name
      */
     @NotNull
     default JsonObject toDocumentationJson()
@@ -126,9 +121,8 @@ public interface AutoDocumentable
     }
 
     /**
-     * Render this documentation as a Markdown document: the title, the introduction when present, then one section
-     * per category with the items documented in it. When no item declares a category, the items are listed directly
-     * without section headings.
+     * This documentation as Markdown: the title, the introduction if there is one, then one section per category.
+     * When no item names a category, the items follow without section headings.
      *
      * @return a Markdown document
      */

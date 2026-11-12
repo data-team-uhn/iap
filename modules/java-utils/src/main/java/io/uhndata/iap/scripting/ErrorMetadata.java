@@ -33,9 +33,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A HTL Use-API for error handler scripts: it reads the status code and message of the error being handled from the
- * standard {@code jakarta.servlet.error.*} request attributes, and sets the status code on the response. To use this
- * API, simply place the following code in the error handler HTL file:
+ * The error an error handler script is answering. It reads the status code and the message from the
+ * {@code jakarta.servlet.error.*} request attributes, and sets that status code on the response. To use it in an
+ * error handler's HTL:
  *
  * {@snippet lang=html :
  * <sly data-sly-use.error="io.uhndata.iap.scripting.ErrorMetadata"></sly>
@@ -46,7 +46,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public class ErrorMetadata implements Use
 {
-    /** Default reason phrases for the status codes commonly sent by the platform. */
+    /** The reason phrase for each status code it names, used when the error has no message. */
     private static final Map<Integer, String> REASON_PHRASES = Map.ofEntries(
         Map.entry(HttpServletResponse.SC_BAD_REQUEST, "Bad Request"),
         Map.entry(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"),
@@ -88,7 +88,7 @@ public class ErrorMetadata implements Use
     /**
      * The status code of the error being handled.
      *
-     * @return a HTTP status code, {@code 500} if the error dispatch did not record one
+     * @return the HTTP status code, such as {@code 404}; {@code 500} if the request does not name one
      */
     public int getStatusCode()
     {
@@ -98,7 +98,8 @@ public class ErrorMetadata implements Use
     /**
      * The message of the error being handled.
      *
-     * @return the message recorded by the error dispatch, or a default reason phrase for the status code
+     * @return the error's message; if it has none, the reason phrase for the status code, such as
+     *         {@code Not Found}, or {@code Error} for a code without one
      */
     @NotNull
     public String getStatusMessage()
@@ -107,10 +108,10 @@ public class ErrorMetadata implements Use
     }
 
     /**
-     * The error serialized as JSON, if the client asked for JSON instead of a HTML error page.
+     * The error as JSON, for a client that asked for JSON rather than an HTML page.
      *
-     * @return a JSON object with the status code and message if the request has an {@code Accept: application/json}
-     *         header, {@code null} otherwise
+     * @return an object with {@code status} set to {@code error}, {@code status.message} and {@code status.code};
+     *         {@code null} unless the request's {@code Accept} header is exactly {@code application/json}
      */
     @Nullable
     public String getJson()

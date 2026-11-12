@@ -33,24 +33,13 @@ import io.uhndata.iap.status.spi.StatusReporter;
  * Reports whether outgoing email is being caught rather than delivered.
  *
  * <p>
- * <strong>A warning while it is on, and deliberately so.</strong> The catcher is switched on on purpose, so this
- * is not reporting a fault — but everything the platform would have emailed is going nowhere, and that is a fact
- * an administrator reading a status report needs put in front of them rather than left to be inferred. It is the
- * kind of setting that is meant to be temporary and is easy to leave on: a report that stayed quiet about it
- * would be the reason nobody noticed the password reset messages had stopped arriving.
+ * While the catcher is on, the report is a warning: nothing the platform emails reaches anybody. While it is
+ * off, the report is at debug level, which a status report shows only when asked. A {@code null} report would
+ * read the same as the catcher not being installed.
  * </p>
  *
  * <p>
- * <strong>Debug while it is off</strong>, rather than nothing at all. Debug reports are left out unless somebody
- * asks for them, so the ordinary report is not padded with a line saying that a development facility is off in
- * production, where it always is; but somebody diagnosing where the mail went can ask, and get an answer instead
- * of the silence a {@code null} report would leave, which reads the same as the bundle not being installed.
- * </p>
- *
- * <p>
- * <strong>Whether it is on is a question only the service registry can answer</strong>, exactly as for
- * {@link CaughtMailSummaryServlet}: the configuration says what somebody asked for, while the presence of a mail
- * service carrying {@link CaughtMailService#CATCHER_PROPERTY} says what is in force.
+ * The catcher counts as on while its mail service is registered, whatever its setting asks for.
  * </p>
  *
  * @version $Id$
@@ -62,9 +51,8 @@ public class CaughtMailStatusReporter implements StatusReporter
     private static final String REPORT_TITLE = "Email Catcher";
 
     /**
-     * The catcher's own mail service, present only while it is switched on. Dynamic and greedy so that toggling
-     * the setting is reflected without this component being restarted; optional because its absence is the
-     * answer rather than a reason not to run.
+     * The catcher's mail service; {@code null} while the catcher is off. Dynamic and greedy, so that a switch
+     * takes effect without restarting this component.
      */
     @Reference(target = "(" + CaughtMailService.CATCHER_PROPERTY + "=true)",
         cardinality = ReferenceCardinality.OPTIONAL,
@@ -85,8 +73,7 @@ public class CaughtMailStatusReporter implements StatusReporter
             return new StatusReport(REPORT_TITLE, StatusReport.Status.DEBUG,
                 "The email catcher is off, so email is being delivered normally.");
         }
-        // Where the messages went is an internal path, and a report that may be posted somewhere unprivileged has
-        // no business naming it. That mail is not being delivered is the point, and is said either way.
+        // An unprivileged report does not name the internal path
         final String text = "Outgoing email is being caught, not delivered: nothing the platform sends is"
             + " reaching anybody."
             + (unprivileged ? "" : " Messages are filed under " + CaughtMailService.CAUGHT_MAIL_PATH + ".");

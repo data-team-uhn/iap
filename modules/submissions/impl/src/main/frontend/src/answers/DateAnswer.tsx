@@ -24,10 +24,8 @@ import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
-// A calendar day.
-//
-// A date input stores what it shows as `yyyy-mm-dd` whatever the reader's locale displays.
-// Picking a day finishes the answer, but typing one digit at a time does not, so this still saves on blur.
+// A calendar day, stored as `yyyy-mm-dd` whatever the reader's locale displays. It is saved when the
+// field is left, since a day can also be typed in digit by digit.
 function DateAnswer({ question, values, disabled, onChange, onAnswered }: AnswerComponentProps) {
   return (
     <TextField
@@ -40,9 +38,8 @@ function DateAnswer({ question, values, disabled, onChange, onAnswered }: Answer
       slotProps={{ inputLabel: { shrink: true } }}
       helperText={question.description}
       onChange={event => onChange([ event.target.value ])}
-      // An empty value now means "clear this answer", so a value the browser cannot parse must not
-      // reach it: a half-typed entry reports value === "" and would destroy what is stored. badInput
-      // is how the input tells the two apart.
+      // A half-typed day reads as "", like a cleared field, and would clear the stored answer.
+      // `badInput` tells the two apart.
       onBlur={event => {
         if (!event.target.validity.badInput) {
           onAnswered([ event.target.value ].filter(Boolean));

@@ -41,8 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link LinkDefinition} and its two kinds, {@link InternalLinkDefinition} and
- * {@link ExternalLinkDefinition}. The base is abstract and only reachable through a kind, so the settings it
- * holds are exercised through whichever one is convenient.
+ * {@link ExternalLinkDefinition}. The settings of the abstract base are tested through either kind.
  *
  * @version $Id$
  * @since 0.1.0
@@ -186,8 +185,7 @@ class LinkDefinitionTest
     @Test
     void ignoresABacklinkNamingAnExternalType()
     {
-        // A backlink is itself a reference to content, so an external type cannot serve as one; the caller sees
-        // the same unresolvable backlink it would for a dangling path
+        // An external definition reads as no backlink, as a dangling path does
         this.context.create().resource("/LinkTypes/ehrChart", SLING_RESOURCE_TYPE, EXTERNAL);
         final Resource resource = this.context.create().resource("/LinkTypes/references", Map.of(
             SLING_RESOURCE_TYPE, INTERNAL,
@@ -287,7 +285,7 @@ class LinkDefinitionTest
         // An internal type with no settings has nothing worth saying about it
         assertTrue(internal.adaptTo(LinkDefinition.class).getDocumentationDetails().isEmpty());
         assertNull(internal.adaptTo(LinkDefinition.class).getDescription());
-        // An external one always says so, since where its target lives is the whole distinction
+        // An external one always says it is external
         assertEquals(List.of("**External**: records a value pointing outside the repository"),
             external.adaptTo(LinkDefinition.class).getDocumentationDetails());
     }
@@ -349,7 +347,7 @@ class LinkDefinitionTest
         assertEquals("external", json.getString("kind"));
         assertEquals("[0-9]+", json.getString("valuePattern"));
         assertEquals("https://ehr.example.org/chart/{value}", json.getString("urlTemplate"));
-        // Reference-only settings have no place on an external type, so they are absent rather than defaulted
+        // The settings of the internal kind are absent, not defaulted
         assertFalse(json.containsKey("weak"));
         assertFalse(json.containsKey("onDelete"));
         assertFalse(json.containsKey("backlinkOnly"));

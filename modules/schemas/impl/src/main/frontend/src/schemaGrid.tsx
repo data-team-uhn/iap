@@ -26,7 +26,7 @@ import { schemaPageUrl, versionPageUrl } from "./useSchemaList";
 
 export const SCHEMA_TYPE = "sch/Schema";
 
-// The schema a version row belongs to, as the grid's child rows carry it
+// The key under which a version's row carries the schema it belongs to
 export const SCHEMA_OF = "@schema";
 
 const isVersion = (row: SerializedNode): boolean => row["jcr:primaryType"] === "sch:SchemaVersion";

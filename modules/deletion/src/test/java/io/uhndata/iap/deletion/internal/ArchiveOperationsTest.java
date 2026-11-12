@@ -45,9 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for the corners of {@link ArchiveOperations} and {@link CascadeResolver} that a well-formed plan built by
- * the service itself cannot reach: defensive guards against plans that went stale between analysis and execution,
- * and content the links machinery does not recognize.
+ * Tests for cases a plan made by the service does not reach: a plan that went stale before it ran, and links the
+ * links module does not know. They drive {@link ArchiveOperations} and {@link CascadeResolver} directly.
  *
  * @version $Id$
  */
@@ -82,8 +81,7 @@ class ArchiveOperationsTest
         victim.addMixin("mix:referenceable");
         this.session.getNode("/content").addNode("holder").setProperty("ref", victim);
         this.session.save();
-        // A stale plan that missed the referrer: the repository itself blocks the commit, and the failure is
-        // reported as a clean exception instead of leaking the raw repository error
+        // A plan that missed the referrer: Oak refuses the commit, and the failure is a DeletionException
         final DeletionPlan plan = this.plan(DeletionOptions.of(REFUSE_IF_REFERENCED, DELETE_PERMANENTLY),
             "/content/victim");
         plan.getRoots().put("/content/victim", victim);
@@ -97,8 +95,8 @@ class ArchiveOperationsTest
     {
         final Node versionable = this.session.getNode("/content").addNode("versionable");
         versionable.addMixin("mix:versionable");
-        // A plain node holding a reference, not a recognized link: removing it needs its versionable ancestor
-        // checked out, and goes through the raw removal path since the links machinery does not recognize it
+        // A plain node holding a reference, which the links module does not know: it is removed directly,
+        // after its versionable ancestor is checked out
         final Node stray = versionable.addNode("holder").addNode("stray");
         final Node victim = this.session.getNode("/content").addNode("victim");
         victim.addMixin("mix:referenceable");
@@ -114,8 +112,7 @@ class ArchiveOperationsTest
         final ArchiveOperations operations =
             ArchiveOperations.forResolver(this.context.resourceResolver());
         operations.deletePermanently(plan);
-        // The versionable ancestor was checked out for the link removal, then deleted itself; checking it back
-        // in is correctly skipped instead of crashing
+        // The ancestor checked out for the link removal was deleted too, so there is nothing to check back in
         assertFalse(this.session.nodeExists("/content/versionable"));
         assertFalse(this.session.nodeExists("/content/victim"));
     }
@@ -148,8 +145,7 @@ class ArchiveOperationsTest
         link.setProperty("reference", victim);
         this.session.save();
 
-        // A resolver that cannot see the link resource, e.g. gone out of sync with the session: the policy
-        // cannot be determined, so the resolver must fall back to the safe default of only removing the link
+        // A resolver that cannot see the link: its policy is unknown, so only the link is removed
         final ResourceResolver blind = new ResourceResolverWrapper(this.context.resourceResolver())
         {
             @Override
@@ -165,7 +161,7 @@ class ArchiveOperationsTest
         final String linkPath = link.getPath();
         assertEquals(List.of(linkPath), List.copyOf(plan.getLinksToRemove().keySet()));
         assertTrue(plan.getBlockingReferrers().isEmpty());
-        // And the execution phase equally falls back to a direct removal for the unrecognizable link
+        // The link it cannot read is removed directly
         ArchiveOperations.forResolver(blind).deletePermanently(plan);
         assertFalse(this.session.nodeExists(linkPath));
         assertFalse(this.session.nodeExists("/content/victim"));

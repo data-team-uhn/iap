@@ -72,7 +72,7 @@ function FieldInput({ field, value, disabled, onChange }: FieldInputProps) {
   }
   const choices = field.choices ?? [];
   if (Array.isArray(value)) {
-    // Several values: picked among the choices when there are some, else typed in one at a time
+    // Several values, picked among the choices when there are some, or else typed one at a time
     const labelOf = (option: string) => choices.find(choice => choice.value === option)?.label ?? option;
     return (
       <Autocomplete<string, true, false, boolean>
@@ -89,7 +89,7 @@ function FieldInput({ field, value, disabled, onChange }: FieldInputProps) {
     );
   }
   if (choices.length > 0) {
-    // A value no longer among the choices is still shown for what it is
+    // A stored value that is no longer among the choices is still offered, under its own name
     const offered = choices.some(choice => choice.value === value) || value === ""
       ? choices : [ ...choices, { value, label: value } ];
     return (
@@ -113,20 +113,22 @@ function FieldInput({ field, value, disabled, onChange }: FieldInputProps) {
 
 interface FieldsDialogProps {
   title: string;
-  // The content being edited, serialized with the fields its update would change
+  // The content being edited, as the `fields` serialization gives it, with its `@fields`
   node: SerializedNode;
   onClose: () => void;
-  // Given only the fields that changed; an emptied one is null, which removes it
+  // Saves the fields that changed, an emptied one as null. The dialog closes when it resolves, and
+  // shows the failure when it rejects.
   onSave: (changes: Record<string, PatchValue>) => Promise<unknown>;
-  // Anything the caller asks along with the fields, shown above them
+  // Shown above the fields, such as other inputs the caller needs
   children?: ReactNode;
-  // Shown right after the first field, which names what is edited. It is given that field's value as it is
-  // entered, and whether a save is under way.
+  // Shown right after the first field shown. It is given that field's value as it is entered, and
+  // whether a save is under way.
   afterFirstField?: (value: FieldValue, working: boolean) => ReactNode;
 }
 
-// Edits what an update event lets change on a node, as its `@fields` describe: each field with an input
-// for its kind, and only while it applies to what is being entered.
+// Edits what an update event may change on a node, as its `@fields` describe it. Each field has an
+// input for its kind, and shows only while it applies to what is being entered. Save is disabled
+// until something changed, and while a field cannot be saved as it is.
 function FieldsDialog({ title, node, onClose, onSave, children, afterFirstField }: FieldsDialogProps) {
   const fields = fieldsOf(node);
   const [ values, setValues ] = useState(() => initialValues(node, fields));

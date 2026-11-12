@@ -26,8 +26,7 @@ import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.utils.copy.CopyParticipant;
 
 /**
- * Keeps a node's links out of its copies: they say how the original relates to other content, and the copy has
- * its own container, created with it.
+ * Leaves a node's links out of its copies. They say how the original relates to other content.
  *
  * @version $Id$
  * @since 0.1.0

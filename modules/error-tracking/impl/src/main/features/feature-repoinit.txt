@@ -14,15 +14,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+# A recorded error quotes whatever the failing code was working on, so nobody is granted read access here, not even
+# `everyone` on the homepage. Only this service user, service users that may read the whole repository, and the
+# repository superuser can read it.
 create path (err:LoggedErrorsHomepage) /LoggedErrors
 
-# Recorded errors quote whatever the failing code was working on, so no read access is granted here to anybody: what
-# can reach them is this service user, the platform-wide readers Sling installs, and administrators. In particular
-# `everyone` is deliberately not granted anything, not even on the homepage node.
+# The user that records the errors and reads them for the status report
 create service user iap-error-tracking
 
-# No jcr:removeNode and no jcr:removeChildNodes, deliberately: nothing recorded here is ever deleted, and a service
-# user that cannot delete makes that a property of the deployment rather than a promise made in code
+# No jcr:removeNode and no jcr:removeChildNodes: nothing recorded here is ever deleted
 set ACL for iap-error-tracking
     allow   jcr:read,jcr:addChildNodes,jcr:modifyProperties,jcr:nodeTypeManagement    on /LoggedErrors
 end

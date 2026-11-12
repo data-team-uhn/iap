@@ -41,7 +41,8 @@ import io.uhndata.iap.submissions.spi.CompletenessEvaluator;
 
 /**
  * Judges a submission's answers. An answer to a question the submitter is shown is incomplete while it holds fewer
- * non-blank values than its question's {@code minAnswers}.
+ * non-blank values than its question's {@code minAnswers}. The answer is reported, or the submission when the
+ * question has no answer.
  *
  * @version $Id$
  * @since 0.1.0
@@ -89,7 +90,7 @@ public class QuestionCompletenessEvaluator implements CompletenessEvaluator
      *
      * @param submission the submission
      * @param resolver the session reading it
-     * @return the answers' resources, by question path
+     * @return the answers' resources, by the absolute path of their question
      */
     private static Map<String, List<Resource>> getExistingAnswers(final Submission submission,
         final ResourceResolver resolver)

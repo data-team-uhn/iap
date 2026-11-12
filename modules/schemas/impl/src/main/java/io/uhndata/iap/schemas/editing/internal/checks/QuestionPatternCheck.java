@@ -27,7 +27,7 @@ import org.osgi.service.component.annotations.Component;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
- * Check that every pattern a question's answers must match is a valid regular expression.
+ * Checks that every pattern a question's answers must match is a valid regular expression.
  *
  * @version $Id$
  * @since 0.1.0

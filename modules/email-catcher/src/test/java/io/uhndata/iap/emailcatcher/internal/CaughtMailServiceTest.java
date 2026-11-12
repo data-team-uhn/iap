@@ -61,8 +61,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link CaughtMailService}: that a message handed over is readable afterwards, and says the same
- * things it would have said to a recipient.
+ * Tests for {@link CaughtMailService}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -80,7 +79,7 @@ class CaughtMailServiceTest
 
     private final MetricsManager metrics = Mockito.mock(MetricsManager.class);
 
-    /** RETURNS_SELF so the fluent metadata calls chain, which is all the builder does. */
+    /** RETURNS_SELF, so that the builder's calls chain. */
     private final MetricsManager.MetricBuilder builder =
         Mockito.mock(MetricsManager.MetricBuilder.class, Answers.RETURNS_SELF);
 
@@ -96,7 +95,7 @@ class CaughtMailServiceTest
         inject(this.service, factory(this.context.resourceResolver()));
     }
 
-    /** The one message every test starts from, before whatever it is actually about. */
+    /** A builder with a sender and a recipient already set. */
     private CaughtMessageBuilder message() throws Exception
     {
         return (CaughtMessageBuilder) this.service.getMessageBuilder().from(FROM, "The Sender").to(TO);
@@ -111,7 +110,7 @@ class CaughtMailServiceTest
         return message.getValueMap();
     }
 
-    /** The setting, as an ordinary implementation of the annotation type — no configuration proxy needed. */
+    /** The catcher's setting, switched on or off. */
     private static CaughtMailService.Config switchedTo(final boolean on)
     {
         return new CaughtMailService.Config()
@@ -130,10 +129,6 @@ class CaughtMailServiceTest
         };
     }
 
-    /**
-     * The whole safeguard: the bundle is in every distribution, so a catcher nobody asked for must publish
-     * nothing at all. Registering and then declining to file would still take the mail.
-     */
     @Test
     void publishesNothingUntilItIsSwitchedOn()
     {
@@ -152,16 +147,12 @@ class CaughtMailServiceTest
 
         this.service.activate(bundleContext, switchedTo(true));
 
-        // Sling's own mail service registers without a configuration and so ranks at zero; outranking it is
-        // what makes every @Reference MailService get this one instead. The marker is what lets the status
-        // endpoint tell this registration from the one it displaced.
         final Dictionary<String, Object> expected = new Hashtable<>();
         expected.put(Constants.SERVICE_RANKING, 1000);
         expected.put(CaughtMailService.CATCHER_PROPERTY, Boolean.TRUE);
         Mockito.verify(bundleContext).registerService(MailService.class, this.service, expected);
     }
 
-    /** Turning it off has to put real sending back, which means the registration going away. */
     @Test
     void withdrawsTheRegistrationWhenSwitchedOff()
     {
@@ -177,7 +168,6 @@ class CaughtMailServiceTest
         Mockito.verify(registration).unregister();
     }
 
-    /** Deactivating something that never published anything is ordinary, not an error. */
     @Test
     void deactivatingWhileSwitchedOffWithdrawsNothing()
     {
@@ -186,10 +176,6 @@ class CaughtMailServiceTest
         this.service.deactivate();
     }
 
-    /**
-     * The count is what says whether a run sent anything at all, which the listing cannot: an empty folder and a
-     * feature that was never exercised look the same.
-     */
     @Test
     void countsEveryMessageItCatches() throws Exception
     {
@@ -201,7 +187,6 @@ class CaughtMailServiceTest
         Mockito.verify(this.metric, Mockito.times(2)).increment();
     }
 
-    /** Nightly, so that the previous day's traffic stays readable beside the running total. */
     @Test
     void definesTheCounterToRollOverNightly()
     {
@@ -209,12 +194,10 @@ class CaughtMailServiceTest
 
         Mockito.verify(this.metrics).createMetric(CaughtMailCounter.METRIC_NAME);
         Mockito.verify(this.builder).withRolloverSchedule(CaughtMailCounter.NIGHTLY_SCHEDULE);
-        // A development facility's usage is not a fact the people using the platform have any business reading
         Mockito.verify(this.builder).withAccessLevel(Metric.AccessLevel.ADMIN);
         Mockito.verify(this.builder).create();
     }
 
-    /** Nothing is counted before it is switched on, since nothing is caught either. */
     @Test
     void definesNoCounterWhileSwitchedOff()
     {
@@ -223,10 +206,6 @@ class CaughtMailServiceTest
         Mockito.verifyNoInteractions(this.metrics);
     }
 
-    /**
-     * Counting is not what this component is for: a metrics store that cannot take the definition must not stop
-     * mail being caught, which is the whole reason the catcher is switched on.
-     */
     @Test
     void catchesMailEvenWhenTheCounterCannotBeDefined() throws Exception
     {
@@ -240,7 +219,6 @@ class CaughtMailServiceTest
         Mockito.verifyNoInteractions(this.metric);
     }
 
-    /** A message that could not be filed is not a message that was caught, so it must not be counted. */
     @Test
     void countsNothingWhenTheMessageCannotBeFiled() throws Exception
     {
@@ -275,7 +253,6 @@ class CaughtMailServiceTest
         assertNotNull(message.get("caughtAt", Calendar.class));
     }
 
-    // Addresses as a recipient's client would have shown them, display names and all
     @Test
     void keepsTheAddressesAsTheyWereWritten() throws Exception
     {
@@ -294,8 +271,6 @@ class CaughtMailServiceTest
         assertArrayEquals(new String[] { "replies@example.com" }, message.get("replyTo", String[].class));
     }
 
-    // Whether an address was visible to the others is part of what a reader is checking, so a bcc must not
-    // arrive looking like a to
     @Test
     void doesNotMergeBlindCopiesIntoTheVisibleRecipients() throws Exception
     {
@@ -316,7 +291,6 @@ class CaughtMailServiceTest
         assertFalse(message.containsKey("textBody"));
     }
 
-    // A message carrying both is a multipart, and both halves are worth reading back
     @Test
     void readsBothBodiesOutOfAMultipart() throws Exception
     {
@@ -327,7 +301,6 @@ class CaughtMailServiceTest
         assertEquals("<p>Rich</p>", message.get("htmlBody", String.class));
     }
 
-    // The body is still the body when the message also carries parts, which means descending past the wrapper
     @Test
     void findsTheBodyInsideAMessageThatCarriesAttachments() throws Exception
     {
@@ -339,8 +312,6 @@ class CaughtMailServiceTest
         assertEquals("A body", this.caught().get("textBody", String.class));
     }
 
-    // An attachment's bytes are not what anybody reads a caught message to check, and a text attachment must
-    // not be mistaken for the message's own body
     @Test
     void doesNotReadAnAttachmentAsTheBody() throws Exception
     {
@@ -361,7 +332,6 @@ class CaughtMailServiceTest
 
         final List<String> headers = List.of(this.caught().get("headers", new String[0]));
         assertTrue(headers.contains("X-Reason: a reminder"));
-        // The ones read into properties are not repeated here
         assertTrue(headers.stream().noneMatch(header -> header.startsWith("Subject:")));
         assertTrue(headers.stream().noneMatch(header -> header.startsWith("To:")));
     }
@@ -379,8 +349,6 @@ class CaughtMailServiceTest
         assertFalse(message.containsKey("subject"));
     }
 
-    // When it was caught, not when it was built: a message carrying an old date is still caught now, which is
-    // what a reader sorting by this property means by it
     @Test
     void stampsWhenItWasCaughtRatherThanWhenItWasSent() throws Exception
     {
@@ -395,13 +363,10 @@ class CaughtMailServiceTest
         final Calendar caughtAt = this.caught().get("caughtAt", Calendar.class);
         assertNotNull(caughtAt);
         assertTrue(caughtAt.after(longAgo));
-        // And the message's own date is still readable, as the header it always was
         assertTrue(List.of(this.caught().get("headers", new String[0])).stream()
             .anyMatch(header -> header.startsWith("Date:")));
     }
 
-    // Nothing consumes the future this is reported in, so the failure has to be visible some other way; what is
-    // asserted here is that it is a failure at all rather than a silently dropped message
     @Test
     void reportsAFailureRatherThanLosingTheMessage() throws Exception
     {
@@ -423,8 +388,6 @@ class CaughtMailServiceTest
         assertTrue(List.of(this.caught().get("headers", new String[0])).contains("X-One: 1"));
     }
 
-    // A part whose bytes cannot be read is a message that cannot be described, and saying so is better than
-    // filing one whose body silently went missing
     @Test
     void reportsAPartItCannotRead() throws Exception
     {
@@ -435,11 +398,11 @@ class CaughtMailServiceTest
     }
 
     /**
-     * Sets the service's resolver factory, which OSGi would inject. Done by hand because the SCR metadata that
-     * would let a mock runtime do it is only generated when the bundle is packaged.
+     * Sets the service's references by hand. The SCR metadata a mock OSGi runtime would need is generated only
+     * when the bundle is packaged.
      *
      * @param target the service to inject into
-     * @param resolvers what to inject
+     * @param resolvers the resolver factory to inject
      * @throws Exception if the field cannot be set
      */
     private void inject(final Object target, final ResourceResolverFactory resolvers) throws Exception
@@ -448,7 +411,7 @@ class CaughtMailServiceTest
         set(target, "metricsManager", this.metrics);
     }
 
-    /** Sets one @Reference field, which is how a component is wired outside a framework. */
+    /** Sets one {@code @Reference} field. */
     private static void set(final Object target, final String name, final Object value) throws Exception
     {
         final Field field = target.getClass().getDeclaredField(name);
@@ -457,8 +420,8 @@ class CaughtMailServiceTest
     }
 
     /**
-     * A factory handing out the test's own resolver. The mock service resolvers do not share the repository the
-     * test populates, so a service asking for one would find an empty one.
+     * A factory that hands out the test's own resolver. A mock service resolver does not see the content the
+     * test creates.
      *
      * @param resolver the resolver the test wrote its content through
      * @return a factory serving it, ignoring close so the test context keeps ownership

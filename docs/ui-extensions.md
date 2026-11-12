@@ -1,42 +1,42 @@
 # UI extension points
 
 **Module:** `modules/ui-extension` · **Package:** `@iap/ui-extension`
-(`extensionManager`, `ExtensionList`, `ExtensionPoint`, `personas`) ·
-**Tools:** `tools/dev/extension-manager/`
+(`extensionManager`, `extensionLoader`, `ExtensionList`, `ExtensionPoint`,
+`personas`) · **Tools:** `tools/dev/extension-manager/`
 
-The interface is composed of **extensions** plugged into **extension points**. A
-feature contributes UI by shipping a React component plus a small JCR node
-registering it on a point; the consumer of that point renders whatever is registered,
-knowing nothing about the contributors.
+The interface is made of **extensions** plugged into **extension points**. A module
+adds to the interface by shipping a React component and a JCR node that registers it
+on a point. The page that shows the point renders whatever is registered there,
+without knowing which module contributed it.
 
 ## The mechanism
 
-- **Point:** an `ext:Point` node under `/apps/iap/ExtensionPoints/<Name>`, carrying the
-  `ext:pointId` extensions target.
-- **Extension:** an `ext:Extension` node (conventionally `/Extensions/<PointName>/`)
-  with a matching `ext:pointId`, an `ext:name`, and usually an `ext:renderURL`.
-- **Consumption:** `await loadExtensions("<NodeName>")` fetches a point's enabled
-  extensions and resolves `asset:` properties into loaded components; render with
-  `ExtensionList`. A broken extension is logged and omitted, never breaking the page.
-- The component receives the parsed extension node as its `extension` prop, so any
-  property (`ext:data`, …) is readable at runtime.
+- **Point:** an `ext:Point` node under `/apps/iap/ExtensionPoints/<Name>`. Its
+  `ext:pointId` is the identifier extensions name.
+- **Extension:** an `ext:Extension` node, usually under `/Extensions/<PointName>/`,
+  with the point's `ext:pointId`, an `ext:name`, and usually an `ext:renderURL`.
+- **Showing a point:** `await loadExtensions("<NodeName>")` fetches a point's enabled
+  extensions and loads the components their `asset:` properties name. `ExtensionList`
+  renders them. An extension whose assets fail to load is logged and left out.
+- The component gets the extension node as its `extension` prop, to read any of its
+  properties, such as `ext:data`.
 
-Properties every point understands:
+Properties of every extension:
 
 | Property | Type | Meaning |
 |---|---|---|
-| `ext:name` | String | Display name; some consumers show it, e.g. as a widget title |
-| `ext:renderURL` | String | `asset:<entry>.js`; append `?lazy` to defer loading until first render |
-| `defaultOrder` | Long | Order within the point, lower first, default 0 |
-| `ext:defaultDisabled` | Boolean | Skipped without being deleted |
-| `ext:personas` | String[] | Personas this belongs to; absent means all. So far only the dashboards act on it — a first proof of concept, not a limit on where filtering belongs; other points are expected to follow |
+| `ext:name` | String | The extension's name, which a point may show, such as a widget's title |
+| `ext:renderURL` | String | `asset:<entry>.js`. With `?lazy` appended, the asset loads only when first rendered |
+| `defaultOrder` | Long | The position within the point, lowest first, 0 by default |
+| `ext:defaultDisabled` | Boolean | `true` leaves the extension out, without deleting it |
+| `ext:personas` | String[] | The personas the extension is for; absent means all. The dashboards show an extension only to its personas, and other points ignore the property |
 
 ## Catalogue
 
 ### Page shell
 
-`PageLayout` (homepage module) renders a stable screen frame around a scrolling
-middle, every region a point:
+`PageLayout` (homepage module) renders a frame that stays on the screen, around a
+middle that scrolls. Each region is an extension point:
 
 ```
 ┌──────────── frameTop ─────────────┐   Frame regions: always visible, pinned.
@@ -53,48 +53,49 @@ middle, every region a point:
 
 | Point id | Region | Behaviour |
 |---|---|---|
-| `iap/coreUI/frameTop` | Full-width bar, top | Pinned; collapses into a pull-tab drawer below its configured screen height |
+| `iap/coreUI/frameTop` | Full-width bar, top | Pinned. On a screen shorter than its configured height, a pull tab at the edge opens it in a drawer |
 | `iap/coreUI/frameBottom` | Full-width bar, bottom | Same |
-| `iap/coreUI/frameStart` | Side rail, start (left in LTR) | Fixed width, own scrollbar, spans between the bars; collapses into an edge pull-tab drawer below its configured width |
+| `iap/coreUI/frameStart` | Side rail, start (left in LTR) | Fixed width, its own scrollbar, between the bars. On a screen narrower than its configured width, a pull tab at the edge opens it in a drawer |
 | `iap/coreUI/frameEnd` | Side rail, end | Same |
-| `iap/coreUI/pageTop` | Above main content, between rails | Scrolls with the content |
-| `iap/coreUI/pageBottom` | Below main content, between rails | Scrolls with the content |
+| `iap/coreUI/pageTop` | Above the main content, between the rails | Scrolls with the content |
+| `iap/coreUI/pageBottom` | Below the main content, between the rails | Scrolls with the content |
 
-Empty regions render nothing — no rail, no bar, no pull tab. Thresholds and widths are
-per-region in the theme's `iapShell` section
-(`modules/frontend-commons/src/main/frontend/src/appTheme.ts`); currently rails at
-200px collapsing at `md` (start) and `xl` (end), bars collapsing below 500px height.
+An empty region renders nothing: no rail, no bar and no pull tab. Thresholds and widths
+are per region, in the theme's `iapShell` section
+(`modules/frontend-commons/src/main/frontend/src/appTheme.ts`). The defaults are 200px
+rails, collapsing below `md` (start) and `xl` (end), and bars collapsing below a height
+of 500px.
 
 ### Routed views — `iap/coreUI/view` (node `Views`)
 
-`ext:targetURL` is the path the view owns, handed to the router as-is, so router
-patterns work: a parameter (`/Submissions/:id`) or a trailing splat
-(`/Submissions/:id/*`). The breadcrumb trail matches ancestors against the same
-patterns. Use `?lazy` so a view loads only when navigated to.
+`ext:targetURL` is the path the view shows, and the router reads it as a pattern. It
+can have a parameter, such as `:id`, or end in a splat, as `/Submissions/*` does. The
+breadcrumb trail matches ancestors against the same patterns, except those with a
+splat. Use `?lazy` so that a view loads only when it is first shown.
 
-**What a pattern does not do is make its URLs resolvable on the server.** Every view
-URL must be backed by a resource: client-side navigation works regardless, but a
-refresh or deep link asks Sling for the whole URL, and an unresolvable path 404s
-before the SPA loads. `/Submissions/123` resolves (the node serves the shell);
-`/Submissions/123/reviews/financial` does not, however the pattern is written.
+**A pattern does not make its URLs resolvable on the server.** Every view URL must be
+backed by a resource. Navigating inside the application works regardless, but a
+refresh or a deep link asks Sling for the whole URL, and an unresolvable path is a 404
+before the application loads. A submission's own path resolves, since its node serves
+the shell. A path below it, such as `<submission>/reviews/financial`, does not,
+whatever the pattern.
 
 Two ways to back a URL:
 
-- **A node** in the owning module's repoinit — `create path (app:Homepage) /content`.
-  It also carries the page's access control, so denying it to `everyone` makes a deep
-  link an honest 404. Fine for one virtual page; cannot cover varying paths.
+- **A node** in the owning module's repoinit, such as the admin console's
+  `create path (app:Homepage) /admin`. Its access control is the page's, so denying it
+  to `everyone` makes a deep link a 404. A node backs one fixed path, not varying ones.
 - **A `ResourceProvider`**, synthesizing them. `AdminViewResourceProvider`
   (`admin-console`) covers the whole `/admin` subtree in `overlay` mode: anything
   below the console not in the repository is answered with a synthetic resource
   carrying the console's resource type, so the shell renders and the router decides
-  what the path means. Real content still wins, and the synthetic resource borrows
-  `/admin`'s readability since it has no ACL of its own — which is why an admin tool
-  needs no node for `/admin/<tool>`.
+  what the path means. Real content still wins. The synthetic resource has no ACL of
+  its own and is readable when `/admin` is, so an admin tool needs no node for
+  `/admin/<tool>`.
 
-A second, generic provider handles the narrower job of addressing an entity by id
-regardless of where it is filed. `PrefixTreeResourceProvider` (`java-utils`) resolves
-`<mount>/<name>` to the prefix-tree location the node actually occupies, and is
-enabled per subtree by configuration rather than being on everywhere:
+A second provider addresses an entity by its id, wherever it is filed.
+`PrefixTreeResourceProvider` (`java-utils`) resolves `<mount>/<name>` to the node's
+place in the prefix tree. A configuration turns it on for one subtree:
 
 ```json
 "io.uhndata.iap.utils.internal.PrefixTreeResourceProvider~submissions": {
@@ -103,89 +104,86 @@ enabled per subtree by configuration rather than being on everywhere:
 }
 ```
 
-It is active for `/Submissions/by-id` and `/Archive/by-id`. Note it is mounted
-*beside* each tree rather than over it: a provider at `/Submissions` would be handed
-every create below it and could only refuse, which would stop submissions being
-raised. It resolves a single flat segment — no slashes or dots, at least
-`PrefixTree.MINIMUM_NAME_LENGTH` (12) characters — so it makes ids addressable, not
-arbitrary deep paths.
+It is active for `/Submissions/by-id` and `/Archive/by-id`. It is mounted *beside*
+each tree, not over it. Mounted at `/Submissions` in overlay mode, it would be handed
+every write below it and refuse it, and no submission could be created. It resolves a
+single segment, with no slash or dot and at least `PrefixTree.MINIMUM_NAME_LENGTH` (6)
+characters. It makes ids addressable, not deeper paths.
 
-A module wanting deep or varying URLs of its own — the `/Submissions/{id}/*` case —
-still needs a provider of its own over its own root, along the lines of the admin
-console's.
+A module with deeper or varying URLs, such as `/Submissions/<id>/*`, needs a provider
+of its own over its own root. `AdminViewResourceProvider` is one.
 
 ### App bar — `iap/appBar/entry` (node `AppBarEntry`)
 
-The app bar is itself a `frameTop` extension composed of entries on its own point.
-`ext:appBarSection` places an entry in `start`, `middle` (centered) or `end`;
-`defaultOrder` orders within the section.
+The app bar is a `frameTop` extension, and its entries are extensions on a point of its
+own. `ext:appBarSection` places an entry in the `start`, `middle` or `end` section; an
+entry without one is at the start. The `middle` section is centered between the other
+two. `defaultOrder` orders the entries within a section.
 
-Current entries: Branding (start); dark mode toggle, notifications bell,
-administration console button (admins only), user menu with the persona choice (end).
-`middle` is reserved for e.g. a future search bar.
+The entries are the logo (start), then at the end the Administration button for
+administrators, the dark mode toggle, the notifications bell, and the user menu with
+the persona choice. No entry uses `middle`.
 
-A high-visibility element like a maintenance banner registers directly on `frameTop`
-with `defaultOrder` below the app bar's 20 to sit above it. The
-`iap-commons.NoticeBanner` asset renders such a data-only extension: markdown message
-in `ext:data`, optional `ext:severity`.
+A banner, such as a maintenance notice, is an extension on `frameTop` itself, with a
+`defaultOrder` below the app bar's 20 to sit above it. The `iap-commons.NoticeBanner`
+asset renders such a data-only extension: the markdown message in `ext:data`, and an
+optional `ext:severity`.
 
-Adding `ext:visibleBeforeLogin: true` also shows it on the login page, which renders
-`frameTop` extensions carrying that opt-in and nothing else from the frame. Interim
-mechanism: once system tags can declare where an extension belongs, that is expected
-to take over. The conversion is contained — one client-side filter in the login
-module's `PreLoginExtensions`, plus the node type property.
+With `ext:visibleBeforeLogin: true`, it shows on the login page too. The login page
+shows the `frameTop` extensions that carry it, and nothing else of the frame.
 
 ### Footer links — `iap/footer/link` (node `FooterLink`)
 
-The footer is a `pageBottom` extension showing the institution's logo, links and the
-platform version. Its links are **data-only extensions**: no component, just
-`ext:name` (label) and `ext:targetURL` — a path navigates in-app, a full URL opens in
-a new tab. Hide a link whose page isn't ready with `ext:defaultDisabled: true`.
+The footer is a `pageBottom` extension. It shows the institution's logo, the links,
+the platform's name and version, and the DATA credit. Its links are **data-only
+extensions**, with the label in `ext:name` and the target in `ext:targetURL`. A URL
+with a scheme, such as `https:`, opens in a new tab, and any other target is an in-app
+path. Hide a link whose page is not ready with `ext:defaultDisabled: true`.
 
 ### Sign-in methods — `iap/login/signInMethod` (node `SignInMethod`)
 
-The first enabled method renders in place; further methods collapse behind a quiet
-link labelled by `ext:collapsedLabel` (falling back to `ext:name`).
+The first enabled method is shown in place. Each further method is a link that opens
+it, labelled by its `ext:collapsedLabel`, or else its `ext:name`.
 
 The login module registers the local credentials form as the default
-(`/Extensions/SignInMethod/CredentialsForm`, order 100). If no method is registered,
-or the point cannot be loaded, the page renders the credentials form directly — there
-is always a way to sign in.
+(`/Extensions/SignInMethod/CredentialsForm`, order 100). If no method is enabled, or
+the point cannot be loaded, the page shows the credentials form anyway. There is always
+a way to sign in.
 
-An identity-provider integration needs **no frontend code**: the generic
-`iap-login.RedirectSignIn` asset renders a redirect method from a data-only
-extension — `ext:targetURL` (the endpoint starting the round trip; the validated
-in-app return path is attached as its `resource` parameter), optional
-`ext:actionLabel` (default "Continue to sign-in") and optional `ext:hint`. Register it
-with a lower `defaultOrder` than the credentials form to make it primary, and disable
-the credentials form with `ext:defaultDisabled: true` where local accounts shouldn't
-be offered.
+An identity provider needs **no frontend code**. The `iap-login.RedirectSignIn` asset
+renders a data-only extension as a button leading to its `ext:targetURL`, the endpoint
+that starts the sign-in. The page to return to goes along in the `resource` query
+parameter, which the endpoint may ignore. `ext:actionLabel` sets the button's text,
+"Continue to sign-in" by default, and `ext:hint` adds a line under it. Give the
+extension a lower `defaultOrder` than the credentials form to make it the first method.
+Where local accounts should not be offered, disable the credentials form with
+`ext:defaultDisabled: true`.
 
 ### Dashboard widgets — `iap/dashboard/widget` (node `DashboardWidget`)
 
-Tiled on the homepage dashboard in a responsive grid, each framed with a title
-(`ext:name`) and optional `ext:subtitle`. Frame tuning: `ext:widgetWidth`
+Tiled on the landing page's dashboard in a responsive grid, each framed with a title
+(`ext:name`) and optional `ext:subtitle`. The frame is set by `ext:widgetWidth`
 (`normal`/`wide`/`full`), `ext:widgetEmphasis`, `ext:widgetBorderless`,
-`ext:widgetHideHeader`, and `ext:actionLabel` (a header action button leading to
-`ext:targetURL`, an in-app path — both must be set; the title then links there too).
-`ext:personas` restricts a widget, and `ext:widgetGroup` files it under a
-[widget group](#widget-groups).
+`ext:widgetHideHeader`, and `ext:actionLabel`. The last is a button in the header
+leading to `ext:targetURL`, an in-app path, and the title then links there too. It
+needs both properties. `ext:personas` restricts a widget, and `ext:widgetGroup` files
+it under a [widget group](#widget-groups).
 Each column gets an equal share of the dashboard's width, regardless of how wide a
 widget's content is, so the dashboard always fits on a phone's screen. When a
 widget's content is wider than the widget itself, such as a table with many columns,
 the content scrolls sideways inside the widget.
 
 The layout is the shared `WidgetDashboard`
-(`@iap/frontend-commons/components/WidgetDashboard`), parameterized by point. The
-administration console binds the same component to `iap/adminDashboard/entry`, so
-widgets behave identically on both — see [Administration](administration.md).
+(`@iap/frontend-commons/components/WidgetDashboard`), which takes the point as a prop.
+The administration console renders the same component for `iap/adminDashboard/entry`,
+so widgets are laid out the same way on both; see [Administration](administration.md).
 
-#### Widget groups
+### Widget groups
 
 Any dashboard can arrange its widgets into **widget groups**: runs of widgets under a
 muted title across the whole row, with no border or surface, that collapse and expand.
-A collapsed group's title shows how many widgets it holds — `Configuration (3)` — and
-its widgets are unmounted, so they stop fetching whatever they summarize.
+A collapsed group's title shows how many widgets it holds, as in `Configuration (3)`.
+Its widgets are unmounted, so they stop fetching whatever they summarize.
 
 A group is a data-only extension on the **same point as the widgets**, marked as a
 group:
@@ -207,7 +205,7 @@ deployment can relabel a group without touching the widgets that reference it.
 
 | Property | On | Meaning |
 |---|---|---|
-| `ext:isWidgetGroup` | group | `true` marks the extension as a group, not a widget. The marker is explicit because a widget with no `ext:renderURL` is still a widget |
+| `ext:isWidgetGroup` | group | `true` marks the extension as a group, not a widget. A widget with no `ext:renderURL` is still a widget |
 | `ext:name` | group | The title displayed |
 | `defaultOrder` | group | Order among the groups. Widgets keep their own `defaultOrder` within a group |
 | `ext:personas` | group | The personas the group, and so every widget in it, shows to; absent means all |
@@ -215,75 +213,71 @@ deployment can relabel a group without touching the widgets that reference it.
 
 The rules:
 
-- **Within a group, the usual layout applies**: the column count follows the group's
-  own widget count, so a group of two sits side by side exactly as a dashboard of two
-  would.
-- **Ungrouped widgets come last, under "Other"**. So does a widget naming a group that
-  does not exist (renamed, disabled, not installed): the reference is soft and a
-  widget is never lost to it.
-- **When no group has any widget to show, the "Other" title is left out** as well, so a
-  dashboard that defines no groups looks exactly as it did before groups existed. The
-  homepage dashboard is currently like this.
+- **Within a group, the usual layout applies.** The column count follows the group's
+  own widget count, so a group of two sits side by side, as a dashboard of two would.
+- **Ungrouped widgets come last, under "Other".** So does a widget naming a group that
+  does not exist because it was renamed, disabled or never installed.
+- **When no group has any widget to show, the "Other" title is left out** as well. A
+  dashboard that defines no groups shows its widgets with no title at all.
 - **A group appears only when at least one of its widgets is visible in the current
   persona.** `ext:personas` on a group node limits the group and everything in it: a
   widget shows only if both it and its group belong to the persona. A widget hidden
-  with its group is not moved to "Other", so the reason a widget is hidden may be on
-  its group rather than on the widget itself.
-- **Collapsed groups are remembered per viewer**, in the browser's `localStorage`
-  (`iap.widgetDashboard.<point>.collapsed`), so a dashboard looks the same when you
-  return to it from a tool. Storage is a convenience only: without it, every group
-  starts expanded.
+  with its group is not moved to "Other". The reason a widget is hidden may therefore
+  be on its group rather than on the widget itself.
+- **Collapsed groups are remembered in the browser's `localStorage`**
+  (`iap.widgetDashboard.<point>.collapsed`, where `<point>` is the point's node name). A
+  dashboard then looks the same when you return to it from a tool. Without storage,
+  every group starts expanded.
 - If two group nodes share a node name, the first in `defaultOrder` wins.
 
 Keep group nodes in a `Groups/` folder beside the point's widgets
 (`/Extensions/Admin/AdminDashboard/Groups/`). Membership is by `ext:pointId`, so the
-location does not matter to the query, and the folder keeps a group's node name from
-clashing with a widget's (a `Workflows` group beside the `Workflows` widget). Groups
-are flat: no group nests inside another. If that is ever needed, an optional parent
-reference on the group node is the natural extension.
+location does not matter to the query. The folder keeps a group's node name from
+clashing with a widget's, such as a `Workflows` group beside the `Workflows` widget.
+Groups are flat: no group nests inside another.
 
 ### Breadcrumb trail
 
-A `pageTop` extension (homepage module) linking the current URL's **ancestor** pages:
-each ancestor path matching a registered view's `ext:targetURL` becomes a link
-labelled with that view's `ext:name`. Top-level pages render nothing — home is the
-logo, and the current page's title is its heading, not a crumb.
+A `pageTop` extension (homepage module) linking the current URL's **ancestor** pages.
+Each ancestor that a view's `ext:targetURL` matches is a link, labelled with that
+view's `ext:name`. A target with a splat matches none. The root is not a crumb, since
+the logo links there, and nor is the current page, whose title is its heading. A
+top-level page therefore has no crumbs of its own.
 
 A page can add crumbs after those, for what its path alone cannot name:
 `usePageCrumbs([{ path, label }])` from `frontend-commons/pageCrumbs` adds them while
 the page is shown. A schema version's page, `/admin/schemas/<schema>/<version>`, adds
-its schema under the schema's title, since a view's `ext:name` is the same for every
-schema. Access control is
-inherited from the views: one a user cannot read never reaches them.
+its schema under the schema's title, since no view names a path below
+`/admin/schemas`. Access control comes from the views: a user is not served a view
+they cannot read, and gets no crumb for it.
 
 ## Personas
 
-A user acts as one persona at a time — submitter, reviewer, administrator — chosen in
-the user menu. `ext:personas` names the personas an extension belongs to; **naming none
-means all**, so an extension that never considered personas keeps displaying where it
-did, and adding a persona to the platform changes nothing about existing extensions.
-Prefer naming nothing over naming every persona but one, or the extension silently
-disappears from the next persona added.
+A user acts as one persona at a time, chosen in the user menu: submitter, reviewer or
+administrator. `ext:personas` names the personas an extension is for, and **naming none
+means all**. An extension that names no persona is therefore shown to a persona added
+later. Prefer naming none over naming every persona but one, or the extension is hidden
+from the next persona added.
 
-A persona is **presentation only, never access control**: the repository authorizes
-every request independently, and a control hidden from a persona must never be the
-only thing preventing the action behind it.
+A persona is **presentation only, never access control**. The server authorizes every
+request, whatever the persona, and hiding a control from a persona must never be the
+only thing preventing its action.
 
 `personas.ts` exports `PERSONAS`, `availablePersonas`, `getActivePersona`,
-`setActivePersona`, `personaLabel`, `usePersona`, `subscribeToPersona`;
-`extensionManager` exports the `visibleInPersona` predicate alongside `getExtensions`
-and `loadExtensions`. `availablePersonas()` is the seam where the choice will be
-constrained by the user's roles once IAP has any.
+`setActivePersona`, `personaLabel`, `usePersona` and `subscribeToPersona`.
+`extensionManager` exports the `visibleInPersona` test, beside `getExtensions` and
+`loadExtensions`. `availablePersonas()` decides which personas a user may choose, and
+it offers every persona to every user.
 
 ## Adding an extension
 
 Three edits, all in the contributing module.
 
-1. **Component** — a `.tsx` under `src/main/frontend/src/`, receiving the parsed
-   extension node as its `extension` prop.
-2. **Entry point** — a line in the module's `assets.config`:
+1. **Component:** a `.tsx` under `src/main/frontend/src/`, which gets the extension
+   node as its `extension` prop.
+2. **Entry point:** a line in the module's `assets.config`, such as
    `['iap-mymodule.MyControl']: './src/MyControl.tsx'`.
-3. **Node** — JSON under Sling-Initial-Content, e.g.
+3. **Node:** JSON under Sling-Initial-Content, such as
    `SLING-INF/content/Extensions/AppBarEntry/MyControl.json`:
 
 ```json
@@ -300,13 +294,12 @@ Check that the `Extensions/` path is registered in the module's
 `<Sling-Initial-Content>` (pom.xml).
 
 **The asset name chain:** the `assets.config` key (`iap-mymodule.MyControl`) →
-referenced as `asset:iap-mymodule.MyControl.js` → resolved through
-`/libs/iap/resources/assets.json` (content-hashed) at runtime. If a component doesn't
-appear, check `assets.json` for the entry first — a missing one means the build didn't
-pick up the `assets.config` change.
+referenced as `asset:iap-mymodule.MyControl.js` → looked up at runtime in
+`/libs/iap/resources/assets.json`, which gives the file name with its content hash. If
+a component does not appear, look for its entry in `assets.json` first. A missing
+entry means the build did not pick up the `assets.config` change.
 
-**Against a running instance,** rebuild and hot-deploy, then post the node directly, since
-a bundle's initial content is not reliably re-run on redeploy:
+**Against a running instance,** rebuild and deploy the frontend, then post the node:
 
 ```bash
 cd aggregated-frontend && mvn clean install -PautoInstallBundle
@@ -317,9 +310,9 @@ cd aggregated-frontend && mvn clean install -PautoInstallBundle
 
 1. Ship an `ext:Point` node under `/apps/iap/ExtensionPoints/` with a unique
    `ext:pointId` and a descriptive `ext:pointName`.
-2. Consume it: `await loadExtensions("<NodeName>")`, render with `ExtensionList`.
-   Define any per-extension display properties your layout needs (as the app bar does
-   with `ext:appBarSection`) and document them here.
+2. Show it: `await loadExtensions("<NodeName>")`, and render with `ExtensionList`.
+   Define the properties your layout reads on each extension, such as the app bar's
+   `ext:appBarSection`, and document them here.
 3. For anything direction-sensitive, follow the naming rule: physical top/bottom
    vertically, logical start/end horizontally.
 
@@ -327,23 +320,26 @@ cd aggregated-frontend && mvn clean install -PautoInstallBundle
 
 ### Action points
 
-When a point collects the actions available on one kind of thing — a workflow version, a schema
-version, a submission — each extension is a component that renders its own button (and any dialog
-it needs), and decides for itself whether it applies, rendering nothing when it does not. The page
-never learns which actions exist, so another module can add one without touching it.
+A point can collect the actions available on one kind of thing, such as a schema or a
+workflow version. Each of its extensions is a component that renders its own button,
+and any dialog it needs. It decides for itself whether it applies, and renders nothing
+when it does not. The page never learns which actions exist, so another module can add
+one without touching it.
 
-`getActions("<NodeName>")` from `@iap/frontend-commons/actionsManager` resolves a point's
-components, once per page load however many rows ask. A broken extension is skipped and an
-unreadable point yields no actions, so a failing action bar never takes the page down with it. The
-host renders the components in order with a props contract of its own, typically the thing acted
-on, a `reload`, and a way to `report` back.
+`getActions("<NodeName>")` from `@iap/frontend-commons/actionsManager` loads a point's
+components. It reads the point once per page load, however many rows ask. A broken
+extension is skipped, and an unreadable point gives no actions. `ActionBar` renders the
+components in order, with the props the host passes it. Each host defines those props,
+typically the thing acted on, a `reload`, and a `removed` for an action that takes the
+thing away.
 
 Where the same actions are shown in more than one place, such as a list of things and
 each thing's own page, the host names its place: `getActions("<NodeName>", "<place>")`,
 or `ActionBar`'s `place`. An extension says where it belongs with `ext:places`
 (String[]). It is shown only in the places it names, and an extension naming none is
-shown everywhere. An action that belongs in one place says so in its content, not its
-code, so a deployment can move it.
+shown everywhere. A host that names no place shows only the extensions that name none.
+An action that belongs in one place says so in its content, not its code, so a
+deployment can move it.
 
 ## Tools
 

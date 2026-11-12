@@ -43,10 +43,11 @@ import io.uhndata.iap.metrics.api.Metric;
 import io.uhndata.iap.metrics.api.MetricsException;
 
 /**
- * Automatically {@link Metric#rollOver rolls over} every metric that declares a roll-over schedule: one scheduled
- * job per metric, following its Quartz cron expression. The schedules are read when the component starts, and
- * refreshed whenever anything changes under {@code /Metrics}, so newly defined metrics and edited schedules are
- * picked up on the fly. In a cluster the jobs only run on the leader, so each period is closed exactly once.
+ * {@link Metric#rollOver() Rolls over} each metric that has a roll-over schedule, at the times the schedule names.
+ * Each such metric has a job of its own.
+ *
+ * <p>The jobs are brought in line with the metrics when the component starts, and again whenever anything under
+ * {@code /Metrics} changes. In a cluster the jobs run only on the leader, so each period is closed once.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -61,10 +62,10 @@ public class MetricRolloverScheduler implements ResourceChangeListener
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(MetricRolloverScheduler.class);
 
-    /** The recorded-error detail naming which metric a roll-over failure was about. */
+    /** The name of the recorded-error detail that holds the metric's name. */
     private static final String METRIC_DETAIL = "metric";
 
-    /** The recorded-error detail naming the schedule a roll-over failure was configured with. */
+    /** The operation that starts a job, and the name of the recorded-error detail that holds its cron expression. */
     private static final String SCHEDULE_DETAIL = "schedule";
 
     private static final String JOB_NAME_PREFIX = "iap-metrics-rollover-";
@@ -75,7 +76,7 @@ public class MetricRolloverScheduler implements ResourceChangeListener
     @Reference
     private ResourceResolverFactory resolverFactory;
 
-    /** The currently scheduled jobs: metric name to the cron expression it was scheduled with. */
+    /** The jobs started: each one's cron expression, by the name of its metric. */
     private final Map<String, String> scheduled = new HashMap<>();
 
     @Activate
@@ -98,10 +99,9 @@ public class MetricRolloverScheduler implements ResourceChangeListener
     }
 
     /**
-     * Bring the scheduled jobs in line with the schedules currently defined on the metrics: unschedule jobs whose
-     * metric is gone or has a different schedule now, then schedule the metrics not yet scheduled. Metrics without
-     * a schedule are left alone. Cheap when nothing relevant changed, so it can be invoked on every repository
-     * change under {@code /Metrics}, including plain increments.
+     * Bring the jobs in line with the metrics' schedules. A job whose metric is gone, or whose schedule changed, is
+     * stopped. A metric with a schedule and no job gets one, including a metric whose schedule was refused before. If
+     * the schedules cannot be read, the jobs stay as they are.
      */
     private synchronized void synchronizeSchedules()
     {
@@ -127,10 +127,11 @@ public class MetricRolloverScheduler implements ResourceChangeListener
     }
 
     /**
-     * Gather the declared roll-over schedules.
+     * The roll-over schedules of the metrics.
      *
-     * @return a map from metric name to its cron expression, only for the metrics declaring one
-     * @throws MetricsException if the repository cannot be accessed
+     * @return each cron expression by the name of its metric, for the metrics whose schedule is not blank; empty if
+     *         {@code /Metrics} is missing
+     * @throws MetricsException if the metrics service user cannot log in
      */
     private Map<String, String> readSchedules()
     {
@@ -149,11 +150,11 @@ public class MetricRolloverScheduler implements ResourceChangeListener
     }
 
     /**
-     * Schedule the periodic roll-over of one metric.
+     * Start the job that rolls over one metric. A refusal is logged and recorded as an error.
      *
-     * @param name the name of the metric
+     * @param name the metric's name
      * @param schedule the Quartz cron expression to follow
-     * @return whether the job was successfully scheduled
+     * @return {@code true} if the job was started
      */
     private boolean schedule(final String name, final String schedule)
     {
@@ -180,17 +181,14 @@ public class MetricRolloverScheduler implements ResourceChangeListener
     }
 
     /**
-     * The scheduled job itself: roll over one metric. Failures are logged, so that the job remains scheduled and
-     * gets another chance at the next period.
+     * Roll over one metric, as its job does. A failure is logged and recorded as an error, and the job runs again at
+     * the next time its schedule names.
      *
-     * @param name the name of the metric to roll over
+     * @param name the metric's name
      */
     void rollOver(final String name)
     {
         try {
-            // Straight to the handle rather than through MetricsManager.getMetric: that would open a session only to
-            // confirm the metric is still there, which the roll-over itself reports anyway. A metric deleted between
-            // being scheduled and firing is now logged below instead of passing silently.
             new MetricImpl(this.resolverFactory, name).rollOver();
         } catch (final RuntimeException e) {
             LOGGER.warn("Scheduled roll-over of metric {} failed: {}", name, e.getMessage(), e);

@@ -21,8 +21,8 @@ import { render, screen } from "@testing-library/react";
 import Dashboard from "@iap/homepage/Dashboard";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
-// Only the loading half is mocked; visibleInPersona is pure, and the persona filtering the shared
-// WidgetDashboard applies is only worth exercising against the real predicate.
+// Only loadExtensions is replaced. WidgetDashboard filters the widgets with the real
+// visibleInPersona.
 vi.mock("@iap/ui-extension/extensionManager", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@iap/ui-extension/extensionManager")>()),
   loadExtensions: vi.fn(),
@@ -30,8 +30,6 @@ vi.mock("@iap/ui-extension/extensionManager", async (importOriginal) => ({
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
-// The layout itself (grid, frames, loading, empty state) is covered by the shared
-// WidgetDashboard's own tests in frontend-commons; here only the binding matters.
 describe("Dashboard", () => {
   it("lays out the widgets of the iap/dashboard/widget extension point", async () => {
     mockedLoadExtensions.mockResolvedValue([{

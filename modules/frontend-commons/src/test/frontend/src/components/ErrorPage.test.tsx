@@ -47,7 +47,7 @@ describe("ErrorPage", () => {
 
     expect(screen.queryByRole("heading")).not.toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    // Only the (unconfigured, so empty) logo slot is left
+    // The logo is not configured, so nothing is left
     expect(container.textContent).toBe("");
   });
 
@@ -65,8 +65,6 @@ describe("ErrorPage", () => {
     expect(setHref).toHaveBeenCalledWith("/home");
   });
 
-  // Half a button is worse than none: a label with nowhere to go just reloads the page, and a link
-  // with nothing to label it is a blank button.
   it.each([
     ["only a label is supplied", { buttonLabel: "Go home" }],
     ["only a link is supplied", { buttonLink: "/home" }],
@@ -76,7 +74,6 @@ describe("ErrorPage", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  // An explicitly empty colour has to fall back to the default just as a missing one does
   it.each(["", undefined])("falls back to the default colours for %o", colour => {
     renderErrorPage({
       errorCode: "500",
@@ -90,7 +87,6 @@ describe("ErrorPage", () => {
     expect(screen.getByRole("heading", { level: 1, name: "500" })).toBeInTheDocument();
   });
 
-  // Anything carrying a server-supplied value goes here rather than into the markdown message
   it("shows supporting detail under the message", () => {
     renderErrorPage({ message: "No such page", children: <a href="/elsewhere">Look here instead</a> });
 

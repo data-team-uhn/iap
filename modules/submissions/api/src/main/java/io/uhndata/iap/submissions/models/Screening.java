@@ -43,7 +43,7 @@ public class Screening extends Feedback
     /**
      * A short summary of the whole screening.
      *
-     * @return the summary, or {@code null} if the run gave none
+     * @return the summary; {@code null} if the run gave none
      */
     @Nullable
     public String getSummary()

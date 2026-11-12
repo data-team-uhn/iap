@@ -39,8 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ContentMoverImpl}: a node moves with its subtree and keeps its name unless the new parent has
- * it already. It lands where asked among its siblings, and participants are called only when its path changes.
+ * Unit tests for {@link ContentMoverImpl}: a node moves with its subtree, under the name it is given. It lands where
+ * asked among its siblings, and participants are called only when its path changes.
  *
  * @version $Id$
  * @since 0.1.0

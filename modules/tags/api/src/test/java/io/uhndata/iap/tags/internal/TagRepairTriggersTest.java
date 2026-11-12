@@ -98,7 +98,6 @@ class TagRepairTriggersTest
 
         assertEquals(ScheduledTagRepair.JOB_NAME, this.scheduler.name);
         assertEquals("0 0 * * * ? *", this.scheduler.expression);
-        // Two sweeps at once would find the same nodes and fight over them
         assertFalse(this.scheduler.concurrent);
 
         sweep.sweep();
@@ -113,7 +112,6 @@ class TagRepairTriggersTest
         assertNull(this.scheduler.name);
     }
 
-    /** An unusable schedule must not stop the module from starting; repair stays available on request. */
     @Test
     void survivesAnUnusableSchedule() throws Exception
     {
@@ -355,7 +353,7 @@ class TagRepairTriggersTest
             this.unscheduled = jobName;
         }
 
-        // The rest of the interface is a decade of deprecated scheduling calls that nothing here uses
+        // The rest of the interface: deprecated scheduling calls that nothing here uses
         @Override
         @Deprecated
         public void addJob(final String n, final Object j, final Map<String, Serializable> c, final String e,

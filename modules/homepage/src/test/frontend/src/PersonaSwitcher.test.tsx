@@ -22,14 +22,14 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import PersonaSwitcher from "@iap/homepage/PersonaSwitcher";
 import { STORE_KEY, availablePersonas, getActivePersona } from "@iap/ui-extension/personas";
 
-// Only availablePersonas is stubbable, so a test can present a user with nothing to switch between;
-// everything else is the real store.
+// Only availablePersonas is replaced, so that a test can offer a single persona. The rest is the
+// real store.
 vi.mock("@iap/ui-extension/personas", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@iap/ui-extension/personas")>();
   return { ...actual, availablePersonas: vi.fn(actual.availablePersonas) };
 });
 
-// The active persona is held on `window`; reset it so tests don't inherit each other's choice.
+// The active persona is kept on `window`, which would carry it into the next test
 afterEach(() => {
   Reflect.deleteProperty(window, STORE_KEY);
 });
@@ -38,8 +38,7 @@ const renderInMenu = (onChoose?: () => void) =>
   render(<MenuList><PersonaSwitcher onChoose={onChoose} /></MenuList>);
 
 describe("PersonaSwitcher", () => {
-  // The check mark marking the active persona is decorative, so aria-checked is the only thing that
-  // tells a screen reader which hat is on.
+  // The check mark is decorative. aria-checked tells a screen reader which persona is active.
   it("lists the personas the user may act as, checking the active one", () => {
     renderInMenu();
 

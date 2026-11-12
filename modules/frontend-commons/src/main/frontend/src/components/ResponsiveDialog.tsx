@@ -37,21 +37,17 @@ type ResponsiveDialogProps = Omit<DialogProps, "title" | "onClose" | "maxWidth">
   onClose?: (event: object) => void;
 };
 
-// Component that renders the Dialog containers that expand to full screen once
-// the screen becomes more narrow than the specified width
+// A Dialog that goes full screen on a screen narrower than its width. A click on the backdrop never
+// closes it.
 //
 // Optional props:
-// title: String specifying the title of the dialog
-// withCloseButton: Boolean specifying whether the dialog should have a Close button (x)
-//   at the top-right corner
-// closeDisabled: Boolean refusing every way out of the dialog - the close button, the
-//   Escape key - for as long as it is set. A dialog running an action it cannot take
-//   back sets it while that action is in flight, so that disabling its own Cancel button
-//   is not quietly undone by the chrome around it.
-// width: the default size of the dialog, and the screen size that makes it go
-//   fullScreen. One of xs, sm, md, lg, xl. Defaults to sm.
-// children: the dialog contents
-// onClose: Callback for closing the dialog
+// title: the dialog's title. Without it, the dialog has no title bar and no close button.
+// withCloseButton: puts a close button (x) at the end of the title bar.
+// closeDisabled: refuses the close button and the Escape key while it is set. A dialog sets it while
+//   an action it cannot take back runs, so that the close button does not undo its disabled Cancel.
+// width: the dialog's size, and the breakpoint below which it goes full screen: xs, sm, md, lg or
+//   xl. Defaults to sm.
+// onClose: called when the close button or Escape closes the dialog.
 //
 // Sample usage:
 //<ResponsiveDialog

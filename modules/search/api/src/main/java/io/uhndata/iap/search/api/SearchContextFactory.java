@@ -26,12 +26,13 @@ import org.jetbrains.annotations.NotNull;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
- * Builder for {@link SearchContext} instances. Start with {@link #newSearchContext()}, configure, then
- * {@link #build()}. The builder may be reused afterwards: {@code build()} copies the configuration.
+ * Builds the {@link SearchContext} a quick search engine is asked with. Start with {@link #newSearchContext()}, set
+ * the values, then call {@link #build()}. A builder can build several contexts. A change made after {@code build()}
+ * does not reach a context already built.
  *
  * <p>
- * Reuse it within one request, not across several. A built context carries the requesting user's resource resolver,
- * which is closed with that request.
+ * Use a builder within one request. The resource resolver it holds is the requesting user's, and it closes with that
+ * request.
  * </p>
  *
  * @version $Id$
@@ -50,16 +51,16 @@ public final class SearchContextFactory
 
     private ResourceResolver resourceResolver;
 
-    /** Private constructor, instances come from {@link #newSearchContext()}. */
+    /** Instances come from {@link #newSearchContext()}. */
     private SearchContextFactory()
     {
         // Use newSearchContext()
     }
 
     /**
-     * Start building a new {@link SearchContext} instance.
+     * Starts building a context.
      *
-     * @return a factory instance
+     * @return a new builder, with the default maximum number of results and nothing else set
      */
     @NotNull
     public static SearchContextFactory newSearchContext()
@@ -70,7 +71,7 @@ public final class SearchContextFactory
     /**
      * Set the {@link SearchContext#getQuery() query} to look for.
      *
-     * @param query the text to look for
+     * @param query the text to look for, as the user typed it
      * @return this builder, for chaining calls
      */
     @NotNull
@@ -101,7 +102,7 @@ public final class SearchContextFactory
     /**
      * Set the {@link SearchContext#getResourceTypes() node types} to look in.
      *
-     * @param resourceTypes the node types to search, in the {@code sub:Submission} format
+     * @param resourceTypes node type names, such as {@code sub:Submission}; {@code null} for none
      * @return this builder, for chaining calls
      */
     @NotNull
@@ -132,8 +133,7 @@ public final class SearchContextFactory
      * returned context.
      *
      * @return a {@link SearchContext} instance
-     * @throws IllegalStateException if the query, the node types to search, or the resource resolver have not been
-     *             set yet
+     * @throws IllegalStateException if the query is blank, or if no node types or no resource resolver are set
      */
     @NotNull
     public SearchContext build()
@@ -145,7 +145,7 @@ public final class SearchContextFactory
             throw new IllegalStateException(
                 "Node types not set yet, withResourceTypes(types) must be called before build()");
         }
-        // Mandatory rather than defaulted. A search with no resolver cannot be access-controlled.
+        // No default: the requesting user's resolver is what limits a search to what they may read
         if (this.resourceResolver == null) {
             throw new IllegalStateException(
                 "Resource resolver not set yet, withResourceResolver(resolver) must be called before build()");
@@ -154,7 +154,7 @@ public final class SearchContextFactory
     }
 
     /**
-     * The immutable snapshot handed to the search engines.
+     * The context {@link #build()} returns. Its values never change.
      *
      * @since 0.1.0
      */
@@ -194,7 +194,7 @@ public final class SearchContextFactory
         @NotNull
         public List<String> getResourceTypes()
         {
-            // The list is already immutable. copyOf returns the same instance, and satisfies the static analysis.
+            // copyOf returns an immutable list as it is, and satisfies SpotBugs
             return List.copyOf(this.resourceTypes);
         }
 

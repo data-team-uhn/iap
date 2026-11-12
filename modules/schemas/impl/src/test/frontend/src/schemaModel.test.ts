@@ -70,7 +70,7 @@ describe("schemaModel", () => {
     expect(nextVersionLabel(study)).toBe("4.0");
     // Labelled 0.1, but named v1, so the server's next is v2
     expect(nextVersionLabel(idea)).toBe("2.0");
-    // Named by hand as an import may, named without a number, and labelled freely: only the names count
+    // Versions named 1.0, pilot and v2, with labels that do not match: only the names count
     const version = (label: string) => ({ "jcr:primaryType": "sch:SchemaVersion", "version": label });
     expect(nextVersionLabel(withPaths("/Schemas/hand",
       { "1.0": version("1.0"), "pilot": version("Pilot"), "v2": version("2026") }))).toBe("3.0");

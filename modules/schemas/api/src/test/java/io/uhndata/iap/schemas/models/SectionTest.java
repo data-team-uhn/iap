@@ -109,8 +109,7 @@ class SectionTest
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/section",
             "sling:resourceType", Section.RESOURCE_TYPE);
-        // sling:resourceSuperType is mandatory/autocreated on sch:FormItem in the real CND;
-        // sling-mock doesn't know about the CND, so it must be set explicitly here.
+        // The CND sets sling:resourceSuperType, and sling-mock does not read the CND
         this.context.create().resource("/Schemas/schema/1.0/section/sub", Map.of(
             "sling:resourceType", Section.RESOURCE_TYPE, "sling:resourceSuperType", FormItem.RESOURCE_TYPE,
             "title", "Nested section"));

@@ -17,8 +17,7 @@
 <test = 'https://iap.uhndata.io/test/'>
 <link = 'https://iap.uhndata.io/link/'>
 
-// Replicates the shape of a versionable entity: the links container and
-// everything under it stay out of the version history, so links can be
-// added and removed without checking their holder out.
+// A versionable entity whose versions leave out the links container, so
+// links can be added and removed without checking the holder out.
 [test:Deletable] > nt:unstructured, mix:referenceable, mix:versionable
   + link:links (link:Links) = link:Links IGNORE

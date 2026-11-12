@@ -43,7 +43,6 @@ describe("parseNotification", () => {
   });
 
   it("leaves out what it cannot read, rather than inventing it", () => {
-    // A notification whose subject was deleted, and one the serializer sent without a message
     const sparse = parseNotification({ "@path": "/n" });
     expect(sparse.message).toBe("");
     expect(sparse.read).toBe(false);

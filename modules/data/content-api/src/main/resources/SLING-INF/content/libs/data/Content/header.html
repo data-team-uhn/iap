@@ -29,8 +29,8 @@
         <meta name="${item.key}" content="${item.value}">
       </sly>
     </sly>
-    <!--/* The .svg carries a dark-scheme variant and wins wherever it is supported; browsers that
-           ignore SVG icons (Safari) fall back to the .ico. */-->
+    <!--/* A browser that supports SVG icons uses the .svg, which has a dark-scheme variant. Any other
+           browser uses the .ico. */-->
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />

@@ -74,7 +74,6 @@ class ScheduledSlackNotificationTest
     @Test
     void aValueNamingAnEnvironmentVariableIsReadFromIt()
     {
-        // A webhook address is a secret, so it is named rather than written into the configuration
         assertEquals(System.getenv("PATH"), ScheduledSlackNotification.resolve("%ENV%PATH"));
     }
 
@@ -129,7 +128,6 @@ class ScheduledSlackNotificationTest
     {
         this.component.activate(configuration("%ENV%IAP_NO_SUCH_VARIABLE_EXISTS", "0 0 0 1 * ? *"));
 
-        // Scheduling a job that could only ever fail would report the same failure every single night
         verify(this.scheduler, never()).schedule(any(), any());
     }
 
@@ -154,9 +152,6 @@ class ScheduledSlackNotificationTest
     @Test
     void producersRegisteringDuringARunDoNotDisturbIt() throws ReflectiveOperationException
     {
-        // Declarative Services updates this list in place, on whichever thread starts or stops a producer bundle,
-        // while a scheduled notification may be iterating it. A plain list answers that with a
-        // ConcurrentModificationException, taking the notification down with it.
         final List<SlackNotificationProducer> producers = producers();
         producers.add(mock(SlackNotificationProducer.class));
 
@@ -178,7 +173,6 @@ class ScheduledSlackNotificationTest
 
         producers.add(mock(SlackNotificationProducer.class));
 
-        // The run works from the set that existed when it started; the newcomer is picked up by the next one
         assertTrue(run.hasNext());
         run.next();
         assertFalse(run.hasNext());

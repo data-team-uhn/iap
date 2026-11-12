@@ -44,7 +44,6 @@ describe("DateAnswer", () => {
     expect(renderDate([ "2026-11-03" ]).input).toHaveValue("2026-11-03");
   });
 
-  // The stored form is what a condition compares, so it must not depend on the reader's locale
   it("saves the day in the format the input stores, once the field is left", async () => {
     const { input, onAnswered } = renderDate();
 

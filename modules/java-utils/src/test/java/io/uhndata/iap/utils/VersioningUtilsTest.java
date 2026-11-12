@@ -102,8 +102,7 @@ class VersioningUtilsTest
     @Test
     void stopsAtTheRootWhenNothingVersionableHoldsTheContent() throws RepositoryException
     {
-        // Impossible in a conformant repository, where only a versionable node checks content in; the walk still
-        // stops at the root rather than asking it for a parent
+        // Only a mock can be checked in with nothing versionable above it
         final Node node = Mockito.mock(Node.class);
         final Node root = Mockito.mock(Node.class);
         Mockito.when(node.getDepth()).thenReturn(1);

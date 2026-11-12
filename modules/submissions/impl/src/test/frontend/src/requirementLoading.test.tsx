@@ -57,8 +57,7 @@ function servingTheForm() {
   } as unknown as Response));
 }
 
-// The loader keeps its result for the module's life, so this file holds one case. How a load is
-// shared, retried and reported is the loader's own to test.
+// The loader keeps its result for the life of the module, so this file holds one case.
 describe("drawing a requirement whose component another module contributes", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -74,7 +73,7 @@ describe("drawing a requirement whose component another module contributes", () 
     vi.stubGlobal("fetch", fetchMock);
 
     render(<SubmissionEditor path={PATH} />);
-    // Every pending read settles, so only the components are still on their way
+    // Every pending read settles, leaving only the components on their way
     await act(() => new Promise(resolve => setTimeout(resolve, 0)));
 
     expect(fetchMock).toHaveBeenCalled();

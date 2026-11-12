@@ -22,9 +22,13 @@ import { type Extension } from "@iap/ui-extension/ExtensionList";
 
 import { loginRedirectPath } from "./loginRedirect";
 
-// The URL this method navigates to: the extension's `ext:targetURL`, with the validated
-// in-app return path attached as its `resource` parameter so the authentication endpoint
-// can send the user back to where they were headed. Exported for tests.
+// The URL this method goes to: the extension's `ext:targetURL`, with the page to return to,
+// from `loginRedirectPath`, in its `resource` query parameter. `null` if the extension has no
+// target, or one that is not a URL.
+//
+// Where the user lands after signing in is up to the endpoint, which may ignore `resource`.
+// Sling's OIDC authentication handler does: it sends the user back to the path that started the
+// sign-in.
 export function redirectSignInTarget(extension: Extension): string | null {
   const target = extension["ext:targetURL"];
   if (typeof target !== "string" || !target) {
@@ -40,14 +44,13 @@ export function redirectSignInTarget(extension: Extension): string | null {
   return url.toString();
 }
 
-// A sign-in method that hands authentication to an external identity provider: a single
-// action navigating to the endpoint that starts the authentication round trip. The identity
-// provider integration (e.g. the keycloak module) only has to register an extension
-// node — this component is the whole frontend. The extension provides:
-// - `ext:targetURL`: the endpoint to navigate to (required; nothing renders without it);
-// - `ext:actionLabel` (optional): the button text, defaulting to "Continue to sign-in";
-// - `ext:hint` (optional): a short explanation displayed under the button, e.g. telling the
-//   user they are about to be redirected.
+// A sign-in method that hands authentication to an identity provider: one button, leading to
+// the endpoint that starts the sign-in. An identity provider needs no frontend code, only an
+// extension naming this component. The extension's properties:
+// - `ext:targetURL`: the endpoint. Without a usable one, nothing is shown.
+// - `ext:actionLabel`, optional: the button's text, "Continue to sign-in" by default.
+// - `ext:hint`, optional: a line under the button, such as one saying the user will be
+//   redirected.
 export default function RedirectSignIn({ extension }: { extension: Extension }) {
   const target = redirectSignInTarget(extension);
   const label = (extension["ext:actionLabel"] as string | undefined) ?? "Continue to sign-in";

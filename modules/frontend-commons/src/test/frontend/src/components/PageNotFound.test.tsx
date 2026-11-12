@@ -22,7 +22,7 @@ import { render, screen } from "@testing-library/react";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import PageNotFound from "@iap/frontend-commons/components/PageNotFound";
 
-/** What the server left on the container, which is all this page knows about the path that was asked for. */
+/** What the server writes on the 404 page's container about the requested path. */
 interface Deletion {
   deletedAt?: string;
   deletedBy?: string;
@@ -35,7 +35,7 @@ const renderPageNotFound = (deletion: Deletion = {}) => render(
   </ThemeProvider>
 );
 
-/** Configuration reaches the page as `<meta>` tags, the way /libs/iap/conf reaches every other page. */
+/** Sets configuration as the page receives it, in `<meta>` tags. */
 const configure = (values: Record<string, string>) => {
   Object.entries(values).forEach(([name, content]) => {
     const meta = document.createElement("meta");
@@ -103,8 +103,7 @@ describe("PageNotFound", () => {
     expect(screen.getByText("Deleted by alice")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View the archive entry" })).toHaveAttribute(
       "href", "/admin/archive/abc");
-    // Supporting detail, not sections of the page: MUI renders subtitle1 as an h6 unless told
-    // otherwise, which would put "Deleted by alice" into the document outline
+    // Only the code and the title are headings. MUI renders subtitle1 as an h6 unless told otherwise.
     expect(screen.getAllByRole("heading")).toHaveLength(2);
   });
 

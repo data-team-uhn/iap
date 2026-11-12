@@ -18,7 +18,7 @@
 
 import type { EntityGridColumn } from "./registry";
 
-// How entity timestamps display throughout the grids: like toLocaleString, minus the seconds.
+// A timestamp as the entity grids show it: in the user's locale, without the seconds.
 export function formatDateTime(value: Date): string {
   return value.toLocaleString(undefined, {
     year: "numeric",
@@ -29,24 +29,24 @@ export function formatDateTime(value: Date): string {
   });
 }
 
-// A stored timestamp as the Date a dateTime column takes, or null when there is none
+// A stored timestamp as the Date a dateTime column takes; null unless it is a string or a number
 export function dateValue(value: unknown): Date | null {
   return typeof value === "string" || typeof value === "number" ? new Date(value) : null;
 }
 
-// The day of a stored timestamp, for a card that the full timestamp would crowd
+// The date of a stored timestamp in the user's locale, without the time; undefined if there is none
 export const dayOf = (value: unknown): string | undefined => dateValue(value)?.toLocaleDateString();
 
-// Puts the compact timestamp rendering on every dateTime column that doesn't bring its own formatter.
+// Gives every dateTime column without a formatter of its own the format of formatDateTime.
 export function withCompactDates(columns: EntityGridColumn[]): EntityGridColumn[] {
   return columns.map(column => column.type === "dateTime" && !column.valueFormatter
     ? { ...column, valueFormatter: (value?: Date) => value ? formatDateTime(value) : "" }
     : column);
 }
 
-// A cell rendering a component needs `display: "flex"` to center a child element. The
-// default lays the cell out against a text baseline, so a chip sits high against the plain cells
-// beside it.
+// Lays out every column that renders a component, and sets no `display` of its own, as a flex
+// cell. The default lays a cell out on a text baseline, and a chip there sits higher than the
+// plain cells beside it.
 export function withElementCellsCentred(columns: EntityGridColumn[]): EntityGridColumn[] {
   return columns.map(column => column.renderCell && !column.display
     ? { ...column, display: "flex" as const }

@@ -20,9 +20,9 @@ import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
 
 import { ARCHIVE_PATH } from "./archiveApi";
 
-// An administration console widget summarizing the archive: how many deletions were recorded
-// recently and in total. The way through to the full view is the frame's own header action, from
-// the extension's `ext:actionLabel` and `ext:targetURL`, so this renders only the summary.
+// An administration console widget counting the archive's entries: in the last day, the last week,
+// and in total. The frame's header action, from the extension's `ext:actionLabel` and
+// `ext:targetURL`, leads to the archive's page.
 function ArchiveWidget() {
   return <WidgetStatList url={ARCHIVE_PATH} name="archive" />;
 }

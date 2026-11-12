@@ -42,19 +42,20 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
- * A HTL Use-API that lists UI Extensions. To use this API, simply place the following code in a HTL file:
+ * The extensions registered on one extension point, for an HTL script. The script names the point by its
+ * {@code ext:pointId}, in the {@code uixp} option, and gets the extensions in their {@code defaultOrder}:
  *
  * {@snippet lang=html :
- * <input data-sly-use.em="${'io.uhndata.iap.uix.ExtensionsManager' @ uixp='ExtensionPointName'}"
+ * <input data-sly-use.em="${'io.uhndata.iap.uix.ExtensionsManager' @ uixp='iap/coreUI/view'}"
  *   type="hidden" id="SomeIdentifier" value="${em.enabled}" />
  * }
  *
  * <p>
- * Another way, using the resources themselves instead of the JSON serialization:
+ * The script can also list the extensions as resources, instead of as JSON:
  * </p>
  *
  * {@snippet lang=html :
- *   <ul data-sly-use.em="${'io.uhndata.iap.uix.ExtensionsManager' @ uixp='ExtensionPointName'}">
+ *   <ul data-sly-use.em="${'io.uhndata.iap.uix.ExtensionsManager' @ uixp='iap/coreUI/view'}">
  *     <li data-sly-repeat="${em.listAll}">${item.name}</li>
  *   </ul>
  * }
@@ -85,17 +86,16 @@ public class ExtensionsManager implements Use
             findExtensions(uixp);
         } catch (Exception e) {
             LOGGER.error("Unexpected error while querying extensions: {}", e.getMessage(), e);
-            // The extension point renders empty, which is exactly how a point with nothing registered renders, so
-            // a whole piece of the interface can go missing without anything looking wrong
             ErrorLogger.logError(e, ErrorContext.of(ExtensionsManager.class, "findExtensions")
                 .with("extensionPoint", uixp));
         }
     }
 
     /**
-     * Finds all the extensions for the given extension point and collects them in {@link #matchingExtensions}.
+     * Finds the extensions registered on an extension point, in their {@code defaultOrder}, and keeps them in
+     * {@link #matchingExtensions}.
      *
-     * @param extensionPointId the identifier of an extension point
+     * @param extensionPointId the {@code ext:pointId} of the extension point, such as {@code iap/coreUI/view}
      */
     private void findExtensions(final String extensionPointId) throws RepositoryException
     {
@@ -109,11 +109,10 @@ public class ExtensionsManager implements Use
     }
 
     /**
-     * Gets all the matching extensions as a serialized JSON array. The extensions are ordered in the preferred display
-     * order. This includes disabled extensions, so it should not be used for actually listing the extensions to be
-     * displayed, see {@link #getEnabled()}.
+     * All the extensions of the point as a JSON array, the disabled ones included. The extensions to show are
+     * {@link #getEnabled()}.
      *
-     * @return a JsonArray with all the matching extensions
+     * @return a JSON array with one object per extension; empty if none were found
      * @see #getEnabled()
      */
     @NotNull
@@ -123,12 +122,11 @@ public class ExtensionsManager implements Use
     }
 
     /**
-     * Gets all the matching extensions. The extensions are ordered in the preferred display order. This includes
-     * disabled extensions, so it should not be used for actually listing the extensions to be displayed, see
-     * {@link #getEnabled()}.
+     * All the extensions of the point, the disabled ones included. The extensions to show are
+     * {@link #listEnabled()}.
      *
-     * @return a list of all the matching extensions
-     * @see #getEnabled()
+     * @return the extension resources, in a list that cannot be modified; empty if none were found
+     * @see #listEnabled()
      */
     @NotNull
     public List<Resource> listAll()
@@ -137,10 +135,9 @@ public class ExtensionsManager implements Use
     }
 
     /**
-     * Gets the non-disabled matching extensions as a serialized JSON array. The extensions are ordered in the preferred
-     * display order.
+     * The extensions of the point that {@code ext:defaultDisabled} does not disable, as a JSON array.
      *
-     * @return a JsonArray with the enabled matching extensions
+     * @return a JSON array with one object per extension; empty if none is enabled
      */
     @NotNull
     public String getEnabled()
@@ -149,9 +146,9 @@ public class ExtensionsManager implements Use
     }
 
     /**
-     * Gets the non-disabled matching extensions. The extensions are ordered in the preferred display order.
+     * The extensions of the point that {@code ext:defaultDisabled} does not disable.
      *
-     * @return a list of the enabled matching extensions
+     * @return the extension resources; empty if none is enabled
      */
     @NotNull
     public List<Resource> listEnabled()
@@ -165,11 +162,10 @@ public class ExtensionsManager implements Use
     }
 
     /**
-     * Serializes a list of extension resources as a JSON Array.
+     * Serializes extensions as a JSON array. An extension that cannot be serialized is logged and left out.
      *
-     * @param extensions the extensions to serialize
-     * @return a string representing a JSON Array, with each of the passed extensions in turn serialized as a JSON
-     *         Object
+     * @param extensions the extension resources to serialize
+     * @return the text of a JSON array, with one object per extension
      */
     private String toString(final List<Resource> extensions)
     {
@@ -177,7 +173,6 @@ public class ExtensionsManager implements Use
         extensions.stream().forEach(extension -> {
             final JsonObject json = extension.adaptTo(JsonObject.class);
             if (json == null) {
-                // A failed serialization of one extension shouldn't take down the whole extension point
                 LOGGER.warn("Could not serialize extension [{}] to JSON, skipping it", extension.getPath());
                 ErrorLogger.logProblem("extension could not be serialized",
                     ErrorContext.of(ExtensionsManager.class, "toString").about(extension));

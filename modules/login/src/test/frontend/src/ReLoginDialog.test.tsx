@@ -24,8 +24,8 @@ import { appTheme } from "@iap/frontend-commons/appTheme";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { ReLoginDialog, ReLoginProvider } from "@iap/login/ReLoginDialog";
 
-// Runs a request through the provider, so the tests exercise the whole round trip: expired
-// session, dialog, sign-in, re-sent request.
+// Sends a request through the provider, so the tests cover the whole round trip: the expired
+// session, the dialog, the sign-in, and the request sent again.
 function Caller({ label, onResult }: { label: string; onResult: (outcome: string) => void }) {
   const authenticatedFetch = useAuthenticatedFetch();
   return (
@@ -123,8 +123,8 @@ describe("ReLoginProvider", () => {
     </ThemeProvider>
   );
 
-  // Signs in, queueing the answers the re-sent requests should get afterwards. Order matters: the
-  // form's own POST is the next request to go out, and the retries follow it.
+  // Signs in, and queues the answers the requests sent again get afterwards. The form's own POST
+  // is the next request to go out, and the retries follow it.
   const signIn = async (
     user: ReturnType<typeof userEvent.setup>,
     { success = true, then = [] }: { success?: boolean; then?: Response[] } = {},
@@ -148,8 +148,8 @@ describe("ReLoginProvider", () => {
     fetchMock.mockResolvedValueOnce(expired()).mockResolvedValueOnce(expired());
     renderWithProvider(["A", "B"], onResult);
 
-    // Both have to fail before the dialog opens; once it has, the modal puts the rest of the page
-    // behind aria-hidden, so these go through fireEvent rather than user-event's pointer checks.
+    // Both have to fail before the dialog opens. fireEvent clicks synchronously, so B is clicked
+    // before A's request has its answer.
     fireEvent.click(screen.getByRole("button", { name: "A" }));
     fireEvent.click(screen.getByRole("button", { name: "B" }));
     await screen.findByRole("heading", { name: "Your session has expired" });
@@ -210,15 +210,14 @@ describe("ReLoginProvider", () => {
     fetchMock.mockResolvedValueOnce(expired());
     await user.click(screen.getByRole("button", { name: "A" }));
 
-    // The queue was emptied by the first sign-in, so this is a fresh prompt rather than a stale one
+    // The first sign-in emptied the queue, so this is a new prompt
     expect(await screen.findByRole("heading", { name: "Your session has expired" })).toBeInTheDocument();
     await signIn(user, { then: [ok("recovered again")] });
     await waitFor(() => { expect(onResult).toHaveBeenLastCalledWith("A:recovered again"); });
   });
 
-  // The dialog is asked for again before the closing one has finished its exit transition, so the
-  // second prompt is the same form the first sign-in was submitted on: it has to be usable, or the
-  // only way out of the loop is Cancel, which is exactly the lost work this dialog exists to save.
+  // The dialog opens again before it has finished closing, so the second prompt is the same form
+  // the first sign-in was submitted on.
   it("offers a form that can be submitted again when the re-sent request expires too", async () => {
     const user = userEvent.setup();
     const onResult = vi.fn();
@@ -232,7 +231,7 @@ describe("ReLoginProvider", () => {
     await screen.findByRole("heading", { name: "Your session has expired" });
     expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
 
-    // And signing in again really does get the request through
+    // Signing in again gets the request through
     await signIn(user, { then: [ok("recovered at last")] });
     await waitFor(() => { expect(onResult).toHaveBeenCalledWith("A:recovered at last"); });
   });

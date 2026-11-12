@@ -16,75 +16,80 @@
  * limitations under the License.
  */
 
-// Client for the pagination servlet, which serves the entities stored under an entity homepage
-// (e.g. `/Submissions.paginate.json`) one page at a time. See PaginationServlet in the
-// data/impl module for the full list of supported parameters.
+// Reads the entities under an entity homepage one page at a time, from the pagination servlet,
+// such as `/Submissions.paginate.json`. PaginationServlet, in the search/impl module, lists every
+// parameter it takes.
 
 
 import { type AuthenticatedFetch } from "../reLogin";
 import { readJson, RequestError } from "../requestFailure";
 
-// One serialized entity; the exact properties depend on the entity type. Every row carries at
-// least the `@path` and `@name` identification of the underlying node.
+// One entity as JSON. Its properties depend on its type, and usually include the node's `@path`
+// and `@name`.
 export type EntityRow = Record<string, unknown>;
 
-// A condition on one property, e.g. `{ name: "status", value: "draft" }`. The comparator
-// defaults to `=`; the special value `@me` is resolved server-side to the current user.
-// Conditions sharing a group are ORed together by the server; distinct groups (and conditions
-// with no group) are ANDed.
+// A condition on one property, such as `{ name: "status", value: "draft" }`. The server ORs the
+// conditions that share a group, and ANDs the groups and the conditions without one.
 export interface PropertyFilter {
   name: string;
+  // A value starting with `@` names somebody, and the server resolves it: `@me` is the person asking
   value: string;
+  // One of the servlet's comparators, such as `<>`, `ILIKE` or `IS NULL`; `=` if absent
   comparator?: string;
+  // Any label the conditions to OR share; absent for a condition that stands alone
   group?: string;
 }
 
-// Conditions on a descendant node: only entities having at least one descendant of this type
-// matching all the filters are returned, e.g. submissions with a `sub:Review` by the current user.
+// Conditions on a descendant node. Only the entities with a descendant of this type that meets the
+// conditions are listed, such as the submissions with a `sub:Review` by the person asking.
 export interface DescendantFilter {
+  // A node type name, such as `sub:Review`
   type: string;
   filters: PropertyFilter[];
 }
 
-// What to request: a page of entities under a homepage, optionally filtered and sorted.
+// One page of entities under a homepage to ask for, filtered and sorted if the request says so.
 export interface PaginationRequest {
-  // The homepage path, e.g. "/Submissions"
+  // The path of the entity homepage, such as "/Submissions"
   homepage: string;
-  // How many matches to skip; 0 by default
+  // How many matches to skip; 0 if absent
   offset?: number;
-  // How many matches to return; the server defaults to 10
+  // How many matches to return; 10 if absent, and never more than the server's maximum of 1000
   limit?: number;
-  // The entity property to order by; the server defaults to jcr:created
+  // The entity property to order by; `jcr:created` if absent
   sortBy?: string;
-  // Reverse the order
+  // Whether to order from the largest value down
   descending?: boolean;
   // Conditions on the entities' own properties
   filters?: PropertyFilter[];
   // Conditions on a descendant node of the entities
   childFilter?: DescendantFilter;
-  // A full text search term
+  // A full text search term, in the JCR full text syntax; absent or empty for no search
   fullText?: string;
-  // Extra selectors serializing each entity, e.g. "1" to include its children
+  // Extra selectors for each entity's JSON, such as "1" to include its children
   resourceSelectors?: string;
-  // An opaque identifier echoed back in the response, for matching responses to requests
+  // Any text, which the response carries back, to match it with this request
   req?: string;
 }
 
-// One page of results, as returned by the pagination servlet.
+// One page of results from the pagination servlet.
 export interface PaginatedPage {
   rows: EntityRow[];
+  // The offset and limit the server used
   offset: number;
   limit: number;
+  // How many rows this page holds
   returnedrows: number;
   // The total number of matches; a lower bound if totalIsApproximate is set
   totalrows: number;
   // Whether the server stopped counting the matches before reaching the end
   totalIsApproximate: boolean;
+  // The request's `req`; absent if it sent none
   req?: string;
 }
 
 function appendFilters(params: URLSearchParams, prefix: string, filters: PropertyFilter[]): void {
-  // The group parameter, when sent at all, must be sent once per filter
+  // The servlet takes either no group parameter, or one for every filter
   const grouped = filters.some(filter => filter.group != undefined);
   filters.forEach(filter => {
     params.append(`${prefix}Name`, filter.name);
@@ -101,11 +106,9 @@ function nonEmpty(value: string | undefined): string | undefined {
   return value === "" ? undefined : value;
 }
 
-// Fetches one page of entities from the pagination servlet, through the caller's session-aware
-// fetch so that a session expiring mid-browse is signed back in rather than losing the page.
-//
-// @throws RequestError if the server rejects the request, or whatever `fetch` failed with; both
-//         are for `describeRequestFailure` to turn into something worth showing a user
+// Fetches one page of entities from the pagination servlet. It rejects with a RequestError
+// carrying the status if the server refuses, and otherwise with whatever failed.
+// describeRequestFailure words either for the person using the UI.
 export async function fetchEntityPage(
   fetchUtil: AuthenticatedFetch, request: PaginationRequest): Promise<PaginatedPage> {
   // Every scalar of the request under its servlet parameter name; unset ones are skipped

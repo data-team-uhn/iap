@@ -25,9 +25,8 @@ import org.apache.sling.models.annotations.Model;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A Sling Model wrapping a {@code sch:FormRequirement} node: a set of questions, grouped into sections, that the
- * submitter must answer to fulfill this requirement. This is how a schema version's own questions are expressed:
- * as a (typically unconditional) form requirement.
+ * A Sling Model wrapping a {@code sch:FormRequirement} node: a form, made of questions grouped into sections, that the
+ * submitter answers. A schema version asks its questions through form requirements.
  *
  * @version $Id$
  * @since 0.1.0
@@ -40,9 +39,9 @@ public class FormRequirement extends Requirement
     public static final String RESOURCE_TYPE = "sch/FormRequirement";
 
     /**
-     * The sections making up this form.
+     * The sections directly in this form.
      *
-     * @return a list of sections, empty if none
+     * @return the sections, in stored order; empty if there are none
      */
     @NotNull
     public List<Section> getSections()
@@ -51,9 +50,9 @@ public class FormRequirement extends Requirement
     }
 
     /**
-     * The questions directly making up this form, outside of any section.
+     * The questions directly in this form, outside any section.
      *
-     * @return a list of questions, empty if none
+     * @return the questions, in stored order; empty if there are none
      */
     @NotNull
     public List<Question> getQuestions()
@@ -62,10 +61,9 @@ public class FormRequirement extends Requirement
     }
 
     /**
-     * Every question or section directly making up this form (or any future {@link FormItem} subtype), in the
-     * order they appear, each adapted to its own specific model rather than to a common, less specific one.
+     * Every item directly in this form, each read as the model of its own type, such as {@link Question}.
      *
-     * @return a list of items, empty if none
+     * @return the items, in stored order; empty if there are none
      */
     @NotNull
     public List<FormItem> getChildren()

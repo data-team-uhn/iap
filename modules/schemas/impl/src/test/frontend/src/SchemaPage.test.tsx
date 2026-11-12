@@ -74,9 +74,8 @@ describe("SchemaPage", () => {
     const draft = await versionRow("3.0");
     expect(within(draft).getByRole("button", { name: "Activate" })).toBeInTheDocument();
     expect(within(draft).getByRole("button", { name: "Discard" })).toBeInTheDocument();
-    // Discarding the schema is one of them too
-    expect(screen.getAllByRole("button", { name: "Discard" })[0].closest("[role='row']")).toBeNull();
     // The schema's own actions come first, in the heading
+    expect(screen.getAllByRole("button", { name: "Discard" })[0].closest("[role='row']")).toBeNull();
     expect((await screen.findAllByRole("button", { name: "Retire" }))[0].closest("[role='row']")).toBeNull();
   });
 

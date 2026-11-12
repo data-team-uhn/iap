@@ -125,10 +125,7 @@ class TagPropagationEditorTest
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA, ENTITY, PART));
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA, ENTITY));
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA));
-        // The repository root declares none of the tag properties — it merely inherits nt:unstructured's willingness
-        // to hold any property — so it is never written to, however far the aggregate would otherwise climb. Nothing
-        // could read a repository-wide aggregate anyway, and writing one would need permissions on / that no session
-        // holds, failing the commit of whoever placed the tag.
+        // The repository root is never written to
         assertTrue(read(result, AGGREGATED).isEmpty());
         // The tagged node itself has no descendants carrying the tag
         assertTrue(read(result, AGGREGATED, DATA, ENTITY, PART, ANSWER).isEmpty());
@@ -247,8 +244,8 @@ class TagPropagationEditorTest
     {
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
-        // Strict nodes whose types reject extra properties, one with a writable node below it: a type with only
-        // strict supertypes, a type with no supertypes at all, and an unregistered type
+        // Nodes whose types reject other properties, one with a taggable node below it. One type has only strict
+        // supertypes, one has no supertypes at all, and one is not registered.
         final NodeBuilder file = descend(after, DATA, ENTITY).child("file");
         file.setProperty(PRIMARY_TYPE, "nt:file", Type.NAME);
         final NodeBuilder inner = file.child("inner");
@@ -257,16 +254,14 @@ class TagPropagationEditorTest
         final NodeBuilder mystery = descend(after, DATA, ENTITY).child("mystery");
         mystery.setProperty(PRIMARY_TYPE, "custom:Unknown", Type.NAME);
         mystery.setProperty("jcr:mixinTypes", List.of("nt:file"), Type.NAMES);
-        // And a free-form node, which would accept the properties but has not asked for them: tolerating any
-        // property is not the same as declaring these, and treating the two alike is what let derived tags reach
-        // every plumbing container in the repository, the root included
+        // And a free-form node, which accepts any property but does not declare the tag properties
         descend(after, DATA, ENTITY).child("free").setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME);
         descend(after, DATA, ENTITY).setProperty(TAGS, List.of(SENSITIVE), Type.STRINGS);
 
         final NodeState result = process(before, after);
 
         assertEquals(Set.of(SENSITIVE), read(result, INHERITED, DATA, ENTITY, PART));
-        // The boundary nodes are not written to, and the chain stops there
+        // These nodes are not written to, and the copies stop at them
         assertTrue(read(result, INHERITED, DATA, ENTITY, "free").isEmpty());
         assertTrue(read(result, INHERITED, DATA, ENTITY, "file").isEmpty());
         assertTrue(read(result, INHERITED, DATA, ENTITY, "file", "inner").isEmpty());
@@ -278,8 +273,7 @@ class TagPropagationEditorTest
     void aggregationStopsAtADeclaredBoundary() throws Exception
     {
         final NodeBuilder start = base();
-        // A boundary holding content, itself inside ordinary taggable content: the case the repository root used to
-        // hide, since there the next node up happened to be unwritable anyway
+        // A boundary holding content, itself inside ordinary taggable content
         start.child("container").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
         final NodeBuilder homepage = start.child("container").child("homepage");
         homepage.setProperty(PRIMARY_TYPE, BOUNDARY_TYPE, Type.NAME);
@@ -297,7 +291,7 @@ class TagPropagationEditorTest
 
         final NodeState result = process(before, after);
 
-        // The boundary itself carries the aggregate — that is what it is for, and what a listing of its content reads
+        // The boundary itself carries the aggregate
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, "container", "homepage"));
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, "container", "mixed"));
         // ...and nothing above it hears about it, whichever way the boundary was declared
@@ -305,10 +299,7 @@ class TagPropagationEditorTest
         assertTrue(read(result, AGGREGATED).isEmpty());
     }
 
-    /**
-     * Withholding the "recompute, a child changed" signal is not what makes a boundary opaque — the aggregation chain
-     * is. A parent recomputing for a reason of its own must still not read what the boundary beneath it aggregated.
-     */
+    /** A parent that aggregates again for another reason still does not read what a boundary beneath it holds. */
     @Test
     void aBoundaryIsOpaqueEvenWhenItsParentRecomputesForOtherReasons() throws Exception
     {
@@ -323,7 +314,7 @@ class TagPropagationEditorTest
         final NodeState aggregated = process(before, tagging);
         assertEquals(Set.of(INCOMPLETE), read(aggregated, AGGREGATED, "container", "homepage"));
 
-        // A second commit adding a sibling to the container, which makes the container run its own bottom-up phase
+        // A second commit adds a sibling to the container, which makes the container run its bottom-up phase
         final NodeBuilder after = aggregated.builder();
         descend(after, "container").child("sibling").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
 
@@ -333,10 +324,7 @@ class TagPropagationEditorTest
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, "container", "homepage"));
     }
 
-    /**
-     * A boundary stops what flows <em>up</em> and nothing else: it is not a wall. An inheritable tag placed above one
-     * still reaches the content inside it, which is what lets a whole container be marked sensitive.
-     */
+    /** A boundary stops only what flows up. An inheritable tag placed above one still reaches the content inside it. */
     @Test
     void aBoundaryStillPassesInheritedTagsDown() throws Exception
     {
@@ -359,9 +347,7 @@ class TagPropagationEditorTest
     @Test
     void recordsABrokenProcessorOnceForTheWholeCommit() throws Exception
     {
-        // A broken processor fails on every node the commit touches. The repository would cope — recordings of one
-        // fault deduplicate onto a single node — but the recording happens on the commit thread, and a count of
-        // damaged commits is more use to a reader than a count of nodes visited
+        // Three nodes change, and the processor fails on each
         final EditorHook broken = hookWith(new FailingProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
@@ -376,7 +362,6 @@ class TagPropagationEditorTest
 
             final ArgumentCaptor<ErrorContext> context = ArgumentCaptor.forClass(ErrorContext.class);
             Mockito.verify(recorder).logError(Mockito.any(IllegalStateException.class), context.capture());
-            // Against the processor's own class, since that is what has to be fixed
             assertEquals(FailingProcessor.class.getName(), context.getValue().getComponent());
             assertEquals("computeTags", context.getValue().getOperation());
         } finally {
@@ -387,7 +372,7 @@ class TagPropagationEditorTest
     @Test
     void recordsEachBrokenProcessorSeparately() throws Exception
     {
-        // Deduplication is per processor and phase, not per commit: two broken processors are two things to fix
+        // Once per processor and phase, not once per commit
         final EditorHook broken = hookWith(new FailingProcessor(), new AlsoFailingProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
@@ -405,11 +390,7 @@ class TagPropagationEditorTest
         }
     }
 
-    /**
-     * The failure flag obeys the same writability rule as the tags themselves. It has to: a flag stuck on a node
-     * nobody may write is read by {@code enter} on every commit that reaches it, so a flag on the repository root
-     * would make every commit try to remove it, and every commit by a non-administrator fail.
-     */
+    /** The failure flag is written only on a node that may store the tag properties. */
     @Test
     void aFailingProcessorDoesNotFlagNodesThatCannotCarryTags() throws Exception
     {
@@ -424,7 +405,7 @@ class TagPropagationEditorTest
         assertFalse(result.hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
         assertFalse(descend(result.builder(), DATA, ENTITY, "free")
             .hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
-        // The node that can carry tags is still flagged, so the run really did fail everywhere
+        // The taggable node is flagged, so the processor did fail
         assertTrue(descend(result.builder(), DATA, ENTITY, PART, ANSWER)
             .hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
     }
@@ -526,7 +507,7 @@ class TagPropagationEditorTest
         // The computed tag lands in the local phase's own property, not in the explicit tags
         assertEquals(Set.of(INCOMPLETE), read(result, COMPUTED, DATA, ENTITY, PART, ANSWER));
         assertTrue(read(result, TAGS, DATA, ENTITY, PART, ANSWER).isEmpty());
-        // ...and from there it bubbles up exactly like a tag a user had placed by hand
+        // ...and from there it climbs like a placed tag
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA, ENTITY, PART));
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA));
     }
@@ -579,14 +560,14 @@ class TagPropagationEditorTest
         final EditorHook broken = hookWith(new FailingProcessor(), new TagAggregationProcessor());
         final NodeBuilder after = tagged.builder();
         descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, "submitted");
-        // The commit goes through: a user's data is never lost because a tag could not be computed
+        // The commit goes through
         final NodeState result = broken.processCommit(tagged, after.getNodeState(), CommitInfo.EMPTY);
 
-        // A union missing one of its contributors would be worse than a stale one, so nothing was written
+        // The failed phase keeps its last value, and the node is flagged
         assertEquals(Set.of(INCOMPLETE), read(result, COMPUTED, DATA, ENTITY, PART, ANSWER));
         assertTrue(descend(result.builder(), DATA, ENTITY, PART, ANSWER)
             .hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
-        // Only the phase that failed was skipped; the phases that worked still did their job
+        // Only the phase that failed was skipped
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA, ENTITY, PART));
     }
 
@@ -612,9 +593,8 @@ class TagPropagationEditorTest
     }
 
     /**
-     * The repair protocol: a node marked stale is recomputed in full. What makes this worth pinning is the phase it
-     * fixes — {@code inheritedTags} is computed on the way down, so an ordinary commit touching only this node never
-     * recomputes it, and a wrong value would survive forever. See the negative control below.
+     * The next commit recomputes a stale node in full, with its {@code inheritedTags}, which a commit touching only
+     * that node otherwise leaves alone.
      */
     @Test
     void aStaleNodeIsFullyRecomputedByTheNextCommitReachingIt() throws Exception
@@ -622,13 +602,13 @@ class TagPropagationEditorTest
         final NodeState before = base().getNodeState();
         final NodeBuilder corrupt = before.builder();
         descend(corrupt, DATA, ENTITY).setProperty(TAGS, List.of(SENSITIVE), Type.STRINGS);
-        // Values that no processor would produce, as a definition change or an earlier failure would have left them
+        // A value no processor would produce, as a definition change or an earlier failure can leave
         descend(corrupt, DATA, ENTITY, PART).setProperty(INHERITED, List.of("retired"), Type.STRINGS);
         descend(corrupt, DATA, ENTITY, PART)
             .setProperty(TagManager.COMPUTATION_STATE_PROPERTY, TagManager.STATE_RECOMPUTING);
         final NodeState stale = corrupt.getNodeState();
 
-        // What a repair does: touch the marked node, nothing more
+        // A commit that changes the marked node and nothing else
         final NodeBuilder after = stale.builder();
         descend(after, DATA, ENTITY, PART).setProperty("touched", true);
         final NodeState result = process(stale, after);
@@ -640,10 +620,7 @@ class TagPropagationEditorTest
         assertEquals(Set.of(SENSITIVE), read(result, INHERITED, DATA, ENTITY, PART, ANSWER));
     }
 
-    /**
-     * Negative control for the test above: without the marker the same commit leaves the wrong value in place, which
-     * is precisely why repair needs a marker rather than just touching nodes.
-     */
+    /** Without the mark, the same commit leaves the wrong value in place. */
     @Test
     void withoutTheMarkerATouchDoesNotFixInheritedTags() throws Exception
     {
@@ -719,7 +696,7 @@ class TagPropagationEditorTest
         final EditorHook scoped = hookWith(new SecretProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
-        // A node typed exactly data:Entity, rather than a subtype of it, is just as much of a scope root
+        // A node typed data:Entity itself, not a subtype, is a scope root too
         final NodeBuilder plain = after.child(DATA).child("plain");
         plain.setProperty(PRIMARY_TYPE, "data:Entity", Type.NAME);
         plain.child(PART).setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
@@ -740,8 +717,8 @@ class TagPropagationEditorTest
         final NodeState tagged = scoped.processCommit(before, seeded.getNodeState(), CommitInfo.EMPTY);
 
         final NodeBuilder after = tagged.builder();
-        // An inheritable tag placed outside the entity sweeps down through it, and the nodes the sweep reaches
-        // inside the entity must be computed with that entity as their scope
+        // An inheritable tag placed outside the entity sweeps down through it. The nodes the sweep reaches inside
+        // the entity are computed with that entity as their scope.
         descend(after, DATA).setProperty(TAGS, List.of(SENSITIVE), Type.STRINGS);
         final NodeState result = scoped.processCommit(tagged, after.getNodeState(), CommitInfo.EMPTY);
 
@@ -791,12 +768,11 @@ class TagPropagationEditorTest
     private NodeBuilder base()
     {
         final NodeBuilder root = EmptyNodeState.EMPTY_NODE.builder();
-        // Typed as the real repository root is, which is what makes the root's own writability a real question: it
-        // extends nt:unstructured, so it accepts any property, while declaring none of the tag ones itself
+        // Typed as the real repository root is: it extends nt:unstructured, so it accepts any property, but declares
+        // none of the tag properties
         root.setProperty(PRIMARY_TYPE, "rep:root", Type.NAME);
-        // A minimal node type registry backing the writability checks: the tag:Taggable mixin declaring the
-        // tag properties by name, content types carrying it through their expanded supertypes, a boundary type,
-        // a free-form type accepting any property, and strict types
+        // A minimal node type registry. The tag:Taggable mixin declares the tag properties by name, and content
+        // types list it among their supertypes. There is also a boundary type, a free-form type, and strict types.
         final NodeBuilder types = root.child("jcr:system").child("jcr:nodeTypes");
         types.child("tag:Taggable").child("rep:namedPropertyDefinitions").child(TAGS);
         types.child("data:Content").setProperty("rep:supertypes", List.of("tag:Taggable"), Type.NAMES);
@@ -879,8 +855,7 @@ class TagPropagationEditorTest
     }
 
     /**
-     * Tags a node with the value of its own {@code status} property, the simplest possible computation from a node's
-     * own content, and records every path it was asked about.
+     * Tags a node with the value of its own {@code status} property, and records every path it was asked about.
      *
      * @version $Id$
      * @since 0.1.0

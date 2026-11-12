@@ -292,8 +292,8 @@ is the normal case and has to behave sensibly.
 - `factory = true` on `@Designate` allows many configured instances of the same
   component — one per Slack notification, one per prefix tree.
 - `configurationPolicy = ConfigurationPolicy.REQUIRE` on `@Component` means the
-  component does not exist until configured. `PrefixTreeResourceProvider` uses this: a
-  generic provider with no root to mount at should not be running.
+  component does not exist until configured. `PrefixTreeResourceProvider` uses this: it
+  runs only where a configuration gives it a root to mount at.
 
 Write the `description` for an administrator reading it in the web console, not for
 the next developer. It is UI text.
@@ -336,14 +336,16 @@ requester's `remove` rights node by node before the privileged scan begins.
 
 ### Modification stamps
 
-Never write `jcr:lastModified` or `jcr:lastModifiedBy`. A commit editor in
-`iap-data-entities-api` stamps them on every node of a `mix:lastModified` type, as
-`data:Entity` and `nt:resource` are, whenever its content changes, whoever commits.
+Never write `jcr:lastModified` or `jcr:lastModifiedBy`. `LastModifiedEditor`, a commit
+editor in `iap-data-entities-api`, sets them whenever a node's content changes,
+whoever commits. It stamps every node of a `mix:lastModified` type, as `data:Entity`
+and `nt:resource` are.
 
 A node's content is what a version of it keeps: neither what its type declares `IGNORE`
 nor what a version works out for itself (`COMPUTE`, such as its mixins). A change
 modifies its node, then climbs to the parent until it reaches an entity, and stops at
-any child the parent's type declares `IGNORE`. Reordering children counts.
+any child the parent's type declares `IGNORE`. Reordering the children a version keeps
+counts too.
 
 | A change to | Stamps |
 | --- | --- |

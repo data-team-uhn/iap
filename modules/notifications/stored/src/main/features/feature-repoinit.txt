@@ -16,19 +16,15 @@
 
 create path (notif:Homepage) /Notifications
 
-# The channel's own writer: it files notifications, and it grants each recipient read on their own, which is why
-# it may manage access control. No jcr:removeNode, deliberately: nothing stored here is ever deleted by the
-# platform, and a service user that cannot delete makes that a property of the deployment rather than a promise
-# made in code.
+# The delivery's service user. It files the notifications, and grants each recipient their own folder. It cannot
+# delete: removing old notifications is left to the deployment.
 create service user iap-stored-notifications
 set ACL for iap-stored-notifications
     allow   jcr:read,jcr:addChildNodes,jcr:modifyProperties,jcr:nodeTypeManagement,jcr:readAccessControl,jcr:modifyAccessControl    on /Notifications
 end
 
-# Enough for a signed-in reader to resolve /Notifications itself, and not one node more. Each recipient's folder
-# below it is granted to that recipient alone by the delivery, and everything under it is inherited, so one
-# person's notifications are invisible to everybody else. This is most of the filtering, not all of it: an
-# administrative session bypasses access control, so the listing also asks for its own recipient by name.
+# Lets everybody read /Notifications itself, and nothing below it. The delivery grants each recipient's folder to
+# that recipient alone.
 set ACL on /Notifications
     allow jcr:read for everyone restriction(rep:ntNames,notif:Homepage)
 end

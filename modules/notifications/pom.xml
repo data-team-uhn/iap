@@ -28,7 +28,7 @@
   <artifactId>iap-notifications</artifactId>
   <packaging>pom</packaging>
   <name>IAP - Notifications</name>
-  <description>Informing people of important events/changes in the system.</description>
+  <description>Tells people what happened, through every channel that can reach them</description>
 
   <modules>
     <module>api</module>

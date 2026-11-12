@@ -26,12 +26,11 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 
 /**
- * Dispatches service resolver requests by subservice, since the two service users of the links module have very
- * different test semantics: definition reads get the test's own resolver, so they see the uncommitted fixture,
- * while the container-creating writes keep the real mock factory, whose resolvers only see committed content,
- * exactly like at runtime. Closing the handed out definitions resolver is ignored, so that the code under test
- * closing a stale one does not take the test's resolver down with it. Either side can be {@code null} to stand in
- * for that service user missing, which makes requests for it fail.
+ * Serves each service user of the links module its own way. The definitions get the test's own resolver, so they
+ * see the uncommitted fixture. Every other request goes to the mock context's factory, whose resolvers see only
+ * committed content, as service resolvers do at runtime. Closing the definitions resolver does nothing, so the code
+ * under test cannot close the test's resolver. Either side can be {@code null} for a missing service user, and a
+ * request for it then fails.
  *
  * @version $Id$
  * @since 0.1.0

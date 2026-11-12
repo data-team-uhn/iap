@@ -131,7 +131,7 @@ describe("DeleteItem", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete all of them" }));
 
-    // Taking the referring resources along is exactly what the recursive option is for
+    // Deleting the referencing resources too is what `recursive` does
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get("recursive")).toBe("true");
   });
@@ -208,17 +208,14 @@ describe("DeleteItem", () => {
     const onDeleted = vi.fn();
     renderButton({ onDeleted });
 
-    // The server refuses anything unsafe on its own, so a missing preview downgrades the dialog
-    // rather than blocking the user
     await openDialog(user);
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(onDeleted).toHaveBeenCalled());
   });
 
-  // The reason these requests go through useAuthenticatedFetch: a deletion is the request you least
-  // want to lose to a session that expired while the confirmation dialog was open. The recovery
-  // itself is covered in reLogin.test.tsx; what matters here is that the deletion takes part in it.
+  // The session expires while the dialog is open, the user signs back in, and the deletion goes
+  // through. reLogin.test.tsx covers the sign-in itself.
   it("recovers a deletion from a session that expired while it was being confirmed", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.spyOn(globalThis, "fetch")
@@ -244,8 +241,7 @@ describe("DeleteItem", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  // The same expiry, but the user dismisses the sign-in. Reporting a transport failure here would be
-  // false -- the server was reached and answered 401 -- and would send them to check their network.
+  // The same expiry, but the user dismisses the sign-in
   it("asks the user to sign in when a deletion is abandoned at the sign-in prompt", async () => {
     const user = userEvent.setup();
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -268,8 +264,8 @@ describe("DeleteItem", () => {
     expect(screen.queryByText(/could not be reached/)).not.toBeInTheDocument();
   });
 
-  // The dry run fails the same way, and the fallback for a lost preview is a plain confirmation --
-  // which would offer a Delete button that cannot possibly succeed.
+  // The dry run fails the same way. A plain confirmation would offer a Delete button that cannot
+  // succeed.
   it("does not offer a confirmation when the session is already gone", async () => {
     const user = userEvent.setup();
     vi.spyOn(console, "error").mockImplementation(() => {});

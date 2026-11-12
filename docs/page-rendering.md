@@ -31,7 +31,8 @@ Sling turns a request into a resource, then into a script:
 
 1. **Path → resource.** The path is looked up in the repository. Nothing there means
    nothing to serve, which is why a client-side route with no resource behind it 404s
-   on a refresh — see [the note on routed views](ui-extensions.md#routed-views).
+   on a refresh — see
+   [the note on routed views](ui-extensions.md#routed-views--iapcoreuiview-node-views).
 2. **Resource → resource type.** Every content node autocreates a `sling:resourceType`
    from its node type — `tag/Homepage`, `sub/Submission`, `app/Homepage`.
 3. **Resource type → script.** The type names a folder under `/libs`, and the script
@@ -89,9 +90,9 @@ Sling defines. Including a resource into itself trips Sling's recursion detectio
 (`RecursionTooDeepException`), and changing the selectors is the standard way around
 it; any unused selector name would do.
 
-The same shape appears wherever a type's natural rendering is not HTML:
+A type that does not render as HTML re-dispatches the same way.
 `ext/Extension/null.GET.html` re-dispatches to `.json` with `deep`, so an extension
-node fetched without an extension returns its full JSON.
+node fetched without a URL extension returns its JSON, children included.
 
 ## The shape of a page
 
@@ -150,7 +151,8 @@ been HTML-escaped is not JSON.
 
 ### Other content types
 
-`ContentTypeSetter` also offers `${contentType.javascript}` and `${contentType.csv}`.
+`ContentTypeSetter` also offers `${contentType.javascript}`, `${contentType.csv}`,
+`${contentType.text}` and `${contentType.markdown}`.
 A type wanting `.csv` ships a `csv.GET.html`, and the same
 `<selector>.html` naming gives a variant rendering — `resolved.html` under
 `ext/Point`, requested as `.resolved` or included by another script.
@@ -199,19 +201,18 @@ to do:
 
 | Class | For |
 |---|---|
-| `ContentTypeSetter` | `${contentType.html}`, `.json`, `.javascript`, `.csv` — set the response content type |
-| `StatusCodeSetter` | `${statusCode.ok}`, `.created`, `.notFound`, … — set the response status |
-| `ConfigMetadata` | Deployment configuration under `/libs/iap/conf`, used by `header.html` for the page title and `<meta>` tags |
-| `ErrorMetadata` | The status code, reason phrase and whether JSON was requested, for the error handlers |
+| `ContentTypeSetter` | `${contentType.html}`, `.json`, `.javascript`, `.csv`, `.text`, `.markdown`: set the response content type |
+| `StatusCodeSetter` | `${statusCode.ok}`, `.created`, `.notFound`, …: set the response status |
+| `ConfigMetadata` | The configuration under `/libs/iap/conf`, which `header.html` uses for the page title and the `<meta>` tags |
+| `ErrorMetadata` | For the error handlers: the status code, the message or reason phrase, and the JSON body if JSON was asked for. It also sets the status on the response |
 
-`ConfigMetadata` is why branding is a deployment concern rather than a code one: the
-header renders whatever `app/Configuration` nodes the deployment supplies, with no
-script change.
+With `ConfigMetadata`, the header renders whatever `app/Configuration` nodes the
+deployment supplies. Branding a deployment needs no script change.
 
 More can be written when a script genuinely needs something these do not cover.
 A `Use` object is either a Sling Model adapted from the resource, a class implementing
-`org.apache.sling.scripting.api.Use`, or a JavaScript file beside the script —
-`ext/PointFinder/extensionQuery.js` is an example of the last. The
+`org.apache.sling.scripting.sightly.pojo.Use`, or a JavaScript file beside the script,
+such as `ext/PointFinder/extensionQuery.js`. The
 [HTL Use API](https://sling.apache.org/documentation/bundles/scripting/scripting-htl.html)
 documents all three; prefer a Sling Model, since it is testable and reusable outside
 scripting.
@@ -227,9 +228,10 @@ answer is a servlet's job, and shaping stored content is a
 | `/libs/sling/servlet/errorhandler/404.html` | Not found — sets the status itself, then loads the 404 app |
 | `/apps/sling/servlet/errorhandler/default.html` | Everything else |
 
-The default handler branches on what the caller asked for: `ErrorMetadata.json` is true
-for a JSON request, and the response is then a JSON error body rather than a page. That
-is what keeps an API client from receiving HTML when something fails.
+The default handler branches on what the caller asked for. `ErrorMetadata.json` holds
+a JSON error body when the request's `Accept` header is exactly `application/json`, and
+the response is then that body rather than a page. An API client that asks for JSON
+gets no HTML when something fails.
 
 Note the search paths. Sling looks in `/apps` before `/libs`, so a script in `/apps`
 overrides the platform's equivalent in `/libs` — which is the hook a deployment uses to

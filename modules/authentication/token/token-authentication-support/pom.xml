@@ -30,7 +30,7 @@
   <name>IAP - Token Authentication API</name>
 
   <properties>
-    <!-- This module contains only service interfaces, which carry no executable instructions to cover. -->
+    <!-- The module holds only interfaces, which have no instructions to cover -->
     <coverage.instructionRatio>0.00</coverage.instructionRatio>
   </properties>
 

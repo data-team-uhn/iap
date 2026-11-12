@@ -33,8 +33,8 @@ import org.osgi.service.component.annotations.ReferencePolicy;
 import io.uhndata.iap.tags.spi.TagProcessor;
 
 /**
- * Provides a {@link TagPropagationEditor} for every commit, with the registered {@link TagProcessor} services grouped
- * by phase and the tag definitions read from the committed {@code /Tags} state.
+ * Provides a {@link TagPropagationEditor} for every commit, with the registered {@link TagProcessor} services and the
+ * tag definitions as the commit leaves {@code /Tags}. With no processor registered, it provides no editor.
  *
  * @version $Id$
  * @since 0.1.0

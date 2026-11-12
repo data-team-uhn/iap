@@ -30,14 +30,12 @@ import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.tags.models.Taggable;
 
 /**
- * The internal service backing the behavior offered by the {@link Taggable} model. It works on the model's raw
- * node, which the model passes in itself — always its own wrapped resource — so this interface must stay in this
- * non-exported package: the models are the only public face of the tags placed on content, and the resources they
- * wrap are not to be reachable through the public API.
+ * The operations behind the {@link Taggable} model, on the resource the model wraps. The interface stays in this
+ * package, which the bundle does not export, so that the public API never hands out the wrapped resource.
  *
  * <p>
- * Reads and writes go through the resolver the given resource carries, so they are subject to the caller's own
- * permissions; writes only modify the in-memory resource and are the caller's to commit.
+ * Reads and writes go through the resolver of the given resource, under the caller's own permissions. Writes change
+ * the resource in memory, and the caller commits them.
  * </p>
  *
  * @version $Id$
@@ -48,7 +46,7 @@ public interface TagOperations
     /**
      * The defined tags that may be placed on the given node, in display order.
      *
-     * @param resource a candidate node to be tagged
+     * @param resource the node that would be tagged
      * @return the applicable tag definitions, an empty list if none apply
      */
     @NotNull
@@ -64,8 +62,7 @@ public interface TagOperations
     Set<String> getTags(@NotNull Resource resource);
 
     /**
-     * All the tags the given node effectively carries, with their definitions and origins, computed by walking the
-     * tree.
+     * All the tags the given node carries, with their definitions and origins, found by walking the tree.
      *
      * @param resource the node to read
      * @return the effective tags, an empty collection if there are none
@@ -74,8 +71,8 @@ public interface TagOperations
     Collection<Tag> getEffectiveTags(@NotNull Resource resource);
 
     /**
-     * The names of all the tags the given node effectively carries, read from the explicit and materialized tag
-     * properties without walking the tree.
+     * The names of all the tags the given node carries, read from its own four tag properties without walking the
+     * tree.
      *
      * @param resource the node to read
      * @return the effective tag names, an empty set if there are none
@@ -84,7 +81,7 @@ public interface TagOperations
     Set<String> getEffectiveTagNames(@NotNull Resource resource);
 
     /**
-     * Checks whether the given node effectively carries a tag.
+     * Checks whether the given node carries a tag, by walking the tree.
      *
      * @param resource the node to read
      * @param name a tag name

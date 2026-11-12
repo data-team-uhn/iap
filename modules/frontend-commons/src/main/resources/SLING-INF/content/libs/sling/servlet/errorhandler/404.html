@@ -19,9 +19,9 @@
  * limitations under the License.
  */-->
 <sly data-sly-include="/libs/data/Content/header.html"></sly>
-    <!--/* HTL drops an attribute whose value is empty, so a path that was never there carries none of these
-           and a reader who may not see the archive carries only the first. The page is told in the response it
-           was already getting, rather than asking a second time once it has painted. */-->
+    <!--/* What the reader may know about the deletion of the requested path. HTL leaves out an attribute whose
+           value is empty. A path nobody deleted, or one the reader may not know about, has none of them. A
+           reader who may not read the archive entry gets only data-deleted-at. */-->
     <div id="main-404-container"
          data-deleted-at="${deletion.deletedAt}"
          data-deleted-by="${deletion.deletedBy}"

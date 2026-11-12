@@ -21,15 +21,16 @@ import { describeRequestFailure, RequestError } from "./requestFailure";
 import type { PatchValue } from "./fields/fieldsModel";
 import type { AuthenticatedFetch } from "./reLogin";
 
-// Sends a workflow event to a node: POST <path>.<event>.json, and the engine decides what it does. A
-// refusal carries the engine's reason, which is already worded for the person reading it, so it is
-// passed on as it stands; anything else is described like any other failed request.
+// Sends a workflow event to a node, as a POST to `<path>.<event>.json`. The engine decides what it
+// does. The parameters go as a form, or as the FormData given, for an event that brings a file.
 //
-// The parameters go as a form, or as the FormData given, for an event that brings a file.
+// It resolves with the path of the node the event created, which the engine redirects to; undefined
+// if the event created nothing. The path is decoded, as the repository names it, so that it compares
+// with the `@path` of a serialized node.
 //
-// Resolves with the path of what the event created, when it created something: the engine answers
-// with a redirect, which fetch has already followed. The path is decoded, as the repository names it,
-// so it compares with the `@path` the serialization gives.
+// A failure that carries the engine's reason rejects with a RequestError holding that reason, which
+// is worded for the user. Any other failure rejects with an Error whose message is a sentence for the
+// user.
 export async function sendEvent(
   doFetch: AuthenticatedFetch,
   path: string,
@@ -58,8 +59,8 @@ export async function sendEvent(
   return undefined;
 }
 
-// Whether the server offers an event on a node it serialized with the `events` selector, which lists
-// in `@events` the events the current user may send it: whether the event applies there, for them.
+// Whether the current user may send the event to the node. The node must come from the `events`
+// selector, which lists those events in `@events`; without it, no event is offered.
 export const offers = (node: { "@events"?: unknown }, event: string): boolean =>
   Array.isArray(node["@events"]) && node["@events"].includes(event);
 

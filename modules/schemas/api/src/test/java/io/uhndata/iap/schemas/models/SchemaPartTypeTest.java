@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Checks, against the shipped {@code /libs/sch} definitions, that every requirement and form item resolves to
- * {@code sch/SchemaPart}, which is what lets one servlet binding and one workflow target cover them all.
+ * {@code sch/SchemaPart}, and that a version and an answer option do not.
  *
  * @version $Id$
  * @since 0.1.0
@@ -56,7 +56,7 @@ class SchemaPartTypeTest
     @Test
     void requirementsAndFormItemsAreSchemaParts()
     {
-        // Each node carries the supertype its node type hardcodes, as a real one would
+        // Each node carries the supertype its node type sets, as in Oak
         assertTrue(this.isPart("sch/Question", "sch/FormItem"));
         assertTrue(this.isPart("sch/Section", "sch/FormItem"));
         assertTrue(this.isPart("sch/FormRequirement", "sch/Requirement"));

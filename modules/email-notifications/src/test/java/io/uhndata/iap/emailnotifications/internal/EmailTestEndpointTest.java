@@ -76,8 +76,7 @@ class EmailTestEndpointTest
     void setUp() throws ReflectiveOperationException
     {
         when(this.mailService.getMessageBuilder()).thenReturn(this.message);
-        // Sending is asynchronous, so the service hands back a future rather than a verdict. An unstubbed mock
-        // would return null here and the endpoint would have nothing to wait on.
+        // Left pending, for each test to complete as it needs
         this.sending = new CompletableFuture<>();
         when(this.mailService.sendMessage(ArgumentMatchers.<MimeMessage>any())).thenReturn(this.sending);
         this.endpoint = new EmailTestEndpoint();
@@ -91,16 +90,10 @@ class EmailTestEndpointTest
 
         this.endpoint.doGet(request("someone", new HashMap<>()), response);
 
-        // The endpoint mails an arbitrary address, which is not something to leave open
         assertEquals(403, response.getStatus());
         verify(this.mailService, never()).sendMessage(ArgumentMatchers.<MimeMessage>any());
     }
 
-    /**
-     * A login resolves case-insensitively, so an administrator may well have typed "Admin" and the request reports
-     * that spelling. Only the repository knows the account it resolved to, and refusing them on the typed form is
-     * how this endpoint used to lock out its own audience.
-     */
     @Test
     void admitsAnAdministratorWhoCapitalisedTheirNameAtLogin() throws IOException
     {
@@ -163,10 +156,6 @@ class EmailTestEndpointTest
         verify(this.message).html(anyString());
     }
 
-    /**
-     * The caller is told that it failed and where to look, but not what the mail server said: that text names the
-     * relay, its port and the account the instance authenticates with.
-     */
     @Test
     void aMessageThatCannotBeAssembledIsReportedWithoutQuotingTheMailServer() throws IOException, MessagingException
     {
@@ -179,11 +168,6 @@ class EmailTestEndpointTest
         assertRefusedWithoutQuotingTheMailServer(response);
     }
 
-    /**
-     * The point of the whole exercise. Everything after the message is assembled happens on a thread pool, so a
-     * send that is refused used to reach neither the response nor the log, and this endpoint answered that it had
-     * worked.
-     */
     @Test
     void aSendRefusedAfterTheMessageWasAssembledIsReported() throws IOException
     {
@@ -196,10 +180,6 @@ class EmailTestEndpointTest
         assertRefusedWithoutQuotingTheMailServer(response);
     }
 
-    /**
-     * A relay that never answers must not park the request thread. The send carries on, and says so through the
-     * log rather than through a response nobody is waiting for any more.
-     */
     @Test
     void aSendThatOutlivesTheBudgetIsReportedAsStillGoing() throws IOException, ReflectiveOperationException
     {
@@ -211,14 +191,10 @@ class EmailTestEndpointTest
         assertEquals(202, response.getStatus());
         assertTrue(response.getOutputAsString().contains("still being sent"));
 
-        // The answer has been written, and the send is still attached to something that will record how it ends
+        // The send fails after the answer, and its outcome is still logged
         this.sending.completeExceptionally(new MessagingException(SERVER_TALK));
     }
 
-    /**
-     * The container is entitled to see that it asked this thread to stop, so the flag is put back rather than
-     * swallowed by the wait.
-     */
     @Test
     void anInterruptedWaitIsReportedAsStillGoingAndPutsTheFlagBack() throws IOException
     {
@@ -231,7 +207,7 @@ class EmailTestEndpointTest
             assertTrue(response.getOutputAsString().contains("still being sent"));
             assertTrue(Thread.currentThread().isInterrupted());
         } finally {
-            // Never leave it set: it would make every later test's wait throw
+            // Cleared, or every later wait on this thread would throw
             Thread.interrupted();
         }
     }
@@ -266,9 +242,8 @@ class EmailTestEndpointTest
     }
 
     /**
-     * A request from a named caller. The id goes on the session, which is where the endpoint reads it, and the
-     * request is deliberately made to report a differently capitalised spelling — that is what a case-insensitively
-     * resolved login looks like, and a fixture where the two agree could not tell the two reads apart.
+     * A request from a user. The resource resolver reports the canonical user id, and the request reports the name
+     * as typed at login, here upper-cased. A fixture where the two agree could not tell which one the endpoint reads.
      */
     private MockSlingJakartaHttpServletRequest request(final String user, final Map<String, Object> parameters)
     {

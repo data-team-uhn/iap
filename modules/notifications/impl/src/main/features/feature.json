@@ -16,15 +16,15 @@
 
 {
   "title": "IAP - Notifications",
-  "description": "Informing people of important events/changes in the system.",
+  "description": "Tells people what happened, through every channel that can reach them",
   "bundles":[
     {
+      // No later than the workflow engine (26), which imports it
       "id":"${project.groupId}:iap-notifications-api:${project.version}",
       "start-order":"26"
     },
     {
-      // After the principals service it resolves recipients through. The API sits at the same order as the
-      // workflows bundle, which imports it, and must not start later
+      // After the principals service (24), which finds the people a role names
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
       "start-order":"26"
     }

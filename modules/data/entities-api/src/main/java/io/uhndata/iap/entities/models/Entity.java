@@ -30,9 +30,8 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
- * A Sling Model wrapping an {@code data:Entity} node, a first-class, standalone, versionable data entity. On top of
- * the generic {@code data:Content} properties, it exposes the stable identifier and versioning metadata specific to
- * entities.
+ * The model of an entity: a {@code data:Entity} node, a thing stored as a whole, such as a submission. Beyond what
+ * every content node has, it reads the entity's {@code jcr:uuid}, and when and by whom it was last modified.
  *
  * @version $Id$
  * @since 0.1.0
@@ -41,7 +40,7 @@ import io.uhndata.iap.utils.Referenceable;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class Entity extends Content implements Referenceable
 {
-    /** The {@code sling:resourceType} of an {@code data:Entity} node. */
+    /** The resource type of {@code data:Entity}, which the resource type of every entity extends. */
     public static final String RESOURCE_TYPE = "data/Entity";
 
     @ValueMapValue(name = "jcr:lastModified")
@@ -51,9 +50,9 @@ public class Entity extends Content implements Referenceable
     private String lastModifiedBy;
 
     /**
-     * The stable unique identifier of the resource, valid for its whole lifetime.
+     * The identifier of this entity, which stays the same for its whole life.
      *
-     * @return an UUID
+     * @return the {@code jcr:uuid}
      */
     @Override
     @NotNull
@@ -63,21 +62,22 @@ public class Entity extends Content implements Referenceable
     }
 
     /**
-     * The date when the resource was last modified.
+     * When the content of this entity last changed.
      *
-     * @return a copy of the last modification date, or {@code null} if the resource was never modified
+     * @return a copy of {@code jcr:lastModified}, which Oak sets when the node is created; {@code null} if the node
+     *         has none
      */
     @Nullable
     public Calendar getLastModified()
     {
-        // A copy, since Calendar is mutable and callers must not be able to alter the model's own state
         return this.lastModified == null ? null : (Calendar) this.lastModified.clone();
     }
 
     /**
-     * The user that last modified the resource.
+     * The user whose session last changed the content of this entity.
      *
-     * @return a user name, or {@code null} if the resource was never modified
+     * @return a username, or {@code oak:unknown} for a commit that no user made; {@code null} if the node has no
+     *         {@code jcr:lastModifiedBy}
      */
     @Nullable
     public String getLastModifiedBy()

@@ -24,8 +24,7 @@ import { render, screen } from "@testing-library/react";
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 
-// The title's semantic element comes from the app theme's `pageTitle` variant mapping, so the
-// screen needs the real theme around it.
+// The heading level comes from the app theme's `pageTitle` variant mapping.
 const renderScreen = (ui: ReactElement) => render(<ThemeProvider theme={appTheme}>{ui}</ThemeProvider>);
 
 describe("AdminScreen", () => {
@@ -41,7 +40,6 @@ describe("AdminScreen", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Submission categories" })).toBeInTheDocument();
     expect(screen.getByText("tool content")).toBeInTheDocument();
-    // Wayfinding is left to the shell, so the screen itself renders no links back to the console
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 

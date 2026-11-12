@@ -38,10 +38,9 @@ import org.jetbrains.annotations.NotNull;
  * Answers the node type questions that decide what a change modifies, from the node type registry stored at
  * {@code /jcr:system/jcr:nodeTypes}. It caches the type hierarchy it reads, so one instance serves one commit.
  *
- * <p>Whether a change is part of a node's content follows its definition's {@code onParentVersion}. A version of
- * the node leaves out what is {@code IGNORE} or {@code COMPUTE}, so neither is content.
- * The definition is chosen as the repository chooses it. When several node types offer one, the change counts unless
- * none of them keeps it.</p>
+ * <p>Whether an item is part of a node's content follows its definition's {@code onParentVersion}. A version of the
+ * node leaves out what is {@code IGNORE} or {@code COMPUTE}, so neither is content. The definition is chosen as Oak
+ * chooses it. When several of the node's types offer one, the item is content if any of them keeps it.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -164,8 +163,8 @@ public final class NodeTypeRules
     }
 
     /**
-     * The definitions that could apply to a property. The repository looks for a named definition for the value's
-     * type, then for any type, then for residual definitions in the same order.
+     * The definitions that could apply to a property. Oak looks for a named definition for the value's type, then
+     * for any type, then for residual definitions in the same order.
      *
      * @param node the node holding the property
      * @param property the property
@@ -192,7 +191,7 @@ public final class NodeTypeRules
     /**
      * The first non-empty set of definitions, trying each source in turn.
      *
-     * @param sources where to look, in the order the repository looks
+     * @param sources where to look, in the order Oak looks
      * @return the definitions found; empty if no source has any
      */
     private static List<NodeState> firstFound(final List<Supplier<List<NodeState>>> sources)

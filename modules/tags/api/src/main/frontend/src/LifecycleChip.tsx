@@ -18,8 +18,7 @@
 
 import TagChip from "./TagChip";
 
-// A lifecycle state, shown as the tag it is: the same label, color and icon as anywhere else tags
-// appear.
+// The given tags of the lifecycle category, such as "draft" or "active", as chips
 function LifecycleChip({ tags }: { tags: string[] }) {
   return <TagChip tags={tags} category="lifecycle" />;
 }

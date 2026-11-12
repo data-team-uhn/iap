@@ -95,8 +95,6 @@ class ErrorLoggerTest
     @Test
     void withoutAServiceRecordingIsSilentlySkipped()
     {
-        // Before the module starts there is nothing to record through, and the caller — already handling a
-        // failure — must not be given a second one
         assertDoesNotThrow(() -> ErrorLogger.logError(new IllegalStateException("boom")));
     }
 
@@ -117,7 +115,6 @@ class ErrorLoggerTest
         final RecordingService replacement = new RecordingService();
         ErrorLogger.setService(this.service);
         ErrorLogger.setService(replacement);
-        // The old component stopping after a new one took over must not switch recording off
         ErrorLogger.unsetService(this.service);
 
         ErrorLogger.logError(new IllegalStateException("boom"));

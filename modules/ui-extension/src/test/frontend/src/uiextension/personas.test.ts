@@ -26,9 +26,8 @@ import {
   subscribeToPersona,
 } from "@iap/ui-extension/personas";
 
-// The store lives on `window` (deliberately - see personas.ts), so it survives between tests;
-// return it to the default so each test starts from the same place. Through the exported key, so
-// that renaming it cannot leave these tests quietly deleting a property nobody reads.
+// The store is on `window`, so it outlives each test. Deleting it by the exported key returns the next
+// test to the default.
 afterEach(() => {
   Reflect.deleteProperty(window, STORE_KEY);
 });
@@ -107,13 +106,10 @@ describe("the active persona", () => {
     unsubscribe();
   });
 
-  // The reason the store hangs off `window` at all: the user menu and the components reading the
-  // persona are separate webpack bundles, and this module may legitimately be duplicated into both.
-  // Duplicate copies must still agree, which they do only because the state is not in a closure.
   it("is shared with a separately loaded copy of this module", async () => {
     setActivePersona("administrator");
 
-    // A genuinely fresh instance of the module, standing in for the second bundled copy.
+    // A fresh instance of the module, standing in for another bundle's copy
     vi.resetModules();
     const reloaded = await import("@iap/ui-extension/personas");
 

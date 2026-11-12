@@ -21,18 +21,17 @@ import { type ReactNode } from "react";
 import { Paper, Stack, Typography } from "@mui/material";
 
 interface PanelProps {
-  // Optional heading of the panel.
+  // The panel's heading, an h2
   title?: ReactNode;
-  // Optional explanatory line under the title.
+  // A line under the title that says what the panel holds
   subtitle?: ReactNode;
-  // Optional control displayed in line with the title, e.g. a button acting on the panel's content.
+  // Shown at the end of the header, such as a button acting on the panel's content
   action?: ReactNode;
-  // The panel's content.
   children?: ReactNode;
 }
 
-// A block of a page's content on a paper surface, standing out against the page canvas the same
-// way dashboard widgets do. Pages are built as a stack of panels rather than of loose sections.
+// A block of a page's content on a paper surface, with an optional header. A page is built as a
+// stack of panels rather than of loose sections.
 function Panel({ title, subtitle, action, children }: PanelProps) {
   const header = Boolean(title) || Boolean(subtitle) || Boolean(action);
   return (

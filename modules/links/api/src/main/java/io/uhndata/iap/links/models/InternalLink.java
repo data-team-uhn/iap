@@ -30,8 +30,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.links.api.LinkManager;
 
 /**
- * A Sling Model wrapping an {@code link:Link} or {@code link:WeakLink} node: a link referencing other content inside
- * the repository, as opposed to an {@link ExternalLink} recording a correspondence to something outside it.
+ * A link to content in this repository: a {@code link:Link} or {@code link:WeakLink} node.
  *
  * @version $Id$
  * @since 0.1.0
@@ -40,23 +39,22 @@ import io.uhndata.iap.links.api.LinkManager;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class InternalLink extends Link
 {
-    /** The {@code sling:resourceType} of an {@code link:Link} node. */
+    /** The resource type of {@code link:Link}. */
     public static final String RESOURCE_TYPE = "link/Link";
 
-    /** The {@code sling:resourceType} of an {@code link:WeakLink} node. */
+    /** The resource type of {@code link:WeakLink}. */
     public static final String WEAK_RESOURCE_TYPE = "link/WeakLink";
 
-    /** The name of the property referencing the linked resource. */
+    /** The property that references the linked content. */
     public static final String REFERENCE_PROPERTY = "reference";
 
     @ValueMapValue(name = REFERENCE_PROPERTY)
     private String reference;
 
     /**
-     * The resource this link points to.
+     * The content this link points to.
      *
-     * @return a content model, or {@code null} if the reference is broken (a weak link whose target was deleted)
-     *         or not visible to the current user
+     * @return the content; {@code null} if this session cannot read it, or if the target of a weak link was deleted
      */
     @Nullable
     public Content getDestination()
@@ -65,10 +63,9 @@ public class InternalLink extends Link
     }
 
     /**
-     * The definition of this link's type. Always an internal one: a link referencing content in the repository
-     * can only have been created from a definition describing such references.
+     * The definition of this link's type, an internal one.
      *
-     * @return a link definition, or {@code null} if it cannot be resolved
+     * @return the definition; {@code null} if this session cannot read it
      */
     @Override
     @Nullable
@@ -78,10 +75,9 @@ public class InternalLink extends Link
     }
 
     /**
-     * Whether this is a weak link, which may break when the linked resource is deleted, instead of a hard one,
-     * which prevents that deletion.
+     * Whether this link holds a weak reference.
      *
-     * @return {@code true} for an {@code link:WeakLink} node
+     * @return {@code true} for a {@code link:WeakLink} node
      */
     public boolean isWeak()
     {
@@ -89,10 +85,10 @@ public class InternalLink extends Link
     }
 
     /**
-     * The reverse of this link, held by the linked resource and pointing back at the linking resource, when the
-     * definitions of the two links declare each other as {@link InternalLinkDefinition#getBacklink() backlinks}.
+     * The reverse of this link: the link the destination holds back to this link's source, as
+     * {@link #isReverseOf} tells.
      *
-     * @return the reverse link, or {@code null} if there is none (yet)
+     * @return the reverse link; {@code null} if there is none yet
      */
     @Nullable
     public InternalLink getBacklink()
@@ -116,13 +112,13 @@ public class InternalLink extends Link
     }
 
     /**
-     * Create the reverse of this link, if its definition declares a backlink and the reverse doesn't exist yet.
-     * The reverse is created in memory through this link's own resolver, only when that session may write to the
-     * linked resource, and committing it stays the caller's responsibility; this is the one legitimate way
-     * {@link InternalLinkDefinition#isBacklinkOnly() backlink-only} definitions are instantiated.
+     * Adds the reverse of this link, if its definition names a backlink and the reverse does not exist yet. The
+     * reverse goes into this link's session, and only if that session may add nodes under the destination. The
+     * caller commits it. A link of a {@link InternalLinkDefinition#isBacklinkOnly() backlink-only} type is only ever
+     * created this way.
      *
-     * @return {@code true} if the reverse link now exists in this link's session, {@code false} if there is
-     *         nothing to create or the session may not create it
+     * @return {@code true} if the reverse now exists in this session; {@code false} if the definition names no
+     *         backlink, the reverse cannot be added in this session, or the links service is not available
      */
     public boolean addBacklink()
     {
@@ -130,11 +126,10 @@ public class InternalLink extends Link
     }
 
     /**
-     * Whether this link and another one are the two halves of a backlink pair: their endpoints are swapped, and
-     * one's definition declares the other's as its backlink. This is derivable purely from the stored data, so
-     * automatic backlink creation can recognize completed pairs without any bookkeeping.
+     * Whether this link and another are the two halves of a backlink pair: their endpoints are swapped, and one's
+     * definition names the other's as its backlink.
      *
-     * @param other another link
+     * @param other another internal link
      * @return {@code true} if the two links reverse each other
      */
     public boolean isReverseOf(@NotNull final InternalLink other)
@@ -171,9 +166,9 @@ public class InternalLink extends Link
     }
 
     /**
-     * Whether this link has a completed reverse pair.
+     * Whether the reverse of this link exists.
      *
-     * @return {@code true} if the definition declares a backlink and the reverse link exists
+     * @return {@code true} if the definition names a backlink and the reverse link exists
      */
     public boolean isSymmetric()
     {

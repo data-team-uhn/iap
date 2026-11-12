@@ -23,12 +23,11 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Creates the empty parts of a submission for one kind of item its schema asks for. Every item that applies has a
- * part of its own, empty until its author fills it in, so that an item nobody has started still has a node to
- * judge and to mark.
+ * part of its own, empty until its author fills it in. An item nobody has started then still has a node to judge
+ * and to mark.
  *
- * <p>Implementations are OSGi services. The {@code createParts} service task asks every one of them after each
- * change to a submission, so an item that starts to apply gets its part. A creator only adds what is missing, and
- * never removes a part.</p>
+ * <p>Implementations are OSGi services. The {@code createParts} service task asks every one of them, so an item
+ * that has started to apply gets its part. A creator only adds what is missing, and never removes a part.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -38,7 +37,7 @@ public interface PartCreator
     /**
      * Creates the parts missing for the items of this creator's kind that apply to a submission.
      *
-     * @param submission the submission, through the session that is writing it
+     * @param submission the submission's resource, read through the session that is writing it
      * @throws PersistenceException when a part cannot be created
      */
     void createMissing(@NotNull Resource submission) throws PersistenceException;

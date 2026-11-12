@@ -314,8 +314,8 @@ class DeletionServiceImplTest
         final Node sub = node.addNode("sub");
         sub.addMixin("mix:referenceable");
         final Node parent = this.session.getNode(CONTENT).addNode("parent");
-        // The child referrer is found first, while scanning the victim itself; the parent referrer is found
-        // later, while scanning the victim's child, and swallows the already processed child referrer
+        // Scanning the victim finds the child referrer first. Scanning the victim's child then finds the parent
+        // referrer, which swallows the child referrer.
         parent.addNode("child").setProperty("ref", node);
         parent.setProperty("ref", sub);
         this.session.save();
@@ -429,8 +429,7 @@ class DeletionServiceImplTest
         externalLink.setProperty("type", externalDefinition);
         externalLink.setProperty("value", "12345");
         this.session.save();
-        // Even a RECURSIVE_DELETE definition does not cascade over the residing links when the definition itself
-        // is what is being deleted: the links are simply removed
+        // Deleting a RECURSIVE_DELETE definition removes its links, and deletes none of their holders
         final String linkPath = link.getPath();
         final String externalLinkPath = externalLink.getPath();
         final DeletionResult first = this.delete(definition.getPath(), REFUSE_IF_REFERENCED, MOVE_TO_ARCHIVE);
@@ -454,7 +453,7 @@ class DeletionServiceImplTest
         final DeletionImpact archival =
             this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.recoverable());
         assertTrue(archival.isExecutable());
-        // ...but permanently deleting it would break somebody's archived data, so it is refused
+        // ...but deleting it for good would break the archived reference, so it is refused
         final DeletionResult result = this.delete(VICTIM_PATH, REFUSE_IF_REFERENCED, DELETE_PERMANENTLY);
         assertEquals(DeletionResult.Status.REQUIRES_CONFIRMATION, result.getStatus());
         assertEquals(1, result.getImpact().getInaccessibleReferrerCount());
@@ -510,8 +509,7 @@ class DeletionServiceImplTest
         assertTrue(result.getImpact().getVetoes().get(0).getReason().contains("Could not verify"));
     }
 
-    // A blanket policy answers the same for every node, so asking it per node would report one identical
-    // objection per node of the subtree. The paired test below is the control: a per-resource guard still does.
+    // The next test is the control: a guard that answers about each node is asked about every node
     @Test
     void aGuardJudgingTheWholeOperationIsAskedOnlyAboutTheRequestedResource() throws Exception
     {
@@ -955,7 +953,7 @@ class DeletionServiceImplTest
         this.target(VICTIM);
         final DeletionResult deleted = this.delete(VICTIM_PATH, REFUSE_IF_REFERENCED, MOVE_TO_ARCHIVE);
         assertTrue(this.service.checkRestore(this.resource(deleted.getArchiveEntryPath())).isEmpty());
-        // The point of asking is that asking does nothing
+        // Checking changes nothing
         assertTrue(this.session.nodeExists(deleted.getArchiveEntryPath()));
         assertFalse(this.session.nodeExists(VICTIM_PATH));
     }
@@ -976,7 +974,6 @@ class DeletionServiceImplTest
     @Test
     void checkRestoreAgreesWithTheRestoreItself() throws Exception
     {
-        // The preflight is only worth showing if it says what the operation will do
         this.target(VICTIM);
         final DeletionResult deleted = this.delete(VICTIM_PATH, REFUSE_IF_REFERENCED, MOVE_TO_ARCHIVE);
         this.target(VICTIM);

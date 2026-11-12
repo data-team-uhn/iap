@@ -34,9 +34,9 @@ import io.uhndata.iap.submissions.spi.AnswerConstraint;
 /**
  * Refuses a value that does not match a question's {@code pattern} in full.
  *
- * <p>The refusal is the question's own {@code patternMessage} when it has one, because only its author can read the
- * pattern. Without one, the pattern is quoted. A pattern that cannot be compiled refuses the save too, since
- * accepting anything would drop the rule the schema states, and it is recorded for whoever can fix the schema.</p>
+ * <p>The refusal is the question's own {@code patternMessage} when it has one, and quotes the pattern otherwise. A
+ * pattern that does not compile refuses every save, so the rule the schema states is never dropped. It is also
+ * recorded for whoever can fix the schema.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -73,7 +73,7 @@ public final class PatternConstraint implements AnswerConstraint
      *
      * @param question the question whose pattern was missed
      * @param declared its pattern
-     * @return the question's own message, or one quoting the pattern when it has none
+     * @return the question's own message; one quoting the pattern when it has none
      */
     private static String message(final Question question, final String declared)
     {

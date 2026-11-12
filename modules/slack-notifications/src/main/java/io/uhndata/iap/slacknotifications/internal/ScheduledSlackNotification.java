@@ -42,7 +42,8 @@ import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.slacknotifications.spi.SlackNotificationProducer;
 
 /**
- * Schedules one {@link SlackNotificationsTask} per configuration.
+ * Posts each configured notification to its chat webhook on its schedule. Each factory configuration is one
+ * scheduled job.
  *
  * @version $Id$
  * @since 0.1.0
@@ -51,27 +52,21 @@ import io.uhndata.iap.slacknotifications.spi.SlackNotificationProducer;
 @Designate(ocd = SlackNotificationConfiguration.class, factory = true)
 public class ScheduledSlackNotification
 {
-    /** The prefix identifying this module's jobs among all the scheduled ones. */
+    /** The prefix of a notification's job name, followed by the notification's name. */
     static final String JOB_PREFIX = "ScheduledSlackNotification-";
 
-    /** Used when no schedule is configured, and none can be read from the environment: nightly. */
+    /** The schedule of a notification whose schedule resolves to nothing: every night at midnight. */
     static final String DEFAULT_SCHEDULE = "0 0 0 * * ? *";
 
-    /** Marks a configuration value that names an environment variable instead of holding the value itself. */
+    /** The prefix of a configuration value that names an environment variable to read the value from. */
     private static final String FROM_ENVIRONMENT = "%ENV%";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ScheduledSlackNotification.class);
 
     /**
-     * All the registered notification producers. Updated in place as producers come and go, so the scheduled task
-     * sees the current set rather than the one that existed when it was scheduled.
-     *
-     * <p>
-     * That in-place updating is why the list has to be a concurrent one: a producer can be registered or withdrawn
-     * while a notification run is iterating over it, on an unrelated thread, which a plain list answers with a
-     * {@code ConcurrentModificationException} or a half-updated view. Copy-on-write suits the access pattern, since
-     * the list is read once per scheduled run and written only when a producer bundle starts or stops.
-     * </p>
+     * The registered producers. Declarative Services updates this list in place as producers come and go, and every
+     * scheduled task reads it. A producer can come or go while a task iterates over the list, so it must be a
+     * concurrent one.
      */
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, fieldOption = FieldOption.UPDATE,
         policy = ReferencePolicy.DYNAMIC)
@@ -88,7 +83,6 @@ public class ScheduledSlackNotification
     {
         final String endpoint = resolve(config.endpoint());
         if (StringUtils.isBlank(endpoint)) {
-            // Scheduling a job that can only ever fail would report a failure every night forever
             LOGGER.warn("The {} notification has no endpoint configured, it will not be scheduled", config.name());
             ErrorLogger.logProblem("notification has no endpoint configured",
                 ErrorContext.of(ScheduledSlackNotification.class, "activate").with("notification", config.name()));
@@ -104,7 +98,6 @@ public class ScheduledSlackNotification
             this.scheduler.schedule(task, options);
             LOGGER.info("Scheduled the {} notification", config.name());
         } catch (final RuntimeException e) {
-            // An unusable schedule expression must not stop the whole module from starting
             LOGGER.error("Could not schedule the {} notification: {}", config.name(), e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(ScheduledSlackNotification.class, "scheduleNotification")
                 .with("notification", config.name()).with("schedule", config.schedule()));
@@ -119,10 +112,11 @@ public class ScheduledSlackNotification
     }
 
     /**
-     * The schedule to use, falling back to a nightly one when nothing usable was configured.
+     * The schedule of a notification.
      *
-     * @param configured the configured value, possibly naming an environment variable
-     * @return a Quartz-readable schedule expression
+     * @param configured the configured schedule, or {@code %ENV%} followed by the name of an environment variable
+     *            holding one
+     * @return the schedule, or {@link #DEFAULT_SCHEDULE} if it resolves to {@code null} or a blank string
      */
     static String schedule(final String configured)
     {
@@ -130,12 +124,12 @@ public class ScheduledSlackNotification
     }
 
     /**
-     * Reads a configuration value that may name an environment variable rather than holding the value itself, which
-     * is how a secret such as a webhook address is kept out of the configuration files.
+     * Reads a configuration value that may come from an environment variable.
      *
-     * @param configured the configured value
-     * @return the value itself, or what the named environment variable holds, {@code null} if there is no such
-     *         variable
+     * @param configured the value itself, or {@code %ENV%} followed by the name of an environment variable, such as
+     *            {@code %ENV%SLACK_NOTIFICATIONS_ENDPOINT}
+     * @return the value itself, or what the named environment variable holds, or {@code null} if the value is
+     *         {@code null} or the variable is not set
      */
     static String resolve(final String configured)
     {
@@ -146,11 +140,10 @@ public class ScheduledSlackNotification
     }
 
     /**
-     * Parses the {@code key=value} strings of the configuration into a map, ignoring anything that is not in that
-     * shape rather than refusing the whole configuration.
+     * Parses the configured extra parameters. A string with no {@code =} is logged, recorded and skipped.
      *
-     * @param configured the configured parameters, may be {@code null}
-     * @return the parsed parameters, an empty map if there are none
+     * @param configured {@code key=value} strings, or {@code null} for none. The key is trimmed, the value is not
+     * @return the values by key, empty if there are none
      */
     static Map<String, String> asParameters(final String[] configured)
     {

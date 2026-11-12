@@ -34,9 +34,10 @@ import io.uhndata.iap.status.spi.StatusReport;
 import io.uhndata.iap.status.spi.StatusReporter;
 
 /**
- * Reports the outcome of all the registered health checks as a status report: a success when everything is OK,
- * otherwise a summary of the failed checks, with their names spelled out only in privileged reports. Warnings map
- * to a warning report, anything worse to an error report.
+ * Sums up the health checks in a status report. The report runs every health check that has a tag, and is a
+ * {@code SUCCESS} when they all pass. Otherwise it gives the number of failed checks, and only a privileged report
+ * names them. The worst result decides the level: a {@code WARN} makes a {@code WARNING}, and anything worse makes
+ * an {@code ERROR}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,12 +45,10 @@ import io.uhndata.iap.status.spi.StatusReporter;
 @Component(immediate = true)
 public class HealthCheckStatusReporter implements StatusReporter
 {
-    /** Default logger. */
     private static final Logger LOGGER = LoggerFactory.getLogger(HealthCheckStatusReporter.class);
 
     private static final String REPORT_TITLE = "Health Check";
 
-    /** Runs all the registered health checks. */
     @Reference
     private HealthCheckExecutor hc;
 

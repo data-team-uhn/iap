@@ -26,7 +26,7 @@ export const TASK_INSTANCE_TYPE = "wf/TaskInstance";
 // The event that completes a task
 export const COMPLETE_EVENT = "complete";
 
-// The status a task carries until somebody completes it
+// The status of a task nobody has completed or cancelled yet
 export const OPEN_STATUS = "created";
 
 // One thing a person still has to do on a submission.

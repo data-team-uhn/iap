@@ -38,8 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link Requirement}, exercised through the {@link ApprovalRequirement} concrete subtype (an
- * abstract node type has no direct instances of its own).
+ * Unit tests for {@link Requirement}, through {@link ApprovalRequirement}, since a requirement is always of a concrete
+ * type.
  *
  * @version $Id$
  * @since 0.1.0
@@ -83,8 +83,6 @@ class RequirementTest
     @Test
     void dispatchesToConcreteSubtype()
     {
-        // Adapting a concrete subtype's resource to the abstract Requirement model dispatches to the real
-        // concrete class, exposing its own fields too, not just the common ones.
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req", Map.of(
             "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE,
             "sling:resourceSuperType", Requirement.RESOURCE_TYPE,

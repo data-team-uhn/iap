@@ -180,7 +180,7 @@ class InternalLinkTest
     void unrelatedLinksAreNotReverses()
     {
         final InternalLink link = (InternalLink) this.createFixture().adaptTo(Link.class);
-        // Same definition pair, but pointing at a third resource: endpoints don't swap
+        // Same definition pair, but b's link points at b itself: the endpoints are not swapped
         final Resource unrelated = this.context.create().resource("/Things/b/link:links/l3", Map.of(
             SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", BACK_DEFINITION_ID,
@@ -232,7 +232,7 @@ class InternalLinkTest
                 "reference", THING_A_ID))
             .adaptTo(Link.class);
 
-        // The bare side recognizes the pair through the OTHER side's backlink declaration
+        // The bare side recognizes the pair through the other side's backlink
         assertTrue(reverse.isReverseOf(forward));
         assertTrue(forward.isReverseOf(reverse));
     }
@@ -414,7 +414,7 @@ class InternalLinkTest
     @Test
     void writeBehaviorNeedsTheLinksService()
     {
-        // No links operations service is registered in this context, e.g. a read-only rendering context
+        // No LinkOperations service is registered
         final InternalLink link = (InternalLink) this.createFixture().adaptTo(Link.class);
 
         assertFalse(link.addBacklink());

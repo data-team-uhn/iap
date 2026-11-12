@@ -28,9 +28,8 @@ import type { EntityRow } from "./pagination";
 import type { EntityGridColumn, EntityGridConfig } from "./registry";
 import type { GridRenderCellParams } from "@mui/x-data-grid-pro";
 
-// A generic text rendering of one cell value: dates and primitives have an obvious one,
-// nested objects have none — keep object-like typeofs out of the list, or they would
-// stringify as "[object Object]".
+// A cell value as text: a date as formatDateTime gives it, and a string, number or boolean as it
+// is. Anything else gives null, since an object would show as "[object Object]".
 function scalarContent(value: unknown): ReactNode {
   if (value instanceof Date) {
     return formatDateTime(value);
@@ -38,9 +37,9 @@ function scalarContent(value: unknown): ReactNode {
   return ["string", "number", "boolean"].includes(typeof value) ? String(value) : null;
 }
 
-// One value of the narrow-screen card, rendered the way its column would render it: through
-// the column's renderCell and valueGetter when present, generically otherwise. Our render
-// callbacks only read the row and value, so the partial params object is enough.
+// A column's value on the narrow-screen card, through the column's valueGetter and renderCell
+// where it has them, or else as text. A renderCell is given only the row, the value and the
+// field, so anything else it reads of its params is undefined here.
 export function columnContent(column: EntityGridColumn, row: EntityRow): ReactNode {
   const raw = row[column.field];
   const value = column.valueGetter
@@ -58,15 +57,11 @@ export function columnContent(column: EntityGridColumn, row: EntityRow): ReactNo
 export const CardActions = ({ children }: { children: ReactNode }) =>
   <Box onClick={event => event.stopPropagation()} sx={{ display: "inline-flex" }}>{children}</Box>;
 
-// The card shown for one entity in list mode, composed from the visible columns according to
-// their card slots. The title column leads the card, badge columns sit beside it, and actions end
-// its line. Caption columns join into one muted " • " line below, and "row" columns, the default,
-// become labeled rows. Omitted columns don't appear at all. Content comes from each column's own
-// rendering, unless its cardValue asks for a more compact form. Without a designated (or
-// visible) title column, the first regular column leads the card, so a plain column list
-// still makes a sensible card with no hints at all. An entity's children, for a type that has
-// them, close the card. Each is named by its tree field, shows its badges, and links to its page
-// where it has one.
+// The card for one entity in list mode, composed from the given columns by their card slots. Each
+// column shows its cardValue, or else what it shows in the grid. Without a visible title column,
+// the first "row" column leads the card instead, and a value that comes out empty leaves its
+// labeled row out. The entity's children, for a type that has them, end the card. Each is named
+// by its tree field, shows its badges, and links to its page where rowLink gives one.
 export default function EntityListItem({ row, columns, config }: {
   row: EntityRow;
   columns: EntityGridColumn[];

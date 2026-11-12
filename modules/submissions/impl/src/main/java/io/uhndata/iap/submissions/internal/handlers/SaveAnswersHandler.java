@@ -51,20 +51,20 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 /**
  * The service task that records a submitter's answers.
  *
- * <p>Each payload entry names a question by its path <em>relative to the schema version</em>, and carries the answer's
- * value or values. An entry pointing to a non-existing question is refused rather than quietly stored.</p>
+ * <p>Each payload entry names a question by its path relative to the schema version, such as
+ * {@code details/startDate}, and carries the answer's value or values. An entry naming no question of the schema
+ * version is refused.</p>
  *
- * <p>Saving is idempotent: an answer already recorded for a question is updated in place, found by the reference it
- * holds rather than by any name, so saving twice leaves one answer and not two.</p>
+ * <p>Saving is idempotent. An answer already recorded for a question is found by its reference to the question, and
+ * updated in place, so saving twice leaves one answer.</p>
  *
  * <p>A value is accepted only for a question the submitter is shown. This is judged after the save's own writes, so a
  * question the same save reveals is accepted along with the answer that reveals it. Clearing an answer is always
  * accepted.</p>
  *
- * <p><strong>Both rules about who may do this are enforced here:</strong> the actor is the person the engine recorded
- * as having raised the submission, and that the submission is still a draft. The start event also declares
- * {@code @creator}, so the engine offers saving only to that person. The first rule is checked again here because
- * administrators pass every declaration.</p>
+ * <p>Only the person who raised the submission may save, and only while it is a draft. The start event also names
+ * {@code @creator} as its performer, but administrators pass every performer check, so the first rule is checked
+ * again here.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -112,7 +112,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      * Refuses the save if it gave a value to a question the submitter is not shown, now that its own answers are
      * written. The engine then commits nothing.
      *
-     * @param target the submission's own resource, read again to see the answers just written
+     * @param target the submission's resource, read again to see the answers just written
      * @param schemaVersion the schema version the question paths are relative to
      * @param answers the questions this save answered, with the values it gave them
      * @throws InvalidStateException when a value was given to a question that does not apply
@@ -136,19 +136,17 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Refuses a change that is not the submitter's own, or that comes too late: an answer saved, or a document
-     * attached.
+     * Refuses a change to a submission that is not its submitter's, or that comes after it stopped being a draft.
      *
-     * @param submission the submission being edited
-     * @param actor the user whose action this is
-     * @throws NotAuthorizedException when somebody else is editing it
+     * @param submission the submission being changed
+     * @param actor the user id of whoever is changing it
+     * @throws NotAuthorizedException when somebody else is changing it
      * @throws InvalidStateException when it is no longer a draft
      */
     static void checkMayEdit(final Submission submission, final String actor)
         throws NotAuthorizedException, InvalidStateException
     {
-        // getCreatedBy prefers what the engine recorded over jcr:createdBy, which names the engine's own service
-        // user for everything it writes
+        // getCreatedBy prefers who the engine recorded over jcr:createdBy, which names the engine's own service user
         if (!actor.equals(submission.getCreatedBy())) {
             throw new NotAuthorizedException("Only the person who raised a request may change it");
         }
@@ -160,23 +158,19 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     /**
      * The schema version whose questions this submission may answer.
      *
-     * @param submission the submission being edited
-     * @param target the submission's own resource, read through the session everything else uses
+     * @param submission the submission being answered
+     * @param target the submission's resource, read through the resolver the save writes with
      * @return the schema version's resource
-     * @throws InvalidPayloadException when the submission answers nothing readable
+     * @throws InvalidPayloadException when this session cannot read the schema version
      */
     private Resource schemaVersionOf(final Submission submission, final Resource target)
         throws InvalidPayloadException
     {
-        // The node type makes the reference mandatory, which is a rule about the content and not a promise to
-        // every reader: a version that has gone, or one this session may not read, resolves to nothing
         final SchemaVersion schemaVersion = submission.findSchemaVersion();
         if (schemaVersion == null) {
             throw new InvalidPayloadException("Cannot identify the schema of this submission");
         }
-        // Resolved again on the session everything else uses. The model reads through the same resolver in
-        // production, but not in every harness, and a version that adapts without resolving here is still a
-        // submission that cannot say what it is answering
+        // Read again through the resolver the save writes with
         final Resource resource = target.getResourceResolver().getResource(schemaVersion.getPath());
         if (resource == null) {
             throw new InvalidPayloadException("Cannot access the schema of this submission");
@@ -188,17 +182,16 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      * Resolves one payload key into the question it names.
      *
      * @param schemaVersion the schema version the paths are relative to
-     * @param path the question's path relative to that version
+     * @param path the question's path relative to that version, such as {@code details/startDate}
      * @return the question's resource
-     * @throws InvalidPayloadException when nothing of that name is a question of this schema version
+     * @throws InvalidPayloadException when nothing at that path is a question of this schema version
      */
     private Resource question(final Resource schemaVersion, final String path) throws InvalidPayloadException
     {
         final Resource question = schemaVersion.getChild(path);
-        // Containment is checked on what the path resolved to, not on the path as written. `getChild` hands an
-        // absolute path straight to the resolver and normalises `..` out of a relative one, so a key can name a
-        // question of some other schema -- one the caller may not even be able to read, since the engine's
-        // session can. The answer would then hold a REFERENCE that makes that question undeletable.
+        // Containment is checked on the resolved path, not on the key. `getChild` resolves an absolute key as it is,
+        // and normalises `..` out of a relative one, so a key can name a question of another schema. The answer's
+        // REFERENCE would then keep that question from being deleted.
         if (question == null || !question.isResourceType(Question.RESOURCE_TYPE)
             || !question.getPath().startsWith(schemaVersion.getPath() + "/")) {
             throw new InvalidPayloadException("There is no question " + path + " to answer in this request");
@@ -210,8 +203,10 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      * One answer's values, as the request gave them: a single parameter arrives as a string, a repeated one as an
      * array.
      *
+     * @param question the payload key, for the message
      * @param submitted the payload value
-     * @return the values to store, blanks dropped, empty when the answer is being cleared
+     * @return the values to store, blanks dropped; empty when the answer is being cleared
+     * @throws InvalidPayloadException when the value is neither a string nor an array of strings
      */
     private String[] values(final String question, final Object submitted) throws InvalidPayloadException
     {
@@ -225,8 +220,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Drops the blank values. A cleared field posts one empty value, because naming the question is the only way to
-     * say "clear this", so an answer left with no values is cleared.
+     * Drops the blank values. A cleared field posts one empty value, and an answer left with no values is cleared.
      *
      * @param given the values as the payload carried them
      * @return the non-blank values, in the order given
@@ -239,9 +233,8 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     /**
      * Writes one answer, updating the one already there if this question has been answered before.
      *
-     * @param answers the answers already present in the submission, as a map from the path of the question
-     *     they answer to the path of the existing answer node
-     * @param target the submission's own resource, which the answers are children of
+     * @param answers the answers already in the submission: the path of each answer node, by the path of its question
+     * @param target the submission's resource, which the answers are children of
      * @param question the question being answered
      * @param values the submitted values
      * @throws PersistenceException when the answer cannot be written
@@ -251,7 +244,7 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     {
         final String existing = answers.get(question.getPath());
         if (existing == null && values.length == 0) {
-            // Clearing a question that has no answer yet. Its empty answer is createParts's to create
+            // Clearing a question that has no answer yet. The createParts task creates its empty answer.
             return;
         }
         if (existing != null) {
@@ -265,10 +258,10 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Gather the questions this submission already holds an answer for.
+     * The answers this submission already holds, by question. Of two answers to one question, the first is kept.
      *
      * @param submission the submission to look in
-     * @return a map from questions to existing answers, as repository paths
+     * @return the path of each answer node, by the path of its question
      */
     private Map<String, String> answersByQuestion(final Submission submission)
     {

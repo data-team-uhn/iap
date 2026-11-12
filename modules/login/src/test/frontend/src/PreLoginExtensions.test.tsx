@@ -28,7 +28,7 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
-// A frame-top extension as returned by loadExtensions, with the render asset already resolved
+// A `frameTop` extension as loadExtensions returns it, with its `ext:render` already loaded
 const notice = (name: string, visibleBeforeLogin?: unknown): Extension => ({
   "ext:name": name,
   ...(visibleBeforeLogin === undefined ? {} : { "ext:visibleBeforeLogin": visibleBeforeLogin }),
@@ -47,7 +47,7 @@ describe("PreLoginExtensions", () => {
 
     expect(await screen.findByText("Maintenance content")).toBeInTheDocument();
     expect(screen.queryByText("AppBar content")).not.toBeInTheDocument();
-    // Visibility is opt-in: an extension that doesn't declare the flag stays post-login only
+    // Nor is an extension without the flag
     expect(screen.queryByText("Unflagged content")).not.toBeInTheDocument();
     expect(mockedLoadExtensions).toHaveBeenCalledWith("FrameTop");
   });

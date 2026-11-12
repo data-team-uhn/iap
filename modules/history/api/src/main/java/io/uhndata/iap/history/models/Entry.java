@@ -129,10 +129,11 @@ public class Entry extends Content
 
     /**
      * The part this resource played in the action, which tells apart resources one action treated differently: the
-     * workflow version it retired and the one it activated.
+     * workflow version it retired and the one it activated. The code that acted names it, or else it says what the
+     * commit did to the resource, such as {@code created}.
      *
-     * @return a free-form word in the vocabulary of the operation, which the workflow definitions own, such as
-     *         {@code submitted}, {@code retired} or {@code activated}; empty only in a malformed record
+     * @return a free-form phrase in the vocabulary of the operation, such as {@code raised}, {@code retired} or
+     *         {@code tagged as active}; empty only in a malformed record
      */
     @NotNull
     public String getRole()

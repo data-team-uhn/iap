@@ -44,7 +44,7 @@ const sessionInfo = (userID: string | undefined) => ({
   json: () => Promise.resolve({ userID }),
 });
 
-// Reports whatever the hook's fetch settled with, so the tests can assert on it from the DOM.
+// Reports what the hook's fetch settled with.
 function Caller({ onResult }: { onResult?: (outcome: string) => void }) {
   const authenticatedFetch = useAuthenticatedFetch();
   return (
@@ -69,9 +69,6 @@ const renderCaller = (requestReLogin: RequestReLogin | null, onResult?: (outcome
   return render(<>{tree(<Caller onResult={onResult} />)}</>);
 };
 
-// Typed, unlike the bare `vi.fn()` elsewhere: these tests drive the mock through
-// mockImplementation, and an untyped mock is declared as returning void, which makes handing it an
-// async implementation an error.
 type FetchMock = ReturnType<typeof vi.fn<(url: string) => Promise<unknown>>>;
 
 describe("useAuthenticatedFetch", () => {
@@ -86,9 +83,9 @@ describe("useAuthenticatedFetch", () => {
     vi.unstubAllGlobals();
   });
 
-  // Answers the request under test with `responses` in order, and the session probe with whether the
-  // session is still there. The probe can interleave with the retries, so it is matched by URL
-  // rather than by call order.
+  // Answers the request under test with `responses` in order, and the question about the session
+  // with whether it is still there. The question can come between the retries, so it is matched by
+  // URL, not by call order.
   const answer = (responses: object[], authenticated = true) => {
     const queue = [...responses];
     fetchMock.mockImplementation((url: string) =>
@@ -107,7 +104,7 @@ describe("useAuthenticatedFetch", () => {
     screen.getByRole("button").click();
 
     await waitFor(() => { expect(onResult).toHaveBeenCalledWith("resolved:payload"); });
-    // Nothing ambiguous happened, so the session was never probed
+    // No 500, so no question about the session
     expect(requestsFor(SESSION_INFO_URL)).toHaveLength(0);
   });
 
@@ -144,10 +141,10 @@ describe("useAuthenticatedFetch", () => {
 
       screen.getByRole("button").click();
 
-      // Nothing is reported to the caller yet: the request is waiting on the sign-in
+      // The request waits on the sign-in, and the caller has no answer yet
       await waitFor(() => { expect(requestReLogin).toHaveBeenCalled(); });
       expect(onResult).not.toHaveBeenCalled();
-      // Unambiguous, so no probe was needed
+      // No 500, so no question about the session
       expect(requestsFor(SESSION_INFO_URL)).toHaveLength(0);
 
       recover?.(true);
@@ -193,8 +190,6 @@ describe("useAuthenticatedFetch", () => {
     });
   });
 
-  // Sling reports a write attempted with an expired session as a 500 rather than a 401, so a 500 has
-  // to be told apart from a genuine server error before deciding what to do with it.
   describe("when a 500 comes back", () => {
     it("recovers the session, when that is what the 500 really meant", async () => {
       const onResult = vi.fn();
@@ -223,7 +218,6 @@ describe("useAuthenticatedFetch", () => {
       screen.getByRole("button").click();
 
       await waitFor(() => { expect(onResult).toHaveBeenCalledWith("resolved:genuinely broken"); });
-      // No sign-in was asked for, and the request was not re-sent
       expect(requestReLogin).not.toHaveBeenCalled();
       expect(requestsFor("/data.json")).toHaveLength(1);
     });
@@ -240,7 +234,6 @@ describe("useAuthenticatedFetch", () => {
 
       screen.getByRole("button").click();
 
-      // One sign-in, then the second 500 is recognised as a real error rather than prompting again
       await waitFor(() => { expect(onResult).toHaveBeenCalledWith("resolved:still broken"); });
       expect(requestReLogin).toHaveBeenCalledTimes(1);
     });
@@ -254,8 +247,6 @@ describe("useAuthenticatedFetch", () => {
 
       screen.getByRole("button").click();
 
-      // A failing probe says nothing about the session, so the 500 is reported rather than turned
-      // into a sign-in prompt
       await waitFor(() => { expect(onResult).toHaveBeenCalledWith("resolved:boom"); });
       expect(requestReLogin).not.toHaveBeenCalled();
     });
@@ -279,8 +270,6 @@ describe("useAuthenticatedFetch", () => {
   });
 });
 
-// Why the failure has a type rather than a recognisable message: a caller has to tell "the session is
-// gone" apart from "the server could not be reached", and matching on message text would couple them.
 describe("isNotAuthenticated", () => {
   it("recognises a session that could not be recovered", () => {
     expect(isNotAuthenticated(new NotAuthenticatedError("gone"))).toBe(true);

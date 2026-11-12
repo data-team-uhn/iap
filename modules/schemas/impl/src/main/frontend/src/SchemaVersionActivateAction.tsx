@@ -25,9 +25,8 @@ import { labelOf, pathOf, tagsOf, versionsOf } from "./schemaModel";
 
 import type { SchemaVersionActionProps } from "./SchemaVersionActions";
 
-// Opens a version to new submissions: a draft for the first time, once it passes the publish checks,
-// or a retired version again. The confirmation names the version this retires, which the row the action sits in
-// does not show.
+// Opens a version to new submissions: a draft for the first time, once it passes the validity checks, or a
+// retired version again. The confirmation names the active version this retires.
 function SchemaVersionActivateAction(props: SchemaVersionActionProps) {
   const { version, schema } = props;
   if (!offers(version, "activate")) {

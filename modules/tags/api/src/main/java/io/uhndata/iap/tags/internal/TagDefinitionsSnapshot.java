@@ -29,8 +29,8 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import io.uhndata.iap.tags.spi.TagDefinitions;
 
 /**
- * A {@link TagDefinitions} snapshot built by reading the {@code tag:Definition} children of the {@code /Tags}
- * node state at the start of a commit.
+ * The {@link TagDefinitions} of one commit, read from the {@code tag:Definition} children of {@code /Tags} as that
+ * commit leaves them.
  *
  * @version $Id$
  * @since 0.1.0
@@ -46,8 +46,7 @@ public class TagDefinitionsSnapshot implements TagDefinitions
     /**
      * Basic constructor.
      *
-     * @param homepage the state of the {@code /Tags} node holding the definitions; a missing node state yields an
-     *            empty set of definitions
+     * @param homepage the state of the {@code /Tags} node; a node state that does not exist gives no definitions
      */
     public TagDefinitionsSnapshot(final NodeState homepage)
     {

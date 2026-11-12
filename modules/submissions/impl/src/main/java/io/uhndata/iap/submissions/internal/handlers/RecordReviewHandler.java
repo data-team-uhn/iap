@@ -41,10 +41,10 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 /**
  * The service task that records a decision as a review of the approval requirement it decides. The review is by
  * whoever completed the task, tagged with the task's outcome, with the decider's note as a comment. The activity
- * names the requirement in its {@code requirement}.
+ * names the requirement in its {@code requirement} property.
  *
- * <p>It reads the decision from the completion that reached it, so it has to follow the user task that decides
- * directly, with no join or timer between them.</p>
+ * <p>It reads the decision from the completion that reached it, so it has to follow the deciding user task directly,
+ * with no join or timer between them.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -105,8 +105,8 @@ public class RecordReviewHandler implements ServiceTaskHandler
     }
 
     /**
-     * The approval requirement the activity says it decides, by name, among those the submission's schema version
-     * asks. A name rather than a path, so that one workflow serves every schema version pinning it.
+     * The approval requirement the activity says it decides, by node name, among those the submission's schema
+     * version asks. A name and not a path, so one workflow serves every schema version that references it.
      *
      * @param submission the submission being decided
      * @param activity the activity being performed
@@ -134,7 +134,7 @@ public class RecordReviewHandler implements ServiceTaskHandler
      * @param context the executing task's context
      * @param host the submission the review belongs to
      * @param requirement the requirement decided
-     * @param outcome the decision, which must name a state a review can be in
+     * @param outcome the decision, a tag naming a state a review can be in, such as {@code approved}
      * @return the review
      * @throws WorkflowDefinitionException when the outcome names no such state
      * @throws PersistenceException when the review cannot be written
@@ -143,7 +143,7 @@ public class RecordReviewHandler implements ServiceTaskHandler
         final ApprovalRequirement requirement, final String outcome)
         throws WorkflowDefinitionException, PersistenceException
     {
-        // A UUID rather than the reviewer's name: the same person may decide more than once
+        // A UUID, since the same person may decide more than once
         final Resource review = context.getResourceResolver().create(host, UUID.randomUUID().toString(),
             Map.of(PRIMARY_TYPE_PROPERTY, REVIEW_NODE_TYPE, REVIEWER_PROPERTY, context.getActor()));
         ReferenceUtils.setReference(review, REQUIREMENT_PROPERTY, requirement);

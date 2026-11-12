@@ -19,39 +19,34 @@
 import { readJson } from "@iap/frontend-commons/requestFailure";
 import { childrenOfType, type SerializedNode, stringsOf } from "@iap/frontend-commons/serializedNode";
 
-// The client half of the error triage screens: counting what needs attention, reading one recorded
-// error with the decisions taken about it, and recording a new decision. Every call takes the fetch
-// to use as its first argument rather than reaching for a hook, so this file stays free of React and
-// is testable as plain functions; components pass `useAuthenticatedFetch()` in.
+// The client side of the error triage pages: reading one recorded error with the decisions taken
+// about it, and recording a new decision. Every call takes the fetch to use as its first argument,
+// so this file needs no React; components pass `useAuthenticatedFetch()`.
 
 
 /** The fetch a caller supplies, normally the session-aware one from `@iap/frontend-commons/reLogin`. */
 export type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
-/** Where the recorded errors live. Flat: an error is named after its fingerprint. */
+/** The homepage of the recorded errors. Each error is a child named after its fingerprint. */
 export const LOGGED_ERRORS_PATH = "/LoggedErrors";
 
-/**
- * Where the errors are triaged, which is a page of the administration console rather than the
- * repository path they live at. The two are deliberately kept next to each other: a route that
- * drifted from the resource path would navigate somewhere real and fetch from somewhere that is not.
- */
+/** The administration console page where errors are triaged, which differs from their repository path. */
 export const ERRORS_ROUTE = "/admin/errors";
 
-/** The resource type the grid registry and the pagination servlet know these by. */
+/** The resource type of a recorded error, which the grid registry and the pagination servlet use. */
 export const LOGGED_ERROR_TYPE = "err/LoggedError";
 
-/** The tag category the triage markers live in. Mirrors LoggedError.TRIAGE_CATEGORY. */
+/** The tag category of the triage tags. */
 export const TRIAGE_CATEGORY = "error-triage";
 
 /**
- * The marker an error carries while it still needs attention — either nobody has looked at it, or it
- * has happened again since somebody decided it was dealt with. Derived from the decisions on the
- * error, so it is never chosen by a person, which is why it is not among RESOLUTIONS below.
+ * The tag of an error that needs attention: nobody has acknowledged it, or it happened again since.
+ * It is computed from the decisions on the error, so nobody can choose it, and it is not among
+ * RESOLUTIONS.
  */
 export const UNACKNOWLEDGED = "unacknowledged";
 
-/** The property the triage markers are derived into: the tags module's LOCAL phase writes here. */
+/** The property that holds the tags computed from an error's own content, the triage tags among them. */
 export const TRIAGE_PROPERTY = "computedTags";
 
 /** One decision a person may record about an error. */
@@ -59,14 +54,13 @@ export interface Resolution {
   /** The tag name sent as the `resolution` parameter. */
   name: string;
   label: string;
-  /** What choosing it means, shown beside the choice so the three are told apart. */
+  /** What choosing it means, shown beside the choice. */
   hint: string;
 }
 
 /**
- * The decisions offered, in the order they are offered. Deliberately not read from `/Tags`: these
- * are the three a person may *take*, whereas the category also holds `unacknowledged`, which is
- * derived and would be a nonsensical thing to choose. Their labels match the shipped definitions.
+ * The decisions the page offers, in order: the three triage tags this module ships, other than
+ * `unacknowledged`. A tag a deployment adds to the category is not offered.
  */
 export const RESOLUTIONS: Resolution[] = [
   { name: "acknowledged", label: "Acknowledged", hint: "Seen and being dealt with" },
@@ -75,20 +69,17 @@ export const RESOLUTIONS: Resolution[] = [
 ];
 
 /**
- * The unqualified tail of a dotted Java name, for the places that show one: the package repeats down
- * a whole column, and adds a line's worth of noise to a heading, while the simple name is what tells
- * one fault from another. The fully-qualified name is shown once, as a fact on the error's own page.
+ * The simple name of a fully qualified Java class name, such as `IllegalStateException` for
+ * `java.lang.IllegalStateException`, or an empty string for a value that is not a string.
  *
- * Takes `unknown` rather than `string` on purpose. A grid column's `valueGetter` is handed a value
- * the grid types from the row, and an EntityRow is a `Record<string, unknown>`, so inspecting the
- * parameter inline narrows it to `never` and fails the typecheck; every other grid in the repo passes
- * it to a helper for exactly this reason.
+ * It takes `unknown` because a grid column's `valueGetter` receives a value typed from the row, an
+ * EntityRow, which is a `Record<string, unknown>`.
  */
 export function simpleName(value: unknown): string {
   return typeof value === "string" ? value.slice(value.lastIndexOf(".") + 1) : "";
 }
 
-/** The label to show for a triage marker, falling back to the raw name for one we do not know. */
+/** The label of a triage tag, or the tag's name for one this module does not ship. */
 export function resolutionLabel(name: string): string {
   if (name === UNACKNOWLEDGED) {
     return "Needs attention";
@@ -107,7 +98,7 @@ export interface Decision {
   createdBy?: string;
 }
 
-/** One recorded error, with everything the triage screen shows about it. */
+/** One recorded error, with everything the triage page shows about it. */
 export interface LoggedErrorDetail {
   path: string;
   name: string;
@@ -128,7 +119,7 @@ export interface LoggedErrorDetail {
   stackTrace?: string;
   /** What is wrong, for a problem. */
   problem?: string;
-  /** The triage markers currently derived onto the error. */
+  /** The tags computed from the error's own content, the triage tags among them. */
   triage: string[];
   /** The decisions taken, newest first. */
   decisions: Decision[];
@@ -143,7 +134,7 @@ export type AcknowledgeStatus =
 
 export interface AcknowledgeOutcome {
   status: AcknowledgeStatus;
-  /** A sentence fit to show the user, whenever there is something to explain. */
+  /** A sentence to show the user, for any status but `ok`. */
   message?: string;
 }
 
@@ -151,9 +142,8 @@ export interface AcknowledgeOutcome {
 export const errorRoute = (name: string): string => `${ERRORS_ROUTE}/${name}`;
 
 /**
- * The fingerprint named by a console route, or null when the route names no single error — the
- * browse page itself, or anything deeper than one error. Reported rather than fetched, so a route
- * that cannot identify an error says so instead of requesting nonsense.
+ * The fingerprint in a console route, or null if the route names no single error, as for the list
+ * page itself or a path deeper than one error.
  */
 export function errorNameFromRoute(route: string): string | null {
   const trimmed = route.replace(/\/+$/, "");
@@ -213,17 +203,14 @@ function readError(name: string, node: SerializedNode): LoggedErrorDetail {
     type: asString(node, "type"),
     stackTrace: asString(node, "stackTrace"),
     problem,
-    // Only the triage markers, so an unrelated tag on the error is not shown as a decision
     triage: stringsOf(node[TRIAGE_PROPERTY]),
     decisions: childrenOfType(node, "err/Acknowledgement").map(readDecision).sort(NEWEST_FIRST),
   };
 }
 
 /**
- * Reads one recorded error and the decisions taken about it.
- *
- * Depth 1 rather than `deep`: the decisions are direct children and nothing below them is shown, and
- * a bounded depth stays correct as the nodes grow children.
+ * Reads one recorded error and the decisions taken about it, which are its children. Depth 1 reads
+ * nothing below them.
  */
 export async function fetchLoggedError(
   fetchUtil: AuthenticatedFetch, name: string): Promise<LoggedErrorDetail> {
@@ -241,10 +228,8 @@ export async function fetchLoggedError(
 /**
  * Records a decision about one error.
  *
- * The URL carries the selector *and* an extension. `.acknowledge` on its own would not reach the
- * servlet at all: Sling reads the last dot-separated token as the extension, so there would be no
- * selector to match, and the request would fall through to the default POST servlet — which would
- * cheerfully write a `resolution` property onto the error instead of recording a decision.
+ * The URL needs the `.json` extension. Without it, Sling reads `acknowledge` as the extension, and
+ * its default POST servlet writes a `resolution` property onto the error instead.
  */
 export async function acknowledgeError(fetchUtil: AuthenticatedFetch, name: string,
   resolution: string, note?: string): Promise<AcknowledgeOutcome> {
@@ -257,9 +242,8 @@ export async function acknowledgeError(fetchUtil: AuthenticatedFetch, name: stri
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
   });
-  // The servlet answers a refusal as {"status":"error","error":"<sentence>"}; prefer its own words,
-  // which name what was wrong, over anything this side could guess. An unreadable body is not taken
-  // as success: only the status decides that.
+  // The servlet answers a refusal as {"status":"error","error":"<sentence>"}, and its sentence is
+  // shown if there is one. Only the status decides success.
   const answer = (await response.json().catch(() => null)) as SerializedNode | null;
   const message = answer === null ? undefined : asString(answer, "error");
   if (response.ok) {

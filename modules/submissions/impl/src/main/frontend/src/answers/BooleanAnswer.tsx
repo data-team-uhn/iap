@@ -31,16 +31,13 @@ import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
-// A yes/no answer, always as a pair of choices. Picking one is a finished answer the moment it
-// happens, so it saves on change rather than on blur, as other inputs normally do.
-//
-// A single checkbox would be the same control for "no" as for "not answered yet", which a question
-// that may be left unanswered has to be able to tell apart.
+// A yes or no answer, as a pair of radio buttons. A pick is a finished answer, so it is saved at once.
+// A single checkbox would show "no" and "not answered yet" the same way.
 function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
   return (
     <FormControl required={isRequired(question)} disabled={disabled} component="fieldset">
       <FormLabel component="legend">{questionLabel(question)}</FormLabel>
-      {/* required on each input, not on the FormControl, which never forwards it to a radio */}
+      {/* `required` is on each radio, since the FormControl does not forward it */}
       <RadioGroup row value={values[0] ?? ""} onChange={event => onAnswered([ event.target.value ])}>
         <FormControlLabel value="true" control={<Radio required={isRequired(question)} />} label="Yes" />
         <FormControlLabel value="false" control={<Radio required={isRequired(question)} />} label="No" />

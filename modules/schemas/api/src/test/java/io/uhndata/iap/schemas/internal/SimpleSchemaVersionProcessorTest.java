@@ -40,7 +40,7 @@ import org.mockito.Mockito;
  */
 public class SimpleSchemaVersionProcessorTest
 {
-    /** Stands in for whatever the workflow reference was inlined as by the time this processor runs. */
+    /** The workflow reference, as {@code dereference} inlines it before this processor runs. */
     private static final JsonValue INLINED_WORKFLOW = Json.createObjectBuilder()
         .add("jcr:primaryType", "wf:WorkflowVersion")
         .add("bpmn", "<the whole document>")
@@ -54,7 +54,6 @@ public class SimpleSchemaVersionProcessorTest
     public void testMetadata()
     {
         Assertions.assertEquals("simple", this.processor.getName());
-        // After the general trimming at 25, and after dereference at 10 has inlined what this undoes
         Assertions.assertEquals(50, this.processor.getPriority());
         Assertions.assertFalse(this.processor.isEnabledByDefault(null));
     }
@@ -145,7 +144,7 @@ public class SimpleSchemaVersionProcessorTest
     {
         final JsonValue child = Json.createValue("a child");
 
-        // The serializer passes the containing node, but a defensive null must not be mistaken for a schema version
+        // A null node is not a schema version
         Assertions.assertSame(child, this.processor.processChild(null, null, child, this.serializeNode));
     }
 

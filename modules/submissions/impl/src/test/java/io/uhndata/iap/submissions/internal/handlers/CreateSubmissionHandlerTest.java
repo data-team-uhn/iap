@@ -110,8 +110,6 @@ class CreateSubmissionHandlerTest
         assertNotNull(created);
         assertEquals("sub:Submission", created.getValueMap().get("jcr:primaryType"));
         assertEquals("My day off", created.getValueMap().get("title"));
-        // Raised as a draft, which is the state the save workflow checks for: without it the submitter cannot
-        // answer their own request at all
         assertEquals(List.of("draft"), List.of(created.getValueMap().get("tags", new String[0])));
         // Real REFERENCEs, holding the version's and the schema's own identifiers
         final Node versionNode =
@@ -178,8 +176,8 @@ class CreateSubmissionHandlerTest
     @Test
     void translatesAFailedReferenceIntoAPersistenceFailure()
     {
-        // A schema version whose JCR node fails on any use, so the reference cannot be written. The failure
-        // has to surface as a persistence problem for the engine to translate, not as a raw repository error
+        // A schema version whose JCR node fails on any use, so the reference cannot be written. The failure has to
+        // reach the engine as a persistence problem it can translate, and not as a raw repository error.
         final Node explosive = Mockito.mock(Node.class, invocation -> {
             throw new RepositoryException("boom");
         });
@@ -218,7 +216,7 @@ class CreateSubmissionHandlerTest
         assertTrue(rejection.getMessage().contains("title is required"));
     }
 
-    // The title no longer names the node, so one with no letters in it is as good as any other
+    // The title does not name the node
     @Test
     void acceptsATitleNoNodeNameCouldBeMadeFrom() throws WorkflowException, PersistenceException
     {
@@ -241,8 +239,7 @@ class CreateSubmissionHandlerTest
     @Test
     void refusesAPathWithNothingAtIt()
     {
-        // Not a visibility check. The handler works through the engine's privileged session, so "there is
-        // nothing there" means exactly that, and who may submit was settled before it ran
+        // The handler works through the engine's privileged session, so nothing at the path means nothing is there
         final InvalidPayloadException rejection = assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(context(Map.of(
                 "title", "My day off", "schemaVersion", "/Schemas/nowhere/v1"))));
@@ -274,7 +271,7 @@ class CreateSubmissionHandlerTest
     @Test
     void refusesAVersionOfARetiredSchema()
     {
-        // The whole schema was retired: even its versions still tagged active accept nothing
+        // A retired schema closes even its versions still tagged active
         this.context.create().resource("/Schemas/retired", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Retired", "tags", new String[] {"retired"}));
         this.context.create().resource("/Schemas/retired/v1", Map.of(

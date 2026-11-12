@@ -20,7 +20,7 @@ package io.uhndata.iap.deletion.api;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * One reason an archive entry could not be restored: which archived item cannot go back, and why.
+ * One archived item that cannot go back to its original path, and why.
  *
  * @version $Id$
  * @since 0.1.0
@@ -34,13 +34,13 @@ public final class RestoreConflict
      */
     public enum Reason
     {
-        /** The original parent no longer exists, so there is nowhere to restore to. */
+        /** The original parent no longer exists. */
         PARENT_MISSING,
 
         /** Another resource now occupies the original path. */
         OCCUPIED,
 
-        /** The requesting user is not allowed to create the resource back at its original path. */
+        /** The requesting user may not create a node at the original path. */
         NO_RIGHTS
     }
 
@@ -51,8 +51,8 @@ public final class RestoreConflict
     /**
      * Record a conflict.
      *
-     * @param originalPath the path the archived item should be restored to
-     * @param reason why it cannot be
+     * @param originalPath the absolute path the archived item was deleted from
+     * @param reason why it cannot go back there
      */
     public RestoreConflict(@NotNull final String originalPath, @NotNull final Reason reason)
     {
@@ -61,7 +61,7 @@ public final class RestoreConflict
     }
 
     /**
-     * The path the archived item should be restored to.
+     * Where the archived item was deleted from.
      *
      * @return an absolute path
      */
@@ -72,9 +72,9 @@ public final class RestoreConflict
     }
 
     /**
-     * Why the item cannot be restored.
+     * Why the item cannot go back.
      *
-     * @return a reason
+     * @return the reason
      */
     @NotNull
     public Reason getReason()

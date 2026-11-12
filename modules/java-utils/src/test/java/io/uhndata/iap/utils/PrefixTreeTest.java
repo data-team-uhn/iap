@@ -99,8 +99,7 @@ class PrefixTreeTest
         doAnswer(invocation -> {
             this.session.save();
             raced[0] = true;
-            // The bucket is in place, but this session is told its own commit did not go through, which is what
-            // a session racing another one into the same bucket sees
+            // Another session has created the bucket, and this session's save conflicts with it
             throw new InvalidItemStateException();
         }).when(racing).save();
         doNothing().when(racing).refresh(anyBoolean());

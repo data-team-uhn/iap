@@ -22,9 +22,8 @@ import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A read-only snapshot of the tag definitions stored under {@code /Tags}, as seen by the commit being processed.
- * Unlike the {@code TagDefinition} Sling Model, this view works at the Oak level, without needing a resource
- * resolver, so it is usable inside commit hooks processing any session's commits.
+ * The tag definitions under {@code /Tags}, as the commit being processed leaves them. It reads Oak node states and
+ * needs no resource resolver, so a commit editor can use it in any session's commit.
  *
  * @version $Id$
  * @since 0.1.0
@@ -48,7 +47,7 @@ public interface TagDefinitions
     boolean isDefined(@NotNull String name);
 
     /**
-     * Checks whether a tag is aggregated: a node implicitly carries it when any of its descendants explicitly does.
+     * Checks whether a tag is aggregated: a node carries it when content below it does.
      *
      * @param name a tag name
      * @return {@code true} if the tag is defined and marked as aggregated
@@ -56,7 +55,7 @@ public interface TagDefinitions
     boolean isAggregated(@NotNull String name);
 
     /**
-     * Checks whether a tag is inheritable: resources under a tagged node implicitly carry it too.
+     * Checks whether a tag is inheritable: the content under a tagged node carries it too.
      *
      * @param name a tag name
      * @return {@code true} if the tag is defined and marked as inheritable

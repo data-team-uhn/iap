@@ -32,9 +32,9 @@ import org.osgi.service.component.annotations.Component;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
- * Prints the schema a submission belongs to as its path, where {@code dereference} would inline the whole schema
- * with every one of its versions. The submission's own {@code schemaVersion} already carries the version it
- * answers. The name of this processor is {@code schemaPath}, and it is enabled by default.
+ * Serializes the {@code schema} of a submission as the schema's path, where {@code dereference} would inline the whole
+ * schema with all its versions. The submission's {@code schemaVersion} already names the version it answers. The
+ * processor is named {@code schemaPath} and is on by default.
  *
  * @version $Id$
  * @since 0.1.0

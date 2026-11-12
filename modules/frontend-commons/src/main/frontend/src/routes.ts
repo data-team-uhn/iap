@@ -21,16 +21,12 @@ import { loadExtensions } from '@iap/ui-extension/extensionManager';
 let routes: unknown[] | null = null;
 let routesRequest: Promise<unknown[] | undefined> | null = null;
 
-// Retrieves the registered "routes", React components that can display a "data view" in the main content area when the corresponding URL is opened.
-// A route must have:
-// - a path (`ext:targetURL`) that the view is responsible for displaying
-// - a React component (`ext:render`) that does the actual display
-// Additionally, a route may have:
-// - a name (`ext:name`)
-// - a description (`ext:hint`)
-// This is an asynchronous function, it will return a Promise that resolves to the actual list of routes.
+// The registered views: the extensions of the `Views` point, each of which shows the page for a URL
+// in the main content area. A view has the path it shows (`ext:targetURL`) and the component that
+// shows it (`ext:render`). It may have a name (`ext:name`) and a description (`ext:hint`). The views
+// are loaded once, and loaded again after a failure.
 //
-// @return a Promise that will resolve to the actual list of routes
+// @return the views; undefined if loading them failed
 const getRoutes = async function(): Promise<unknown[] | undefined> {
   if (!routes) {
     routesRequest ??= loadExtensions("Views")

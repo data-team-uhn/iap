@@ -35,12 +35,9 @@ import org.osgi.service.component.annotations.Component;
 import io.uhndata.iap.autodoc.api.AutoDocumentable;
 
 /**
- * Serves the documentation of any {@link AutoDocumentable auto-documentable} node: appending {@code .doc.json} or
- * {@code .doc.md} to the path of a node marked with the {@code doc:Documented} mixin returns its catalogue as JSON
- * or as a human-readable Markdown document. The servlet is not tied to any particular resource type: it opts in for
- * the nodes carrying the mixin, whether set explicitly or inherited from their primary type, and renders whatever
- * their {@link AutoDocumentable} model reports; a feature needing a completely different rendering can still
- * register its own servlet for the same selector on its resource type, which takes precedence over this one.
+ * Serves the documentation of a node that carries the {@code doc:Documented} mixin, directly or through its primary
+ * type: {@code <path>.doc.json} as JSON, and {@code <path>.doc.md} as Markdown. It registers for every resource type
+ * and accepts only those nodes. What it serves is whatever the node's {@link AutoDocumentable} model reports.
  *
  * @version $Id$
  * @since 0.1.0
@@ -60,8 +57,7 @@ public class AutodocServlet extends SlingJakartaSafeMethodsServlet implements Ja
     {
         final Node node = request.getResource().adaptTo(Node.class);
         try {
-            // isNodeType sees the mixin both when set explicitly on the node
-            // and when inherited from a supertype of the node's primary type
+            // True whether the mixin is on the node or on a supertype of its primary type
             return node != null && node.isNodeType(AutoDocumentable.DOCUMENTED_TYPE);
         } catch (final RepositoryException e) {
             return false;
@@ -77,7 +73,7 @@ public class AutodocServlet extends SlingJakartaSafeMethodsServlet implements Ja
         response.setCharacterEncoding("UTF-8");
         final AutoDocumentable documentation = request.getResource().adaptTo(AutoDocumentable.class);
         if (documentation == null) {
-            // The node is marked as documented, but nothing provides its documentation
+            // The node carries the mixin, but no model adapts it to AutoDocumentable
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
             response.setContentType("text/plain");
             response.getWriter().print("No documentation available for " + request.getResource().getPath());

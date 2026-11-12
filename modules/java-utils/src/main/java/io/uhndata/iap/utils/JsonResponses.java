@@ -28,8 +28,8 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Writes what an endpoint answers a command with, in one shape: {@code {"status": outcome, ...details}}. The outcome
- * is a short word a client can switch on, such as {@code ok} or {@code archived}; an error is the outcome
- * {@code error}, with the reason under {@code error}. Content an endpoint serves, such as a resource or a listing, is
+ * is a short word a client can switch on, such as {@code ok} or {@code archived}. An error has the outcome
+ * {@code error}, and its reason under {@code error}. Content an endpoint serves, such as a resource or a listing, is
  * not a command's answer and keeps its own shape.
  *
  * @version $Id$
@@ -89,15 +89,13 @@ public final class JsonResponses
     }
 
     /**
-     * Answers with an error: {@code {"status": "error", "error": reason}}. The reason is read by people, so it says
-     * what went wrong in their terms, and never carries an exception's message, which can name the instance's
-     * infrastructure. A response already committed is left as it is: its status is on the wire, and a second body
-     * after the first is not something a client can parse.
+     * Answers with an error: {@code {"status": "error", "error": reason}}. Whatever the response's buffer holds is
+     * discarded first. A response already committed is left as it is, since its status has been sent.
      *
      * @param response the HTTP response to write into; left as it is if already committed
      * @param httpStatus the HTTP status code to answer with, such as {@code 400} or {@code 500}
      * @param reason what went wrong, in words for the person who will read it, such as {@code "The target is not
-     *            readable"}; never an exception's message
+     *            readable"}; never an exception's message, which can name the instance's infrastructure
      * @throws IOException if the response's body cannot be written
      */
     public static void writeError(@NotNull final SlingJakartaHttpServletResponse response, final int httpStatus,

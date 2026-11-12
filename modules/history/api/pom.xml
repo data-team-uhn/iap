@@ -28,7 +28,7 @@
   <artifactId>iap-history-api</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - History - Definitions and APIs</name>
-  <description>The record of what happened to the content: the node types and Sling Models for one action, its per-resource effects and who has seen them, and the API for describing a change to be recorded.</description>
+  <description>The record of what happened to the content and of who has looked at it: the node types, their Sling Models, and the API for describing a change to be recorded.</description>
 
   <build>
     <plugins>

@@ -30,12 +30,9 @@ import io.uhndata.iap.autodoc.api.AutoDocumentable;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * A Sling Model wrapping the {@code link:TypesHomepage} node at {@code /LinkTypes}, holding the link
- * definitions. The homepage documents the whole link vocabulary: the node carries the {@code doc:Documented} mixin
- * through its primary type, so the catalogue of defined link types is served at {@code /LinkTypes.doc.json} and
- * {@code /LinkTypes.doc.md}. Its heading comes from the {@code title} and {@code description} properties,
- * autocreated from the defaults declared by the {@code link:TypesHomepage} node type and editable by a
- * deployment wanting to reword it.
+ * The homepage at {@code /LinkTypes}, which holds the link definitions. It serves the catalogue of link types at
+ * {@code /LinkTypes.doc.json} and {@code /LinkTypes.doc.md}. The catalogue's title and introduction are the node's
+ * {@code title} and {@code description}, which a deployment can edit.
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,7 +41,7 @@ import io.uhndata.iap.content.models.Content;
     resourceType = LinkTypesHomepage.RESOURCE_TYPE, defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class LinkTypesHomepage extends Content implements AutoDocumentable
 {
-    /** The {@code sling:resourceType} of the {@code link:TypesHomepage} node. */
+    /** The resource type of {@code link:TypesHomepage}. */
     public static final String RESOURCE_TYPE = "link/TypesHomepage";
 
     @ValueMapValue
@@ -54,9 +51,9 @@ public class LinkTypesHomepage extends Content implements AutoDocumentable
     private String description;
 
     /**
-     * All the defined link types.
+     * All the link definitions.
      *
-     * @return a list of link definitions, empty if none are defined
+     * @return the definitions, in stored order; empty if none are defined
      */
     @NotNull
     public List<LinkDefinition> getDefinitions()

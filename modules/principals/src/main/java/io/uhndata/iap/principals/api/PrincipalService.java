@@ -24,118 +24,107 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * One vocabulary for saying who, shared by everything that names people: workflow performers, notification
- * recipients, and whatever comes next.
+ * Says who a list of names stands for. A name is a user id, a group, or a special name such as
+ * {@link #CREATOR_SPECIAL_NAME}, which stands for somebody only a situation can identify.
  *
- * <p>A definition names people three ways. A special name such as {@link #CREATOR_SPECIAL_NAME} stands for somebody only a
- * situation can identify, and whichever {@link io.uhndata.iap.principals.spi.SpecialNameResolver} claims it
- * answers it. A module can add {@code @commentAuthor} without this service learning what a comment is. A
- * principal name already says who it means and passes through {@link #resolve} untouched. A group can be asked
- * about both ways: {@link #expandToUsers} enumerates its people, {@link #isOneOf} answers for one person.</p>
+ * <p>{@link #resolve} answers the special names. Each goes to the
+ * {@link io.uhndata.iap.principals.spi.SpecialNameResolver} that claims it, and a bundle adds a name by registering
+ * one. {@link #expandToUsers} lists the people a set of principals names, and {@link #isOneOf} says whether one
+ * person is among them.</p>
  *
- * <p>{@link #principalsOf} asks from the other end: what the person in front of you acts as, so a listing can
- * match them against properties naming principals. {@link #MY_PRINCIPALS} is its name in a request.</p>
- *
- * <p>The check and the expansion are separate because the repository answers them differently. A group
- * synchronised from an identity provider under dynamic membership has no local node listing its members.
- * Membership is written on the account, so checking is cheap and enumerating is a query. A consumer that
- * hand-rolls one of these gets the other wrong.</p>
+ * <p>{@link #principalsOf} goes the other way: it lists everything one session acts as. A query can then match a
+ * person against properties that name principals.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 public interface PrincipalService
 {
-    /** The special name standing for whoever raised the resource in question. */
+    /** The special name for the user who created the resource in question. */
     String CREATOR_SPECIAL_NAME = "@creator";
 
     /**
-     * The special name standing for whoever raised the entity the resource in question belongs to: the submission a
-     * review was written on, say.
+     * The special name for the user who created the entity the resource in question belongs to, such as the
+     * submission an answer is part of.
      */
     String ENTITY_CREATOR_SPECIAL_NAME = "@entityCreator";
 
-    /** The special name standing for whoever is acting right now. */
+    /** The special name for the user who is acting. */
     String ME_SPECIAL_NAME = "@me";
 
     /**
-     * The special name standing for everything whoever is asking acts as: themselves, and every group they are in.
+     * The special name for everything the person asking acts as: themselves, and every group they are in.
      *
-     * <p>Answered by {@link #principalsOf} rather than by a resolver. Only a live session can say what it is
-     * bound to, and there is no situation object that would carry the same answer.</p>
+     * <p>{@link #principalsOf} answers it, not a resolver. Only the session knows what it is bound to, and a
+     * {@link PrincipalContext} carries no session. Passed to {@link #resolve}, it names nobody.</p>
      */
     String MY_PRINCIPALS = "@myPrincipals";
 
-    /** The built-in group every authenticated user is in, by definition rather than by membership. */
+    /** The built-in group every user is in, by definition rather than by membership. */
     String EVERYONE_GROUP = "everyone";
 
     /**
-     * Answers the special names in a list of names, leaving everything else untouched.
+     * Answers the special names in a list of names, and passes every other name through as it is.
      *
-     * <p>Anything starting with {@code @} goes to its registered resolver, which contributes whatever it stands
-     * for in this context: several principals, or none. A special name no resolver claims contributes nobody and
-     * says so in the log, since it is most likely a typo. Everything else passes through as itself. The order
-     * names were given in is kept, each principal once.</p>
+     * <p>A name a registered resolver claims is replaced by that resolver's answer: several principals, or none. A
+     * resolver that throws names nobody. A name starting with {@code @} that no resolver claims names nobody, and
+     * is logged as a warning. The names keep their order, and each principal appears once.</p>
      *
-     * @param names the names to resolve: special names, user ids, groups, in any mix
-     * @param context what the special names are being asked about
-     * @return the resolved principal names, empty when the names stand for nobody
+     * @param names the names to resolve: special names, user ids and groups, in any mix
+     * @param context what the special names are asked about
+     * @return the principal names; empty if the names stand for nobody
      */
     @NotNull
     List<String> resolve(@NotNull List<String> names, @NotNull PrincipalContext context);
 
     /**
-     * Everything a session acts as: the person's own id, then every principal bound to their session, which is
-     * what {@link #MY_PRINCIPALS} stands for.
+     * Everything a session acts as, which is what {@link #MY_PRINCIPALS} stands for: the person's own user id, then
+     * every principal bound to the session. These include the roles an identity provider synchronises.
      *
-     * <p>The other side of {@link #isOneOf}. A property naming who may act holds principals, not user ids, so
-     * somebody asking which of those properties concern them needs the list, not a yes or no about one name. Read
-     * from the session's bound principals, the one reading that carries roles an identity provider synchronises
-     * without leaving a group node behind.</p>
-     *
-     * <p>Never empty for an identified session. Somebody bound to nothing else still acts as themselves, so a
-     * caller filtering on this narrows the question rather than widening it.</p>
+     * <p>A resolver with no JCR session is bound to nothing, and acts only as its own user.</p>
      *
      * @param resolver the session to describe
-     * @return the principal names, the person's own id first
-     * @throws PrincipalLookupException when the session cannot say what it is bound to
+     * @return the user id first, then the principal names, each once; empty only if the resolver has no user id
+     * @throws PrincipalLookupException if the session cannot say what it is bound to
      */
     @NotNull
     List<String> principalsOf(@NotNull ResourceResolver resolver);
 
     /**
-     * The people the given principals name, with groups expanded into their members.
+     * The people the given principals name, with each group replaced by its members.
      *
-     * <p>A user id contributes itself. A group contributes every user in it, through nested groups, whether it
-     * is a local node or a dynamic principal an identity provider synchronises. {@link #EVERYONE_GROUP} contributes
-     * nobody: it names every authenticated user by definition, and no definition means the whole user base. A
-     * name the repository does not know contributes nobody and says so in the log. Order is kept and each person
-     * appears once, so "tell the approvers, then the auditors" tells somebody who is both once, as an approver.</p>
+     * <p>A user id contributes itself. A group contributes every user in it, directly or through a nested group,
+     * whether it is a local node or a role an identity provider synchronises. {@link #EVERYONE_GROUP} stands for
+     * every user, and this never lists the whole user base, so it contributes nobody. A name the repository does
+     * not know contributes nobody, and so does a name whose lookup fails. All three are logged. The people keep
+     * the order of the names, and each appears once, at their first place.</p>
      *
      * <p>Only people the repository knows can be listed. An account an identity provider knows but that has never
-     * logged in does not exist here yet.</p>
+     * logged in does not exist in Oak yet.</p>
      *
-     * @param principals the principal names to expand, typically what {@link #resolve} answered
+     * @param principals user ids and group names
      * @param resolver a session that may read the user store
-     * @return the user ids, empty when the principals name nobody
-     * @throws PrincipalLookupException when the repository cannot be asked at all, never for an unknown name
+     * @return the user ids; empty if the principals name nobody
+     * @throws PrincipalLookupException if the resolver has no user store; never for an unknown name
      */
     @NotNull
     List<String> expandToUsers(@NotNull Collection<String> principals, @NotNull ResourceResolver resolver);
 
     /**
-     * Whether one person is among the named principals: themselves, {@link #EVERYONE_GROUP}, or a group they belong to,
-     * through nested groups too, local or dynamic.
+     * Whether one person is among the named principals: named by their user id, covered by
+     * {@link #EVERYONE_GROUP}, or in a named group. The group may be a local node or a role an identity provider
+     * synchronises, and the person may be in it directly or through a nested group.
      *
-     * <p>Fail-closed: an empty list admits nobody, and so does a name the repository cannot answer for. The
-     * user id is taken at its word, since whether such a user exists is the caller's question. That is what lets
-     * {@link #EVERYONE_GROUP} be answered without a lookup.</p>
+     * <p>An empty list admits nobody, and so does a name the repository does not know. Naming the user id or
+     * {@link #EVERYONE_GROUP} admits the person without a lookup, whether or not their account exists. A group
+     * admits only an account the repository knows.</p>
      *
-     * @param userId the person, as their repository user id
-     * @param principals the principal names that grant, typically what {@link #resolve} answered
+     * @param userId the person's user id
+     * @param principals user ids and group names
      * @param resolver a session that may read the user store
      * @return {@code true} if the person is among them
-     * @throws PrincipalLookupException when the repository cannot answer at all, never for an unknown name
+     * @throws PrincipalLookupException if the resolver has no user store, or reading it fails; never for an unknown
+     *             name
      */
     boolean isOneOf(@NotNull String userId, @NotNull Collection<String> principals,
         @NotNull ResourceResolver resolver);

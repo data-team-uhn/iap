@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-// Suggests a name for new content before it is created, generated from its properties.
-// The name keeps to the rule of the workflow creating it.
+// Suggests a name for new content before it is created, made from its text by the rule the server
+// names content by.
 
 import type { CreatableType } from "./fieldsModel";
 
@@ -46,10 +46,10 @@ function freeName(base: string, taken: string[]): string {
   return name;
 }
 
-// A free name for new content of a type, made from the text of its first field. When that text makes no name the
-// type may take, the name comes from the type instead.
+// A name for new content of a type, made from the text of its first field, that `taken` does not hold.
+// When the text makes no name the type may take, the type's defaultName is used instead.
 export function suggestName(text: unknown, type: CreatableType, taken: string[]): string {
-  // Whole, as the server matches it
+  // The whole name must match, as on the server
   const pattern = type.namePattern === undefined ? undefined : new RegExp(`^(?:${type.namePattern})$`, "u");
   const derived = typeof text === "string" ? camelCase(text) : "";
   const allowed = derived !== "" && (pattern?.test(derived) ?? true);

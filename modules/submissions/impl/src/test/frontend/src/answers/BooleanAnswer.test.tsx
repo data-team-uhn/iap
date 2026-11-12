@@ -57,8 +57,6 @@ describe("BooleanAnswer", () => {
     expect(screen.getByRole("radio", { name: "Yes" })).not.toBeChecked();
   });
 
-  // Why this is a pair rather than one box to tick: an unticked box says "no" and "not answered
-  // yet" with the same control, and only one of those is an answer
   it("holds neither answer until one is given", () => {
     renderBoolean();
 
@@ -67,8 +65,6 @@ describe("BooleanAnswer", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  // Whether an answer is obligatory changes what the form insists on, never what it looks like:
-  // a submitter should not have to learn a second control to answer the same kind of question
   it("asks the same way whether or not the answer is obligatory", () => {
     renderBoolean({ minAnswers: 1 });
 
@@ -77,7 +73,6 @@ describe("BooleanAnswer", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  // Each input carries it: a FormControl never forwards required to a radio
   it("marks a required question's options required", () => {
     renderBoolean({ minAnswers: 1 });
 

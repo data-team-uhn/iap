@@ -41,11 +41,19 @@ import io.uhndata.iap.utils.JsonResponses;
 import io.uhndata.iap.utils.UserIds;
 
 /**
- * Serves the {@link StatusReportManager}'s reports at {@code /system/status} (JSON) and {@code /system/status.txt}
- * (plain text). The endpoint is accessible without authentication so that monitoring tools can poll it, but only an
- * administrator gets reports containing sensitive information. Optional query parameters: {@code targetStatus}
- * (minimum report level to include, {@code INFO} by default) and {@code tags} (repeatable, only include reporters
- * with one of these tags).
+ * Serves the status reports. {@code /system/status} answers with a JSON array of the reports, and
+ * {@code /system/status.txt} with their texts alone, separated by blank lines.
+ *
+ * <p>
+ * Anybody may read it without logging in, so a monitoring tool can poll it. Only the {@code admin} user gets the
+ * privileged reports. Everyone else, logged in or not, gets the unprivileged ones.
+ * </p>
+ *
+ * <p>
+ * Two optional query parameters select the reports. {@code targetStatus} is the lowest level to include, in capitals,
+ * and {@code INFO} by default. A value that names no level gets a 400. {@code tags} may be repeated, and selects the
+ * reporters with one of those tags.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -60,7 +68,7 @@ public class StatusReportEndpoint extends SlingJakartaSafeMethodsServlet
     private transient StatusReportManager manager;
 
     @Override
-    // The reports are content, served as text or JSON rather than as a command's answer
+    // The reports are content, not a command's answer
     @SuppressWarnings("checkstyle:directResponseWriter")
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException

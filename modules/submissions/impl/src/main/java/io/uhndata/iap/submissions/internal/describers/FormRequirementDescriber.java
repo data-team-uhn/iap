@@ -44,8 +44,8 @@ import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.RequirementDescriber;
 
 /**
- * What a set of questions adds to a form: its sections and questions that currently apply, each question with the
- * answer it already has.
+ * What a form requirement adds to a form: its sections and questions that apply now, each question with the answer
+ * it already has.
  *
  * @version $Id$
  * @since 0.1.0
@@ -85,7 +85,7 @@ public class FormRequirementDescriber implements RequirementDescriber
     /**
      * Constructor.
      *
-     * @param conditions decides which sections and questions currently apply
+     * @param conditions decides which sections and questions apply now
      */
     @Activate
     public FormRequirementDescriber(@Reference final ConditionEvaluator conditions)
@@ -178,8 +178,8 @@ public class FormRequirementDescriber implements RequirementDescriber
         /**
          * One question, with the answer it already has.
          *
-         * <p>It carries its own {@code path}, relative to the schema version, which is what the save workflow
-         * asks for. An editor posts back what it was given instead of working out how to address a question.</p>
+         * <p>It carries its {@code path} relative to the schema version, which is how the save workflow names a
+         * question. An editor posts that path back as it was given.</p>
          *
          * @param question the question to describe
          * @param path its path relative to the schema version
@@ -196,7 +196,7 @@ public class FormRequirementDescriber implements RequirementDescriber
                 .add(TEXT_KEY, Objects.toString(question.getText(), ""))
                 .add(FormKeys.DESCRIPTION_KEY, Objects.toString(question.getDescription(), ""))
                 .add(DATA_TYPE_KEY, Objects.toString(question.getDataType(), DEFAULT_DATA_TYPE))
-                // The answer-count pair itself rather than flags derived from it, read the way it is stored
+                // The answer-count pair as read from the question; the editor derives required and multiple from it
                 .add(MIN_ANSWERS_KEY, question.getMinAnswers())
                 .add(MAX_ANSWERS_KEY, question.getMaxAnswers())
                 .add(OPTIONS_KEY, options(question))
@@ -207,11 +207,11 @@ public class FormRequirementDescriber implements RequirementDescriber
     }
 
     /**
-     * The answers a question offers, as the editor shows them. Stated even when empty, so that "answered freely" is
-     * something the form says.
+     * The answers a question offers, as the editor shows them. They are stated even when empty, for a question
+     * answered freely.
      *
      * @param question the question
-     * @return its options, in the order the schema declares them
+     * @return its options, in stored order; empty if it offers none
      */
     private static JsonArrayBuilder options(final Question question)
     {

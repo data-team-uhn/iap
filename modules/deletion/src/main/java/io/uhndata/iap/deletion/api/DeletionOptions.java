@@ -21,9 +21,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * How a deletion should behave: whether it may cascade over resources referencing the deleted one, whether the
- * deleted resources should skip the archive and be removed permanently, and whom the archive records as having
- * deleted them.
+ * How to delete: whether to delete the resources that reference the deleted one too, whether to skip the archive,
+ * and whom the archive records as having deleted it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -56,10 +55,9 @@ public final class DeletionOptions
     }
 
     /**
-     * The default options: refuse if resources other than links reference the deleted one, and move the deleted
-     * resources into the archive.
+     * The default options: refuse if other resources reference the deleted one, and move it into the archive.
      *
-     * @return non-recursive, non-permanent options
+     * @return {@link #REFUSE_IF_REFERENCED} and {@link #MOVE_TO_ARCHIVE}
      */
     @NotNull
     public static DeletionOptions recoverable()
@@ -68,13 +66,13 @@ public final class DeletionOptions
     }
 
     /**
-     * Explicit options, best written with the named flags, e.g. {@code of(REFUSE_IF_REFERENCED, MOVE_TO_ARCHIVE)}.
+     * The given options, written with the named flags, such as {@code of(REFUSE_IF_REFERENCED, MOVE_TO_ARCHIVE)}.
      *
-     * @param recursive whether resources referencing the deleted one are deleted along with it instead of blocking
-     *            the deletion: {@link #DELETE_RECURSIVELY} or {@link #REFUSE_IF_REFERENCED}
-     * @param permanent whether the deleted resources are removed for good instead of being moved into the archive:
-     *            {@link #DELETE_PERMANENTLY} or {@link #MOVE_TO_ARCHIVE}
-     * @return options with the requested behavior
+     * @param recursive {@link #DELETE_RECURSIVELY} to delete the referencing resources too, or
+     *            {@link #REFUSE_IF_REFERENCED} to refuse
+     * @param permanent {@link #DELETE_PERMANENTLY} to remove the deleted resources for good, or
+     *            {@link #MOVE_TO_ARCHIVE} to archive them
+     * @return the options
      */
     @NotNull
     public static DeletionOptions of(final boolean recursive, final boolean permanent)
@@ -83,9 +81,9 @@ public final class DeletionOptions
     }
 
     /**
-     * Whether resources referencing the deleted one are deleted along with it instead of blocking the deletion.
+     * Whether the resources that reference the deleted one are deleted too, rather than blocking the deletion.
      *
-     * @return {@code true} if the deletion cascades
+     * @return {@code true} to delete them too
      */
     public boolean isRecursive()
     {
@@ -93,9 +91,9 @@ public final class DeletionOptions
     }
 
     /**
-     * Whether the deleted resources are removed for good instead of being moved into the archive.
+     * Whether the deleted resources are removed for good, rather than moved into the archive.
      *
-     * @return {@code true} if the deletion is permanent
+     * @return {@code true} to remove them for good
      */
     public boolean isPermanent()
     {
@@ -103,11 +101,11 @@ public final class DeletionOptions
     }
 
     /**
-     * The same options, for a deletion made on someone's behalf by a privileged session, such as a workflow's:
-     * the archive then records that user as having deleted the resources, rather than the session's own.
+     * The same options, for a deletion a privileged session makes for a user, such as a workflow's. The archive
+     * records that user as having deleted the resources, rather than the session's own user.
      *
-     * @param userId the user the deletion is made for
-     * @return new options
+     * @param userId the user id of the user the deletion is made for
+     * @return the new options
      */
     @NotNull
     public DeletionOptions onBehalfOf(@NotNull final String userId)
@@ -116,9 +114,9 @@ public final class DeletionOptions
     }
 
     /**
-     * Whom the deletion is made for, when not the requesting session's own user.
+     * The user the deletion is made for, if not the requesting session's own user.
      *
-     * @return a user id, or {@code null} for the requesting session's user
+     * @return a user id; {@code null} if the deletion is made for the requesting session's user
      */
     @Nullable
     public String getOnBehalfOf()

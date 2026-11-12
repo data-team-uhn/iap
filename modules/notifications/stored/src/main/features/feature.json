@@ -16,11 +16,11 @@
 
 {
   "title": "IAP - Stored notifications",
-  "description": "Stores notifications so that only their intended recipient can read them",
+  "description": "Keeps notifications for their recipients to read in the application",
   "bundles":[
     {
-      // After the notifications bundle whose delivery extension point it plugs into, and after the entity node
-      // types its own extend
+      // After iap-notifications-api (26), whose delivery SPI it implements, and after iap-data-entities-api
+      // (24), whose node types its own extend
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
       "start-order":"29"
     }

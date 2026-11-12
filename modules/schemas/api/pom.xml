@@ -27,8 +27,8 @@
 
   <artifactId>iap-schemas-api</artifactId>
   <packaging>bundle</packaging>
-  <name>IAP - Schemas - Definitions, APIs and SPIs</name>
-  <description>Node types and Sling Models for schema definitions.</description>
+  <name>IAP - Schemas - Definitions and APIs</name>
+  <description>The schema node types, their Sling Models, and the JSON processors for schema listings.</description>
 
   <build>
     <plugins>
@@ -51,7 +51,7 @@
   </build>
 
   <dependencies>
-    <!-- Nullability annotations for the exported API/SPI -->
+    <!-- Nullability annotations -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
@@ -76,14 +76,13 @@
       <artifactId>iap-java-utils</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The SPI for the `simple` serialization of a schema version -->
+    <!-- The SPI the `active` and `simple` JSON processors implement -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-serialization-json</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- A schema version names the workflow its submissions are put through. One-directional on purpose:
-         workflows knows nothing about schemas. -->
+    <!-- A schema version names the workflow its submissions go through -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-workflows</artifactId>

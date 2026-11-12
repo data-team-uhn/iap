@@ -31,12 +31,12 @@
   <description>Defines what a notification is and the extension point each delivery channel plugs into</description>
 
   <dependencies>
-    <!-- Nullability annotations for the exported API/SPI -->
+    <!-- Nullability annotations for the exported API and SPI -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
     </dependency>
-    <!-- A notification is about a resource, not a path -->
+    <!-- A notification's subject and a recipient's account are resources -->
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>

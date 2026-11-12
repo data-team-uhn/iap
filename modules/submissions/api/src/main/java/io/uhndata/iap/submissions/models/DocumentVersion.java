@@ -30,9 +30,8 @@ import io.uhndata.iap.schemas.models.SectionRequirement;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
- * A Sling Model wrapping a {@code sub:DocumentVersion} node: one revision of a {@link Document}, holding exactly
- * one uploaded file and everything the parsing pipeline made of it. Uploading a replacement adds a version
- * instead of overwriting the file a reviewer has already read.
+ * A Sling Model wrapping a {@code sub:DocumentVersion} node: one revision of a {@link Document}, holding one uploaded
+ * file and everything parsing made of it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -50,7 +49,7 @@ public class DocumentVersion extends EntityPart implements Referenceable
     /**
      * The file this revision consists of.
      *
-     * @return a file, or {@code null} while the upload has not landed yet
+     * @return the file; {@code null} while the upload is not stored yet
      */
     @Nullable
     public File getFile()
@@ -62,7 +61,7 @@ public class DocumentVersion extends EntityPart implements Referenceable
      * Where the sections its requirement expects are found in this revision. A section never looked for is not
      * listed.
      *
-     * @return a list of sections, empty if none were looked for
+     * @return the sections; empty if none were looked for
      */
     @NotNull
     public List<Section> getSections()
@@ -74,7 +73,7 @@ public class DocumentVersion extends EntityPart implements Referenceable
      * Where one section is found in this revision.
      *
      * @param requirement the section requirement to look up
-     * @return the section fulfilling it, or {@code null} if it was never looked for
+     * @return the section fulfilling it; {@code null} if it was never looked for
      */
     @Nullable
     public Section getSection(@NotNull final SectionRequirement requirement)
@@ -89,10 +88,10 @@ public class DocumentVersion extends EntityPart implements Referenceable
     }
 
     /**
-     * This revision's number, counting from 1. Not stored: the versions of a document are kept in a deliberate
-     * chronological order, so a revision's position in that list is its number.
+     * This revision's number, counting from 1. It is not stored: a document keeps its versions in the order they
+     * were uploaded, and a revision's position is its number.
      *
-     * @return a 1-based revision number, or 0 if this node does not sit under a document
+     * @return the revision number, from 1; {@code 0} if this node is not under a document
      */
     public int getNumber()
     {

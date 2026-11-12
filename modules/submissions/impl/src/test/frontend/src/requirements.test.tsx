@@ -63,8 +63,7 @@ describe("the questions a form requirement asks", () => {
   it("draws each of them", () => {
     draw();
 
-    // Queried in the plural because a text field renders its label twice, once for the outline it
-    // animates into
+    // A text field renders its label twice, the second time in its outline
     expect(screen.getAllByText("How long?").length).toBeGreaterThan(0);
   });
 });

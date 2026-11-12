@@ -49,8 +49,8 @@ export interface ComparedFields {
   option: ComparedField[];
 }
 
-// Reads the fields compared. Each list comes from the definitions named for it, and each definition is read once.
-// When a definition cannot be read, the error names it. The definitions are content, unchanged while the page is open.
+// Reads the fields compared. Each list comes from the definitions named for it. A definition named for several lists
+// is read once. When a definition cannot be read, the error names it.
 export function useComparedFields(sources: ComparedFieldSources) {
   const [ fields, setFields ] = useState<ComparedFields>();
   const [ loadError, setLoadError ] = useState<string>();

@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-// Reading a schema version's content, its requirements and the form items inside them, straight from
-// its serialization. What counts as a part is what the server says: every requirement and form item
+// Reading a schema version's content, its requirements and the form items inside them, from its
+// serialization. What counts as a part is what the server says: every requirement and form item
 // resolves to sch/SchemaPart through sch/Requirement or sch/FormItem. No React, no fetch.
 
 import { fieldsOf } from "@iap/frontend-commons/fields/fieldsModel";
@@ -75,7 +75,8 @@ export const optionLabelOf = (option: SerializedNode): string => text(option, "l
 export const shownNameOf = (node: SerializedNode): string =>
   resourceTypeOf(node) === OPTION_TYPE ? optionLabelOf(node) : headingOf(node);
 
-// Each type of answer in the words the shipped workflows use, for a question no update describes
+// Each answer type in the words the shipped workflows use, for a question whose update does not list `dataType`,
+// such as one in an active version
 const DATA_TYPES: Partial<Record<string, string>> = {
   text: "Text",
   long: "Whole number",
@@ -92,8 +93,7 @@ export const dataTypeOf = (question: SerializedNode): string => {
     ?? (Object.hasOwn(DATA_TYPES, dataType) ? DATA_TYPES[dataType] : undefined) ?? dataType;
 };
 
-// How many answers a question takes, in words: a positive minimum makes it required, and a maximum other
-// than one lets it take several, with zero or less meaning no limit
+// How many answers a question takes, in words, such as "Required" and "Up to 3 answers"
 export function answerCountOf(question: SerializedNode): string[] {
   const min = number(question, "minAnswers") ?? 0;
   const max = number(question, "maxAnswers") ?? 1;
@@ -122,8 +122,7 @@ export function boundsOf(question: SerializedNode): string | undefined {
   return max === undefined ? undefined : `At most ${max}`;
 }
 
-// Where conditions find the questions their answer operands name: by UUID, or by path relative to the
-// version, which is how conditions written by hand address them
+// Finds the questions that answer operands name, by `jcr:uuid` or by path relative to the version
 export interface QuestionIndex {
   find: (reference: string) => SerializedNode | undefined;
   // Every question of the version, in its order

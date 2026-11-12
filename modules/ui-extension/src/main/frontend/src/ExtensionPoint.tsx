@@ -23,33 +23,24 @@ import { readJson } from "@iap/frontend-commons/requestFailure";
 const UIXP_FINDER_URL = "/uixp";
 
 interface ExtensionPointProps {
-  // Extension Point ID (e.g. iap/coreUI/sidebar/entry).
+  // The `ext:pointId` of the extension point, such as `iap/coreUI/view`
   path: string;
-  // Called with the parsed JSON when the extension resolves to a JSON object.
+  // Called with the parsed JSON, when the extension point answers with JSON
   callback?: (json: unknown) => void;
 }
 
-// Component that allows the user to insert an extension from the given URL.
-//
-// Required props:
-//  path: Extension Point ID (e.g. iap/coreUI/sidebar/entry).
-// Optional props:
-//  callback: function to callback with the json data if the extension is a json object
-//
-// Sample usage:
-// <ExtensionPoint
-//    path="/testRig.js"
-//    />
+// Fetches an extension point by its `ext:pointId`. It asks the `/uixp` finder for the point's path,
+// then fetches that path. An answer in JavaScript is evaluated, JSON goes to `callback`, and HTML is
+// shown in place. Any other answer, and any failure, is logged.
 function ExtensionPoint(props: ExtensionPointProps) {
   const { path, callback } = props;
   const [ renderedResponse, setRenderedResponse ] = useState<ReactNode>(null);
   const [ initialized, setInitialized ] = useState(false);
 
-  // Fetch the extension, called once on load
+  // Called once, on the first render
   const fetchExtension = (url: string) => {
     setInitialized(true);
 
-    // From the extension point path, locate the URL of the ExtensionPoint
     const uixpFinder = new URL(`${UIXP_FINDER_URL}?uixp=${url}`, window.location.origin);
     fetch(uixpFinder)
       .then(grabUIXP)
@@ -57,7 +48,7 @@ function ExtensionPoint(props: ExtensionPointProps) {
       .catch(handleError);
   }
 
-  // Parse the UIXP URL from our UIXP Finder
+  // Fetches the path the finder answered with
   const grabUIXP = (response: Response) => {
     if (!response.ok) {
       return Promise.reject(new Error(`Finding ExtensionPoint ${path} failed with response ${response.status}`));
@@ -69,30 +60,26 @@ function ExtensionPoint(props: ExtensionPointProps) {
     });
   }
 
-  // Parse the content from the given Response object
+  // Handles the extension point's answer by its content type
   const handleResponse = (response: Response) => {
     if (!response.ok) {
       return Promise.reject(new Error(`Fetching ExtensionPoint ${path} failed with response ${response.status}`));
     }
 
-    // Check the headers to determine how to handle this respnse
     let contentType = response.headers.get('Content-Type') ?? '';
 
-    // Truncate the ';charset=utf-8'
+    // Drop a parameter such as `;charset=utf-8`
     const sepPos = contentType.indexOf(";");
     if (sepPos >= 0) {
       contentType = contentType.substring(0, sepPos);
     }
 
-    // Determine what to do depending on the value of the output
     if (['text/javascript', 'application/javascript'].includes(contentType)) {
-      // javascript -- evaluate as-is
       return(response.text().then( (text) => {
         // eslint-disable-next-line react-hooks/unsupported-syntax
         return(eval(text) as unknown);
       }));
     } else if (contentType === 'application/json') {
-      // json -- call the provided callback
       if (callback !== undefined) {
         return(readJson<unknown>(response).then( (json) => callback(json)));
       } else {
@@ -101,12 +88,10 @@ function ExtensionPoint(props: ExtensionPointProps) {
         )));
       }
     } else if (contentType === 'text/html') {
-      // html -- include it inline
       return(response.text().then((text) => {
         setRenderedResponse((<div dangerouslySetInnerHTML={{ __html: text }}/>));
       }));
     } else {
-      // Reject any other content type
       return(Promise.reject(new Error(`Fetching ExtensionPoint ${path} returned unknown contentType: ${contentType}`)));
     }
   }

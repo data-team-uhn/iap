@@ -21,81 +21,50 @@
 
 //-----------------------------------------------------------------------------
 //
-// Entity: the base node type for a thing we can store as a whole.
-//
-// All Entities are expected to be referenceable and to track changes.
-//
-// This is an abstract node type which isn't supposed to be used directly,
-// only as a helper for other concrete node types.
+// Entity: the base node type of a thing stored as a whole, such as a
+// submission. An entity can be referenced, linked to other entities, and
+// versioned, and it records when it was last modified. It is abstract, and
+// concrete node types extend it.
 //
 //-----------------------------------------------------------------------------
 
-// The link:Linkable supertype brings the link:links container for links to other entities.
 [data:Entity] > data:Content, link:Linkable, mix:referenceable, mix:versionable, mix:lastModified
-  // Attributes:
-
-  // This is an abstract node type, specific entity types must be defined.
   abstract
 
-  // We can use entities in a query.
   query
 
-  // Properties
-
-  // Hardcode the supertype to the parent data/Entity type.
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
 //
-// Entity Part: the base node type for a piece of information we can collect, like a specific question, or a specific answer.
-//
-// This is an abstract node type which isn't supposed to be used directly,
-// only as a helper for other concrete node types.
+// Entity part: the base node type of a piece of an entity, such as a question
+// in a schema version or an answer in a submission. A part has no versions of
+// its own. It is abstract, and concrete node types extend it.
 //
 //-----------------------------------------------------------------------------
 
 [data:EntityPart] > data:Content
-  // Attributes:
-
-  // This is an abstract node type, specific entity part types must be defined.
   abstract
 
-  // Properties
-
-  // Hardcode the supertype to the parent data/EntityPart type.
   - sling:resourceSuperType (STRING) = "data/EntityPart" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
 //
-// Entity Homepage: a container for a type of entities.
-//
-// Resources of a specific type are collected under a common parent,
-// and that common parent is called a Homepage, and is a subtype of data:EntityHomepage.
-// All entity homepages provide common tools, like the ability to query their resources.
-//
-// This is an abstract node type which isn't supposed to be used directly,
-// only as a helper for other concrete node types.
+// Entity homepage: the container of the entities of one type, such as
+// /Submissions. It is abstract, and concrete homepage types extend it.
 //
 //-----------------------------------------------------------------------------
 
-// An tag:Boundary because this is where an aggregated tag has a reader: the
-// homepage lists and filters its entities on the derived tag properties, and
-// nothing above it lists anything. See tag:Boundary for why aggregation
-// needs a declared top at all.
+// A tag:Boundary, because the homepage lists and filters its entities on
+// their derived tags, and nothing above it lists anything.
 [data:EntityHomepage] > data:Content, rep:AccessControllable, tag:Boundary
-  // Attributes:
-
-  // This is an abstract node type, specific homepage types must be defined.
   abstract
 
-  // We can use homepages in a query.
   query
 
-  // Properties:
-
-  // Hardcode the supertype to the parent data/EntityHomepage type.
   - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
 
-  // The node type of the entities listed under this homepage. When absent, the type is derived from
-  // the homepage's resource type by naming convention, e.g. sub/SubmissionsHomepage lists sub:Submission.
+  // The node type of the entities listed under this homepage, such as
+  // sub:Submission. When absent, it is derived from the homepage's resource
+  // type: sub/SubmissionsHomepage lists sub:Submission.
   - childNodeType (STRING)

@@ -47,12 +47,23 @@ import io.uhndata.iap.notifications.api.Recipient;
 import io.uhndata.iap.notifications.spi.NotificationDelivery;
 
 /**
- * Sends a notification as an immediate email.
+ * Emails a notification to its recipient as soon as it is offered.
  *
  * <p>
- * It declines any urgency other than {@link NotificationContext#IMMEDIATE_URGENCY}. It only proceeds if the recipient
- * has a valid email address, didn't opt out of emails, and the notification context names a valid email template.
+ * It declines a notification unless its urgency is {@link NotificationContext#IMMEDIATE_URGENCY}, the recipient's
+ * account has an address at {@code profile/email}, and its template folder has an {@code email} child. That child is
+ * a {@code mail:Template}.
  * </p>
+ *
+ * <p>
+ * Besides the notification's own variables, the template can use four more:
+ * </p>
+ * <ul>
+ * <li>{@code subjectResource}: the resource the notification is about</li>
+ * <li>{@code subjectPath}: its path</li>
+ * <li>{@code subjectTitle}: its {@code title} property, or an empty string</li>
+ * <li>{@code event}: what happened, as the message name such as {@code approved}</li>
+ * </ul>
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,10 +73,10 @@ public class EmailDelivery implements NotificationDelivery
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(EmailDelivery.class);
 
-    /** The child of a notification's template holding this channel's rendering. */
+    /** The child of a notification's template folder that holds the email template. */
     private static final String EMAIL_RENDERING = "email";
 
-    // Dynamic and greedy, to always reference the highest ranking mail service that is enabled at the moment.
+    // Dynamic and greedy, so that a mail service registered later with a higher ranking replaces this one at once
     @Reference(policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY)
     private volatile MailService mailService;
 
@@ -91,13 +102,14 @@ public class EmailDelivery implements NotificationDelivery
     }
 
     /**
-     * Builds and hands over one message.
+     * Builds the email and hands it to the mail service. A failure is logged and recorded.
      *
-     * @param notification what happened
-     * @param recipient who to tell
-     * @param address where to send it, already known to be there
-     * @param templatePath where the template lives
-     * @return {@code true} if a message was handed to the mail service
+     * @param notification the notification to email
+     * @param recipient the person to email
+     * @param address the recipient's email address, not blank
+     * @param templatePath the path of the notification's template folder
+     * @return {@code true} if the email was handed to the mail service, {@code false} if the template is missing,
+     *         has no email child, or fails
      */
     private boolean send(final NotificationContext notification, final Recipient recipient, final String address,
         final String templatePath)
@@ -116,8 +128,7 @@ public class EmailDelivery implements NotificationDelivery
                         .with("template", templatePath));
                 return false;
             }
-            // The template folder holds one rendering per channel. A folder with no email child means this
-            // notification has no email rendering, which is its author's choice rather than an error.
+            // A template folder may have no email child, and then the notification sends no email
             final Resource emailRendering = templateResource.getChild(EMAIL_RENDERING);
             if (emailRendering == null) {
                 LOGGER.debug("The template {} has no {} rendering, so the {} notification was not emailed",
@@ -131,7 +142,7 @@ public class EmailDelivery implements NotificationDelivery
                 .withRecipient(address, recipient.name())
                 .build();
             EmailUtils.sendEmail(email, this.mailService);
-            // Handed over, not delivered: the send finishes on a thread pool, and EmailUtils records how
+            // Handed over, not yet sent. EmailUtils records a send that fails later.
             LOGGER.debug("Handed the {} notification about {} to the mail service", notification.getEvent(),
                 subject.getPath());
             return true;
@@ -147,10 +158,10 @@ public class EmailDelivery implements NotificationDelivery
     }
 
     /**
-     * Where this person can be emailed, as their account tells it: the {@code profile/email} property.
+     * The email address on a person's account, at {@code profile/email}.
      *
-     * @param recipient who to reach
-     * @return their address, or {@code null} when the account does not mention one
+     * @param recipient the person to email
+     * @return the address, or {@code null} if the account has none
      */
     private static String addressOf(final Recipient recipient)
     {
@@ -159,18 +170,15 @@ public class EmailDelivery implements NotificationDelivery
     }
 
     /**
-     * What a template may interpolate: whatever the notification carries, plus the few things every message can
-     * say about itself.
+     * The variables a template can use: those the notification carries, and four about its subject and event. The
+     * four replace a notification variable of the same name.
      *
-     * @param notification what happened
-     * @return the variables, under the names a template refers to them by
+     * @param notification the notification to email
+     * @return the values, by variable name
      */
     private static Map<String, Object> variables(final NotificationContext notification)
     {
         final Map<String, Object> variables = new HashMap<>(notification.getVariables());
-        // Always available, so that a template can name them without the workflow having to pass them.
-        // The subjectResource is the resource itself, so that a template can read any property from it;
-        // the two shorthands beside it are what most templates actually need
         variables.put("subjectResource", notification.getSubject());
         variables.put("subjectPath", notification.getSubject().getPath());
         variables.put("subjectTitle", notification.getSubject().getValueMap().get("title", ""));

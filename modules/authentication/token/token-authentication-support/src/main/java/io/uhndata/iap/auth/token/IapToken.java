@@ -23,7 +23,7 @@ import org.apache.jackrabbit.oak.spi.security.authentication.token.TokenInfo;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Custom extension of {@link TokenInfo} with support for retrieving the token expiration time.
+ * A login token, as Oak's {@link TokenInfo} describes one, that also tells when it expires.
  *
  * @version $Id$
  * @since 0.1.0
@@ -31,9 +31,9 @@ import org.jetbrains.annotations.Nullable;
 public interface IapToken extends TokenInfo
 {
     /**
-     * Obtain the expiration time from this token.
+     * The time after which this token is no longer valid.
      *
-     * @return the expiration date, or {@code null} if there's no expiration date set
+     * @return the expiration time, or {@code null} if the token has none
      */
     @Nullable
     Calendar getExpirationTime();

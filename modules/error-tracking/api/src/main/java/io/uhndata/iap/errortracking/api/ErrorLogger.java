@@ -20,21 +20,16 @@ package io.uhndata.iap.errortracking.api;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The normal way to record an error: a static facade over the {@link ErrorLoggerService}, safe to call from anywhere
- * at any time.
+ * Records errors through the {@link ErrorLoggerService}, from any code and any thread. This static facade is the
+ * normal way to record an error.
  *
  * <p>
- * Before the service is available, and after it goes away, the call is silently ignored rather than failing the
- * caller — which is, by definition, already handling a failure. That tolerance is the reason to prefer this over an
- * OSGi reference rather than a mere convenience for code that cannot hold one: a component whose failures are worth
- * recording must not refuse to start because the thing that records them is missing, and expressing that as an
- * optional dynamic reference in every such component is the same null check written many times over.
+ * While the service is not running, a call does nothing. A component that records its failures through this facade
+ * needs no reference to the service, and starts whether or not error tracking is running.
  * </p>
  *
  * <p>
- * It is also the only way in for code the service registry cannot inject into at all: a commit hook constructed anew
- * for every node of every commit, or a component that must record a failure from inside its own activation, before
- * its references are set.
+ * It also serves code that OSGi does not construct, such as the Oak editors that run inside a commit.
  * </p>
  *
  * @version $Id$
@@ -42,7 +37,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class ErrorLogger
 {
-    /** Written by the service component as it starts and stops, read from arbitrary threads. */
+    /** The service to record through, {@code null} while none is running. Read from any thread. */
     private static volatile ErrorLoggerService service;
 
     /** Only static methods, no instances. */
@@ -52,10 +47,10 @@ public final class ErrorLogger
     }
 
     /**
-     * Records one error, under {@value ErrorLoggerService#LOGGED_ERRORS_PATH}, with nothing said about the
-     * circumstances. Does nothing when the error tracking service is not available.
+     * Records one error under {@value ErrorLoggerService#LOGGED_ERRORS_PATH}, with no context. Does nothing while the
+     * service is not running.
      *
-     * @param error the throwable to record, ignored when {@code null}
+     * @param error the throwable to record; ignored if {@code null}
      */
     public static void logError(@Nullable final Throwable error)
     {
@@ -63,11 +58,11 @@ public final class ErrorLogger
     }
 
     /**
-     * Records one error along with what the caller knows about the circumstances. Does nothing when the error
-     * tracking service is not available.
+     * Records one error with what the caller knows about it. Does nothing while the service is not running.
      *
-     * @param error the throwable to record, ignored when {@code null}
-     * @param context which code was running, what it was doing, and what it was doing it to
+     * @param error the throwable to record; ignored if {@code null}
+     * @param context which code was running, what it was doing, and to what; {@code null} is the same as
+     *            {@link ErrorContext#NO_CONTEXT}
      */
     public static void logError(@Nullable final Throwable error, @Nullable final ErrorContext context)
     {
@@ -78,11 +73,13 @@ public final class ErrorLogger
     }
 
     /**
-     * Records something the instance found wrong but did not throw over. Does nothing when the error tracking
-     * service is not available.
+     * Records something the instance found wrong without anything being thrown. Does nothing while the service is
+     * not running.
      *
-     * @param problem what is wrong, a short phrase chosen in code; ignored only when {@code null} or blank
-     * @param context which code noticed, what it was doing, and what it was looking at
+     * @param problem a short phrase chosen in code, such as {@code unknown comparator}; ignored if {@code null} or
+     *            blank. {@link ErrorLoggerService#logProblem} says how a phrase that quotes a value is recorded
+     * @param context which code noticed, what it was doing, and what it was looking at; {@code null} is the same as
+     *            {@link ErrorContext#NO_CONTEXT}
      */
     public static void logProblem(@Nullable final String problem, @Nullable final ErrorContext context)
     {
@@ -93,10 +90,9 @@ public final class ErrorLogger
     }
 
     /**
-     * Publishes the service backing this facade. Reserved for the error tracking component itself, which calls this
-     * as it starts.
+     * Sets the service this facade records through. Only that service should call this, as it starts.
      *
-     * @param newService the service to record errors through, {@code null} to record nothing
+     * @param newService the service to record errors through, or {@code null} to record nothing
      */
     public static void setService(final ErrorLoggerService newService)
     {
@@ -104,11 +100,10 @@ public final class ErrorLogger
     }
 
     /**
-     * Withdraws the service backing this facade. Reserved for the error tracking component itself, which calls this
-     * as it stops. A component that has already been replaced by a newer one withdraws nothing, so that stopping the
-     * old one does not silently switch error recording off.
+     * Clears the service this facade records through. If a newer service has replaced it since, the facade keeps the
+     * newer one. Only that service should call this, as it stops.
      *
-     * @param oldService the service that is going away
+     * @param oldService the service that is stopping
      */
     public static void unsetService(final ErrorLoggerService oldService)
     {

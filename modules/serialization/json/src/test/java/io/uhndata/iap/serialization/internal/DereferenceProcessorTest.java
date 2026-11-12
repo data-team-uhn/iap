@@ -145,6 +145,29 @@ public class DereferenceProcessorTest
     }
 
     @Test
+    public void testMultiReferenceWithAnUnserializableTargetIsLeftUnmodified()
+        throws Exception
+    {
+        final Property property = mockMultiProperty(PropertyType.REFERENCE, "questions", "uuid-1");
+        Mockito.when(property.getSession().getNodeByIdentifier("uuid-1")).thenReturn(Mockito.mock(Node.class));
+        final JsonValue input = Json.createValue("previous value");
+
+        Assertions.assertSame(input, this.processor.processProperty(null, property, input, n -> null));
+    }
+
+    @Test
+    public void testMultiPathWithAnUnserializableTargetIsSerializedAsPath()
+        throws Exception
+    {
+        final Property property = mockMultiProperty(PropertyType.PATH, "related", "/some/target");
+        Mockito.when(property.getSession().getNode("/some/target")).thenReturn(Mockito.mock(Node.class));
+
+        final JsonArray result = (JsonArray) this.processor.processProperty(null, property, null, n -> null);
+
+        Assertions.assertEquals("/some/target", result.getString(0));
+    }
+
+    @Test
     public void testMultiAbsolutePathIsDereferenced()
         throws Exception
     {

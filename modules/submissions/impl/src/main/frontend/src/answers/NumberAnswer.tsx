@@ -38,9 +38,8 @@ function NumberAnswer({ question, values, disabled, onChange, onAnswered }: Answ
       value={values[0] ?? ""}
       slotProps={{
         inputLabel: { shrink: true },
-        // `any` is the HTML default and is what allows decimals; `1` is what makes a browser refuse
-        // them, which is what asking for a long is for. A long's bounds are rounded inwards, since
-        // `min` is also where the steps start counting from.
+        // A step of 1 makes the browser refuse decimals, and `any` allows them. A long's bounds are
+        // rounded inwards, since `min` is also where the steps start counting from.
         htmlInput: {
           step: whole ? 1 : "any",
           inputMode: whole ? "numeric" : "decimal",
@@ -50,9 +49,8 @@ function NumberAnswer({ question, values, disabled, onChange, onAnswered }: Answ
       }}
       helperText={question.description}
       onChange={event => onChange([ event.target.value ])}
-      // An empty value now means "clear this answer", so a value the browser cannot parse must not
-      // reach it: a half-typed entry reports value === "" and would destroy what is stored. badInput
-      // is how the input tells the two apart.
+      // A value the browser cannot parse reads as "", like a cleared field, and would clear the stored
+      // answer. `badInput` tells the two apart.
       onBlur={event => {
         if (!event.target.validity.badInput) {
           onAnswered([ event.target.value ].filter(Boolean));

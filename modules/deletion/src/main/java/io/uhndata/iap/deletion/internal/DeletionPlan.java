@@ -35,50 +35,48 @@ import io.uhndata.iap.deletion.api.Veto;
 import io.uhndata.iap.deletion.spi.DeletionMode;
 
 /**
- * The mutable state of one deletion, gathered by {@link CascadeResolver} and consumed when building the impact
- * report and executing the operation. One instance per operation, passed down the call chain, so the components
- * themselves stay stateless.
+ * What one deletion affects, as {@link CascadeResolver} finds it: the subtrees to delete, the links to remove, and
+ * what blocks the deletion. A new plan is made for each deletion.
  *
  * @version $Id$
  * @since 0.1.0
  */
 class DeletionPlan
 {
-    /** What was asked for. */
+    /** How to delete. */
     private final DeletionOptions options;
 
     /** The path whose deletion was requested. */
     private final String requestedPath;
 
-    /** The requesting user's own session, used for authorization checks only. */
+    /** The requesting user's own session, for permission checks and for the guards. Nothing writes through it. */
     private final Session userSession;
 
-    /** The privileged resolver performing the complete impact scan and all the changes. */
+    /** The {@code iap-deletion} service user's resolver, which reads everything the deletion affects. */
     private final ResourceResolver serviceResolver;
 
     /**
-     * The distinct subtrees to delete, kept maximal: no key is a descendant of another. Keyed by path so that
-     * coverage checks are cheap ancestor lookups; the sorted order lets a new root drop the ones it swallows in
-     * a single range, and also makes reports and executions deterministic.
+     * The subtrees to delete, by path, none inside another. Sorted, so that a new root removes the roots inside it
+     * as one range, and the same plan always runs in the same order.
      */
     private final NavigableMap<String, Node> roots = new TreeMap<>();
 
-    /** Identifiers of already scanned nodes, so shared referrers and reference cycles are processed only once. */
+    /** The identifiers of the nodes scanned already, so that each node is scanned once. */
     private final Set<String> visitedIds = new HashSet<>();
 
-    /** Link nodes to remove from resources which themselves remain in place, keyed by path. */
+    /** The link nodes to remove from resources that stay, by path. */
     private final NavigableMap<String, Node> linksToRemove = new TreeMap<>();
 
-    /** For a non-recursive deletion, the referencing resources that block it, keyed by path. */
+    /** The referencing resources that block a deletion that is not recursive, by path. */
     private final NavigableMap<String, Node> blockingReferrers = new TreeMap<>();
 
-    /** Referencing resources that already sit in the archive; they always block, and are never named. */
+    /** The paths of the archived resources that reference a resource to delete for good. Counted, never named. */
     private final Set<String> archivedReferrers = new HashSet<>();
 
     /** The objections raised by the registered guards. */
     private final List<Veto> vetoes = new ArrayList<>();
 
-    /** Whether the requesting user lacks the permission to remove one of the impacted resources. */
+    /** Whether the requesting user may not remove one of the nodes to delete. */
     private boolean denied;
 
     DeletionPlan(final DeletionOptions options, final String requestedPath, final Session userSession,
@@ -96,7 +94,7 @@ class DeletionPlan
     }
 
     /**
-     * The kind of deletion the guards must be asked about.
+     * The kind of deletion to ask the guards about.
      *
      * @return {@link DeletionMode#PERMANENT} or {@link DeletionMode#ARCHIVE}, following the options
      */
@@ -121,16 +119,15 @@ class DeletionPlan
     }
 
     /**
-     * Whether a path is already part of a subtree marked for deletion.
+     * Whether a path is inside a subtree marked for deletion.
      *
      * @param path an absolute path
      * @return {@code true} if a marked root equals the path or is one of its ancestors
      */
     boolean isCovered(final String path)
     {
-        // Each ancestor is looked up in turn, rather than probing the closest preceding root: a sibling whose
-        // name extends an ancestor's with a character below '/', as "/content/form-2" does for "/content/form",
-        // sorts between that ancestor and the path, so the closest preceding root need not be an ancestor
+        // The closest preceding root need not be an ancestor: "/content/form-2" sorts between "/content/form" and
+        // "/content/form/child", since '-' sorts before '/'
         for (String candidate = path; candidate != null; candidate = ResourceUtil.getParent(candidate)) {
             if (this.roots.containsKey(candidate)) {
                 return true;
@@ -140,14 +137,14 @@ class DeletionPlan
     }
 
     /**
-     * Mark a subtree for deletion, keeping the root set maximal.
+     * Mark a subtree for deletion, and drop the roots marked inside it.
      *
-     * @param path the subtree's absolute path, must not be already {@link #isCovered covered}
+     * @param path the subtree's absolute path, which must not be {@link #isCovered covered} already
      * @param node the subtree's root node, in the service session
      */
     void markRoot(final String path, final Node node)
     {
-        // Roots swallowed by the new one sort right after path + "/", and '0' is the successor of '/'
+        // The roots inside it sort from path + "/" up to path + "0", since '0' follows '/'
         this.roots.subMap(path + "/", path + "0").clear();
         this.roots.put(path, node);
     }
@@ -155,7 +152,7 @@ class DeletionPlan
     /**
      * Remember that a node was scanned.
      *
-     * @param identifier the node's identifier
+     * @param identifier the node's JCR identifier
      * @return {@code true} if the node had not been scanned before
      */
     boolean visit(final String identifier)
@@ -199,8 +196,7 @@ class DeletionPlan
     }
 
     /**
-     * Drop bookkeeping made redundant by roots marked later: a link or referrer inside a subtree that ended up
-     * marked for deletion needs no separate handling.
+     * Drop the links and referrers that a subtree marked later contains, since they are deleted with it.
      */
     void normalize()
     {

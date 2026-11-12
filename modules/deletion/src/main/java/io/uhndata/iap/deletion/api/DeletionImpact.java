@@ -22,8 +22,7 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The complete impact of a deletion: what would be deleted, which links would be removed, and what blocks the
- * operation, if anything.
+ * What a deletion removes, and what blocks it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,13 +44,12 @@ public final class DeletionImpact
     /**
      * Record an impact.
      *
-     * @param itemPaths the distinct subtrees that would be deleted
-     * @param removedLinkPaths the link nodes that would be removed from remaining resources
-     * @param vetoes the vetoes blocking the deletion
-     * @param referrers the referencing resources blocking a non-recursive deletion, grouped by type
-     * @param inaccessibleReferrerCount the number of blocking resources withheld from {@code referrers} because the
-     *            requesting user cannot see them
-     * @param summary a human-readable description of the blockers, empty when there are none
+     * @param itemPaths the absolute paths of the subtrees to delete, none inside another
+     * @param removedLinkPaths the absolute paths of the link nodes to remove from resources that stay
+     * @param vetoes the guards' objections; empty if none objected
+     * @param referrers the resources that block the deletion by referencing it, grouped by node type
+     * @param inaccessibleReferrerCount how many blocking resources are counted but left out of {@code referrers}
+     * @param summary a sentence for the requesting user saying what blocks the deletion; empty if nothing does
      */
     public DeletionImpact(@NotNull final List<String> itemPaths, @NotNull final List<String> removedLinkPaths,
         @NotNull final List<Veto> vetoes, @NotNull final List<ReferrerGroup> referrers,
@@ -66,10 +64,11 @@ public final class DeletionImpact
     }
 
     /**
-     * The distinct subtrees that would be deleted: the requested resource itself, plus any resources dragged along
-     * by links or, for a recursive deletion, by references. No path in the list is an ancestor of another.
+     * The subtrees to delete: the requested resource, and the resources its deletion takes along. A recursive
+     * deletion takes along the resources that reference a deleted one. It also takes along the resources holding a
+     * link to a deleted one, when the link's definition says {@code RECURSIVE_DELETE}.
      *
-     * @return an immutable list of absolute paths
+     * @return an immutable list of absolute paths, none inside another
      */
     @NotNull
     public List<String> getItemPaths()
@@ -78,10 +77,9 @@ public final class DeletionImpact
     }
 
     /**
-     * The link nodes that would be removed from resources which themselves remain in place, because their
-     * definition's deletion policy asks for the link, and only the link, to go away with its target.
+     * The link nodes to remove from resources that stay, because the link points at a deleted resource.
      *
-     * @return an immutable list of absolute paths
+     * @return an immutable list of absolute paths; empty if no link is removed
      */
     @NotNull
     public List<String> getRemovedLinkPaths()
@@ -90,9 +88,9 @@ public final class DeletionImpact
     }
 
     /**
-     * The vetoes blocking the deletion. A single veto anywhere blocks the whole operation.
+     * The guards' objections. A single one blocks the whole deletion.
      *
-     * @return an immutable list, empty when no guard objected
+     * @return an immutable list; empty if no guard objected
      */
     @NotNull
     public List<Veto> getVetoes()
@@ -101,12 +99,12 @@ public final class DeletionImpact
     }
 
     /**
-     * The resources blocking a non-recursive deletion because they reference a resource that would be deleted,
-     * grouped by their primary type. Empty for a recursive deletion, which deletes referencing resources instead
-     * of being blocked by them. Resources the requesting user cannot see are counted in
-     * {@link #getInaccessibleReferrerCount()} instead of being listed here.
+     * The resources that block a deletion that is not recursive: those referencing a resource to delete, and those
+     * holding a {@code RECURSIVE_DELETE} link to one. A recursive deletion deletes them instead. The resources the
+     * requesting user cannot read are only counted, in {@link #getInaccessibleReferrerCount()}.
      *
-     * @return an immutable list of groups
+     * @return an immutable list of groups, one per primary node type; empty for a recursive deletion, or if nothing
+     *         blocks it
      */
     @NotNull
     public List<ReferrerGroup> getReferrers()
@@ -115,11 +113,12 @@ public final class DeletionImpact
     }
 
     /**
-     * The number of blocking resources withheld from {@link #getReferrers()} because the requesting user cannot
-     * see them. This includes referencing resources hidden by access control, and, for a permanent deletion,
-     * archived resources referencing the deleted one, which are never deleted as a side effect.
+     * How many blocking resources are counted but not listed in {@link #getReferrers()}. These are the referencing
+     * resources the requesting user cannot read, and those that cannot be described. For a permanent deletion they
+     * also include the archived resources that reference a resource to delete. A deletion never deletes archived
+     * content along with it.
      *
-     * @return a number, {@code 0} when everything relevant is visible
+     * @return the count; {@code 0} if every blocking resource is listed
      */
     public long getInaccessibleReferrerCount()
     {
@@ -127,10 +126,10 @@ public final class DeletionImpact
     }
 
     /**
-     * Whether the deletion would proceed: nothing vetoed it and no referencing resource blocks it. Note that the
-     * requesting user's permissions are checked when the deletion is actually attempted, not here.
+     * Whether nothing blocks the deletion: no guard objected, and no referencing resource blocks it. The requesting
+     * user's permissions are not part of this.
      *
-     * @return {@code true} if the deletion would proceed
+     * @return {@code true} if nothing blocks the deletion
      */
     public boolean isExecutable()
     {
@@ -138,10 +137,11 @@ public final class DeletionImpact
     }
 
     /**
-     * A human-readable description of what blocks the deletion, e.g.
-     * {@code "This item is referenced in 3 submissions (S-1, S-2, S-3) and 1 schema (Onboarding)."}.
+     * What blocks the deletion, in a sentence for the requesting user, such as
+     * {@code "This item is referenced by 3 submissions (S-1, S-2, S-3) and 1 schema (Onboarding)."}. Vetoes are not
+     * part of it.
      *
-     * @return a sentence, empty when nothing blocks the deletion
+     * @return the sentence; empty if no resource references the deleted ones
      */
     @NotNull
     public String getSummary()

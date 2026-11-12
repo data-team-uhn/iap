@@ -62,27 +62,23 @@ class EmailUtilsTest
     @BeforeEach
     void setUp()
     {
-        // The mail implementation is not on the test classpath, so the built message stays an unusable
-        // stand-in. What matters is which builder calls were made, and that the result reached the service
+        // The message builder is a mock, so the message it builds is null. The tests check the builder calls.
         when(this.mailService.getMessageBuilder()).thenReturn(this.message);
-        // A real MailService always answers with a future; the outcome is watched, so it may not be null
+        // EmailUtils watches the returned future, so it must not be null
         when(this.mailService.sendMessage(ArgumentMatchers.<MimeMessage>any()))
             .thenReturn(CompletableFuture.completedFuture(null));
     }
 
-    // The send finishes on a thread pool long after the caller has moved on, so a dropped future loses the
-    // failure altogether. Recording it belongs to the sender, which is why no caller does it
     @Test
     void recordsASendThatFailsAfterTheCallerHasGone() throws MessagingException
     {
-        // Mocked rather than hand-written: the interface has methods this test has no opinion about
         final ErrorLoggerService recorder = mock(ErrorLoggerService.class);
         final IllegalStateException refused = new IllegalStateException("the relay refused it");
         when(this.mailService.sendMessage(ArgumentMatchers.<MimeMessage>any()))
             .thenReturn(CompletableFuture.failedFuture(refused));
         ErrorLogger.setService(recorder);
         try {
-            // The caller is told nothing and is not made to wait
+            // Returns normally, although the send failed
             EmailUtils.sendTextEmail(email("Bob"), this.mailService);
         } finally {
             ErrorLogger.unsetService(recorder);
@@ -101,7 +97,6 @@ class EmailUtilsTest
     @Test
     void fillsInAnHtmlTemplateAndEscapesWhatGoesIn()
     {
-        // The one difference between the two rendering methods, and the reason there are two
         assertEquals("<p>Dear A &amp; B</p>",
             EmailUtils.renderHtml("<p>Dear ${name}</p>", Map.of("name", "A & B")));
         assertEquals("Dear A & B", EmailUtils.render("Dear ${name}", Map.of("name", "A & B")));
@@ -116,7 +111,6 @@ class EmailUtilsTest
     @Test
     void anAbsentTemplateFillsInToNothing()
     {
-        // A template may legitimately have no HTML part, or no text part
         assertNull(EmailUtils.render(null, Map.of()));
     }
 
@@ -132,7 +126,6 @@ class EmailUtilsTest
         verify(this.message).to("someone@example.invalid", "Bob");
         verify(this.message).header("Auto-Submitted", "auto-generated");
         verify(this.mailService).sendMessage(ArgumentMatchers.<MimeMessage>any());
-        // A plain text email carries no HTML part and no inline images
         verify(this.message, never()).html(anyString());
     }
 
@@ -147,7 +140,6 @@ class EmailUtilsTest
         verify(this.mailService).sendMessage(ArgumentMatchers.<MimeMessage>any());
     }
 
-    // Both directions of the choice sendEmail makes for a caller that has no opinion about the template's shape
     @Test
     void sendsAnEmailAsHtmlWhenItHasAnHtmlBody() throws MessagingException
     {
@@ -173,7 +165,6 @@ class EmailUtilsTest
     {
         EmailUtils.sendHtmlEmail(email(null), this.mailService);
 
-        // Passing a null display name alongside the address is not the same thing as having none
         verify(this.message).to("someone@example.invalid");
         verify(this.message, never()).to(anyString(), any());
     }
@@ -190,7 +181,7 @@ class EmailUtilsTest
     @Test
     void aSenderWithNoNameIsSetByAddressAlone() throws MessagingException
     {
-        // With no sender name there is no reply-to name to fall back to either, so both are set by address alone
+        // With no sender name, the reply-to name has nothing to fall back to
         EmailUtils.sendTextEmail(anonymousSenderEmail(), this.mailService);
 
         verify(this.message).from("noreply@example.invalid");
@@ -205,7 +196,6 @@ class EmailUtilsTest
         EmailUtils.sendHtmlEmail(email("<p>rich text</p>", null), this.mailService);
 
         verify(this.message).html("<p>rich text</p>");
-        // The plain text part is only a fallback, so there is nothing to set when the template had none
         verify(this.message, never()).text(anyString());
         verify(this.mailService).sendMessage(ArgumentMatchers.<MimeMessage>any());
     }
@@ -215,7 +205,6 @@ class EmailUtilsTest
     {
         final Email htmlOnly = email("<p>rich text</p>", null);
 
-        // Sending it anyway would hand a null body to the mail service
         assertThrows(IllegalArgumentException.class, () -> EmailUtils.sendTextEmail(htmlOnly, this.mailService));
     }
 

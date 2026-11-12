@@ -31,8 +31,8 @@ import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
- * A Sling Model wrapping a {@code sub:File} node: a single uploaded file, plus everything the parsing pipeline
- * derived from it — the Markdown the extraction reads, and the renditions made along the way.
+ * A Sling Model wrapping a {@code sub:File} node: one uploaded file, and the renditions parsing made of it, such as
+ * the Markdown.
  *
  * @version $Id$
  * @since 0.1.0
@@ -59,10 +59,10 @@ public class File extends EntityPart implements Referenceable
     private Long tokens;
 
     /**
-     * Where the parse got to: queued, active, completed or failed. Kept here as well as on the parse job so that a
-     * file that failed parsing does not look like one that was never parsed.
+     * How far parsing got.
      *
-     * @return a status, or {@code null} if parsing has not been requested
+     * @return one of {@code queued}, {@code active}, {@code completed} and {@code failed}; {@code null} if none is
+     *         recorded
      */
     @Nullable
     public String getParseStatus()
@@ -71,9 +71,9 @@ public class File extends EntityPart implements Referenceable
     }
 
     /**
-     * Why the parse failed.
+     * Why parsing failed.
      *
-     * @return an error message, or {@code null} if parsing did not fail
+     * @return the error message; {@code null} if none is recorded
      */
     @Nullable
     public String getParseError()
@@ -82,9 +82,9 @@ public class File extends EntityPart implements Referenceable
     }
 
     /**
-     * The token count of the Markdown rendition. A cheap character heuristic rather than an ML tokenizer's count.
+     * The token count of the Markdown rendition, estimated as its length in characters divided by 4.
      *
-     * @return a token count, or {@code null} if the file has not been parsed
+     * @return the token count; {@code null} if none is recorded
      */
     @Nullable
     public Long getTokens()
@@ -95,7 +95,7 @@ public class File extends EntityPart implements Referenceable
     /**
      * The upload, exactly as it was received.
      *
-     * @return the uploaded file, or {@code null} if the upload has not landed yet
+     * @return the {@code nt:file} resource; {@code null} if the upload is not stored yet
      */
     @Nullable
     public Resource getUploadedFile()
@@ -104,10 +104,9 @@ public class File extends EntityPart implements Referenceable
     }
 
     /**
-     * The renditions the parsing pipeline produced: the Markdown the extraction reads, and the intermediate
-     * formats made along the way. The upload itself is not one of them.
+     * The renditions parsing produced, such as the Markdown. The upload itself is not one of them.
      *
-     * @return a list of file resources, empty if nothing has been rendered yet
+     * @return the {@code nt:file} resources; empty if nothing has been rendered yet
      */
     @NotNull
     public List<Resource> getRenditions()

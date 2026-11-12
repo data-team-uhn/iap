@@ -41,29 +41,29 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.utils.DateUtils;
 
 /**
- * Check that JCR select queries return a number of results that satisfies an expected condition. The list of checks
- * is defined as nodes in the repository, under {@code /libs/iap/healthcheck/queryCountChecks/}, with the following
- * properties:
+ * Checks that JCR-SQL2 queries return the expected number of rows. Each child of
+ * {@code /libs/iap/healthcheck/queryCountChecks} configures one query:
  * <ul>
- * <li>{@code query} - a JCR-SQL2 select query to execute</li>
- * <li>{@code comparator} - one of {@code <}, {@code <=}, {@code =}, {@code >=}, {@code >}, {@code !=}</li>
- * <li>{@code compareAgainst} - long value to compare the row count against</li>
+ * <li>{@code query}: a JCR-SQL2 select query</li>
+ * <li>{@code comparator}: one of {@code <}, {@code <=}, {@code =}, {@code >=}, {@code >}, {@code !=}</li>
+ * <li>{@code compareAgainst}: the number the row count is compared with, a long</li>
  * </ul>
- * The check passes when {@code actualCount comparator compareAgainst} is true. The query will only fetch
- * {@code compareAgainst+1} rows for performance reasons.
+ * The query passes when its row count, the comparator and {@code compareAgainst} make a true statement, such as
+ * {@code 3 > 0}. The check reads at most {@code compareAgainst + 1} rows, since no comparison needs more.
  *
  * <p>
- * The query string may contain date placeholders resolved at execution time, which you can use in JCR SQL2 date
- * literals, e.g. {@code WHERE submission.[jcr:created] > '${today}'}:
+ * A query may contain date placeholders, as in {@code WHERE submission.[jcr:created] > '${today}'}. Before running
+ * the query, the check replaces each with midnight at the start of a day, in the server's time zone, such as
+ * {@code 2026-11-05T00:00:00.000-05:00}:
  * </p>
  * <ul>
- * <li>{@code ${yesterday}} - yesterday's date at midnight</li>
- * <li>{@code ${today}} - today's date at midnight</li>
- * <li>{@code ${tomorrow}} - tomorrow's date at midnight</li>
+ * <li>{@code ${yesterday}}: the start of yesterday</li>
+ * <li>{@code ${today}}: the start of today</li>
+ * <li>{@code ${tomorrow}}: the start of tomorrow</li>
  * </ul>
  *
  * <p>
- * Other modules should provide the actual checks to run.
+ * A module adds the queries it needs as children of that node, in its own initial content.
  * </p>
  *
  * @version $Id$
@@ -78,35 +78,29 @@ import io.uhndata.iap.utils.DateUtils;
     immediate = true)
 public final class QueryCountHealthCheck implements HealthCheck
 {
-    /** JCR node where all the configurations are stored. */
+    /** The node whose children configure the queries. */
     public static final String CONFIGURATION_PATH =
         "/libs/iap/healthcheck/queryCountChecks";
 
-    /** Configuration property: JCR-SQL2 select query to execute. */
+    /** The property holding a JCR-SQL2 select query, which may contain date placeholders. */
     public static final String QUERY_PROPERTY = "query";
 
     /**
-     * Configuration property: comparison operator ({@code <}, {@code <=}, {@code =}, {@code >=}, {@code >},
-     * {@code !=}).
+     * The property holding how the row count is compared: one of {@code <}, {@code <=}, {@code =}, {@code >=},
+     * {@code >}, {@code !=}.
      */
     public static final String COMPARATOR_PROPERTY = "comparator";
 
-    /** Configuration property: the expected count to compare against. */
+    /** The property holding the number the row count is compared with, a long. */
     public static final String COMPARE_AGAINST_PROPERTY = "compareAgainst";
 
-    /**
-     * Placeholder replaced with yesterday's date (at server's midnight) at query execution time.
-     */
+    /** Replaced with midnight at the start of yesterday, in the server's time zone. */
     public static final String YESTERDAY_PLACEHOLDER = "${yesterday}";
 
-    /**
-     * Placeholder replaced with today's date (at server's midnight) at query execution time.
-     */
+    /** Replaced with midnight at the start of today, in the server's time zone. */
     public static final String TODAY_PLACEHOLDER = "${today}";
 
-    /**
-     * Placeholder replaced with tomorrow's date (at server's midnight) at query execution time.
-     */
+    /** Replaced with midnight at the start of tomorrow, in the server's time zone. */
     public static final String TOMORROW_PLACEHOLDER = "${tomorrow}";
 
     @FunctionalInterface
@@ -123,10 +117,8 @@ public final class QueryCountHealthCheck implements HealthCheck
         ">", (a, b) -> a > b,
         "!=", (a, b) -> a != b);
 
-    /** Default logger. */
     private static final Logger LOGGER = LoggerFactory.getLogger(QueryCountHealthCheck.class);
 
-    /** The resource resolver factory. */
     @Reference
     private ResourceResolverFactory rrf;
 
@@ -168,13 +160,15 @@ public final class QueryCountHealthCheck implements HealthCheck
     }
 
     /**
-     * Runs one configured check: the query's row count must satisfy the configured comparison.
+     * Runs one configured query, and adds to the result whether its row count satisfies the comparison.
      *
-     * @param configuration the configuration node describing the check
-     * @param result the result log to report into
-     * @param session the session to run the query with
-     * @return {@code true} if the check passed
-     * @throws RepositoryException if accessing the configuration or running the query fails unexpectedly
+     * @param configuration a child of {@link #CONFIGURATION_PATH}
+     * @param result the log this query's outcome is added to
+     * @param session the service session to run the query with
+     * @return {@code true} if the row count satisfies the comparison; {@code false} if it does not, or if the
+     *         comparator is not one of the six
+     * @throws RepositoryException if one of the three properties is missing or of the wrong type, or the query cannot
+     *             be parsed or run
      */
     private boolean runSingleCheck(final Node configuration,
         final FormattingResultLog result, final Session session)
@@ -214,7 +208,7 @@ public final class QueryCountHealthCheck implements HealthCheck
 
     private String resolveDatePlaceholders(final String query)
     {
-        // One "now" for all three placeholders, so that they cannot straddle midnight
+        // One clock reading for all three placeholders, so that midnight cannot fall between them
         final ZonedDateTime now = ZonedDateTime.now();
         return query
             .replace(YESTERDAY_PLACEHOLDER, midnightOf(now.minusDays(1)))
@@ -223,12 +217,10 @@ public final class QueryCountHealthCheck implements HealthCheck
     }
 
     /**
-     * Serializes the midnight of the given date. This formats directly instead of going through
-     * {@link DateUtils#toString(java.time.temporal.TemporalAccessor)}, whose result is nullable because it accepts a
-     * nullable input, while a query placeholder always needs an actual value to substitute.
+     * Formats midnight at the start of a day.
      *
-     * @param date the date to take the midnight of
-     * @return a date serialization in the canonical JCR format
+     * @param date any time on that day, in the time zone to use
+     * @return midnight in the {@code 2026-11-05T00:00:00.000-05:00} form JCR reads as a date
      */
     private static String midnightOf(final ZonedDateTime date)
     {

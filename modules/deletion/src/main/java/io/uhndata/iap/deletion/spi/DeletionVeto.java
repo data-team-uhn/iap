@@ -25,11 +25,14 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A guard protecting resources from deletion. Before anything is deleted, every registered veto is asked about
- * every impacted resource, including the descendants of the deleted ones — unless it
- * {@link #judgesWholeOperation() judges the operation as a whole}, in which case it is asked once. A single veto
- * anywhere blocks the whole operation. Vetoes must be fast, side-effect free, and must not hold on to the passed
- * node. A veto that throws is counted as a veto — when a guard cannot decide, the data stays.
+ * A guard that can refuse a deletion. Before anything is deleted, every registered guard is asked about every node
+ * the deletion would remove, descendants included. A guard that {@link #judgesWholeOperation() judges the whole
+ * deletion} is asked once, about the requested resource. A single veto blocks the whole deletion.
+ *
+ * <p>
+ * A guard must be fast, change nothing, and not keep the node it is given. A guard that throws counts as a veto, so
+ * the data stays when a guard cannot decide.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -37,64 +40,58 @@ import org.jetbrains.annotations.Nullable;
 public interface DeletionVeto
 {
     /**
-     * A short name identifying this veto in reports, e.g. {@code undeletable}.
+     * The name that identifies this guard in the objections it raises.
      *
-     * @return a stable, human-readable identifier
+     * @return a short name that does not change, such as {@code undeletable}
      */
     @NotNull
     String getName();
 
     /**
-     * Decide whether a resource may be deleted.
+     * Whether a node may be deleted.
      *
      * <p>
-     * The node is read through the deletion service's own privileged session, so it is visible here whether or
-     * not the requester can see it; {@code requester} answers questions about <em>who</em> is deleting, not about
-     * what they can read. A guard that means "only these people may do this" belongs here rather than in access
-     * control precisely because the two sessions differ: the requesting user is authorized separately, node by
-     * node, before any guard is asked.
+     * The node is read through the {@code iap-deletion} service user's session, so the guard sees it whether or not
+     * the requesting user can. The requesting user's own rights are checked separately. {@code requester} says who
+     * is deleting, not what they can read.
      * </p>
      *
-     * @param node a node that the examined deletion would remove from its current location, in a privileged
-     *            session
-     * @param mode the kind of deletion being examined
-     * @param requester the session of the user who asked for the deletion, for identity
-     *            ({@code getUserID()}) and what it acts as ({@code JackrabbitSession.getBoundPrincipals()}); never
-     *            written to
-     * @return a human-readable reason why the deletion must not happen, or {@code null} to allow it
-     * @throws RepositoryException if the decision cannot be made; treated as a veto
+     * @param node a node the deletion would remove from where it is, read through the service user's session
+     * @param mode the kind of deletion asked about
+     * @param requester the session of the user who asked for the deletion. {@code getUserID()} says who they are,
+     *            and {@code JackrabbitSession.getBoundPrincipals()} names their groups and roles. Never write
+     *            through it.
+     * @return why the node must not be deleted, in a sentence for the requesting user; {@code null} to allow it
+     * @throws RepositoryException if the guard cannot decide, which counts as a veto
      */
     @Nullable
     String veto(@NotNull Node node, @NotNull DeletionMode mode, @NotNull Session requester)
         throws RepositoryException;
 
     /**
-     * Whether this guard judges the deletion as a whole rather than each resource on its own merits.
+     * Whether this guard judges the deletion as a whole, rather than each node on its own.
      *
      * <p>
-     * Most guards answer a question about the resource in front of them — "is this one protected?" — and must see
-     * every impacted resource, since any one of them can be the reason to refuse, and naming which ones is the
-     * useful part of the report. That is the default. A guard implementing a blanket policy — "nobody may destroy
-     * anything outright" — answers the same thing about every resource, so asking it per resource yields one
-     * identical objection per node of the subtree; it returns {@code true} here and is asked only about the resource
-     * whose deletion was requested, which is the one its answer is really about.
+     * A guard that asks "is this node protected?" answers about each node, and keeps the default. It sees every
+     * node, and its objections name the nodes it refused. A guard for a policy such as "nobody may delete anything
+     * for good" gives the same answer for every node. Asked per node, it would raise one identical objection per
+     * node of the subtree. It returns {@code true}, and is asked only about the requested resource.
      * </p>
      *
      * <p>
-     * The test is mechanical: a guard that reads anything at all off its {@code node} judges resources, no matter how
-     * few of them it ends up objecting to. Narrowing by node type is not the same thing — it selects which resources
-     * this guard speaks about, and keeps that decision inside the guard, where a caller cannot get it wrong.
+     * As a rule, a guard that reads anything off its {@code node} answers about each node, however few it refuses.
+     * That includes a guard that only checks the node type.
      * </p>
      *
      * <p>
-     * A guard whose answer depends on what goes together also returns {@code true}, though it reads its
-     * {@code node}. "Nothing that stays may depend on anything that goes" is such a rule. A dependency inside the
-     * removed subtree leaves with it, so no single node can answer it. The guard reads the requested resource's
-     * subtree itself. It is still asked only about that resource, so content a cascade removes along with it is never
-     * offered to it.
+     * A guard whose answer depends on what is deleted together returns {@code true}, though it reads its node. "Nothing
+     * that stays may depend on anything that goes" is such a rule. A dependency inside the deleted subtree goes with
+     * it, so no single node can answer. The guard reads the requested resource's subtree itself. It is never asked
+     * about the other resources a recursive deletion takes along.
      * </p>
      *
-     * @return {@code true} to be asked once; {@code false}, the default, to be asked about every impacted resource
+     * @return {@code true} to be asked once, about the requested resource; {@code false}, the default, to be asked
+     *         about every node the deletion removes
      */
     default boolean judgesWholeOperation()
     {

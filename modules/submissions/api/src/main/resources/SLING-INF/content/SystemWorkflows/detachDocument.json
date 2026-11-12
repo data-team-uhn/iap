@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Removes the document a submitter attached for a requirement, with all its versions, while the submission is still a draft.",
+    "description": "Removes what the submitter attached for a document requirement, while the submission is a draft.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

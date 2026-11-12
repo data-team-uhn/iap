@@ -189,7 +189,7 @@ describe("SubmissionTasks", () => {
 
     renderTasks();
 
-    // The step that is offered shows the list has been read, so the one that is not is really absent
+    // The offered step shows that the list has been read, so the other one is really absent
     expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeInTheDocument();
     expect(screen.queryByText("Approve the request")).toBeNull();
   });

@@ -27,38 +27,29 @@ import ParticipatingInstitutions from "./ParticipatingInstitutions";
 import PreLoginExtensions from "./PreLoginExtensions";
 import SignInMethods from "./SignInMethods";
 
-// The panels' inset, and the maximum width of the brand panel's content column: capped at a
-// reading measure rather than a fixed pixel width, so it follows the font size. The cap is
-// measured in the block's base font (16px), and is sized so that the intro's first sentence
-// (~71 characters at its enlarged lede size) fits on one line on wide screens — see the hard
-// line break in the introText content, which starts the "faster" sentence on its own line.
+// The panels' inner spacing
 const PANEL_PADDING = { xs: 3, md: 6 } as const;
+// The maximum width of the brand panel's text, in characters, so it follows the font size
 const BRAND_CONTENT_WIDTH = "80ch";
-// The distance of the two content blocks (brand text, sign-in card) from their panels' top
-// edge on wide screens: sharing one value is what guarantees their tops stay aligned,
-// whatever either block's height
+// How far the brand text and the sign-in card sit below the top of their panels on wide
+// screens. Both use this one value, so their tops stay level.
 const CONTENT_TOP_OFFSET = "14vh";
-// The seam where the two panels meet (the brand panel's end border, continued by the footer
-// band's, with the pointer's outline matching): the standard divider colour, adapting to both
-// colour schemes. Only drawn in the side-by-side layout. The border is spelled out as a full
-// CSS value: logical border properties are not part of the sx border system, so a bare width
-// number would pass through as invalid CSS and silently draw nothing.
+// The line where the two panels meet, drawn only when they are side by side. It runs down the
+// end edge of the brand panel and of the footer band, and outlines the pointer between them.
+// MUI's `sx` builds a border from a number only for the physical border properties, so this
+// logical one is written as a full CSS value.
 const SEAM_COLOR = "divider";
 const seamBorder = (theme: Theme) => `1px solid ${theme.vars?.palette.divider ?? theme.palette.divider}`;
 
-// The landing page shown to unauthenticated visitors, and the only page they can reach.
+// The page where a visitor without a session signs in, and the only page they can reach.
 //
-// A split layout: the muted brand panel introduces the platform (logo, tagline, description,
-// and the footer with links, version and credits), while the paper panel signs the user in.
-// The whole page is content-driven: every text comes from /libs/iap/conf/LoginPage (plus the
-// shared AppName/Media/Version configuration), so deployments rebrand without code changes.
-// The footer is a grid-area sibling of the two panels rather than a child of the brand panel:
-// on wide screens it renders as the bottom of the muted column, and when the panels stack on
-// narrow screens it slides under the sign-in panel, to the bottom of the page.
+// It has two panels side by side, stacked on a narrow screen. The muted brand panel introduces
+// the platform with its logo, tagline and description. The other panel holds the ways of signing
+// in, from SignInMethods. The texts are configuration from /libs/iap/conf, which reaches the page
+// as `<meta>` tags.
 //
-// The sign-in card's auth action area is composed from the `iap/login/signInMethod`
-// extension point (see SignInMethods): the credentials form by default, an identity-provider
-// redirect once a deployment registers one — nothing else on the page moves.
+// The footer has a grid area of its own. On a wide screen it ends the brand panel's column. On a
+// narrow screen it comes after the sign-in panel, at the bottom of the page.
 export default function LoginPage() {
   const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
   const tagline = meta("tagline");
@@ -73,9 +64,8 @@ export default function LoginPage() {
         sx={{
           flex: 1,
           display: "grid",
-          // minmax(0, 1fr) rather than plain 1fr, so the tracks may shrink below their
-          // items' min-content width — with 1fr, the sign-in card's fixed width would force
-          // a horizontal scrollbar on phone-sized screens
+          // A column of `minmax(0, 1fr)` can shrink below the width of its content. A plain
+          // `1fr` cannot, and on a phone the page would scroll sideways.
           gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))" },
           gridTemplateRows: { md: "1fr auto" },
           gridTemplateAreas: {
@@ -98,11 +88,10 @@ export default function LoginPage() {
             paddingBlockEnd: { md: 0 },
           })}
         >
-          { /* A small pointer from the brand panel toward the sign-in action, centered on the
-               heading's alignment line. The outer triangle is filled with the seam colour and
-               the two inner layers (the paper, then the panel's translucent muted tint,
-               reproducing the panel's colour opaquely) are clipped slightly smaller, so
-               the pointer wears the seam as its edge instead of interrupting it. */ }
+          { /* A small pointer from the brand panel toward the sign-in heading, level with it.
+               The triangle is filled with the seam's colour. Two layers inside it, the paper
+               and then the panel's translucent tint, give the panel's colour. They are
+               clipped slightly smaller, so the seam outlines the pointer. */ }
           <Box
             aria-hidden="true"
             sx={theme => ({
@@ -115,10 +104,9 @@ export default function LoginPage() {
               clipPath: "polygon(0 0, 0 100%, 100% 50%)",
               bgcolor: SEAM_COLOR,
               transform: theme.direction === "rtl" ? "scaleX(-1)" : undefined,
-              // The inner fill is the outer triangle's edges offset inward by 1px (for the
-              // 45-degree slants that is 1.4px along each axis), leaving a hairline outline
-              // parallel to the shape; the base is not offset, since the panel border
-              // already draws that line
+              // The inner triangle's slanted edges sit 1px inside the outer one's, which is
+              // 1.4px along each axis for a 45-degree slant. Its base is not moved in, since
+              // the panel's border already draws that line.
               "&::before, &::after": {
                 content: '""',
                 position: "absolute",
@@ -133,9 +121,9 @@ export default function LoginPage() {
               },
             })}
           />
-          { /* The auto start margin anchors the block to the center seam on wide screens,
-               keeping the two panels' contents together however wide the page gets; the top
-               padding is the shared offset that keeps the logo level with the sign-in card */ }
+          { /* On a wide screen, the automatic start margin puts the text against the seam, so
+               the two panels' contents stay together however wide the page is. The top padding
+               keeps the logo level with the sign-in card. */ }
           <Box
             sx={{
               marginInlineStart: { md: "auto" },
@@ -144,7 +132,7 @@ export default function LoginPage() {
               maxInlineSize: BRAND_CONTENT_WIDTH,
             }}
           >
-            { /* The wordmark is the page heading; its alt text carries the accessible name */ }
+            { /* The logo is the page's heading, and its alternative text names it */ }
             <Typography component="h1" sx={{ margin: 0 }}>
               <Logo sx={{ display: "block", inlineSize: "100%", maxInlineSize: 232 }} />
             </Typography>
@@ -157,9 +145,8 @@ export default function LoginPage() {
                 {tagline}
               </Typography>
             )}
-            { /* A "lead paragraph" treatment: body text enlarged a step (but keeping its
-                 regular weight, so it doesn't read as a heading), with the emphasized parts
-                 in the brand primary for contrast against the secondary-coloured prose */ }
+            { /* An opening paragraph: body text a step larger, in a light weight so it does
+                 not read as a heading. Its bold parts take the primary colour. */ }
             {introText && (
               <FormattedText
                 variant="body1"
@@ -177,7 +164,7 @@ export default function LoginPage() {
             )}
           </Box>
         </Box>
-        { /* On wide screens the card anchors to the center seam, mirroring the brand text */ }
+        { /* On a wide screen, the card sits against the seam */ }
         <Box
           component="main"
           sx={{
@@ -188,12 +175,11 @@ export default function LoginPage() {
             p: PANEL_PADDING,
           }}
         >
-          { /* The top margin is the shared offset keeping the card level with the brand text */ }
+          { /* The top margin keeps the card level with the brand text */ }
           <Box sx={{ inlineSize: "100%", maxInlineSize: 380, marginBlockStart: { md: CONTENT_TOP_OFFSET } }}>
-            { /* On wide screens the eyebrow hangs above the heading, outside the layout flow:
-                 the heading is what optically pairs with the logo across the seam, so it is
-                 what sits on the shared alignment line. In the stacked layout there is no
-                 offset space to hang into, so it stays a normal line. */ }
+            { /* On a wide screen, the label above the heading is taken out of the flow, so the
+                 heading is what sits level with the logo. When the panels are stacked, there
+                 is no space above to hold it, and it is an ordinary line. */ }
             <Box sx={{ position: "relative" }}>
               <Typography
                 variant="overline"
@@ -218,15 +204,14 @@ export default function LoginPage() {
           sx={theme => ({
             gridArea: "footer",
             bgcolor: "background.muted",
-            // The seam continues along this band's end edge; the top border is the ordinary
-            // separator of the stacked layout
+            // The seam continues down this band's end edge. When the panels are stacked, a
+            // top border separates the band instead.
             borderInlineEnd: { md: seamBorder(theme) },
             borderBlockStart: { xs: `1px solid ${theme.vars?.palette.divider ?? theme.palette.divider}`, md: 0 },
             px: PANEL_PADDING,
           })}
         >
-          { /* Constrained and anchored exactly like the brand text block above, so the two
-               share their start edge */ }
+          { /* The same width and margin as the brand text, so the two share their start edge */ }
           <FooterContent
             credits={false}
             sx={{
@@ -237,8 +222,8 @@ export default function LoginPage() {
             }}
           />
         </Box>
-        { /* Sharing the grid row with the muted band keeps the two footers aligned */ }
-        { /* Start-aligned so the credits share their start edge with the sign-in form */ }
+        { /* On a wide screen, the credits share the footer band's grid row, and start where
+             the sign-in card starts */ }
         <Box
           sx={{
             gridArea: "credits",

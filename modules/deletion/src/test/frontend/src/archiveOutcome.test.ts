@@ -61,7 +61,7 @@ describe("describeOutcome", () => {
   });
 
   it("prefers the guard's own reason for a veto", () => {
-    // The server knows why it refused; inventing a sentence here could describe the wrong reason
+    // The server's message, not one made up here
     const outcome = describeOutcome({ status: "vetoed", "status.message": "Archived less than 30 days ago" });
     expect(outcome.severity).toBe("warning");
     expect(outcome.title).toContain("guard refused");
@@ -88,7 +88,6 @@ describe("describeOutcome", () => {
   });
 
   it("offers none at a decision, which would only be made again", () => {
-    // A conflict and a veto are answers, not mishaps: a Retry button here would promise nothing
     const retry = vi.fn();
     expect(describeOutcome({ status: "conflict" }, retry).onRetry).toBeUndefined();
     expect(describeOutcome({ status: "vetoed" }, retry).onRetry).toBeUndefined();

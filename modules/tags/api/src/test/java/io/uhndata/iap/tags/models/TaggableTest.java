@@ -34,8 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for the {@link Taggable} guards; the actual tag operations are covered through
- * {@code TagManagerImplTest}, with the backing service registered.
+ * Unit tests for {@link Taggable} without the tags service. {@code TagManagerImplTest} tests the operations with it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -51,7 +50,7 @@ class TaggableTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Taggable.class);
-        // No TagOperations service is registered in this context, e.g. a read-only rendering context
+        // No TagOperations service is registered
         this.taggable = this.context.create()
             .resource("/data/entity", "sling:resourceType", "data/Entity")
             .adaptTo(Taggable.class);
@@ -60,7 +59,7 @@ class TaggableTest
     @Test
     void anyContentIsViewableAsTaggable()
     {
-        // The tag:Taggable mixin is a declaration aid, not an adaptation gate: any content adapts
+        // With or without the tag:Taggable mixin
         assertNotNull(this.context.create().resource("/data/plain").adaptTo(Taggable.class));
     }
 

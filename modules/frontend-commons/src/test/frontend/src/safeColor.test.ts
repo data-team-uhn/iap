@@ -32,7 +32,6 @@ describe("safeCssColor", () => {
     expect(safeCssColor(undefined)).toBeUndefined();
     expect(safeCssColor("")).toBeUndefined();
     expect(safeCssColor("not-a-color")).toBeUndefined();
-    // Named colors are deliberately out: the whitelist stays small and unambiguous
     expect(safeCssColor("tomato")).toBeUndefined();
     expect(safeCssColor("#fff;background:url(https://evil.example/x)")).toBeUndefined();
     expect(safeCssColor("url(https://evil.example/x)")).toBeUndefined();

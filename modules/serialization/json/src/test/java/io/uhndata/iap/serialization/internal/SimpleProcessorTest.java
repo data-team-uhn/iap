@@ -38,7 +38,6 @@ public class SimpleProcessorTest
     {
         Assertions.assertEquals("simple", this.processor.getName());
         Assertions.assertEquals(25, this.processor.getPriority());
-        // Trimming the serialization is never assumed, only asked for
         Assertions.assertFalse(this.processor.isEnabledByDefault(null));
     }
 
@@ -58,7 +57,6 @@ public class SimpleProcessorTest
     @Test
     public void testVersioningBookkeepingIsDropped()
     {
-        // What every mix:versionable node repeats, and what a reader of the content never asked for
         assertDropped("jcr:mixinTypes", "jcr:versionHistory", "jcr:baseVersion", "jcr:predecessors",
             "jcr:isCheckedOut");
     }

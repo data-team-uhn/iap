@@ -36,9 +36,15 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A Sling Model wrapping an {@code data:Content} node, the base type of all IAP data nodes. It exposes the generic
- * properties shared by all content nodes, hiding the underlying resource/JCR access from its users. Subclasses may
- * go below the model API through the protected {@link #resource} field; nothing outside the model hierarchy can.
+ * The model of any IAP content: a {@code data:Content} node, or a node of a type that extends it. It reads the
+ * properties every content node has, and finds the content around it: its parent, its children, and the targets of
+ * its references.
+ *
+ * <p>The lookups hand back content models, never the resource. Only subclasses reach the resource, through the
+ * protected {@link #resource} field.</p>
+ *
+ * <p>A Sling Model adapts a resource whatever its resource type, so adapting is no type check. The typed lookups
+ * check the resource type before they adapt, and a child or parent of another type comes back as {@code null}.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -47,13 +53,13 @@ import org.jetbrains.annotations.Nullable;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class Content
 {
-    /** The {@code sling:resourceType} of an {@code data:Content} node. */
+    /** The resource type of {@code data:Content}, which the resource type of all IAP content extends. */
     public static final String RESOURCE_TYPE = "data/Content";
 
     @SlingObject
     protected Resource resource;
 
-    /** The node's {@code jcr:uuid}, set only on a referenceable node, for the models of such nodes to expose. */
+    /** The node's {@code jcr:uuid}; {@code null} unless the node is referenceable. */
     @ValueMapValue(name = "jcr:uuid")
     protected String identifier;
 
@@ -67,13 +73,11 @@ public class Content
     private String createdBy;
 
     /**
-     * View the same repository content as another content model, e.g. a links-aware view of a submission. The
-     * bound keeps the conversion inside the model world: only content models can be requested, never the wrapped
-     * resource itself, so this adds nothing beyond what any content model can already see.
+     * The same content, read through another content model, such as {@code Taggable} to read and place its tags.
      *
      * @param <T> the model type
-     * @param type the model class to view this content as
-     * @return the adapted model, or {@code null} if this content cannot be viewed as the requested model
+     * @param type the model class to read this content as
+     * @return the model; {@code null} if this content cannot be adapted to it
      */
     @Nullable
     public <T extends Content> T as(@NotNull final Class<T> type)
@@ -82,9 +86,9 @@ public class Content
     }
 
     /**
-     * The path of the wrapped resource.
+     * The path of this content.
      *
-     * @return an absolute repository path
+     * @return an absolute path, such as {@code /Submissions/abc}
      */
     @NotNull
     public String getPath()
@@ -93,9 +97,9 @@ public class Content
     }
 
     /**
-     * The name of the wrapped resource, the last segment of its path.
+     * The name of this content's node, the last segment of its path.
      *
-     * @return a node name
+     * @return the node name
      */
     @NotNull
     public String getName()
@@ -104,9 +108,9 @@ public class Content
     }
 
     /**
-     * The specific type of the wrapped resource, e.g. {@code app/Homepage}.
+     * The resource type of this content.
      *
-     * @return a resource type name
+     * @return a resource type, such as {@code sub/Submission}
      */
     @NotNull
     public String getType()
@@ -115,11 +119,11 @@ public class Content
     }
 
     /**
-     * Whether this content is of the given resource type, either directly or through its
-     * {@code sling:resourceSuperType} chain, same as {@link Resource#isResourceType}.
+     * Whether this content is of the given resource type, or of a type that extends it through
+     * {@code sling:resourceSuperType}.
      *
-     * @param type a resource type name, e.g. {@code sub/Submission}
-     * @return {@code true} if this content is of (a subtype of) the given resource type
+     * @param type a resource type, such as {@code data/Entity}
+     * @return {@code true} if this content's resource type is {@code type} or extends it
      */
     public boolean isOfType(@NotNull final String type)
     {
@@ -127,11 +131,10 @@ public class Content
     }
 
     /**
-     * The content enclosing this one, i.e. the parent of the wrapped resource. As the generic
-     * {@link Content} view, since the parent may be of any type, and even a node that isn't IAP content at all;
-     * ask for its {@link #getType() type} to find out what it actually is.
+     * The content that holds this one, read as a plain {@code Content} whatever its type. The parent may not be IAP
+     * content at all, and {@link #getType()} says what it is.
      *
-     * @return the parent content, or {@code null} if this is the repository root
+     * @return the parent; {@code null} for the repository root
      */
     @Nullable
     public Content getParent()
@@ -141,26 +144,22 @@ public class Content
     }
 
     /**
-     * The date when the resource was created.
+     * When this content was created.
      *
-     * @return a copy of the creation date, or {@code null} if the creation date is not recorded
+     * @return a copy of {@code jcr:created}; {@code null} if the node has none
      */
     @Nullable
     public Calendar getCreated()
     {
-        // A copy, since Calendar is mutable and callers must not be able to alter the model's own state
         return this.created == null ? null : (Calendar) this.created.clone();
     }
 
     /**
-     * The user that created the resource.
+     * The user who created this content. A workflow creates content as the engine's service user, so Oak's
+     * {@code jcr:createdBy} names that service user. The engine records the user it acted for in {@code createdBy}.
      *
-     * <p>Content raised through a workflow is <em>written</em> by the engine's service user, since that is who
-     * holds the rights to write it, so the repository's own {@code jcr:createdBy} records the machinery rather
-     * than the person. Where the engine has recorded who it was acting for, that is the answer; {@code
-     * jcr:createdBy} is the fallback for everything else.</p>
-     *
-     * @return a user name, or {@code null} if the creator is not recorded
+     * @return a username, from {@code createdBy} if it is set and from {@code jcr:createdBy} otherwise; {@code null}
+     *         if neither is set
      */
     @Nullable
     public String getCreatedBy()
@@ -169,12 +168,10 @@ public class Content
     }
 
     /**
-     * The value of an arbitrary property of the wrapped resource. Every node type declares residual ({@code *})
-     * properties for exactly this: extensibility properties whose names aren't known in advance and thus have no
-     * dedicated getter of their own.
+     * The value of any property of this content, including one that no getter reads.
      *
      * @param name the property name
-     * @return the property value (a scalar, or an array for a multi-valued property), or {@code null} if not set
+     * @return the value, or an array of values for a multi-valued property; {@code null} if the property is not set
      */
     @Nullable
     public Object get(@NotNull final String name)
@@ -183,14 +180,14 @@ public class Content
     }
 
     /**
-     * The value of an arbitrary property of the wrapped resource, converted to the requested type. Conversion
-     * follows the usual {@link org.apache.sling.api.resource.ValueMap} rules, so a single value can be read as an
-     * array and vice versa.
+     * The value of any property of this content, converted to the given type. The conversion follows Sling's
+     * {@link org.apache.sling.api.resource.ValueMap} rules, so a single value can be read as an array, and an array
+     * as its first value.
      *
      * @param <T> the value type
      * @param name the property name
-     * @param type the type the value is converted to
-     * @return the converted property value, or {@code null} if the property isn't set or cannot be converted
+     * @param type the type to convert the value to, such as {@code String[].class}
+     * @return the converted value; {@code null} if the property is not set, or cannot be converted
      */
     @Nullable
     public <T> T get(@NotNull final String name, @NotNull final Class<T> type)
@@ -199,9 +196,9 @@ public class Content
     }
 
     /**
-     * A JSON representation of the wrapped resource.
+     * This content as JSON.
      *
-     * @return a JSON object, or {@code null} if the resource cannot be serialized to JSON
+     * @return the JSON object; {@code null} if nothing can serialize the resource
      */
     @Nullable
     public JsonObject toJson()
@@ -210,16 +207,14 @@ public class Content
     }
 
     /**
-     * Resolves a JCR reference property's value to the content it points at, read through the same session as this
-     * content. Used to implement typed accessors for {@code REFERENCE} properties, e.g.
-     * {@code Submission.getSchemaVersion()}. The type bound keeps the lookup inside the model world: only content
-     * models can be requested, never the wrapped resource itself.
+     * The content that a {@code REFERENCE} or {@code WEAKREFERENCE} property points to, read through the same
+     * session as this content.
      *
      * @param <T> the model type
-     * @param identifier the identifier stored in a {@code REFERENCE} (or {@code WEAKREFERENCE}) property
-     * @param type the model class the referenced content is adapted to
-     * @return the adapted content, or {@code null} if the identifier is {@code null}, unresolvable, or the
-     *         resource resolver isn't backed by a JCR session
+     * @param identifier the property's value, a {@code jcr:uuid}; {@code null} if the property is not set
+     * @param type the model class to adapt the target to
+     * @return the target; {@code null} if the identifier is {@code null} or names no node this session can read, or
+     *         if the resource resolver has no JCR session
      */
     @Nullable
     public <T extends Content> T getReference(@Nullable final String identifier, @NotNull final Class<T> type)
@@ -241,18 +236,12 @@ public class Content
     }
 
     /**
-     * Lists the children of the wrapped resource that are of the given resource type, adapted to the given model
-     * type. A child matches {@code resourceType} either directly or through its {@code sling:resourceSuperType}
-     * chain, same as {@link Resource#isResourceType(String)}. This is used to implement the typed child listing
-     * methods of subclasses, e.g. {@code Schema.getVersions()}. Adaptation itself is not a reliable type filter
-     * on its own: a Sling Model registered for a resource type will happily adapt a resource of a different,
-     * unrelated type, so the resource type check always comes first.
+     * The children of this content that are of the given resource type, read as the given model.
      *
      * @param <T> the model type
-     * @param resourceType the resource type (or one of its subtypes) a child must have to be included
-     * @param type the model class every matching child is adapted to
-     * @return a list of matching, adapted children, in the same order as the underlying resource's children; empty
-     *         if none of the children match
+     * @param resourceType a resource type; a child matches if its resource type is this one or extends it
+     * @param type the model class to adapt each matching child to
+     * @return the matching children, in stored order; empty if none match
      */
     @NotNull
     protected <T extends Content> List<T> getChildren(@NotNull final String resourceType,
@@ -271,21 +260,12 @@ public class Content
     }
 
     /**
-     * Adapts the parent of the wrapped resource to the given model type, provided the parent is of the given
-     * resource type. Used to implement the "owner" accessors of the parts that are stored inside something else,
-     * e.g. {@code SequenceFlow.getSource()}.
-     *
-     * <p>The resource type check is not a nicety: adaptation is not a type filter at all. A model registered for
-     * one resource type will happily adapt a resource of an unrelated one — with a single implementation it is
-     * returned outright, and with several, a resource matching none of them is handed to whichever happens to
-     * come first rather than rejected. Either way, adapting an unrelated parent would quietly yield a model
-     * wrapping the wrong node rather than {@code null}.</p>
+     * The parent of this content, read as the given model if it is of the given resource type.
      *
      * @param <T> the model type
-     * @param resourceType the resource type (or one of its subtypes) the parent must have
-     * @param type the model class the parent is adapted to
-     * @return the adapted parent, or {@code null} if the wrapped resource has no parent, or its parent is of
-     *         another type
+     * @param resourceType a resource type; the parent matches if its resource type is this one or extends it
+     * @param type the model class to adapt the parent to
+     * @return the parent; {@code null} for the repository root, or if the parent is of another type
      */
     @Nullable
     protected <T extends Content> T getParent(@NotNull final String resourceType, @NotNull final Class<T> type)
@@ -295,14 +275,11 @@ public class Content
     }
 
     /**
-     * Lists all the children of the wrapped resource, adapted to the given model type. Unlike
-     * {@link #getChildren(String, Class)} this filters nothing, so it is the right tool for walking through
-     * arbitrary content — e.g. searching a subtree — where the interesting nodes aren't known by their type.
+     * All the children of this content, read as the given model whatever their resource type.
      *
      * @param <T> the model type
-     * @param type the model class every child is adapted to
-     * @return a list of adapted children, in the same order as the underlying resource's children; empty if there
-     *         are no children, or if none of them adapt to the requested model
+     * @param type the model class to adapt each child to
+     * @return the children that adapt to it, in stored order; empty if there are none
      */
     @NotNull
     public <T extends Content> List<T> getChildren(@NotNull final Class<T> type)
@@ -318,18 +295,14 @@ public class Content
     }
 
     /**
-     * Adapts the wrapped resource's specific named child to the given model type, without checking what that child
-     * actually is. Only safe where the name determines the type — a node type declaring one named child, e.g.
-     * {@code bpmn.xml} — since adaptation is not a type filter on its own: a model registered for one resource type
-     * will happily adapt a resource of an unrelated one. Where the parent declares several residual children, as
-     * {@code wf:WorkflowInstance} does for its tokens, variables and tasks, a name says nothing about the type, and
-     * {@link #getChild(String, String, Class)} is the one to use.
+     * The named child of this content, read as the given model without checking its resource type. Use it where the
+     * name decides the type, as for a child that a node type declares by name, such as {@code cond:condition}.
+     * Elsewhere, use {@link #getChild(String, String, Class)}.
      *
      * @param <T> the model type
-     * @param name the name of the child node to adapt, which may also be a path relative to this content, e.g.
-     *            {@code form/age}
-     * @param type the model class the child is adapted to
-     * @return the adapted child, or {@code null} if there is no such child
+     * @param name the child's name, or a path relative to this content, such as {@code form/age}
+     * @param type the model class to adapt the child to
+     * @return the child; {@code null} if there is none
      */
     @Nullable
     public <T extends Content> T getChild(@NotNull final String name, @NotNull final Class<T> type)
@@ -339,20 +312,15 @@ public class Content
     }
 
     /**
-     * Adapts the wrapped resource's specific named child to the given model type, provided that child is of the
-     * given resource type. This is the lookup to use wherever a node type declares more than one kind of residual
-     * child, so that a name alone does not say what will be found under it, e.g.
-     * {@code WorkflowInstance.getVariable(name)}, whose siblings include tokens and task instances.
-     *
-     * <p>The resource type check is what makes a miss report as a miss: adapting an unrelated child would otherwise
-     * hand back a model wrapping the wrong node, and a caller's {@code != null} test would take that for the thing
-     * it asked for.</p>
+     * The named child of this content, read as the given model if it is of the given resource type. Use it where a
+     * node type admits several kinds of child under any name, as {@code wf:WorkflowInstance} does for its tokens,
+     * variables and tasks.
      *
      * @param <T> the model type
-     * @param name the name of the child node to adapt, which may also be a path relative to this content
-     * @param resourceType the resource type (or one of its subtypes) the child must have
-     * @param type the model class the child is adapted to
-     * @return the adapted child, or {@code null} if there is no such child, or it is of another type
+     * @param name the child's name, or a path relative to this content
+     * @param resourceType a resource type; the child matches if its resource type is this one or extends it
+     * @param type the model class to adapt the child to
+     * @return the child; {@code null} if there is none, or if it is of another type
      */
     @Nullable
     public <T extends Content> T getChild(@NotNull final String name, @NotNull final String resourceType,

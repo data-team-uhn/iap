@@ -82,7 +82,7 @@
       <artifactId>jakarta.servlet-api</artifactId>
     </dependency>
     <dependency>
-      <!-- TokenInfo, which IapToken extends, is declared here; needed to compile against the parsed token -->
+      <!-- Declares TokenInfo, which IapToken extends -->
       <groupId>org.apache.jackrabbit</groupId>
       <artifactId>oak-security-spi</artifactId>
       <scope>provided</scope>
@@ -91,8 +91,6 @@
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
     </dependency>
-    <!-- Not used by this bundle's own code, but SpotBugs needs the annotation classes on the analysis
-         classpath to check the calls into the annotated TokenManager contract. -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
@@ -116,8 +114,7 @@
       <artifactId>mockito-junit-jupiter</artifactId>
     </dependency>
     <dependency>
-      <!-- Referenced by the deprecated methods of the org.apache.sling.api.resource.ResourceResolver interface
-        mocked in tests -->
+      <!-- The tests mock ResourceResolver, whose deprecated methods take a javax.servlet request -->
       <groupId>javax.servlet</groupId>
       <artifactId>javax.servlet-api</artifactId>
       <scope>test</scope>

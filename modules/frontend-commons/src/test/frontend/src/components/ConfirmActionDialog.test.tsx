@@ -79,7 +79,7 @@ describe("ConfirmActionDialog", () => {
     expect(await screen.findByText("HTTP 403")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled();
-    // The explanation of the action stays put above the report
+    // The explanation stays, above the report
     expect(screen.getByText("This cannot be undone.")).toBeInTheDocument();
   });
 
@@ -122,7 +122,7 @@ describe("ConfirmActionDialog", () => {
 
     await waitFor(() => { expect(interceptFailure).toHaveBeenCalledWith(new Error("HTTP 409")); });
     expect(screen.queryByText("HTTP 409")).not.toBeInTheDocument();
-    // Neither a failure nor a success: the caller decides what the dialog becomes next
+    // Not reported, and not closed either
     expect(onClose).not.toHaveBeenCalled();
     await waitFor(() => { expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled(); });
   });
@@ -175,7 +175,6 @@ describe("ConfirmActionDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
-    // Disabling Cancel is not enough on its own: the title bar and the keyboard are ways out too
     await waitFor(() => { expect(screen.getByRole("button", { name: "close" })).toBeDisabled(); });
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(onClose).not.toHaveBeenCalled();

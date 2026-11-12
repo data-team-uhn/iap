@@ -27,33 +27,39 @@ import type { EntityGridConfig } from "./registry";
 import type { GridPaginationModel } from "@mui/x-data-grid-pro";
 
 export interface EntityPageRequest {
+  // The entity type's grid configuration; undefined to read nothing
   config?: EntityGridConfig;
-  // The homepage to list from, when it is not the config's own
+  // The path of the homepage to list from, when it is not the config's own
   homepage?: string;
   paginationModel: GridPaginationModel;
-  // The server-side property to order by, if any
+  // The entity property to order by; the server's own order if undefined
   sortBy?: string;
   descending: boolean;
+  // The caller's conditions, ANDed with the user's columnFilters
   filters?: PropertyFilter[];
   childFilter?: DescendantFilter;
   columnFilters: PropertyFilter[];
+  // The full text search; empty for none
   fullText: string;
-  // Any change reads the page again
+  // Reads the page again whenever it changes
   refreshToken: number;
 }
 
 export interface EntityPage {
   rows: EntityRow[];
+  // The total number of matches
   rowCount: number;
-  // Whether the server stopped counting matches early: the row count is then a lower bound
+  // Whether the server stopped counting matches early, so that rowCount is a lower bound
   approximate: boolean;
   loading: boolean;
+  // Why the page could not be read, worded for the person using the UI; undefined after a success
   error?: string;
-  // Reads the page again with unchanged parameters
+  // Reads the page again with the same request
   retry: () => void;
 }
 
-// One page of entities from the pagination servlet, read again whenever what it asks for changes.
+// One page of entities from the pagination servlet, read again whenever the request changes. A
+// response that arrives after a newer request was made is dropped.
 export default function useEntityPage(request: EntityPageRequest): EntityPage {
   const { config, homepage, paginationModel, sortBy, descending, filters, childFilter, columnFilters, fullText,
     refreshToken } = request;
@@ -65,10 +71,8 @@ export default function useEntityPage(request: EntityPageRequest): EntityPage {
   const [error, setError] = useState<string>();
   const fetchUtil = useAuthenticatedFetch();
 
-  // The props holding the fixed filters are typically fresh objects on every render, so effects
-  // depend on their content instead of their identity. The homepage belongs here too: a caller
-  // that discovers it asynchronously hands it over once the discovery lands, and that has to
-  // re-fetch.
+  // The filters are usually new objects on every render, so the effect depends on their content,
+  // not their identity. A new homepage reads the page again too.
   const filterKey = JSON.stringify([filters, childFilter, columnFilters, homepage]);
 
   useEffect(() => {
@@ -76,8 +80,7 @@ export default function useEntityPage(request: EntityPageRequest): EntityPage {
       return;
     }
     let cancelled = false;
-    // The flag intentionally turns on synchronously with the request it tracks; deriving it
-    // from a request key instead proved racy against the grid's own debounced model updates
+    // The flag turns on in the same effect that starts the request it tracks
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     fetchEntityPage(fetchUtil, {

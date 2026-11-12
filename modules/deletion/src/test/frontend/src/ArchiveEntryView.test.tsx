@@ -54,8 +54,7 @@ const detail = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-// The session endpoint is answered as live for the reason recorded in ArchiveBrowser.test.tsx: a 500
-// is otherwise read as an expired session rather than as the failure under test.
+// The session endpoint answers that the session is live, as in ArchiveBrowser.test.tsx.
 const server = (options: { entry?: () => Response; action?: () => Response } = {}) => {
   const calls: string[] = [];
   vi.spyOn(globalThis, "fetch").mockImplementation((url: RequestInfo | URL) => {
@@ -72,8 +71,8 @@ const server = (options: { entry?: () => Response; action?: () => Response } = {
   return calls;
 };
 
-// Rendered the way the shell renders it: at the console route for one entry, with the listing as a
-// sibling route so that navigating away after the entry stops existing is observable.
+// Rendered at the console route for one entry. The listing is a sibling route, so that the tests can
+// see the page leave for it.
 const view = (route: string = ROUTE) => render(
   <MemoryRouter initialEntries={[ route ]}>
     <ThemeProvider theme={appTheme} defaultMode="light">
@@ -161,7 +160,7 @@ describe("ArchiveEntryView", () => {
   });
 
   it("leaves the archive listing once the entry has been restored", async () => {
-    // The entry no longer exists, so staying on its page would show a 404 of our own making
+    // The entry no longer exists, so the page leaves for the listing
     server();
     view();
     await screen.findByRole("heading", { name: "/content/one" });
@@ -194,15 +193,11 @@ describe("ArchiveEntryView", () => {
     await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Purge" }));
 
     expect(await screen.findByText("the archive listing")).toBeInTheDocument();
-    // Acted on where the entry actually is, which the endpoint just reported, rather than on the
-    // short address the route was built from: one fewer thing to be wrong about at the moment of
-    // destroying something. The read above still goes through the short address.
+    // The purge goes to the stored path the endpoint reported. The read went through the short address.
     expect(calls).toContain(STORED);
   });
 
   it("re-reads the preflight when an action is refused after all", async () => {
-    // The preflight said this would work and it did not, so what is on screen is now a claim that
-    // has just been disproved
     const calls = server({
       action: () => jsonResponse(409, {
         status: "conflict", conflicts: [ { originalPath: "/content/one", reason: "OCCUPIED" } ],
@@ -234,8 +229,7 @@ describe("ArchiveEntryView", () => {
   });
 
   it("offers another go at a request that never arrived, and takes it", async () => {
-    // Nothing reached the server, so nothing was decided and the same action can simply be sent
-    // again — this time it lands, and the entry stops existing, so the page leaves for the listing
+    // The request is sent again. This time the entry is gone, so the page leaves for the listing.
     let attempts = 0;
     vi.spyOn(globalThis, "fetch").mockImplementation((url: RequestInfo | URL) => {
       if (String(url).endsWith(".entry.json")) {

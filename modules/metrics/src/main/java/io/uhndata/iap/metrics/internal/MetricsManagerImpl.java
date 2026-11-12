@@ -38,8 +38,8 @@ import io.uhndata.iap.metrics.api.MetricsException;
 import io.uhndata.iap.metrics.api.MetricsManager;
 
 /**
- * Default implementation of {@link MetricsManager}, storing each metric as a child node of {@code /Metrics}. All
- * repository access happens through a dedicated service user, so callers don't need repository access of their own.
+ * Keeps each metric as a {@code metric:Metric} node under {@code /Metrics}. It reads and writes them as the metrics
+ * service user, so callers need no access to {@code /Metrics} of their own.
  *
  * @version $Id$
  * @since 0.1.0
@@ -50,10 +50,8 @@ public class MetricsManagerImpl implements MetricsManager
     private static final Pattern VALID_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]*");
 
     /**
-     * The display order of the metrics: by category, uncategorized last, then by {@code defaultOrder} within
-     * each category, and by name for metrics that agree on both, so the listing is stable. This compares the
-     * resources rather than {@link Metric} handles, because every handle read opens a service session of its own,
-     * while the resources are already in the one session the listing has open.
+     * The order to show the metrics' nodes in: by category with no category last, then by {@code defaultOrder}, then
+     * by name.
      */
     private static final Comparator<Resource> DISPLAY_ORDER =
         Comparator.comparing(MetricsManagerImpl::category, Comparator.nullsLast(Comparator.naturalOrder()))
@@ -94,8 +92,6 @@ public class MetricsManagerImpl implements MetricsManager
             return StreamSupport.stream(getHomepage(resolver).getChildren().spliterator(), false)
                 .filter(MetricImpl::isMetric)
                 .sorted(DISPLAY_ORDER)
-                // Hand the properties to the handle: this session has already read them, and a listing is a
-                // point-in-time view anyway, so re-reading each one per accessor would only cost sessions
                 .<Metric>map(metric -> new MetricImpl(this.resolverFactory, metric.getName(), metric.getValueMap()))
                 .toList();
         }
@@ -107,10 +103,10 @@ public class MetricsManagerImpl implements MetricsManager
     }
 
     /**
-     * The category a metric node belongs to, for ordering purposes.
+     * The category of a metric's node, for sorting.
      *
-     * @param metric a metric resource
-     * @return the category, or {@code null} when the metric is uncategorized, which sorts it last
+     * @param metric the metric's node
+     * @return the category; {@code null} if it is not set or is blank
      */
     private static String category(final Resource metric)
     {
@@ -119,10 +115,10 @@ public class MetricsManagerImpl implements MetricsManager
     }
 
     /**
-     * The requested placement of a metric node within its category.
+     * The order of a metric's node within its category.
      *
-     * @param metric a metric resource
-     * @return the order, {@code 0} for a metric that doesn't declare one
+     * @param metric the metric's node
+     * @return the order; {@code 0} if it is not set
      */
     private static long defaultOrder(final Resource metric)
     {
@@ -130,11 +126,11 @@ public class MetricsManagerImpl implements MetricsManager
     }
 
     /**
-     * Fetch the node holding all the metrics.
+     * The node that holds every metric.
      *
-     * @param resolver the session to read through
+     * @param resolver the session to read it in
      * @return the {@code /Metrics} resource
-     * @throws MetricsException if the node is missing, meaning the repository wasn't properly initialized
+     * @throws MetricsException if {@code /Metrics} is missing
      */
     private Resource getHomepage(final ResourceResolver resolver)
     {
@@ -146,7 +142,7 @@ public class MetricsManagerImpl implements MetricsManager
     }
 
     /**
-     * Default implementation of {@link MetricBuilder}, persisting the definition under {@code /Metrics}.
+     * The definition of a metric, saved under {@code /Metrics}.
      *
      * @since 0.1.0
      */
@@ -236,9 +232,7 @@ public class MetricsManagerImpl implements MetricsManager
         {
             final Map<String, Object> properties = new HashMap<>();
             properties.put("jcr:primaryType", MetricImpl.NODE_TYPE);
-            // The repository only maintains the counter when the mixin is explicitly listed on the node
             properties.put("jcr:mixinTypes", new String[] { "mix:atomicCounter" });
-            // The protected sling:resourceType property is autocreated by the node type, it cannot be set manually
             properties.put(MetricImpl.PN_LABEL, this.label == null ? this.name : this.label);
             properties.put(MetricImpl.PN_DEFAULT_ORDER, this.defaultOrder);
             properties.put(MetricImpl.PN_ACCESS_LEVEL, this.accessLevel.asPropertyValue());

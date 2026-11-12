@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.auth.token.jwt.impl;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.util.Base64;
@@ -52,21 +54,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link IapJwtTokenManagerImpl}, the JWT-backed
- * {@code TokenManager}.
+ * Tests for {@link IapJwtTokenManagerImpl}.
  *
- * <p>
- * These check the behaviour of self-issued, asymmetric RS256 tokens,
- * where a token minted by {@code create()} must round-trip back through
- * {@code parse()} and yield the same user and session subject.
- * </p>
- *
- * <p>
- * On activation the manager reads its RSA256 signing key from
- * {@code /jcr:system/iap-jwt/JWTRSA256Key}; here that
- * lookup is mocked to return a freshly generated, valid RSA256 key, so no
- * repository is needed.
- * </p>
+ * <p>The repository is mocked. Its key node holds a key pair generated for each test.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -74,9 +64,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 public class IapJwtTokenManagerImplTest
 {
-    /**
-     * The public claim used by the patient portal to carry the visit/subject path.
-     */
+    /** The one extra claim a token read back keeps. */
     private static final String SESSION_SUBJECT = "iap:sessionSubject";
 
     private static final String KEY_PATH = "/jcr:system/iap-jwt/JWTRSA256Key";
@@ -125,12 +113,9 @@ public class IapJwtTokenManagerImplTest
     @BeforeEach
     public void setUp() throws Exception
     {
-        // Generate a RS256 keypair and expose it exactly as the component reads it from
-        // the repository.
         this.keyPair = Jwts.SIG.RS256.keyPair().build();
         when(this.resolverFactory.getServiceResourceResolver(any())).thenReturn(this.resolver);
-        // Calling resolve() can return null in these tests despite being marked @NotNull in the actual resolver
-        // Fix it by throwing a proper error
+        // A real resolver answers a missing path with a non-existing resource, never null
         when(this.resolver.resolve(anyString()))
             .thenAnswer(invocation -> new NonExistingResource(this.resolver, invocation.getArgument(0)));
         when(this.resolver.resolve(KEY_PATH)).thenReturn(this.keyResource);
@@ -142,7 +127,6 @@ public class IapJwtTokenManagerImplTest
         when(this.keyProperty.getString()).thenReturn(Encoders.BASE64.encode(this.keyPair.getPrivate().getEncoded()));
         when(this.verifyProperty.getString()).thenReturn(Encoders.BASE64.encode(this.keyPair.getPublic().getEncoded()));
 
-        // Activate the component via its @Activate constructor.
         this.manager = new IapJwtTokenManagerImpl(this.resolverFactory, configWithIdentity(SELF_ID));
     }
 
@@ -153,8 +137,7 @@ public class IapJwtTokenManagerImplTest
                 Map.of(SESSION_SUBJECT, "/Subjects/v1"));
         final String token = created.getToken();
 
-        // A JWT is three base64url segments separated by dots (the same check the auth
-        // handler applies).
+        // A JWS in compact form: three BASE64URL segments separated by dots
         Assertions.assertTrue(token.matches("^[\\w-_]+\\.[\\w-_]+\\.[\\w-_]+$"),
                 "Issued token is not a well-formed JWT");
 
@@ -190,8 +173,6 @@ public class IapJwtTokenManagerImplTest
     @Test
     public void parseRejectsTokenSignedWithUnknownKey()
     {
-        // A well-formed token signed with some an asymmetric key NOT in our list of accepted providers must be
-        // rejected
         final String foreign = Jwts.builder()
                 .subject("attacker")
                 .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
@@ -204,7 +185,6 @@ public class IapJwtTokenManagerImplTest
     @Test
     public void parseRejectsTokenWithNoKeyId()
     {
-        // A well-formed token with no `kid` header cannot be matched to any known signer and must be rejected
         final String foreign = Jwts.builder()
                 .subject("attacker")
                 .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
@@ -216,7 +196,6 @@ public class IapJwtTokenManagerImplTest
     @Test
     public void parseRejectsNonSanitizedKeyId()
     {
-        // A well-formed token with a `kid` header that contains non-sanitized characters must be rejected
         final String foreign = Jwts.builder()
                 .subject("attacker")
                 .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
@@ -227,17 +206,39 @@ public class IapJwtTokenManagerImplTest
     }
 
     @Test
+    public void aKeyIdCannotStartALogLineOfItsOwn()
+    {
+        final String forging = Jwts.builder()
+                .subject("attacker")
+                .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
+                .header().keyId("x\nFORGED").and()
+                .signWith(Jwts.SIG.RS256.keyPair().build().getPrivate())
+                .compact();
+
+        final String logged = loggedWhileParsing(forging);
+
+        Assertions.assertTrue(logged.contains("JWT refused"), logged);
+        Assertions.assertFalse(logged.contains("\nFORGED"), logged);
+    }
+
+    @Test
+    public void aHeaderValueQuotedInARefusalCannotStartALogLineOfItsOwn()
+    {
+        final String logged = loggedWhileParsing(signingInput("RS256\\nFORGED") + ".c2lnbmF0dXJl");
+
+        Assertions.assertTrue(logged.contains("?FORGED"), logged);
+        Assertions.assertFalse(logged.contains("\nFORGED"), logged);
+    }
+
+    @Test
     public void createThenParseRejectsInvalidAudience()
     {
-        // Create a real token, but exclude ourselves from the audience, and then make sure we fail to parse
         Set<String> fakeAudience = new HashSet<String>();
         fakeAudience.add("not_you");
         final IapJwtTokenImpl created = this.manager.create("guest-patient", oneHourFromNow(),
                 Map.of(SESSION_SUBJECT, "/Subjects/v1"), fakeAudience);
         final String token = created.getToken();
 
-        // A JWT is three base64url segments separated by dots (the same check the auth
-        // handler applies).
         Assertions.assertTrue(token.matches("^[\\w-_]+\\.[\\w-_]+\\.[\\w-_]+$"),
                 "Issued token is not a well-formed JWT");
         Assertions.assertNull(this.manager.parse(token),
@@ -258,8 +259,6 @@ public class IapJwtTokenManagerImplTest
             Encoders.BASE64.encode(peerPair.getPublic().getEncoded()));
         when(this.peerIssuerProperty.getString()).thenReturn(PEER_ID);
 
-        // Test using a second set of keys that we've accepted
-
         final String foreign = Jwts.builder()
             .issuer(PEER_ID)
             .audience().add(SELF_ID).and()
@@ -273,9 +272,7 @@ public class IapJwtTokenManagerImplTest
     @Test
     public void parseRejectsUnsecuredTokenBuiltByTheLibrary()
     {
-        // Claims an attacker cannot otherwise produce, with no signature at all. JJWT refuses unsecured JWTs
-        // unless the parser opts in with unsecured(), which this one does not; asserted so that adding the
-        // opt-in later cannot pass unnoticed.
+        // Valid claims with no signature. JJWT refuses an unsecured JWT unless the parser opts in with unsecured().
         final String unsecured = Jwts.builder()
             .issuer(SELF_ID)
             .audience().add(SELF_ID).and()
@@ -289,9 +286,7 @@ public class IapJwtTokenManagerImplTest
     @Test
     public void parseRejectsHandRolledAlgNoneToken()
     {
-        // The same attack spelled out by hand, since a library that declines to *build* an unsecured JWT says
-        // nothing about whether the parser would accept one off the wire. An alg:none JWT is the signing input
-        // followed by an empty third segment.
+        // The same attack written by hand: the signing input, then an empty third segment
         Assertions.assertNull(this.manager.parse(signingInput("none") + "."),
             "A hand-rolled alg:none token must not parse");
     }
@@ -299,9 +294,8 @@ public class IapJwtTokenManagerImplTest
     @Test
     public void parseRejectsAlgorithmConfusion() throws Exception
     {
-        // RS256 -> HS256 confusion: the attacker re-labels the token as HMAC and signs it with the one piece of
-        // key material they are assumed to have, the public key. A parser that picks the algorithm from the
-        // header and uses whatever key the locator returned would verify this.
+        // RS256 to HS256 confusion: the token is labelled HMAC and signed with the public key as the secret. A
+        // parser that takes the algorithm from the header and uses the located key would accept it.
         final String input = signingInput("HS256");
         final Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(this.keyPair.getPublic().getEncoded(), "HmacSHA256"));
@@ -315,7 +309,6 @@ public class IapJwtTokenManagerImplTest
     @Test
     public void parseRejectsBlankToken()
     {
-        // What an "Authorization: Bearer " header with nothing after it comes down to
         Assertions.assertNull(this.manager.parse(""));
         Assertions.assertNull(this.manager.parse("   "));
     }
@@ -323,7 +316,6 @@ public class IapJwtTokenManagerImplTest
     @Test
     public void parseRejectsTokenWithoutExpiry()
     {
-        // Correctly signed and addressed, but valid forever, and a JWT cannot be revoked
         final String unexpiring = Jwts.builder()
             .issuer(SELF_ID)
             .audience().add(SELF_ID).and()
@@ -337,7 +329,6 @@ public class IapJwtTokenManagerImplTest
     @Test
     public void mintedTokensCarryTheConfiguredIdentityUnaltered()
     {
-        // Peers register this identity and address their tokens to it, character for character
         final String token = this.manager.create("guest-patient", oneHourFromNow(), Map.of()).getToken();
         final Claims claims = Jwts.parser().verifyWith(this.keyPair.getPublic()).build()
             .parseSignedClaims(token).getPayload();
@@ -349,7 +340,6 @@ public class IapJwtTokenManagerImplTest
     @Test
     public void anUnusableIdentityRefusesToActivate()
     {
-        // Better no token manager at all than one minting tokens no peer could ever accept
         for (final String identity : new String[] {"", " https://iap.example.org", "a/b:c", "https://exa mple.org"}) {
             Assertions.assertThrows(IllegalArgumentException.class,
                 () -> new IapJwtTokenManagerImpl(this.resolverFactory, configWithIdentity(identity)),
@@ -358,7 +348,7 @@ public class IapJwtTokenManagerImplTest
     }
 
     /**
-     * The header and payload of a token that would pass every claim check, left for the caller to sign (or not).
+     * The header and payload of a token that would pass every claim check, for the caller to sign or not.
      *
      * @param algorithm the value of the {@code alg} header
      * @return the two BASE64URL segments, joined by a period
@@ -370,6 +360,25 @@ public class IapJwtTokenManagerImplTest
             + "."
             + base64Url("{\"iss\":\"" + SELF_ID + "\",\"aud\":[\"" + SELF_ID
                 + "\"],\"sub\":\"attacker\",\"exp\":" + expiry + "}");
+    }
+
+    /**
+     * Parses a token that must be refused, and returns what was logged meanwhile.
+     *
+     * @param token the token to parse
+     * @return what the test binding of SLF4J wrote to the standard error stream
+     */
+    private String loggedWhileParsing(final String token)
+    {
+        final PrintStream original = System.err;
+        final ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
+        try {
+            Assertions.assertNull(this.manager.parse(token));
+        } finally {
+            System.setErr(original);
+        }
+        return captured.toString(StandardCharsets.UTF_8);
     }
 
     private String selfFingerprint()

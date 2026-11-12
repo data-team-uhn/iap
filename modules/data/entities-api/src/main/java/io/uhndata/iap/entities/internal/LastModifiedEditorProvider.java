@@ -29,8 +29,8 @@ import org.osgi.service.component.annotations.Component;
 import io.uhndata.iap.entities.nodetypes.NodeTypeRules;
 
 /**
- * Provides a {@link LastModifiedEditor} for every commit, stamping it with the time of the commit and the user whose
- * session made it.
+ * Gives every commit a {@link LastModifiedEditor}, with a stamp of the commit's time and of the user whose session
+ * made it.
  *
  * @version $Id$
  * @since 0.1.0

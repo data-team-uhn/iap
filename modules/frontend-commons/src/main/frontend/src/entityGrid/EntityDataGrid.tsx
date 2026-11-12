@@ -49,8 +49,8 @@ import useEntityPage from "./useEntityPage";
 
 import type { DescendantFilter, EntityRow, PropertyFilter } from "./pagination";
 
-// The tree column's cell: the grid's own, toggle included, with the number of an entity's children
-// worded as its type words it, and in the row's regular text rather than the entity's emphasis
+// The tree column's cell: the grid's own, with its toggle. An entity's number of children follows
+// its name, worded by the type's countLabel, in the regular weight and colour of the row.
 function TreeCell({ params, tree }: { params: GridRenderCellParams<EntityRow>; tree: EntityGridChildren }) {
   const node = params.rowNode;
   const count = node.type === "group" ? node.children.length : 0;
@@ -72,58 +72,53 @@ function TreeCell({ params, tree }: { params: GridRenderCellParams<EntityRow>; t
 }
 
 interface EntityDataGridProps {
-  // The entity type to list, e.g. "sub/Submission"; its presentation (homepage, columns, default
-  // sort) must have been registered beforehand with registerEntityType
+  // The entity type to list, such as "sub/Submission", which registerEntityType has registered
   entityType: string;
-  // Overrides the entity type's registered homepage. Several homepages may hold the same kind of
-  // entity (a location's workflows and the platform's own, say); this lists from one of the others.
-  // Defaults to the type's registered homepage.
+  // The path of the homepage to list from, when it is not the type's registered one. Several
+  // homepages may hold entities of the same type.
   homepage?: string;
-  // Extra conditions on the entities' own properties, e.g. only the current user's submissions
+  // Conditions on the entities' own properties, ANDed with the user's own filters
   filters?: PropertyFilter[];
-  // Extra conditions on a descendant node, e.g. only submissions with a review by the current user
+  // Conditions on a descendant node, such as a review by the person asking
   childFilter?: DescendantFilter;
-  // The initial page size; must be one of pageSizeOptions
+  // The initial page size, one of pageSizeOptions; 5 if absent
   pageSize?: number;
   pageSizeOptions?: number[];
-  // The height of the grid; the grid always fills its container's width
+  // The height of the grid; 400 pixels if absent. The grid fills its container's width.
   height?: number | string;
-  // The message shown when there are no entities to list
+  // What the grid says when there are no entities to list
   emptyMessage?: string;
-  // The message shown when a search is active but matches nothing
+  // What the grid says when a search or a filter matches nothing
   noResultsMessage?: string;
-  // An ARIA label for this grid's search box, say which list is being searched.
+  // The accessible name of the search box, which says what list it searches; "Search" if absent
   searchLabel?: string;
-  // Render all rows at once instead of virtualizing; needed in test environments with no layout
+  // Renders every row instead of only the visible ones, for a test environment with no layout
   disableVirtualization?: boolean;
-  // Columns this grid adds to the entity type's own, e.g. the actions offered on each row. Kept out
-  // of the type's registered presentation because what may be done with an entity depends on why it
-  // is being listed: the same submission offers deleting it in the submitter's own list and not in a
-  // reviewer's queue.
+  // Columns after the type's own, such as the actions on each row, which depend on why the
+  // entities are listed. They cannot be sorted or filtered unless they say so.
   extraColumns?: EntityGridColumn[];
-  // The same, but before the type's own columns, such as a checkbox selecting the row
+  // Columns before the type's own, such as a checkbox selecting the row, with the same defaults
   leadingColumns?: EntityGridColumn[];
-  // Change this to make the grid read the current page again, for when something outside it
-  // changed what the listing should say, such as a row deleted from an actions column. Any new value
-  // will do; the grid only watches for it changing.
+  // Reads the current page again whenever it changes to any other value, such as after an action
+  // column deleted a row
   refreshToken?: number;
-  // Rows already at hand
+  // Rows to show instead of fetching any. Paging, sorting, searching and filtering then happen in
+  // the browser.
   rows?: EntityRow[];
 }
 
-// A stable default: a grid adding no columns of its own would otherwise get a fresh array, and so a
-// fresh column list, on every render
+// One empty array for every grid that adds no columns, so that the column list keeps its identity
+// from one render to the next
 const NO_EXTRA_COLUMNS: EntityGridColumn[] = [];
 
-// A stable object, so the grid's row-count bookkeeping doesn't re-run on every render
+// One object for every render, so that the grid does not count its rows again each time
 const APPROXIMATE_META = { hasNextPage: true };
 
-// A data grid listing entities of one registered type, fetching one page at a time from the
-// pagination servlet. Pagination, sorting and searching are handled server-side, so the grid
-// stays fast no matter how many entities exist. The toolbar offers a quick "search" box (routed
-// to the servlet's full text search) and a column selector whose choices are remembered in
-// localStorage, per entity type. Note: when the server reports its total as approximate, the
-// row count shown by the grid is a lower bound that grows as later pages are visited.
+// A data grid of the entities of one registered type, read one page at a time from the pagination
+// servlet. The server pages, sorts, searches and filters. The toolbar has a search box, which runs
+// the servlet's full text search, and a column selector. The columns a user hides stay hidden in
+// every grid of the type, on later visits from the same browser. When the server's total is
+// approximate, the grid shows it as a lower bound that grows as later pages are read.
 function EntityDataGrid(props: EntityDataGridProps) {
   const {
     entityType,
@@ -143,9 +138,8 @@ function EntityDataGrid(props: EntityDataGridProps) {
     rows: givenRows,
   } = props;
   const config = getEntityTypeConfig(entityType);
-  // The type's own presentation plus whatever this particular grid adds. An added column is not
-  // something the server can sort or filter on, since it usually names no property at all: the
-  // defaults say so, and a caller whose column does name one can still say otherwise.
+  // The type's own columns, and the ones this grid adds. An added column usually names no
+  // property, so it cannot be sorted or filtered unless it says otherwise.
   const columns = useMemo(() => {
     const added = (column: EntityGridColumn) => ({ sortable: false, filterable: false, ...column });
     return extraColumns.length === 0 && leadingColumns.length === 0 ? config?.columns ?? []
@@ -153,10 +147,10 @@ function EntityDataGrid(props: EntityDataGridProps) {
   }, [ config?.columns, extraColumns, leadingColumns ]);
   const navigate = useNavigate();
   const theme = useTheme();
-  // On narrow (typically touch) screens the grid switches to the Pro list mode: one card per
-  // row instead of columns, with sorting moved into the toolbar's sort menu
+  // On a narrow screen the grid uses the Pro list mode: one card per row instead of columns, and a
+  // sort menu in the toolbar
   const compactList = useMediaQuery(theme.breakpoints.down("sm"));
-  // Children show as a tree in the regular view only; a list card describes its own
+  // Children show as a tree in the regular view only; a card lists them itself
   const tree = compactList ? undefined : config?.children;
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize });
   const [sortModel, setSortModel] = useState<GridSortModel>(
@@ -183,11 +177,10 @@ function EntityDataGrid(props: EntityDataGridProps) {
     return <Alert severity="error">Unknown entity type: {entityType}</Alert>;
   }
 
-  // Both filtering UIs are forwarded to the servlet: the toolbar's quick filter terms become a
-  // full text search, and the filter panel's column conditions become property filters. The JCR
-  // full text search only matches whole words, which feels broken while a word is still being
-  // typed, so every term gets a trailing wildcard, turning the search into a prefix match. A new
-  // search starts back on the first page.
+  // Sends both kinds of filter to the servlet. The search box's terms become a full text search,
+  // and the filter panel's conditions become property filters. The JCR full text search matches
+  // whole words only, so every term gets a trailing wildcard and matches as a prefix. A new search
+  // starts back on the first page.
   const searchFor = (model: GridFilterModel) => {
     const terms = (model.quickFilterValues ?? [])
       .map(String)
@@ -198,29 +191,25 @@ function EntityDataGrid(props: EntityDataGridProps) {
     setPaginationModel(current => current.page === 0 ? current : { ...current, page: 0 });
   };
 
-  // Sorting reorders the whole collection server-side, so page 4 of the old order says nothing
-  // about where the reader wants to be in the new one; start them at the top of it.
+  // A new sort starts back on the first page
   const changeSort = (model: GridSortModel) => {
     setSortModel(model);
     setPaginationModel(current => current.page === 0 ? current : { ...current, page: 0 });
   };
 
-  // The single synthetic "column" rendering each row as a card in list mode. The cards honor
-  // the column selection just like the regular view, keeping the columns toggle meaningful in
-  // list mode: the generic card derives from the visible columns, and a type's own renderer
-  // receives the visible fields to apply the selection to its composition.
+  // A card leaves out the columns the user hid. The composed card is made of the visible columns,
+  // and a type's own listItem is given their fields.
   // A column absent from the model is visible; the model's index type hides the undefined
   const visibleColumns = columns
     .filter(column => (columnVisibilityModel[column.field] as boolean | undefined) !== false);
-  // The type's own fields only: a bespoke renderer is asked to honour the user's column selection,
-  // and knows nothing about a column this particular grid added.
+  // The type's own fields only, since a listItem knows nothing of the columns this grid adds
   const registeredFields = new Set(config.columns.map(column => column.field));
   const visibleFields = new Set(visibleColumns.map(column => column.field)
     .filter(field => registeredFields.has(field)));
-  // The leading columns stay before a type's own card too, unless hidden or kept off cards
+  // The leading columns go before a listItem's card too, unless hidden or kept off cards
   const leadingOnCards = leadingColumns.filter(column => column.cardSlot !== "omit"
     && visibleColumns.some(visible => visible.field === column.field));
-  // Columns in the "actions" slot end a type's own card too, unless hidden
+  // The columns in the "actions" slot end a listItem's card too, unless hidden
   const actionsOnCards = visibleColumns.filter(column => column.cardSlot === "actions");
   const bespoke = (row: EntityRow, listItem: NonNullable<typeof config.listItem>) =>
     (leadingOnCards.length + actionsOnCards.length === 0
@@ -241,7 +230,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
       : <EntityListItem row={params.row} columns={visibleColumns} config={config} />,
   };
 
-  // Clicking a row navigates to the entity's own page, when the entity type declares one
+  // A click on a row opens the entity's page, where the type's rowLink gives one
   const { rowLink } = config;
   const openRow = rowLink && ((row: EntityRow) => {
     const link = rowLink(row);
@@ -270,18 +259,17 @@ function EntityDataGrid(props: EntityDataGridProps) {
           renderCell: (params: GridRenderCellParams<EntityRow>) => <TreeCell params={params} tree={tree} />,
         }}
         isGroupExpandedByDefault={tree?.expanded ? () => true : undefined}
-        // Only the entities are sorted and filtered, not the rows nested under them
+        // The rows nested under an entity keep their order, and are never filtered out
         disableChildrenSorting
         disableChildrenFiltering
-        // An approximate total is only a lower bound: report the count as unknown-but-estimated,
-        // so the grid keeps the next page reachable (a plain rowCount would cap the page count)
-        // and presents the total with its stock estimate wording. The servlet counts far enough
-        // ahead that the estimate is rarely visible at all — most totals arrive exact.
+        // An approximate total is a lower bound. The grid is told the count is unknown, with an
+        // estimate, so that it keeps the next page reachable and words the total as an estimate.
+        // A rowCount would stop it at the last page that count allows.
         rowCount={local ? undefined : approximate ? -1 : rowCount}
         estimatedRowCount={approximate ? rowCount : undefined}
         paginationMeta={approximate ? APPROXIMATE_META : undefined}
         loading={!local && page.loading}
-        // Unlike the community DataGrid, DataGridPro defaults to one endless list; opt back in
+        // DataGridPro shows one endless list unless told to paginate
         pagination
         paginationMode={local ? "client" : "server"}
         paginationModel={paginationModel}
@@ -295,24 +283,22 @@ function EntityDataGrid(props: EntityDataGridProps) {
         onFilterModelChange={local ? undefined : searchFor}
         listView={compactList}
         listViewColumn={listColumn}
-        // Cards in list mode have variable height; regular rows keep the default fixed height
+        // A card is as tall as its content; a regular row keeps the fixed height
         getRowHeight={compactList ? () => "auto" : undefined}
         slots={{
           toolbar: EntityGridToolbar,
           noRowsOverlay: EntityGridStatusOverlay,
-          // In bottom-sheet mode the panels get a titled header with a close button, and
-          // the filter conditions' delete X becomes a labeled Remove button
+          // On a narrow screen a panel has a header with its title and a close button. A filter
+          // condition has a Remove button instead of the delete icon.
           ...compactList && { panel: EntityGridSheetPanel, filterPanelDeleteIcon: RemoveConditionLabel },
         }}
         slotProps={{
-          // On narrow screens the filters/columns panels dock to the bottom of the screen
-          // instead of floating; see BOTTOM_SHEET_SX
+          // On a narrow screen the filters and columns panels are docked to the bottom of the screen
           ...compactList && { basePopper: { sx: BOTTOM_SHEET_SX } },
           filterPanel: filterPanelProps(compactList),
-          // Filtering happens server-side, so from the grid's point of view an unmatched
-          // search and a truly empty collection both look like "zero rows"; which message the
-          // overlay shows is chosen here. A failed fetch also empties the rows, and shows as
-          // the error variant of the same overlay, with a Retry button.
+          // The server filters, so the grid sees zero rows both when nothing matches and when there
+          // is nothing to list. The message tells them apart. A failed read also leaves no rows,
+          // and shows the error with a Retry button instead.
           noRowsOverlay: {
             message: fullText || columnFilters.length > 0 ? noResultsMessage : emptyMessage,
             error,
@@ -334,10 +320,9 @@ function EntityDataGrid(props: EntityDataGridProps) {
         disableRowSelectionOnClick
         onRowClick={openRow && (params => openRow(params.row as EntityRow))}
         localeText={{
-          // Set for completeness, in case the grid's own "no results" overlay path (unused
-          // with server-side filtering) is ever triggered
+          // The grid's own overlay for no results, which it shows only when it filters in the browser
           noResultsOverlayLabel: noResultsMessage,
-          // The accessible name follows the visible "Remove" label of the sheet-mode button
+          // The accessible name matches the button's visible "Remove"
           ...compactList && { filterPanelDeleteIconLabel: "Remove" },
         }}
         disableVirtualization={disableVirtualization}

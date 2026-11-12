@@ -27,7 +27,8 @@ import io.uhndata.iap.status.spi.StatusReport;
 import io.uhndata.iap.status.spi.StatusReporter;
 
 /**
- * Reports the time when the system was started.
+ * Reports when the instance started, as an {@code INFO} report. The text is an ISO 8601 timestamp with the server's
+ * offset, taken when the bundle starts and loads this class. Every reader gets the same report.
  *
  * @version $Id$
  * @since 0.1.0

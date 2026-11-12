@@ -21,15 +21,14 @@ import LoadError from "@iap/frontend-commons/components/LoadError";
 import type { SxProps, Theme } from "@mui/material";
 
 interface CategoryLoadErrorProps {
-  // The failure, as reported by the server or by the network layer.
+  // Why the tree could not be loaded, worded for the person using the UI.
   message: string;
   // Fetches the category tree again.
   onRetry: () => Promise<void>;
   sx?: SxProps<Theme>;
 }
 
-// The one sentence both category screens use for a tree they could not load, so that the manager
-// and the console widget cannot drift apart on it.
+// The report of a category tree that could not be loaded, with a retry.
 function CategoryLoadError({ message, onRetry, sx }: CategoryLoadErrorProps) {
   return (
     <LoadError title="The categories could not be loaded" message={message} onRetry={onRetry} sx={sx} />

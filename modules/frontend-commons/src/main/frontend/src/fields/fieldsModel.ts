@@ -20,8 +20,7 @@ import { escapeJQL } from "../escape";
 import { isDecimalNumber, isWholeNumber } from "../numberText";
 import { isNode, type SerializedNode } from "../serializedNode";
 
-// A field an update would change, as the `fields` serialization describes it (see updateContent in
-// docs/workflows.md). The server holds a patch to the same rules, so these only save a refused request.
+// What a field holds: text, a whole number, a number, a boolean, or a reference to another node.
 export type FieldKind = "text" | "long" | "double" | "boolean" | "reference";
 
 export interface FieldChoice {
@@ -29,44 +28,60 @@ export interface FieldChoice {
   label: string;
 }
 
+// A field that an update event may change, as the `fields` serialization lists it in `@fields`
+// (see updateContent in docs/workflows.md). The server checks a patch against the same rules, and
+// the checks here spare a request it would refuse.
 export interface ContentField {
+  // The property name
   name: string;
   label: string;
   kind: FieldKind;
+  // Whether it holds a list of values
   multiple: boolean;
   mandatory: boolean;
+  // Whether its text is edited over several lines
   multiline: boolean;
+  // A short explanation shown under the input
   help?: string;
+  // For a reference, the `sling:resourceType` of the nodes it may point at; any path if absent
   referenceType?: string;
+  // For a reference, the path the nodes it may point at are under; anywhere if absent
   referenceRoot?: string;
+  // The values the field may take; any value of its kind if absent
   choices?: FieldChoice[];
-  // Applies only while that property holds one of these values; an empty property applies nowhere
+  // Applies only while that property holds one of these values; an empty property name applies nowhere
   appliesWhen?: { property: string; values: string[] };
   // What content of its type starts with, which is what it holds when it is not set
   default?: string | number | boolean | (string | number | boolean)[];
 }
 
-// A type of content a create event would add inside a node, as the `creatable` serialization describes it. It specifies
-// whether the generated node can have a content-derived name, and if yes, it is also a source of a fallback name when
-// the content itself does not make a good name. A named type may also give the pattern a name must match.
+// A type of content a create event may add inside a node, as the `creatable` serialization lists it
+// in `@creatable`.
 export interface CreatableType {
+  // The node type name, such as `sch:Question`
   type: string;
   label: string;
+  // The fields to fill in for new content of the type
   fields: ContentField[];
+  // The name new content takes when its text makes none it may take; undefined if there is none
   defaultName?: string;
+  // Whether a create event may ask for a name; false when the server always chooses it
   named: boolean;
+  // A regular expression that a whole name must match; any valid name if absent
   namePattern?: string;
+  // What namePattern asks for, in words
   nameHint?: string;
 }
 
 export type { SerializedNode };
 
-// What a field is edited as: text for one value, numbers as typed, a list for several, a switch for true or false
+// A field's value as it is edited: text for one value, numbers included, a list of texts for several,
+// and a boolean for a single boolean field
 export type FieldValue = string | string[] | boolean;
 
 export type FieldValues = Record<string, FieldValue>;
 
-// What a patch gives a field; null removes it
+// A field's value in a patch; null removes it
 export type PatchValue = string | number | boolean | (string | number | boolean)[] | null;
 
 const KINDS: readonly string[] = [ "text", "long", "double", "boolean", "reference" ];
@@ -98,7 +113,7 @@ export const creatableOf = (node: SerializedNode): CreatableType[] =>
       }))
     : [];
 
-// What FieldsDialog edits to fill in new content of a type: nothing yet, and the fields it starts with
+// New content of a type, for FieldsDialog to fill in: no values yet, and the type's fields
 export const newContentOf = (type: CreatableType): SerializedNode => ({ "@fields": type.fields });
 
 const isSwitch = (field: ContentField): boolean => field.kind === "boolean" && !field.multiple;
@@ -140,8 +155,9 @@ const entered = (value: FieldValue): string[] => {
   return (Array.isArray(value) ? value : [ value ]).map(text => text.trim()).filter(text => text !== "");
 };
 
-// Whether a field applies, judged on the value being entered for the property it depends on, if that is
-// edited alongside it, or else on the stored one: the same rule the server applies to the patched node
+// Whether a field applies. The property it depends on is read from the values being entered when it
+// is one of the fields, or else from the stored node. The server applies the same rule to the
+// patched node.
 export function applies(field: ContentField, fields: ContentField[], values: FieldValues, node: SerializedNode) {
   const rule = field.appliesWhen;
   if (!rule) {
@@ -166,7 +182,8 @@ function parse(field: ContentField, text: string): string | number | boolean | u
   return text;
 }
 
-// What the patch gives a field for a value: undefined when some part of it is not valid
+// A field's entered value as the patch gives it: null when it is empty, and undefined when some
+// part of it is not of the field's kind
 export function patchValueOf(field: ContentField, value: FieldValue): PatchValue | undefined {
   if (typeof value === "boolean") {
     return value;
@@ -188,8 +205,8 @@ export const isValid = (field: ContentField, value: FieldValue): boolean => patc
 export const applicableFields = (fields: ContentField[], values: FieldValues, node: SerializedNode): ContentField[] =>
   fields.filter(field => applies(field, fields, values, node));
 
-// What saving sends: the applicable fields whose value changed, a cleared one as null. Fields that stop
-// applying are left out, since the server removes them itself.
+// What saving sends: the applicable fields whose value changed, and null for one emptied. A field
+// that stops applying is left out, and the server removes its value itself.
 export function changesOf(fields: ContentField[], values: FieldValues, node: SerializedNode) {
   const changes: Record<string, PatchValue> = {};
   for (const field of applicableFields(fields, values, node)) {
@@ -209,8 +226,8 @@ export const blockingFields = (fields: ContentField[], values: FieldValues, node
     return value === undefined || field.mandatory && value === null;
   });
 
-// Where a reference field's candidates come from: the nodes of its type, under its root. Undefined when it
-// names no type, and any path may be entered.
+// The JCR-SQL2 query for the nodes a reference field may point at: the nodes of its type, under its
+// root. Undefined when it names no type, since any path may then be entered.
 export function referenceQuery(field: Pick<ContentField, "referenceType" | "referenceRoot">): string | undefined {
   if (!field.referenceType) {
     return undefined;
@@ -227,7 +244,8 @@ export interface ReferenceCandidate {
   identifier?: string;
 }
 
-// A node a reference may point at, as it is offered: by its title or label, else by its path under the root
+// A node a reference may point at, labelled by its title or label, or else by its path under the
+// root; undefined for a node without a path
 export function candidateOf(node: SerializedNode, referenceRoot?: string): ReferenceCandidate | undefined {
   const path = node["@path"];
   if (typeof path !== "string") {

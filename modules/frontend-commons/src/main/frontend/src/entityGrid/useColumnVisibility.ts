@@ -26,12 +26,13 @@ function loadStoredColumnVisibility(storageKey: string): GridColumnVisibilityMod
     const stored: unknown = JSON.parse(window.localStorage.getItem(storageKey) ?? "{}");
     return stored && typeof stored === "object" ? stored as GridColumnVisibilityModel : {};
   } catch {
-    // Missing/disabled storage or corrupted content: fall back to showing every column
+    // Storage missing, disabled or holding something unreadable: every column shows
     return {};
   }
 }
 
-// The column selection of the grids listing one entity type, remembered in localStorage.
+// Which columns the grids of one entity type hide, kept in localStorage, so that the choice lasts
+// in this browser. The model names the hidden columns with `false`.
 export default function useColumnVisibility(entityType: string)
   : [ GridColumnVisibilityModel, (model: GridColumnVisibilityModel) => void ] {
   const storageKey = `iap.entityGrid.${entityType}.columns`;
@@ -41,7 +42,7 @@ export default function useColumnVisibility(entityType: string)
     try {
       window.localStorage.setItem(storageKey, JSON.stringify(next));
     } catch {
-      // Storage may be disabled or full; the selection still applies to the current page view
+      // Storage may be disabled or full; the choice then lasts until the page is left
     }
   };
   return [ model, change ];

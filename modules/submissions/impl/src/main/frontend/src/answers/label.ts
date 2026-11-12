@@ -19,9 +19,8 @@
 import type { FormQuestion } from "../submissionForm";
 
 /**
- * What to call a question on screen. Each answer component labels its own input, because what carries
- * a label differs between a text field, a checkbox and a group of radio buttons. They all name the
- * question the same way: its text, falling back to its name when a schema left the text out.
+ * What to call a question on screen: its text, or its node name when the schema gives no text. Each
+ * answer component labels its own input with it.
  */
 export function questionLabel(question: FormQuestion): string {
   return question.text || question.name;

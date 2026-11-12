@@ -29,7 +29,7 @@ const widget = (name: string, group?: string) => ({
   ...(group === undefined ? {} : { "ext:widgetGroup": group }),
 });
 
-// A group node as the dashboard receives it: identified by its node name, labelled by ext:name.
+// A group as the dashboard receives it, named by `@name` and titled by `ext:name`.
 const group = (name: string, label: string) => ({
   "@name": name,
   "ext:name": label,
@@ -49,8 +49,7 @@ describe("isWidgetGroup", () => {
   });
 
   it("does not take a data-only widget for a group", () => {
-    // A widget without a component (a plain link, say) is still a widget: absence of a render
-    // URL is not what makes a group
+    // Only the marker makes a group, not a missing `ext:renderURL`
     expect(isWidgetGroup({ "ext:name": "Link only", "ext:targetURL": "/admin/somewhere" })).toBe(false);
   });
 

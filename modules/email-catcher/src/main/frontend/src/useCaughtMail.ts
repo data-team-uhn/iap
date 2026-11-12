@@ -33,10 +33,7 @@ import {
   parseCaughtMessage,
 } from "./caughtMailModel";
 
-// The caught mail screens' I/O, in one place. Two hooks rather than one: the status and a message
-// are independent reads with no shared state and no writes between them, so a single hook would be
-// two halves with every caller using one. What they do share — the request shapes and the wording of
-// a failure — is here rather than repeated in each screen.
+// The requests of the caught mail screens: the catcher's status, one message, and the switch.
 
 const checkOk = (response: Response): Response => {
   if (!response.ok) {
@@ -45,10 +42,8 @@ const checkOk = (response: Response): Response => {
   return response;
 };
 
-// Every read goes through here, so a failure — an unreachable server, a refused read, an unreadable
-// answer — reaches the screen already worded for whoever will read it, and is logged for whoever
-// has to diagnose it. The sentence describes the cause only: the screen asking for the message
-// already says what was being attempted, so repeating it here would read as an echo.
+// Rejects a failed read with a sentence for the reader that says the cause, not what was attempted.
+// describeRequestFailure also logs the failure to the console.
 const reporting = async <T>(exchange: () => Promise<T>): Promise<T> => {
   try {
     return await exchange();
@@ -62,22 +57,18 @@ const readNode = (fetchUtil: AuthenticatedFetch, url: string): Promise<Serialize
   reporting(async () => {
     const body = await readJson<SerializedNode | null>(checkOk(await fetchUtil(url)));
     if (body === null) {
-      // A body that parses to null is well-formed JSON and still not a node. SyntaxError is the
-      // shape describeRequestFailure words as the response being unreadable, which is exactly what
-      // happened; the detail below reaches the console rather than the screen.
+      // describeRequestFailure words a SyntaxError as an unreadable response. This message reaches
+      // only the console.
       throw new SyntaxError(`${url} answered with no node`);
     }
     return body;
   });
 
 /**
- * Whether mail is being caught and how much of it has been, read once on mount.
+ * The catcher's status, read on mount and again on each `reload`.
  *
- * A failure is reported as `null` rather than a message: both callers word it differently — the
- * widget says the mailbox is not available to this reader, the browser stays silent because the
- * grid beneath it reports the same unreadable folder in its own terms — and neither wants the other's
- * sentence. The described failure still reaches the console, which is where an administrator
- * diagnosing an unreadable status endpoint will look.
+ * `status` is null until the read settles, and null if it failed. The failure is logged to the
+ * console.
  */
 export function useCatcherStatus(): {
   status: CatcherStatus | null;
@@ -87,7 +78,7 @@ export function useCatcherStatus(): {
   const doFetch = useAuthenticatedFetch();
   const [ status, setStatus ] = useState<CatcherStatus | null>(null);
   const [ settled, setSettled ] = useState(false);
-  // Bumped to read the status again, once the switch has written the setting.
+  // Bumped by reload, to read the status again
   const [ asked, setAsked ] = useState(0);
 
   const reload = useCallback(() => setAsked(previous => previous + 1), []);
@@ -106,7 +97,7 @@ export function useCatcherStatus(): {
 
 export interface CaughtMessageRead {
   message: CaughtMessage | null;
-  /** What to tell the reader, or null when nothing failed. */
+  /** The sentence that says why the read failed; null if it did not fail. */
   loadError: string | null;
   settled: boolean;
   /** Re-runs the same read, for a retry control. Resolves once it has settled. */
@@ -114,11 +105,8 @@ export interface CaughtMessageRead {
 }
 
 /**
- * One caught message, re-read whenever the name changes.
- *
- * Read at the default depth: a caught message is a leaf, everything about it is in its own
- * properties, and the bodies are the bulk of it. A null name is a route that names no single
- * message, which is not a read to make and not a failure either.
+ * One caught message, read again whenever its node name changes. A null name reads nothing and
+ * reports no failure.
  */
 export function useCaughtMessage(name: string | null): CaughtMessageRead {
   const doFetch = useAuthenticatedFetch();
@@ -126,21 +114,19 @@ export function useCaughtMessage(name: string | null): CaughtMessageRead {
   const [ loadError, setLoadError ] = useState<string | null>(null);
   const [ settled, setSettled ] = useState(false);
 
-  // Reads are sent in order but can land out of order — a retry can overtake the read it is
-  // retrying — so each one carries a token and only the newest is applied
+  // Reads can land out of order, such as a retry overtaking the read it retries. Only the newest
+  // read is applied.
   const newestRead = useRef(0);
 
-  // Both the first read and the retry go through this, so a retry cannot drift from the load it is
-  // retrying. It resolves only once the fetch has settled, which is what lets a retry control show
-  // the attempt's own progress.
+  // The first read and every retry. It resolves once the read has settled.
   const reload = useCallback((): Promise<void> => {
     if (name === null) {
       return Promise.resolve();
     }
     newestRead.current += 1;
     const token = newestRead.current;
-    // Written with callbacks rather than await deliberately: every setState below then sits in a
-    // promise callback, which is what keeps react-hooks/set-state-in-effect satisfied
+    // Callbacks, not await, so that every setState sits in a promise callback, as
+    // react-hooks/set-state-in-effect requires
     return readNode(doFetch, `${messagePath(name)}.json`)
       .then(node => ({ result: parseCaughtMessage(node, name), failure: null as string | null }))
       .catch((cause: unknown) => ({ result: null, failure: messageOf(cause) }))
@@ -154,9 +140,8 @@ export function useCaughtMessage(name: string | null): CaughtMessageRead {
       });
   }, [ doFetch, name ]);
 
-  // Navigating from one message to another must not leave the previous one on screen under the new
-  // one's heading. Done as a render-phase adjustment rather than in the effect, because a setState
-  // reached synchronously from an effect is what react-hooks/set-state-in-effect rejects.
+  // Clears the previous message when the name changes. This runs during render, because
+  // react-hooks/set-state-in-effect rejects a setState called synchronously in an effect.
   const [ shown, setShown ] = useState(name);
   if (shown !== name) {
     setShown(name);
@@ -175,10 +160,10 @@ export function useCaughtMessage(name: string | null): CaughtMessageRead {
 /**
  * Switches mail catching on and off.
  *
- * It resolves once the setting is written, before the catcher has restarted, so the caller reads the
- * status again rather than trusting the write.
+ * `setCatching` resolves once the setting is written, which can be before the catcher has
+ * restarted. It rejects if the write fails.
  *
- * @returns the writer, and the last failure worded for a reader
+ * @returns `setCatching`, and the sentence that says why the last write failed, or null if it did not
  */
 export function useCatcherToggle(): {
   setCatching: (enabled: boolean) => Promise<void>;
@@ -193,7 +178,7 @@ export function useCatcherToggle(): {
       const body = new URLSearchParams();
       body.set("enabled", String(enabled));
       checkOk(await doFetch(CATCHER_TOGGLE_PATH, { method: "POST", body }));
-      // Tells this page's banner, which otherwise reads the status only when it mounts.
+      // So that this page shows the change at once
       window.dispatchEvent(new Event(CATCHING_CHANGED_EVENT));
     } catch (error: unknown) {
       setFailure(describeRequestFailure(error));

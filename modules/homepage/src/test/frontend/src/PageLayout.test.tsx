@@ -31,16 +31,14 @@ const mockedLoadExtensions = vi.mocked(loadExtensions);
 
 const SHELL_POINTS = ["FrameTop", "FrameBottom", "FrameStart", "FrameEnd", "PageTop", "PageBottom"];
 
-// Builds an extension as returned by loadExtensions: the parsed ext:Extension JSON with the
-// render asset already resolved to a component that displays "<name> content".
+// An extension as loadExtensions gives it, whose component shows "<name> content"
 const ext = (name: string, props: Record<string, unknown> = {}) => ({
   "ext:name": name,
   "ext:render": () => <div>{`${name} content`}</div>,
   ...props,
 });
 
-// Configures the loadExtensions mock to answer each extension point with the given extensions
-// (and any point not listed with an empty list).
+// Answers each extension point with the given extensions, and any other point with none
 const mockPoints = (points: Record<string, Record<string, unknown>[]> = {}) =>
   mockedLoadExtensions.mockImplementation(point => Promise.resolve(points[point] ?? []));
 
@@ -98,7 +96,6 @@ describe("PageLayout", () => {
 
     expect((await screen.findByText("Top bar content")).parentElement).toHaveStyle({ position: "sticky" });
     expect((await screen.findByText("Bottom bar content")).parentElement).toHaveStyle({ position: "sticky" });
-    // A page region's extensions render straight into the scrolling middle, with no pinning.
     expect(screen.getByText("Page header content").parentElement).not.toHaveStyle({ position: "sticky" });
   });
 
@@ -108,7 +105,6 @@ describe("PageLayout", () => {
     const { container } = render(<PageLayout>main</PageLayout>);
 
     await screen.findByText("End rail content");
-    // Only the end rail rendered its <aside>; the empty start side contributed nothing.
     expect(container.querySelectorAll("aside").length).toBe(1);
   });
 
@@ -117,10 +113,10 @@ describe("PageLayout", () => {
 
     render(<PageLayout>main</PageLayout>);
 
-    // Before pulling, the rail content exists once (the regular rail, CSS-hidden when narrow).
+    // Once in the rail, which CSS hides on a narrow screen
     expect((await screen.findAllByText("Rail content")).length).toBe(1);
     fireEvent.click(screen.getByRole("button", { name: "Open the side panel" }));
-    // The drawer renders the same extensions a second time, in an overlay.
+    // And once more in the drawer
     await waitFor(() => expect(screen.getAllByText("Rail content").length).toBe(2));
   });
 
@@ -130,9 +126,9 @@ describe("PageLayout", () => {
     const { container } = render(<PageLayout>main</PageLayout>);
 
     expect((await screen.findAllByText("Top bar content")).length).toBe(1);
-    // The bar tabs only become visible below the collapse height; jsdom doesn't evaluate media
-    // queries, so the tab keeps its display:none base style, which hides it from the
-    // accessibility tree (and blanks its accessible name) — query it by attribute instead.
+    // A bar's tab is shown only below the collapse height. jsdom applies no media query, so the
+    // tab keeps `display: none`, which hides it from the accessibility tree. It is found by its
+    // attribute instead.
     const tab = container.querySelector('[aria-label="Open the top panel"]');
     expect(tab).not.toBeNull();
     fireEvent.click(tab as HTMLElement);
@@ -140,8 +136,7 @@ describe("PageLayout", () => {
   });
 
   it("publishes the measured frame bar heights as CSS variables for the side rails", async () => {
-    // jsdom has no ResizeObserver (the shell then just leaves the rails full-height) and no
-    // layout, so stub the observer in and give every element a fixed measured height.
+    // jsdom has no layout. Every element is 48px high, and the observer never reports a change.
     vi.stubGlobal("ResizeObserver", class {
       observe() {}
       unobserve() {}
@@ -169,9 +164,8 @@ describe("PageLayout", () => {
   });
 
   it("flashes a once-ever hint on the pull tab when the page opens with a region collapsed", async () => {
-    // jsdom's own matchMedia never matches anything (so the hint machinery normally disables
-    // itself, see useCollapseHint); stub one where "all" matches but the region-expanding
-    // queries don't — i.e. a real, small screen with every region collapsed.
+    // jsdom has no matchMedia, and no hint shows without one. This one stands for a small screen,
+    // with every region collapsed.
     const mediaQueryList = (matches: boolean) => ({
       matches,
       media: "",
@@ -181,8 +175,8 @@ describe("PageLayout", () => {
       dispatchEvent: () => false,
     });
     vi.stubGlobal("matchMedia", vi.fn((query: string) => mediaQueryList(query === "all")));
-    // This environment has no localStorage either (the hint machinery treats that as
-    // "hint already seen" and stays quiet), so stub one in
+    // A storage of the test's own, so that no hint has been seen yet, and what is remembered can be
+    // read
     const stored = new Map<string, string>();
     vi.stubGlobal("localStorage", {
       getItem: (key: string) => stored.get(key) ?? null,
@@ -196,7 +190,7 @@ describe("PageLayout", () => {
       render(<PageLayout>main</PageLayout>);
 
       await screen.findByText("Rail content");
-      // The hint appears after a short delay, and is remembered so it never flashes again
+      // The hint appears after a delay, and is remembered
       expect(screen.queryByText("The side panel is available here")).toBeNull();
       expect(await screen.findByText("The side panel is available here", {}, { timeout: 3000 }))
         .toBeInTheDocument();
@@ -206,9 +200,8 @@ describe("PageLayout", () => {
     }
   });
 
-  // A matchMedia whose "change" listeners can be fired, standing in for a viewport that crosses a
-  // region's breakpoint while the page is open. "all" matches (so the hint machinery runs at all),
-  // the region-expanding queries do not.
+  // A matchMedia that matches "all" and none of the queries that expand a region. The function it
+  // returns fires its "change" listeners, as when the viewport crosses a region's breakpoint.
   const stubResizableMedia = () => {
     const listeners: ((event: MediaQueryListEvent) => void)[] = [];
     vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
@@ -224,8 +217,8 @@ describe("PageLayout", () => {
     };
   };
 
-  // The hint is once-ever per browser, so tell it that it has already been shown; these tests are
-  // about the live-collapse hint, which is not subject to that.
+  // A storage saying the hint was already shown when a page opened, which leaves only the hint on
+  // a collapse
   const stubSeenHint = () => vi.stubGlobal("localStorage", {
     getItem: () => "true",
     setItem: () => { /* nothing to remember */ },
@@ -243,12 +236,12 @@ describe("PageLayout", () => {
       await screen.findByText("Rail content");
       expect(screen.queryByText("The side panel is available here")).toBeNull();
 
-      // The region collapses: the hint appears after its delay...
+      // The region collapses, and the hint appears after its delay
       crossBreakpoint(false);
       await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
       expect(screen.getByText("The side panel is available here")).toBeInTheDocument();
 
-      // ...and takes itself down again
+      // It goes away after its duration
       await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
       await waitFor(() => { expect(screen.queryByText("The side panel is available here")).toBeNull(); });
     } finally {
@@ -300,7 +293,6 @@ describe("PageLayout", () => {
 
     fireEvent.keyDown(screen.getAllByText("Rail content")[1], { key: "Escape", code: "Escape" });
 
-    // Back to just the regular rail, the overlay copy having gone away
     await waitFor(() => { expect(screen.getAllByText("Rail content")).toHaveLength(1); });
   });
 
@@ -308,8 +300,7 @@ describe("PageLayout", () => {
     mockPoints({ FrameTop: [ext("Top bar")] });
     const { container } = render(<PageLayout>main</PageLayout>);
     await screen.findByText("Top bar content");
-    // The bar tabs are display:none until the viewport is short, which hides them from the
-    // accessibility tree, so this one is reached by attribute
+    // Under jsdom the tab stays hidden from the accessibility tree, so it is found by its attribute
     fireEvent.click(container.querySelector('[aria-label="Open the top panel"]')!);
     await waitFor(() => { expect(screen.getAllByText("Top bar content")).toHaveLength(2); });
 
@@ -327,8 +318,7 @@ describe("PageLayout", () => {
       </ThemeProvider>
     );
 
-    // appTheme sets iapShell; without a theme saying otherwise the shell falls back to its own
-    // constants, which the other tests in this file exercise
+    // appTheme sets iapShell. The other tests run without it, on the shell's own sizes.
     expect(await screen.findByText("Rail content")).toBeInTheDocument();
     expect(screen.getByText("Top bar content")).toBeInTheDocument();
   });
@@ -348,8 +338,6 @@ describe("PageLayout", () => {
       render(<PageLayout>main</PageLayout>);
 
       await screen.findByText("Rail content");
-      // Unreadable storage is treated as "already seen", so no page-load hint is scheduled; a live
-      // collapse still hints, which is what proves the region is otherwise working
       expect(screen.queryByText("The side panel is available here")).toBeNull();
       crossBreakpoint(false);
     } finally {

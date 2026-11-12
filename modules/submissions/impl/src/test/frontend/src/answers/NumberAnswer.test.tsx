@@ -36,8 +36,6 @@ function renderNumber(dataType: string, values: string[] = [], overrides: Partia
 }
 
 describe("NumberAnswer", () => {
-  // The schema asking for a long rather than a double is a statement about the answer. The input is
-  // where it should be enforced, not a save that comes back refused
   it("steps in whole numbers for a long", () => {
     const { input } = renderNumber("long");
 
@@ -82,7 +80,7 @@ describe("NumberAnswer", () => {
     const { input, onAnswered } = renderNumber("long");
 
     await userEvent.type(input, "12");
-    // What was typed is shown, but nothing has been saved yet: an answer is finished by leaving it
+    // Shown, but not saved until the field is left
     expect(input).toHaveValue(12);
     expect(onAnswered).not.toHaveBeenCalled();
 
@@ -90,7 +88,6 @@ describe("NumberAnswer", () => {
     expect(onAnswered).toHaveBeenCalledWith([ "12" ]);
   });
 
-  // Clearing a field means there is no answer, not that the answer is the empty string
   it("stores nothing at all when the field is cleared", async () => {
     const { input, onAnswered } = renderNumber("long", [ "3" ]);
 

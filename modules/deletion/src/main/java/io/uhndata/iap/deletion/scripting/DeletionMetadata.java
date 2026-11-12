@@ -34,32 +34,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A HTL helper for the 404 page. It asks {@link DeletedPathDisclosure} about the path the request was for, so
- * that a dead link can say the resource was deleted rather than that it never existed. To use it, place the
- * following in the error handler HTL file:
+ * An HTL helper for the 404 page, so that the page can say a missing resource was deleted. It asks
+ * {@link DeletedPathDisclosure} about the path the request was for. The error handler's HTL file uses it as:
  *
  * {@snippet lang="html" :
  * <sly data-sly-use.deletion="io.uhndata.iap.deletion.scripting.DeletionMetadata"></sly>
  * }
  *
  * <p>
- * The page renders the answer into the markup it was already sending. A reader who followed a dead link is told
- * what became of it in the first response, not after a second round trip. Every getter here is {@code null} when
- * there is nothing to say, which is what HTL needs to leave the attribute carrying it out of the markup.
+ * Each getter is {@code null} when there is nothing to say, and HTL then leaves its attribute out of the markup.
  * </p>
  *
  * <p>
- * A Sling Model rather than a {@code Use} POJO. A model's {@code @OSGiService} field is injected on behalf of
- * the bundle declaring the model. A POJO reaching for the same service through its script's {@code sling} binding
- * asks on behalf of {@code org.apache.sling.scripting.core}. That bundle is wired to neither this package nor
- * the service user this lookup needs. HTL is happy either way: its {@code JavaUseProvider} adapts a model from the
- * request before it considers the {@code Use} interface.
- * </p>
- *
- * <p>
- * The reading of the archive, and the decision about how much of it this reader may be told, belong to
- * {@link DeletedPathDisclosure}. What is left here is the request: which path was asked for, and how to say the
- * answer.
+ * This is a Sling Model, not a {@code Use} POJO. Sling Models injects its {@code @OSGiService} field on behalf of
+ * this bundle. A POJO asks through the script's {@code sling} binding, on behalf of
+ * {@code org.apache.sling.scripting.core}, which is wired to neither this package nor this bundle's service user.
  * </p>
  *
  * @version $Id$
@@ -91,8 +80,7 @@ public class DeletionMetadata
             return;
         }
         if (this.disclosure == null) {
-            // An error page is the worst place to raise an error of its own. A platform whose deletion module
-            // is not running still gets a plain, working 404
+            // The page still renders a plain 404
             LOGGER.warn("Cannot look up whether {} was deleted: the deletion module is not available", path);
             return;
         }
@@ -105,9 +93,9 @@ public class DeletionMetadata
     }
 
     /**
-     * When the requested path was deleted, and the signal that it was deleted at all.
+     * When the requested path was deleted. A page with no date treats the path as one that never existed.
      *
-     * @return an ISO-8601 timestamp, or {@code null} if nothing archived covers the requested path
+     * @return an ISO-8601 timestamp; {@code null} if no deletion took the path away, or the reader may not know
      */
     @Nullable
     public String getDeletedAt()
@@ -116,9 +104,10 @@ public class DeletionMetadata
     }
 
     /**
-     * Who deleted it, for a reader allowed to know.
+     * Who deleted the requested path.
      *
-     * @return the user who requested the deletion, or {@code null} if the reader cannot read the archive entry
+     * @return the user id of the user who requested the deletion; {@code null} unless the reader can read the
+     *         archive entry
      */
     @Nullable
     public String getDeletedBy()
@@ -127,9 +116,9 @@ public class DeletionMetadata
     }
 
     /**
-     * Where to look at the archive entry, for a reader allowed to open it.
+     * Where the reader can open the archive entry.
      *
-     * @return the console route to the entry, or {@code null} if the reader cannot read it
+     * @return the console route of the entry's page; {@code null} unless the reader can read the entry
      */
     @Nullable
     public String getEntryUrl()
@@ -138,30 +127,22 @@ public class DeletionMetadata
     }
 
     /**
-     * The repository path this request was for.
+     * The path this request was for: the request URI the error dispatch recorded, decoded. It keeps the selectors
+     * and the extension the reader's link had.
      *
      * <p>
-     * An error handler runs on the request that failed, so the path is the one the error dispatch recorded. No
-     * query parameter carries it, so nothing has to encode it to get here. What arrives is a request URI:
-     * percent-encoded, and still carrying whatever selectors and extension the reader's link had on it, which is
-     * what {@code DeletedPathLookup} peels apart.
-     * </p>
-     *
-     * <p>
-     * Undoing the encoding is {@link URI#getPath()}'s job, not {@code URLDecoder}'s. That one is the form
-     * decoder, and reads a literal {@code +} in a path as a space, so {@code /a+b} becomes {@code /a b}. A path a
-     * browser produced never escapes {@code +}, so the two disagree on exactly the character a reader cannot
-     * escape for us.
+     * {@link URI#getPath()} decodes it, not {@code URLDecoder}. That one decodes forms, and reads {@code +} as a
+     * space, but a browser never escapes a {@code +} in a path.
      * </p>
      *
      * @param request the request the error handler is running on
-     * @return the absolute repository path, or {@code null} if the dispatch recorded no usable one
+     * @return the absolute path; {@code null} if the URI is not an absolute path, or cannot be parsed
      */
     @Nullable
     private static String requestedPath(final SlingJakartaHttpServletRequest request)
     {
         final Object recorded = request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
-        // With no error dispatch the script rendered directly, so the failing URI is the request's own
+        // Without an error dispatch, the script was requested directly and the request's own URI failed
         final String uri = recorded instanceof String ? (String) recorded : request.getRequestURI();
         if (uri == null || !uri.startsWith("/")) {
             return null;
@@ -169,8 +150,7 @@ public class DeletionMetadata
         try {
             return new URI(uri).getPath();
         } catch (final URISyntaxException e) {
-            // Not a path anything could ever have been archived at, so there is nothing to look up and nothing
-            // worth recording
+            // Nothing can have been archived at a path that does not parse
             return null;
         }
     }
