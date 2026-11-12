@@ -66,7 +66,7 @@ public class IdentificationProcessor implements ResourceJsonProcessor
             json.add("@path", node.getPath());
             json.add("@name", node.getName());
         } catch (RepositoryException e) {
-            // The node is serialized without them
+            // A node this session cannot read is access control at work, not a fault to record: write it without them
         }
     }
 }

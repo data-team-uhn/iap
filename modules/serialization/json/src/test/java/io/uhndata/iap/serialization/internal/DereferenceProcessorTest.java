@@ -18,6 +18,7 @@
 
 package io.uhndata.iap.serialization.internal;
 
+import java.util.List;
 import java.util.function.Function;
 
 import javax.jcr.Node;
@@ -94,6 +95,17 @@ public class DereferenceProcessorTest
     }
 
     @Test
+    public void testSingleReferenceWithAnUnserializableTargetIsLeftUnmodified()
+        throws Exception
+    {
+        final Property property = mockProperty(PropertyType.REFERENCE, "question");
+        Mockito.when(property.getNode()).thenReturn(Mockito.mock(Node.class));
+        final JsonValue stored = Json.createValue("uuid-1");
+
+        Assertions.assertSame(stored, this.processor.processProperty(null, property, stored, n -> null));
+    }
+
+    @Test
     public void testSingleInaccessibleReferenceIsLeftUnmodified()
         throws Exception
     {
@@ -134,25 +146,43 @@ public class DereferenceProcessorTest
     }
 
     @Test
-    public void testMultiInaccessibleReferenceIsLeftUnmodified()
+    public void testMultiInaccessibleReferenceIsSerializedAsStored()
         throws Exception
     {
         final Property property = mockMultiProperty(PropertyType.REFERENCE, "questions", "uuid-1");
         Mockito.when(property.getSession().getNodeByIdentifier("uuid-1")).thenThrow(new RepositoryException());
-        final JsonValue input = Json.createValue("previous value");
 
-        Assertions.assertSame(input, this.processor.processProperty(null, property, input, this.serializeNode));
+        final JsonArray result = (JsonArray) this.processor.processProperty(null, property, null, this.serializeNode);
+
+        Assertions.assertEquals(List.of(Json.createValue("uuid-1")), result);
     }
 
     @Test
-    public void testMultiReferenceWithAnUnserializableTargetIsLeftUnmodified()
+    public void testMultiReferenceKeepsOnlyItsInaccessibleValueAsStored()
+        throws Exception
+    {
+        final Property property = mockMultiProperty(PropertyType.REFERENCE, "questions", "uuid-1", "uuid-2",
+            "uuid-3");
+        final Session session = property.getSession();
+        Mockito.when(session.getNodeByIdentifier("uuid-1")).thenReturn(Mockito.mock(Node.class));
+        Mockito.when(session.getNodeByIdentifier("uuid-2")).thenThrow(new RepositoryException());
+        Mockito.when(session.getNodeByIdentifier("uuid-3")).thenReturn(Mockito.mock(Node.class));
+
+        final JsonArray result = (JsonArray) this.processor.processProperty(null, property, null, this.serializeNode);
+
+        Assertions.assertEquals(List.of(SERIALIZED, Json.createValue("uuid-2"), SERIALIZED), result);
+    }
+
+    @Test
+    public void testMultiReferenceWithAnUnserializableTargetIsSerializedAsStored()
         throws Exception
     {
         final Property property = mockMultiProperty(PropertyType.REFERENCE, "questions", "uuid-1");
         Mockito.when(property.getSession().getNodeByIdentifier("uuid-1")).thenReturn(Mockito.mock(Node.class));
-        final JsonValue input = Json.createValue("previous value");
 
-        Assertions.assertSame(input, this.processor.processProperty(null, property, input, n -> null));
+        final JsonArray result = (JsonArray) this.processor.processProperty(null, property, null, n -> null);
+
+        Assertions.assertEquals(List.of(Json.createValue("uuid-1")), result);
     }
 
     @Test
@@ -205,6 +235,28 @@ public class DereferenceProcessorTest
         final JsonArray result = (JsonArray) this.processor.processProperty(null, property, null, this.serializeNode);
 
         Assertions.assertEquals("/some/target", result.getString(0));
+    }
+
+    @Test
+    public void testMultiJcrPathIsSerializedAsTargetPaths()
+        throws Exception
+    {
+        final Property property = mockMultiProperty(PropertyType.PATH, "jcr:related", "/some/target", "sibling",
+            "/hidden");
+        final Node parent = Mockito.mock(Node.class);
+        final Node absoluteTarget = Mockito.mock(Node.class);
+        final Node relativeTarget = Mockito.mock(Node.class);
+        Mockito.when(absoluteTarget.getPath()).thenReturn("/some/target");
+        Mockito.when(relativeTarget.getPath()).thenReturn("/parent/sibling");
+        Mockito.when(property.getSession().getNode("/some/target")).thenReturn(absoluteTarget);
+        Mockito.when(property.getSession().getNode("/hidden")).thenThrow(new RepositoryException());
+        Mockito.when(property.getParent()).thenReturn(parent);
+        Mockito.when(parent.getNode("sibling")).thenReturn(relativeTarget);
+
+        final JsonArray result = (JsonArray) this.processor.processProperty(null, property, null, this.serializeNode);
+
+        Assertions.assertEquals(List.of(Json.createValue("/some/target"), Json.createValue("/parent/sibling"),
+            Json.createValue("/hidden")), result);
     }
 
     @Test

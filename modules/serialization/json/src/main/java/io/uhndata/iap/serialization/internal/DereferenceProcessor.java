@@ -42,12 +42,12 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
  *
  * <p>
  * A {@code jcr:} property, such as {@code jcr:baseVersion}, leads into version storage, so it is written as the
- * target's path. A multi-valued {@code jcr:} {@code PATH} property is the exception, and is dereferenced.
+ * target's path.
  * </p>
  *
  * <p>
- * A target this session cannot read is left as stored. In a multi-valued {@code PATH} property, only that value keeps
- * its stored path. In a multi-valued reference, every value keeps its stored {@code jcr:uuid}.
+ * A target this session cannot read is left as stored. In a multi-valued property, only that value keeps its stored
+ * path or {@code jcr:uuid}, and the others are dereferenced.
  * </p>
  *
  * @version $Id$
@@ -99,18 +99,13 @@ public class DereferenceProcessor implements ResourceJsonProcessor
     {
         return switch (property.getType()) {
             case PropertyType.REFERENCE, PropertyType.WEAKREFERENCE, PropertyType.PATH -> {
-                JsonValue result = input;
+                JsonValue result = null;
                 try {
-                    final Node node = property.getNode();
-                    if (property.getName().startsWith("jcr:")) {
-                        result = Json.createValue(node.getPath());
-                    } else {
-                        result = serializeNode.apply(node);
-                    }
+                    result = writerFor(property, serializeNode).write(property.getNode());
                 } catch (RepositoryException e) {
-                    // The target cannot be read: leave the value as stored
+                    // An unreadable target is access control at work, not a fault to record: keep the stored value
                 }
-                yield result;
+                yield result == null ? input : result;
             }
             default -> input;
         };
@@ -120,48 +115,64 @@ public class DereferenceProcessor implements ResourceJsonProcessor
         final Function<Node, JsonValue> serializeNode) throws RepositoryException
     {
         return switch (property.getType()) {
-            case PropertyType.REFERENCE, PropertyType.WEAKREFERENCE -> serializeReferences(property, input,
+            case PropertyType.REFERENCE, PropertyType.WEAKREFERENCE, PropertyType.PATH -> serializeValues(property,
                 serializeNode);
-            case PropertyType.PATH -> serializePaths(property, serializeNode);
             default -> input;
         };
     }
 
-    private JsonValue serializeReferences(final Property property, final JsonValue input,
-        final Function<Node, JsonValue> serializeNode) throws RepositoryException
+    private JsonValue serializeValues(final Property property, final Function<Node, JsonValue> serializeNode)
+        throws RepositoryException
     {
         final JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
-        final boolean asPaths = property.getName().startsWith("jcr:");
+        final TargetWriter writer = writerFor(property, serializeNode);
         for (Value value : property.getValues()) {
-            try {
-                final Node node = property.getSession().getNodeByIdentifier(value.getString());
-                final JsonValue serialized = asPaths ? Json.createValue(node.getPath()) : serializeNode.apply(node);
-                if (serialized == null) {
-                    return input;
-                }
-                arrayBuilder.add(serialized);
-            } catch (RepositoryException e) {
-                return input;
-            }
+            arrayBuilder.add(serializeValue(property, value.getString(), writer));
         }
         return arrayBuilder.build();
     }
 
-    private JsonValue serializePaths(final Property property, final Function<Node, JsonValue> serializeNode)
+    /** One value of a multi-valued property, dereferenced, or as stored if its target cannot be serialized. */
+    private JsonValue serializeValue(final Property property, final String stored, final TargetWriter writer)
+    {
+        JsonValue serialized = null;
+        try {
+            serialized = writer.write(resolve(property, stored));
+        } catch (RepositoryException e) {
+            // An unreadable target is access control at work, not a fault to record: keep the stored value
+        }
+        return serialized == null ? Json.createValue(stored) : serialized;
+    }
+
+    private static Node resolve(final Property property, final String stored) throws RepositoryException
+    {
+        if (property.getType() != PropertyType.PATH) {
+            return property.getSession().getNodeByIdentifier(stored);
+        }
+        return stored.charAt(0) == '/' ? property.getSession().getNode(stored) : property.getParent().getNode(stored);
+    }
+
+    /**
+     * How to write the targets of this property. A {@code jcr:} property, such as {@code jcr:baseVersion}, leads into
+     * version storage, so its targets are written as paths.
+     */
+    private static TargetWriter writerFor(final Property property, final Function<Node, JsonValue> serializeNode)
         throws RepositoryException
     {
-        final JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
-        for (Value value : property.getValues()) {
-            final String path = value.getString();
-            try {
-                final Node node = path.charAt(0) == '/' ? property.getSession().getNode(path)
-                    : property.getParent().getNode(path);
-                final JsonValue serialized = serializeNode.apply(node);
-                arrayBuilder.add(serialized == null ? Json.createValue(path) : serialized);
-            } catch (RepositoryException e) {
-                arrayBuilder.add(path);
-            }
+        if (property.getName().startsWith("jcr:")) {
+            return target -> Json.createValue(target.getPath());
         }
-        return arrayBuilder.build();
+        return serializeNode::apply;
+    }
+
+    /**
+     * Writes the node a value points to.
+     *
+     * @since 0.1.0
+     */
+    @FunctionalInterface
+    private interface TargetWriter
+    {
+        JsonValue write(Node target) throws RepositoryException;
     }
 }
