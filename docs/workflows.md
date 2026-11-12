@@ -748,6 +748,7 @@ void             startWorkflow(Resource host, WorkflowVersion version);
 void             replaceWorkflow(Resource host, WorkflowVersion version);
 void             recordRole(Resource resource, String role);
 void             checkInAfterCommit(String path);
+void             afterCommit(Runnable work);
 
 // ExecutionHost, Payloads — reading a task's input the way the built-in handlers do
 static Resource        ExecutionHost.of(WorkflowTaskContext context);
@@ -767,6 +768,20 @@ ask the engine for more within the same execution and commit; the built-in
 the [history](history.md), the part a resource played in the step, such as `retired`;
 what changed is recorded without it. A step that checked a node out cannot check it back
 in, since a check-in refuses pending changes, so it asks with `checkInAfterCommit`.
+`afterCommit` leaves other work for once the delivery has committed. It is for work that
+is low-risk, not critical and not expected to fail, and that either needs the commit to
+have happened or cannot be undone. For example:
+
+- incrementing a metric, which writes through a session of its own;
+- sending an email or a chat message, which cannot be taken back. The engine sends a
+  delivery's notifications this way;
+- calling another system, such as a webhook, to tell it what changed;
+- starting a background job that reads what the delivery wrote, which it cannot see
+  before the commit.
+
+Work left by a delivery that fails, or by an attempt retried after a conflict, never
+runs. Work that fails is recorded against the step that left it, nothing retries it, and
+the rest still runs. Work the workflow cannot do without belongs in the delivery itself.
 
 Two helpers keep a module's handlers consistent with the built-in ones in
 `internal.handlers`. `ExecutionHost.of` is what a task acts on, as its activity answers

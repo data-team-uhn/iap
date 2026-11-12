@@ -18,6 +18,8 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -32,6 +34,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
@@ -41,10 +44,13 @@ import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.Event;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
+import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
+import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,15 +58,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for when the engine sends the notifications a delivery's message events announced, and what it does
- * when one cannot be sent. A stand-in task completion announces the messages a test names: the mock repository cannot
- * undo a lost attempt, so a real walk cannot be retried here.
+ * Unit tests for what the engine does once a delivery has committed: send the notifications its message events
+ * announced, and do the work its steps left. A stand-in task completion announces the messages and performs the
+ * activities a test names: the mock repository cannot undo a lost attempt, so a real walk cannot be retried here.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class NotificationsAfterCommitTest
+class AfterCommitTest
 {
     private static final String TASK = "/Submissions/request/wf:instances/process/approve";
 
@@ -70,11 +76,43 @@ class NotificationsAfterCommitTest
 
     private static final String APPROVERS = "approvers";
 
+    private static final String LEAVE_WORK = "leaveWork";
+
+    private static final String BROKEN = "broken";
+
     private final SlingContext context = new SlingContext();
 
     private final RecordedNotifications told = new RecordedNotifications();
 
     private final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+
+    /** The work done after the commit, named by the activity that left it. */
+    private final List<String> done = new ArrayList<>();
+
+    /**
+     * A handler leaving work for after the commit: recording its activity's name as done, or failing for the broken
+     * one.
+     */
+    private final ServiceTaskHandler leavingWork = new ServiceTaskHandler()
+    {
+        @Override
+        public String getName()
+        {
+            return LEAVE_WORK;
+        }
+
+        @Override
+        public void execute(final WorkflowTaskContext step)
+        {
+            final String name = step.getActivity().getName();
+            step.afterCommit(() -> {
+                if (BROKEN.equals(name)) {
+                    throw new IllegalStateException("The work failed");
+                }
+                AfterCommitTest.this.done.add(name);
+            });
+        }
+    };
 
     @BeforeEach
     void setUp()
@@ -146,6 +184,56 @@ class NotificationsAfterCommitTest
     }
 
     @Test
+    void doesTheWorkAWalkRetriedAfterAConflictLeftOnce() throws Exception
+    {
+        final TaskCompletion completion = performing(activity("count"));
+        final ArrayDeque<PersistenceException> failures = new ArrayDeque<>(List.of(conflict()));
+
+        engine(failures::poll, completion, this.told).receiveEvent(task(), DECIDED);
+
+        assertEquals(List.of("count"), this.done);
+        // Proves the walk ran twice, so both attempts left the work
+        Mockito.verify(completion, Mockito.times(2))
+            .apply(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    void doesNoWorkWhenEveryAttemptLosesItsRace()
+    {
+        final PersistenceException conflict = conflict();
+
+        assertThrows(InvalidStateException.class, () -> engine(() -> conflict, performing(activity("count")),
+            this.told).receiveEvent(task(), DECIDED));
+
+        assertTrue(this.done.isEmpty());
+    }
+
+    @Test
+    void doesTheWorkAfterSendingTheNotificationsInTheOrderTheStepsLeftIt() throws Exception
+    {
+        final List<String> order = new ArrayList<>();
+        final NotificationService noting = (notification, roles) -> order.add(notification.getEvent());
+
+        engine(() -> null, walking(announce(messageEvent(DECISION, APPROVERS)), perform(activity("first")),
+            perform(activity("second"))), noting).receiveEvent(task(), DECIDED);
+        order.addAll(this.done);
+
+        assertEquals(List.of(DECISION, "first", "second"), order);
+    }
+
+    @Test
+    void recordsWorkThatFailsAgainstTheStepThatLeftItAndStillDoesTheRest() throws Exception
+    {
+        engine(() -> null, performing(activity(BROKEN), activity("count")), this.told).receiveEvent(task(), DECIDED);
+
+        assertEquals(List.of("count"), this.done);
+        final ArgumentCaptor<ErrorContext> recorded = ArgumentCaptor.forClass(ErrorContext.class);
+        Mockito.verify(this.recorder).logError(Mockito.any(IllegalStateException.class), recorded.capture());
+        assertEquals(LEAVE_WORK, recorded.getValue().getComponent());
+        assertEquals("/Workflows/process/v1/" + BROKEN, recorded.getValue().getSubject());
+    }
+
+    @Test
     void recordsAMessageEventThatTellsNobody() throws Exception
     {
         engine(() -> null, announcing(messageEvent(DECISION)), this.told).receiveEvent(task(), DECIDED);
@@ -168,24 +256,71 @@ class NotificationsAfterCommitTest
     }
 
     /**
-     * A task completion that reaches the given message events from the task's instance, each time it is applied.
+     * One step of a stand-in walk, taken from the task's instance.
      *
-     * @param events the events to reach, in order
+     * @version $Id$
+     * @since 0.1.0
+     */
+    @FunctionalInterface
+    private interface Step
+    {
+        void take(InstanceRunner.StepPerformer performer, Resource instance) throws Exception;
+    }
+
+    /**
+     * A task completion that takes the given steps from the task's instance, each time it is applied.
+     *
+     * @param steps the steps to take, in order
      * @return the stand-in
      * @throws Exception never, the stubbed method merely declares its exceptions
      */
-    private static TaskCompletion announcing(final Event... events) throws Exception
+    private static TaskCompletion walking(final Step... steps) throws Exception
     {
         final TaskCompletion completion = Mockito.mock(TaskCompletion.class);
         Mockito.doAnswer(invocation -> {
             final InstanceRunner.StepPerformer performer = invocation.getArgument(4);
             final Resource task = invocation.getArgument(1);
-            for (final Event event : events) {
-                performer.throwMessage(event, task.getParent());
+            for (final Step step : steps) {
+                step.take(performer, task.getParent());
             }
             return null;
         }).when(completion).apply(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
         return completion;
+    }
+
+    private static TaskCompletion announcing(final Event... events) throws Exception
+    {
+        return walking(Arrays.stream(events).map(AfterCommitTest::announce).toArray(Step[]::new));
+    }
+
+    private static TaskCompletion performing(final Activity... activities) throws Exception
+    {
+        return walking(Arrays.stream(activities).map(AfterCommitTest::perform).toArray(Step[]::new));
+    }
+
+    private static Step announce(final Event event)
+    {
+        return (performer, instance) -> performer.throwMessage(event, instance);
+    }
+
+    private static Step perform(final Activity activity)
+    {
+        return (performer, instance) -> performer.perform(activity, instance);
+    }
+
+    /**
+     * An activity of a definition leaving work for after the commit, failing when it is the broken one.
+     *
+     * @param name the activity's name, which the work records as done
+     * @return the activity
+     */
+    private static Activity activity(final String name)
+    {
+        final Activity activity = Mockito.mock(Activity.class);
+        Mockito.when(activity.getHandler()).thenReturn(LEAVE_WORK);
+        Mockito.when(activity.getName()).thenReturn(name);
+        Mockito.when(activity.getPath()).thenReturn("/Workflows/process/v1/" + name);
+        return activity;
     }
 
     /**
@@ -236,7 +371,8 @@ class NotificationsAfterCommitTest
     {
         this.context.resourceResolver().commit();
         final WorkflowEngineImpl engine =
-            EngineFixture.engine(EngineFixture.serviceUsersFailing(this.context, failures), List.of(), notifications);
+            EngineFixture.engine(EngineFixture.serviceUsersFailing(this.context, failures), List.of(this.leavingWork),
+                notifications);
         EngineFixture.inject(engine, "taskCompletion", completion);
         return engine;
     }

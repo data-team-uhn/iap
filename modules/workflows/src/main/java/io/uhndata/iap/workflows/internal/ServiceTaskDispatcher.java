@@ -98,34 +98,14 @@ final class ServiceTaskDispatcher
     }
 
     /**
-     * Notes what a step of this delivery did to a resource, for its history.
+     * What this delivery leaves behind besides its writes, where its steps note what they did and leave work for
+     * after its commit.
      *
-     * @param path the path of the resource
-     * @param role the part it played, named by its purpose
+     * @return the delivery's consequences
      */
-    void recordRole(final String path, final String role)
+    DeliveryConsequences consequences()
     {
-        this.consequences.recordRole(path, role);
-    }
-
-    /**
-     * Notes an instance a step of this delivery started, for its history.
-     *
-     * @param path the path of the instance
-     */
-    void noteStartedInstance(final String path)
-    {
-        this.consequences.noteStartedInstance(path);
-    }
-
-    /**
-     * Asks for a node a step checked out to be checked back in once this delivery has committed.
-     *
-     * @param path the path of the versionable node
-     */
-    void checkInAfterCommit(final String path)
-    {
-        this.consequences.checkInAfterCommit(path);
+        return this.consequences;
     }
 
     /**
@@ -155,7 +135,7 @@ final class ServiceTaskDispatcher
     }
 
     /**
-     * Finishes what waited for this delivery's commit: its notifications, and the nodes its steps checked out.
+     * Finishes what waited for this delivery's commit: its notifications, and the work its steps left.
      *
      * @param resolver the engine's resolver, which committed the delivery
      */
