@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.links.internal;
 
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -40,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.osgi.framework.Constants;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.errortracking.api.ErrorContext;
@@ -50,7 +50,7 @@ import io.uhndata.iap.links.models.ExternalLink;
 import io.uhndata.iap.links.models.ExternalLinkDefinition;
 import io.uhndata.iap.links.models.InternalLink;
 import io.uhndata.iap.links.models.InternalLinkDefinition;
-import io.uhndata.iap.links.models.LinkDefinition;
+import io.uhndata.iap.links.models.LinkTypesFixture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -84,28 +84,21 @@ class AutocreateBacklinksListenerTest
 
     private AutocreateBacklinksListener listener;
 
-    private LinkManagerImpl manager;
+    /** The mock repository's own factory, which the listener and the manager log in through by default. */
+    private ResourceResolverFactory repositoryFactory;
 
     @BeforeEach
     void setUp()
-        throws ReflectiveOperationException, RepositoryException
+        throws RepositoryException
     {
         this.context.addModelsForClasses(Content.class, InternalLinkDefinition.class,
             ExternalLinkDefinition.class, InternalLink.class,
             ExternalLink.class);
-        // Both kinds of definition answer to the shared link/Definition type through /libs content, which the
-        // mock repository does not load
-        this.context.create().resource("/libs/link/InternalDefinition",
-            "sling:resourceSuperType", LinkDefinition.RESOURCE_TYPE);
-        this.context.create().resource("/libs/link/ExternalDefinition",
-            "sling:resourceSuperType", LinkDefinition.RESOURCE_TYPE);
-        this.manager = new LinkManagerImpl();
-        this.inject(this.manager, LinkManagerImpl.class, "resolverFactory",
-            this.context.getService(ResourceResolverFactory.class));
-        this.listener = new AutocreateBacklinksListener();
-        this.inject(this.listener, AutocreateBacklinksListener.class, "resolverFactory",
-            this.context.getService(ResourceResolverFactory.class));
-        this.inject(this.listener, AutocreateBacklinksListener.class, "linkOperations", this.manager);
+        LinkTypesFixture.registerDefinitionTypes(this.context);
+        this.repositoryFactory = this.context.getService(ResourceResolverFactory.class);
+        // The listener's link operations are the manager's
+        this.context.registerInjectActivateService(new LinkManagerImpl());
+        this.listener = this.context.registerInjectActivateService(new AutocreateBacklinksListener());
 
         final Session session = Mockito.mock(Session.class);
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
@@ -116,12 +109,16 @@ class AutocreateBacklinksListenerTest
         Mockito.when(session.hasPermission(Mockito.anyString(), Mockito.anyString())).thenReturn(true);
     }
 
-    private void inject(final Object target, final Class<?> type, final String name, final Object value)
-        throws ReflectiveOperationException
+    /**
+     * Replaces the listener with one whose service users are served by the given factory. The factory outranks the
+     * repository's own, so only the new listener binds it: the manager keeps reading through the repository.
+     *
+     * @param factory the factory the new listener logs its service users in through
+     */
+    private void replaceListenerServedBy(final ResourceResolverFactory factory)
     {
-        final Field field = type.getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(target, value);
+        this.context.registerService(ResourceResolverFactory.class, factory, Constants.SERVICE_RANKING, 1);
+        this.listener = this.context.registerInjectActivateService(new AutocreateBacklinksListener());
     }
 
     /**
@@ -131,7 +128,7 @@ class AutocreateBacklinksListenerTest
     private void createCommittedFixture()
         throws Exception
     {
-        final ResourceResolver committer = this.context.getService(ResourceResolverFactory.class)
+        final ResourceResolver committer = this.repositoryFactory
             .getResourceResolver(null);
         final Resource root = committer.getResource("/");
         final Resource linkTypes = committer.create(root, "LinkTypes", Map.of());
@@ -159,7 +156,7 @@ class AutocreateBacklinksListenerTest
     private int childrenCount(final String path)
         throws Exception
     {
-        final ResourceResolver reader = this.context.getService(ResourceResolverFactory.class)
+        final ResourceResolver reader = this.repositoryFactory
             .getResourceResolver(null);
         final Resource parent = reader.getResource(path);
         final List<Resource> children =
@@ -188,7 +185,7 @@ class AutocreateBacklinksListenerTest
 
         // The backlink's own creation event finds the pair complete and creates nothing new
         this.listener.onChange(StreamSupport
-            .stream(this.context.getService(ResourceResolverFactory.class).getResourceResolver(null)
+            .stream(this.repositoryFactory.getResourceResolver(null)
                 .getResource("/Things/b/" + CONTAINER).getChildren().spliterator(), false)
             .map(child -> new ResourceChange(ResourceChange.ChangeType.ADDED, child.getPath(), false))
             .collect(Collectors.toList()));
@@ -220,7 +217,7 @@ class AutocreateBacklinksListenerTest
         final ResourceResolverFactory badFactory = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(badFactory.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("no such service user"));
-        this.inject(this.listener, AutocreateBacklinksListener.class, "resolverFactory", badFactory);
+        this.replaceListenerServedBy(badFactory);
 
         this.listener.onChange(List.of(new ResourceChange(ResourceChange.ChangeType.ADDED, LINK_PATH, false)));
 
@@ -233,13 +230,13 @@ class AutocreateBacklinksListenerTest
     {
         this.createCommittedFixture();
         // A service resolver that reads normally but refuses to commit
-        final ResourceResolver failing = Mockito.spy(this.context.getService(ResourceResolverFactory.class)
+        final ResourceResolver failing = Mockito.spy(this.repositoryFactory
             .getServiceResourceResolver(null));
         Mockito.doThrow(new PersistenceException("read only"))
             .when(failing).commit();
         final ResourceResolverFactory failingFactory = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(failingFactory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(failing);
-        this.inject(this.listener, AutocreateBacklinksListener.class, "resolverFactory", failingFactory);
+        this.replaceListenerServedBy(failingFactory);
 
         this.listener.onChange(List.of(new ResourceChange(ResourceChange.ChangeType.ADDED, LINK_PATH, false)));
 
@@ -254,7 +251,7 @@ class AutocreateBacklinksListenerTest
         final ResourceResolverFactory badFactory = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(badFactory.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("no such service user"));
-        this.inject(this.listener, AutocreateBacklinksListener.class, "resolverFactory", badFactory);
+        this.replaceListenerServedBy(badFactory);
         final ErrorLoggerService recorder = this.recordInto();
 
         try {
@@ -273,13 +270,13 @@ class AutocreateBacklinksListenerTest
         throws Exception
     {
         this.createCommittedFixture();
-        final ResourceResolver failing = Mockito.spy(this.context.getService(ResourceResolverFactory.class)
+        final ResourceResolver failing = Mockito.spy(this.repositoryFactory
             .getServiceResourceResolver(null));
         Mockito.doThrow(new PersistenceException("read only"))
             .when(failing).commit();
         final ResourceResolverFactory failingFactory = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(failingFactory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(failing);
-        this.inject(this.listener, AutocreateBacklinksListener.class, "resolverFactory", failingFactory);
+        this.replaceListenerServedBy(failingFactory);
         final ErrorLoggerService recorder = this.recordInto();
 
         try {
