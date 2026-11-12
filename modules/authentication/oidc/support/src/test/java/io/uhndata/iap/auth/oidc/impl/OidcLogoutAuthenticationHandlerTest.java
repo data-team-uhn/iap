@@ -18,7 +18,6 @@
 package io.uhndata.iap.auth.oidc.impl;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -32,9 +31,12 @@ import org.apache.jackrabbit.api.security.user.User;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.auth.core.AuthenticationSupport;
 import org.apache.sling.commons.crypto.CryptoService;
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -48,6 +50,7 @@ import io.uhndata.iap.httprequests.api.HttpResponse;
  * @version $Id$
  * @since 0.1.0
  */
+@ExtendWith(SlingContextExtension.class)
 public class OidcLogoutAuthenticationHandlerTest
 {
     private static final String COOKIE_NAME = "iap.oidc.session";
@@ -63,6 +66,8 @@ public class OidcLogoutAuthenticationHandlerTest
     private static final String CIPHERTEXT = "encrypted-blob";
 
     private static final String TOKEN = "refresh-token";
+
+    private final SlingContext context = new SlingContext();
 
     private OidcLogoutAuthenticationHandler handler;
 
@@ -331,10 +336,8 @@ public class OidcLogoutAuthenticationHandlerTest
      * A logout request for a signed-in OIDC user, with every collaborator mocked. It starts with a resolver, a user
      * and a session, and the back-channel configured. Each test changes only what it is about.
      */
-    private static final class Fixture
+    private final class Fixture
     {
-        private final OidcLogoutConfiguration config = Mockito.mock(OidcLogoutConfiguration.class);
-
         private final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
 
         private final HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
@@ -349,13 +352,11 @@ public class OidcLogoutAuthenticationHandlerTest
 
         private final Session session = Mockito.mock(Session.class);
 
-        private final OidcLogoutAuthenticationHandler handler = new OidcLogoutAuthenticationHandler();
+        private OidcLogoutAuthenticationHandler handler;
 
         private String secret = "s3cr+t";
 
         private String endpoint = ENDPOINT;
-
-        private boolean built;
 
         private boolean crypto = true;
 
@@ -407,7 +408,7 @@ public class OidcLogoutAuthenticationHandlerTest
             return this;
         }
 
-        /** Activates the handler if needed, then runs the logout under test. */
+        /** Activates the handler, then runs the logout under test. */
         void logout()
         {
             build();
@@ -427,36 +428,24 @@ public class OidcLogoutAuthenticationHandlerTest
         }
 
         /**
-         * Activates the handler and injects its references by hand. The bundle plugin generates the DS metadata
-         * only at packaging time.
+         * Registers the collaborators as services, then has DS activate the handler with them bound. The crypto
+         * service carries the name the handler's reference targets.
          */
         private void build()
         {
-            if (this.built)
+            final SlingContext osgi = OidcLogoutAuthenticationHandlerTest.this.context;
+            osgi.registerService(HttpRequests.class, this.httpRequests);
+            if (this.crypto)
             {
-                return;
+                osgi.registerService(CryptoService.class, this.cryptoService, "names", "iap-oauth");
             }
-            Mockito.when(this.config.cookieName()).thenReturn(COOKIE_NAME);
-            Mockito.when(this.config.refreshTokenPath()).thenReturn(TOKEN_PATH);
-            Mockito.when(this.config.backchannelLogoutEndpoint()).thenReturn(this.endpoint);
-            Mockito.when(this.config.clientId()).thenReturn("iap-sling");
-            Mockito.when(this.config.clientSecret()).thenReturn(this.secret);
-            this.handler.activate(this.config);
-            inject(this.handler, "httpRequests", this.httpRequests);
-            inject(this.handler, "cryptoService", this.crypto ? this.cryptoService : null);
-            this.built = true;
-        }
-
-        private static void inject(final Object target, final String fieldName, final Object value)
-        {
-            try
-            {
-                final Field field = OidcLogoutAuthenticationHandler.class.getDeclaredField(fieldName);
-                field.setAccessible(true);
-                field.set(target, value);
-            } catch (final ReflectiveOperationException e) {
-                throw new IllegalStateException("Could not inject " + fieldName, e);
-            }
+            this.handler = osgi.registerInjectActivateService(
+                new OidcLogoutAuthenticationHandler(),
+                "cookieName", COOKIE_NAME,
+                "refreshTokenPath", TOKEN_PATH,
+                "backchannelLogoutEndpoint", this.endpoint,
+                "clientId", "iap-sling",
+                "clientSecret", this.secret);
         }
     }
 }
