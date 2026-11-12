@@ -22,22 +22,23 @@ import java.util.List;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
 /**
- * Check that no step of a system workflow waits for a person, since a system workflow runs to its end inside one
- * request.
+ * Check that no step of a system workflow waits, for a person or for a message, since a system workflow runs to its
+ * end inside one request.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Component(service = ValidityCheck.class)
-public class SystemWorkflowUserTaskCheck extends SystemWorkflowVersionCheck
+public class SystemWorkflowWaitCheck extends SystemWorkflowVersionCheck
 {
     @Override
     public List<String> check(final Resource version)
     {
-        return asVersion(version).getActivities(null).isEmpty() ? List.of()
-            : List.of("a system workflow cannot wait for a person, but it has a user task");
+        return asVersion(version).getAllFlowNodes().stream().anyMatch(FlowNode::raisesTask)
+            ? List.of("a system workflow cannot wait, but it has a user task or a catching event") : List.of();
     }
 }

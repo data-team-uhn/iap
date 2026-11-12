@@ -56,7 +56,7 @@ import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.workflows.internal.checks.StartEventCheck;
 import io.uhndata.iap.workflows.internal.checks.SystemWorkflowTriggerCheck;
-import io.uhndata.iap.workflows.internal.checks.SystemWorkflowUserTaskCheck;
+import io.uhndata.iap.workflows.internal.checks.SystemWorkflowWaitCheck;
 import io.uhndata.iap.workflows.internal.handlers.CheckValidHandler;
 import io.uhndata.iap.workflows.internal.handlers.CopyContentHandler;
 import io.uhndata.iap.workflows.internal.handlers.CreateVersionHandler;
@@ -141,7 +141,7 @@ class SystemWorkflowDefinitionsTest
         // The flow nodes are read through their models, which need the type registry to dispatch
         WorkflowFixture.setUp(this.context);
         final List<ValidityCheck> checks = List.of(new StartEventCheck(), new SystemWorkflowTriggerCheck(),
-            new SystemWorkflowUserTaskCheck());
+            new SystemWorkflowWaitCheck());
         for (final Path path : definitions()) {
             final Resource version = this.context.resourceResolver().getResource(
                 "/SystemWorkflows/" + path.getFileName().toString().replace(".json", "") + "/v1");

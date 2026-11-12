@@ -104,7 +104,7 @@
   // The data carried along by this execution
   + * (wf:Variable) = wf:Variable
 
-  // The user tasks this execution has reached
+  // The tasks this execution waits on: user tasks, and catching events' messages
   + * (wf:TaskInstance) = wf:TaskInstance
 
   // Allow any other children for extensibility
@@ -131,11 +131,13 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A running instance of a user task within a workflow instance.
+// Something a running workflow instance waits on: work a person owes at a user
+// task, or the message a catching event standing in the flow waits for.
 [wf:TaskInstance] > data:EntityPart
   - sling:resourceType (STRING) = "wf/TaskInstance" mandatory autocreated protected
 
-  // elementId of the wf:Activity this task was created from
+  // elementId of the node this task was created from: the wf:Activity of a user
+  // task, or a wf:IntermediateCatchingEvent standing in the flow
   - taskDefinitionId (STRING) mandatory
 
   // Display name for this task

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -66,6 +67,8 @@ final class InstanceRecords
     static final String OUTCOME_VARIABLE = "outcome";
 
     private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
+
+    private static final String WALK_ID_PROPERTY = "walkId";
 
     private final ResourceResolver resolver;
 
@@ -128,8 +131,7 @@ final class InstanceRecords
         }
         final String definition = ResourceUtil.getParent(version.getPath());
         return Objects.requireNonNull(container.adaptTo(WorkflowInstances.class),
-            "A workflow container always adapts to its model").getInstances().stream()
-            .filter(instance -> WorkflowInstance.ACTIVE_STATUS.equals(instance.getStatus()))
+            "A workflow container always adapts to its model").getActiveInstances().stream()
             .filter(instance -> definition.equals(definitionOf(instance)))
             .map(instance -> getResource(instance.getPath()))
             .collect(Collectors.toList());
@@ -347,6 +349,19 @@ final class InstanceRecords
     }
 
     /**
+     * Stamps an instance with a new identifier, as a walk carries it on from one of its tasks. Two events carrying
+     * one instance on at once then both change the same property, and the second to commit is refused rather than
+     * merged. Otherwise two branches arriving at a join in two requests would each see only themselves arrive, and
+     * both would wait for good.
+     *
+     * @param instance the instance being carried on
+     */
+    void stampWalk(final Resource instance)
+    {
+        getModifiableProperties(instance).put(WALK_ID_PROPERTY, UUID.randomUUID().toString());
+    }
+
+    /**
      * Creates the task a person now has to do; the token stays on it until they do.
      *
      * @param instance the running instance
@@ -356,40 +371,74 @@ final class InstanceRecords
     void createTask(final Resource instance, final Activity activity) throws PersistenceException
     {
         final Calendar started = Calendar.getInstance();
-        final Map<String, Object> properties = new HashMap<>(Map.of(
-            JCR_PRIMARY_TYPE_PROPERTY, "wf:TaskInstance",
-            "taskDefinitionId", activity.getElementId(),
-            "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
-            TaskInstance.OUTCOME_OPTIONS_PROPERTY, activity.getOutcomeOptions().toArray(String[]::new),
-            TaskInstance.PERFORMERS_PROPERTY,
-            this.performers.resolve(activity, hostOf(instance)).toArray(String[]::new),
-            TaskInstance.STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
-            TaskInstance.START_TIME_PROPERTY, started));
+        final Map<String, Object> properties = taskProperties(instance, activity, started);
+        properties.put(TaskInstance.OUTCOME_OPTIONS_PROPERTY, activity.getOutcomeOptions().toArray(String[]::new));
         armNextDeadline(activity, started, List.of(), properties);
         this.resolver.create(instance, NodeNameUtils.findFreeName(instance, activity.getName()), properties);
     }
 
     /**
-     * Records that a person completed a task, and the outcome they chose, which the instance's gateways then route
-     * on.
+     * Creates the task a catching event waits on; the token stays on it until the message arrives. Sending the
+     * message is what completes it, so it offers no outcomes.
      *
-     * @param instance the task's instance
+     * @param instance the running instance
+     * @param event the catching event reached
+     * @throws PersistenceException when the task cannot be written
+     */
+    void createTask(final Resource instance, final IntermediateCatchingEvent event) throws PersistenceException
+    {
+        this.resolver.create(instance, NodeNameUtils.findFreeName(instance, event.getName()),
+            taskProperties(instance, event, Calendar.getInstance()));
+    }
+
+    /**
+     * What every task holds when it is raised: where it came from, what it is called, who may complete it, and that
+     * it is open.
+     *
+     * @param instance the running instance
+     * @param node the node the task is raised from
+     * @param started when the task began waiting
+     * @return the task's properties, to be added to
+     */
+    private Map<String, Object> taskProperties(final Resource instance, final FlowNode node, final Calendar started)
+    {
+        return new HashMap<>(Map.of(
+            JCR_PRIMARY_TYPE_PROPERTY, "wf:TaskInstance",
+            "taskDefinitionId", node.getElementId(),
+            "label", Objects.requireNonNullElse(node.getLabel(), node.getElementId()),
+            TaskInstance.PERFORMERS_PROPERTY, this.performers.resolve(node, hostOf(instance)).toArray(String[]::new),
+            TaskInstance.STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
+            TaskInstance.START_TIME_PROPERTY, started));
+    }
+
+    /**
+     * Records that somebody completed a task.
+     *
      * @param task the task completed
      * @param actor the user who completed it
-     * @param outcome what they decided, or {@code null} for a task that offers no choice
-     * @throws PersistenceException when the task or the outcome cannot be written
      */
-    void completeTask(final Resource instance, final Resource task, final String actor, final String outcome)
-        throws PersistenceException
+    void completeTask(final Resource task, final String actor)
     {
         final ModifiableValueMap properties = getModifiableProperties(task);
         properties.put(TaskInstance.STATUS_PROPERTY, TaskInstance.COMPLETED_STATUS);
         properties.put(TaskInstance.END_TIME_PROPERTY, Calendar.getInstance());
         properties.put("assignee", actor);
-        if (outcome != null) {
-            properties.put(OUTCOME_VARIABLE, outcome);
-            recordOutcome(instance, outcome);
-        }
+    }
+
+    /**
+     * Records the decision a task was completed with, on the task and as the outcome the instance's gateways then
+     * route on.
+     *
+     * @param instance the task's instance
+     * @param task the task decided
+     * @param outcome what was decided
+     * @throws PersistenceException when the outcome cannot be written
+     */
+    void recordDecision(final Resource instance, final Resource task, final String outcome)
+        throws PersistenceException
+    {
+        getModifiableProperties(task).put(OUTCOME_VARIABLE, outcome);
+        recordOutcome(instance, outcome);
     }
 
     /**

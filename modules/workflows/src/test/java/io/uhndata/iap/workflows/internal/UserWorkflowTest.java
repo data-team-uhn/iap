@@ -111,7 +111,16 @@ class UserWorkflowTest
 
     private static final String ANNOUNCE = "announce";
 
+    private static final String ASSESSED = "assessed";
+
+    /** The task an instance waits on at the catching event before its approval. */
+    private static final String WAIT = HOST + "/wf:instances/timeOffRequest/" + ASSESSED;
+
+    private static final WorkflowEvent ASSESSMENT_READY = new WorkflowEvent("assessmentReady", Map.of());
+
     private static final String MESSAGE_NAME = "messageName";
+
+    private static final String STATUS = "status";
 
     private static final WorkflowEvent START = new WorkflowEvent("start", Map.of());
 
@@ -263,13 +272,13 @@ class UserWorkflowTest
         final WorkflowEngine engine = started();
         deadlinePassed();
 
-        engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT);
+        engine.receiveEvent(as(TASK, TaskDeadline.TIMER_USER), TIMEOUT);
 
-        assertEquals("cancelled", read(TASK).get("status"));
+        assertEquals("cancelled", read(TASK).get(STATUS));
         assertNull(read(TASK).get("assignee"));
         assertNull(read(TASK).get("outcome"));
         assertEquals(List.of("draft", "expired"), List.of((String[]) read(HOST).get("tags")));
-        assertEquals("completed", read(HOST + "/wf:instances/timeOffRequest").get("status"));
+        assertEquals("completed", read(HOST + "/wf:instances/timeOffRequest").get(STATUS));
     }
 
     @Test
@@ -290,11 +299,11 @@ class UserWorkflowTest
         final WorkflowEngine engine = started();
         deadlinePassed();
 
-        engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT);
+        engine.receiveEvent(as(TASK, TaskDeadline.TIMER_USER), TIMEOUT);
 
-        assertEquals("created", read(TASK).get("status"));
-        assertEquals("created", read(HOST + "/wf:instances/timeOffRequest/chaseApprover").get("status"));
-        assertEquals("active", read(HOST + "/wf:instances/timeOffRequest").get("status"));
+        assertEquals("created", read(TASK).get(STATUS));
+        assertEquals("created", read(HOST + "/wf:instances/timeOffRequest/chaseApprover").get(STATUS));
+        assertEquals("active", read(HOST + "/wf:instances/timeOffRequest").get(STATUS));
         assertArrayEquals(new String[] {"approvalSlow"}, (String[]) read(TASK).get("firedEvents"));
         assertNull(read(TASK).get("dueDate"));
         assertNull(read(TASK).get("dueEventId"));
@@ -312,7 +321,7 @@ class UserWorkflowTest
         final Calendar started = (Calendar) read(TASK).get("startTime");
         deadlinePassed();
 
-        engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT);
+        engine.receiveEvent(as(TASK, TaskDeadline.TIMER_USER), TIMEOUT);
 
         assertEquals("approvalOverdue", read(TASK).get("dueEventId"));
         final Calendar due = (Calendar) read(TASK).get("dueDate");
@@ -322,9 +331,9 @@ class UserWorkflowTest
 
         // The later deadline still cancels the task when it passes
         deadlinePassed();
-        engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT);
+        engine.receiveEvent(as(TASK, TaskDeadline.TIMER_USER), TIMEOUT);
 
-        assertEquals("cancelled", read(TASK).get("status"));
+        assertEquals("cancelled", read(TASK).get(STATUS));
         assertEquals(List.of("draft", "expired"), List.of((String[]) read(HOST).get("tags")));
     }
 
@@ -335,11 +344,11 @@ class UserWorkflowTest
         watchApprovalWith("PT36H", "approvalSlow", null, false);
         final WorkflowEngine engine = started();
         deadlinePassed();
-        engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT);
+        engine.receiveEvent(as(TASK, TaskDeadline.TIMER_USER), TIMEOUT);
 
         assertThrows(NoApplicableWorkflowException.class,
-            () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
-        assertEquals("created", read(TASK).get("status"));
+            () -> engine.receiveEvent(as(TASK, TaskDeadline.TIMER_USER), TIMEOUT));
+        assertEquals("created", read(TASK).get(STATUS));
     }
 
     @Test
@@ -349,8 +358,8 @@ class UserWorkflowTest
         final WorkflowEngine engine = started();
 
         assertThrows(NoApplicableWorkflowException.class,
-            () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
-        assertEquals("created", read(TASK).get("status"));
+            () -> engine.receiveEvent(as(TASK, TaskDeadline.TIMER_USER), TIMEOUT));
+        assertEquals("created", read(TASK).get(STATUS));
     }
 
     @Test
@@ -363,7 +372,7 @@ class UserWorkflowTest
 
         assertThrows(NotAuthorizedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT));
-        assertEquals("created", read(TASK).get("status"));
+        assertEquals("created", read(TASK).get(STATUS));
     }
 
     @Test
@@ -377,10 +386,10 @@ class UserWorkflowTest
         deadlinePassed();
 
         assertThrows(NotAuthorizedException.class,
-            () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
+            () -> engine.receiveEvent(as(TASK, TaskDeadline.TIMER_USER), TIMEOUT));
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
 
-        assertEquals("cancelled", read(TASK).get("status"));
+        assertEquals("cancelled", read(TASK).get(STATUS));
     }
 
     @Test
@@ -394,8 +403,8 @@ class UserWorkflowTest
         deadlinePassed();
 
         assertThrows(NoApplicableWorkflowException.class,
-            () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
-        assertEquals("completed", read(TASK).get("status"));
+            () -> engine.receiveEvent(as(TASK, TaskDeadline.TIMER_USER), TIMEOUT));
+        assertEquals("completed", read(TASK).get(STATUS));
         assertEquals(List.of("approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
@@ -407,8 +416,8 @@ class UserWorkflowTest
         final WorkflowEngine engine = started();
 
         assertThrows(InvalidStateException.class,
-            () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
-        assertEquals("created", read(TASK).get("status"));
+            () -> engine.receiveEvent(as(TASK, TaskDeadline.TIMER_USER), TIMEOUT));
+        assertEquals("created", read(TASK).get(STATUS));
         assertEquals(List.of("draft"), List.of((String[]) read(HOST).get("tags")));
     }
 
@@ -421,8 +430,8 @@ class UserWorkflowTest
         this.context.resourceResolver().getResource(TASK).adaptTo(ModifiableValueMap.class).remove("dueDate");
 
         assertThrows(InvalidStateException.class,
-            () -> engine.receiveEvent(as(TASK, TaskCompletion.TIMER_USER), TIMEOUT));
-        assertEquals("created", read(TASK).get("status"));
+            () -> engine.receiveEvent(as(TASK, TaskDeadline.TIMER_USER), TIMEOUT));
+        assertEquals("created", read(TASK).get(STATUS));
     }
 
     /**
@@ -614,6 +623,33 @@ class UserWorkflowTest
     }
 
     /**
+     * Puts a catching event between the start of the process and its user task, waiting for the assessment.
+     *
+     * @param sender who may send the message it waits for
+     */
+    private void waitForAssessmentBeforeApproval(final String sender)
+    {
+        EngineFixture.modify(this.context, PROCESS + "/requestSubmitted/toApproval").put(TARGET_REF, ASSESSED);
+        final Map<String, Object> assessed = catchingAssessment(sender);
+        assessed.put(ELEMENT_ID, ASSESSED);
+        this.context.create().resource(PROCESS + "/" + ASSESSED, assessed);
+        this.context.create().resource(PROCESS + "/" + ASSESSED + "/toApproval", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "assessedToApproval", TARGET_REF, APPROVE));
+    }
+
+    /**
+     * A catching event waiting for the assessment.
+     *
+     * @param sender who may send the message it waits for
+     * @return the event's properties, to be added to
+     */
+    private static Map<String, Object> catchingAssessment(final String sender)
+    {
+        return new HashMap<>(Map.of(TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "label", "Assessment ready",
+            MESSAGE_NAME, ASSESSMENT_READY.getName(), "performers", new String[] {sender}));
+    }
+
+    /**
      * A resource, as seen by the given user's session.
      *
      * @param path what to resolve
@@ -676,12 +712,12 @@ class UserWorkflowTest
         started();
 
         final Map<String, Object> instance = read(HOST + "/wf:instances/timeOffRequest");
-        assertEquals("active", instance.get("status"));
+        assertEquals("active", instance.get(STATUS));
         assertNotNull(instance.get("startTime"));
         // Parked on the user task, with a token saying exactly where
         assertEquals(APPROVE, read(HOST + "/wf:instances/timeOffRequest/token").get("currentNodeId"));
         final Map<String, Object> task = read(TASK);
-        assertEquals("created", task.get("status"));
+        assertEquals("created", task.get(STATUS));
         assertEquals("Approve the request", task.get("label"));
         assertEquals(APPROVE, task.get("taskDefinitionId"));
     }
@@ -898,11 +934,11 @@ class UserWorkflowTest
         final WorkflowResult result = engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
 
         assertNull(result.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
-        assertEquals("completed", read(TASK).get("status"));
+        assertEquals("completed", read(TASK).get(STATUS));
         assertEquals("approved", read(TASK).get("outcome"));
         assertEquals(EngineFixture.REQUESTER, read(TASK).get("assignee"));
         final Map<String, Object> instance = read(HOST + "/wf:instances/timeOffRequest");
-        assertEquals("completed", instance.get("status"));
+        assertEquals("completed", instance.get(STATUS));
         assertNotNull(instance.get("endTime"));
         // The token is spent, and the end event said what finishing that way means to the host
         assertTrue(read(HOST + "/wf:instances/timeOffRequest/token").isEmpty());
@@ -931,7 +967,7 @@ class UserWorkflowTest
         assertThrows(NotAuthorizedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
         // Refused before anything moved
-        assertEquals("created", read(TASK).get("status"));
+        assertEquals("created", read(TASK).get(STATUS));
         assertEquals(List.of("draft"), List.of((String[]) read(HOST).get("tags")));
     }
 
@@ -1004,7 +1040,109 @@ class UserWorkflowTest
 
         final NoApplicableWorkflowException refusal = assertThrows(NoApplicableWorkflowException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent("create", Map.of())));
-        assertTrue(refusal.getMessage().contains("being completed"));
+        assertTrue(refusal.getMessage().contains("can only be completed"));
+    }
+
+    @Test
+    void parksOnACatchingEventWithATaskForTheMessageItWaitsFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitForAssessmentBeforeApproval(EngineFixture.ADMIN);
+
+        started();
+
+        final Map<String, Object> wait = read(WAIT);
+        assertEquals("created", wait.get(STATUS));
+        assertEquals(ASSESSED, wait.get("taskDefinitionId"));
+        assertEquals("Assessment ready", wait.get("label"));
+        assertEquals(List.of(EngineFixture.ADMIN), List.of((String[]) wait.get("performers")));
+        assertNull(wait.get("outcomeOptions"));
+        assertEquals(Map.of(), read(TASK));
+    }
+
+    @Test
+    void carriesTheInstanceOnWhenTheMessageArrives() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitForAssessmentBeforeApproval(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(WAIT, EngineFixture.REQUESTER), ASSESSMENT_READY);
+
+        assertEquals("completed", read(WAIT).get(STATUS));
+        assertEquals(EngineFixture.REQUESTER, read(WAIT).get("assignee"));
+        assertEquals("created", read(TASK).get(STATUS));
+    }
+
+    @Test
+    void refusesAMessageFromSomeoneTheCatchingEventDoesNotName() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitForAssessmentBeforeApproval("assessors");
+        final WorkflowEngine engine = started();
+
+        assertThrows(NotAuthorizedException.class,
+            () -> engine.receiveEvent(as(WAIT, EngineFixture.REQUESTER), ASSESSMENT_READY));
+        assertEquals("created", read(WAIT).get(STATUS));
+    }
+
+    @Test
+    void refusesAnEventOtherThanTheMessageACatchingEventWaitsFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitForAssessmentBeforeApproval(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        final NoApplicableWorkflowException refusal = assertThrows(NoApplicableWorkflowException.class,
+            () -> engine.receiveEvent(as(WAIT, EngineFixture.REQUESTER), APPROVED));
+        assertTrue(refusal.getMessage().contains("waits for the assessmentReady message"));
+        assertEquals("created", read(WAIT).get(STATUS));
+    }
+
+    @Test
+    void offersTheMessageACatchingEventWaitsForToWhoeverMaySendIt() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitForAssessmentBeforeApproval(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        assertEquals(Set.of(ASSESSMENT_READY.getName()), engine.getAvailableEvents(as(WAIT, EngineFixture.REQUESTER)));
+    }
+
+    @Test
+    void offersNothingAtACatchingEventToSomeoneItDoesNotName() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitForAssessmentBeforeApproval("assessors");
+        final WorkflowEngine engine = started();
+
+        assertEquals(Set.of(), engine.getAvailableEvents(as(WAIT, EngineFixture.REQUESTER)));
+    }
+
+    @Test
+    void grantsReadToWhoeverMaySendAMessageTheProcessWaitsFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        // Nothing else in the process names them, so their grant can only come from the catching event
+        waitForAssessmentBeforeApproval(EngineFixture.ADMIN);
+
+        started();
+
+        assertTrue(EngineFixture.GRANTED.contains(EngineFixture.ADMIN));
+    }
+
+    @Test
+    void grantsNoReadForACatchingEventNoTokenCanWaitAt() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        // Naming no message, it has nothing to wait for, so its performers are never asked to act
+        this.context.create().resource(PROCESS + "/" + ASSESSED, Map.of(
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, ELEMENT_ID, ASSESSED,
+            "performers", new String[] {EngineFixture.ADMIN}));
+
+        started();
+
+        assertFalse(EngineFixture.GRANTED.contains(EngineFixture.ADMIN));
     }
 
     @Test
@@ -1031,7 +1169,7 @@ class UserWorkflowTest
         // A blank outcome reads as none, which would let the gateway route on an earlier task's decision
         assertThrows(InvalidPayloadException.class, () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER),
             new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, " "))));
-        assertEquals("created", read(TASK).get("status"));
+        assertEquals("created", read(TASK).get(STATUS));
         assertEquals(List.of("draft"), List.of((String[]) read(HOST).get("tags")));
     }
 
@@ -1132,6 +1270,19 @@ class UserWorkflowTest
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
         assertTrue(rejection.getMessage().contains("no longer has a definition"));
+    }
+
+    @Test
+    void refusesAnEventNothingWaitsForAsTheSendersMistakeEvenWhenTheDefinitionHasGone() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE));
+        this.context.resourceResolver().commit();
+
+        assertThrows(NoApplicableWorkflowException.class,
+            () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent("create", Map.of())));
     }
 
     @Test

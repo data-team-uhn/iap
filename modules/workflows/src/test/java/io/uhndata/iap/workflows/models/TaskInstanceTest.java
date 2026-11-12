@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.models;
 
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -146,14 +148,57 @@ class TaskInstanceTest
             TYPE, TaskInstance.RESOURCE_TYPE, "taskDefinitionId", "task_1", "label", "Approve",
             "status", "created"));
 
-        final Activity definition = resource.adaptTo(TaskInstance.class).getDefinition();
+        final FlowNode definition = resource.adaptTo(TaskInstance.class).getDefinition();
 
         assertNotNull(definition);
         assertEquals("task_1", definition.getElementId());
     }
 
     @Test
-    void hasNoDefinitionWhenTheNamedNodeIsNotAnActivity()
+    void resolvesTheCatchingEventItWasRaisedFrom()
+        throws RepositoryException
+    {
+        this.createDefinition("assessed", IntermediateCatchingEvent.RESOURCE_TYPE, Map.of("messageName", "assessed"));
+        final Resource resource = this.context.create().resource(TASK_PATH, Map.of(
+            TYPE, TaskInstance.RESOURCE_TYPE, "taskDefinitionId", "assessed", "label", "Assessed",
+            "status", "created"));
+
+        final FlowNode definition = resource.adaptTo(TaskInstance.class).getDefinition();
+
+        assertInstanceOf(IntermediateCatchingEvent.class, definition);
+        assertEquals("assessed", definition.getElementId());
+    }
+
+    @Test
+    void hasNoDefinitionWhenItsCatchingEventNoLongerNamesAMessage()
+        throws RepositoryException
+    {
+        // Edited while the task waited: nothing can be sent to it any more, so it is not offered anything either
+        this.createDefinition("assessed", IntermediateCatchingEvent.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource(TASK_PATH, Map.of(
+            TYPE, TaskInstance.RESOURCE_TYPE, "taskDefinitionId", "assessed", "label", "Assessed",
+            "status", "created"));
+
+        assertNull(resource.adaptTo(TaskInstance.class).getDefinition());
+    }
+
+    @Test
+    void hasNoDefinitionWhenItNamesABoundaryEvent()
+        throws RepositoryException
+    {
+        // A token reaches a boundary event only once it has fired, and never parks there on a task
+        this.createDefinition("task_1", Activity.RESOURCE_TYPE);
+        this.context.create().resource("/Workflows/timeOff/1.0/task_1/late", Map.of(
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "late"));
+        final Resource resource = this.context.create().resource(TASK_PATH, Map.of(
+            TYPE, TaskInstance.RESOURCE_TYPE, "taskDefinitionId", "late", "label", "Late",
+            "status", "created"));
+
+        assertNull(resource.adaptTo(TaskInstance.class).getDefinition());
+    }
+
+    @Test
+    void hasNoDefinitionWhenTheNamedNodeCannotRaiseATask()
         throws RepositoryException
     {
         // A task pointing at, say, a gateway is a corrupt state rather than a different kind of task, so it is
@@ -207,10 +252,18 @@ class TaskInstanceTest
     private void createDefinition(final String elementId, final String nodeResourceType)
         throws RepositoryException
     {
+        this.createDefinition(elementId, nodeResourceType, Map.of());
+    }
+
+    private void createDefinition(final String elementId, final String nodeResourceType,
+        final Map<String, Object> properties) throws RepositoryException
+    {
         this.context.create().resource("/Workflows/timeOff/1.0", TYPE, WorkflowVersion.RESOURCE_TYPE,
             "version", "1.0");
-        this.context.create().resource("/Workflows/timeOff/1.0/" + elementId, Map.of(
-            TYPE, nodeResourceType, "elementId", elementId));
+        final Map<String, Object> node = new HashMap<>(properties);
+        node.put(TYPE, nodeResourceType);
+        node.put("elementId", elementId);
+        this.context.create().resource("/Workflows/timeOff/1.0/" + elementId, node);
         WorkflowFixture.resolveReference(this.context, VERSION_ID, "/Workflows/timeOff/1.0");
         this.context.create().resource(INSTANCE_PATH, Map.of(
             TYPE, WorkflowInstance.RESOURCE_TYPE, "status", "active", "workflowVersion", VERSION_ID));

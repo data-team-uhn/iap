@@ -65,6 +65,17 @@ public class Activity extends FlowNode
     }
 
     /**
+     * Whether this is a user task, which no handler performs: a token reaching one waits on a task for a person.
+     *
+     * @return {@code true} if no handler performs this activity
+     */
+    @Override
+    public boolean raisesTask()
+    {
+        return this.handler == null;
+    }
+
+    /**
      * The decisions a person may complete this task with, e.g. {@code approved} and {@code rejected} — the values a
      * {@link Gateway} downstream then routes on. Only meaningful on user tasks: nobody asks a service task what it
      * decided.

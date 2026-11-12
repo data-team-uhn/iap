@@ -157,4 +157,16 @@ public class IntermediateCatchingEvent extends IntermediateEvent
     {
         return this.getParent(Activity.RESOURCE_TYPE, Activity.class);
     }
+
+    /**
+     * Whether a token reaching this event waits on a task for its message. Only an event standing in the flow on its
+     * own is reached by a token, and only one naming a message has something to wait for.
+     *
+     * @return {@code true} if this event stands in the flow and names a message
+     */
+    @Override
+    public boolean raisesTask()
+    {
+        return this.getActivity() == null && this.getMessageName() != null;
+    }
 }

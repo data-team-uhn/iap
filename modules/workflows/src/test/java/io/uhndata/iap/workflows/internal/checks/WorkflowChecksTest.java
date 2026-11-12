@@ -32,6 +32,7 @@ import io.uhndata.iap.workflows.internal.PendingNotifications;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.FlowNode;
+import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.IntermediateThrowingEvent;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
@@ -43,8 +44,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link StartEventCheck}, {@link SystemWorkflowTriggerCheck}, {@link SystemWorkflowUserTaskCheck},
- * {@link MessageEventCheck} and {@link SubjectCheck}.
+ * Unit tests for {@link StartEventCheck}, {@link SystemWorkflowTriggerCheck}, {@link SystemWorkflowWaitCheck},
+ * {@link MessageEventCheck}, {@link CatchingEventCheck} and {@link SubjectCheck}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -55,6 +56,10 @@ class WorkflowChecksTest
     private static final String SYSTEM_VERSION = "/SystemWorkflows/saveThing/v1";
 
     private static final String USER_VERSION = "/Workflows/approveThing/v1";
+
+    private static final String MESSAGE_NAME = "messageName";
+
+    private static final String WAITS = "a system workflow cannot wait, but it has a user task or a catching event";
 
     private final SlingContext context = new SlingContext();
 
@@ -105,7 +110,7 @@ class WorkflowChecksTest
         final Resource user = version(USER_VERSION, null);
         final Resource notes = this.context.create().resource("/SystemWorkflows/notes",
             Map.of(WorkflowFixture.TYPE, "nt:unstructured"));
-        for (final ValidityCheck check : List.of(new SystemWorkflowTriggerCheck(), new SystemWorkflowUserTaskCheck())) {
+        for (final ValidityCheck check : List.of(new SystemWorkflowTriggerCheck(), new SystemWorkflowWaitCheck())) {
             assertTrue(check.appliesTo(system));
             assertFalse(check.appliesTo(user));
             assertFalse(check.appliesTo(notes));
@@ -138,7 +143,7 @@ class WorkflowChecksTest
         final Resource version = version(SYSTEM_VERSION, "sub/Submission");
         start(version, "requested", "save");
 
-        assertEquals(List.of(), new SystemWorkflowUserTaskCheck().check(version));
+        assertEquals(List.of(), new SystemWorkflowWaitCheck().check(version));
     }
 
     @Test
@@ -148,15 +153,44 @@ class WorkflowChecksTest
         start(version, "requested", "save");
         userTask(version);
 
-        assertEquals(List.of("a system workflow cannot wait for a person, but it has a user task"),
-            new SystemWorkflowUserTaskCheck().check(version));
+        assertEquals(List.of(WAITS), new SystemWorkflowWaitCheck().check(version));
+    }
+
+    @Test
+    void refusesASystemWorkflowThatWaitsForAMessage()
+    {
+        final Resource version = version(SYSTEM_VERSION, "sub/Submission");
+        start(version, "requested", "save");
+        node(version, "assessed", IntermediateCatchingEvent.RESOURCE_TYPE, Map.of(MESSAGE_NAME, "assessed"));
+
+        assertEquals(List.of(WAITS), new SystemWorkflowWaitCheck().check(version));
+    }
+
+    @Test
+    void acceptsCatchingEventsThatNameTheirMessage()
+    {
+        final Resource version = version(USER_VERSION, null);
+        node(version, "assessed", IntermediateCatchingEvent.RESOURCE_TYPE, Map.of(MESSAGE_NAME, "assessed"));
+        userTask(version);
+
+        assertEquals(List.of(), new CatchingEventCheck().check(version));
+    }
+
+    @Test
+    void refusesACatchingEventThatNamesNoMessage()
+    {
+        final Resource version = version(USER_VERSION, null);
+        node(version, "assessed", IntermediateCatchingEvent.RESOURCE_TYPE, Map.of());
+
+        assertEquals(List.of("the catching event assessed waits for nothing: it names no message"),
+            new CatchingEventCheck().check(version));
     }
 
     @Test
     void acceptsMessageEventsThatNameTheirMessage()
     {
         final Resource version = version(USER_VERSION, null);
-        node(version, "decided", EndEvent.RESOURCE_TYPE, Map.of("messageName", "decided",
+        node(version, "decided", EndEvent.RESOURCE_TYPE, Map.of(MESSAGE_NAME, "decided",
             PendingNotifications.RECIPIENTS_PROPERTY, new String[] {"@creator"}));
         node(version, "milestone", IntermediateThrowingEvent.RESOURCE_TYPE, Map.of());
         userTask(version);
@@ -205,7 +239,8 @@ class WorkflowChecksTest
         final Resource version = version(USER_VERSION, null);
         final Resource notes = this.context.create().resource("/Workflows/notes",
             Map.of(WorkflowFixture.TYPE, "nt:unstructured"));
-        for (final ValidityCheck check : List.of(new MessageEventCheck(), new SubjectCheck())) {
+        for (final ValidityCheck check
+            : List.of(new MessageEventCheck(), new CatchingEventCheck(), new SubjectCheck())) {
             assertTrue(check.appliesTo(version));
             assertFalse(check.appliesTo(notes));
         }
@@ -228,7 +263,7 @@ class WorkflowChecksTest
         properties.put(WorkflowFixture.TYPE, StartEvent.RESOURCE_TYPE);
         properties.put("elementId", name);
         if (messageName != null) {
-            properties.put("messageName", messageName);
+            properties.put(MESSAGE_NAME, messageName);
         }
         this.context.create().resource(version, name, properties);
     }

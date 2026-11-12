@@ -31,8 +31,9 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code wf:TaskInstance} node: a concrete piece of work raised by a running workflow and
- * waiting on a person. It is a part of the workflow instance that raised it.
+ * A Sling Model wrapping a {@code wf:TaskInstance} node: something a running workflow waits on, raised where a token
+ * parks. At a user task it is work a person owes; at a catching event standing in the flow, it is the message that
+ * event waits for. It is a part of the workflow instance that raised it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -108,7 +109,8 @@ public class TaskInstance extends EntityPart
     private String[] firedEvents;
 
     /**
-     * The {@link FlowNode#getElementId() element identifier} of the {@link Activity} this task was raised from.
+     * The {@link FlowNode#getElementId() element identifier} of the {@link #getDefinition() node} this task was raised
+     * from.
      *
      * @return a BPMN element identifier
      */
@@ -230,10 +232,10 @@ public class TaskInstance extends EntityPart
     }
 
     /**
-     * The principals who may complete this task, as its {@link FlowNode#getPerformers() defining activity} named them
-     * when the task was raised, with {@code @creator} already answered against the host it drives.
+     * The principals who may complete this task, as the {@link #getDefinition() node it was raised from} named them.
+     * They are copied when the task is raised, with {@code @creator} already answered against the host it drives.
      *
-     * <p>Recorded on the task so that "what is waiting for me" can be asked of tasks alone: whoever owes the decision
+     * <p>Recorded on the task so that "what is waiting for me" can be asked of tasks alone: whoever may complete it
      * can rarely read the workflow it came from, and a listing cannot run the engine per row to find out. It is a
      * description and not a permission — every completion is still checked against the definition — so finding a task
      * here is not what makes it lawful to complete.</p>
@@ -274,23 +276,34 @@ public class TaskInstance extends EntityPart
     }
 
     /**
-     * The activity in the workflow definition this task was raised from, resolved by looking its
-     * {@link #getTaskDefinitionId() identifier} up in the version its instance is executing.
+     * The node in the workflow definition this task was raised from: a user task's {@link Activity}, or a
+     * free-standing {@link IntermediateCatchingEvent}. It is found by looking the {@link #getTaskDefinitionId()
+     * identifier} up in the version the instance is executing.
      *
-     * @return the defining activity, or {@code null} if the instance, its version, or the named node cannot be
-     *         resolved, or that node is not an activity
+     * @return the defining node, or {@code null} if the instance, its version, or the named node cannot be resolved,
+     *         or that node is neither of the two
      */
     @Nullable
-    public Activity getDefinition()
+    public FlowNode getDefinition()
     {
         return Optional.ofNullable(this.getWorkflowInstance())
             .map(WorkflowInstance::getWorkflowVersion)
             .map(version -> version.getFlowNode(this.taskDefinitionId))
-            // Both checks are needed: arriving as an Activity says only which model was built, and a node of an
-            // unclaimed resource type is built as one without being one, so the node's own type has the last word
-            .filter(Activity.class::isInstance)
-            .filter(node -> node.isOfType(Activity.RESOURCE_TYPE))
-            .map(Activity.class::cast)
+            .filter(TaskInstance::canRaiseTasks)
             .orElse(null);
+    }
+
+    /**
+     * Whether a task can have been raised from a node: one a token {@link FlowNode#raisesTask() parks on}. The node's
+     * own resource type has the last word, since a node of an unclaimed resource type is built as an activity without
+     * being one.
+     *
+     * @param node a node of the definition
+     * @return {@code true} if a task can have been raised from it
+     */
+    private static boolean canRaiseTasks(final FlowNode node)
+    {
+        return node.raisesTask()
+            && (node.isOfType(Activity.RESOURCE_TYPE) || node.isOfType(IntermediateCatchingEvent.RESOURCE_TYPE));
     }
 }
