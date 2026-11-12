@@ -19,6 +19,7 @@ package io.uhndata.iap.healthcheck.internal;
 
 import java.time.ZonedDateTime;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
@@ -38,6 +39,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.utils.DateUtils;
 
 /**
@@ -46,10 +49,17 @@ import io.uhndata.iap.utils.DateUtils;
  * <ul>
  * <li>{@code query}: a JCR-SQL2 select query</li>
  * <li>{@code comparator}: one of {@code <}, {@code <=}, {@code =}, {@code >=}, {@code >}, {@code !=}</li>
- * <li>{@code compareAgainst}: the number the row count is compared with, a long</li>
+ * <li>{@code compareAgainst}: the number the row count is compared with, a long from 0 to
+ * {@code Long.MAX_VALUE - 1}</li>
  * </ul>
  * The query passes when its row count, the comparator and {@code compareAgainst} make a true statement, such as
  * {@code 3 > 0}. The check reads at most {@code compareAgainst + 1} rows, since no comparison needs more.
+ *
+ * <p>
+ * A child with an unknown comparator, or a {@code compareAgainst} outside that range, is reported as a configuration
+ * error, and the other children still run. A row count is never negative, so comparing it with a negative number
+ * gives the same answer whatever the query finds.
+ * </p>
  *
  * <p>
  * A query may contain date placeholders, as in {@code WHERE submission.[jcr:created] > '${today}'}. Before running
@@ -91,7 +101,7 @@ public final class QueryCountHealthCheck implements HealthCheck
      */
     public static final String COMPARATOR_PROPERTY = "comparator";
 
-    /** The property holding the number the row count is compared with, a long. */
+    /** The property holding the number the row count is compared with, a long from 0 to {@code Long.MAX_VALUE - 1}. */
     public static final String COMPARE_AGAINST_PROPERTY = "compareAgainst";
 
     /** Replaced with midnight at the start of yesterday, in the server's time zone. */
@@ -116,6 +126,55 @@ public final class QueryCountHealthCheck implements HealthCheck
         ">=", (a, b) -> a >= b,
         ">", (a, b) -> a > b,
         "!=", (a, b) -> a != b);
+
+    /**
+     * One configured comparison, such as {@code > 0}.
+     *
+     * @param comparator one of the six comparator symbols, or anything else a child was given
+     * @param compareAgainst the number the row count is compared with
+     * @since 0.1.0
+     */
+    private record Comparison(String comparator, long compareAgainst)
+    {
+        /**
+         * Checks that this comparison can run.
+         *
+         * @return what is wrong with it, as a phrase naming no values, or nothing if it can run
+         */
+        Optional<String> findProblem()
+        {
+            if (!COMPARATORS_BY_SYMBOL.containsKey(this.comparator)) {
+                return Optional.of("A query count check has an unknown comparator");
+            }
+            // The row limit, compareAgainst + 1, overflows at Long.MAX_VALUE
+            if (this.compareAgainst < 0 || this.compareAgainst == Long.MAX_VALUE) {
+                return Optional.of("A query count check compares against a number outside 0 to Long.MAX_VALUE - 1");
+            }
+            return Optional.empty();
+        }
+
+        /**
+         * The most rows the query needs to return, one more than {@link #compareAgainst}. Only meaningful for a
+         * comparison with no {@link #findProblem() problem}.
+         *
+         * @return the row limit
+         */
+        long rowLimit()
+        {
+            return this.compareAgainst + 1;
+        }
+
+        boolean holdsFor(final long rowCount)
+        {
+            return COMPARATORS_BY_SYMBOL.get(this.comparator).check(rowCount, this.compareAgainst);
+        }
+
+        @Override
+        public String toString()
+        {
+            return this.comparator + " " + this.compareAgainst;
+        }
+    }
 
     private static final Logger LOGGER = LoggerFactory.getLogger(QueryCountHealthCheck.class);
 
@@ -166,7 +225,7 @@ public final class QueryCountHealthCheck implements HealthCheck
      * @param result the log this query's outcome is added to
      * @param session the service session to run the query with
      * @return {@code true} if the row count satisfies the comparison; {@code false} if it does not, or if the
-     *         comparator is not one of the six
+     *         comparison is misconfigured
      * @throws RepositoryException if one of the three properties is missing or of the wrong type, or the query cannot
      *             be parsed or run
      */
@@ -175,18 +234,41 @@ public final class QueryCountHealthCheck implements HealthCheck
         throws RepositoryException
     {
         final String query = resolveDatePlaceholders(configuration.getProperty(QUERY_PROPERTY).getString());
-        final String comparator = configuration.getProperty(COMPARATOR_PROPERTY).getString();
-        final long compareAgainst = configuration.getProperty(COMPARE_AGAINST_PROPERTY).getLong();
+        final Comparison comparison = new Comparison(
+            configuration.getProperty(COMPARATOR_PROPERTY).getString(),
+            configuration.getProperty(COMPARE_AGAINST_PROPERTY).getLong());
 
-        if (!COMPARATORS_BY_SYMBOL.containsKey(comparator)) {
-            result.healthCheckError(
-                "Invalid comparator '{}' in configuration '{}'",
-                comparator, configuration.getName());
+        final Optional<String> problem = comparison.findProblem();
+        if (problem.isPresent()) {
+            result.healthCheckError("{} in configuration '{}', which compares with '{}'",
+                problem.get(), configuration.getName(), comparison);
+            recordConfigurationProblem(configuration, comparison, problem.get());
             return false;
         }
 
-        final long limit = compareAgainst + 1;
+        final long actualCount = countRows(query, comparison.rowLimit(), session);
+        if (comparison.holdsFor(actualCount)) {
+            result.debug("Count check passed for '{}'", configuration.getName());
+            return true;
+        }
+        result.critical(
+            "Count check failed for '{}': result was {}, expected {}",
+            configuration.getName(), actualCount, comparison);
+        return false;
+    }
 
+    private void recordConfigurationProblem(final Node configuration, final Comparison comparison,
+        final String problem)
+        throws RepositoryException
+    {
+        ErrorLogger.logProblem(problem, ErrorContext.of(QueryCountHealthCheck.class, "execute")
+            .about(configuration.getPath())
+            .with(COMPARATOR_PROPERTY, comparison.comparator())
+            .with(COMPARE_AGAINST_PROPERTY, comparison.compareAgainst()));
+    }
+
+    private long countRows(final String query, final long limit, final Session session) throws RepositoryException
+    {
         final Query jcrQuery = session.getWorkspace().getQueryManager().createQuery(query, Query.JCR_SQL2);
         jcrQuery.setLimit(limit);
         final RowIterator rows = jcrQuery.execute().getRows();
@@ -195,15 +277,7 @@ public final class QueryCountHealthCheck implements HealthCheck
             rows.nextRow();
             actualCount++;
         }
-
-        if (COMPARATORS_BY_SYMBOL.get(comparator).check(actualCount, compareAgainst)) {
-            result.debug("Count check passed for '{}'", configuration.getName());
-            return true;
-        }
-        result.critical(
-            "Count check failed for '{}': result was {}, expected {} {}",
-            configuration.getName(), actualCount, comparator, compareAgainst);
-        return false;
+        return actualCount;
     }
 
     private String resolveDatePlaceholders(final String query)

@@ -73,7 +73,7 @@ initial content. `test-data` adds one example to each.
 |---|---|
 | `query` | A JCR-SQL2 select query |
 | `comparator` | One of `<`, `<=`, `=`, `>=`, `>`, `!=` |
-| `compareAgainst` | The number the row count is compared with. The query passes when `row count <comparator> compareAgainst` holds |
+| `compareAgainst` | The number the row count is compared with, from 0 to `Long.MAX_VALUE - 1`. The query passes when `row count <comparator> compareAgainst` holds; any other number fails that query alone, as a configuration error |
 
 The check reads at most `compareAgainst + 1` rows of a query, since no comparison needs
 more.
