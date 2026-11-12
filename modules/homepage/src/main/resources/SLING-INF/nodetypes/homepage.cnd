@@ -19,12 +19,12 @@
 
 //-----------------------------------------------------------------------------
 // A page of the application, such as /admin: a node whose URL serves the
-// application's page shell.
+// application's page shell. A page is content, not an entity.
 [app:Homepage] > sling:Folder
   query
 
   - sling:resourceType (STRING) = "app/Homepage" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/Content" mandatory autocreated protected
   - title (String) = "${platform.name}" mandatory autocreated
 
 //-----------------------------------------------------------------------------
