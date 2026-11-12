@@ -17,11 +17,13 @@
  */
 package io.uhndata.iap.tags.internal;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
+
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.Workspace;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -30,24 +32,30 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
+import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 import org.osgi.framework.Constants;
 
 import io.uhndata.iap.tags.api.TagManager;
+import io.uhndata.iap.tags.api.TagRepairException;
 import io.uhndata.iap.tags.api.TagRepairService.RepairReport;
+import io.uhndata.iap.tags.spi.TagProcessor.Phase;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for {@link TagRepairServiceImpl}: which nodes get marked, with what value, and what happens when a node or a
- * save is refused. The recomputation is the propagation editor's, tested on its own.
+ * save is refused, or the repair cannot run at all. The queries run against a real repository, so a tag name is
+ * matched as the repository matches it. The recomputation is the propagation editor's, tested on its own.
  *
  * @version $Id$
  * @since 0.1.0
@@ -57,15 +65,16 @@ class TagRepairServiceImplTest
 {
     private static final String STATE = TagManager.COMPUTATION_STATE_PROPERTY;
 
-    private final SlingContext context = new SlingContext();
+    private static final String RETIRED = "retired";
 
-    /** The query the service ran, captured so the tests can assert on it without a query engine. */
-    private String executedQuery;
+    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
-    /** What the fake query returns. */
-    private final List<Resource> found = new ArrayList<>();
+    /** Paths the service user may read but not write. */
+    private final Set<String> readOnly = new HashSet<>();
 
-    /** Paths whose commit must fail, to exercise the batch-lost path. */
+    /** Paths removed between the query finding them and the repair marking them. */
+    private final Set<String> removedSinceFound = new HashSet<>();
+
     private boolean commitFails;
 
     private int commits;
@@ -78,42 +87,31 @@ class TagRepairServiceImplTest
     @BeforeEach
     void setUp()
     {
-        this.service = activateServiceServedBy(resolver());
+        this.service = activateServiceServedBy(serviceUserResolver());
     }
 
     @Test
-    void marksEveryNodeTheFailedQueryFinds() throws Exception
+    void marksEveryNodeLeftStaleAndNothingElse() throws Exception
     {
-        this.found.add(taggable("/content/a", null));
-        this.found.add(taggable("/content/b", null));
+        stale("/content/a", TagManager.STATE_FAILED);
+        stale("/content/b", TagManager.STATE_FAILED);
+        tagged("/content/healthy", TagManager.TAGS_PROPERTY, RETIRED);
 
         final RepairReport report = this.service.repairFailed();
 
         assertEquals(2, report.marked());
         assertTrue(report.isComplete());
-        assertTrue(this.executedQuery.contains(STATE));
         assertEquals(TagManager.STATE_RECOMPUTING, state("/content/a"));
         assertEquals(TagManager.STATE_RECOMPUTING, state("/content/b"));
+        assertNull(state("/content/healthy"));
         assertEquals(1, this.commits);
-    }
-
-    /** A node a processor failed on goes from {@code failed} to {@code recomputing}. */
-    @Test
-    void asksAFailedNodeToBeRecomputed() throws Exception
-    {
-        this.found.add(taggable("/content/broken", TagManager.STATE_FAILED));
-
-        final RepairReport report = this.service.repairFailed();
-
-        assertEquals(1, report.marked());
-        assertEquals(TagManager.STATE_RECOMPUTING, state("/content/broken"));
     }
 
     /** A node found at {@code recomputing} has the mark removed, since writing the same value changes nothing. */
     @Test
     void rescuesANodeStrandedByAnInterruptedCommit() throws Exception
     {
-        this.found.add(taggable("/content/stranded", TagManager.STATE_RECOMPUTING));
+        stale("/content/stranded", TagManager.STATE_RECOMPUTING);
 
         final RepairReport report = this.service.repairFailed();
 
@@ -122,38 +120,52 @@ class TagRepairServiceImplTest
     }
 
     @Test
-    void repairsByTagNameAcrossAllFourProperties() throws Exception
+    void repairsByTagNameInEachOfTheFourProperties() throws Exception
     {
-        this.found.add(taggable("/content/a", null));
+        tagged("/content/placed", TagManager.TAGS_PROPERTY, RETIRED);
+        for (final Phase phase : Phase.values()) {
+            tagged("/content/" + phase.name(), phase.getPropertyName(), RETIRED);
+        }
+        tagged("/content/other", TagManager.TAGS_PROPERTY, "kept");
 
-        final RepairReport report = this.service.repair("retired");
+        final RepairReport report = this.service.repair(RETIRED);
 
-        assertEquals(1, report.marked());
-        assertTrue(this.executedQuery.contains("[tags] = 'retired'"));
-        assertTrue(this.executedQuery.contains("[computedTags] = 'retired'"));
-        assertTrue(this.executedQuery.contains("[inheritedTags] = 'retired'"));
-        assertTrue(this.executedQuery.contains("[aggregatedTags] = 'retired'"));
+        assertEquals(4, report.marked());
+        assertEquals(TagManager.STATE_RECOMPUTING, state("/content/placed"));
+        assertEquals(TagManager.STATE_RECOMPUTING, state("/content/" + Phase.BOTTOM_UP.name()));
+        assertNull(state("/content/other"));
     }
 
-    /** A name that is not a tag name is refused rather than quoted into the query. */
+    /** A tag's name is whatever its definition says, and a definition may well name one with a space. */
     @Test
-    void refusesATagNameThatCouldNotBeOne() throws Exception
+    void repairsATagWhoseNameHasASpace() throws Exception
     {
-        this.found.add(taggable("/content/a", null));
+        tagged("/content/survey", TagManager.TAGS_PROPERTY, "PATIENT SURVEY");
 
-        final RepairReport report = this.service.repair("' or [tags] is not null --");
+        final RepairReport report = this.service.repair("PATIENT SURVEY");
+
+        assertEquals(1, report.marked());
+        assertEquals(TagManager.STATE_RECOMPUTING, state("/content/survey"));
+    }
+
+    /** The name is bound to the query, never pasted into it, so a name shaped like query text is only a name. */
+    @Test
+    void matchesANameShapedLikeQueryTextLiterally() throws Exception
+    {
+        tagged("/content/a", TagManager.TAGS_PROPERTY, RETIRED);
+
+        final RepairReport report = this.service.repair("' OR [tags] IS NOT NULL OR [tags] = '");
 
         assertEquals(0, report.marked());
-        assertTrue(report.isComplete());
-        assertEquals(null, this.executedQuery);
         assertNull(state("/content/a"));
     }
 
     @Test
     void countsAndSkipsNodesItCannotWrite() throws Exception
     {
-        this.found.add(new ReadOnlyResource(taggable("/content/locked", null)));
-        this.found.add(taggable("/content/writable", null));
+        stale("/content/locked", TagManager.STATE_FAILED);
+        stale("/content/writable", TagManager.STATE_FAILED);
+        this.readOnly.add("/content/locked");
 
         final RepairReport report = this.service.repairFailed();
 
@@ -164,10 +176,23 @@ class TagRepairServiceImplTest
         assertEquals(TagManager.STATE_RECOMPUTING, state("/content/writable"));
     }
 
+    /** A node gone by the time it is marked has nothing left to repair, which is not a failure. */
+    @Test
+    void skipsANodeRemovedSinceTheQueryFoundIt() throws Exception
+    {
+        stale("/content/gone", TagManager.STATE_FAILED);
+        this.removedSinceFound.add("/content/gone");
+
+        final RepairReport report = this.service.repairFailed();
+
+        assertEquals(0, report.marked());
+        assertTrue(report.isComplete());
+    }
+
     @Test
     void reportsABatchTheRepositoryRefuses() throws Exception
     {
-        this.found.add(taggable("/content/a", null));
+        stale("/content/a", TagManager.STATE_FAILED);
         this.commitFails = true;
 
         final RepairReport report = this.service.repairFailed();
@@ -181,7 +206,7 @@ class TagRepairServiceImplTest
     void savesInBatchesRatherThanOnceAtTheEnd() throws Exception
     {
         for (int i = 0; i < TagRepairServiceImpl.BATCH_SIZE + 1; i++) {
-            this.found.add(taggable("/content/n" + i, null));
+            stale("/content/n" + i, TagManager.STATE_FAILED);
         }
 
         final RepairReport report = this.service.repairFailed();
@@ -201,17 +226,23 @@ class TagRepairServiceImplTest
         assertEquals(0, this.commits);
     }
 
+    /** Without its service user the repair cannot look, and says so rather than report that nothing needed it. */
     @Test
-    void reportsNothingWhenTheServiceUserIsMissing() throws Exception
+    void refusesWhenTheServiceUserIsMissing() throws Exception
     {
-        // A node the working service user would mark
-        this.found.add(taggable("/content/a", null));
+        tagged("/content/a", TagManager.TAGS_PROPERTY, RETIRED);
+        final TagRepairServiceImpl withoutServiceUser = activateServiceServedBy(null);
 
-        final RepairReport report = activateServiceServedBy(null).repairFailed();
-
-        assertEquals(0, report.marked());
-        assertEquals(0, report.failed());
+        assertThrows(TagRepairException.class, () -> withoutServiceUser.repair(RETIRED));
         assertNull(state("/content/a"));
+    }
+
+    @Test
+    void refusesWhenTheQueryCannotRun() throws Exception
+    {
+        final TagRepairServiceImpl withoutQueries = activateServiceServedBy(resolverWithoutQueries());
+
+        assertThrows(TagRepairException.class, withoutQueries::repairFailed);
     }
 
     /**
@@ -228,30 +259,53 @@ class TagRepairServiceImplTest
         return this.context.registerInjectActivateService(new TagRepairServiceImpl());
     }
 
-    private Resource taggable(final String path, final String state) throws Exception
+    /** A node a failed or interrupted commit left with a mark. */
+    private void stale(final String path, final String state) throws RepositoryException
     {
-        final Map<String, Object> properties = new HashMap<>();
-        if (state != null) {
-            properties.put(STATE, state);
-        }
-        return this.context.create().resource(path, properties);
+        newContentNode(path).setProperty(STATE, state);
+        session().save();
+    }
+
+    /** A node carrying a tag in one of the properties a tag name is stored in. */
+    private void tagged(final String path, final String property, final String tag) throws RepositoryException
+    {
+        newContentNode(path).setProperty(property, new String[] { tag });
+        session().save();
+    }
+
+    private Node newContentNode(final String path) throws RepositoryException
+    {
+        final Node content = session().nodeExists("/content")
+            ? session().getNode("/content")
+            : session().getRootNode().addNode("content", "nt:unstructured");
+        return content.addNode(path.substring(path.lastIndexOf('/') + 1), "nt:unstructured");
+    }
+
+    private Session session()
+    {
+        return this.context.resourceResolver().adaptTo(Session.class);
     }
 
     private String state(final String path)
     {
+        this.context.resourceResolver().refresh();
         return this.context.resourceResolver().getResource(path).getValueMap().get(STATE, String.class);
     }
 
-    /** A resolver whose query returns whatever the test staged, and whose commit fails on demand. */
-    private ResourceResolver resolver()
+    /** The test's own resolver, with read-only and vanished nodes on demand, and a commit that fails on demand. */
+    private ResourceResolver serviceUserResolver()
     {
         return new ResourceResolverWrapper(this.context.resourceResolver())
         {
             @Override
-            public Iterator<Resource> findResources(final String query, final String language)
+            public Resource getResource(final String path)
             {
-                TagRepairServiceImplTest.this.executedQuery = query;
-                return TagRepairServiceImplTest.this.found.iterator();
+                if (TagRepairServiceImplTest.this.removedSinceFound.contains(path)) {
+                    return null;
+                }
+                final Resource resource = super.getResource(path);
+                return TagRepairServiceImplTest.this.readOnly.contains(path) ? new ReadOnlyResource(resource)
+                    : resource;
             }
 
             @Override
@@ -263,11 +317,23 @@ class TagRepairServiceImplTest
                 }
                 super.commit();
             }
+        };
+    }
 
+    /** A resolver whose repository refuses to run any query. */
+    private ResourceResolver resolverWithoutQueries() throws RepositoryException
+    {
+        final Workspace workspace = Mockito.mock(Workspace.class);
+        Mockito.when(workspace.getQueryManager()).thenThrow(new RepositoryException("no queries"));
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getWorkspace()).thenReturn(workspace);
+        return new ResourceResolverWrapper(this.context.resourceResolver())
+        {
             @Override
-            public void revert()
+            @SuppressWarnings("unchecked")
+            public <T> T adaptTo(final Class<T> type)
             {
-                // MockSession.refresh throws
+                return type == Session.class ? (T) session : super.adaptTo(type);
             }
         };
     }

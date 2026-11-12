@@ -34,11 +34,17 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletResponse;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.tags.api.TagManager;
+import io.uhndata.iap.tags.api.TagRepairException;
 import io.uhndata.iap.tags.api.TagRepairService;
 import io.uhndata.iap.tags.api.TagRepairService.RepairReport;
 
@@ -63,24 +69,36 @@ class TagRepairTriggersTest
 
     private RepairReport nextReport = new RepairReport(0, 0);
 
+    /** What the repair service throws instead of answering, {@code null} for a repair that runs. */
+    private TagRepairException refusal;
+
     private final TagRepairService repairService = new TagRepairService()
     {
         @Override
-        public RepairReport repairFailed()
+        public RepairReport repairFailed() throws TagRepairException
         {
-            TagRepairTriggersTest.this.requested.add("failed");
-            return TagRepairTriggersTest.this.nextReport;
+            return answer("failed");
         }
 
         @Override
-        public RepairReport repair(final String tagName)
+        public RepairReport repair(final String tagName) throws TagRepairException
         {
-            TagRepairTriggersTest.this.requested.add(tagName);
+            return answer(tagName);
+        }
+
+        private RepairReport answer(final String request) throws TagRepairException
+        {
+            TagRepairTriggersTest.this.requested.add(request);
+            if (TagRepairTriggersTest.this.refusal != null) {
+                throw TagRepairTriggersTest.this.refusal;
+            }
             return TagRepairTriggersTest.this.nextReport;
         }
     };
 
     private RecordingScheduler scheduler;
+
+    private final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
 
     @BeforeEach
     void setUp()
@@ -88,6 +106,13 @@ class TagRepairTriggersTest
         this.scheduler = new RecordingScheduler();
         this.context.registerService(Scheduler.class, this.scheduler);
         this.context.registerService(TagRepairService.class, this.repairService);
+        ErrorLogger.setService(this.errors);
+    }
+
+    @AfterEach
+    void tearDown()
+    {
+        ErrorLogger.unsetService(this.errors);
     }
 
     // --- the sweep -------------------------------------------------------------------------------------------
@@ -100,6 +125,7 @@ class TagRepairTriggersTest
         assertEquals(ScheduledTagRepair.JOB_NAME, this.scheduler.name);
         assertEquals("0 0 * * * ? *", this.scheduler.expression);
         assertFalse(this.scheduler.concurrent);
+        Mockito.verifyNoInteractions(this.errors);
 
         sweep.sweep();
         assertEquals(List.of("failed"), this.requested);
@@ -113,14 +139,28 @@ class TagRepairTriggersTest
         assertNull(this.scheduler.name);
     }
 
+    /** The scheduler answers an invalid cron expression with {@code false}, not with an exception. */
     @Test
-    void survivesAnUnusableSchedule()
+    void recordsAScheduleTheSchedulerRefuses()
     {
-        this.scheduler.rejectExpression = true;
+        this.scheduler.refuse = true;
 
         sweep("not a schedule", true);
 
-        assertNull(this.scheduler.name);
+        Mockito.verify(this.errors).logProblem(Mockito.contains("refused"), Mockito.argThat(
+            (final ErrorContext context) -> "not a schedule".equals(context.getDetails().get("schedule"))));
+    }
+
+    /** The scheduler throws only when it is going away while the sweep is being scheduled. */
+    @Test
+    void survivesASchedulerShuttingDown()
+    {
+        final IllegalStateException shutdown = new IllegalStateException("Scheduler is not available anymore.");
+        this.scheduler.shutdown = shutdown;
+
+        sweep("0 0 * * * ? *", true);
+
+        Mockito.verify(this.errors).logError(Mockito.same(shutdown), Mockito.any(ErrorContext.class));
     }
 
     @Test
@@ -140,6 +180,19 @@ class TagRepairTriggersTest
         sweep.sweep();
 
         assertEquals(List.of("failed"), this.requested);
+    }
+
+    @Test
+    void sweepSurvivesARepairThatCannotRun()
+    {
+        final ScheduledTagRepair sweep = sweep("0 0 * * * ? *", true);
+        this.refusal = new TagRepairException("no service user", new IllegalStateException());
+
+        sweep.sweep();
+
+        assertEquals(List.of("failed"), this.requested);
+        // The service recorded why, and the sweep does not record it again
+        Mockito.verifyNoInteractions(this.errors);
     }
 
     // --- the servlet -----------------------------------------------------------------------------------------
@@ -163,6 +216,19 @@ class TagRepairTriggersTest
 
         assertTrue(response.getOutputAsString().contains("\"status\":\"incomplete\""));
         assertTrue(response.getOutputAsString().contains("\"failed\":1"));
+    }
+
+    /** A repair that could not run is an error, never an {@code ok} with nothing marked. */
+    @Test
+    void reportsARepairThatCannotRun() throws Exception
+    {
+        this.refusal = new TagRepairException("the service user tagrepair is missing", new IllegalStateException());
+
+        final MockSlingJakartaHttpServletResponse response = post("retired", true);
+
+        assertEquals(503, response.getStatus());
+        assertTrue(response.getOutputAsString().contains("\"status\":\"error\""));
+        assertFalse(response.getOutputAsString().contains("tagrepair"));
     }
 
     @Test
@@ -262,14 +328,15 @@ class TagRepairTriggersTest
 
         private String unscheduled;
 
-        private boolean rejectExpression;
+        /** Whether {@link #schedule} refuses the job, as the scheduler does with an invalid cron expression. */
+        private boolean refuse;
+
+        /** What {@link #schedule} throws, as the scheduler does while shutting down; {@code null} for nothing. */
+        private IllegalStateException shutdown;
 
         @Override
         public ScheduleOptions EXPR(final String expression)
         {
-            if (this.rejectExpression) {
-                throw new IllegalArgumentException("not a schedule");
-            }
             this.expression = expression;
             return new RecordingOptions(this);
         }
@@ -277,7 +344,10 @@ class TagRepairTriggersTest
         @Override
         public boolean schedule(final Object job, final ScheduleOptions options)
         {
-            return true;
+            if (this.shutdown != null) {
+                throw this.shutdown;
+            }
+            return !this.refuse;
         }
 
         @Override
