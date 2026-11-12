@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.tags.internal;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -30,10 +29,14 @@ import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.osgi.framework.ServiceRegistration;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
@@ -48,11 +51,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link TagPropagationEditor} and {@link TagPropagationEditorProvider}, driving full commits
- * through an {@link EditorHook} the same way the repository does.
+ * through an {@link EditorHook} the same way the repository does. The provider is a component bound to whichever
+ * processors a test installs, as it is to the registered ones at runtime.
  *
  * @version $Id$
  * @since 0.1.0
  */
+@ExtendWith(SlingContextExtension.class)
 class TagPropagationEditorTest
 {
     private static final String TYPE_PROPERTY = "sling:resourceType";
@@ -89,28 +94,35 @@ class TagPropagationEditorTest
 
     private static final String ANSWER = "answer";
 
+    private final SlingContext context = new SlingContext();
+
+    /** The processors currently registered, which the provider is bound to. */
+    private final List<ServiceRegistration<TagProcessor>> installed = new ArrayList<>();
+
+    private TagPropagationEditorProvider provider;
+
     private EditorHook hook;
 
     @BeforeEach
-    void setUp() throws Exception
+    void setUp()
     {
-        this.hook = hookWith(new TagInheritanceProcessor(), new TagAggregationProcessor());
+        install(new TagInheritanceProcessor(), new TagAggregationProcessor());
+        this.provider = this.context.registerInjectActivateService(new TagPropagationEditorProvider());
+        this.hook = new EditorHook(this.provider);
     }
 
     /**
-     * Builds a commit hook driving the given processors, as the repository would.
+     * Replaces the registered processors with the given ones, which the provider then drives in the next commits.
      *
-     * @param processors the processors to register
-     * @return a hook ready to process commits
-     * @throws Exception if the provider's reference cannot be injected
+     * @param processors the processors to register, none to leave the provider without any
      */
-    private EditorHook hookWith(final TagProcessor... processors) throws Exception
+    private void install(final TagProcessor... processors)
     {
-        final TagPropagationEditorProvider provider = new TagPropagationEditorProvider();
-        final Field reference = TagPropagationEditorProvider.class.getDeclaredField("processors");
-        reference.setAccessible(true);
-        reference.set(provider, List.of(processors));
-        return new EditorHook(provider);
+        this.installed.forEach(ServiceRegistration::unregister);
+        this.installed.clear();
+        for (final TagProcessor processor : processors) {
+            this.installed.add(this.context.bundleContext().registerService(TagProcessor.class, processor, null));
+        }
     }
 
     @Test
@@ -348,7 +360,7 @@ class TagPropagationEditorTest
     void recordsABrokenProcessorOnceForTheWholeCommit() throws Exception
     {
         // Three nodes change, and the processor fails on each
-        final EditorHook broken = hookWith(new FailingProcessor());
+        install(new FailingProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
         descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
@@ -358,12 +370,12 @@ class TagPropagationEditorTest
         ErrorLogger.setService(recorder);
 
         try {
-            broken.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+            process(before, after);
 
-            final ArgumentCaptor<ErrorContext> context = ArgumentCaptor.forClass(ErrorContext.class);
-            Mockito.verify(recorder).logError(Mockito.any(IllegalStateException.class), context.capture());
-            assertEquals(FailingProcessor.class.getName(), context.getValue().getComponent());
-            assertEquals("computeTags", context.getValue().getOperation());
+            final ArgumentCaptor<ErrorContext> errorContext = ArgumentCaptor.forClass(ErrorContext.class);
+            Mockito.verify(recorder).logError(Mockito.any(IllegalStateException.class), errorContext.capture());
+            assertEquals(FailingProcessor.class.getName(), errorContext.getValue().getComponent());
+            assertEquals("computeTags", errorContext.getValue().getOperation());
         } finally {
             ErrorLogger.unsetService(recorder);
         }
@@ -373,7 +385,7 @@ class TagPropagationEditorTest
     void recordsEachBrokenProcessorSeparately() throws Exception
     {
         // Once per processor and phase, not once per commit
-        final EditorHook broken = hookWith(new FailingProcessor(), new AlsoFailingProcessor());
+        install(new FailingProcessor(), new AlsoFailingProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
         descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
@@ -381,7 +393,7 @@ class TagPropagationEditorTest
         ErrorLogger.setService(recorder);
 
         try {
-            broken.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+            process(before, after);
 
             Mockito.verify(recorder, Mockito.times(2))
                 .logError(Mockito.any(RuntimeException.class), Mockito.any(ErrorContext.class));
@@ -394,13 +406,13 @@ class TagPropagationEditorTest
     @Test
     void aFailingProcessorDoesNotFlagNodesThatCannotCarryTags() throws Exception
     {
-        final EditorHook broken = hookWith(new FailingProcessor());
+        install(new FailingProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
         descend(after, DATA, ENTITY).child("free").setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME);
         descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
 
-        final NodeState result = broken.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+        final NodeState result = process(before, after);
 
         assertFalse(result.hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
         assertFalse(descend(result.builder(), DATA, ENTITY, "free")
@@ -482,27 +494,23 @@ class TagPropagationEditorTest
     }
 
     @Test
-    void noProcessorsMeansNoEditor() throws Exception
+    void noProcessorsMeansNoEditor()
     {
-        final TagPropagationEditorProvider provider = new TagPropagationEditorProvider();
-        assertEquals(null, provider.getRootEditor(EmptyNodeState.EMPTY_NODE, EmptyNodeState.EMPTY_NODE,
-            EmptyNodeState.EMPTY_NODE.builder(), CommitInfo.EMPTY));
-        final Field reference = TagPropagationEditorProvider.class.getDeclaredField("processors");
-        reference.setAccessible(true);
-        reference.set(provider, List.of());
-        assertEquals(null, provider.getRootEditor(EmptyNodeState.EMPTY_NODE, EmptyNodeState.EMPTY_NODE,
+        install();
+
+        assertEquals(null, this.provider.getRootEditor(EmptyNodeState.EMPTY_NODE, EmptyNodeState.EMPTY_NODE,
             EmptyNodeState.EMPTY_NODE.builder(), CommitInfo.EMPTY));
     }
 
     @Test
     void locallyComputedTagsGetTheirOwnPropertyAndPropagateLikeExplicitOnes() throws Exception
     {
-        final EditorHook local = hookWith(new StatusProcessor(), new TagAggregationProcessor());
+        install(new StatusProcessor(), new TagAggregationProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
         descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
 
-        final NodeState result = local.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+        final NodeState result = process(before, after);
 
         // The computed tag lands in the local phase's own property, not in the explicit tags
         assertEquals(Set.of(INCOMPLETE), read(result, COMPUTED, DATA, ENTITY, PART, ANSWER));
@@ -515,15 +523,15 @@ class TagPropagationEditorTest
     @Test
     void locallyComputedTagsAreRecomputedWhenTheirNodeChanges() throws Exception
     {
-        final EditorHook local = hookWith(new StatusProcessor(), new TagAggregationProcessor());
+        install(new StatusProcessor(), new TagAggregationProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder tagging = before.builder();
         descend(tagging, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
-        final NodeState tagged = local.processCommit(before, tagging.getNodeState(), CommitInfo.EMPTY);
+        final NodeState tagged = process(before, tagging);
 
         final NodeBuilder after = tagged.builder();
         descend(after, DATA, ENTITY, PART, ANSWER).removeProperty(STATUS);
-        final NodeState result = local.processCommit(tagged, after.getNodeState(), CommitInfo.EMPTY);
+        final NodeState result = process(tagged, after);
 
         // The content the tag was computed from is gone, so the tag and every copy of it are gone too
         assertTrue(read(result, COMPUTED, DATA, ENTITY, PART, ANSWER).isEmpty());
@@ -534,12 +542,12 @@ class TagPropagationEditorTest
     @Test
     void localProcessorsSeeWhatTheirNodeInherited() throws Exception
     {
-        final EditorHook local = hookWith(new TagInheritanceProcessor(), new EchoInheritedProcessor());
+        install(new TagInheritanceProcessor(), new EchoInheritedProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
         descend(after, DATA, ENTITY).setProperty(TAGS, List.of(SENSITIVE), Type.STRINGS);
 
-        final NodeState result = local.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+        final NodeState result = process(before, after);
 
         // The top-down phase runs before the local one on every node, including the swept descendants
         assertEquals(Set.of("draft"), read(result, COMPUTED, DATA, ENTITY, PART));
@@ -551,17 +559,17 @@ class TagPropagationEditorTest
     @Test
     void aFailingProcessorKeepsTheLastGoodTagsAndFlagsTheNode() throws Exception
     {
-        final EditorHook working = hookWith(new StatusProcessor(), new TagAggregationProcessor());
+        install(new StatusProcessor(), new TagAggregationProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder tagging = before.builder();
         descend(tagging, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
-        final NodeState tagged = working.processCommit(before, tagging.getNodeState(), CommitInfo.EMPTY);
+        final NodeState tagged = process(before, tagging);
 
-        final EditorHook broken = hookWith(new FailingProcessor(), new TagAggregationProcessor());
+        install(new FailingProcessor(), new TagAggregationProcessor());
         final NodeBuilder after = tagged.builder();
         descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, "submitted");
         // The commit goes through
-        final NodeState result = broken.processCommit(tagged, after.getNodeState(), CommitInfo.EMPTY);
+        final NodeState result = process(tagged, after);
 
         // The failed phase keeps its last value, and the node is flagged
         assertEquals(Set.of(INCOMPLETE), read(result, COMPUTED, DATA, ENTITY, PART, ANSWER));
@@ -574,18 +582,18 @@ class TagPropagationEditorTest
     @Test
     void aRecoveredNodeLosesItsFailureFlag() throws Exception
     {
-        final EditorHook broken = hookWith(new FailingProcessor());
+        install(new FailingProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder failing = before.builder();
         descend(failing, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
-        final NodeState flagged = broken.processCommit(before, failing.getNodeState(), CommitInfo.EMPTY);
+        final NodeState flagged = process(before, failing);
         assertTrue(descend(flagged.builder(), DATA, ENTITY, PART, ANSWER)
             .hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
 
-        final EditorHook working = hookWith(new StatusProcessor());
+        install(new StatusProcessor());
         final NodeBuilder after = flagged.builder();
         descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, "submitted");
-        final NodeState result = working.processCommit(flagged, after.getNodeState(), CommitInfo.EMPTY);
+        final NodeState result = process(flagged, after);
 
         assertEquals(Set.of("submitted"), read(result, COMPUTED, DATA, ENTITY, PART, ANSWER));
         assertFalse(descend(result.builder(), DATA, ENTITY, PART, ANSWER)
@@ -640,13 +648,13 @@ class TagPropagationEditorTest
     @Test
     void entityScopedProcessorsRecomputeEveryNodeOfAChangedEntity() throws Exception
     {
-        final EditorHook scoped = hookWith(new SecretProcessor());
+        install(new SecretProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
         // Only the deepest node of the entity changes...
         descend(after, DATA, ENTITY, PART, ANSWER).setProperty("secret", true);
 
-        final NodeState result = scoped.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+        final NodeState result = process(before, after);
 
         // ...yet every node of the entity was recomputed, including the ones the commit never touched
         assertEquals(Set.of(CONFIDENTIAL), read(result, COMPUTED, DATA, ENTITY));
@@ -659,16 +667,16 @@ class TagPropagationEditorTest
     @Test
     void entityScopedProcessorsRecomputeWhenPartOfTheEntityIsDeleted() throws Exception
     {
-        final EditorHook scoped = hookWith(new SecretProcessor());
+        install(new SecretProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder secret = before.builder();
         descend(secret, DATA, ENTITY, PART, ANSWER).setProperty("secret", true);
-        final NodeState tagged = scoped.processCommit(before, secret.getNodeState(), CommitInfo.EMPTY);
+        final NodeState tagged = process(before, secret);
         assertEquals(Set.of(CONFIDENTIAL), read(tagged, COMPUTED, DATA, ENTITY));
 
         final NodeBuilder after = tagged.builder();
         descend(after, DATA, ENTITY, PART).remove();
-        final NodeState result = scoped.processCommit(tagged, after.getNodeState(), CommitInfo.EMPTY);
+        final NodeState result = process(tagged, after);
 
         // Deleting the only node holding a secret is a change to the entity, so the whole entity is recomputed
         assertTrue(read(result, COMPUTED, DATA, ENTITY).isEmpty());
@@ -677,14 +685,14 @@ class TagPropagationEditorTest
     @Test
     void entityRecomputationLeavesSkippedSubtreesAlone() throws Exception
     {
-        final EditorHook scoped = hookWith(new SecretProcessor());
+        install(new SecretProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
         // An access control policy inside the entity must never be written to, even by a whole-entity recomputation
         descend(after, DATA, ENTITY).child("rep:policy").setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME);
         descend(after, DATA, ENTITY, PART, ANSWER).setProperty("secret", true);
 
-        final NodeState result = scoped.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+        final NodeState result = process(before, after);
 
         assertEquals(Set.of(CONFIDENTIAL), read(result, COMPUTED, DATA, ENTITY, PART));
         assertTrue(read(result, COMPUTED, DATA, ENTITY, "rep:policy").isEmpty());
@@ -693,7 +701,7 @@ class TagPropagationEditorTest
     @Test
     void entitiesOfTheBaseTypeItselfBoundTheScope() throws Exception
     {
-        final EditorHook scoped = hookWith(new SecretProcessor());
+        install(new SecretProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
         // A node typed data:Entity itself, not a subtype, is a scope root too
@@ -702,7 +710,7 @@ class TagPropagationEditorTest
         plain.child(PART).setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
         plain.setProperty("secret", true);
 
-        final NodeState result = scoped.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+        final NodeState result = process(before, after);
 
         assertEquals(Set.of(CONFIDENTIAL), read(result, COMPUTED, DATA, "plain", PART));
     }
@@ -710,17 +718,17 @@ class TagPropagationEditorTest
     @Test
     void aSweepEnteringAnEntityPicksUpItsScope() throws Exception
     {
-        final EditorHook scoped = hookWith(new TagInheritanceProcessor(), new SecretProcessor());
+        install(new TagInheritanceProcessor(), new SecretProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder seeded = before.builder();
         descend(seeded, DATA, ENTITY, PART).setProperty("secret", true);
-        final NodeState tagged = scoped.processCommit(before, seeded.getNodeState(), CommitInfo.EMPTY);
+        final NodeState tagged = process(before, seeded);
 
         final NodeBuilder after = tagged.builder();
         // An inheritable tag placed outside the entity sweeps down through it. The nodes the sweep reaches inside
         // the entity are computed with that entity as their scope.
         descend(after, DATA).setProperty(TAGS, List.of(SENSITIVE), Type.STRINGS);
-        final NodeState result = scoped.processCommit(tagged, after.getNodeState(), CommitInfo.EMPTY);
+        final NodeState result = process(tagged, after);
 
         assertEquals(Set.of(CONFIDENTIAL), read(result, COMPUTED, DATA, ENTITY, PART));
         // The entity is tagged too, and "confidential" is inheritable, so the part inherits it alongside the
@@ -733,13 +741,13 @@ class TagPropagationEditorTest
     @Test
     void entityScopedProcessorsSeeNothingOutsideAnEntity() throws Exception
     {
-        final EditorHook scoped = hookWith(new SecretProcessor());
+        install(new SecretProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
         // A secret placed outside any entity has no scope root to be found through
         descend(after, DATA).setProperty("secret", true);
 
-        final NodeState result = scoped.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+        final NodeState result = process(before, after);
 
         assertTrue(read(result, COMPUTED, DATA).isEmpty());
     }
@@ -752,7 +760,8 @@ class TagPropagationEditorTest
         final NodeBuilder after = before.builder();
         descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
 
-        hookWith(status).processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+        install(status);
+        process(before, after);
 
         assertTrue(status.paths.contains("/data/entity/part/answer"));
         assertTrue(status.paths.contains("/data"));

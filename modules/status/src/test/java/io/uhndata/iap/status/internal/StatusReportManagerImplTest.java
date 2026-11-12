@@ -17,12 +17,15 @@
  */
 package io.uhndata.iap.status.internal;
 
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.IntStream;
 
-import org.junit.jupiter.api.BeforeEach;
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.osgi.framework.Constants;
 
 import io.uhndata.iap.status.spi.StatusReport;
 import io.uhndata.iap.status.spi.StatusReporter;
@@ -36,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @version $Id$
  * @since 0.1.0
  */
+@ExtendWith(SlingContextExtension.class)
 class StatusReportManagerImplTest
 {
     /**
@@ -77,7 +81,7 @@ class StatusReportManagerImplTest
         }
     }
 
-    private final StatusReportManagerImpl manager = new StatusReportManagerImpl();
+    private final SlingContext context = new SlingContext();
 
     private final StatusReporter uptime = new FakeReporter("Uptime", Set.of("status"),
         new StatusReport("Uptime", StatusReport.Status.INFO, "All day long"));
@@ -111,42 +115,38 @@ class StatusReportManagerImplTest
         }
     };
 
-    @BeforeEach
-    void setUp() throws Exception
-    {
-        inject(List.of(this.uptime, this.problems, this.chatter, this.silent));
-    }
-
     @Test
     void collectsReportsAboveTheTargetLevel()
     {
+        final StatusReportManagerImpl manager = managerWith(this.uptime, this.problems, this.chatter, this.silent);
+
         // INFO by default, so the DEBUG report is left out. The silent reporter has no report
         assertEquals(List.of("Uptime", "Problems"),
-            this.manager.getReports(true).stream().map(StatusReport::getName).toList());
-        assertEquals(3, this.manager.getReports(true, StatusReport.Status.DEBUG, null).size());
+            manager.getReports(true).stream().map(StatusReport::getName).toList());
+        assertEquals(3, manager.getReports(true, StatusReport.Status.DEBUG, null).size());
         assertEquals(List.of("Problems"),
-            this.manager.getReports(true, StatusReport.Status.WARNING, null).stream()
+            manager.getReports(true, StatusReport.Status.WARNING, null).stream()
                 .map(StatusReport::getName).toList());
     }
 
     @Test
     void filtersByTags()
     {
+        final StatusReportManagerImpl manager = managerWith(this.uptime, this.problems, this.chatter, this.silent);
+
         assertEquals(List.of("Problems"),
-            this.manager.getReports(true, StatusReport.Status.INFO, Set.of("problems")).stream()
+            manager.getReports(true, StatusReport.Status.INFO, Set.of("problems")).stream()
                 .map(StatusReport::getName).toList());
         // Null or empty tags include all reporters
-        assertEquals(2, this.manager.getReports(true, StatusReport.Status.INFO, null).size());
-        assertEquals(2, this.manager.getReports(true, StatusReport.Status.INFO, Set.of()).size());
-        assertTrue(this.manager.getReports(true, StatusReport.Status.INFO, Set.of("unknown")).isEmpty());
+        assertEquals(2, manager.getReports(true, StatusReport.Status.INFO, null).size());
+        assertEquals(2, manager.getReports(true, StatusReport.Status.INFO, Set.of()).size());
+        assertTrue(manager.getReports(true, StatusReport.Status.INFO, Set.of("unknown")).isEmpty());
     }
 
     @Test
-    void isolatesBrokenReporters() throws Exception
+    void isolatesBrokenReporters()
     {
-        inject(List.of(this.broken, this.uptime));
-
-        final List<StatusReport> reports = this.manager.getReports(true);
+        final List<StatusReport> reports = managerWith(this.broken, this.uptime).getReports(true);
 
         assertEquals(2, reports.size());
         assertEquals("Broken", reports.get(0).getName());
@@ -156,16 +156,19 @@ class StatusReportManagerImplTest
     }
 
     @Test
-    void toleratesMissingReporters() throws Exception
+    void reportsNothingWithoutReporters()
     {
-        inject(null);
-        assertTrue(this.manager.getReports(true).isEmpty());
+        assertTrue(managerWith().getReports(true).isEmpty());
     }
 
-    private void inject(final List<StatusReporter> reporters) throws Exception
+    /**
+     * Registers the reporters, ranked so that the manager asks them in the order given, then activates a manager
+     * that binds them.
+     */
+    private StatusReportManagerImpl managerWith(final StatusReporter... reporters)
     {
-        final Field reference = StatusReportManagerImpl.class.getDeclaredField("reporters");
-        reference.setAccessible(true);
-        reference.set(this.manager, reporters);
+        IntStream.range(0, reporters.length).forEach(rank -> this.context.registerService(StatusReporter.class,
+            reporters[rank], Constants.SERVICE_RANKING, rank));
+        return this.context.registerInjectActivateService(StatusReportManagerImpl.class);
     }
 }

@@ -43,7 +43,7 @@ public class QueryPathResolverTest
 
     private static final String QUESTION = "question";
 
-    private static final String QUESTION_PATH = "/Schemas/Consent/1.0/hasCapacity";
+    private static final String QUESTION_PATH = "/Schemas/consent/v1/hasCapacity";
 
     private static final String UUID = "d1f5a0e2-4b0a-4a3a-9f6b-0c2d1e3f4a5b";
 
@@ -180,7 +180,7 @@ public class QueryPathResolverTest
     {
         withType(ANSWER, QUESTION, PropertyType.REFERENCE);
         withNode(QUESTION_PATH, UUID);
-        final String other = "/Schemas/Consent/1.0/isAdult";
+        final String other = "/Schemas/consent/v1/isAdult";
         final String otherUuid = "9a8b7c6d-5e4f-4a3b-2c1d-0e9f8a7b6c5d";
         withNode(other, otherUuid);
         Assertions.assertEquals("select * from [sub:Answer] as a where a.question = '" + UUID

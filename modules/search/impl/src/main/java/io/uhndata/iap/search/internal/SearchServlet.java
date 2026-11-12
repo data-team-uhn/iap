@@ -446,11 +446,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     {
         final String[] parameter = request.getParameterValues("allowedResourceTypes");
         final String[] requested = parameter == null || parameter.length == 0 ? null : parameter;
-        final List<QuickSearchEngine> engines = this.searchEngines;
-        if (engines == null) {
-            return;
-        }
-        for (final QuickSearchEngine engine : engines) {
+        for (final QuickSearchEngine engine : this.searchEngines) {
             if (page.isFull()) {
                 break;
             }

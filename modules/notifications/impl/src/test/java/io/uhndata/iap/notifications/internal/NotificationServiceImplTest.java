@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.notifications.internal;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,10 +24,15 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.Recipient;
 import io.uhndata.iap.notifications.spi.NotificationDelivery;
@@ -55,20 +59,26 @@ class NotificationServiceImplTest
     // JCR-backed, because who a role names is read through the repository's user manager
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
-    private final NotificationServiceImpl service = new NotificationServiceImpl();
+    private final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
 
     private Resource subject;
 
     @BeforeEach
-    void setUp() throws Exception
+    void setUp()
     {
         this.subject = this.context.create().resource("/Submissions/one",
             "title", "A request", "createdBy", CREATOR);
         // The real principals service, with the resolvers of @creator and @me
-        final PrincipalServiceImpl principals = new PrincipalServiceImpl();
-        inject(PrincipalServiceImpl.class, principals, "resolvers",
-            List.of(new CreatorResolver(), new MeResolver()));
-        inject(NotificationServiceImpl.class, this.service, "principals", principals);
+        this.context.registerInjectActivateService(new CreatorResolver());
+        this.context.registerInjectActivateService(new MeResolver());
+        this.context.registerInjectActivateService(new PrincipalServiceImpl());
+        ErrorLogger.setService(this.errors);
+    }
+
+    @AfterEach
+    void tearDown()
+    {
+        ErrorLogger.unsetService(this.errors);
     }
 
     /** A delivery that remembers what it was given. */
@@ -96,23 +106,25 @@ class NotificationServiceImplTest
         return NotificationContext.about(this.subject).becauseOf("approved").build();
     }
 
-    private void deliveries(final NotificationDelivery... channels) throws Exception
+    /** The service under test, wired to the given channels as the only registered deliveries. */
+    private NotificationServiceImpl deliveringThrough(final NotificationDelivery... channels)
     {
-        inject(NotificationServiceImpl.class, this.service, "deliveries", List.of(channels));
+        for (final NotificationDelivery channel : channels) {
+            this.context.registerService(NotificationDelivery.class, channel);
+        }
+        return this.context.registerInjectActivateService(new NotificationServiceImpl());
     }
 
-    private static void inject(final Class<?> type, final Object target, final String field, final Object value)
-        throws Exception
-    {
-        final Field reference = type.getDeclaredField(field);
-        reference.setAccessible(true);
-        reference.set(target, value);
-    }
-
+    // The requester has an account, so only the missing channel stands between them and the news
     @Test
-    void tellsNobodyWhenNothingCanDeliver()
+    void tellsNobodyWhenNothingCanDeliver() throws Exception
     {
-        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
+        Accounts.create(this.context, CREATOR);
+
+        this.deliveringThrough().notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
+
+        Mockito.verify(this.errors).logProblem(ArgumentMatchers.contains("nobody can be told"),
+            ArgumentMatchers.any());
     }
 
     @Test
@@ -120,10 +132,10 @@ class NotificationServiceImplTest
     {
         final Recording first = new Recording(true);
         final Recording second = new Recording(true);
-        this.deliveries(first, second);
+        final NotificationServiceImpl service = this.deliveringThrough(first, second);
         Accounts.create(this.context, CREATOR);
 
-        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
+        service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
 
         assertEquals(1, first.told.size());
         assertEquals(1, second.told.size());
@@ -135,12 +147,12 @@ class NotificationServiceImplTest
     void aGroupRoleReachesItsPeopleOnce() throws Exception
     {
         final Recording channel = new Recording(true);
-        this.deliveries(channel);
+        final NotificationServiceImpl service = this.deliveringThrough(channel);
         final var ann = Accounts.create(this.context, "ann");
         Accounts.group(this.context, "reviewers", ann);
 
         // ann is named twice, directly and through the group, and told once
-        this.service.notify(this.notification(), List.of("ann", "reviewers"));
+        service.notify(this.notification(), List.of("ann", "reviewers"));
 
         assertEquals(1, channel.told.size());
         assertEquals("ann", channel.told.get(0).userId());
@@ -150,10 +162,10 @@ class NotificationServiceImplTest
     void carriesOnWhenEveryChannelDeclines() throws Exception
     {
         final Recording declining = new Recording(false);
-        this.deliveries(declining);
+        final NotificationServiceImpl service = this.deliveringThrough(declining);
         Accounts.create(this.context, CREATOR);
 
-        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
+        service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
 
         assertEquals(1, declining.told.size());
     }
@@ -162,12 +174,12 @@ class NotificationServiceImplTest
     void carriesOnWhenAChannelThrows() throws Exception
     {
         final Recording working = new Recording(true);
-        this.deliveries((notification, recipient) -> {
+        final NotificationServiceImpl service = this.deliveringThrough((notification, recipient) -> {
             throw new IllegalStateException("the mail server is on fire");
         }, working);
         Accounts.create(this.context, CREATOR);
 
-        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
+        service.notify(this.notification(), List.of(PrincipalService.CREATOR_SPECIAL_NAME));
 
         assertEquals(1, working.told.size());
     }
@@ -177,10 +189,10 @@ class NotificationServiceImplTest
     void aRoleNamingNobodyTellsNobody() throws Exception
     {
         final Recording channel = new Recording(true);
-        this.deliveries(channel);
+        final NotificationServiceImpl service = this.deliveringThrough(channel);
         final Resource orphan = this.context.create().resource("/Submissions/orphan", "title", "Nobody's");
 
-        this.service.notify(NotificationContext.about(orphan).becauseOf("approved").build(),
+        service.notify(NotificationContext.about(orphan).becauseOf("approved").build(),
             List.of(PrincipalService.CREATOR_SPECIAL_NAME));
 
         assertTrue(channel.told.isEmpty());

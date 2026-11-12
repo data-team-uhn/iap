@@ -20,7 +20,6 @@ package io.uhndata.iap.schemas.editing.internal;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.Reader;
-import java.lang.reflect.Field;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -46,6 +45,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.conditions.internal.OwnPropertyOperandResolver;
@@ -95,22 +95,23 @@ class SystemWorkflowDefinitionsTest
 
     private final SlingContext context = new SlingContext();
 
-    private final ConditionEvaluatorImpl evaluator = new ConditionEvaluatorImpl();
+    private ConditionEvaluator evaluator;
 
     private int targets;
 
     @BeforeEach
-    void setUp() throws IOException, URISyntaxException, ReflectiveOperationException
+    void setUp() throws IOException, URISyntaxException
     {
         this.context.addModelsForClasses(Content.class, SingleCondition.class, ConditionGroup.class,
             ConditionOperand.class);
         this.context.create().resource("/libs/cond/SingleCondition", "sling:resourceSuperType", "cond/Condition");
         this.context.create().resource("/libs/cond/ConditionGroup", "sling:resourceSuperType", "cond/Condition");
         this.context.create().resource("/libs/sch/SchemaVersion", "sling:resourceSuperType", "data/Entity");
-        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
-        resolvers.setAccessible(true);
-        resolvers.set(this.evaluator, List.of(new LiteralOperandResolver(), new PropertyOperandResolver(),
-            new TagsOperandResolver(), new OwnPropertyOperandResolver()));
+        this.context.registerInjectActivateService(new LiteralOperandResolver());
+        this.context.registerInjectActivateService(new PropertyOperandResolver());
+        this.context.registerInjectActivateService(new TagsOperandResolver());
+        this.context.registerInjectActivateService(new OwnPropertyOperandResolver());
+        this.evaluator = this.context.registerInjectActivateService(new ConditionEvaluatorImpl());
         for (final Path path : definitions()) {
             final String json = withResourceTypes(read(path)).toString();
             this.context.load().json(new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)),

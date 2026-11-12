@@ -30,6 +30,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.submissions.internal.RankedServices;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.PartCreator;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -60,7 +61,7 @@ class CreatePartsHandlerTest
 
     private final SlingContext context = new SlingContext();
 
-    private final CreatePartsHandler handler = new CreatePartsHandler();
+    private CreatePartsHandler handler;
 
     /** The submissions each creator was asked about, in order. */
     private final List<String> asked = new ArrayList<>();
@@ -69,6 +70,7 @@ class CreatePartsHandlerTest
     void setUp()
     {
         this.context.create().resource(SUBMISSION_PATH, Map.of(TYPE, Submission.RESOURCE_TYPE));
+        this.handler = this.context.registerInjectActivateService(new CreatePartsHandler());
     }
 
     @Test
@@ -120,11 +122,9 @@ class CreatePartsHandlerTest
         return homepage;
     }
 
-    private void creators(final PartCreator... creators) throws ReflectiveOperationException
+    private void creators(final PartCreator... creators)
     {
-        final var reference = CreatePartsHandler.class.getDeclaredField("creators");
-        reference.setAccessible(true);
-        reference.set(this.handler, List.of(creators));
+        RankedServices.registerInOrder(this.context, PartCreator.class, List.of(creators));
     }
 
     private PartCreator recording(final String kind)

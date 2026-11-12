@@ -18,13 +18,13 @@
 package io.uhndata.iap.tags.internal;
 
 import java.io.StringReader;
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
+import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
@@ -32,6 +32,7 @@ import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRe
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.osgi.framework.Constants;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.tags.models.TagDefinition;
@@ -54,7 +55,7 @@ class TagListServletTest
     private TagListServlet servlet;
 
     @BeforeEach
-    void setUp() throws Exception
+    void setUp()
     {
         this.context.addModelsForClasses(Content.class, TagDefinition.class);
         this.context.create().resource("/Tags",
@@ -78,14 +79,11 @@ class TagListServletTest
             "targetResourceTypes", new String[] { "data/Entity" },
             "order", 3L));
 
-        this.servlet = new TagListServlet();
-        final TagManagerImpl tagManager = new TagManagerImpl();
-        final Field factory = TagManagerImpl.class.getDeclaredField("resolverFactory");
-        factory.setAccessible(true);
-        factory.set(tagManager, new TestResolverFactory(this.context.resourceResolver()));
-        final Field reference = TagListServlet.class.getDeclaredField("tagManager");
-        reference.setAccessible(true);
-        reference.set(this.servlet, tagManager);
+        // Outranks the mock repository's own factory, so the manager reads the definitions created above
+        this.context.registerService(ResourceResolverFactory.class,
+            new TestResolverFactory(this.context.resourceResolver()), Constants.SERVICE_RANKING, Integer.MAX_VALUE);
+        this.context.registerInjectActivateService(new TagManagerImpl());
+        this.servlet = this.context.registerInjectActivateService(new TagListServlet());
     }
 
     @Test

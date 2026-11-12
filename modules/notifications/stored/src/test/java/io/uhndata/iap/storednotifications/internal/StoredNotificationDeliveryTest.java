@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.storednotifications.internal;
 
-import java.lang.reflect.Field;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -45,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
+import org.osgi.framework.Constants;
 
 import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.Recipient;
@@ -72,7 +72,10 @@ class StoredNotificationDeliveryTest
     // JCR-backed, because the delivery creates the folders and buckets as JCR nodes
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
-    private final StoredNotificationDelivery delivery = new StoredNotificationDelivery();
+    /** The delivery's only way into the repository; each test decides what it hands out. */
+    private final ResourceResolverFactory resolverFactory = Mockito.mock(ResourceResolverFactory.class);
+
+    private StoredNotificationDelivery delivery;
 
     /** Every principal granted something, with the privileges spelled out. */
     private final List<String> granted = new ArrayList<>();
@@ -94,6 +97,10 @@ class StoredNotificationDeliveryTest
         this.requester = new Recipient("the-requester",
             this.context.resourceResolver().getResource(user.getPath()));
         this.factory(this.recordingAccessControl());
+        // Outranks the factory the test context registers
+        this.context.registerService(ResourceResolverFactory.class, this.resolverFactory,
+            Constants.SERVICE_RANKING, Integer.MAX_VALUE);
+        this.delivery = this.context.registerInjectActivateService(new StoredNotificationDelivery());
     }
 
     @Test
@@ -203,10 +210,8 @@ class StoredNotificationDeliveryTest
     @Test
     void declinesWhenTheChannelCannotLogIn() throws Exception
     {
-        final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
+        Mockito.when(this.resolverFactory.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("no such service user"));
-        this.inject(broken);
         this.context.create().resource(TEMPLATE, "uiMessage", "It happened");
 
         assertFalse(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
@@ -217,7 +222,6 @@ class StoredNotificationDeliveryTest
     @Test
     void declinesWhenTheGrantFails()
     {
-        this.factory(this.recordingAccessControl());
         this.context.create().resource(TEMPLATE, "uiMessage", "It happened");
 
         assertFalse(this.delivery.deliver(this.notification(TEMPLATE),
@@ -245,9 +249,7 @@ class StoredNotificationDeliveryTest
                 // The test context owns the real resolver
             }
         };
-        final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(bare);
-        this.inject(factory);
+        Mockito.when(this.resolverFactory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(bare);
         this.context.create().resource(TEMPLATE, "uiMessage", "It happened");
 
         assertFalse(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
@@ -347,21 +349,8 @@ class StoredNotificationDeliveryTest
                     // The test context owns the real resolver
                 }
             };
-            final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
-            Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(wrapped);
-            this.inject(factory);
+            Mockito.when(this.resolverFactory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(wrapped);
         } catch (final Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private void inject(final ResourceResolverFactory factory) throws IllegalStateException
-    {
-        try {
-            final Field field = StoredNotificationDelivery.class.getDeclaredField("resolverFactory");
-            field.setAccessible(true);
-            field.set(this.delivery, factory);
-        } catch (final ReflectiveOperationException e) {
             throw new IllegalStateException(e);
         }
     }

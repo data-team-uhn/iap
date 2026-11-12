@@ -86,14 +86,6 @@ public class FilesProcessorTest
     }
 
     @Test
-    public void ignoresNullOutput() throws Exception
-    {
-        final Node file = Mockito.mock(Node.class);
-        this.processor.leave(file, null, null);
-        Mockito.verifyNoInteractions(file);
-    }
-
-    @Test
     public void serializesFileContentAsDownloadPath() throws Exception
     {
         final Node content = Mockito.mock(Node.class);

@@ -1202,6 +1202,22 @@
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
         <extensions>true</extensions>
+        <executions>
+          <!-- Writes the components' descriptors into target/classes before the tests run, so that a test can
+               register a component with its references wired, as the framework would -->
+          <execution>
+            <id>scr-metadata</id>
+            <phase>process-classes</phase>
+            <goals>
+              <goal>manifest</goal>
+            </goals>
+            <configuration>
+              <exportScr>true</exportScr>
+              <scrLocation>${project.build.testOutputDirectory}</scrLocation>
+              <manifestLocation>${project.build.testOutputDirectory}/META-INF</manifestLocation>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

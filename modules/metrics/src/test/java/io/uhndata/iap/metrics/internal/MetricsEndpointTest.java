@@ -18,7 +18,6 @@
 package io.uhndata.iap.metrics.internal;
 
 import java.io.StringReader;
-import java.lang.reflect.Field;
 import java.util.List;
 
 import jakarta.json.Json;
@@ -58,12 +57,10 @@ class MetricsEndpointTest
     private MetricsEndpoint endpoint;
 
     @BeforeEach
-    void setUp() throws Exception
+    void setUp()
     {
-        this.endpoint = new MetricsEndpoint();
-        final Field reference = MetricsEndpoint.class.getDeclaredField("metricsManager");
-        reference.setAccessible(true);
-        reference.set(this.endpoint, this.manager);
+        this.context.registerService(MetricsManager.class, this.manager);
+        this.endpoint = this.context.registerInjectActivateService(MetricsEndpoint.class);
     }
 
     @Test

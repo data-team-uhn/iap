@@ -49,14 +49,11 @@ public class MetricsManagerImpl implements MetricsManager
 {
     private static final Pattern VALID_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]*");
 
-    /**
-     * The order to show the metrics' nodes in: by category with no category last, then by {@code defaultOrder}, then
-     * by name.
-     */
-    private static final Comparator<Resource> DISPLAY_ORDER =
-        Comparator.comparing(MetricsManagerImpl::category, Comparator.nullsLast(Comparator.naturalOrder()))
-            .thenComparingLong(MetricsManagerImpl::defaultOrder)
-            .thenComparing(Resource::getName);
+    /** The order to show the metrics in: by category with no category last, then by default order, then by name. */
+    private static final Comparator<Metric> DISPLAY_ORDER =
+        Comparator.comparing(Metric::getCategory, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparingLong(Metric::getDefaultOrder)
+            .thenComparing(Metric::getName);
 
     @Reference
     private ResourceResolverFactory resolverFactory;
@@ -91,8 +88,8 @@ public class MetricsManagerImpl implements MetricsManager
         try (ResourceResolver resolver = MetricImpl.openServiceResolver(this.resolverFactory)) {
             return StreamSupport.stream(getHomepage(resolver).getChildren().spliterator(), false)
                 .filter(MetricImpl::isMetric)
-                .sorted(DISPLAY_ORDER)
                 .<Metric>map(metric -> new MetricImpl(this.resolverFactory, metric.getName(), metric.getValueMap()))
+                .sorted(DISPLAY_ORDER)
                 .toList();
         }
     }
@@ -100,29 +97,6 @@ public class MetricsManagerImpl implements MetricsManager
     private static boolean isValidName(final String name)
     {
         return name != null && VALID_NAME.matcher(name).matches();
-    }
-
-    /**
-     * The category of a metric's node, for sorting.
-     *
-     * @param metric the metric's node
-     * @return the category; {@code null} if it is not set or is blank
-     */
-    private static String category(final Resource metric)
-    {
-        final String category = metric.getValueMap().get(MetricImpl.PN_CATEGORY, String.class);
-        return category == null || category.isBlank() ? null : category;
-    }
-
-    /**
-     * The order of a metric's node within its category.
-     *
-     * @param metric the metric's node
-     * @return the order; {@code 0} if it is not set
-     */
-    private static long defaultOrder(final Resource metric)
-    {
-        return metric.getValueMap().get(MetricImpl.PN_DEFAULT_ORDER, 0L);
     }
 
     /**

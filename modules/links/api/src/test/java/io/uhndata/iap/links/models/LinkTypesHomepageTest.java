@@ -49,21 +49,7 @@ class LinkTypesHomepageTest
     {
         this.context.addModelsForClasses(Content.class, InternalLinkDefinition.class,
             ExternalLinkDefinition.class, LinkTypesHomepage.class);
-        registerDefinitionTypes(this.context);
-    }
-
-    /**
-     * Declares the resource type hierarchy that lets a definition of either kind answer to the shared
-     * {@code link/Definition} type. It ships as {@code /libs} content, which the mock repository does not load.
-     *
-     * @param context the Sling context to register the types in
-     */
-    static void registerDefinitionTypes(final SlingContext context)
-    {
-        context.create().resource("/libs/link/InternalDefinition",
-            "sling:resourceSuperType", LinkDefinition.RESOURCE_TYPE);
-        context.create().resource("/libs/link/ExternalDefinition",
-            "sling:resourceSuperType", LinkDefinition.RESOURCE_TYPE);
+        LinkTypesFixture.registerDefinitionTypes(this.context);
     }
 
     @Test

@@ -22,6 +22,7 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -191,7 +192,7 @@ public class MetricImpl implements Metric
     @Override
     public String getCategory()
     {
-        return read(properties -> properties.get(PN_CATEGORY, String.class));
+        return read(MetricImpl::category);
     }
 
     @Override
@@ -288,7 +289,7 @@ public class MetricImpl implements Metric
                 .add("name", this.name)
                 .add("label", properties.get(PN_LABEL, this.name))
                 .add("description", properties.get(PN_DESCRIPTION, ""))
-                .add("category", properties.get(PN_CATEGORY, ""))
+                .add("category", Objects.requireNonNullElse(category(properties), ""))
                 .add("defaultOrder", defaultOrder(properties))
                 .add("accessLevel",
                     AccessLevel.fromPropertyValue(properties.get(PN_ACCESS_LEVEL, String.class)).asPropertyValue())
@@ -377,6 +378,18 @@ public class MetricImpl implements Metric
     private static long previousValue(final ValueMap properties)
     {
         return properties.get(PN_PREVIOUS_VALUE, 0L);
+    }
+
+    /**
+     * The category of a metric. A blank category groups nothing, so it counts as none.
+     *
+     * @param properties the properties of the metric's node
+     * @return the category; {@code null} if it is not set or is blank
+     */
+    private static String category(final ValueMap properties)
+    {
+        final String category = properties.get(PN_CATEGORY, String.class);
+        return category == null || category.isBlank() ? null : category;
     }
 
     private static long defaultOrder(final ValueMap properties)

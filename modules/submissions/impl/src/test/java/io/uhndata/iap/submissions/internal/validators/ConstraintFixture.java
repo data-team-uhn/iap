@@ -20,6 +20,7 @@ package io.uhndata.iap.submissions.internal.validators;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
@@ -35,6 +36,7 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.internal.CompletenessFixture;
+import io.uhndata.iap.submissions.internal.RankedServices;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.AnswerConstraint;
@@ -60,29 +62,32 @@ final class ConstraintFixture
 
     private final SlingContext context;
 
-    private final ConditionEvaluator conditions;
-
-    /** The constraints the validator consults, in the order the framework would hand them over. */
-    private final List<AnswerConstraint> constraints;
+    private final AnswerConstraintsValidator validator;
 
     /** The values of the answers the question offers; none leaves it answered freely. */
     private final List<String> offered;
 
-    private final AnswerConstraintsValidator validator = new AnswerConstraintsValidator();
-
-    private ConstraintFixture(final SlingContext context, final ConditionEvaluator conditions,
-        final List<AnswerConstraint> constraints, final List<String> offered)
+    private ConstraintFixture(final SlingContext context, final AnswerConstraintsValidator validator,
+        final List<String> offered)
     {
         this.context = context;
-        this.conditions = conditions;
-        this.constraints = constraints;
+        this.validator = validator;
         this.offered = offered;
-        try {
-            CompletenessFixture.inject(this.validator, "conditions", conditions);
-            CompletenessFixture.inject(this.validator, "constraints", constraints);
-        } catch (final ReflectiveOperationException e) {
-            throw new AssertionError("The validator declares the references it is given here", e);
-        }
+    }
+
+    /**
+     * Activates the validator in the context, bound to the condition evaluator and to the constraints already
+     * registered there.
+     *
+     * @param context the test's own context
+     * @param conditions what decides whether a question is shown
+     * @return a fixture whose question offers no fixed answers
+     */
+    private static ConstraintFixture judgedUnder(final SlingContext context, final ConditionEvaluator conditions)
+    {
+        context.registerService(ConditionEvaluator.class, conditions);
+        return new ConstraintFixture(context,
+            context.registerInjectActivateService(new AnswerConstraintsValidator()), List.of());
     }
 
     /**
@@ -104,7 +109,8 @@ final class ConstraintFixture
      */
     static ConstraintFixture showingEverything(final SlingContext context)
     {
-        return showingEverythingTo(context, shippedConstraints());
+        registerShippedConstraints(context);
+        return judgedUnder(context, everythingShown());
     }
 
     /**
@@ -116,8 +122,8 @@ final class ConstraintFixture
      */
     static ConstraintFixture showingEverythingTo(final SlingContext context, final AnswerConstraint... constraints)
     {
-        return new ConstraintFixture(context, Mockito.mock(ConditionEvaluator.class, call -> true),
-            List.of(constraints), List.of());
+        RankedServices.registerInOrder(context, AnswerConstraint.class, List.of(constraints));
+        return judgedUnder(context, everythingShown());
     }
 
     /**
@@ -128,21 +134,27 @@ final class ConstraintFixture
      */
     static ConstraintFixture hidingEverything(final SlingContext context)
     {
+        registerShippedConstraints(context);
         // A mock answers false to every question it is asked
-        return new ConstraintFixture(context, Mockito.mock(ConditionEvaluator.class),
-            List.of(shippedConstraints()), List.of());
+        return judgedUnder(context, Mockito.mock(ConditionEvaluator.class));
+    }
+
+    private static ConditionEvaluator everythingShown()
+    {
+        return Mockito.mock(ConditionEvaluator.class, call -> true);
     }
 
     /**
-     * The constraints submissions ships, in ascending order of their {@code service.ranking}, which is how the
-     * framework hands them to the validator.
+     * Activates the constraints submissions ships, each ranked by its own component description.
      *
-     * @return the constraints
+     * @param context the test's own context
      */
-    private static AnswerConstraint[] shippedConstraints()
+    private static void registerShippedConstraints(final SlingContext context)
     {
-        return new AnswerConstraint[] { new MaxAnswersConstraint(), new OfferedAnswersConstraint(),
-            new NumericTypeConstraint(), new ValueRangeConstraint(), new PatternConstraint() };
+        // A lambda, since a method reference would name osgi-mock's context class, which this module does not depend on
+        Stream.of(new MaxAnswersConstraint(), new OfferedAnswersConstraint(), new NumericTypeConstraint(),
+            new ValueRangeConstraint(), new PatternConstraint())
+            .forEach(constraint -> context.registerInjectActivateService(constraint));
     }
 
     /**
@@ -153,7 +165,7 @@ final class ConstraintFixture
      */
     ConstraintFixture offering(final String... values)
     {
-        return new ConstraintFixture(this.context, this.conditions, this.constraints, List.of(values));
+        return new ConstraintFixture(this.context, this.validator, List.of(values));
     }
 
     /**

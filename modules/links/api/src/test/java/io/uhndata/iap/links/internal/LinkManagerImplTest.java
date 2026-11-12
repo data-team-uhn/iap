@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.links.internal;
 
-import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
+import org.osgi.framework.Constants;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.errortracking.api.ErrorContext;
@@ -56,7 +56,7 @@ import io.uhndata.iap.links.models.ExternalLinkDefinition;
 import io.uhndata.iap.links.models.InternalLink;
 import io.uhndata.iap.links.models.InternalLinkDefinition;
 import io.uhndata.iap.links.models.Link;
-import io.uhndata.iap.links.models.LinkDefinition;
+import io.uhndata.iap.links.models.LinkTypesFixture;
 import io.uhndata.iap.links.models.Linkable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -103,34 +103,39 @@ class LinkManagerImplTest
 
     private LinkManagerImpl manager;
 
+    /** The mock repository's own factory, which the test factories stand in front of. */
+    private ResourceResolverFactory repositoryFactory;
+
+    /** How many managers this test has activated, so that each outranks the last. */
+    private int activations;
+
     @BeforeEach
     void setUp()
-        throws ReflectiveOperationException
     {
         this.context.addModelsForClasses(Content.class, InternalLinkDefinition.class,
             ExternalLinkDefinition.class, InternalLink.class,
             ExternalLink.class, Linkable.class);
-        // Both kinds of definition answer to the shared link/Definition type through /libs content, which the
-        // mock repository does not load
-        this.context.create().resource("/libs/link/InternalDefinition",
-            "sling:resourceSuperType", LinkDefinition.RESOURCE_TYPE);
-        this.context.create().resource("/libs/link/ExternalDefinition",
-            "sling:resourceSuperType", LinkDefinition.RESOURCE_TYPE);
-        // The bundle plugin only generates the DS metadata at packaging time, so the service is
-        // instantiated directly and its references are injected by hand.
-        this.manager = new LinkManagerImpl();
-        this.injectFactory(new TestResolverFactory(this.context.resourceResolver(),
-            this.context.getService(ResourceResolverFactory.class)));
-        // The models' write behavior delegates to the manager through its internal LinkOperations face
-        this.context.registerService(LinkOperations.class, this.manager);
+        LinkTypesFixture.registerDefinitionTypes(this.context);
+        this.repositoryFactory = this.context.getService(ResourceResolverFactory.class);
+        this.activateManager(this.context.resourceResolver(), this.repositoryFactory);
     }
 
-    private void injectFactory(final ResourceResolverFactory factory)
-        throws ReflectiveOperationException
+    /**
+     * Activates a manager whose service users are served as {@link TestResolverFactory} describes. Each activation
+     * outranks the previous one, both as the factory the new manager binds and as the {@link LinkOperations} the
+     * models find, so a test can replace the manager {@link #setUp()} activated.
+     *
+     * @param definitionsResolver the resolver serving the definitions, or {@code null} for a missing service user
+     * @param writesDelegate the factory serving every other service user, or {@code null} for a missing one
+     */
+    private void activateManager(final ResourceResolver definitionsResolver,
+        final ResourceResolverFactory writesDelegate)
     {
-        final Field field = LinkManagerImpl.class.getDeclaredField("resolverFactory");
-        field.setAccessible(true);
-        field.set(this.manager, factory);
+        final int ranking = ++this.activations;
+        this.context.registerService(ResourceResolverFactory.class,
+            new TestResolverFactory(definitionsResolver, writesDelegate), Constants.SERVICE_RANKING, ranking);
+        this.manager = this.context.registerInjectActivateService(new LinkManagerImpl(),
+            Constants.SERVICE_RANKING, ranking);
     }
 
     private void createDefinitions()
@@ -242,11 +247,9 @@ class LinkManagerImplTest
 
     @Test
     void treatsDefinitionsAsUnknownWithoutTheirServiceUser()
-        throws ReflectiveOperationException
     {
         this.createDefinitions();
-        this.injectFactory(new TestResolverFactory(null,
-            this.context.getService(ResourceResolverFactory.class)));
+        this.activateManager(null, this.repositoryFactory);
         final Resource thing = this.createThings();
         final Resource destination = this.context.resourceResolver().getResource(THING_B_PATH);
 
@@ -417,7 +420,7 @@ class LinkManagerImplTest
     {
         this.createDefinitions();
         // Only committed resources are visible to other resolvers, service ones included
-        final ResourceResolver committer = this.context.getService(ResourceResolverFactory.class)
+        final ResourceResolver committer = this.repositoryFactory
             .getResourceResolver(null);
         committer.create(committer.getResource("/"), "Committed", Map.of(UUID_PROPERTY, THING_A_ID));
         committer.commit();
@@ -459,7 +462,7 @@ class LinkManagerImplTest
         Mockito.when(session.getWorkspace()).thenReturn(workspace);
         Mockito.when(workspace.getVersionManager()).thenReturn(versionManager);
         Mockito.when(versionManager.isCheckedOut("/Committed")).thenReturn(false);
-        final ResourceResolver committer = this.context.getService(ResourceResolverFactory.class)
+        final ResourceResolver committer = this.repositoryFactory
             .getResourceResolver(null);
         committer.create(committer.getResource("/"), "Committed", Map.of(UUID_PROPERTY, THING_A_ID));
         committer.commit();
@@ -480,7 +483,7 @@ class LinkManagerImplTest
     {
         this.createDefinitions();
         // Definitions remain readable, only the container-creating writer user is gone
-        this.injectFactory(new TestResolverFactory(this.context.resourceResolver(), null));
+        this.activateManager(this.context.resourceResolver(), null);
         final Resource owner = this.context.create().resource("/Things/fresh", Map.of(UUID_PROPERTY, THING_A_ID));
         final Resource destination = this.context.create().resource(THING_B_PATH,
             Map.of(UUID_PROPERTY, THING_B_ID));
@@ -726,11 +729,9 @@ class LinkManagerImplTest
 
     @Test
     void recordsAVocabularyItCouldNotRead()
-        throws ReflectiveOperationException
     {
         this.createDefinitions();
-        this.injectFactory(new TestResolverFactory(null,
-            this.context.getService(ResourceResolverFactory.class)));
+        this.activateManager(null, this.repositoryFactory);
         final ErrorLoggerService recorder = this.recordInto();
 
         try {

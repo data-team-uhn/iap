@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.metrics.internal;
 
-import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,6 +26,7 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
+import org.apache.sling.commons.scheduler.Scheduler;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
+import org.osgi.framework.Constants;
 
 import io.uhndata.iap.metrics.api.Metric;
 
@@ -71,8 +72,10 @@ class MetricsSessionCountTest
             return this.real.getServiceResourceResolver(invocation.getArgument(0));
         }).when(this.counting).getServiceResourceResolver(Mockito.any());
 
-        this.manager = new MetricsManagerImpl();
-        inject(this.manager, "resolverFactory", this.counting);
+        // Outranks the context's own factory, so every component started here counts its sessions
+        this.context.registerService(ResourceResolverFactory.class, this.counting,
+            Constants.SERVICE_RANKING, Integer.MAX_VALUE);
+        this.manager = this.context.registerInjectActivateService(MetricsManagerImpl.class);
         try (ResourceResolver resolver =
             this.real.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, "metrics"))) {
             resolver.create(resolver.getResource("/"), "Metrics",
@@ -115,10 +118,9 @@ class MetricsSessionCountTest
     }
 
     @Test
-    void theStatusReportOpensOneSession() throws Exception
+    void theStatusReportOpensOneSession()
     {
-        final MetricsStatusReporter reporter = new MetricsStatusReporter();
-        inject(reporter, "metricsManager", this.manager);
+        final MetricsStatusReporter reporter = this.context.registerInjectActivateService(MetricsStatusReporter.class);
 
         reporter.report(false);
 
@@ -161,10 +163,13 @@ class MetricsSessionCountTest
     }
 
     @Test
-    void aScheduledRollOverOpensOneSession() throws Exception
+    void aScheduledRollOverOpensOneSession()
     {
-        final MetricRolloverScheduler scheduler = new MetricRolloverScheduler();
-        inject(scheduler, "resolverFactory", this.counting);
+        this.context.registerService(Scheduler.class, Mockito.mock(Scheduler.class));
+        final MetricRolloverScheduler scheduler =
+            this.context.registerInjectActivateService(MetricRolloverScheduler.class);
+        // Starting up reads the schedules, which is not what this counts
+        this.sessions.set(0);
 
         scheduler.rollOver("metric0");
 
@@ -188,12 +193,5 @@ class MetricsSessionCountTest
                 .adaptTo(ModifiableValueMap.class).put("oak:counter", value);
             resolver.commit();
         }
-    }
-
-    private void inject(final Object target, final String name, final Object value) throws Exception
-    {
-        final Field reference = target.getClass().getDeclaredField(name);
-        reference.setAccessible(true);
-        reference.set(target, value);
     }
 }

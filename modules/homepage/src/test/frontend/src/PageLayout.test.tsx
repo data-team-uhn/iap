@@ -16,10 +16,9 @@
  * limitations under the License.
  */
 
-import { ThemeProvider } from "@mui/material/styles";
+import { createTheme, ThemeProvider } from "@mui/material/styles";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { appTheme } from "@iap/frontend-commons/appTheme";
 import PageLayout from "@iap/homepage/PageLayout";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
@@ -28,6 +27,9 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 }));
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
+
+// How long after a page opens with a region collapsed its hint appears, in milliseconds
+const HINT_APPEAR_DELAY = 1500;
 
 const SHELL_POINTS = ["FrameTop", "FrameBottom", "FrameStart", "FrameEnd", "PageTop", "PageBottom"];
 
@@ -41,6 +43,36 @@ const ext = (name: string, props: Record<string, unknown> = {}) => ({
 // Answers each extension point with the given extensions, and any other point with none
 const mockPoints = (points: Record<string, Record<string, unknown>[]> = {}) =>
   mockedLoadExtensions.mockImplementation(point => Promise.resolve(points[point] ?? []));
+
+// A screen's answer to a media query, which never reports a change
+const mediaQueryList = (matches: boolean) => ({
+  matches,
+  media: "",
+  onchange: null,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  dispatchEvent: () => false,
+});
+
+// A matchMedia for a small screen, with every region collapsed: it matches "all" and nothing else
+const stubCollapsedScreen = () =>
+  vi.stubGlobal("matchMedia", vi.fn((query: string) => mediaQueryList(query === "all")));
+
+// A matchMedia that matches "all" and nothing else, and records every query it is asked
+const recordMediaQueries = () => {
+  const queries: string[] = [];
+  vi.stubGlobal("matchMedia", vi.fn((query: string) => {
+    queries.push(query);
+    return mediaQueryList(query === "all");
+  }));
+  return queries;
+};
+
+// The layout as a page that has just opened finds it, before any region has claimed the once-ever hint
+const freshPageLayout = async () => {
+  vi.resetModules();
+  return (await import("@iap/homepage/PageLayout")).default;
+};
 
 // Asserts that `first` comes before `second` in document order.
 const expectBefore = (first: Element, second: Element) =>
@@ -164,17 +196,8 @@ describe("PageLayout", () => {
   });
 
   it("flashes a once-ever hint on the pull tab when the page opens with a region collapsed", async () => {
-    // jsdom has no matchMedia, and no hint shows without one. This one stands for a small screen,
-    // with every region collapsed.
-    const mediaQueryList = (matches: boolean) => ({
-      matches,
-      media: "",
-      onchange: null,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    });
-    vi.stubGlobal("matchMedia", vi.fn((query: string) => mediaQueryList(query === "all")));
+    // jsdom has no matchMedia, and no hint shows without one
+    stubCollapsedScreen();
     // A storage of the test's own, so that no hint has been seen yet, and what is remembered can be
     // read
     const stored = new Map<string, string>();
@@ -310,21 +333,32 @@ describe("PageLayout", () => {
   });
 
   it("takes the region dimensions the theme configures, rather than its own defaults", async () => {
-    mockPoints({ FrameStart: [ext("Rail")], FrameTop: [ext("Top bar")] });
+    // Sizes the shell would never pick for itself
+    const theme = createTheme({
+      iapShell: { frameStart: { width: 321, collapseWidth: 777 }, frameTop: { collapseHeight: 654 } },
+    });
+    const queries = recordMediaQueries();
+    try {
+      mockPoints({ FrameStart: [ext("Rail")], FrameTop: [ext("Top bar")] });
 
-    render(
-      <ThemeProvider theme={appTheme} defaultMode="light">
-        <PageLayout>main</PageLayout>
-      </ThemeProvider>
-    );
+      render(
+        <ThemeProvider theme={theme}>
+          <PageLayout>main</PageLayout>
+        </ThemeProvider>
+      );
 
-    // appTheme sets iapShell. The other tests run without it, on the shell's own sizes.
-    expect(await screen.findByText("Rail content")).toBeInTheDocument();
-    expect(screen.getByText("Top bar content")).toBeInTheDocument();
+      expect((await screen.findByText("Rail content")).closest("aside")).toHaveStyle({ inlineSize: "321px" });
+      // Each region asks the screen whether it is expanded, at the size the theme gave it
+      expect(queries).toContain("(min-width:777px)");
+      expect(queries).toContain("(min-height: 654px)");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("stays quiet about the hint when there is nowhere to remember it", async () => {
-    const crossBreakpoint = stubResizableMedia();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    stubCollapsedScreen();
     // Storage that throws on every access, as a browser blocking it would
     vi.stubGlobal("localStorage", {
       getItem: () => { throw new Error("storage blocked"); },
@@ -334,13 +368,16 @@ describe("PageLayout", () => {
     });
     try {
       mockPoints({ FrameStart: [ext("Rail")] });
+      const FreshPageLayout = await freshPageLayout();
 
-      render(<PageLayout>main</PageLayout>);
-
+      render(<FreshPageLayout>main</FreshPageLayout>);
       await screen.findByText("Rail content");
+      // Well past the delay after which a page opening with the region collapsed shows the hint
+      await act(async () => { await vi.advanceTimersByTimeAsync(HINT_APPEAR_DELAY * 2); });
+
       expect(screen.queryByText("The side panel is available here")).toBeNull();
-      crossBreakpoint(false);
     } finally {
+      vi.useRealTimers();
       vi.unstubAllGlobals();
     }
   });

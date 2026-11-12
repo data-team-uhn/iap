@@ -18,7 +18,6 @@
 package io.uhndata.iap.status;
 
 import java.io.StringReader;
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,12 +60,10 @@ class StatusReportEndpointTest
     private StatusReportEndpoint endpoint;
 
     @BeforeEach
-    void setUp() throws Exception
+    void setUp()
     {
-        this.endpoint = new StatusReportEndpoint();
-        final Field reference = StatusReportEndpoint.class.getDeclaredField("manager");
-        reference.setAccessible(true);
-        reference.set(this.endpoint, this.manager);
+        this.context.registerService(StatusReportManager.class, this.manager);
+        this.endpoint = this.context.registerInjectActivateService(StatusReportEndpoint.class);
     }
 
     @Test

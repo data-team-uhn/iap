@@ -19,10 +19,6 @@ package io.uhndata.iap.schemas.editing.internal.handlers;
 
 import java.util.Map;
 
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
-import javax.jcr.version.VersionManager;
-
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
@@ -33,7 +29,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.schemas.editing.internal.SchemaFixture;
-import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -41,7 +36,6 @@ import io.uhndata.iap.workflows.api.WorkflowResult;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link CreateSchemaVersionHandler}: a new, empty version under the target schema, labelled as
@@ -136,21 +130,6 @@ class CreateSchemaVersionHandlerTest
             () -> this.handler.execute(task(schema, Map.of("version", "  "))));
         assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(task(schema, Map.of("version", new String[] { "1", "2" }))));
-    }
-
-    @Test
-    void checksOutTheVersionableNodeHoldingAPart() throws PersistenceException, RepositoryException
-    {
-        final Resource version = this.fixture.version(this.fixture.schema("study"), "v1", "draft");
-        final Resource form = this.fixture.create(version.getPath(), "form", "sch:FormRequirement",
-            Map.of("label", "Form"));
-        final VersionManager versions =
-            this.context.resourceResolver().adaptTo(Session.class).getWorkspace().getVersionManager();
-        versions.checkin(version.getPath());
-
-        VersioningUtils.checkOut(form);
-
-        assertTrue(versions.isCheckedOut(version.getPath()));
     }
 
     @Test

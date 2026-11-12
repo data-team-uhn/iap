@@ -267,18 +267,18 @@ class StartupGateFilterTest
     @Test
     void aRegressionInsideTheHoldWindowStartsTheHoldAgain() throws Exception
     {
-        final long twoSeconds = TimeUnit.SECONDS.toNanos(2);
         everythingPasses();
         this.filter.poll(0);
-
         everythingPassesExcept(SERVICES_CHECK);
-        this.filter.poll(twoSeconds);
+        this.filter.poll(TimeUnit.SECONDS.toNanos(2));
         everythingPasses();
-        this.filter.poll(2 * twoSeconds);
+        this.filter.poll(TimeUnit.SECONDS.toNanos(4));
 
+        // Eight seconds after readiness first began, but only four after it came back
+        this.filter.poll(TimeUnit.SECONDS.toNanos(8));
         assertFalse(letsRequestsThrough(), "readiness that did not last is not readiness");
 
-        this.filter.poll(2 * twoSeconds + StartupGateFilter.HOLD_NANOS);
+        this.filter.poll(TimeUnit.SECONDS.toNanos(9));
         assertTrue(letsRequestsThrough());
     }
 

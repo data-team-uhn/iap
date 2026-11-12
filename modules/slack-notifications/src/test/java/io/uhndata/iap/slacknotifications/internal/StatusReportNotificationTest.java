@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.slacknotifications.internal;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,8 +24,11 @@ import java.util.Set;
 
 import jakarta.json.JsonObject;
 
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.status.api.StatusReportManager;
 import io.uhndata.iap.status.spi.StatusReport;
@@ -40,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @version $Id$
  * @since 0.1.0
  */
+@ExtendWith(SlingContextExtension.class)
 class StatusReportNotificationTest
 {
     /** Answers with fixed reports, and remembers what it was asked for. */
@@ -64,17 +67,17 @@ class StatusReportNotificationTest
         }
     }
 
+    private final SlingContext context = new SlingContext();
+
     private final Reports reports = new Reports();
 
     private StatusReportNotification notification;
 
     @BeforeEach
-    void setUp() throws ReflectiveOperationException
+    void setUp()
     {
-        this.notification = new StatusReportNotification();
-        final Field manager = StatusReportNotification.class.getDeclaredField("statusReportManager");
-        manager.setAccessible(true);
-        manager.set(this.notification, this.reports);
+        this.context.registerService(StatusReportManager.class, this.reports);
+        this.notification = this.context.registerInjectActivateService(new StatusReportNotification());
     }
 
     @Test

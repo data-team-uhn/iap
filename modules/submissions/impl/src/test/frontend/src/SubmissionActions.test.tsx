@@ -18,22 +18,18 @@
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router";
+import { MemoryRouter } from "react-router";
 
+import { LocationProbe, probedPath } from "@iap/frontend-commons/location.fixture";
 import SubmissionActions from "@iap/submissions/SubmissionActions";
 
 const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
-
-// Reports where the router ended up, so navigation can be asserted on rather than mocked
-function Whereabouts() {
-  return <span data-testid="where">{useLocation().pathname}</span>;
-}
 
 function renderActions(props: { path?: string; title?: string; onDeleted?: () => void } = { path: PATH }) {
   return render(
     <MemoryRouter initialEntries={[ "/" ]}>
       <SubmissionActions {...props} />
-      <Routes><Route path="*" element={<Whereabouts />} /></Routes>
+      <LocationProbe />
     </MemoryRouter>,
   );
 }
@@ -53,7 +49,7 @@ describe("SubmissionActions", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "View" }));
 
-    expect(screen.getByTestId("where")).toHaveTextContent(PATH);
+    expect(probedPath()).toBe(PATH);
   });
 
   it("opens the submission for editing, at its own address", async () => {
@@ -61,7 +57,7 @@ describe("SubmissionActions", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
 
-    expect(screen.getByTestId("where")).toHaveTextContent(`${PATH}.edit`);
+    expect(probedPath()).toBe(`${PATH}.edit`);
   });
 
   it("renders nothing for a row with no path to act on", () => {

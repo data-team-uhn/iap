@@ -29,8 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link ValueRangeConstraint}: a number outside the bounds is refused, and a value that is not a
- * number is left alone.
+ * Unit tests for {@link ValueRangeConstraint}: a number outside the bounds is refused, a number on either bound is
+ * accepted, and a value that is not a number is left alone.
  *
  * @version $Id$
  * @since 0.1.0
@@ -56,6 +56,18 @@ class ValueRangeConstraintTest
     void acceptsAValueInsideTheBounds() throws Exception
     {
         assertNull(this.fixture.verdictOn(Map.of(MIN_VALUE, 1.0d, MAX_VALUE, 10.0d), "5"));
+    }
+
+    @Test
+    void acceptsAValueEqualToTheMinimum() throws Exception
+    {
+        assertNull(this.fixture.verdictOn(Map.of(MIN_VALUE, 1.0d, MAX_VALUE, 10.0d), "1"));
+    }
+
+    @Test
+    void acceptsAValueEqualToTheMaximum() throws Exception
+    {
+        assertNull(this.fixture.verdictOn(Map.of(MIN_VALUE, 1.0d, MAX_VALUE, 10.0d), "10"));
     }
 
     @Test

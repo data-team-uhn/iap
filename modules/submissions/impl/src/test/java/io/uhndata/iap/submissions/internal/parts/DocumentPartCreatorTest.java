@@ -50,12 +50,13 @@ class DocumentPartCreatorTest
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
-    private final DocumentPartCreator creator = new DocumentPartCreator();
+    private DocumentPartCreator creator;
 
     @BeforeEach
     void setUp() throws Exception
     {
-        CompletenessFixture.inject(this.creator, "conditions", CompletenessFixture.setUp(this.context, this.hidden));
+        CompletenessFixture.setUp(this.context, this.hidden);
+        this.creator = this.context.registerInjectActivateService(new DocumentPartCreator());
     }
 
     @Test

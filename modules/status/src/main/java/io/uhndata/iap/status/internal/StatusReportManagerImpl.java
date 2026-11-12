@@ -55,11 +55,7 @@ public class StatusReportManagerImpl implements StatusReportManager
     public List<StatusReport> getReports(final boolean unprivileged, final StatusReport.Status level,
         final Set<String> tags)
     {
-        final List<StatusReporter> current = this.reporters;
-        if (current == null) {
-            return List.of();
-        }
-        return current.stream()
+        return this.reporters.stream()
             .filter(reporter -> tags == null || tags.isEmpty() || !Collections.disjoint(reporter.getTags(), tags))
             .map(reporter -> report(reporter, unprivileged))
             .filter(Objects::nonNull)

@@ -144,6 +144,12 @@
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
     </dependency>
     <dependency>
+      <!-- The service ranking that lets a test factory stand in front of the repository's -->
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.framework</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.eclipse.parsson</groupId>
       <artifactId>parsson</artifactId>
       <scope>test</scope>

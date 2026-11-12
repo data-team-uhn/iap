@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.metrics.internal;
 
-import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 
@@ -35,6 +34,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
+import org.osgi.framework.Constants;
 
 import io.uhndata.iap.metrics.api.Metric;
 import io.uhndata.iap.metrics.api.MetricsException;
@@ -66,8 +66,7 @@ class MetricsManagerImplTest
     void setUp() throws Exception
     {
         this.factory = this.context.getService(ResourceResolverFactory.class);
-        this.manager = new MetricsManagerImpl();
-        inject(this.manager, this.factory);
+        this.manager = this.context.registerInjectActivateService(MetricsManagerImpl.class);
         try (ResourceResolver resolver = open()) {
             resolver.create(resolver.getResource("/"), "Metrics",
                 Map.of("sling:resourceType", "metric/Homepage"));
@@ -294,11 +293,11 @@ class MetricsManagerImplTest
         final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("no service user"));
-        inject(this.manager, broken);
+        final MetricsManager unconnected = managerUsing(broken);
 
-        assertThrows(MetricsException.class, () -> this.manager.getMetrics());
-        assertThrows(MetricsException.class, () -> this.manager.getMetric("any"));
-        final MetricsManager.MetricBuilder builder = this.manager.createMetric("any");
+        assertThrows(MetricsException.class, unconnected::getMetrics);
+        assertThrows(MetricsException.class, () -> unconnected.getMetric("any"));
+        final MetricsManager.MetricBuilder builder = unconnected.createMetric("any");
         assertThrows(MetricsException.class, builder::create);
     }
 
@@ -308,7 +307,7 @@ class MetricsManagerImplTest
         final ResourceResolver resolver = mockedResolverWithHomepage();
         Mockito.doThrow(new PersistenceException("conflict")).when(resolver).commit();
 
-        final MetricsManager.MetricBuilder builder = this.manager.createMetric("doomed");
+        final MetricsManager.MetricBuilder builder = managerUsing(factoryOpening(resolver)).createMetric("doomed");
         final MetricsException exception = assertThrows(MetricsException.class, builder::create);
         assertTrue(exception.getMessage().contains("doomed"));
     }
@@ -323,7 +322,7 @@ class MetricsManagerImplTest
         Mockito.when(existing.adaptTo(ModifiableValueMap.class)).thenReturn(null);
         Mockito.when(resolver.getResource("/Metrics").getChild("stuck")).thenReturn(existing);
 
-        final MetricsManager.MetricBuilder builder = this.manager.createMetric("stuck");
+        final MetricsManager.MetricBuilder builder = managerUsing(factoryOpening(resolver)).createMetric("stuck");
         assertThrows(MetricsException.class, builder::create);
     }
 
@@ -352,21 +351,29 @@ class MetricsManagerImplTest
         }
     }
 
-    private ResourceResolver mockedResolverWithHomepage() throws Exception
+    private ResourceResolver mockedResolverWithHomepage()
     {
-        final ResourceResolverFactory mockedFactory = Mockito.mock(ResourceResolverFactory.class);
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         final Resource homepage = Mockito.mock(Resource.class);
-        Mockito.when(mockedFactory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(resolver);
         Mockito.when(resolver.getResource("/Metrics")).thenReturn(homepage);
-        inject(this.manager, mockedFactory);
         return resolver;
     }
 
-    private void inject(final MetricsManagerImpl target, final ResourceResolverFactory value) throws Exception
+    private ResourceResolverFactory factoryOpening(final ResourceResolver resolver) throws Exception
     {
-        final Field reference = MetricsManagerImpl.class.getDeclaredField("resolverFactory");
-        reference.setAccessible(true);
-        reference.set(target, value);
+        final ResourceResolverFactory mockedFactory = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(mockedFactory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(resolver);
+        return mockedFactory;
+    }
+
+    /**
+     * A manager of its own, which reaches the repository through the given factory. The factory outranks the one the
+     * context provides, so it is the one the manager binds.
+     */
+    private MetricsManager managerUsing(final ResourceResolverFactory resolverFactory)
+    {
+        this.context.registerService(ResourceResolverFactory.class, resolverFactory,
+            Constants.SERVICE_RANKING, Integer.MAX_VALUE);
+        return this.context.registerInjectActivateService(MetricsManagerImpl.class);
     }
 }

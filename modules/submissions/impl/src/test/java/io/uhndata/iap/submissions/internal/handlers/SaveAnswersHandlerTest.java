@@ -98,7 +98,7 @@ class SaveAnswersHandlerTest
     // JCR-backed rather than the plain mock: the handler writes a real REFERENCE through the JCR API
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
-    private final SaveAnswersHandler handler = new SaveAnswersHandler();
+    private SaveAnswersHandler handler;
 
     /** The schema parts these tests hide; everything else applies. */
     private final Set<String> hidden = new HashSet<>();
@@ -113,7 +113,7 @@ class SaveAnswersHandlerTest
     private Node node;
 
     @BeforeEach
-    void setUp() throws RepositoryException, ReflectiveOperationException
+    void setUp() throws RepositoryException
     {
         this.node = Mockito.mock(Node.class);
         Mockito.when(this.node.isCheckedOut()).thenReturn(true);
@@ -127,9 +127,7 @@ class SaveAnswersHandlerTest
         });
         // The submission model asks for the evaluator through @OSGiService
         this.context.registerService(ConditionEvaluator.class, conditions);
-        final var field = SaveAnswersHandler.class.getDeclaredField("conditions");
-        field.setAccessible(true);
-        field.set(this.handler, conditions);
+        this.handler = this.context.registerInjectActivateService(new SaveAnswersHandler());
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);

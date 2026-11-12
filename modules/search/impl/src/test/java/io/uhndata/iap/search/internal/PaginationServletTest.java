@@ -20,7 +20,6 @@ package io.uhndata.iap.search.internal;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.lang.reflect.Field;
 import java.security.Principal;
 import java.util.ArrayDeque;
 import java.util.Arrays;
@@ -54,9 +53,12 @@ import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -70,9 +72,12 @@ import io.uhndata.iap.principals.spi.SpecialNameResolver;
  * @version $Id$
  * @since 0.1.0
  */
+@ExtendWith(SlingContextExtension.class)
 public class PaginationServletTest
 {
     private static final String SCOPE = "/Submissions";
+
+    private final SlingContext osgi = new SlingContext();
 
     private PaginationServlet servlet;
 
@@ -97,7 +102,6 @@ public class PaginationServletTest
     public void setup() throws Exception
     {
         this.parameters = new HashMap<>();
-        this.servlet = new PaginationServlet();
         this.request = Mockito.mock(SlingJakartaHttpServletRequest.class);
         this.response = Mockito.mock(SlingJakartaHttpServletResponse.class);
         this.resolver = Mockito.mock(ResourceResolver.class);
@@ -132,7 +136,11 @@ public class PaginationServletTest
         });
 
         mockHomepage("sub/SubmissionsHomepage", null);
-        vocabulary();
+        // The real principals service, knowing what a deployment knows, so that these tests check what a
+        // deployment resolves and not a stubbed answer
+        this.osgi.registerService(SpecialNameResolver.class, new MeResolver());
+        this.osgi.registerInjectActivateService(new PrincipalServiceImpl());
+        this.servlet = this.osgi.registerInjectActivateService(new PaginationServlet());
     }
 
     @Test
@@ -672,7 +680,7 @@ public class PaginationServletTest
     public void aNameTheVocabularyKnowsIsResolvedWhereverItCameFrom() throws Exception
     {
         // A name another module registers with the principals service
-        vocabulary(new MeResolver(), resolverFor("@reviewers", List.of("alice", "bob")));
+        this.osgi.registerService(SpecialNameResolver.class, resolverFor("@reviewers", List.of("alice", "bob")));
         withParameter("fieldName", "assignee");
         withParameter("fieldValue", "@reviewers");
         final ArgumentCaptor<String> statement = mockResults();
@@ -696,29 +704,6 @@ public class PaginationServletTest
                 + " and (n.[assignee] = $p0)"
                 + " order by n.[jcr:created] ASC", statement.getValue());
         Assertions.assertEquals(Map.of("p0", "@nobodyKnows"), this.boundValues);
-    }
-
-    /**
-     * Gives the servlet the real principals service, with the given special-name resolvers, so that these tests
-     * check what a deployment resolves and not a stubbed answer.
-     *
-     * @param resolvers the special-name resolvers to register, {@link MeResolver} if none are given
-     * @throws ReflectiveOperationException if either component's field is renamed
-     */
-    private void vocabulary(final SpecialNameResolver... resolvers) throws ReflectiveOperationException
-    {
-        final PrincipalServiceImpl principals = new PrincipalServiceImpl();
-        setField(PrincipalServiceImpl.class, principals, "resolvers",
-            resolvers.length == 0 ? List.of(new MeResolver()) : List.of(resolvers));
-        setField(PaginationServlet.class, this.servlet, "principals", principals);
-    }
-
-    private static void setField(final Class<?> owner, final Object target, final String name, final Object value)
-        throws ReflectiveOperationException
-    {
-        final Field field = owner.getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(target, value);
     }
 
     private static SpecialNameResolver resolverFor(final String name, final List<String> answer)

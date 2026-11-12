@@ -31,7 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link AnswerConstraintsValidator}: the first refusal, in the order the constraints came in, is heard.
+ * Unit tests for {@link AnswerConstraintsValidator}: the first refusal, in the order the constraints came in, is heard,
+ * and a question the submitter is not shown is not judged at all.
  *
  * <p>The order itself is the framework's: it keeps the bound list sorted by ascending {@code service.ranking}.</p>
  *
@@ -68,6 +69,13 @@ class AnswerConstraintsValidatorTest
     {
         assertEquals("second", ConstraintFixture.showingEverythingTo(this.context, accepting(), refusing("second"))
             .verdictOn(Map.of(), "anything"));
+    }
+
+    // Two values break the shipped maximum of one, so only the question being hidden lets them through
+    @Test
+    void passesOverAQuestionTheSubmitterIsNotShown() throws Exception
+    {
+        assertNull(ConstraintFixture.hidingEverything(this.context).verdictOn(Map.of("maxAnswers", 1L), "a", "b"));
     }
 
     private static AnswerConstraint accepting()
