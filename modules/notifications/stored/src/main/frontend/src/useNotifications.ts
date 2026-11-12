@@ -79,6 +79,12 @@ const mark = async (fetchUtil: AuthenticatedFetch, notification: Notification): 
   }
 };
 
+/** Marks as read the unread notifications the dropdown shows. Nothing can mark one unread again. */
+const markShownRead = async (fetchUtil: AuthenticatedFetch, recent: Notification[]): Promise<void> => {
+  await Promise.all(recent.slice(0, SHOWN).filter(notification => !notification.read)
+    .map(notification => mark(fetchUtil, notification)));
+};
+
 export interface NotificationsFeed {
   /** The current user's notifications, newest first. */
   notifications: Notification[];
@@ -86,7 +92,7 @@ export interface NotificationsFeed {
   unreadCount: number;
   /** Whether the list failed to load when it was last opened. The next load that succeeds clears it. */
   failed: boolean;
-  /** Loads the list again, then marks as read the unread ones the dropdown shows. */
+  /** Loads the list again, then marks as read the unread ones the dropdown shows. Never rejects. */
   read: () => Promise<void>;
 }
 
@@ -132,15 +138,10 @@ export function useNotifications(): NotificationsFeed {
       setFailed(true);
       return;
     }
-    try {
-      // Only those the dropdown shows. Nothing can mark a notification unread again.
-      await Promise.all(recent.slice(0, SHOWN).filter(notification => !notification.read)
-        .map(notification => mark(doFetch, notification)));
-      setUnreadCount(await countUnread(doFetch));
-    } catch {
-      // The list loaded, and only marking failed, so the list stays on screen
-      setUnreadCount(await countUnread(doFetch));
-    }
+    // The list loaded, so a failure from here on leaves it on screen
+    await markShownRead(doFetch, recent).catch(() => undefined);
+    // A count that cannot be loaded keeps its last value until the next try
+    await countUnread(doFetch).then(setUnreadCount, () => undefined);
   }, [ doFetch, refresh ]);
 
   return { notifications, unreadCount, failed, read };
