@@ -6,6 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
+    "description": "Records and checks the submitter's answers, then notes whether anything is still missing.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
