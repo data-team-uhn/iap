@@ -101,7 +101,10 @@ public final class EngineFixture
     /** An ordinary user belonging to {@link #REQUESTERS}. */
     static final String REQUESTER = "demo-requester";
 
-    /** The group {@link #REQUESTER} belongs to. */
+    /** Another ordinary user in {@link #REQUESTERS}, for someone to act on behalf of. */
+    static final String COLLEAGUE = "demo-colleague";
+
+    /** The group {@link #REQUESTER} and {@link #COLLEAGUE} belong to. */
     static final String REQUESTERS = "time-off-requesters";
 
     /** Every principal granted read since the last fixture was built, for the access tests to assert on. */
@@ -226,7 +229,7 @@ public final class EngineFixture
     public static WorkflowTaskContext taskContext(final Resource target, final WorkflowEvent event,
         final Activity activity, final Map<String, Object> variables, final String actor)
     {
-        return new WorkflowTaskContextImpl(target, event, activity, variables, actor, noFurtherTasks(), 0);
+        return new WorkflowTaskContextImpl(target, event, activity, variables, Actor.of(actor), noFurtherTasks(), 0);
     }
 
     /**
@@ -246,6 +249,19 @@ public final class EngineFixture
             throw new IllegalStateException("The fixture could not build its principal service", e);
         }
         return service;
+    }
+
+    /**
+     * Who may act for others, as the engine is wired with it.
+     *
+     * @param delegates the principal name of the group whose members may
+     * @return a delegation policy
+     */
+    static Delegation delegation(final String delegates)
+    {
+        final DelegationConfiguration config = Mockito.mock(DelegationConfiguration.class);
+        Mockito.when(config.delegates()).thenReturn(delegates);
+        return new Delegation(performers(), config);
     }
 
     /**
@@ -495,13 +511,14 @@ public final class EngineFixture
         final ServiceTaskDispatchers dispatchers = new ServiceTaskDispatchers(routing(), runners(), notifications);
         inject(dispatchers, "handlers", handlers);
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
-        inject(engine, "resolverFactory", resolverFactory);
+        inject(engine, "sessions", new EngineSessions(resolverFactory));
         inject(engine, "dispatchers", dispatchers);
         inject(engine, "recorder", recorder);
         inject(engine, "conditionEvaluator", conditions());
         inject(engine, "performers", performers());
         inject(engine, "taskCompletion", taskCompletion());
         inject(engine, "queries", queries());
+        inject(engine, "delegation", delegation("iap-administrators"));
         return engine;
     }
 
@@ -565,7 +582,7 @@ public final class EngineFixture
     }
 
     /**
-     * A session whose user store holds an administrator and one ordinary group member, and which accepts access
+     * A session whose user store holds an administrator and two ordinary group members, and which accepts access
      * control lists. The mock repository has neither, so both have to be supplied for anything that authorizes or
      * grants to be exercised at all.
      *
@@ -578,6 +595,7 @@ public final class EngineFixture
             // way to confuse Mockito
             final User admin = user(ADMIN, true);
             final User requester = user(REQUESTER, false);
+            final User colleague = user(COLLEAGUE, false);
             final User timer = user(TaskCompletion.TIMER_USER, false);
             Mockito.when(timer.memberOf()).thenAnswer(invocation -> List.<Group>of().iterator());
             final Group requesters = group();
@@ -585,11 +603,12 @@ public final class EngineFixture
             final UserManager userManager = Mockito.mock(UserManager.class);
             Mockito.when(userManager.getAuthorizable(ADMIN)).thenReturn(admin);
             Mockito.when(userManager.getAuthorizable(REQUESTER)).thenReturn(requester);
+            Mockito.when(userManager.getAuthorizable(COLLEAGUE)).thenReturn(colleague);
             Mockito.when(userManager.getAuthorizable(TaskCompletion.TIMER_USER)).thenReturn(timer);
             Mockito.when(userManager.getAuthorizable(REQUESTERS)).thenReturn(requesters);
-            // Membership is asked of the group, about the member, and only the ordinary user is in it
+            // Membership is asked of the group, about the member, and only the ordinary users are in it
             Mockito.when(requesters.isMember(Mockito.any())).thenAnswer(invocation ->
-                REQUESTER.equals(((Authorizable) invocation.getArgument(0)).getID()));
+                List.of(REQUESTER, COLLEAGUE).contains(((Authorizable) invocation.getArgument(0)).getID()));
             final JackrabbitSession session =
                 Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));
             Mockito.doReturn(userManager).when(session).getUserManager();

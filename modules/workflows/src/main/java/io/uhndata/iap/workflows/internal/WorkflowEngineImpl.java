@@ -21,21 +21,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
-import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
@@ -65,9 +61,6 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 @Component(service = WorkflowEngine.class)
 public class WorkflowEngineImpl implements WorkflowEngine
 {
-    /** The subservice name under which the engine's service user is mapped. */
-    static final String SUBSERVICE_NAME = "workflows";
-
     /**
      * How many nodes one delivery may pass through, counted across all its branches, before the definition is
      * declared broken. Far above anything a real workflow needs, so a definition whose arcs form a cycle fails fast
@@ -81,8 +74,9 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /** How many events deep workflows may send events to each other before the definitions are declared broken. */
     private static final int MAX_SENT_EVENTS_DEPTH = 10;
 
+    /** Opens the engine's own session, in which every delivery runs. */
     @Reference
-    private ResourceResolverFactory resolverFactory;
+    private EngineSessions sessions;
 
     /** Evaluates every guard, on a start event and on a gateway's arcs alike. */
     @Reference
@@ -108,15 +102,18 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference
     private DeliveryRecorder recorder;
 
+    @Reference
+    private Delegation delegation;
+
     @Override
-    public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event) throws WorkflowException
+    public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event, final String onBehalfOf)
+        throws WorkflowException
     {
         // Taken from the incoming resource rather than passed in. The session that resolved it is the one that
-        // authenticated, so it is the authority on who is asking. Canonical, because a login resolves
-        // case-insensitively and the resolver reports the spelling that was typed: @creator compares against what
-        // is recorded here, and would otherwise refuse the person who raised the request
-        final String actor = UserIds.canonical(target.getResourceResolver());
-        try (ResourceResolver serviceResolver = serviceResolver()) {
+        // authenticated, so it is the authority on who is asking
+        final ResourceResolver senderResolver = target.getResourceResolver();
+        try (ResourceResolver serviceResolver = this.sessions.open()) {
+            final Actor actor = this.delegation.authorizeActor(serviceResolver, senderResolver, onBehalfOf);
             // Re-resolved through the engine's session. From here on the run is privileged: the caller's own
             // view of the target may be nothing but the bare node they were allowed to post to
             final Resource privilegedTarget = Objects.requireNonNull(serviceResolver.getResource(target.getPath()),
@@ -131,29 +128,13 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Override
     public Set<String> getAvailableEvents(final Resource target) throws WorkflowException
     {
-        return this.queries.availableEvents(target, this::serviceResolver);
+        return this.queries.availableEvents(target, this.sessions::open);
     }
 
     @Override
     public WorkflowVersion findApplicableWorkflow(final Resource target, final String event) throws WorkflowException
     {
-        return this.queries.applicableWorkflow(target, event, this::serviceResolver);
-    }
-
-    /**
-     * Opens the engine's own session.
-     *
-     * @return a service resource resolver, to be closed by the caller
-     * @throws WorkflowFailedException when the service user is not available
-     */
-    private ResourceResolver serviceResolver() throws WorkflowFailedException
-    {
-        try {
-            return this.resolverFactory
-                .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME));
-        } catch (final LoginException e) {
-            throw new WorkflowFailedException("The workflow engine's service user is not available", e);
-        }
+        return this.queries.applicableWorkflow(target, event, this.sessions::open);
     }
 
     /**
@@ -167,11 +148,11 @@ public class WorkflowEngineImpl implements WorkflowEngine
      *
      * @param task the task the event is aimed at, resolved through the engine's session
      * @param event the incoming event
-     * @param actor the user who sent the event
+     * @param actor who sent the event, and whom for
      * @return an empty result: ending a task creates nothing to send the caller to
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
      */
-    private WorkflowResult resume(final Resource task, final WorkflowEvent event, final String actor)
+    private WorkflowResult resume(final Resource task, final WorkflowEvent event, final Actor actor)
         throws WorkflowException
     {
         final ResourceResolver resolver = task.getResourceResolver();
@@ -180,7 +161,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
             try {
                 final Resource current = Objects.requireNonNull(resolver.getResource(task.getPath()),
                     "A task is never deleted while its instance runs");
-                this.taskCompletion.apply(resolver, current, event, actor, attempt.performer(event, actor));
+                this.taskCompletion.apply(resolver, current, event, actor.effectiveUser(),
+                    attempt.performer(event, actor));
                 this.recorder.commit(resolver, attempt.recordedAsTask(actor, event, current));
                 return attempt;
             } catch (final PersistenceException e) {
@@ -201,12 +183,12 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * @param target the resource the event is aimed at, backed by the engine's own session
      * @param event the incoming event
      * @param start the entry point to run from
-     * @param actor the user who fired the event
+     * @param actor who sent the event, and whom for
      * @return the variables the execution left behind
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
      */
     private WorkflowResult execute(final Resource target, final WorkflowEvent event, final StartEvent start,
-        final String actor) throws WorkflowException
+        final Actor actor) throws WorkflowException
     {
         final ResourceResolver resolver = target.getResourceResolver();
         final ServiceTaskDispatcher dispatcher = dispatcher();
@@ -232,12 +214,12 @@ public class WorkflowEngineImpl implements WorkflowEngine
      *
      * @param target the resource the event is aimed at, backed by the engine's own session
      * @param event the event
-     * @param actor the user firing it, or the user the sending execution acts for
+     * @param actor who sent the event, and whom for; for an event a service task sent, the sending execution's
      * @param depth how many sent events deep this is, 0 for an event that came in
      * @return the start event of the system workflow waiting for it
      * @throws WorkflowException when the event is refused, or events are sent too deep
      */
-    private StartEvent admit(final Resource target, final WorkflowEvent event, final String actor, final int depth)
+    private StartEvent admit(final Resource target, final WorkflowEvent event, final Actor actor, final int depth)
         throws WorkflowException
     {
         if (depth > MAX_SENT_EVENTS_DEPTH) {
@@ -247,7 +229,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         }
         final ResourceResolver resolver = target.getResourceResolver();
         final StartEvent start = SystemWorkflowLocator.find(resolver, target, event, this.conditionEvaluator);
-        this.performers.createCheck(resolver, actor).verify(start, target);
+        this.performers.createCheck(resolver, actor.effectiveUser()).verify(start, target);
         return start;
     }
 
@@ -263,10 +245,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     }
 
     /**
-     * Discards whatever an aborted execution had already changed. A failing event leaves no trace in the firing
-     * user's session.
+     * Discards whatever an aborted execution had already changed. A failing event leaves no trace in the engine's
+     * session.
      *
-     * @param resolver the firing user's resource resolver
+     * @param resolver the engine's own resource resolver
      */
     private void revert(final ResourceResolver resolver)
     {

@@ -45,18 +45,17 @@ final class DeliveryCauses
     /**
      * The cause of an event that a system workflow handled.
      *
-     * @param actor the user who sent the event
+     * @param actor who sent the event, and whom for
      * @param event the event
      * @param start the start event of the system workflow that caught it
      * @param startedInstance the path of the content workflow instance the delivery started, {@code null} if none
      * @return the cause, to which the delivery adds what its steps did
      */
-    static RecordedAction.Builder ofSystemWorkflow(final String actor, final WorkflowEvent event, final FlowNode start,
+    static RecordedAction.Builder ofSystemWorkflow(final Actor actor, final WorkflowEvent event, final FlowNode start,
         final String startedInstance)
     {
         final WorkflowVersion version = start.getWorkflowVersion();
-        return RecordedAction.by(actor, event.getName())
-            .event(event.getName())
+        return causedBy(actor, event)
             .workflow(startedInstance, version == null ? null : version.getIdentifier())
             .activity(start.getElementId(), start.getLabel());
     }
@@ -64,22 +63,35 @@ final class DeliveryCauses
     /**
      * The cause of an event that completed a task of a running instance.
      *
-     * @param actor the user who sent the event
+     * @param actor who sent the event, and whom for
      * @param event the event, carrying the decision taken on the task if it offers a choice
      * @param task the task the event completed, as the event left it
      * @return the cause, to which the delivery adds what its steps did
      */
-    static RecordedAction.Builder ofTask(final String actor, final WorkflowEvent event, final Resource task)
+    static RecordedAction.Builder ofTask(final Actor actor, final WorkflowEvent event, final Resource task)
     {
         final TaskInstance instanceTask = Objects.requireNonNull(task.adaptTo(TaskInstance.class),
             "A task the engine resumes is a task");
         final WorkflowInstance instance = Objects.requireNonNull(instanceTask.getWorkflowInstance(),
             "A task the engine resumes belongs to an instance");
-        return RecordedAction.by(actor, event.getName())
-            .event(event.getName())
+        return causedBy(actor, event)
             .workflow(instance.getPath(), instance.getWorkflowVersionIdentifier())
             .activity(instanceTask.getTaskDefinitionId(), instanceTask.getLabel())
             .task(task.getPath(), Payloads.text(event, TaskCompletion.OUTCOME_PARAMETER),
                 Payloads.text(event, TaskCompletion.OUTCOME_NOTE_PARAMETER));
+    }
+
+    /**
+     * What every cause begins with: who sent the event, whom for, and the event itself.
+     *
+     * @param actor who sent the event, and whom for
+     * @param event the event
+     * @return the start of the cause
+     */
+    private static RecordedAction.Builder causedBy(final Actor actor, final WorkflowEvent event)
+    {
+        return RecordedAction.by(actor.sender(), event.getName())
+            .onBehalfOf(actor.onBehalfOf())
+            .event(event.getName());
     }
 }

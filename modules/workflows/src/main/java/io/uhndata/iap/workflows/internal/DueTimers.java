@@ -48,6 +48,7 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.TaskInstance;
 
 /**
@@ -106,6 +107,10 @@ public class DueTimers implements Runnable
     @Reference
     private ResourceResolverFactory resolverFactory;
 
+    /** Opens the engine's own session, in which the sweep finds what is overdue and delivers it. */
+    @Reference
+    private EngineSessions sessions;
+
     @Reference
     private WorkflowEngine engine;
 
@@ -131,12 +136,12 @@ public class DueTimers implements Runnable
     @Override
     public void run()
     {
-        try (ResourceResolver resolver = login(WorkflowEngineImpl.SUBSERVICE_NAME);
-            ResourceResolver timer = login(TIMER_SUBSERVICE)) {
+        try (ResourceResolver resolver = this.sessions.open();
+            ResourceResolver timer = timerSession()) {
             for (final String path : overdue(resolver)) {
                 fire(resolver, timer, path);
             }
-        } catch (final LoginException e) {
+        } catch (final LoginException | WorkflowFailedException e) {
             LOGGER.error("A service user the sweep needs is not available, so no deadline can be delivered", e);
             ErrorLogger.logError(e, ErrorContext.of(DueTimers.class, SWEEP_OPERATION));
         } catch (final RepositoryException e) {
@@ -146,15 +151,15 @@ public class DueTimers implements Runnable
     }
 
     /**
-     * Opens a session of one of this bundle's service users.
+     * Opens the session of the timer's service user, which a timeout is delivered as.
      *
-     * @param subservice which one
      * @return the session, to be closed by the caller
      * @throws LoginException when that service user is not available
      */
-    private ResourceResolver login(final String subservice) throws LoginException
+    private ResourceResolver timerSession() throws LoginException
     {
-        return this.resolverFactory.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, subservice));
+        return this.resolverFactory
+            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, TIMER_SUBSERVICE));
     }
 
     /**
