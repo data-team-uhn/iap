@@ -21,26 +21,15 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 import { adminAuth } from '../../support/auth';
 
 /**
- * Serialization selectors passed as query parameters instead of written into the path.
+ * Serialization selectors passed as query parameters instead of written into the path. A path
+ * splits at every dot, so a selector with a dot in its value can only be given this way.
  *
- * The reason they can be is that a selector carrying a dot in its own value has to escape it with a
- * backslash, and Jetty refuses a path containing one — encoded or not — unless the deployment loosens
- * its URI compliance for every request it will ever serve. A query string is under no such rule. The
- * `UriComplianceMode=JETTY_11` override that used to loosen it has been dropped now that this exists,
- * so the first test below asserts the refusal directly — it is what keeps the override from quietly
- * coming back.
+ * A filter reads the parameters. Only a live instance shows whether they reach the serializer,
+ * which sits behind `adaptTo(JsonObject.class)`.
  *
- * What the rest are here for is the wiring: the selectors are read off the request by a filter, which
- * records them for the request so that every parse during it includes them. Only a live instance can
- * say whether that reaches the serializer, which sits behind `adaptTo(JsonObject.class)`. Two earlier
- * designs passed their unit tests and were dead here — writing the resource's metadata throws, because
- * it is locked, and wrapping the resource changes nothing, because `ResourceWrapper.adaptTo` delegates
- * to the resource it wraps.
- *
- * Every check below is written against a property that is present by default and gone when the
- * selector is honoured, rather than against a whole-body comparison: `/Tags` on the bare platform has
- * no children, so anything phrased in terms of serialization *depth* passes whether or not the
- * parameter was read at all.
+ * Each check looks for a property present by default and gone when the selector is honoured.
+ * `/Tags` has no children on the bare platform, so a check on serialization depth would pass
+ * whether or not the parameter was read.
  */
 test.describe('selectors given as query parameters', () => {
   const TAGS = '/Tags';
@@ -54,13 +43,11 @@ test.describe('selectors given as query parameters', () => {
     return await response.json() as Record<string, unknown>;
   };
 
-  test('a backslash in the path is refused, which is why the parameter exists', async ({ request }) => {
-    // Jetty rejects the request target before Sling ever sees it. This is the encoded form, which is
-    // the harder case: a literal backslash is refused by every compliance mode, while `%5C` was
-    // allowed by the one this deployment used to set. If this starts passing, that override is back.
+  test('a backslash in the path is refused', async ({ request }) => {
+    // The encoded form, which only a loosened URI compliance mode lets through
     const response = await request.get(`${TAGS}.dataOption:x=a%5C.b.json`, asAdmin);
 
-    expect(response.status(), 'an escaped dot in the path was accepted').toBeGreaterThanOrEqual(400);
+    expect(response.status(), 'a backslash in the path was accepted').toBeGreaterThanOrEqual(400);
   });
 
   test('the default serialization carries the properties these tests switch off', async ({ request }) => {

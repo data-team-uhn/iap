@@ -37,15 +37,13 @@ extension shape the output.
 
 None of the processors [below](#the-processors) reads options.
 
-Dots separate the selectors, so a value containing a dot cannot simply go into the
-path. `SelectorUtils` (`iap-java-utils`) parses them, with `parseSelectors`,
-`parseDepth`, `parseOptions` and `parseOptionsToMap`. It reads a backslash before a dot
-as an escape, but **do not rely on that in a URL**: by default, Jetty refuses a
-backslash in a path, literal or encoded.
+Every dot in the path separates two selectors, so a value containing a dot cannot go
+there. `SelectorUtils` (`iap-java-utils`) parses them, with `parseSelectors`,
+`parseDepth`, `parseOptions` and `parseOptionsToMap`.
 
-Use the query-parameter form instead. A repeated `selector` parameter passes one
-selector each, and a value containing a dot goes this way. Here a processor named
-`dataFilter` gets the option `after`:
+A value containing a dot goes in a query parameter instead. A repeated `selector`
+parameter passes one selector each. Here a processor named `dataFilter` gets the option
+`after`:
 
 ```
 GET /Submissions/S-1.json?selector=deep&selector=dataFilter:after=2026-01-01T00:00:00.000-05:00
@@ -55,6 +53,16 @@ A query parameter is not split on dots, so a date, a path or any other dotted va
 in as it is, with nothing to escape. The two forms mix. The selectors in the path come
 first and the parameters after them, in one list. The plain selectors can stay in the
 path, and only the dotted one moves.
+
+Code that serializes a resource itself passes its selectors the same way, as a list,
+with `SelectorUtils.withSelectors`. They replace the request's own parameters until the
+code returns. Resolve the resource inside the call: Sling keeps what a resource was
+adapted to, so a resource already turned into JSON gives the same JSON again.
+
+```java
+JsonObject json = SelectorUtils.withSelectors(List.of("deep", "dataFilter:after=2026-01-01T00:00:00.000-05:00"),
+    () -> resolver.getResource(path).adaptTo(JsonObject.class));
+```
 
 ### Depth
 

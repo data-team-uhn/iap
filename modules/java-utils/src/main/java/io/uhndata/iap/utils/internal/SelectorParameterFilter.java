@@ -37,10 +37,8 @@ import io.uhndata.iap.utils.SelectorUtils;
  * them to {@link SelectorUtils#setRequestSelectors} while the request runs, so that every parse includes them.
  *
  * <p>
- * A selector whose value has a dot must escape it with a backslash in the path. By default, Jetty refuses a
- * backslash in a path, encoded or not. A query string has no such rule:
- * {@code ?selector=dataOption:formSelectors=-dereference.simple.deep}. The parameter can be repeated, one whole
- * selector each time, and nothing in it is escaped.
+ * A parameter holds one whole selector, with nothing escaped, so its value can hold a dot:
+ * {@code ?selector=dataOption:formSelectors=-dereference.simple.deep}. The parameter can be repeated.
  * </p>
  *
  * @version $Id$
