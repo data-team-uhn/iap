@@ -20,19 +20,14 @@ package io.uhndata.iap.extraction.internal;
 import java.util.List;
 import java.util.Map;
 
-import javax.jcr.ItemNotFoundException;
-import javax.jcr.Session;
-
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mockito;
 
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
@@ -112,21 +107,7 @@ class SubmissionFilesTest
             "the newest version's file wins, and a document with no upload yet is skipped");
     }
 
-    private void failWith(final Resource file, final String reason)
-    {
-        final ModifiableValueMap properties = file.adaptTo(ModifiableValueMap.class);
-        assertNotNull(properties, "the fixture file has to be writable");
-        properties.put("parseError", reason);
-    }
-
-    // Each case has its own message, not the generic one
-    @Test
-    void saysNothingHasBeenUploadedWhenThereIsNothing()
-    {
-        assertEquals(SubmissionFiles.NO_DOCUMENT_MESSAGE, SubmissionFiles.describeNothingToRead(getModel()));
-    }
-
-    // An upload whose requirement skips parsing is never read, so it is as good as none to a reading
+    // An upload whose requirement skips parsing is never parsed, so no reading uses it
     @Test
     void readsNoUploadWhoseRequirementSkipsParsing()
     {
@@ -135,72 +116,8 @@ class SubmissionFilesTest
         requirement.adaptTo(ModifiableValueMap.class).put("skipParsing", true);
         SubmissionTree.reference(file.getParent().getParent(), "fulfills", requirement);
 
-        assertEquals(SubmissionFiles.NO_DOCUMENT_MESSAGE, SubmissionFiles.describeNothingToRead(getModel()));
-        assertNull(SubmissionFiles.findFirstParsed(getModel()));
         assertTrue(SubmissionFiles.getFilesToParse(getModel()).isEmpty());
         assertEquals(1, SubmissionFiles.getCurrentFiles(getModel()).size(), "it is still the document's upload");
-    }
-
-    // A value that is not a UUID makes the repository throw an unchecked exception, not a RepositoryException
-    @Test
-    void findsAReadingWorkflowNamedByAMalformedIdentifierCannotRun() throws Exception
-    {
-        final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
-        final Session session = Mockito.mock(Session.class);
-        Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);
-        Mockito.when(session.getNodeByIdentifier(Mockito.anyString()))
-            .thenThrow(new IllegalArgumentException("Not a valid identifier"), new ItemNotFoundException("gone"));
-
-        assertEquals(SubmissionFiles.ReadingWorkflowState.CANNOT_RUN, SubmissionFiles.checkReadingWorkflow(getModel(),
-            resolver));
-        assertEquals(SubmissionFiles.ReadingWorkflowState.CANNOT_RUN, SubmissionFiles.checkReadingWorkflow(getModel(),
-            resolver));
-    }
-
-    // The daemon's error names its address, paths and workers, which the submitter cannot do anything about
-    @Test
-    void saysTheParseFailedWithoutTheDaemonsReason()
-    {
-        failWith(this.tree.createFile("failed"), "Calling the daemon at http://localhost:18765 failed: refused");
-
-        assertEquals("The document could not be read. Please try again",
-            SubmissionFiles.describeNothingToRead(getModel()));
-    }
-
-    @Test
-    void saysTheDocumentHasNotBeenReadYetWhileAParseIsQueued()
-    {
-        this.tree.createFile("queued");
-
-        assertEquals("The document has not been read yet", SubmissionFiles.describeNothingToRead(getModel()));
-    }
-
-    // Uploaded, but not queued, failed or finished: nothing more exact can be said
-    @Test
-    void fallsBackWhenNothingSaysWhy()
-    {
-        this.tree.createFile(null);
-
-        assertEquals("No uploaded document could be read", SubmissionFiles.describeNothingToRead(getModel()));
-    }
-
-    @Test
-    void picksTheFirstFileWhoseParseFinished()
-    {
-        this.tree.createFile("queued");
-        final Resource parsed = this.tree.createFile("completed");
-        this.tree.createFile("completed");
-
-        assertEquals(parsed.getPath(), SubmissionFiles.findFirstParsed(getModel()).getPath());
-    }
-
-    @Test
-    void picksNothingWhenNoParseFinished()
-    {
-        this.tree.createFile("queued");
-        this.tree.createFile(null);
-
-        assertNull(SubmissionFiles.findFirstParsed(getModel()));
     }
 
     @Test

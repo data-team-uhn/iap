@@ -89,35 +89,6 @@ class ExtractionStatusTest
         assertNull(submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
     }
 
-    // A note says something to the submitter without ending the reading; finishReading ends it
-    @Test
-    void leavesANoteWithoutTouchingTheStatus() throws PersistenceException
-    {
-        final Resource submission = this.context.create().resource("/Submissions/s1",
-            Map.of(ExtractionStatus.STATUS_PROPERTY, ExtractionStatus.STATUS_RUNNING));
-
-        ExtractionStatus.recordNote(submission, "Some questions could not be read");
-
-        assertEquals("running", submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class));
-        assertEquals("Some questions could not be read",
-            submission.getValueMap().get(ExtractionStatus.MESSAGE_PROPERTY, String.class));
-    }
-
-    @Test
-    void refusesToLeaveANoteOnASubmissionItCannotWrite()
-    {
-        final Resource readOnly = new ResourceWrapper(this.context.create().resource("/Submissions/s1", Map.of()))
-        {
-            @Override
-            public <T> T adaptTo(final Class<T> type)
-            {
-                return ModifiableValueMap.class.equals(type) ? null : super.adaptTo(type);
-            }
-        };
-
-        assertThrows(PersistenceException.class, () -> ExtractionStatus.recordNote(readOnly, "A note"));
-    }
-
     @Test
     void takesTheWholeClaimDown() throws PersistenceException
     {

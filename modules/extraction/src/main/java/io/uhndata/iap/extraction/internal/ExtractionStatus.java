@@ -133,23 +133,6 @@ final class ExtractionStatus
     }
 
     /**
-     * Leaves a note for the person looking at the submission, without changing the status. The step that ends
-     * the reading ({@code finishReading}) keeps it, unless it has a message of its own.
-     *
-     * @param submission the submission's resource, through a session that may write it
-     * @param message the note
-     * @throws PersistenceException if the submission cannot be written
-     */
-    static void recordNote(final Resource submission, final String message) throws PersistenceException
-    {
-        final ModifiableValueMap properties = submission.adaptTo(ModifiableValueMap.class);
-        if (properties == null) {
-            throw new PersistenceException("Not allowed to record a note on " + submission.getPath());
-        }
-        properties.put(MESSAGE_PROPERTY, message);
-    }
-
-    /**
      * Saves the reading status and message on a submission. Setting {@code running} also clears the blocked mark.
      *
      * @param submission the submission's resource, through a session that may write it

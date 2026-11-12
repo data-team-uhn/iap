@@ -43,9 +43,10 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * The service task that sends a submission's uploads to be parsed. Each latest upload that still needs a parse is
- * copied to the shared volume and queued, and the submission is marked as being read. It is meant to run after an
- * upload too, but today only the {@code retryParse} workflow runs it. The answers come later, through the
- * {@code documentParsed} and {@code extractAnswers} system workflows.
+ * copied to the shared volume and queued, and the submission is marked as being read. Every upload is parsed unless
+ * its requirement skips parsing. It is meant to run when the submitter clicks Next after uploading, but today only
+ * the {@code retryParse} workflow runs it. The checks and the answers come later, through the
+ * {@code documentParsed} system workflow and the jobs it starts.
  *
  * @version $Id$
  * @since 0.1.0
@@ -82,19 +83,6 @@ public class ParseDocumentsHandler implements ServiceTaskHandler
         final Resource target = context.getTarget();
         final Submission submission = SubmissionFiles.getSubmission(target);
         SubmitterAccess.checkMayChange(submission, context.getActor());
-        // Nothing would read the parse, so the uploads are left alone
-        final SubmissionFiles.ReadingWorkflowState reading =
-            SubmissionFiles.checkReadingWorkflow(submission, context.getResourceResolver());
-        if (reading == SubmissionFiles.ReadingWorkflowState.NONE) {
-            return;
-        }
-        if (reading == SubmissionFiles.ReadingWorkflowState.CANNOT_RUN) {
-            SubmissionFiles.reportReadingWorkflowCannotRun(ParseDocumentsHandler.class, target.getPath());
-            // Told, so the submitter does not retry a parse nothing would read
-            ExtractionStatus.recordStatus(target, ExtractionStatus.STATUS_FAILED,
-                ReadingJobs.NOT_SET_UP_MESSAGE);
-            return;
-        }
         int queued = 0;
         for (final File file : SubmissionFiles.getFilesToParse(submission)) {
             // Send only an upload never sent, or one whose parse failed: a failure is usually the daemon being

@@ -583,6 +583,21 @@ class DecisionJobConsumerTest
         assertEquals(ReadingJobs.NOT_SET_UP_MESSAGE, getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
     }
 
+    // Left as it is, `running` would never end: the job gives the reading up, and Sling does not retry it
+    @Test
+    void givesUpWhenACheckFailsBeforeTheClaim() throws Exception
+    {
+        final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
+        Mockito.when(conditions.applies(Mockito.any(), Mockito.any()))
+            .thenThrow(new IllegalStateException("A condition nobody can evaluate"));
+        this.context.registerService(ConditionEvaluator.class, conditions);
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(List.of("readingFailed"), getFiredEventNames());
+        assertEquals(ReadingJobs.COULD_NOT_READ_MESSAGE, getProperties().get(ExtractionStatus.MESSAGE_PROPERTY));
+    }
+
     @Test
     void doesNotStartWhenTheValidationDoesNotApply() throws Exception
     {

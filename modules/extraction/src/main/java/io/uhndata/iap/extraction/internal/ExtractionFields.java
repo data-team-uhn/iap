@@ -44,10 +44,8 @@ import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 
 /**
- * Helpers for the reading steps: which questions to ask the model, and saving what it read as runs.
- *
- * <p>Every {@code intakeAnswers} step uses them, so a schema read in stages is asked and saved the same way in
- * each stage. {@code classifyDocument} saves its picks through {@link #write} too.</p>
+ * Helpers for the reading jobs: which questions to ask the model, and saving what it read as runs. The main
+ * extraction saves its answers through {@link #write}, and the categorisation its picks.
  *
  * @version $Id$
  * @since 0.1.0
@@ -184,19 +182,6 @@ final class ExtractionFields
     static Set<String> getAnswered(final Submission submission)
     {
         return getQuestionPaths(submission, ExtractionFields::hasValue);
-    }
-
-    /**
-     * The paths of the questions the submitter answered or a reading found a suggestion for: the classifications
-     * the gate skips, even of a newer version. A pick drives the reading's route, so it is made once.
-     *
-     * @param submission the submission
-     * @return the full question paths, empty when nothing is answered or suggested yet
-     */
-    static Set<String> getAnsweredOrSuggested(final Submission submission)
-    {
-        return getQuestionPaths(submission, answer -> hasValue(answer)
-            || answer.getExtractions().stream().anyMatch(run -> !run.getExtractedValues().isEmpty()));
     }
 
     /**

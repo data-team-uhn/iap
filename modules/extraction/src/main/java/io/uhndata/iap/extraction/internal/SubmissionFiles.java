@@ -21,23 +21,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
-
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import io.uhndata.iap.errortracking.api.ErrorContext;
-import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
-import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Helpers that find a submission and its files for the reading steps. A document's file is always its latest
@@ -48,74 +39,12 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  */
 final class SubmissionFiles
 {
-    /** Where a schema version names the workflow that reads its documents. */
-    static final String READING_WORKFLOW_PROPERTY = "readingWorkflow";
-
     /** What the submitter is told when no document a reading can read has been uploaded. */
     static final String NO_DOCUMENT_MESSAGE = "No document to read has been uploaded";
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(SubmissionFiles.class);
 
     private SubmissionFiles()
     {
         // Utility
-    }
-
-    /**
-     * Whether a schema version names a workflow that reads its documents, and whether that workflow can run.
-     *
-     * @version $Id$
-     * @since 0.1.0
-     */
-    enum ReadingWorkflowState
-    {
-        /** The schema names none: it never reads its documents. */
-        NONE,
-        /** The schema names one that is missing, is not a workflow version, or is not tagged active. */
-        CANNOT_RUN,
-        /** The schema names a workflow version that exists and is tagged active. */
-        CAN_RUN
-    }
-
-    /**
-     * Checks the reading workflow the submission's schema version names. Parsing and the reading job both ask this,
-     * so they agree on whether anything will read the documents.
-     *
-     * @param submission the submission
-     * @param resolver a session that can read the workflow version
-     * @return whether there is one, and whether it can run
-     */
-    static ReadingWorkflowState checkReadingWorkflow(final Submission submission, final ResourceResolver resolver)
-    {
-        final String identifier = submission.getSchemaVersion().get(READING_WORKFLOW_PROPERTY, String.class);
-        if (identifier == null) {
-            return ReadingWorkflowState.NONE;
-        }
-        final Session session = Objects.requireNonNull(resolver.adaptTo(Session.class),
-            "A repository session is always JCR-backed");
-        try {
-            final Resource reading = resolver.getResource(session.getNodeByIdentifier(identifier).getPath());
-            final WorkflowVersion version = reading == null || !reading.isResourceType(WorkflowVersion.RESOURCE_TYPE)
-                ? null : reading.adaptTo(WorkflowVersion.class);
-            return version != null && version.isActive() ? ReadingWorkflowState.CAN_RUN
-                : ReadingWorkflowState.CANNOT_RUN;
-        } catch (final RepositoryException | IllegalArgumentException e) {
-            // The repository refuses an identifier that is not a UUID with an IllegalArgumentException
-            return ReadingWorkflowState.CANNOT_RUN;
-        }
-    }
-
-    /**
-     * Tells an administrator that the schema of a submission names a reading workflow that cannot run.
-     *
-     * @param reporter the class that found it
-     * @param submission the submission's path
-     */
-    static void reportReadingWorkflowCannotRun(final Class<?> reporter, final String submission)
-    {
-        LOGGER.warn("The schema of {} names a reading workflow that cannot run", submission);
-        ErrorLogger.logProblem("The schema version names a reading workflow that does not exist or is not active",
-            ErrorContext.of(reporter, "findReadingWorkflow").about(submission));
     }
 
     /**
@@ -184,61 +113,6 @@ final class SubmissionFiles
     {
         return document.getFulfills() instanceof final DocumentRequirement requirement
             && requirement.isParsingSkipped();
-    }
-
-    /**
-     * Why there is nothing to read, checked in this order: no upload, a failed parse, a parse still queued, or
-     * else no document could be read. A failed parse gets a fixed message; its real reason stays on the file and
-     * in the log.
-     *
-     * @param submission the submission
-     * @return the reason, ready to show to the submitter
-     */
-    static String describeNothingToRead(final Submission submission)
-    {
-        final List<File> files = getFilesToParse(submission);
-        if (files.isEmpty()) {
-            return NO_DOCUMENT_MESSAGE;
-        }
-        for (final File file : files) {
-            if (ParsePropertyNames.STATUS_FAILED.equals(file.getParseStatus())) {
-                return describeUnreadable();
-            }
-        }
-        for (final File file : files) {
-            if (ParsePropertyNames.STATUS_QUEUED.equals(file.getParseStatus())) {
-                return "The document has not been read yet";
-            }
-        }
-        return "No uploaded document could be read";
-    }
-
-    /**
-     * The first file whose parse finished, in the order the repository lists the documents. The intake reads it
-     * when its step names no documents.
-     *
-     * @param submission the submission
-     * @return the file, or {@code null} when no parse has finished
-     */
-    static File findFirstParsed(final Submission submission)
-    {
-        for (final File file : getFilesToParse(submission)) {
-            if (ParsePropertyNames.STATUS_COMPLETED.equals(file.getParseStatus())) {
-                return file;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * The message the submitter sees when a file could not be parsed. The real reason stays on the file and in
-     * the log: it is about the parsing service, and the submitter cannot act on it.
-     *
-     * @return the message, ready to show
-     */
-    static String describeUnreadable()
-    {
-        return "The document could not be read. Please try again";
     }
 
     /**

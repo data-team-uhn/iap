@@ -28,15 +28,15 @@
       "service.ranking:Integer": 400,
       "scripts":[
         // The user that hands a finished parse to the workflow engine and later asks it to read the answers.
-        // The workflow definitions decide which events it may fire: the documentParsed, extractAnswers,
-        // readingStarted, readingFailed, validated, categorised, decided and extracted start events name only this
-        // user, and so does the task an intake workflow waits at for each validation.
+        // The workflow definitions decide which events it may fire: the documentParsed, readingStarted,
+        // readingFailed, validated, categorised, decided and extracted start events name only this user, and so
+        // does the task an intake workflow waits at for each validation.
         //
         // It writes nothing: even the claim on a reading and a give-up are events, so the workflow engine makes
         // every change as its own user.
-        // It reads /Schemas and /Workflows to check that the schema version's reading workflow exists before it
-        // asks for a reading. Granted by name: a service user mapped as [iap-extraction] holds only that
-        // principal, so what /Schemas grants to everyone does not reach it.
+        // It reads /Schemas for what the schema asks it to read, and /Workflows for the tasks an intake workflow
+        // waits at. Granted by name: a service user mapped as [iap-extraction] holds only that principal, so what
+        // /Schemas grants to everyone does not reach it.
         "create service user iap-extraction \n set ACL for iap-extraction \n allow jcr:read on /Submissions,/Schemas,/Workflows \n end"
       ]
     },
@@ -51,7 +51,6 @@
     "org.apache.sling.event.jobs.QueueConfiguration~iapextraction":{
       "queue.name":"iap-extraction",
       "queue.topics":[
-        "iap/extraction/extract",
         "iap/extraction/decide",
         "iap/extraction/main"
       ],

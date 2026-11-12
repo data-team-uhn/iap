@@ -180,11 +180,11 @@ class StopProcessingHandlerTest
         final ModifiableValueMap properties = file.adaptTo(ModifiableValueMap.class);
         properties.put(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, JOB_ID);
         properties.put(ParseDocumentsHandler.SHARED_PATH_PROPERTY, STAGED);
-        final Job waiting = Mockito.mock(Job.class);
-        Mockito.when(waiting.getId()).thenReturn("reading-1");
+        final Job answers = Mockito.mock(Job.class);
+        Mockito.when(answers.getId()).thenReturn("answers-1");
         Mockito.when(this.jobManager.findJobs(Mockito.eq(JobManager.QueryType.QUEUED),
-            Mockito.eq(ExtractAnswersJobConsumer.JOB_TOPIC), Mockito.eq(0L), Mockito.anyMap()))
-            .thenReturn(List.of(waiting));
+            Mockito.eq(MainExtractionJobConsumer.JOB_TOPIC), Mockito.eq(0L), Mockito.anyMap()))
+            .thenReturn(List.of(answers));
         final Job validation = Mockito.mock(Job.class);
         Mockito.when(validation.getId()).thenReturn("validation-1");
         Mockito.when(this.jobManager.findJobs(Mockito.eq(JobManager.QueryType.QUEUED),
@@ -198,7 +198,7 @@ class StopProcessingHandlerTest
 
         Mockito.verify(this.parses).stopParse(JOB_ID);
         Mockito.verify(this.parseService, Mockito.never()).discardStaging(Mockito.any());
-        Mockito.verify(this.jobManager).removeJobById("reading-1");
+        Mockito.verify(this.jobManager).removeJobById("answers-1");
         Mockito.verify(this.jobManager).removeJobById("validation-1");
         assertEquals("failed", file.getValueMap().get("parseStatus", String.class));
         assertNull(file.getValueMap().get(ParseDocumentsHandler.PARSE_JOB_ID_PROPERTY, String.class));

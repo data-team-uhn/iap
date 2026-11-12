@@ -55,8 +55,6 @@ final class SubmissionTree
 
     static final String SUBMISSION_PATH = "/Submissions/aa/bb/cc/proposal-1";
 
-    static final String READING_PATH = "/Workflows/readProposal/v1";
-
     private static final String TYPE = "sling:resourceType";
 
     private static final String SUPER_TYPE = "sling:resourceSuperType";
@@ -85,9 +83,6 @@ final class SubmissionTree
         this.context.create().resource("/Schemas/proposal", Map.of(TYPE, "sch/Schema", "title", "Proposal"));
         final Resource version = this.context.create().resource(VERSION_PATH, Map.of(TYPE, "sch/SchemaVersion",
             "version", "1.0", "tags", new String[] { "active" }));
-        // Names a reading workflow, because only a schema that reads its documents has them parsed
-        reference(version, SubmissionFiles.READING_WORKFLOW_PROPERTY, this.context.create().resource(READING_PATH,
-            Map.of(TYPE, "wf/WorkflowVersion", "version", "1.0", "tags", new String[] { "active" })));
         // A mock repository has no /libs/sch types to inherit from, so each item sets its super type
         this.context.create().resource(FORM_PATH,
             Map.of(TYPE, "sch/FormRequirement", SUPER_TYPE, "sch/Requirement", "label", "Study"));
