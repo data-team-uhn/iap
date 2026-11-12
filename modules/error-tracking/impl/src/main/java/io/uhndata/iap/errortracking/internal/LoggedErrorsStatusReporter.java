@@ -89,8 +89,8 @@ public class LoggedErrorsStatusReporter implements StatusReporter
         Map.of(ResourceResolverFactory.SUBSERVICE, "errortracking");
 
     /** What the unprivileged report shows instead of anything that quotes content. */
-    private static final String HIDDEN_PLACEHOLDER = "Messages, stack traces, affected paths and users are hidden "
-        + "while not logged in.";
+    private static final String HIDDEN_PLACEHOLDER = "Only the admin user sees messages, stack traces, affected "
+        + "paths and users.";
 
     @Reference
     private ResourceResolverFactory resolverFactory;

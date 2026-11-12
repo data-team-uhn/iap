@@ -64,7 +64,7 @@ export interface Resolution {
  */
 export const RESOLUTIONS: Resolution[] = [
   { name: "acknowledged", label: "Acknowledged", hint: "Seen and being dealt with" },
-  { name: "known-issue", label: "Known issue", hint: "Understood, and left as it is for now" },
+  { name: "known-issue", label: "Known issue", hint: "Understood, and a fix is planned" },
   { name: "wont-fix", label: "Won't fix", hint: "Deliberately not being dealt with" },
 ];
 

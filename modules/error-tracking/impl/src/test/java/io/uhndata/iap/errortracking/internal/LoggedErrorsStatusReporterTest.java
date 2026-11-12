@@ -281,7 +281,7 @@ class LoggedErrorsStatusReporterTest
     }
 
     @Test
-    void hidesEverythingThatQuotesContentFromAReaderWhoIsNotLoggedIn()
+    void hidesEverythingThatQuotesContentFromAnyReaderButAdmin()
     {
         thrown("first", 3, RECENTLY, null);
 
@@ -292,7 +292,7 @@ class LoggedErrorsStatusReporterTest
         assertTrue(body.contains("`doIt`"));
         assertFalse(body.contains("/Submissions/1"));
         assertFalse(body.contains("boom"));
-        assertTrue(body.contains("hidden while not logged in"));
+        assertTrue(body.contains("Only the admin user sees"));
     }
 
     @Test
@@ -342,7 +342,7 @@ class LoggedErrorsStatusReporterTest
     }
 
     @Test
-    void tellsNobodyWhichErrorsWereSilencedWhenNotLoggedIn()
+    void tellsNobodyButAdminWhichErrorsWereSilenced()
     {
         thrown("handled", 1, RECENTLY + 1000, "known-issue");
 
@@ -466,7 +466,7 @@ class LoggedErrorsStatusReporterTest
     }
 
     @Test
-    void saysHowMuchWasLostEvenToAReaderWhoIsNotLoggedIn() throws ReflectiveOperationException
+    void saysHowMuchWasLostEvenToAReaderWhoIsNotAdmin() throws ReflectiveOperationException
     {
         thrown("first", 1, RECENTLY, null);
         droppedSoFar(4);
@@ -496,7 +496,7 @@ class LoggedErrorsStatusReporterTest
     }
 
     @Test
-    void doesNotLeakWhyItCouldNotReadToAReaderWhoIsNotLoggedIn() throws ReflectiveOperationException
+    void doesNotLeakWhyItCouldNotReadToAReaderWhoIsNotAdmin() throws ReflectiveOperationException
     {
         final LoggedErrorsStatusReporter broken = new LoggedErrorsStatusReporter();
         TestResolvers.inject(broken, null);
@@ -504,7 +504,7 @@ class LoggedErrorsStatusReporterTest
         final StatusReport report = broken.report(true);
 
         assertFalse(report.getText().contains("No such service user"));
-        assertTrue(report.getText().contains("hidden while not logged in"));
+        assertTrue(report.getText().contains("Only the admin user sees"));
     }
 
     // ---------------------------------------------------------------- helpers
