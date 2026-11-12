@@ -25,43 +25,44 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
-import io.uhndata.iap.schemas.models.DecisionRequirement;
+import io.uhndata.iap.schemas.models.Requirement;
 
 /**
- * Reads the reference text a decision shows the model, such as a template of what a research proposal holds.
+ * Reads the reference text a requirement shows the model, such as a template of what a research proposal holds,
+ * or where a protocol usually states its sample size.
  *
  * @version $Id$
  * @since 0.1.0
  */
-final class DecisionTemplates
+final class ReferenceTemplates
 {
-    private static final Logger LOGGER = LoggerFactory.getLogger(DecisionTemplates.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ReferenceTemplates.class);
 
-    private DecisionTemplates()
+    private ReferenceTemplates()
     {
         // Utility
     }
 
     /**
-     * The decision's reference text, under a heading naming what it is for. The model is shown it after the
+     * The requirement's reference text, under a heading naming what it is for. The model is shown it after the
      * document and before the questions.
      *
-     * @param requirement the validation or classification
+     * @param requirement the decision or form the template belongs to
+     * @param template the requirement's template, or {@code null} when it has none
      * @param reporter the class to name when the template cannot be read
-     * @return the text, or {@code null} when the decision has no template or it cannot be read
+     * @return the text, or {@code null} when there is no template or it cannot be read
      */
-    static String readTemplate(final DecisionRequirement requirement, final Class<?> reporter)
+    static String readTemplate(final Requirement requirement, final Resource template, final Class<?> reporter)
     {
-        final Resource template = requirement.getTemplate();
         if (template == null) {
             return null;
         }
         try {
             return "# Reference for \"" + requirement.getLabel() + "\"\n\n" + DocumentText.readText(template).strip();
         } catch (final IOException e) {
-            // A decision is still worth making without its reference, which only sharpens it
+            // The model is still worth asking without the reference, which only sharpens its answers
             LOGGER.warn("The template of {} could not be read: {}", requirement.getPath(), e.getMessage());
-            // Broken schema content: the decision goes on without it, so nobody else would notice
+            // Broken schema content: the reading goes on without it, so nobody else would notice
             ErrorLogger.logError(e, ErrorContext.of(reporter, "readTemplate").about(requirement.getPath()));
             return null;
         }

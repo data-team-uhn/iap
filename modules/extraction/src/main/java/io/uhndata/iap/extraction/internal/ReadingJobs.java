@@ -59,10 +59,11 @@ public class ReadingJobs
     public static final String SUBMISSION_PROPERTY = "submission";
 
     /**
-     * The job property set when the submitter asked to read again. The job is queued before that request commits,
-     * so it waits until the submission shows {@code running}; before that it would still see the old claim.
+     * The job property set when a submitter's request queued the job, such as Read again or Next. The job is queued
+     * before that request commits, so it waits until the submission shows {@code running}; before that it would
+     * still see the old claim.
      */
-    public static final String READ_AGAIN_PROPERTY = "readAgain";
+    public static final String REQUESTED_PROPERTY = "requested";
 
     /** The event that claims the reading for a job. */
     static final String READING_STARTED_EVENT = "readingStarted";
@@ -253,11 +254,11 @@ public class ReadingJobs
      */
     private static boolean isTooEarly(final Job job, final Resource submission, final Submission model)
     {
-        if (Boolean.TRUE.equals(job.getProperty(READ_AGAIN_PROPERTY, Boolean.class))
+        if (Boolean.TRUE.equals(job.getProperty(REQUESTED_PROPERTY, Boolean.class))
             && !ExtractionStatus.STATUS_RUNNING.equals(
             submission.getValueMap().get(ExtractionStatus.STATUS_PROPERTY, String.class))) {
-            // The read again request that queued this job has not committed yet, so the old claim is still there
-            LOGGER.info("The request to read {} again is not committed yet; looking again shortly",
+            // The request that queued this job has not committed yet, so the old claim is still there
+            LOGGER.info("The request to read {} is not committed yet; looking again shortly",
                 submission.getPath());
             return true;
         }

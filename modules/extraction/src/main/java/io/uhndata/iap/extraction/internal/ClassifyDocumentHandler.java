@@ -215,7 +215,8 @@ public class ClassifyDocumentHandler implements ServiceTaskHandler
     private static String getTemplates(final List<ClassificationRequirement> classifications)
     {
         final String templates = classifications.stream()
-            .map(classification -> DecisionTemplates.readTemplate(classification, ClassifyDocumentHandler.class))
+            .map(classification -> ReferenceTemplates.readTemplate(classification, classification.getTemplate(),
+                ClassifyDocumentHandler.class))
             .filter(Objects::nonNull)
             .collect(Collectors.joining("\n\n"));
         return templates.isEmpty() ? null : templates;

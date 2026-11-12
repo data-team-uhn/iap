@@ -77,6 +77,6 @@ public class DecisionReader
         }
         return this.intake.askQuestions(file, scan,
             List.of(new ExtractionPrompt.Group(requirement.getDocumentRequirementName(), List.of(field))),
-            DecisionTemplates.readTemplate(requirement, DecisionReader.class));
+            ReferenceTemplates.readTemplate(requirement, requirement.getTemplate(), DecisionReader.class));
     }
 }

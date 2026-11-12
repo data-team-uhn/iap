@@ -29,8 +29,8 @@
       "scripts":[
         // The user that hands a finished parse to the workflow engine and later asks it to read the answers.
         // The workflow definitions decide which events it may fire: the documentParsed, extractAnswers,
-        // readingStarted, readingFailed, validated, categorised and decided start events name only this user, and
-        // so does the task an intake workflow waits at for each validation.
+        // readingStarted, readingFailed, validated, categorised, decided and extracted start events name only this
+        // user, and so does the task an intake workflow waits at for each validation.
         //
         // It writes nothing: even the claim on a reading and a give-up are events, so the workflow engine makes
         // every change as its own user.
@@ -52,7 +52,8 @@
       "queue.name":"iap-extraction",
       "queue.topics":[
         "iap/extraction/extract",
-        "iap/extraction/decide"
+        "iap/extraction/decide",
+        "iap/extraction/main"
       ],
       "queue.type":"UNORDERED",
       "queue.maxparallel:Double":1.0

@@ -71,6 +71,23 @@ says which class does the work, who calls it, and what it checks.
  decided (system workflow)
    finishDecisions ---- done, "Confirm the category to continue" when a document was
                         categorised; release the claim
+        |
+        v  the submitter confirms the category and clicks Next
+ runMainExtraction (system workflow, performer: the submitter)
+   queueMainExtraction -- refused while running, after a rejected document, or until the
+                          category is confirmed; set running; add a Sling job on
+                          topic iap/extraction/main
+        |
+        v
+ MainExtractionJobConsumer (background, one job at a time; see "The main extraction")
+   claim the reading
+   for each form that applies and names its documents, in schema order:
+     ask its open questions about those documents
+   fire extracted
+        |
+        v
+ extracted (system workflow)
+   recordExtraction --- save every answer as a suggestion; done; release the claim
 
  Read again still queues the older reading:
  ExtractAnswersJobConsumer (background, one job at a time)
@@ -287,7 +304,7 @@ The checks, in order:
 | Check | If it fails |
 | --- | --- |
 | The job names a submission, and it still exists | The job is dropped. |
-| A job queued by Read again (job property `readAgain=true`) finds `extractionStatus` at `running` | The job returns `FAILED`, so Sling runs it again later. The job was queued before the Read again walk committed, and until that commit the old status and claim are still there. |
+| A job queued by a submitter's request, Read again or Next (job property `requested=true`), finds `extractionStatus` at `running` | The job returns `FAILED`, so Sling runs it again later. The job was queued before the request's walk committed, and until that commit the old status and claim are still there. |
 | No current file is still `queued` (`SubmissionFiles.isEveryParseSettled`) | The job returns `FAILED`, so Sling runs it again later. A parse that landed but is not committed yet looks "queued" for a moment. |
 | What this kind of job reads was not read yet (`ReadingJob.isAlreadyRead`). The decision job: no validation said `no`, and some validation or categorisation whose document was uploaded is not made yet. The Read again job: always true; it keeps its claim when done, so the next job finds the claim taken. | The job is dropped, before it claims and without giving up: another job of the same submission already did the work. |
 | The job's session can read the submission's schema version | `extractionStatus=failed`, "The document could not be read", and a problem is logged for an administrator. Throwing instead would end the job with `running` left behind. |
@@ -403,6 +420,52 @@ nothing was categorised), and releases the claim. The `categorised` and `decided
 like `validated`, save only while the claim holds this job's id; after a Stop or a Read
 again the job drops what it has and stops.
 
+## The main extraction
+
+**Classes:** `QueueMainExtractionHandler`, `MainExtractionJobConsumer`, `FormsToRead`,
+`FormReader`, `RecordExtractionHandler`. **System workflows:** `runMainExtraction`,
+`extracted`. **Job topic:** `iap/extraction/main`.
+
+Once the submitter confirmed the category, Next fires `runMainExtraction`. Only the
+submitter may fire it (performer `@creator`), and only while the request is a draft. Its
+`queueMainExtraction` step refuses (409):
+
+- while a reading is `running`;
+- after a validation said `no` (the submission is blocked), with that message;
+- until every classification's question has an answer: "Confirm the category to
+  continue". The category decides which forms apply.
+
+When no form has an open question, nothing is queued. Otherwise it sets `running`,
+removes the claim, and queues the job with `requested=true`, like Read again.
+
+**Which forms and questions.** A form requirement is read when it applies and names its
+documents (`documents`, see [schemas.md](schemas.md)). The forms are read in schema
+order, one model call group each. A form asks its questions with an `extractionPrompt`
+that are still open: nobody answered them, and the model was never asked them. A
+question read once is not asked again, found or not. A category question is left to the
+categorisation. Until re-uploads are decided, a question not yet read from a newer
+version of a document the form reads is open too.
+
+**Which documents.** A form sends the documents it names, in the order named, through
+`FormReader`. One document goes as parsed, so its calls start like the validation and
+categorisation of that document and reuse their prompt cache. Several are joined into
+one text, each under its document requirement's `label`. The form's template is the
+reference text. An optional document left out is skipped. A required one that is
+missing, or whose parse failed, stops the job before anything is asked: "The <label> is
+missing, please upload it".
+
+**Saving.** The job fires `extracted` with what each form read. Its `recordExtraction`
+step saves one run under each question asked, found or not, sets `done`, and releases
+the claim. The answers' values stay empty: each run is a suggestion until the submitter
+accepts it.
+
+| What happened | Result |
+| --- | --- |
+| Every call went through | `done`, no message |
+| Some calls of a form failed (`INCOMPLETE`) | `done`, "Some questions could not be read. Read again to try them again" |
+| A form's calls all failed after earlier forms were read | The earlier forms are saved; later forms are not asked; `done` with the same note |
+| The first form's calls all failed | `failed` with the reason; nothing is saved |
+
 ## Step 6: starting the schema's reading workflow
 
 **System workflow:** `extractAnswers`. It has one step: the built-in `startWorkflow`
@@ -434,7 +497,7 @@ what the person just did. So the reading never waits for the submitter: when it 
 them, it ends with a message saying what to do.
 
 Only the `iap-extraction` user may fire `documentParsed`, `extractAnswers`,
-`readingStarted`, `readingFailed`, `validated`, `categorised` and `decided`: their start
+`readingStarted`, `readingFailed`, `validated`, `categorised`, `decided` and `extracted`: their start
 events name it as the only
 performer. Administrators can too, since they pass every performer check. The `documentParsed` payload carries paths on the shared volume,
 and no ordinary user should be able to have files read from there.
@@ -700,8 +763,8 @@ a setting to fix.
 
 The LLM module allows one model call at a time on the whole instance (`LLMCallGate`,
 implemented by `CallGateImpl`, a fair semaphore with one slot). There is nothing to
-configure. The extraction queue (`iap-extraction`, topics `iap/extraction/decide` and
-`iap/extraction/extract`) also reads one submission at a time. A wider queue would not read anything sooner. It would
+configure. The extraction queue (`iap-extraction`, topics `iap/extraction/decide`,
+`iap/extraction/main` and `iap/extraction/extract`) also reads one submission at a time. A wider queue would not read anything sooner. It would
 only move the waiting from the queue, where a job can wait as long as needed, to the
 gate, where a call fails when its timeout runs out.
 
@@ -966,7 +1029,7 @@ record depends on the Stop's own walk:
 
 Refused with a 409 while `extractionStatus` is `running` ("This request is already being
 read"). Otherwise it sets `running`, removes the claim, and queues the same job that a
-parse queues (step 5), with the job property `readAgain=true`. The job is queued before
+parse queues (step 5), with the job property `requested=true`. The job is queued before
 this walk commits, so that property tells it to wait until it sees `running`.
 
 Read again on the same version asks every question of each intake step that the
@@ -1143,15 +1206,19 @@ from the submission's own workflow, replaces the reading workflow each schema na
 | `DecisionJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingJobs.run`, `DocumentValidator.validate` |
 | `DocumentValidator` | component | the decision job | `DecisionReader.ask`, engine (`validated`, `complete` on the intake's task) |
 | `DocumentCategoriser` | component | the decision job | `DecisionReader.ask`, engine (`categorised`) |
-| `DecisionReader` | component | `DocumentValidator`, `DocumentCategoriser` | `ReadingRuns.setFiles`, `ParsedDocuments`, `AnswerIntakeService`, `DecisionTemplates.readTemplate` |
+| `DecisionReader` | component | `DocumentValidator`, `DocumentCategoriser` | `ReadingRuns.setFiles`, `ParsedDocuments`, `AnswerIntakeService`, `ReferenceTemplates.readTemplate` |
 | `RecordValidationHandler` | handler `recordValidation` | `validated` | `ExtractedAnswers.writeRun`, `ExtractionStatus`, `Validation.getOutcome` |
 | `RecordCategoryHandler` | handler `recordCategory` | `categorised` | `ExtractionFields.write` |
 | `FinishDecisionsHandler` | handler `finishDecisions` | `decided` | `ExtractionStatus` |
+| `QueueMainExtractionHandler` | handler `queueMainExtraction` | `runMainExtraction` | `DecisionChain.isCategoryConfirmed`, `FormsToRead`, `JobManager.addJob` |
+| `MainExtractionJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingJobs.run`, `FormsToRead`, `FormReader.ask`, engine (`extracted`) |
+| `FormReader` | component | the main extraction job | `ReadingRuns.setFiles`, `ParsedDocuments`, `DocumentScan.join`, `AnswerIntakeService`, `ReferenceTemplates.readTemplate` |
+| `RecordExtractionHandler` | handler `recordExtraction` | `extracted` | `ExtractionFields.write`, `ExtractionStatus` |
 | `ExtractAnswersJobConsumer` | Sling job consumer | the `iap-extraction` queue | `ReadingJobs.run`, `SubmissionFiles.checkReadingWorkflow`, engine (`extractAnswers`) |
 | `ReadingJobs` | component | each reading job | `ReadingRuns`, `SubmissionFiles.isEveryParseSettled`, engine (`readingStarted`, `readingFailed`) |
 | `ClaimReadingHandler` | handler `claimReading` | `readingStarted` | `ExtractionStatus` |
 | `GiveUpReadingHandler` | handler `giveUpReading` | `readingFailed` | `ExtractionStatus` |
-| `ClassifyDocumentHandler` | handler `classifyDocument` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, `DecisionTemplates.readTemplate`, `ExtractionFields.getAnswered`, `.write` |
+| `ClassifyDocumentHandler` | handler `classifyDocument` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, `ReferenceTemplates.readTemplate`, `ExtractionFields.getAnswered`, `.write` |
 | `IntakeAnswersHandler` | handler `intakeAnswers` | a reading workflow | `ReadingRuns`, `AnswerIntakeService`, `ParsedDocuments`, or `DocumentText.readText` and `DocumentScan.join`, `ExtractionFields`, `Prompts` |
 | `FinishReadingHandler` | handler `finishReading` | a reading workflow | `ExtractionStatus` |
 | `ReadAgainHandler` | handler `readAgain` | `readAgain` | `JobManager.addJob` |
@@ -1192,7 +1259,7 @@ and the staging folder in step 4 is deleted only after the commit; those steps s
 | Where | Setting | Default | Meaning |
 | --- | --- | --- | --- |
 | `modules/extraction/.../feature.json` | service user `iap-extraction` | | `jcr:read` on `/Submissions`: it writes nothing, since even the claim and the give-up are events the engine runs as its own user. `jcr:read` on `/Schemas` and `/Workflows`, to check that the reading workflow exists. Granted by name: a service user mapped as `[iap-extraction]` holds only that principal, so what `/Schemas` grants to `everyone` does not reach it. |
-| same | queue `iap-extraction` | `maxparallel` 1 | One submission read at a time, by any reading job (`iap/extraction/decide`, `iap/extraction/extract`) |
+| same | queue `iap-extraction` | `maxparallel` 1 | One submission read at a time, by any reading job (`iap/extraction/decide`, `iap/extraction/main`, `iap/extraction/extract`) |
 | same | bundle start order | 29 | After the LLM client, the engine and the models |
 | documents `feature.json` | `daemonUrl` on PID `io.uhndata.iap.documents.internal.DaemonConnection` | `${docling.url}` (`http://docling:18765`; `http://localhost:18765` with no configuration) | Where the daemon is. The one PID is read by both `ParseJobConsumer` (dispatch) and `ParseAbandonment` (Stop). |
 | same PID | `responseTimeout` | 30 s | How long to wait for the daemon to answer a dispatch or a `/cancel`. A Stop does not wait for `/cancel`; only the log sees the answer. |
@@ -1339,10 +1406,16 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | `DocumentValidator` | One validation: asks it, saves the verdict through `validated`, and completes the task the intake waits at |
 | `DocumentCategoriser` | One categorisation: asks the category question, saves the pick through `categorised`; an unsure pick as not found |
 | `DecisionReader` | Asks the model one decision about an upload, with the decision's template as reference |
-| `DecisionTemplates` | Reads a decision's template under a heading naming it |
+| `ReferenceTemplates` | Reads a decision's or a form's template under a heading naming it |
 | `RecordValidationHandler` | Service task `recordValidation`: saves the verdict as a run under the submission's validation; a sure no ends the reading |
 | `RecordCategoryHandler` | Service task `recordCategory`: saves the pick as a run under the category question's answer |
 | `FinishDecisionsHandler` | Service task `finishDecisions`: ends the reading as `done` with the category message, and releases the claim |
+| `QueueMainExtractionHandler` | Service task `queueMainExtraction`: the submitter's Next; queues the main extraction once the category is confirmed |
+| `MainExtractionJobConsumer` | The background job that reads each form's open questions out of the documents it names |
+| `FormsToRead` | The forms the main extraction reads, their documents and their open questions |
+| `FormReader` | Asks the model one form's questions about its documents, joined under their labels when several |
+| `ExtractedForm` | What the model read for one form, as the job hands it to `recordExtraction` |
+| `RecordExtractionHandler` | Service task `recordExtraction`: saves every answer as a suggestion and ends the reading |
 | `ReadAgainHandler` | Service task `readAgain`: the submitter asks for the reading again; queues the same job |
 | `ExtractAnswersJobConsumer` | The background job that fires `extractAnswers` once the schema's reading workflow can run |
 | `ReadingJob`, `ReadingJobs` | What one kind of reading job decides, and the steps every one shares: waiting for the parses, the claim, giving up, and a Stop |
@@ -1363,6 +1436,8 @@ content in `src/main/resources/SLING-INF/content/`, prompts in
 | `SystemWorkflows/validated` (`.json`, `bpmn.xml`) | Saves the verdict on the upload (`recordValidation`). Performer: `iap-extraction` only. |
 | `SystemWorkflows/categorised` (`.json`, `bpmn.xml`) | Saves the category pick (`recordCategory`). Performer: `iap-extraction` only. |
 | `SystemWorkflows/decided` (`.json`, `bpmn.xml`) | Ends the checks of the uploads (`finishDecisions`). Performer: `iap-extraction` only. |
+| `SystemWorkflows/runMainExtraction` (`.json`, `bpmn.xml`) | The submitter's Next: queues the main extraction (`queueMainExtraction`). Performer: `@creator`. |
+| `SystemWorkflows/extracted` (`.json`, `bpmn.xml`) | Saves the answers and ends the reading (`recordExtraction`). Performer: `iap-extraction` only. |
 | `SystemWorkflows/readAgain` (`.json`, `bpmn.xml`) | Queues the reading again for the submitter |
 | `SystemWorkflows/retryParse` (`.json`, `bpmn.xml`) | Sends again the uploads whose parse failed, and any never sent. Today the only workflow that runs `parseDocuments`. |
 | `SystemWorkflows/stopProcessing` (`.json`, `bpmn.xml`) | Stops a parse or a reading that is still in progress |

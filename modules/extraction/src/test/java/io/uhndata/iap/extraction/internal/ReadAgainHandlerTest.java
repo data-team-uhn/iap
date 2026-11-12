@@ -97,7 +97,7 @@ class ReadAgainHandlerTest
 
         Mockito.verify(this.jobManager).addJob(ExtractAnswersJobConsumer.JOB_TOPIC,
             Map.of(ReadingJobs.SUBMISSION_PROPERTY, this.submission.getPath(),
-                ReadingJobs.READ_AGAIN_PROPERTY, Boolean.TRUE));
+                ReadingJobs.REQUESTED_PROPERTY, Boolean.TRUE));
         final ValueMap recorded = this.submission.getValueMap();
         assertEquals(ExtractionStatus.STATUS_RUNNING, recorded.get(ExtractionStatus.STATUS_PROPERTY, String.class));
         assertNull(recorded.get(ExtractionStatus.MESSAGE_PROPERTY, String.class),

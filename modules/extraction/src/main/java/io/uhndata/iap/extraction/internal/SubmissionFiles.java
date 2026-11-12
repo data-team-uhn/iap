@@ -276,6 +276,36 @@ final class SubmissionFiles
     }
 
     /**
+     * Whether a document a model should read cannot be read: a required one, whose condition holds, was never
+     * uploaded, which the submission view should have prevented, or its upload failed to parse. An optional one
+     * left out is not missing, and neither is a name the schema does not know. Asked once every parse has settled.
+     *
+     * @param submission the submission
+     * @param name the document requirement's name
+     * @return {@code true} when the document should be there and cannot be read
+     */
+    static boolean isDocumentMissing(final Submission submission, final String name)
+    {
+        final File file = getCurrentFile(submission, name);
+        if (file == null) {
+            final DocumentRequirement document = findDocumentRequirement(submission, name);
+            return document != null && document.isRequired() && submission.isApplicable(document);
+        }
+        return !ParsePropertyNames.STATUS_COMPLETED.equals(file.getParseStatus());
+    }
+
+    /**
+     * What the submitter is told when a document a model should read is missing.
+     *
+     * @param label the document requirement's label
+     * @return the message
+     */
+    static String describeMissingDocument(final String label)
+    {
+        return "The " + label + " is missing, please upload it";
+    }
+
+    /**
      * Whether no parse is still waiting, so what can be read now is all there will be.
      *
      * @param submission the submission

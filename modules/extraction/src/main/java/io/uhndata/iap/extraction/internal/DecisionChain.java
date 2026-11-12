@@ -19,6 +19,8 @@ package io.uhndata.iap.extraction.internal;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.schemas.models.DecisionRequirement;
@@ -72,8 +74,9 @@ final class DecisionChain
             return ReadingJobs.NOT_SET_UP_MESSAGE;
         }
         final String missing = decisions.stream()
-            .filter(decision -> !isMade(submission, decision) && isMissing(submission, decision))
-            .map(decision -> describeMissing(getDocument(submission, decision).getLabel()))
+            .filter(decision -> !isMade(submission, decision)
+                && SubmissionFiles.isDocumentMissing(submission, decision.getDocumentRequirementName()))
+            .map(decision -> SubmissionFiles.describeMissingDocument(getDocument(submission, decision).getLabel()))
             .findFirst()
             .orElse(null);
         if (missing != null) {
@@ -83,14 +86,20 @@ final class DecisionChain
     }
 
     /**
-     * What the submitter is told when a document to check is missing.
+     * Whether the submitter confirmed every category: each classification's question has an answer. The category
+     * decides which forms apply, so nothing more is read before.
      *
-     * @param label the document requirement's label
-     * @return the message
+     * @param submission the submission
+     * @return {@code true} when every classification that applies has its question answered
      */
-    static String describeMissing(final String label)
+    static boolean isCategoryConfirmed(final Submission submission)
     {
-        return "The " + label + " is missing, please upload it";
+        final Set<String> answered = ExtractionFields.getAnswered(submission);
+        return getDecisions(submission).stream()
+            .filter(ClassificationRequirement.class::isInstance)
+            .map(decision -> Objects.requireNonNull(((ClassificationRequirement) decision).getQuestion(),
+                "Only a classification holding a question is in the chain"))
+            .allMatch(question -> answered.contains(question.getPath()));
     }
 
     /**
@@ -163,21 +172,6 @@ final class DecisionChain
     {
         return decision instanceof final ValidationRequirement validation
             && Validation.OUTCOME_NO.equals(getVerdict(submission, validation));
-    }
-
-    /**
-     * Whether a document a decision reads should be there and cannot be read: a required one was never uploaded,
-     * which the submission view should have prevented, or its parse failed. An optional one left out is not missing.
-     */
-    private static boolean isMissing(final Submission submission, final DecisionRequirement decision)
-    {
-        final File file = getFile(submission, decision);
-        if (file == null) {
-            final DocumentRequirement document = getDocument(submission, decision);
-            return document.isRequired() && submission.isApplicable(document);
-        }
-        // Every parse has settled by now, so one that is not completed failed or was stopped
-        return !ParsePropertyNames.STATUS_COMPLETED.equals(file.getParseStatus());
     }
 
     /** The document requirement the decision reads; {@link #getDecisions} keeps only those that have one. */

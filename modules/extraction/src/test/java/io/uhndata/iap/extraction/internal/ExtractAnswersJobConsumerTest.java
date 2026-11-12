@@ -231,7 +231,7 @@ class ExtractAnswersJobConsumerTest
             ExtractionStatus.STATUS_DONE);
         claim("job-0");
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.job.getProperty(ReadingJobs.READ_AGAIN_PROPERTY, Boolean.class))
+        Mockito.when(this.job.getProperty(ReadingJobs.REQUESTED_PROPERTY, Boolean.class))
             .thenReturn(Boolean.TRUE);
 
         assertEquals(JobResult.FAILED, this.consumer.process(this.job));
@@ -245,7 +245,7 @@ class ExtractAnswersJobConsumerTest
         this.submission.adaptTo(ModifiableValueMap.class).put(ExtractionStatus.STATUS_PROPERTY,
             ExtractionStatus.STATUS_RUNNING);
         setJobSubmission(this.submission.getPath());
-        Mockito.when(this.job.getProperty(ReadingJobs.READ_AGAIN_PROPERTY, Boolean.class))
+        Mockito.when(this.job.getProperty(ReadingJobs.REQUESTED_PROPERTY, Boolean.class))
             .thenReturn(Boolean.TRUE);
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
