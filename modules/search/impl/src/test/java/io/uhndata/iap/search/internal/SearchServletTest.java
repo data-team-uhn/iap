@@ -20,7 +20,6 @@ package io.uhndata.iap.search.internal;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.lang.reflect.Field;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,11 +56,15 @@ import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.osgi.framework.Constants;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
@@ -76,6 +79,7 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
  * @version $Id$
  * @since 0.1.0
  */
+@ExtendWith(SlingContextExtension.class)
 public class SearchServletTest
 {
     private static final String ROWS = "rows";
@@ -100,7 +104,7 @@ public class SearchServletTest
 
     private static final String EXPLAIN_QUERY = "explain " + SUBMISSION_QUERY;
 
-    private static final String SCHEMA_PATH = "/Schemas/Consent/1.0/hasCapacity";
+    private static final String SCHEMA_PATH = "/Schemas/consent/v1/hasCapacity";
 
     private static final String SCHEMA_UUID = "d1f5a0e2-4b0a-4a3a-9f6b-0c2d1e3f4a5b";
 
@@ -115,6 +119,8 @@ public class SearchServletTest
     private static final String OUTSIDE_MACHINERY =
         " and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')"
             + " and not issamenode(n, '/SystemWorkflows') and not isdescendantnode(n, '/SystemWorkflows')";
+
+    private final SlingContext osgi = new SlingContext();
 
     private SearchServlet servlet;
 
@@ -147,7 +153,6 @@ public class SearchServletTest
     @BeforeEach
     public void setup() throws Exception
     {
-        this.servlet = new SearchServlet();
         this.request = Mockito.mock(SlingJakartaHttpServletRequest.class);
         this.response = Mockito.mock(SlingJakartaHttpServletResponse.class);
         this.resolver = Mockito.mock(ResourceResolver.class);
@@ -737,7 +742,6 @@ public class SearchServletTest
     public void quickSearchWithoutAnyEngineReturnsNothing() throws Exception
     {
         withParameter("quick", TERM);
-        setEngines(null);
         this.servlet.doGet(this.request, this.response);
         Assertions.assertEquals(0, getResponseJson().getJsonArray(ROWS).size());
     }
@@ -1030,20 +1034,18 @@ public class SearchServletTest
         Mockito.when(this.request.getParameterValues(name)).thenReturn(values);
     }
 
+    /**
+     * Registers the given engines as services, then replaces the servlet with one the component runtime has given
+     * them to. The runtime lists a field's services from the lowest ranking up, so each engine is ranked above the
+     * one before it for the servlet to ask them in the order given.
+     *
+     * @param engines the engines to register, none for a deployment without any
+     */
     private void withEngines(final QuickSearchEngine... engines)
     {
-        setEngines(List.of(engines));
-    }
-
-    private void setEngines(final List<QuickSearchEngine> engines)
-    {
-        try {
-            final Field field = SearchServlet.class.getDeclaredField("searchEngines");
-            field.setAccessible(true);
-            field.set(this.servlet, engines);
-        } catch (final ReflectiveOperationException e) {
-            throw new IllegalStateException(e);
-        }
+        IntStream.range(0, engines.length).forEach(i -> this.osgi.registerService(QuickSearchEngine.class,
+            engines[i], Constants.SERVICE_RANKING, i));
+        this.servlet = this.osgi.registerInjectActivateService(new SearchServlet());
     }
 
     /**
