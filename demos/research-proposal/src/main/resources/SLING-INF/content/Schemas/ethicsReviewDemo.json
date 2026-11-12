@@ -11,7 +11,7 @@
     "description": "Demo: upload a study document and see it checked against TCPS2, the national research ethics policy, with nothing else read first.",
     "proposal": {
       "jcr:primaryType": "sch:DocumentRequirement",
-      "label": "Study document",
+      "label": "study document",
       "description": "The proposal or protocol, as a PDF or Word document.",
       "acceptedFileTypes": [
         "application/pdf",

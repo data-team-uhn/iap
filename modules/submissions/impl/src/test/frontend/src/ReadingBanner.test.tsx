@@ -136,13 +136,14 @@ describe("ReadingBanner", () => {
     expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
   });
 
-  it("warns when the reading stopped the request", async () => {
+  it("warns when the reading stopped the request, and offers no Read again", async () => {
     vi.stubGlobal("fetch", serving(form({ status: "done", blocked: true,
-      message: "This document is not a research proposal." })));
+      message: "Unable to identify the research proposal" })));
 
     render(<ReadingBanner path={PATH} reloads={0} onChanged={vi.fn()} />);
 
-    expect(await screen.findByText("This document is not a research proposal.")).toBeInTheDocument();
+    expect(await screen.findByText("Unable to identify the research proposal")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Read again" })).not.toBeInTheDocument();
   });
 
   it("says why an event was refused", async () => {

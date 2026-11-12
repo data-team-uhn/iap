@@ -56,7 +56,8 @@ import {
   isApprovalRequirement,
   isBeingRead,
   isDocumentRequirement,
-  toFileUrl
+  toFileUrl,
+  toTitle,
 } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 import SubmissionTasks from "./SubmissionTasks";
@@ -177,7 +178,7 @@ function asForm(node: Record<string, unknown>): SubmissionForm {
 function RequirementHeading({ requirement }: { requirement: Requirement }) {
   return (
     <>
-      <Typography variant="subtitle1">{requirement.label || requirement.name}</Typography>
+      <Typography variant="subtitle1">{toTitle(requirement.label || requirement.name)}</Typography>
       {requirement.description
         ? <Typography variant="description">{requirement.description}</Typography>
         : null}

@@ -126,7 +126,8 @@ function ReadingBanner({ path, reloads, onChanged }: {
   }
 
   const failedPhase = getFailedPhase(extraction);
-  const again = form.editable && (
+  // A document the model is sure is the wrong one gets the same answer again, so only a new request helps
+  const again = form.editable && extraction.blocked !== true && (
     <Button
       size="small"
       color="inherit"

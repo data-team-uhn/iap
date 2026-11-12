@@ -28,8 +28,6 @@ import type { QuestionProvenance } from "./provenance";
 // The resource types the form reports, which are the schema's own. A requirement kind that another
 // module adds reports its own type.
 export const FORM_REQUIREMENT_TYPE = "sch/FormRequirement";
-// A form whose one question a model answers about an uploaded document, such as its category
-export const CLASSIFICATION_REQUIREMENT_TYPE = "sch/ClassificationRequirement";
 export const DOCUMENT_REQUIREMENT_TYPE = "sch/DocumentRequirement";
 export const APPROVAL_REQUIREMENT_TYPE = "sch/ApprovalRequirement";
 export const SECTION = "sch/Section";
@@ -97,6 +95,9 @@ export interface FormRequirement extends Requirement {
   items: FormItem[];
   // Whether a model fills this form in from an uploaded document
   extracted?: boolean;
+  // Whether this form holds the category a model suggests, which the submitter confirms before the rest
+  // is read
+  confirmsCategory?: boolean;
 }
 
 // A requirement answered by attaching a file.
@@ -162,7 +163,7 @@ export interface SubmissionForm {
   title: string;
   // Whether the reader may still change the submission: they raised it, and it is still a draft
   editable: boolean;
-  // Whether the schema version names a workflow that reads the uploaded documents
+  // Whether a model reads the uploaded documents: it checks them, or a form is read from them
   readsDocuments?: boolean;
   requirements: Requirement[];
   // Where reading the documents stands; absent until a reading was asked for
@@ -174,7 +175,7 @@ export function isQuestion(item: FormItem): item is FormQuestion {
 }
 
 export function isFormRequirement(requirement: Requirement): requirement is FormRequirement {
-  return requirement.type === FORM_REQUIREMENT_TYPE || requirement.type === CLASSIFICATION_REQUIREMENT_TYPE;
+  return requirement.type === FORM_REQUIREMENT_TYPE;
 }
 
 export function isDocumentRequirement(requirement: Requirement): requirement is DocumentRequirement {
@@ -205,6 +206,12 @@ export function describeBlock(extraction: ExtractionState | undefined): string |
 // An answer as the option labels it picked, so a reader sees words rather than stored values
 export function describeValues(question: FormQuestion, values: string[]): string[] {
   return values.map(value => question.options.find(option => option.value === value)?.label ?? value);
+}
+
+// A label as a heading. A requirement's label is written to fit a sentence, such as "Please upload the
+// research proposal", so it may start in lower case.
+export function toTitle(label: string): string {
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 // What an empty document slot says. An optional one says so, or it reads as a gap.
@@ -307,6 +314,17 @@ export function reviewExtraction(doFetch: AuthenticatedFetch, path: string, ques
 // Stops a parse or a reading that is still going
 export function stopProcessing(doFetch: AuthenticatedFetch, path: string): Promise<void> {
   return postEvent(doFetch, path, "stopProcessing", "The reading could not be stopped");
+}
+
+// Sends the uploads to be read, once the submitter has uploaded what the request asks for. Only the ones
+// never parsed, or whose parse failed, are sent; the model then checks each document.
+export function sendDocuments(doFetch: AuthenticatedFetch, path: string): Promise<void> {
+  return postEvent(doFetch, path, "retryParse", "The documents could not be sent to be read");
+}
+
+// Reads the rest of the request out of the documents, once the submitter has confirmed the category
+export function runMainExtraction(doFetch: AuthenticatedFetch, path: string): Promise<void> {
+  return postEvent(doFetch, path, "runMainExtraction", "The documents could not be read");
 }
 
 // Reads the documents again: `retryParse` sends again the uploads whose parse failed, `readAgain`

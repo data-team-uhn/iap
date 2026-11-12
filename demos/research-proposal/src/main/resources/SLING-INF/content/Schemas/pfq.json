@@ -58,7 +58,7 @@
     },
     "questionnaire": {
       "jcr:primaryType": "sch:DocumentRequirement",
-      "label": "The questionnaire",
+      "label": "questionnaire",
       "description": "The questionnaire itself, as a PDF or Word document. Everything under 'Read from the questionnaire' is read out of it.",
       "acceptedFileTypes": [
         "application/pdf",
@@ -69,7 +69,7 @@
     },
     "preamble": {
       "jcr:primaryType": "sch:DocumentRequirement",
-      "label": "Preamble and instructions",
+      "label": "preamble and instructions",
       "description": "The preamble and instructions given to the patient - what the questionnaire is for and how the answers will be used - when they are not part of the file above.",
       "acceptedFileTypes": [
         "application/pdf",

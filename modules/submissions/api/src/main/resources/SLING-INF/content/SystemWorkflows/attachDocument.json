@@ -50,19 +50,6 @@
       "label": "Record whether anything is still missing",
       "handler": "markCompleteness",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
-      "toParse": {
-        "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toParse",
-        "targetRef": "parse"
-      }
-    },
-    // From the extraction module. It does nothing for a schema that names no reading workflow
-    "parse": {
-      "jcr:primaryType": "wf:Activity",
-      "elementId": "parse",
-      "label": "Send the document to be read",
-      "handler": "parseDocuments",
-      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",

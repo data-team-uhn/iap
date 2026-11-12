@@ -17,8 +17,8 @@
  */
 
 import {
-  CLASSIFICATION_REQUIREMENT_TYPE,
   DOCUMENT_REQUIREMENT_TYPE,
+  FORM_REQUIREMENT_TYPE,
   QUESTION,
   SECTION,
   type FormItem,
@@ -35,8 +35,11 @@ import {
   isRequired,
   readAgain,
   reviewExtraction,
+  runMainExtraction,
   saveAnswer,
+  sendDocuments,
   stopProcessing,
+  toTitle,
 } from "@iap/submissions/submissionForm";
 
 const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
@@ -161,8 +164,8 @@ describe("saveAnswer", () => {
 });
 
 describe("isFormRequirement", () => {
-  it("counts a classification as a form, since it holds a question to answer", () => {
-    expect(isFormRequirement({ name: "kind", path: "/k", type: CLASSIFICATION_REQUIREMENT_TYPE, label: "Kind" }))
+  it("tells a form from the other kinds", () => {
+    expect(isFormRequirement({ name: "kind", path: "/k", type: FORM_REQUIREMENT_TYPE, label: "Kind" }))
       .toBe(true);
     expect(isFormRequirement({ name: "note", path: "/n", type: DOCUMENT_REQUIREMENT_TYPE, label: "Note" }))
       .toBe(false);
@@ -201,10 +204,13 @@ describe("the reading events", () => {
     await stopProcessing(fetch, PATH);
     await readAgain(fetch, PATH, true);
     await readAgain(fetch, PATH, false);
+    await sendDocuments(fetch, PATH);
+    await runMainExtraction(fetch, PATH);
 
     const urls = fetchMock.mock.calls.map(call => (call as unknown[])[0]);
     expect(urls).toEqual([ `${PATH}.reviewExtraction.json`, `${PATH}.stopProcessing.json`,
-      `${PATH}.retryParse.json`, `${PATH}.readAgain.json` ]);
+      `${PATH}.retryParse.json`, `${PATH}.readAgain.json`, `${PATH}.retryParse.json`,
+      `${PATH}.runMainExtraction.json` ]);
     const body = (fetchMock.mock.calls[0] as unknown[])[1] as { body: URLSearchParams };
     expect(body.body.get("question")).toBe("details/sponsor");
     expect(body.body.get("evidenceRejected")).toBe("true");
@@ -219,5 +225,12 @@ describe("the reading events", () => {
       ok: false, status: 500, url: "", json: () => Promise.reject(new Error("not JSON")),
     } as unknown as Response)));
     await expect(stopProcessing(fetch, PATH)).rejects.toThrow("The reading could not be stopped (500)");
+  });
+});
+
+describe("toTitle", () => {
+  it("starts a label written to fit a sentence with a capital", () => {
+    expect(toTitle("research proposal")).toBe("Research proposal");
+    expect(toTitle("")).toBe("");
   });
 });

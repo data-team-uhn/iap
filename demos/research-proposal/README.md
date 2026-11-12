@@ -70,11 +70,13 @@ provider with the `Qwen3.8-27B` model, so a
    Picking *Research proposal* raises a submission against the schema that category names:
    `POST /Submissions` with a `title` and that schema version's path. The bootstrap creates it in
    `draft` and puts it under its workflow, which parks on `complete`.
-2. **They upload the document** — `POST <submission>.attachDocument.json` with the file, which the
-   form's upload control does. The upload becomes a `sub:Document` holding a version, whose `sub:File`
-   holds the bytes as `uploadedFile`. The `attachDocument` system workflow then runs
-   `parseDocuments`: every upload not parsed yet is staged on the volume shared with the document
-   daemon and queued, and the submission records `extractionStatus: running`.
+2. **They upload the document, and click Next** — the editor's first step shows only the documents,
+   and Next waits until each required one is uploaded ("Please upload the research proposal."). An
+   upload is `POST <submission>.attachDocument.json` with the file: it becomes a `sub:Document` holding
+   a version, whose `sub:File` holds the bytes as `uploadedFile`. Next fires `retryParse`, whose
+   `parseDocuments` step stages every upload not parsed yet on the volume shared with the document
+   daemon and queues it, and the submission records `extractionStatus: running`. From then on the
+   uploads are locked, unless a parse failed: the intake reads each document once.
 3. **The daemon parses in the background** and POSTs the outcome back. The platform fires
    `documentParsed` on the submission: `ingestParse` reads the Markdown and the PDF rendition onto the
    file, and `queueDecisions` queues the checks of the upload.
@@ -84,15 +86,16 @@ provider with the `Qwen3.8-27B` model, so a
    pick as a suggestion on `category/kind`; a pick below `confidenceThreshold` (0.7) is saved as not
    found.
    - The model is sure it is not a proposal: the workflow ends at *Not a research proposal*, the
-     submission is blocked with "Unable to identify the Research proposal", and nothing else is read.
+     submission is blocked with "Unable to identify the research proposal", and nothing else is read.
    - Yes, or unsure: the workflow goes on to *Send for review*, and the reading ends with "Confirm the
      category to continue".
    - A call failed (no API key, provider down): the reading ends as failed, and *Read again* runs the
      check once more.
-5. **The researcher confirms the kind of study** in the form, then presses *Read again*. With the
-   category confirmed, that runs the main extraction: one call per form for the common questions and
-   those of the confirmed study type, reading `proposal`. Each answer is saved as a suggestion, and
-   `extractionStatus` becomes `done`.
+5. **The researcher confirms the kind of study**, on the editor's second step, then clicks Next. It
+   waits until the checks are done and the kind of study has an answer. Next fires
+   `runMainExtraction`: one call per form for the common questions and those of the confirmed study
+   type, reading `proposal`. Each answer is saved as a suggestion, and `extractionStatus` becomes
+   `done`. The third step shows the rest of the form.
 6. **The researcher checks the answers** in the form: each suggestion is shown framed beside its quotes,
    and is saved only once they confirm or edit it. They complete what was not found, and complete the
    step. The `markSubmitted` step (`addTag` with `replaceExisting`) swaps `draft` for `submitted`, and
@@ -100,13 +103,13 @@ provider with the `Qwen3.8-27B` model, so a
 7. **`demo-reviewer` decides** — `POST` to the `review` task with `outcome=approved` or `rejected`.
 
 *Read again* (`POST <submission>.readAgain.json`) runs the first step not done yet: the checks of the
-upload, or the questions never read. *Try again* (`retryParse`) sends a failed parse back. A newer
-version of the document is read for every question; where it says something other than the
-researcher's answer, the field offers it from its corner, and the answer stays until they take it.
+upload, or the questions never read. It is not offered once the request is blocked. *Try again*
+(`retryParse`) sends a failed parse back.
 
 A questionnaire goes the same way: *Patient facing questionnaire* in the dialog, then the upload, then
 `is_questionnaire`. Surely not a questionnaire ends the request; otherwise the questions are read out
-of the preamble and the questionnaire together. There is no kind of questionnaire to confirm.
+of the preamble and the questionnaire together. There is no kind of questionnaire to confirm, so its
+second step only waits for the check.
 
 ## Questions that depend on the category
 

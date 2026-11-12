@@ -9,7 +9,7 @@
     "description": "Submit a research proposal for review. Upload the proposal document first: what it says about the study is read out of it and filled in below for you to check and complete, then a reviewer decides.",
     "proposal": {
       "jcr:primaryType": "sch:DocumentRequirement",
-      "label": "Research proposal",
+      "label": "research proposal",
       "description": "The proposal or protocol, as a PDF or Word document. Everything below is read out of it.",
       "acceptedFileTypes": [
         "application/pdf",
