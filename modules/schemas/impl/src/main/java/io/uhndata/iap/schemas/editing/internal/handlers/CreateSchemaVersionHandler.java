@@ -23,10 +23,12 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.utils.VersionNumbers;
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.spi.Payloads;
@@ -60,8 +62,9 @@ public class CreateSchemaVersionHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource target = context.getTarget();
-        if (SchemaContent.asSchema(target) == null) {
-            throw SchemaContent.unsupportedTarget(HANDLER_NAME, target);
+        if (!target.isResourceType(Schema.RESOURCE_TYPE)) {
+            throw new WorkflowDefinitionException("The " + HANDLER_NAME + " handler does not serve "
+                + target.getResourceType());
         }
         final int number = VersionNumbers.next(target, SchemaVersion.RESOURCE_TYPE);
         VersioningUtils.checkOut(target);
