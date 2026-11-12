@@ -98,7 +98,7 @@ class RecordValidationHandlerTest
         return Map.of(ClaimReadingHandler.JOB_KEY, JOB_ID,
             RecordValidationHandler.REQUIREMENT_KEY, this.requirement.getPath(),
             RecordValidationHandler.FILE_KEY, this.file.getPath(),
-            RecordValidationHandler.RESULT_KEY, new FieldResult(ValidationJobConsumer.VERDICT_KEY, List.of(verdict),
+            RecordValidationHandler.RESULT_KEY, new FieldResult(DocumentValidator.VERDICT_KEY, List.of(verdict),
                 "It has aims and methods.", confidence, List.of(), 0),
             RecordValidationHandler.LAST_KEY, last);
     }

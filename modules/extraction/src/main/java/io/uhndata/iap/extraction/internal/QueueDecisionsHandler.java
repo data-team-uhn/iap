@@ -31,8 +31,8 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * The service task that queues the validation of a submission's upload as a background job, the first step of
- * the intake. It is queued, not run here, because the model takes a while and the request that delivered the parse
+ * The service task that queues the checks of a submission's uploads as a background job, the first steps of the
+ * intake. It is queued, not run here, because the model takes a while and the request that delivered the parse
  * should not wait.
  *
  * <p>Every finished parse queues one job, and the job decides whether the reading can start. This task cannot
@@ -44,12 +44,12 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * @since 0.1.0
  */
 @Component(service = ServiceTaskHandler.class)
-public class QueueValidationHandler implements ServiceTaskHandler
+public class QueueDecisionsHandler implements ServiceTaskHandler
 {
     /** The name activities use to point at this handler. */
-    public static final String HANDLER_NAME = "queueValidation";
+    public static final String HANDLER_NAME = "queueDecisions";
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(QueueValidationHandler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(QueueDecisionsHandler.class);
 
     @Reference
     private JobManager jobManager;
@@ -64,10 +64,10 @@ public class QueueValidationHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws PersistenceException
     {
         final Resource target = context.getTarget();
-        if (this.jobManager.addJob(ValidationJobConsumer.JOB_TOPIC,
+        if (this.jobManager.addJob(DecisionJobConsumer.JOB_TOPIC,
             Map.of(ReadingJobs.SUBMISSION_PROPERTY, target.getPath())) == null) {
-            throw new PersistenceException("The validation of " + target.getPath() + " could not be queued");
+            throw new PersistenceException("The document checks of " + target.getPath() + " could not be queued");
         }
-        LOGGER.info("Validation queued: submission={}", target.getPath());
+        LOGGER.info("Document checks queued: submission={}", target.getPath());
     }
 }

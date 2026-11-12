@@ -188,7 +188,7 @@ class StopProcessingHandlerTest
         final Job validation = Mockito.mock(Job.class);
         Mockito.when(validation.getId()).thenReturn("validation-1");
         Mockito.when(this.jobManager.findJobs(Mockito.eq(JobManager.QueryType.QUEUED),
-            Mockito.eq(ValidationJobConsumer.JOB_TOPIC), Mockito.eq(0L), Mockito.anyMap()))
+            Mockito.eq(DecisionJobConsumer.JOB_TOPIC), Mockito.eq(0L), Mockito.anyMap()))
             .thenReturn(List.of(validation));
 
         // The record still names the folder, so the sweep removes both together

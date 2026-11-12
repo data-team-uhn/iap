@@ -122,6 +122,17 @@ final class ExtractionStatus
     }
 
     /**
+     * Whether a reading of the submission is going on.
+     *
+     * @param submission the submission
+     * @return {@code true} when its status is {@link #STATUS_RUNNING}
+     */
+    static boolean isRunning(final Resource submission)
+    {
+        return STATUS_RUNNING.equals(submission.getValueMap().get(STATUS_PROPERTY, String.class));
+    }
+
+    /**
      * Leaves a note for the person looking at the submission, without changing the status. The step that ends
      * the reading ({@code finishReading}) keeps it, unless it has a message of its own.
      *

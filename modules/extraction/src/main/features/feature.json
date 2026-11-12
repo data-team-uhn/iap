@@ -52,7 +52,7 @@
       "queue.name":"iap-extraction",
       "queue.topics":[
         "iap/extraction/extract",
-        "iap/extraction/validate"
+        "iap/extraction/decide"
       ],
       "queue.type":"UNORDERED",
       "queue.maxparallel:Double":1.0

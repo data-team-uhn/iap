@@ -56,14 +56,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ValidationJobConsumer}: what it asks the model, how it saves the verdict, and how it hands
+ * Unit tests for {@link DecisionJobConsumer}: what it asks the model, how it saves the verdict, and how it hands
  * the submission on to the intake.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class ValidationJobConsumerTest
+class DecisionJobConsumerTest
 {
     private static final String JOB_ID = "job-1";
 
@@ -77,7 +77,7 @@ class ValidationJobConsumerTest
 
     private final Job job = Mockito.mock(Job.class);
 
-    private final ValidationJobConsumer consumer = new ValidationJobConsumer();
+    private final DecisionJobConsumer consumer = new DecisionJobConsumer();
 
     private final DecisionReader reader = new DecisionReader();
 
@@ -106,19 +106,22 @@ class ValidationJobConsumerTest
         inject(jobs, "resolverFactory", new TestResolverFactory(this.context.resourceResolver()));
         inject(jobs, "engine", this.engine);
         inject(jobs, "runs", runs);
-        inject(this.consumer, "jobs", jobs);
-        inject(this.consumer, "engine", this.engine);
         inject(this.reader, "intake", this.intake);
         inject(this.reader, "documents", new ParsedDocuments());
         inject(this.reader, "runs", runs);
-        inject(this.consumer, "reader", this.reader);
+        final DocumentValidator validator = new DocumentValidator();
+        inject(validator, "jobs", jobs);
+        inject(validator, "engine", this.engine);
+        inject(validator, "reader", this.reader);
+        inject(this.consumer, "jobs", jobs);
+        inject(this.consumer, "validator", validator);
         Mockito.when(this.job.getId()).thenReturn(JOB_ID);
         Mockito.when(this.job.getProperty(ReadingJobs.SUBMISSION_PROPERTY, String.class))
             .thenReturn(this.submission.getPath());
         this.steps.put(ReadingJobs.READING_STARTED_EVENT, call -> runStep(new ClaimReadingHandler(), call));
         this.steps.put(ReadingJobs.READING_FAILED_EVENT, call -> runStep(new GiveUpReadingHandler(), call));
-        this.steps.put(ValidationJobConsumer.VALIDATED_EVENT, call -> runStep(new RecordValidationHandler(), call));
-        this.steps.put(ValidationJobConsumer.COMPLETE_EVENT, this::closeTask);
+        this.steps.put(DocumentValidator.VALIDATED_EVENT, call -> runStep(new RecordValidationHandler(), call));
+        this.steps.put(DocumentValidator.COMPLETE_EVENT, this::closeTask);
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any())).thenAnswer(
             call -> this.steps.get(call.<WorkflowEvent>getArgument(1).getName()).answer(call));
         stubVerdict("yes", 0.9);
@@ -170,7 +173,7 @@ class ValidationJobConsumerTest
     private List<WorkflowEvent> getVerdicts() throws Exception
     {
         return getFiredEvents().stream()
-            .filter(event -> ValidationJobConsumer.VALIDATED_EVENT.equals(event.getName()))
+            .filter(event -> DocumentValidator.VALIDATED_EVENT.equals(event.getName()))
             .toList();
     }
 
@@ -183,8 +186,8 @@ class ValidationJobConsumerTest
     private void stubVerdict(final String verdict, final double confidence)
     {
         Mockito.when(this.intake.askQuestions(Mockito.any(), Mockito.any(), Mockito.anyList(), Mockito.any()))
-            .thenReturn(IntakeResult.createRead(Map.of(ValidationJobConsumer.VERDICT_KEY, new FieldResult(
-                ValidationJobConsumer.VERDICT_KEY, List.of(verdict), "It has aims and methods.", confidence,
+            .thenReturn(IntakeResult.createRead(Map.of(DocumentValidator.VERDICT_KEY, new FieldResult(
+                DocumentValidator.VERDICT_KEY, List.of(verdict), "It has aims and methods.", confidence,
                 List.of(), 0))));
     }
 
@@ -240,7 +243,7 @@ class ValidationJobConsumerTest
         assertEquals(List.of("readingStarted", "validated", "complete", "validated", "complete"),
             getFiredEventNames());
         assertEquals(List.of("is_proposal", "is_consent"),
-            getVerdicts().stream().map(ValidationJobConsumerTest::getRequirementName).toList());
+            getVerdicts().stream().map(DecisionJobConsumerTest::getRequirementName).toList());
         assertEquals(List.of(false, true),
             getVerdicts().stream().map(event -> event.get(RecordValidationHandler.LAST_KEY)).toList());
         assertNull(getProperties().get(ExtractionStatus.READING_CLAIMED_BY_PROPERTY));
@@ -270,7 +273,7 @@ class ValidationJobConsumerTest
         assertEquals(JobResult.OK, this.consumer.process(this.job));
 
         assertEquals(List.of("is_proposal"),
-            getVerdicts().stream().map(ValidationJobConsumerTest::getRequirementName).toList());
+            getVerdicts().stream().map(DecisionJobConsumerTest::getRequirementName).toList());
         assertEquals(true, getVerdicts().get(0).get(RecordValidationHandler.LAST_KEY));
     }
 
@@ -279,7 +282,7 @@ class ValidationJobConsumerTest
     {
         createConsentValidation(true);
         createWaitingTask();
-        this.steps.put(ValidationJobConsumer.COMPLETE_EVENT, call -> {
+        this.steps.put(DocumentValidator.COMPLETE_EVENT, call -> {
             closeTask(call);
             getSubmissionResource().adaptTo(ModifiableValueMap.class).put(ExtractionStatus.STATUS_PROPERTY,
                 ExtractionStatus.STATUS_FAILED);
@@ -290,7 +293,7 @@ class ValidationJobConsumerTest
         assertEquals(JobResult.OK, this.consumer.process(this.job));
 
         assertEquals(List.of("is_proposal"),
-            getVerdicts().stream().map(ValidationJobConsumerTest::getRequirementName).toList());
+            getVerdicts().stream().map(DecisionJobConsumerTest::getRequirementName).toList());
     }
 
     @Test
@@ -298,7 +301,7 @@ class ValidationJobConsumerTest
     {
         createConsentValidation(true);
         createWaitingTask();
-        this.steps.put(ValidationJobConsumer.COMPLETE_EVENT, call -> {
+        this.steps.put(DocumentValidator.COMPLETE_EVENT, call -> {
             this.context.resourceResolver().delete(getSubmissionResource());
             this.context.resourceResolver().commit();
             return null;
@@ -432,7 +435,7 @@ class ValidationJobConsumerTest
     void givesUpWhenTheTaskCannotBeCompleted() throws Exception
     {
         createWaitingTask();
-        this.steps.put(ValidationJobConsumer.COMPLETE_EVENT, call -> {
+        this.steps.put(DocumentValidator.COMPLETE_EVENT, call -> {
             throw new WorkflowFailedException("The intake broke");
         });
 
@@ -446,7 +449,7 @@ class ValidationJobConsumerTest
     void givesUpNothingWhenTheSubmissionWentAwayMeanwhile() throws Exception
     {
         createWaitingTask();
-        this.steps.put(ValidationJobConsumer.COMPLETE_EVENT, call -> {
+        this.steps.put(DocumentValidator.COMPLETE_EVENT, call -> {
             this.context.resourceResolver().delete(this.context.resourceResolver().getResource(
                 this.submission.getPath()));
             this.context.resourceResolver().commit();
@@ -463,7 +466,7 @@ class ValidationJobConsumerTest
     void dropsTheVerdictWhenTheReadingIsNoLongerItsOwn() throws Exception
     {
         createWaitingTask();
-        this.steps.put(ValidationJobConsumer.VALIDATED_EVENT, call -> {
+        this.steps.put(DocumentValidator.VALIDATED_EVENT, call -> {
             throw new InvalidStateException("The reading is no longer this job's");
         });
 
@@ -587,7 +590,7 @@ class ValidationJobConsumerTest
         assertEquals(JobResult.OK, this.consumer.process(this.job));
 
         assertEquals(List.of("is_proposal"),
-            getVerdicts().stream().map(ValidationJobConsumerTest::getRequirementName).toList());
+            getVerdicts().stream().map(DecisionJobConsumerTest::getRequirementName).toList());
     }
 
     private Resource createRequiredConsent()

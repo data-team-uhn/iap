@@ -58,7 +58,7 @@ public class StopProcessingHandler implements ServiceTaskHandler
 
     /** The topics of the jobs that read a submission, queued ones of which a Stop removes. */
     private static final List<String> READING_TOPICS =
-        List.of(ExtractAnswersJobConsumer.JOB_TOPIC, ValidationJobConsumer.JOB_TOPIC);
+        List.of(ExtractAnswersJobConsumer.JOB_TOPIC, DecisionJobConsumer.JOB_TOPIC);
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StopProcessingHandler.class);
 
