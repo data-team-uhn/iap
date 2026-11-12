@@ -61,6 +61,7 @@ import io.uhndata.iap.links.models.Linkable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -94,6 +95,8 @@ class LinkManagerImplTest
     private static final String THING_A_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 
     private static final String THING_B_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+
+    private static final String THING_C_ID = "cccccccc-cccc-cccc-cccc-cccccccccccc";
 
     private static final String THING_B_PATH = "/Things/b";
 
@@ -324,6 +327,21 @@ class LinkManagerImplTest
         this.manager.addLink(thing, this.asContent(destination), SIMPLE, "other label");
 
         assertEquals(first.getPath(), second.getPath());
+        assertEquals(2, this.linkable(thing).getLinks().size());
+    }
+
+    @Test
+    void addsAnUnlabelledLinkBesideALabelledOne()
+    {
+        this.createDefinitions();
+        final Resource thing = this.createThings();
+        final Content destination = this.asContent(this.context.resourceResolver().getResource(THING_B_PATH));
+
+        final InternalLink labelled = this.manager.addLink(thing, destination, SIMPLE, "see also");
+        final InternalLink unlabelled = this.manager.addLink(thing, destination, SIMPLE, null);
+
+        assertNotEquals(labelled.getPath(), unlabelled.getPath());
+        assertNull(unlabelled.getLabel());
         assertEquals(2, this.linkable(thing).getLinks().size());
     }
 
@@ -648,6 +666,23 @@ class LinkManagerImplTest
         // External links can only match without a destination filter
         assertEquals(0, this.linkable(thing).removeLinks(this.asContent(destination), "ehrChart", null));
         assertEquals(1, this.linkable(thing).removeLinks(null, "ehrChart", null));
+    }
+
+    @Test
+    void removesNothingToAnUnreferenceableDestination()
+    {
+        this.createDefinitions();
+        final Resource thing = this.createThings();
+        final Resource other = this.context.create().resource("/Things/c", Map.of(UUID_PROPERTY, THING_C_ID));
+        this.manager.addLink(thing, this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)),
+            SIMPLE, null);
+        this.manager.addLink(thing, this.asContent(other), SIMPLE, null);
+        final Resource unreferenceable = this.context.create().resource("/Things/plain");
+
+        final int removed = this.linkable(thing).removeLinks(this.asContent(unreferenceable), SIMPLE, null);
+
+        assertEquals(0, removed);
+        assertEquals(2, this.linkable(thing).getLinks().size());
     }
 
     @Test

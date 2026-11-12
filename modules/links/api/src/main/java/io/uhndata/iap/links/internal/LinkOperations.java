@@ -69,8 +69,8 @@ public interface LinkOperations
 
     /**
      * Adds a link from a node to other content, in the node's session. The caller commits it. An existing link of
-     * the same type to the same content comes back instead of a duplicate. Its label must match, unless
-     * {@code label} is {@code null}.
+     * the same type to the same content comes back instead of a duplicate. Its label must match too,
+     * and a {@code null} or empty label matches only a link without one.
      *
      * @param source the node to hold the link
      * @param destination the content to link to; it must be referenceable
@@ -86,8 +86,8 @@ public interface LinkOperations
 
     /**
      * Adds an external link to a node, in the node's session. The caller commits it. An existing link of the same
-     * type with the same value comes back instead of a duplicate. Its label must match, unless {@code label} is
-     * {@code null}.
+     * type with the same value comes back instead of a duplicate. Its label must match too, and a
+     * {@code null} or empty label matches only a link without one.
      *
      * @param source the node to hold the link
      * @param type the name or path of the link definition
@@ -106,7 +106,8 @@ public interface LinkOperations
      * The caller commits the deletions.
      *
      * @param source the node holding the links
-     * @param destination the linked content; {@code null} to match any target, external links included
+     * @param destination the linked content; {@code null} to match any target, external links
+     *            included; content without a {@code jcr:uuid} matches no link
      * @param type the name or path of the link definition
      * @param label the label to match; {@code null} for any label, empty for links without one
      * @return the number of links deleted

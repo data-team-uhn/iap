@@ -86,7 +86,7 @@ public class Linkable extends Content
     /**
      * Adds a link from this content to other content, in the session this model was read with. The caller commits
      * it. An existing link of the same type to the same content comes back instead of a duplicate. Its label must
-     * match, unless {@code label} is {@code null}.
+     * match too, and a {@code null} or empty label matches only a link without one.
      *
      * <p>When the definition names a backlink and this session may add nodes under the destination, the reverse
      * goes into the same session. The pair then lands in one commit. Otherwise the reverse is added after the
@@ -109,8 +109,8 @@ public class Linkable extends Content
 
     /**
      * Adds an external link to this content, in the session this model was read with. The caller commits it. An
-     * existing link of the same type with the same value comes back instead of a duplicate. Its label must match,
-     * unless {@code label} is {@code null}.
+     * existing link of the same type with the same value comes back instead of a duplicate. Its label must
+     * match too, and a {@code null} or empty label matches only a link without one.
      *
      * @param type the name or path of the link definition
      * @param value the value naming the target, such as an identifier in another system
@@ -132,7 +132,8 @@ public class Linkable extends Content
      * Deletes this content's links of one type, to the given content and with the given label, in the session
      * this model was read with. The caller commits the deletions.
      *
-     * @param destination the linked content; {@code null} to match any target, external links included
+     * @param destination the linked content; {@code null} to match any target, external links
+     *            included; content without a {@code jcr:uuid} matches no link
      * @param type the name or path of the link definition
      * @param label the label to match; {@code null} for any label, empty for links without one
      * @return the number of links deleted; 0 if the links service is not available
