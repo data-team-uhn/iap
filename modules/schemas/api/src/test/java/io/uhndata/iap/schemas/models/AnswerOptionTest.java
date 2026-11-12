@@ -32,6 +32,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Unit tests for {@link AnswerOption}.
@@ -96,6 +97,15 @@ class AnswerOptionTest
             "sling:resourceType", AnswerOption.RESOURCE_TYPE,
             "value", "sick",
             "label", "")).getLabel());
+    }
+
+    @Test
+    void refusesToReadAnOptionWithoutItsMandatoryValue()
+    {
+        final AnswerOption option = this.option(Map.of("sling:resourceType", AnswerOption.RESOURCE_TYPE));
+
+        assertThrows(NullPointerException.class, option::getValue);
+        assertThrows(NullPointerException.class, option::getLabel);
     }
 
     private AnswerOption option(final Map<String, Object> properties)
