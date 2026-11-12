@@ -52,7 +52,7 @@ public class TagPropagationEditorProvider implements EditorProvider
         final CommitInfo info)
     {
         final List<TagProcessor> current = this.processors;
-        if (current == null || current.isEmpty()) {
+        if (current.isEmpty()) {
             return null;
         }
         return new TagPropagationEditor(builder, new TagPropagationConfig(current,

@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.tags.internal;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,12 +31,14 @@ import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.osgi.framework.Constants;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.tags.api.Tag;
@@ -93,8 +94,11 @@ class TagManagerImplTest
 
     private TagManagerImpl tagManager;
 
+    /** How many managers this test has activated, so that each one's factory outranks the last. */
+    private int activations;
+
     @BeforeEach
-    void setUp() throws ReflectiveOperationException
+    void setUp()
     {
         this.context.addModelsForClasses(Content.class, TagDefinition.class, Taggable.class);
         this.context.create().resource("/Tags",
@@ -127,14 +131,22 @@ class TagManagerImplTest
         // An extensibility child of another type, not a tag definition
         this.context.create().resource("/Tags/config",
             TYPE_PROPERTY, "data/Content");
-        // Set by hand: the SCR metadata the mock OSGi runtime would inject it from is generated only when the
-        // bundle is packaged
-        this.tagManager = new TagManagerImpl();
-        final Field factory = TagManagerImpl.class.getDeclaredField("resolverFactory");
-        factory.setAccessible(true);
-        factory.set(this.tagManager, new TestResolverFactory(this.context.resourceResolver()));
-        // The Taggable model reaches the manager as TagOperations
-        this.context.registerService(TagOperations.class, this.tagManager);
+        // The Taggable model reaches the manager through the TagOperations service it registers
+        this.tagManager = activateManagerServedBy(this.context.resourceResolver());
+    }
+
+    /**
+     * Activates a manager whose service user logs in as {@link TestResolverFactory} describes. Each activation
+     * registers its factory above every earlier one, the mock repository's own included, so the new manager binds it.
+     *
+     * @param resolver the resolver the service user is served, or {@code null} for a missing service user
+     * @return the activated manager
+     */
+    private TagManagerImpl activateManagerServedBy(final ResourceResolver resolver)
+    {
+        this.context.registerService(ResourceResolverFactory.class, new TestResolverFactory(resolver),
+            Constants.SERVICE_RANKING, ++this.activations);
+        return this.context.registerInjectActivateService(new TagManagerImpl());
     }
 
     @Test
@@ -542,12 +554,9 @@ class TagManagerImplTest
     }
 
     @Test
-    void survivesAMissingServiceUser() throws ReflectiveOperationException
+    void survivesAMissingServiceUser()
     {
-        final TagManagerImpl manager = new TagManagerImpl();
-        final Field factory = TagManagerImpl.class.getDeclaredField("resolverFactory");
-        factory.setAccessible(true);
-        factory.set(manager, new TestResolverFactory(null));
+        final TagManagerImpl manager = activateManagerServedBy(null);
 
         assertTrue(manager.getDefinitions().isEmpty());
         assertNull(manager.getDefinition(DRAFT));

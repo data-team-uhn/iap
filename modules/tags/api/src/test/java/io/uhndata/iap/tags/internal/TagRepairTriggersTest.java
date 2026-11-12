@@ -18,7 +18,6 @@
 package io.uhndata.iap.tags.internal;
 
 import java.io.Serializable;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -87,14 +86,16 @@ class TagRepairTriggersTest
     void setUp()
     {
         this.scheduler = new RecordingScheduler();
+        this.context.registerService(Scheduler.class, this.scheduler);
+        this.context.registerService(TagRepairService.class, this.repairService);
     }
 
     // --- the sweep -------------------------------------------------------------------------------------------
 
     @Test
-    void schedulesTheSweepWhenEnabled() throws Exception
+    void schedulesTheSweepWhenEnabled()
     {
-        final ScheduledTagRepair sweep = sweep(config("0 0 * * * ? *", true));
+        final ScheduledTagRepair sweep = sweep("0 0 * * * ? *", true);
 
         assertEquals(ScheduledTagRepair.JOB_NAME, this.scheduler.name);
         assertEquals("0 0 * * * ? *", this.scheduler.expression);
@@ -105,35 +106,35 @@ class TagRepairTriggersTest
     }
 
     @Test
-    void doesNotScheduleTheSweepWhenDisabled() throws Exception
+    void doesNotScheduleTheSweepWhenDisabled()
     {
-        sweep(config("0 0 * * * ? *", false));
+        sweep("0 0 * * * ? *", false);
 
         assertNull(this.scheduler.name);
     }
 
     @Test
-    void survivesAnUnusableSchedule() throws Exception
+    void survivesAnUnusableSchedule()
     {
         this.scheduler.rejectExpression = true;
 
-        sweep(config("not a schedule", true));
+        sweep("not a schedule", true);
 
         assertNull(this.scheduler.name);
     }
 
     @Test
-    void unschedulesOnDeactivation() throws Exception
+    void unschedulesOnDeactivation()
     {
-        sweep(config("0 0 * * * ? *", true)).deactivate();
+        sweep("0 0 * * * ? *", true).deactivate();
 
         assertEquals(ScheduledTagRepair.JOB_NAME, this.scheduler.unscheduled);
     }
 
     @Test
-    void sweepReportsWhatItRepaired() throws Exception
+    void sweepReportsWhatItRepaired()
     {
-        final ScheduledTagRepair sweep = sweep(config("0 0 * * * ? *", true));
+        final ScheduledTagRepair sweep = sweep("0 0 * * * ? *", true);
         this.nextReport = new RepairReport(3, 1);
 
         sweep.sweep();
@@ -194,8 +195,7 @@ class TagRepairTriggersTest
     @Test
     void refusesWhenTheDefinitionsAreNotVisibleAtAll() throws Exception
     {
-        final TagRepairServlet servlet = new TagRepairServlet();
-        inject(servlet, "repairService", this.repairService);
+        final TagRepairServlet servlet = this.context.registerInjectActivateService(new TagRepairServlet());
         // A resolver that cannot see /Tags at all, as an unauthenticated one would not
         final MockSlingJakartaHttpServletRequest request =
             new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
@@ -208,20 +208,16 @@ class TagRepairTriggersTest
 
     // --- helpers ---------------------------------------------------------------------------------------------
 
-    private ScheduledTagRepair sweep(final TagRepairConfiguration config) throws Exception
+    private ScheduledTagRepair sweep(final String schedule, final boolean enabled)
     {
-        final ScheduledTagRepair sweep = new ScheduledTagRepair();
-        inject(sweep, "scheduler", this.scheduler);
-        inject(sweep, "repairService", this.repairService);
-        sweep.activate(config);
-        return sweep;
+        return this.context.registerInjectActivateService(new ScheduledTagRepair(),
+            Map.of("schedule", schedule, "enabled", enabled));
     }
 
     private MockSlingJakartaHttpServletResponse post(final String tag, final boolean writable) throws Exception
     {
         this.context.create().resource(TagManager.DEFINITIONS_PATH, Map.of());
-        final TagRepairServlet servlet = new TagRepairServlet();
-        inject(servlet, "repairService", this.repairService);
+        final TagRepairServlet servlet = this.context.registerInjectActivateService(new TagRepairServlet());
 
         final MockSlingJakartaHttpServletRequest request =
             new MockSlingJakartaHttpServletRequest(writable ? this.context.resourceResolver()
@@ -251,37 +247,6 @@ class TagRepairTriggersTest
                         return type == ModifiableValueMap.class ? null : super.adaptTo(type);
                     }
                 };
-            }
-        };
-    }
-
-    private static void inject(final Object target, final String name, final Object value) throws Exception
-    {
-        final Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(target, value);
-    }
-
-    private static TagRepairConfiguration config(final String schedule, final boolean enabled)
-    {
-        return new TagRepairConfiguration()
-        {
-            @Override
-            public Class<TagRepairConfiguration> annotationType()
-            {
-                return TagRepairConfiguration.class;
-            }
-
-            @Override
-            public String schedule()
-            {
-                return schedule;
-            }
-
-            @Override
-            public boolean enabled()
-            {
-                return enabled;
             }
         };
     }

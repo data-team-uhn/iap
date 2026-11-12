@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.tags.internal;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -36,6 +35,7 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.osgi.framework.Constants;
 
 import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.api.TagRepairService.RepairReport;
@@ -72,11 +72,13 @@ class TagRepairServiceImplTest
 
     private TagRepairServiceImpl service;
 
+    /** How many services this test has activated, so that each one's factory outranks the last. */
+    private int activations;
+
     @BeforeEach
-    void setUp() throws Exception
+    void setUp()
     {
-        this.service = new TagRepairServiceImpl();
-        inject(factory(resolver()));
+        this.service = activateServiceServedBy(resolver());
     }
 
     @Test
@@ -202,20 +204,28 @@ class TagRepairServiceImplTest
     @Test
     void reportsNothingWhenTheServiceUserIsMissing() throws Exception
     {
-        inject(new TestResolverFactory(null));
+        // A node the working service user would mark
+        this.found.add(taggable("/content/a", null));
 
-        final RepairReport report = this.service.repairFailed();
+        final RepairReport report = activateServiceServedBy(null).repairFailed();
 
         assertEquals(0, report.marked());
         assertEquals(0, report.failed());
+        assertNull(state("/content/a"));
     }
 
-    /** Injects the OSGi reference by hand, since the DS metadata does not exist at test time. */
-    private void inject(final ResourceResolverFactory factory) throws Exception
+    /**
+     * Activates a repair service whose service user logs in as {@link TestResolverFactory} describes. Each activation
+     * registers its factory above every earlier one, the mock repository's own included, so the new service binds it.
+     *
+     * @param resolver the resolver the service user is served, or {@code null} for a missing service user
+     * @return the activated service
+     */
+    private TagRepairServiceImpl activateServiceServedBy(final ResourceResolver resolver)
     {
-        final Field reference = TagRepairServiceImpl.class.getDeclaredField("resolverFactory");
-        reference.setAccessible(true);
-        reference.set(this.service, factory);
+        this.context.registerService(ResourceResolverFactory.class, new TestResolverFactory(resolver),
+            Constants.SERVICE_RANKING, ++this.activations);
+        return this.context.registerInjectActivateService(new TagRepairServiceImpl());
     }
 
     private Resource taggable(final String path, final String state) throws Exception
@@ -260,11 +270,6 @@ class TagRepairServiceImplTest
                 // MockSession.refresh throws
             }
         };
-    }
-
-    private ResourceResolverFactory factory(final ResourceResolver resolver)
-    {
-        return new TestResolverFactory(resolver);
     }
 
     /** Stands in for a node the repair may read but not write, e.g. one its service user has no rights on. */
