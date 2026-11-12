@@ -28,8 +28,15 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.httprequests.api.HttpResponse;
 import io.uhndata.iap.slacknotifications.spi.SlackNotificationProducer;
@@ -101,6 +108,20 @@ class SlackNotificationsTaskTest
 
     private final Webhook webhook = new Webhook();
 
+    private final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
+
+    @BeforeEach
+    void setUp()
+    {
+        ErrorLogger.setService(this.errors);
+    }
+
+    @AfterEach
+    void tearDown()
+    {
+        ErrorLogger.unsetService(this.errors);
+    }
+
     @Test
     void postsWhatTheProducersPrepared()
     {
@@ -157,7 +178,16 @@ class SlackNotificationsTaskTest
 
         task(List.of(producer("first", "one")), List.of(), "", true).run();
 
-        assertEquals(1, this.webhook.posted.size());
+        Mockito.verify(this.errors).logProblem(ArgumentMatchers.contains("refused"),
+            ArgumentMatchers.argThat((final ErrorContext context) -> "400".equals(context.getDetails().get("status"))));
+    }
+
+    @Test
+    void aDeliveredMessageIsNotReportedAsAProblem()
+    {
+        task(List.of(producer("first", "one")), List.of(), "", true).run();
+
+        Mockito.verifyNoInteractions(this.errors);
     }
 
     @Test
