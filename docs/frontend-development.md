@@ -57,6 +57,26 @@ resolved at runtime through the content-hashed `assets.json`. If a new component
 not appear, check that entry exists in `assets.json` first — a missing one means the
 build did not pick up the config change.
 
+### Libraries only some screens need
+
+A package imported where a page starts joins the `vendor` chunk every page loads. One imported only
+with `import()` where a screen needs it gets chunks of its own instead, loaded the first time a
+screen asks for them, as PDF.js is. A worker the library runs is started with
+`new Worker(new URL("<package>/<script>", import.meta.url), { type: "module" })`, which webpack
+bundles the same way.
+
+Some libraries also fetch files by name at run time, like PDF.js's fonts and decoders. A module
+names the package folders they come from in its `package-folders.config`, beside `assets.config`:
+
+```
+'pdfjs-dist/standard_fonts'
+'pdfjs-dist/wasm'
+```
+
+The build publishes each folder as it is, in a folder named after its contents' hash, which
+browsers keep for good. `assets.json` keys it by the package folder, with a dot for the slash:
+`getAssetURL("asset:pdfjs-dist.standard_fonts")` gives the folder's URL.
+
 ## Talking to the server
 
 ### Use `useAuthenticatedFetch`, not `fetch`
@@ -165,6 +185,7 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 | `useNotice` (`NoticeSnackbar.tsx`) | A notice an action raises over the screen. `NoticeProvider` is mounted once, at the top of the page |
 | `FormattedText` | Markdown from content, such as a definition's description |
 | `EntityDataGrid` (`entityGrid/`) | A server-paged, server-filtered table over an entity homepage |
+| `PdfViewer` (`pdfViewer/`) | A PDF opened at a page, with a passage found and marked in it |
 
 `EntityDataGrid` reads a homepage's `.paginate.json`, and sends it the filtering and
 sorting the user picks.
@@ -187,6 +208,27 @@ registerEntityType("sch/Schema", {
 
 Paging, sorting and searching still apply to the schemas alone. On a small screen the
 list keeps one card per schema, and the card ends with the schema's versions.
+
+`PdfViewer` shows a PDF with PDF.js's own viewer, and looks for a quoted passage in it from the page
+given:
+
+```tsx
+<PdfViewer
+  url={file}
+  page={evidence.page}
+  quote={evidence.quote}
+  markedBy="assistant"
+  title="Protocol"
+  onClose={close}
+/>
+```
+
+It opens in a dialog. Given a `container` element, it fills that element instead, and can pop out
+into a dialog and back, keeping the page, the zoom and the mark. A `container` that is `null`, as a
+ref is before React attaches it, shows nothing until the element is there. The match ignores
+spacing, case, accents, typographic quotes and dashes, and line-end hyphens, and finds a passage
+that runs across a page break. `markedBy` says whose mark it is, an AI assistant's or a person's,
+and sets its colour.
 
 Before a file is uploaded, check it with `validateUpload` from
 `@iap/frontend-commons/fileValidation`. It refuses an empty or oversized file, a type the
@@ -217,6 +259,12 @@ deployment's brand colours reach a component only through the theme. What it add
   for the stronger shade of the words that changed within it. `palette.diff.moved` has
   only `main` and `line`, for what moved. So has `palette.diff.hunk`, for the band
   that stands in for unchanged content left out.
+- `assistant` for anything an AI assistant contributed, and `annotation` for what a person
+  marked. Both are full palette colours: `color="assistant"` on a `Chip`, `Button`,
+  `IconButton` or icon, `"assistant.main"` in `sx`.
+- `highlight.assistant` and `highlight.annotation` for marks over a document's own content,
+  with a `…Current` variant for the mark in focus. They stay the same in both colour schemes,
+  since the content under them stays light.
 - `iapShell` for the page frame's rail widths and collapse thresholds.
 
 Both colour schemes are defined, so a hard-coded colour is wrong in one of them. A
