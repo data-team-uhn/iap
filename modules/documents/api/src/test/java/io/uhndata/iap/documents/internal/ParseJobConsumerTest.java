@@ -606,7 +606,7 @@ class ParseJobConsumerTest
             }
 
             @Override
-            protected String environment(final String name)
+            protected String getEnvironmentVariable(final String name)
             {
                 if (ParseJob.TOKEN_VARIABLE.equals(name)) {
                     return environmentToken;

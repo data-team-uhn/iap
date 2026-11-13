@@ -27,10 +27,24 @@ package io.uhndata.iap.documents.api;
  * @param markdownPath where the Markdown rendition is, on the shared volume; {@code null} on failure
  * @param tokens roughly how large the document turned out to be, as the daemon measured it; {@code null} when
  *            it did not say
+ * @param offeredAgain whether the sweep offers it again after no handler took it, minutes after it settled; the
+ *            request that queued the parse is long over, so its target is as it will stay
  * @version $Id$
  * @since 0.1.0
  */
 public record ParseOutcome(String jobId, String target, boolean succeeded, String error, String markdownPath,
-    Long tokens)
+    Long tokens, boolean offeredAgain)
 {
+    /** The error of a parse that was stopped before it finished, see {@link ParseControl#stopParse}. */
+    public static final String STOPPED_ERROR = "Stopped";
+
+    /**
+     * Whether the parse was stopped before it finished, rather than failing on its own.
+     *
+     * @return {@code true} for a stopped parse
+     */
+    public boolean isStopped()
+    {
+        return !this.succeeded && STOPPED_ERROR.equals(this.error);
+    }
 }

@@ -29,6 +29,7 @@ import java.util.UUID;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -315,10 +316,53 @@ class ParseCallbackServletTest
         assertTrue(parse(response).getString("error").contains("could not be recorded"));
     }
 
+    // The sweep deleted the job while this outcome was being recorded: the usual "no such job" answer
+    @Test
+    void aJobRemovedDuringTheCommitIsNotFound() throws Exception
+    {
+        jobNode();
+        final ResourceResolver real = this.context.resourceResolver();
+        inject(this.servlet, new TestResolverFactory(new ResourceResolverWrapper(real)
+        {
+            @Override
+            public void commit() throws PersistenceException
+            {
+                real.delete(real.getResource(ParseJob.nodePath(JOB_ID)));
+                throw new PersistenceException("Removed by somebody else");
+            }
+        }));
+
+        assertEquals(404, post(GOOD_AUTHORIZATION, SUCCESS_BODY).getStatus());
+    }
+
+    // It cannot tell whether the job is still there, so the failure stays a server error
+    @Test
+    void aFailedCommitStaysAServerErrorWhenTheJobCannotBeLookedUp() throws Exception
+    {
+        jobNode();
+        final ResourceResolver failing = failingCommits();
+        final int[] logins = { 0 };
+        inject(this.servlet, new TestResolverFactory(failing)
+        {
+            @Override
+            public ResourceResolver getServiceResourceResolver(final Map<String, Object> authenticationInfo)
+                throws LoginException
+            {
+                logins[0]++;
+                if (logins[0] > 1) {
+                    throw new LoginException("The service user went away");
+                }
+                return super.getServiceResourceResolver(authenticationInfo);
+            }
+        });
+
+        assertEquals(500, post(GOOD_AUTHORIZATION, SUCCESS_BODY).getStatus());
+    }
+
     @Test
     void theRealEnvironmentLookupIsHarmlessWhenConfigured() throws Exception
     {
-        // No overridden environment(): the real lookup runs, and the configured token keeps the outcome
+        // No overridden getEnvironmentVariable(): the real lookup runs, and the configured token keeps the outcome
         // deterministic whether or not the variable is set on the machine running the tests
         final ParseCallbackServlet real = new ParseCallbackServlet();
         inject(real, new TestResolverFactory(this.context.resourceResolver()));
@@ -342,7 +386,7 @@ class ParseCallbackServletTest
             private static final long serialVersionUID = 1L;
 
             @Override
-            protected String environment(final String name)
+            protected String getEnvironmentVariable(final String name)
             {
                 return ParseJob.TOKEN_VARIABLE.equals(name) ? token : null;
             }
