@@ -28,7 +28,8 @@ import { whenApplies } from "@iap/conditions/conditionModel";
 import { useTagChoices } from "@iap/conditions/useTagChoices";
 import CodePill from "@iap/frontend-commons/components/CodePill";
 import { creatableOf } from "@iap/frontend-commons/fields/fieldsModel";
-import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { type SerializedNode, textOf } from "@iap/frontend-commons/serializedNode";
+import { TOUCH_REACH } from "@iap/frontend-commons/touchTarget";
 import { usePhone } from "@iap/frontend-commons/usePhone";
 
 import { offeredOf, schemaSources } from "./conditionModel";
@@ -40,9 +41,9 @@ import SchemaNodeActions from "./SchemaNodeActions";
 import { AddAtEnd } from "./SchemaNodeCreateAction";
 import { type SchemaPartChip, schemaPartTypeOf } from "./schemaPartTypes";
 import { ReloadTree } from "./schemaTree";
-import { EXPANDER_COLUMN, ICON_COLUMN, TOUCH_REACH } from "./schemaTreeLayout";
+import { EXPANDER_COLUMN, ICON_COLUMN } from "./schemaTreeLayout";
 import {
-  conditionOf, detailOf, headingOf, indexQuestions, isQuestion, optionsOf, resourceTypeOf, partsOf,
+  conditionOf, headingOf, indexQuestions, isQuestion, optionsOf, resourceTypeOf, partsOf,
 } from "./schemaVersionTreeModel";
 import { useConditionEditor } from "./useConditionEditor";
 import { useOptionsFrom } from "./useOptionsFrom";
@@ -75,7 +76,7 @@ function PartCard({ part, parent, siblings }: PartCardProps) {
   const { sources } = useVersionConditions();
   const when = condition && whenApplies(condition, sources);
   const conditionEditor = useConditionEditor(part, type.label.toLowerCase());
-  const description = detailOf(part, "description");
+  const description = textOf(part, "description");
   const details = type.details?.(part) ?? null;
   const [ open, setOpen ] = useState(children.length > 0);
   const { ref, surface, content } = useMoveHighlight<HTMLLIElement>(part);
