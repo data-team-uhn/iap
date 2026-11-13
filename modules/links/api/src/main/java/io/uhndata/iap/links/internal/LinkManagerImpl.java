@@ -338,7 +338,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
             LOGGER.warn("No backlink to {} is possible, it is not referenceable", linkingResource.getPath());
             return false;
         }
-        if (!this.mayAddChild(resolver, destination)) {
+        if (!this.sessionMay(resolver, destination.getPath(), Session.ACTION_ADD_NODE)) {
             // This session may not add the reverse; the backlinks listener adds it after the commit
             return false;
         }
@@ -347,17 +347,26 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
         return true;
     }
 
-    private boolean mayAddChild(final ResourceResolver resolver, final Resource target)
+    /**
+     * Whether the resolver's session may perform some JCR actions on a path. Checking first keeps a write the session
+     * may not make out of it: Oak refuses such a write only when the caller saves, and then the caller's other changes
+     * in that save are lost too.
+     *
+     * @param resolver the resolver whose session would make the change
+     * @param path the path the change touches
+     * @param actions the {@link Session#hasPermission JCR actions} the change needs
+     * @return {@code false} if the session may not, the check fails, or the resolver has no JCR session to check with
+     */
+    private boolean sessionMay(final ResourceResolver resolver, final String path, final String actions)
     {
         final Session session = resolver.adaptTo(Session.class);
         if (session == null) {
-            // No JCR session to check permissions with; the backlinks listener adds the reverse
             return false;
         }
         try {
-            return session.hasPermission(target.getPath(), Session.ACTION_ADD_NODE);
+            return session.hasPermission(path, actions);
         } catch (final RepositoryException e) {
-            LOGGER.warn("Failed to check write access to {}: {}", target.getPath(), e.getMessage(), e);
+            LOGGER.warn("Failed to check write access to {}: {}", path, e.getMessage(), e);
             return false;
         }
     }
@@ -371,14 +380,20 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
             return false;
         }
         if (removeBacklink && model instanceof InternalLink) {
-            final InternalLink backlink = ((InternalLink) model).getBacklink();
-            final Resource backlinkResource =
-                backlink == null ? null : resolver.getResource(backlink.getPath());
-            if (backlinkResource != null) {
-                this.delete(resolver, backlinkResource);
-            }
+            this.removeBacklink(resolver, (InternalLink) model);
         }
         return this.delete(resolver, link);
+    }
+
+    private void removeBacklink(final ResourceResolver resolver, final InternalLink link)
+    {
+        final InternalLink backlink = link.getBacklink();
+        final Resource backlinkResource = backlink == null ? null : resolver.getResource(backlink.getPath());
+        // A reverse this session may read but not remove stays where it is
+        if (backlinkResource != null
+            && this.sessionMay(resolver, backlinkResource.getPath(), Session.ACTION_REMOVE)) {
+            this.delete(resolver, backlinkResource);
+        }
     }
 
     @Override
