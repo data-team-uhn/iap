@@ -207,7 +207,7 @@ export default function LoginPage() {
             // The seam continues down this band's end edge. When the panels are stacked, a
             // top border separates the band instead.
             borderInlineEnd: { md: seamBorder(theme) },
-            borderBlockStart: { xs: `1px solid ${theme.vars?.palette.divider ?? theme.palette.divider}`, md: 0 },
+            borderBlockStart: { xs: seamBorder(theme), md: 0 },
             px: PANEL_PADDING,
           })}
         >
