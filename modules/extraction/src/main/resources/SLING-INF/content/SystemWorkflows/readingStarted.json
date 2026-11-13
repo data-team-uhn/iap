@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Claim the reading of a submission",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Gives the reading of a submission to one reading job, so no other job pays a model to read it.",
+    "started": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "started",
+      "label": "Reading job started",
+      "messageName": "readingStarted",
+      "performers": ["iap-extraction"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toTask": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toTask",
+        "targetRef": "claim"
+      }
+    },
+    "claim": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "claim",
+      "label": "Claim the reading",
+      "handler": "claimReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "claimed"
+      }
+    },
+    "claimed": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "claimed",
+      "label": "Claimed",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
