@@ -111,7 +111,7 @@
     <sling.fsresource.version>2.3.0</sling.fsresource.version>
     <sling.hc.api.version>1.0.4</sling.hc.api.version>
     <sling.hc.support.version>1.0.10</sling.hc.support.version>
-    <sling.i18n.version>3.0.0</sling.i18n.version>
+    <sling.i18n.version>3.0.4</sling.i18n.version>
     <sling.installer.console.version>2.0.0</sling.installer.console.version>
     <sling.installer.core.version>3.14.6</sling.installer.core.version>
     <sling.installer.factory.configuration.version>2.0.0</sling.installer.factory.configuration.version>
@@ -163,14 +163,14 @@
     <sling.settings.version>1.5.0</sling.settings.version>
     <sling.validation.api.version>1.0.2</sling.validation.api.version>
     <sling.validation.core.version>1.0.4</sling.validation.core.version>
-    <sling.xss.version>2.4.12</sling.xss.version>
+    <sling.xss.version>2.4.14</sling.xss.version>
     <platform.name>QuorumPath</platform.name>
     <app.name>Institutional Authorization</app.name>
 
     <!-- Versions to be replaced in the feature files -->
     <asm.version>9.9.1</asm.version>
     <composum.nodes.version>4.3.5</composum.nodes.version>
-    <jackson.version>2.22.4</jackson.version>
+    <jackson.version>2.23.0</jackson.version>
 
     <enforcer.skip>false</enforcer.skip>
     <checkstyle.skip>false</checkstyle.skip>
@@ -211,7 +211,7 @@
       <dependency>
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-lang3</artifactId>
-        <version>3.21.0</version>
+        <version>3.22.0</version>
       </dependency>
       <dependency>
         <groupId>commons-io</groupId>
@@ -2938,13 +2938,13 @@
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>exec-maven-plugin</artifactId>
           <!-- Lock down plugin version for build reproducibility -->
-          <version>3.6.4</version>
+          <version>3.7.0</version>
         </plugin>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>build-helper-maven-plugin</artifactId>
           <!-- Lock down plugin version for build reproducibility -->
-          <version>3.6.2</version>
+          <version>3.8.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.felix</groupId>
