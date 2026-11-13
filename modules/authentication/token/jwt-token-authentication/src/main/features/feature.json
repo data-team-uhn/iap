@@ -25,15 +25,15 @@
       "start-order": "27"
     },
     {
-      "id": "io.jsonwebtoken:jjwt-impl:0.13.0",
+      "id": "io.jsonwebtoken:jjwt-impl:${jjwt.version}",
       "start-order": "25"
     },
     {
-      "id": "io.jsonwebtoken:jjwt-api:0.13.0",
+      "id": "io.jsonwebtoken:jjwt-api:${jjwt.version}",
       "start-order": "25"
     },
     {
-      "id": "io.jsonwebtoken:jjwt-jackson:0.13.0",
+      "id": "io.jsonwebtoken:jjwt-jackson:${jjwt.version}",
       "start-order": "25"
     }
   ],

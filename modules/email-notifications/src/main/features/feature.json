@@ -32,24 +32,24 @@
     // two must share a bundle. Never install jakarta.mail:jakarta.mail-api beside it. Both
     // export jakarta.mail 2.1.5, and sending fails if the API-only bundle is the one wired.
     {
-      "id":"org.eclipse.angus:jakarta.mail:2.0.5",
+      "id":"org.eclipse.angus:jakarta.mail:${angus.mail.version}",
       "start-order":"24"
     },
     // The Jakarta Activation API alone. AngusContentHandlers gives it the classes that write
     // each part of a message. With no angus-activation, FileTypeMap cannot guess a media type
     // from a file name; every attachment here is sent with an explicit type.
     {
-      "id":"jakarta.activation:jakarta.activation-api:2.1.4",
+      "id":"jakarta.activation:jakarta.activation-api:${jakarta.activation.version}",
       "start-order":"24"
     },
     // The template engine of the subjects and bodies. It needs commons-lang3, which boot.json
     // installs.
     {
-      "id":"org.apache.velocity:velocity-engine-core:2.4.1",
+      "id":"org.apache.velocity:velocity-engine-core:${velocity.version}",
       "start-order":"24"
     },
     {
-      "id":"org.apache.commons:commons-text:1.15.0",
+      "id":"org.apache.commons:commons-text:${commons.text.version}",
       "start-order":"24"
     },
     {
