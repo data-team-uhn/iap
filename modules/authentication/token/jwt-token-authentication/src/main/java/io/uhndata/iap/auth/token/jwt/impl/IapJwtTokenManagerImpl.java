@@ -17,22 +17,19 @@
  */
 package io.uhndata.iap.auth.token.jwt.impl;
 
-import java.security.KeyFactory;
+import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.Calendar;
 import java.util.Map;
 import java.util.Set;
 
-import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.osgi.service.component.annotations.Activate;
@@ -43,10 +40,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwt;
+import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.io.Encoders;
 import io.uhndata.iap.auth.token.TokenManager;
 import io.uhndata.iap.errortracking.api.ErrorContext;
@@ -108,6 +104,7 @@ public final class IapJwtTokenManagerImpl implements TokenManager
      * @param config this instance's identity
      * @throws IllegalArgumentException if the configured identity is not usable; the component then does not
      *     activate
+     * @throws IllegalStateException if the key node cannot be read; the component then does not activate
      */
     @Activate
     public IapJwtTokenManagerImpl(@Reference final ResourceResolverFactory rrf,
@@ -121,57 +118,19 @@ public final class IapJwtTokenManagerImpl implements TokenManager
         PrivateKey signing = null;
         PublicKey verification = null;
         try (ResourceResolver resolver = rrf.getServiceResourceResolver(null)) {
-            Resource res = resolver.resolve(KEY_PATH);
-            Node keyNode = res.adaptTo(Node.class);
-            if (keyNode == null) {
-                LOGGER.error("Failed to load JWT Signing key: node {} could not be read",
-                    KEY_PATH);
-                throw new ExceptionInInitializerError(KEY_PATH);
-            }
-
-            if (keyNode.hasProperty(SIGNING_KEY_PROP)
-                && keyNode.hasProperty(VERIFY_PROP)) {
-                // Private key is PKCS-encoded
-                signing = KeyFactory.getInstance("RSA").generatePrivate(
-                    new PKCS8EncodedKeySpec(readKey(keyNode, SIGNING_KEY_PROP)));
-                // Public key is X.509-encoded
-                verification = KeyFactory.getInstance("RSA").generatePublic(
-                    new X509EncodedKeySpec(readKey(keyNode, VERIFY_PROP)));
-            } else {
-                KeyPair newPair = Jwts.SIG.RS256.keyPair().build();
-                keyNode.setProperty(SIGNING_KEY_PROP,
-                    Encoders.BASE64.encode(newPair.getPrivate().getEncoded()));
-                keyNode.setProperty(VERIFY_PROP,
-                    Encoders.BASE64.encode(newPair.getPublic().getEncoded()));
-                resolver.commit();
-
-                signing = newPair.getPrivate();
-                verification = newPair.getPublic();
-            }
+            final KeyPair keys = new JwtKeyPairStore(resolver).readOrCreate();
+            signing = keys.getPrivate();
+            verification = keys.getPublic();
         } catch (LoginException e) {
             LOGGER.error("Service access not granted: {}", e.getMessage());
             ErrorLogger.logError(e, ErrorContext.of(IapJwtTokenManagerImpl.class, "serviceLogin"));
-        } catch (Exception e) {
+        } catch (RepositoryException | GeneralSecurityException | PersistenceException e) {
             LOGGER.error("Failed to load JWT Signing key from node: {}", e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(IapJwtTokenManagerImpl.class, "loadKeys"));
         }
         this.signingKey = signing;
         this.verificationKey = verification;
         this.selfID = getFingerprint(verification);
-    }
-
-    /**
-     * Read a BASE64-encoded key from a property of a key node.
-     *
-     * @param keyNode the node holding the key
-     * @param propName the name of the property holding the key, {@link #SIGNING_KEY_PROP} or {@link #VERIFY_PROP}
-     * @return the decoded key bytes
-     */
-    private byte[] readKey(final Node keyNode, final String propName) throws RepositoryException
-    {
-        return Decoders.BASE64.decode(
-            keyNode.getProperty(propName).getString()
-        );
     }
 
     /**
@@ -227,35 +186,26 @@ public final class IapJwtTokenManagerImpl implements TokenManager
     }
 
     /**
-     * Check the claims of a token whose signature has been verified. The token must have an {@code exp} claim, name
-     * this instance in {@code aud}, and carry the {@code iss} registered for the key that signed it.
+     * Require the claims of a token whose signature has been verified to be acceptable. The token must have an
+     * {@code exp} claim, name this instance in {@code aud}, and carry the {@code iss} registered for the key that
+     * signed it.
      *
-     * @param jwt the parsed JWT
-     * @param locator the locator that found the key the signature was verified with
-     * @return always {@code true}; a check that fails throws instead
-     * @throws JwtException if the payload is not a set of claims, or a check fails
+     * @param claims the token's claims
+     * @param expectedIssuer the {@code iss} registered for the signing key, or {@code null} if none was found
+     * @throws JwtException if a check fails
      */
-    private boolean areClaimsValid(final Jwt<?, ?> jwt, final IapJwtVerificationLocatorImpl locator)
-        throws JwtException
+    private void requireValidClaims(final Claims claims, final String expectedIssuer) throws JwtException
     {
-        Object payload = jwt.getPayload();
-        if (payload instanceof final Claims claims) {
-            String expectedIssuer = locator.getResolvedIssuer();
-
-            if (claims.getExpiration() == null) {
-                // A token with no expiry is valid forever, and a JWT cannot be revoked
-                throw new JwtException("The given JWT is missing an `exp` claim.");
-            } else if (claims.getAudience() == null) {
-                throw new JwtException("The given JWT is missing an `aud` claim.");
-            } else if (!claims.getAudience().contains(this.identity)) {
-                throw new JwtException("Our server (" + this.identity
-                    + ") is not in the list of JWT audiences for the given JWT.");
-            } else if (expectedIssuer == null || !expectedIssuer.equals(claims.getIssuer())) {
-                throw new JwtException("The given JWT's issuer does not match the expected issuer.");
-            }
-            return true;
-        } else {
-            throw new JwtException("The given JWT's payload is in an unknown format.");
+        if (claims.getExpiration() == null) {
+            // A token with no expiry is valid forever, and a JWT cannot be revoked
+            throw new JwtException("The given JWT is missing an `exp` claim.");
+        } else if (claims.getAudience() == null) {
+            throw new JwtException("The given JWT is missing an `aud` claim.");
+        } else if (!claims.getAudience().contains(this.identity)) {
+            throw new JwtException("Our server (" + this.identity
+                + ") is not in the list of JWT audiences for the given JWT.");
+        } else if (expectedIssuer == null || !expectedIssuer.equals(claims.getIssuer())) {
+            throw new JwtException("The given JWT's issuer does not match the expected issuer.");
         }
     }
 
@@ -268,14 +218,12 @@ public final class IapJwtTokenManagerImpl implements TokenManager
         try {
             final IapJwtVerificationLocatorImpl locator =
                 new IapJwtVerificationLocatorImpl(this.verificationKey, this.rrf, this.selfID, this.identity);
-            Jwt<?, ?> jwt = Jwts.parser()
+            final Jws<Claims> jws = Jwts.parser()
                 .keyLocator(locator)
                 .build()
                 .parseSignedClaims(loginToken);
-
-            if (areClaimsValid(jwt, locator)) {
-                return new IapJwtTokenImpl(jwt, loginToken);
-            }
+            requireValidClaims(jws.getPayload(), locator.getResolvedIssuer());
+            return new IapJwtTokenImpl(jws, loginToken);
         } catch (JwtException e) {
             // Anyone can send a token, so a refusal is not a fault of this instance. Not recorded through error
             // tracking: the message can quote the token's header and claims, which are the sender's text

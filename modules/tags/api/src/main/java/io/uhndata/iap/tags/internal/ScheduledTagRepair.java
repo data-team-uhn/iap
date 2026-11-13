@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.tags.api.TagRepairException;
 import io.uhndata.iap.tags.api.TagRepairService;
 import io.uhndata.iap.tags.api.TagRepairService.RepairReport;
 
@@ -61,19 +62,38 @@ public class ScheduledTagRepair
             LOGGER.info("Automatic tag repair is disabled");
             return;
         }
+        final ScheduleOptions options = this.scheduler.EXPR(config.schedule());
+        options.name(JOB_NAME);
+        // Two sweeps at once would find and mark the same nodes
+        options.canRunConcurrently(false);
+        scheduleSweep(options, config.schedule());
+    }
+
+    /**
+     * Hands the sweep to the scheduler. A sweep that cannot be scheduled leaves the component started, and repair on
+     * request still works; it is recorded, since nothing else shows that the sweep never runs.
+     *
+     * @param options when the sweep runs
+     * @param schedule the configured cron expression, for the log and the record
+     */
+    private void scheduleSweep(final ScheduleOptions options, final String schedule)
+    {
         try {
-            final ScheduleOptions options = this.scheduler.EXPR(config.schedule());
-            options.name(JOB_NAME);
-            // Two sweeps at once would find and mark the same nodes
-            options.canRunConcurrently(false);
-            this.scheduler.schedule((Runnable) this::sweep, options);
-            LOGGER.info("Scheduled the tag repair sweep: {}", config.schedule());
-        } catch (final RuntimeException e) {
-            // The component still starts, and repair on request still works
+            if (this.scheduler.schedule((Runnable) this::sweep, options)) {
+                LOGGER.info("Scheduled the tag repair sweep: {}", schedule);
+            } else {
+                // The scheduler answers an invalid cron expression with false, not with an exception
+                LOGGER.warn("The scheduler refused the tag repair sweep, so it will never run;"
+                    + " its schedule {} is likely not a valid cron expression", schedule);
+                ErrorLogger.logProblem("the scheduler refused the tag repair sweep",
+                    ErrorContext.of(ScheduledTagRepair.class, "scheduleSweep").with("job", JOB_NAME)
+                        .with("schedule", schedule));
+            }
+        } catch (final IllegalStateException e) {
+            // The scheduler throws only when it is going away while the sweep is being scheduled
             LOGGER.error("Could not schedule the tag repair sweep: {}", e.getMessage(), e);
-            // Recorded, since nothing else shows that the sweep never runs
-            ErrorLogger.logError(e, ErrorContext.of(ScheduledTagRepair.class, "scheduleSweep")
-                .with("schedule", config.schedule()));
+            ErrorLogger.logError(e, ErrorContext.of(ScheduledTagRepair.class, "scheduleSweep").with("job", JOB_NAME)
+                .with("schedule", schedule));
         }
     }
 
@@ -84,11 +104,20 @@ public class ScheduledTagRepair
     }
 
     /**
-     * One sweep. It logs a line only when it marked a node or failed to mark one.
+     * One sweep. It logs a line only when it marked a node, failed to mark one, or could not run.
      */
     void sweep()
     {
-        final RepairReport report = this.repairService.repairFailed();
+        try {
+            logIfAnythingHappened(this.repairService.repairFailed());
+        } catch (final TagRepairException e) {
+            // Not recorded again, the service recorded the cause; the next sweep tries again
+            LOGGER.info("Tag repair sweep skipped: {}", e.getMessage());
+        }
+    }
+
+    private static void logIfAnythingHappened(final RepairReport report)
+    {
         if (report.marked() > 0 || !report.isComplete()) {
             LOGGER.info("Tag repair sweep: recomputed {} node(s), {} could not be marked", report.marked(),
                 report.failed());

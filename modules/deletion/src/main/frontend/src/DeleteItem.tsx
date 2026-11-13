@@ -103,11 +103,14 @@ const DeleteItem = (props: DeleteItemProps) => {
 
   // No option makes a vetoed deletion proceed, so the dialog offers none
   const vetoes = impact?.vetoes ?? [];
-  const blocked = vetoes.length > 0;
-  // Referencing resources can be deleted too, with `recursive`
+  const vetoed = vetoes.length > 0;
+  // Referencing resources can be deleted too, with `recursive`, but only those the user can see and
+  // that are not archived. The others are only counted, and block even a recursive deletion.
   const referrers = impact?.referrers ?? [];
-  const hiddenReferrers = impact?.inaccessibleReferrers ?? 0;
-  const cascades = !blocked && (referrers.length > 0 || hiddenReferrers > 0);
+  const unreachableReferrers = (impact?.inaccessibleReferrers ?? 0) > 0;
+  const referenced = !vetoed && (referrers.length > 0 || unreachableReferrers);
+  const blocked = vetoed || unreachableReferrers;
+  const cascades = !blocked && referrers.length > 0;
 
   const close = () => {
     setOpen(false);
@@ -228,7 +231,7 @@ const DeleteItem = (props: DeleteItemProps) => {
                     ? `${subject} cannot be deleted:`
                     : `You are about to delete ${subject}.`}
                 </Typography>
-                {blocked && (
+                {vetoed && (
                   <List dense>
                     {vetoes.map(veto => (
                       <ListItem key={`${veto.vetoer}:${veto.path}`} disableGutters>
@@ -237,7 +240,12 @@ const DeleteItem = (props: DeleteItemProps) => {
                     ))}
                   </List>
                 )}
-                {cascades && <Alert severity="warning">{impact?.["status.message"]}</Alert>}
+                {referenced && <Alert severity="warning">{impact?.["status.message"]}</Alert>}
+                {referenced && unreachableReferrers && (
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    Items you cannot see, and archived items, cannot be deleted along with it.
+                  </Typography>
+                )}
                 {!blocked && <ImpactSummary impact={impact} permanent={permanent} />}
               </>
             )}

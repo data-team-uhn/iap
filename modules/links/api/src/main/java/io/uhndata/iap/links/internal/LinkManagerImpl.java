@@ -260,7 +260,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
         final Resource container = this.getOrCreateContainer(source);
         final String definitionId = (String) definition.get(UUID_PROPERTY);
         final Resource existing =
-            this.findExisting(container, definitionId, InternalLink.REFERENCE_PROPERTY, destinationId, label);
+            this.findSameLink(container, definitionId, InternalLink.REFERENCE_PROPERTY, destinationId, label);
         final Resource linkResource = existing != null ? existing
             : this.createLinkNode(container,
                 definition.isWeak() ? "link:WeakLink" : "link:Link",
@@ -293,7 +293,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
         final Resource container = this.getOrCreateContainer(source);
         final String definitionId = (String) definition.get(UUID_PROPERTY);
         final Resource existing =
-            this.findExisting(container, definitionId, ExternalLink.VALUE_PROPERTY, value, label);
+            this.findSameLink(container, definitionId, ExternalLink.VALUE_PROPERTY, value, label);
         final Resource linkResource = existing != null ? existing
             : this.createLinkNode(container, "link:ExternalLink", definitionId, ExternalLink.VALUE_PROPERTY, value,
                 label);
@@ -391,12 +391,9 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
             return 0;
         }
         final String definitionId = (String) definition.get(UUID_PROPERTY);
-        final String destinationId =
-            destination == null ? null : (String) destination.get(UUID_PROPERTY);
         int removed = 0;
         final List<Resource> matching = StreamSupport.stream(container.getChildren().spliterator(), false)
-            .filter(child -> this.matches(child.getValueMap(), definitionId,
-                destinationId == null ? null : InternalLink.REFERENCE_PROPERTY, destinationId, label))
+            .filter(child -> this.isSelected(child.getValueMap(), definitionId, destination, label))
             .collect(Collectors.toList());
         for (final Resource link : matching) {
             if (this.delete(source.getResourceResolver(), link)) {
@@ -538,8 +535,9 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
         properties.put(PRIMARY_TYPE_PROPERTY, primaryType);
         properties.put(Link.TYPE_PROPERTY, definitionId);
         properties.put(targetProperty, targetValue);
-        if (label != null && !label.isEmpty()) {
-            properties.put(Link.LABEL_PROPERTY, label);
+        final String storedLabel = asStoredLabel(label);
+        if (storedLabel != null) {
+            properties.put(Link.LABEL_PROPERTY, storedLabel);
         }
         try {
             final Resource linkResource = container.getResourceResolver()
@@ -572,35 +570,70 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
         }
     }
 
-    private Resource findExisting(final Resource container, final String definitionId, final String targetProperty,
+    private Resource findSameLink(final Resource container, final String definitionId, final String targetProperty,
         final String targetValue, final String label)
     {
         return StreamSupport.stream(container.getChildren().spliterator(), false)
-            .filter(child -> this.matches(child.getValueMap(), definitionId, targetProperty, targetValue, label))
+            .filter(child -> this.isSameLink(child.getValueMap(), definitionId, targetProperty, targetValue, label))
             .findFirst()
             .orElse(null);
     }
 
     /**
-     * Whether a link node's stored properties match a definition, a target and a label. A {@code null} target
-     * property matches any target. A {@code null} label matches any label, and an empty one only a link without
-     * a label.
+     * Whether a link node is the link that adding this definition, target and label would create. A {@code null}
+     * or empty label is no label, so it matches only a link without one.
      */
-    private boolean matches(final ValueMap properties, final String definitionId, final String targetProperty,
+    private boolean isSameLink(final ValueMap properties, final String definitionId, final String targetProperty,
         final String targetValue, final String label)
     {
-        if (!Objects.equals(definitionId, properties.get(Link.TYPE_PROPERTY, String.class))) {
-            return false;
-        }
-        if (targetProperty != null
-            && !Objects.equals(targetValue, properties.get(targetProperty, String.class))) {
-            return false;
-        }
-        if (label == null) {
-            return true;
-        }
-        final String existingLabel = properties.get(Link.LABEL_PROPERTY, String.class);
-        return label.isEmpty() ? (existingLabel == null || existingLabel.isEmpty())
-            : label.equals(existingLabel);
+        return this.isOfDefinition(properties, definitionId)
+            && targetValue.equals(properties.get(targetProperty, String.class))
+            && this.hasLabel(properties, label);
+    }
+
+    /**
+     * Whether a link node is one that {@link #removeLinks} deletes. A {@code null} destination or label matches
+     * any. A destination without a {@code jcr:uuid} matches nothing: no link can point at it.
+     */
+    private boolean isSelected(final ValueMap properties, final String definitionId, final Content destination,
+        final String label)
+    {
+        return this.isOfDefinition(properties, definitionId)
+            && this.isSelectedTarget(properties, destination)
+            && this.isSelectedLabel(properties, label);
+    }
+
+    private boolean isSelectedTarget(final ValueMap properties, final Content destination)
+    {
+        return destination == null || this.pointsAt(properties, destination);
+    }
+
+    private boolean isSelectedLabel(final ValueMap properties, final String label)
+    {
+        return label == null || this.hasLabel(properties, label);
+    }
+
+    private boolean isOfDefinition(final ValueMap properties, final String definitionId)
+    {
+        return Objects.equals(definitionId, properties.get(Link.TYPE_PROPERTY, String.class));
+    }
+
+    private boolean pointsAt(final ValueMap properties, final Content destination)
+    {
+        final Object destinationId = destination.get(UUID_PROPERTY);
+        return destinationId != null
+            && destinationId.equals(properties.get(InternalLink.REFERENCE_PROPERTY, String.class));
+    }
+
+    private boolean hasLabel(final ValueMap properties, final String label)
+    {
+        return Objects.equals(asStoredLabel(label),
+            asStoredLabel(properties.get(Link.LABEL_PROPERTY, String.class)));
+    }
+
+    /** A label as a link node stores it: an empty label is not stored, so it reads as {@code null}. */
+    private static String asStoredLabel(final String label)
+    {
+        return label == null || label.isEmpty() ? null : label;
     }
 }

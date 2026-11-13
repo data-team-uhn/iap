@@ -33,6 +33,7 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.tags.api.TagManager;
+import io.uhndata.iap.tags.api.TagRepairException;
 import io.uhndata.iap.tags.api.TagRepairService;
 import io.uhndata.iap.tags.api.TagRepairService.RepairReport;
 import io.uhndata.iap.tags.models.TagsHomepage;
@@ -41,7 +42,8 @@ import io.uhndata.iap.utils.JsonResponses;
 /**
  * Repairs the content affected by an edited tag definition, on request: {@code POST /Tags.repair.json}, with the
  * name of the tag as the {@code tag} parameter. The answer is {@code ok}, or {@code incomplete} if some nodes could
- * not be marked, with the numbers of nodes marked and not marked.
+ * not be marked, with the numbers of nodes marked and not marked. A repair that could not run at all is a
+ * {@code 503} error, since it cannot tell whether anything needed repairing.
  *
  * <p>
  * A caller who may set properties on {@code /Tags} may repair, as the caller's own session answers.
@@ -76,9 +78,16 @@ public class TagRepairServlet extends SlingJakartaAllMethodsServlet
             return;
         }
 
-        final RepairReport report = this.repairService.repair(tag);
-        JsonResponses.write(response, HttpServletResponse.SC_OK, report.isComplete() ? "ok" : "incomplete",
-            Json.createObjectBuilder().add("tag", tag).add("marked", report.marked()).add("failed", report.failed()));
+        try {
+            final RepairReport report = this.repairService.repair(tag);
+            JsonResponses.write(response, HttpServletResponse.SC_OK, report.isComplete() ? "ok" : "incomplete",
+                Json.createObjectBuilder().add("tag", tag).add("marked", report.marked())
+                    .add("failed", report.failed()));
+        } catch (final TagRepairException e) {
+            // Not recorded again, the service recorded the cause; its message names infrastructure, so it stays out
+            JsonResponses.writeError(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+                "The tags cannot be repaired right now, and nothing was marked");
+        }
     }
 
     /**

@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.slacknotifications.internal;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -52,11 +51,14 @@ import io.uhndata.iap.slacknotifications.spi.SlackNotificationProducer;
 @Designate(ocd = SlackNotificationConfiguration.class, factory = true)
 public class ScheduledSlackNotification
 {
-    /** The prefix of a notification's job name, followed by the notification's name. */
+    /** The prefix of a notification's job name, followed by its component id. */
     static final String JOB_PREFIX = "ScheduledSlackNotification-";
 
     /** The schedule of a notification whose schedule resolves to nothing: every night at midnight. */
     static final String DEFAULT_SCHEDULE = "0 0 0 * * ? *";
+
+    /** The component property in which Declarative Services gives each component configuration its own id. */
+    private static final String COMPONENT_ID_PROPERTY = "component.id";
 
     /** The prefix of a configuration value that names an environment variable to read the value from. */
     private static final String FROM_ENVIRONMENT = "%ENV%";
@@ -78,9 +80,13 @@ public class ScheduledSlackNotification
     @Reference
     private HttpRequests httpRequests;
 
+    /** The name of a scheduled job, set at activation so that deactivating removes exactly that job. */
+    private String jobName;
+
     @Activate
-    protected void activate(final SlackNotificationConfiguration config)
+    protected void activate(final SlackNotificationConfiguration config, final Map<String, Object> properties)
     {
+        this.jobName = jobName(properties);
         final String endpoint = resolve(config.endpoint());
         if (StringUtils.isBlank(endpoint)) {
             LOGGER.warn("The {} notification has no endpoint configured, it will not be scheduled", config.name());
@@ -88,27 +94,55 @@ public class ScheduledSlackNotification
                 ErrorContext.of(ScheduledSlackNotification.class, "activate").with("notification", config.name()));
             return;
         }
-        final SlackNotificationsTask task = new SlackNotificationsTask(this.httpRequests, this.producers, endpoint,
-            config.title(), asList(config.include()), asParameters(config.notificationParameters()),
-            config.skipEmpty());
+        final ScheduleOptions options = this.scheduler.EXPR(schedule(config.schedule()));
+        options.name(this.jobName);
+        options.canRunConcurrently(true);
+        scheduleTask(new SlackNotificationsTask(this.httpRequests, this.producers, endpoint, config), options, config);
+    }
+
+    @Deactivate
+    protected void deactivate()
+    {
+        LOGGER.debug("Removing the {} job", this.jobName);
+        this.scheduler.unschedule(this.jobName);
+    }
+
+    /**
+     * Hands the task to the scheduler. The scheduler refuses an unusable cron expression by answering {@code false}
+     * rather than by throwing, and throws only when it is itself shutting down; either way the notification will
+     * never be posted, which an administrator would want to know about.
+     */
+    private void scheduleTask(final SlackNotificationsTask task, final ScheduleOptions options,
+        final SlackNotificationConfiguration config)
+    {
         try {
-            final ScheduleOptions options = this.scheduler.EXPR(schedule(config.schedule()));
-            options.name(JOB_PREFIX + config.name());
-            options.canRunConcurrently(true);
-            this.scheduler.schedule(task, options);
-            LOGGER.info("Scheduled the {} notification", config.name());
-        } catch (final RuntimeException e) {
+            if (this.scheduler.schedule(task, options)) {
+                LOGGER.info("Scheduled the {} notification as the {} job", config.name(), this.jobName);
+            } else {
+                LOGGER.warn("The scheduler refused the {} notification, so it will never be posted;"
+                    + " its schedule {} is likely not a valid cron expression", config.name(), config.schedule());
+                ErrorLogger.logProblem("the scheduler refused the notification",
+                    ErrorContext.of(ScheduledSlackNotification.class, "scheduleNotification")
+                        .with("notification", config.name()).with("schedule", config.schedule()));
+            }
+        } catch (final IllegalStateException e) {
             LOGGER.error("Could not schedule the {} notification: {}", config.name(), e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(ScheduledSlackNotification.class, "scheduleNotification")
                 .with("notification", config.name()).with("schedule", config.schedule()));
         }
     }
 
-    @Deactivate
-    protected void deactivate(final SlackNotificationConfiguration config)
+    /**
+     * The name of this component's job. The configured name cannot serve: nothing stops two configurations from
+     * sharing one, or from leaving it out, and two jobs of one name replace each other in the scheduler. The
+     * component id is the one value Declarative Services guarantees to differ between component configurations.
+     *
+     * @param properties the component's properties, which Declarative Services gives a {@code component.id}
+     * @return the job name, unique to this component configuration
+     */
+    private static String jobName(final Map<String, Object> properties)
     {
-        LOGGER.debug("Removing the {} notification", config.name());
-        this.scheduler.unschedule(JOB_PREFIX + config.name());
+        return JOB_PREFIX + properties.get(COMPONENT_ID_PROPERTY);
     }
 
     /**
@@ -137,32 +171,5 @@ public class ScheduledSlackNotification
             return System.getenv(configured.substring(FROM_ENVIRONMENT.length()));
         }
         return configured;
-    }
-
-    /**
-     * Parses the configured extra parameters. A string with no {@code =} is logged, recorded and skipped.
-     *
-     * @param configured {@code key=value} strings, or {@code null} for none. The key is trimmed, the value is not
-     * @return the values by key, empty if there are none
-     */
-    static Map<String, String> asParameters(final String[] configured)
-    {
-        final Map<String, String> result = new HashMap<>();
-        for (final String parameter : asList(configured)) {
-            final String[] keyAndValue = parameter.split("=", 2);
-            if (keyAndValue.length == 2) {
-                result.put(keyAndValue[0].trim(), keyAndValue[1]);
-            } else {
-                LOGGER.warn("Ignoring the notification parameter {}, it is not in the key=value format", parameter);
-                ErrorLogger.logProblem("notification parameter is not in the key=value format",
-                    ErrorContext.of(ScheduledSlackNotification.class, "readParameters"));
-            }
-        }
-        return result;
-    }
-
-    private static List<String> asList(final String[] configured)
-    {
-        return configured == null ? List.of() : List.of(configured);
     }
 }

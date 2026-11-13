@@ -24,7 +24,7 @@ channel and a weekly one to another.
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `name` | — | The notification's name, which also names its job. Different for each notification |
+| `name` | — | The notification's name, which labels it in the logs. Best kept different for each notification; each gets a job of its own either way |
 | `schedule` | `%ENV%SLACK_NOTIFICATIONS_SCHEDULE` | A Quartz cron expression, such as `0 0 0 * * ? *` for every night or `0 0 9 ? * MON *` for Monday mornings. Every night at midnight if it resolves to nothing |
 | `endpoint` | `%ENV%SLACK_NOTIFICATIONS_ENDPOINT` | The webhook URL |
 | `title` | empty | A line posted above the attachments |

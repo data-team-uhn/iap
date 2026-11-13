@@ -26,15 +26,24 @@ import jakarta.json.JsonObject;
 
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.status.api.StatusReportManager;
 import io.uhndata.iap.status.spi.StatusReport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Unit tests for {@link StatusReportNotification}.
@@ -71,6 +80,8 @@ class StatusReportNotificationTest
 
     private final Reports reports = new Reports();
 
+    private final ErrorLoggerService errors = mock(ErrorLoggerService.class);
+
     private StatusReportNotification notification;
 
     @BeforeEach
@@ -78,6 +89,13 @@ class StatusReportNotificationTest
     {
         this.context.registerService(StatusReportManager.class, this.reports);
         this.notification = this.context.registerInjectActivateService(new StatusReportNotification());
+        ErrorLogger.setService(this.errors);
+    }
+
+    @AfterEach
+    void tearDown()
+    {
+        ErrorLogger.unsetService(this.errors);
     }
 
     @Test
@@ -159,5 +177,15 @@ class StatusReportNotificationTest
         this.notification.prepareMessages(Map.of(StatusReportNotification.TARGET_LEVEL, "CATASTROPHIC"));
 
         assertEquals(StatusReport.Status.INFO, this.reports.level);
+        verify(this.errors).logProblem(contains("status level"),
+            argThat((final ErrorContext context) -> "CATASTROPHIC".equals(context.getDetails().get("level"))));
+    }
+
+    @Test
+    void aKnownLevelIsNotReportedAsAProblem()
+    {
+        this.notification.prepareMessages(Map.of(StatusReportNotification.TARGET_LEVEL, "error"));
+
+        verifyNoInteractions(this.errors);
     }
 }

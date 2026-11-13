@@ -140,6 +140,11 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
     </dependency>
+    <!-- A real repository, so the repair's query runs with its name bound rather than being inspected as text -->
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.sling-mock-oak</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>

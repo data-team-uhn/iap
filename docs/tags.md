@@ -227,7 +227,8 @@ A repair computes nothing itself: it marks nodes, and the propagation editor rec
 them. The `iap-tag-repair` service user writes the marks. It may read anything and set
 properties, but never create or remove a node.
 
-Two triggers, both returning a `RepairReport(marked, failed)`:
+Two triggers, both returning a `RepairReport(marked, failed)`, or throwing
+`TagRepairException` when the repair cannot run at all:
 
 - **`TagRepairService.repairFailed()`**, run by a scheduled sweep (the `Tag Repair`
   configuration: `schedule` `0 0 * * * ? *`, hourly; `enabled`, true by default). An
@@ -236,9 +237,10 @@ Two triggers, both returning a `RepairReport(marked, failed)`:
   content affected by an edited definition. It runs only on request: how much work it
   is depends on how widely the tag is used, and saving a definition should not set off
   a recomputation across the repository. A caller who may set properties on `/Tags` may
-  run it, as their own session answers. A name with anything but letters, digits, `-`
-  and `_` is refused, and nothing is repaired. The answer counts the nodes marked and
-  those that could not be, and one node that cannot be marked does not stop the rest.
+  run it, as their own session answers. Any tag name is accepted. The answer counts the
+  nodes marked and those that could not be, and one node that cannot be marked does not
+  stop the rest. A repair that cannot run at all, without its service user or with a
+  failing query, answers 503 and is recorded.
 
 ## REST
 

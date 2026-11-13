@@ -172,6 +172,17 @@ describe("WidgetDashboard", () => {
     expect(await screen.findByText("Unnamed content")).toBeInTheDocument();
   });
 
+  it("leaves out a widget with nothing to render, and shows the others", async () => {
+    const bare: Record<string, unknown> = { ...widget("Bare", 0) };
+    delete bare["ext:render"];
+    mockedLoadExtensions.mockResolvedValue([ bare, widget("Shown", 1) ]);
+
+    render(<MemoryRouter><WidgetDashboard point="TestWidgets" /></MemoryRouter>);
+
+    expect(await screen.findByText("Shown content")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Bare" })).not.toBeInTheDocument();
+  });
+
   it("keys widgets by their path, so widgets sharing a name are told apart", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     mockedLoadExtensions.mockResolvedValue([

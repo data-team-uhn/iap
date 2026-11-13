@@ -49,20 +49,22 @@ public interface TagRepairService
      * little when there are none.
      *
      * @return what the repair did
+     * @throws TagRepairException if the repair could not run, already logged and recorded with the reason
      */
     @NotNull
-    RepairReport repairFailed();
+    RepairReport repairFailed() throws TagRepairException;
 
     /**
      * Repairs every node carrying a tag, in any of the four properties a tag name can appear in. Run it after
      * changing the tag's definition.
      *
-     * @param tagName the name of the tag whose definition changed, as stored in a {@code tags} property; a name made
-     *            of anything but letters, digits, {@code -} and {@code _} is refused, and nothing is repaired
+     * @param tagName the name of the tag whose definition changed, as stored in a {@code tags} property, whatever
+     *            characters it holds
      * @return what the repair did
+     * @throws TagRepairException if the repair could not run, already logged and recorded with the reason
      */
     @NotNull
-    RepairReport repair(@NotNull String tagName);
+    RepairReport repair(@NotNull String tagName) throws TagRepairException;
 
     /**
      * What a repair did. A node that cannot be marked is counted and skipped, and the repair goes on with the rest.

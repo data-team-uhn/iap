@@ -72,7 +72,7 @@ public class DeleteTaskHandler implements ServiceTaskHandler
         final Resource target = context.getTarget();
         final boolean permanent =
             Boolean.parseBoolean(String.valueOf(context.getActivity().get(PERMANENT_PARAMETER)));
-        context.recordRole(target, permanent ? "purged" : "archived");
+        context.recordRole(target, permanent ? "erased" : "archived");
         final DeletionResult result;
         try {
             result = this.deletionService.deleteWithin(target,

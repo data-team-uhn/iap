@@ -36,8 +36,12 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.metrics.api.Metric;
 import io.uhndata.iap.metrics.api.MetricsException;
 import io.uhndata.iap.utils.DateUtils;
@@ -284,6 +288,27 @@ class MetricImplTest
         // Roll-overs and reads do throw
         assertThrows(MetricsException.class, unreachable::rollOver);
         assertThrows(MetricsException.class, unreachable::getCurrentValue);
+    }
+
+    @Test
+    void incrementFailuresAreRecorded() throws Exception
+    {
+        final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
+            .thenThrow(new LoginException("no service user"));
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+
+        try {
+            new MetricImpl(broken, NAME).increment();
+
+            final ArgumentCaptor<ErrorContext> recorded = ArgumentCaptor.forClass(ErrorContext.class);
+            Mockito.verify(recorder).logError(Mockito.any(MetricsException.class), recorded.capture());
+            assertEquals("increment", recorded.getValue().getOperation());
+            assertEquals(NAME, recorded.getValue().getDetails().get("metric"));
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
     }
 
     @Test

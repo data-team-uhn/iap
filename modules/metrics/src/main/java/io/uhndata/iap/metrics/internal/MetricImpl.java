@@ -41,6 +41,8 @@ import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.metrics.api.Metric;
 import io.uhndata.iap.metrics.api.MetricsException;
 import io.uhndata.iap.utils.DateUtils;
@@ -267,7 +269,10 @@ public class MetricImpl implements Metric
                 properties.put(PN_LAST_UPDATED, Calendar.getInstance());
             });
         } catch (final MetricsException e) {
+            // Recorded because the caller is never told and the count is lost for good. Once per failure, since the
+            // recorder folds repeats into one tally and that tally is how many counts were lost.
             LOGGER.error("Failed to increment metric {}: {}", this.name, e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(MetricImpl.class, "increment").with("metric", this.name));
         }
     }
 

@@ -17,9 +17,18 @@
  */
 package io.uhndata.iap.tags.internal;
 
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import javax.jcr.NodeIterator;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.query.Query;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -36,7 +45,9 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.tags.api.TagManager;
+import io.uhndata.iap.tags.api.TagRepairException;
 import io.uhndata.iap.tags.api.TagRepairService;
+import io.uhndata.iap.tags.spi.TagProcessor.Phase;
 
 /**
  * Finds the nodes to repair with a query, and marks them in batches of {@value #BATCH_SIZE}. See
@@ -58,8 +69,18 @@ public class TagRepairServiceImpl implements TagRepairService
     /** How many nodes are marked before saving. A refused save loses at most this many marks. */
     static final int BATCH_SIZE = 200;
 
-    /** The tag names a repair accepts, since the name goes into a query unescaped. */
-    private static final Pattern SAFE_NAME = Pattern.compile("[a-zA-Z0-9_-]+");
+    /** The query variable the name of the tag to repair is bound to. */
+    private static final String TAG_NAME_VARIABLE = "tagName";
+
+    /**
+     * The nodes carrying a tag, in the property it is placed in or in any phase's derived property. A comparison with
+     * a multivalued property holds when any of its values matches, so this finds the content the tag was placed on,
+     * computed for, or copied to.
+     */
+    private static final String TAGGED_QUERY = Stream.concat(Stream.of(TagManager.TAGS_PROPERTY),
+        Arrays.stream(Phase.values()).map(Phase::getPropertyName))
+        .map(property -> "[" + property + "] = $" + TAG_NAME_VARIABLE)
+        .collect(Collectors.joining(" OR ", "SELECT * FROM [nt:base] WHERE ", ""));
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TagRepairServiceImpl.class);
 
@@ -72,64 +93,105 @@ public class TagRepairServiceImpl implements TagRepairService
 
     @Override
     @NotNull
-    public RepairReport repairFailed()
+    public RepairReport repairFailed() throws TagRepairException
     {
-        return run(STALE_QUERY);
+        return run(session -> createQuery(session, STALE_QUERY));
     }
 
     @Override
     @NotNull
-    public RepairReport repair(@NotNull final String tagName)
+    public RepairReport repair(@NotNull final String tagName) throws TagRepairException
     {
-        if (!SAFE_NAME.matcher(tagName).matches()) {
-            LOGGER.warn("Refusing to repair the tag {}: not a tag name", tagName);
-            return new RepairReport(0, 0);
-        }
-        // A comparison with a multivalued property holds when any of its values matches, so this finds the content
-        // the tag was placed on, computed for, or copied to
-        final String query = "SELECT * FROM [nt:base] WHERE [" + TagManager.TAGS_PROPERTY + "] = '" + tagName + "'"
-            + " OR [computedTags] = '" + tagName + "'"
-            + " OR [inheritedTags] = '" + tagName + "'"
-            + " OR [aggregatedTags] = '" + tagName + "'";
-        return run(query);
+        return run(session -> {
+            final Query query = createQuery(session, TAGGED_QUERY);
+            query.bindValue(TAG_NAME_VARIABLE, session.getValueFactory().createValue(tagName));
+            return query;
+        });
     }
 
     /**
      * Runs one repair: find the affected nodes, mark them, and let the editor do the rest.
      *
-     * @param query the JCR-SQL2 query selecting the nodes to repair
+     * @param selection the query selecting the nodes to repair
      * @return what the repair did
+     * @throws TagRepairException if the service user cannot log in, or the query cannot run
      */
-    private RepairReport run(final String query)
+    private RepairReport run(final Selection selection) throws TagRepairException
     {
         try (ResourceResolver resolver = this.resolverFactory.getServiceResourceResolver(SERVICE_USER)) {
-            return markAll(resolver, resolver.findResources(query, "JCR-SQL2"));
+            return markAll(resolver, find(resolver, selection));
         } catch (final LoginException e) {
-            LOGGER.error("Cannot repair tags, the tag repair service user is not available: {}", e.getMessage(), e);
-            // Recorded, since the report reads the same as for a repository with nothing to repair
-            ErrorLogger.logError(e, ErrorContext.of(TagRepairServiceImpl.class, "repair"));
-            return new RepairReport(0, 0);
+            throw refusal("the tag repair service user is not available", e);
         }
     }
 
     /**
-     * Marks everything the query found, saving in batches.
+     * Finds the paths of the nodes to repair, read in one go so that the query's results are not still being
+     * iterated while the batches commit.
      *
-     * @param resolver the resolver the resources belong to
-     * @param found the resources to mark
+     * @param resolver the service user's resolver
+     * @param selection the query selecting the nodes to repair
+     * @return the paths of the nodes found
+     * @throws TagRepairException if the query cannot run
+     */
+    private static List<String> find(final ResourceResolver resolver, final Selection selection)
+        throws TagRepairException
+    {
+        final Session session = Objects.requireNonNull(resolver.adaptTo(Session.class),
+            "The service user's resolver is always JCR-backed");
+        try {
+            final List<String> paths = new ArrayList<>();
+            for (final NodeIterator nodes = selection.prepare(session).execute().getNodes(); nodes.hasNext();) {
+                paths.add(nodes.nextNode().getPath());
+            }
+            return paths;
+        } catch (final RepositoryException e) {
+            throw refusal("the query finding the nodes to repair failed", e);
+        }
+    }
+
+    private static Query createQuery(final Session session, final String statement) throws RepositoryException
+    {
+        return session.getWorkspace().getQueryManager().createQuery(statement, Query.JCR_SQL2);
+    }
+
+    /**
+     * Logs and records why a repair could not run, and builds the exception telling the caller.
+     *
+     * @param reason why the repair could not run
+     * @param cause the failure that stopped it
+     * @return the exception to throw
+     */
+    private static TagRepairException refusal(final String reason, final Exception cause)
+    {
+        LOGGER.error("Cannot repair tags, {}: {}", reason, cause.getMessage(), cause);
+        // Recorded here, where the cause is known: the scheduled sweep has nobody to tell
+        ErrorLogger.logError(cause, ErrorContext.of(TagRepairServiceImpl.class, "repair"));
+        return new TagRepairException("Cannot repair tags, " + reason, cause);
+    }
+
+    /**
+     * Marks every node found, saving in batches.
+     *
+     * @param resolver the resolver to mark the nodes through
+     * @param paths the paths of the nodes to mark
      * @return what the repair did
      */
-    private RepairReport markAll(final ResourceResolver resolver, final Iterator<Resource> found)
+    private RepairReport markAll(final ResourceResolver resolver, final List<String> paths)
     {
         long marked = 0;
         long failed = 0;
         long pending = 0;
-        while (found.hasNext()) {
-            final Resource resource = found.next();
+        for (final String path : paths) {
+            final Resource resource = resolver.getResource(path);
+            if (resource == null) {
+                // Removed since the query found it, so there is nothing left to repair
+                continue;
+            }
             final ModifiableValueMap properties = resource.adaptTo(ModifiableValueMap.class);
             if (properties == null) {
                 failed++;
-                LOGGER.warn("Cannot mark {} for tag recomputation, it is not writable", resource.getPath());
+                LOGGER.warn("Cannot mark {} for tag recomputation, it is not writable", path);
                 continue;
             }
             mark(properties);
@@ -194,5 +256,24 @@ public class TagRepairServiceImpl implements TagRepairService
                 .with("batchSize", pending));
             return pending;
         }
+    }
+
+    /**
+     * Prepares the query selecting the nodes a repair marks, in the service user's session.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    @FunctionalInterface
+    private interface Selection
+    {
+        /**
+         * Prepares the query, with any variable it has bound.
+         *
+         * @param session the service user's session
+         * @return the query, ready to run
+         * @throws RepositoryException if the query cannot be prepared
+         */
+        Query prepare(Session session) throws RepositoryException;
     }
 }
