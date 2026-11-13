@@ -18,15 +18,24 @@
 
 import { act, render, screen } from "@testing-library/react";
 
-import TagChip from "@iap/tags/TagChip";
-import { clearTagDefinitionsCache, tagValueOptions } from "@iap/tags/tagDefinitions";
+import type TagChipComponent from "@iap/tags/TagChip";
+import type { tagValueOptions as TagValueOptions } from "@iap/tags/tagDefinitions";
 
 import { jsonResponse, tagAwareFetch } from "./tagDefinitions.fixture";
 
+let TagChip: typeof TagChipComponent;
+let tagValueOptions: typeof TagValueOptions;
+
 describe("TagChip", () => {
+  // The definitions are cached for the page's lifetime, so each test loads the modules afresh
+  beforeEach(async () => {
+    vi.resetModules();
+    ({ default: TagChip } = await import("@iap/tags/TagChip"));
+    ({ tagValueOptions } = await import("@iap/tags/tagDefinitions"));
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
-    clearTagDefinitionsCache();
   });
 
   it("labels, colors and decorates the tag from its definition", async () => {
@@ -228,8 +237,7 @@ describe("TagChip", () => {
     expect(vi.mocked(fetch).mock.calls.length).toBe(1);
   });
 
-  it("degrades gracefully when the definitions cannot be fetched", async () => {
-    // A chip for one category shows nothing without definitions
+  it("shows nothing for a category whose definitions cannot be fetched, and fetches again", async () => {
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
       () => Promise.reject(new Error("network down"))));
     const failed = render(<TagChip tags={["draft"]} category="lifecycle" />);
@@ -243,11 +251,12 @@ describe("TagChip", () => {
       expect(vi.mocked(fetch).mock.calls.length).toBe(2);
     });
     retried.unmount();
-    clearTagDefinitionsCache();
+  });
 
-    // A chip for all tags still shows the raw names, as outlined chips
+  it("shows the raw names, without a category, when the definitions cannot be fetched", async () => {
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
       () => Promise.resolve({ ok: false, url: "", status: 503 } as unknown as Response)));
+
     render(<TagChip tags={["draft"]} />);
     expect((await screen.findByText("draft")).closest(".MuiChip-root")).toHaveClass("MuiChip-outlined");
   });

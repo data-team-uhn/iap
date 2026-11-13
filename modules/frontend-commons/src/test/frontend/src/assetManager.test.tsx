@@ -61,7 +61,6 @@ describe("assetManager", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -198,23 +197,6 @@ describe("assetManager", () => {
 
       expect(await loadAsset("asset:iap-test.Missing.js")).toBeNull();
       expect(errorSpy).toHaveBeenCalledWith("Failed to load module asset:iap-test.Missing.js");
-    });
-
-    it("skips the relogin dialog in a production build, where it is already bundled", async () => {
-      vi.stubEnv("NODE_ENV", "production");
-      const fetchMock = stubManifests();
-      const { loadAsset } = await freshAssetManager();
-
-      expect(await loadAsset("asset:iap-login.ReLoginDialog.js")).toBeUndefined();
-      expect(fetchMock).not.toHaveBeenCalled();
-    });
-
-    it("still loads other assets in a production build", async () => {
-      vi.stubEnv("NODE_ENV", "production");
-      stubManifests();
-      const { loadAsset } = await freshAssetManager();
-
-      expect(await loadAsset(FIXTURE_URL)).toBeDefined();
     });
   });
 

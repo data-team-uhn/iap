@@ -35,16 +35,9 @@ const getExtensions = async function(extensionPoint: string): Promise<Extension[
 // loaded. An extension whose assets fail to load is logged and left out.
 //
 // @param {string} extensionPoint the extension point, named as for `getExtensions`
-// @return the extensions; empty if the extension point cannot be read, which is logged
+// @return the extensions; empty if the point has none. Rejects if the extension point cannot be read.
 const loadExtensions = async function(extensionPoint: string): Promise<Extension[]> {
-  let extensions: Extension[];
-  try {
-    extensions = await getExtensions(extensionPoint);
-  } catch (error) {
-    console.error(`Could not retrieve the extension point [${extensionPoint}]; treating it as empty.`, error);
-    return [];
-  }
-
+  const extensions = await getExtensions(extensionPoint);
   const results = await Promise.allSettled(extensions.map(extension => loadRemoteComponents(extension)));
   return results
     .filter(result => {

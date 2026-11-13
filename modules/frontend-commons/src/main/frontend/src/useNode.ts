@@ -48,17 +48,36 @@ interface Read<T> {
   error?: string;
 }
 
-// Reads one node for a page. It returns the parsed `value`, whether the node is still `loading`, why
-// the last read failed as `loadError`, a `reload`, and the fetch it reads with. A failed reload keeps
-// the last good value, so that the page stays readable under the error. Asked for another node, it
-// starts again from loading, so that the page never shows or acts on the old node as the new one.
+// One node as a page reads it.
+interface NodeState<T> {
+  // The parsed node; undefined until a read of it succeeds
+  value?: T;
+  // Whether the node is still being read for the first time
+  loading: boolean;
+  // The error message of a failed read, until a read succeeds
+  loadError?: string;
+  reload: () => Promise<void>;
+  // The fetch the node is read with
+  doFetch: AuthenticatedFetch;
+}
+
+const asRead = (node: JcrNode): JcrNode => node;
+
+// Reads one node for a page, and parses it with `parse`, or keeps it as read without one. A failed
+// reload keeps the last good value, so that the page stays readable under the error. Asked for
+// another node, it starts again from loading, so that the page never shows or acts on the old node
+// as the new one.
 //
 // `parse` must keep its identity across renders, such as a function defined at module level. A new
 // one on every render reads the node again on every render.
-export function useNode<T>(path: string, selectors: string, parse: (node: JcrNode) => T) {
+export function useNode(path: string, selectors: string): NodeState<JcrNode>;
+export function useNode<T>(path: string, selectors: string, parse: (node: JcrNode) => T): NodeState<T>;
+export function useNode(
+  path: string, selectors: string, parse: (node: JcrNode) => unknown = asRead,
+): NodeState<unknown> {
   const doFetch = useAuthenticatedFetch();
   const of = `${path}.${selectors}`;
-  const [ read, setRead ] = useState<Read<T>>();
+  const [ read, setRead ] = useState<Read<unknown>>();
   // The node the page asks for now. An answer about a node asked for before is dropped.
   const asked = useRef(of);
 

@@ -27,14 +27,14 @@ import ViewAgendaOutlinedIcon from "@mui/icons-material/ViewAgendaOutlined";
 import { Box, Stack, Typography, type SvgIconProps } from "@mui/material";
 
 import CodePill from "@iap/frontend-commons/components/CodePill";
-import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { type SerializedNode, textOf, textValuesOf } from "@iap/frontend-commons/serializedNode";
 
 import { nameOf } from "./schemaModel";
 import { useMoveHighlight } from "./schemaMove";
 import SchemaNodeActions from "./SchemaNodeActions";
 import { ICON_COLUMN } from "./schemaTreeLayout";
 import {
-  answerCountOf, boundsOf, dataTypeOf, detailOf, optionLabelOf, optionsOf, strings, QUESTION_TYPE,
+  answerCountOf, boundsOf, dataTypeOf, optionLabelOf, optionsOf, QUESTION_TYPE,
 } from "./schemaVersionTreeModel";
 
 // A fact shown as a chip: a plain label, or one that opens and closes the part's details
@@ -80,7 +80,7 @@ interface OptionRowProps {
 // One of a question's options in its details, with what may be done to it
 function OptionRow({ option, question, options }: OptionRowProps) {
   const { ref, surface, content } = useMoveHighlight<HTMLLIElement>(option);
-  const description = detailOf(option, "description");
+  const description = textOf(option, "description");
   return (
     <Typography
       component="li"
@@ -123,8 +123,8 @@ function OptionList({ options, question }: { options: SerializedNode[]; question
 function questionDetails(part: SerializedNode): ReactNode {
   const options = optionsOf(part);
   const bounds = boundsOf(part);
-  const pattern = detailOf(part, "pattern");
-  const optionsFrom = detailOf(part, "optionsFrom");
+  const pattern = textOf(part, "pattern");
+  const optionsFrom = textOf(part, "optionsFrom");
   if (options.length === 0 && !bounds && !pattern && !optionsFrom) {
     return null;
   }
@@ -134,26 +134,26 @@ function questionDetails(part: SerializedNode): ReactNode {
       { optionsFrom && <Detail>{`The options are the items under ${optionsFrom}.`}</Detail> }
       { bounds && <Detail>{`${bounds}.`}</Detail> }
       { pattern && <Detail>{`Must match ${pattern}.`}</Detail> }
-      { pattern && detailOf(part, "patternMessage") && (
-        <Detail>{`Otherwise the submitter reads “${detailOf(part, "patternMessage")}”.`}</Detail>
+      { pattern && textOf(part, "patternMessage") && (
+        <Detail>{`Otherwise the submitter reads “${textOf(part, "patternMessage")}”.`}</Detail>
       ) }
     </>
   );
 }
 
 function documentDetails(part: SerializedNode): ReactNode {
-  const types = strings(part.acceptedFileTypes);
+  const types = textValuesOf(part.acceptedFileTypes);
   return types.length > 0 ? <Detail>{`Accepts ${types.join(", ")}.`}</Detail> : null;
 }
 
 function approvalDetails(part: SerializedNode): ReactNode {
-  const group = detailOf(part, "approverGroup");
+  const group = textOf(part, "approverGroup");
   return <Detail>{group ? `Approved by ${group}.` : "No approver group is set."}</Detail>;
 }
 
 function questionChips(part: SerializedNode): SchemaPartChip[] {
   const options = optionsOf(part);
-  const displayMode = detailOf(part, "displayMode");
+  const displayMode = textOf(part, "displayMode");
   return [
     dataTypeOf(part),
     ...displayMode ? [ `Shown as ${displayMode}` ] : [],

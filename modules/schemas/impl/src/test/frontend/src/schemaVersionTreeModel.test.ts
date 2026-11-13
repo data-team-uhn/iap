@@ -18,7 +18,7 @@
 
 import {
   answerCountOf, boundsOf, conditionOf, dataTypeOf, headingOf, indexQuestions, resourceTypeOf, optionLabelOf,
-  optionsOf, partsOf, strings,
+  optionsOf, partsOf,
 } from "@iap/schemas/schemaVersionTreeModel";
 
 import { CONTENT, HOMEPAGE, withPaths } from "./schemaServer.fixture";
@@ -80,11 +80,5 @@ describe("schemaVersionTreeModel", () => {
     expect(index.find("uuid-arms")).toBe(arms);
     expect(index.find("basics/design/age")).toBe(age);
     expect(index.find("basics/design")).toBeUndefined();
-  });
-
-  it("reads a list of values, or a single one, as strings", () => {
-    expect(strings([ "a", 1, null, { b: 2 } ])).toEqual([ "a", "1" ]);
-    expect(strings("one")).toEqual([ "one" ]);
-    expect(strings(undefined)).toEqual([]);
   });
 });

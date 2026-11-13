@@ -38,11 +38,12 @@ import { withCompactDates, withElementCellsCentred } from "./columns";
 import { BOTTOM_SHEET_SX, EntityGridSheetPanel, RemoveConditionLabel, filterPanelProps } from "./EntityGridPanels";
 import EntityGridStatusOverlay from "./EntityGridStatusOverlay";
 import EntityGridToolbar from "./EntityGridToolbar";
-import EntityListItem, { CardActions, columnContent } from "./EntityListItem";
+import EntityListItem, { columnContent } from "./EntityListItem";
 import {
   ENTITY_CELL, fromTreeField, groupingColumn, rowId, toTreeField, treeDataPath, treeRows,
 } from "./gridRows";
 import { type EntityGridChildren, type EntityGridColumn, getEntityTypeConfig, serverProperty } from "./registry";
+import { withRowControls } from "./RowControls";
 import { toPropertyFilters, withServerFilterOperators } from "./serverFilters";
 import useColumnVisibility from "./useColumnVisibility";
 import useEntityPage from "./useEntityPage";
@@ -95,7 +96,8 @@ interface EntityDataGridProps {
   // Renders every row instead of only the visible ones, for a test environment with no layout
   disableVirtualization?: boolean;
   // Columns after the type's own, such as the actions on each row, which depend on why the
-  // entities are listed. They cannot be sorted or filtered unless they say so.
+  // entities are listed. They cannot be sorted or filtered unless they say so. A click in one does
+  // not open the entity.
   extraColumns?: EntityGridColumn[];
   // Columns before the type's own, such as a checkbox selecting the row, with the same defaults
   leadingColumns?: EntityGridColumn[];
@@ -139,9 +141,10 @@ function EntityDataGrid(props: EntityDataGridProps) {
   } = props;
   const config = getEntityTypeConfig(entityType);
   // The type's own columns, and the ones this grid adds. An added column usually names no
-  // property, so it cannot be sorted or filtered unless it says otherwise.
+  // property, so it cannot be sorted or filtered unless it says otherwise. It holds controls, whose
+  // clicks do not reach the row.
   const columns = useMemo(() => {
-    const added = (column: EntityGridColumn) => ({ sortable: false, filterable: false, ...column });
+    const added = (column: EntityGridColumn) => withRowControls({ sortable: false, filterable: false, ...column });
     return extraColumns.length === 0 && leadingColumns.length === 0 ? config?.columns ?? []
       : [ ...leadingColumns.map(added), ...config?.columns ?? [], ...extraColumns.map(added) ];
   }, [ config?.columns, extraColumns, leadingColumns ]);
@@ -219,7 +222,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
           { leadingOnCards.map(column => <Box key={column.field} sx={{ pt: 1 }}>{columnContent(column, row)}</Box>) }
           <Box sx={{ flex: 1, minWidth: 0 }}>{listItem(row, visibleFields)}</Box>
           { actionsOnCards.map(column => (
-            <Box key={column.field} sx={{ pt: 1 }}><CardActions>{columnContent(column, row)}</CardActions></Box>
+            <Box key={column.field} sx={{ pt: 1 }}>{columnContent(column, row)}</Box>
           )) }
         </Stack>
       ));

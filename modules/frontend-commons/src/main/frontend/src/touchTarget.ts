@@ -18,3 +18,6 @@
 
 // The least size of a control on a touch screen, so that a tap hits it and not its neighbour
 export const TOUCH_TARGET = { "@media (pointer: coarse)": { minWidth: 40, minHeight: 40 } };
+
+// A touch target for a small icon button, whose negative margin keeps the button where it is drawn
+export const TOUCH_REACH = { "@media (pointer: coarse)": { ...TOUCH_TARGET["@media (pointer: coarse)"], m: "-5px" } };

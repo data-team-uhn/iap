@@ -25,18 +25,21 @@ import { useInActionsMenu } from "./ActionsMenu";
 
 // The actions contributed on one extension point, in their order, each given the other props. `point` is the node
 // name of the extension point. `place` names where the page shows the actions; without it, only the actions that
-// name no places are shown. Each action decides for itself whether it applies.
+// name no places are shown. Each action decides for itself whether it applies. When the extension point cannot be
+// read, no action is shown.
 function ActionBar({ point, place, ...props }: { point: string; place?: string } & Record<string, unknown>) {
   const [ actions, setActions ] = useState<ActionComponent[]>([]);
   const inMenu = useInActionsMenu();
 
   useEffect(() => {
     let cancelled = false;
-    void getActions(point, place).then(loaded => {
-      if (!cancelled) {
-        setActions(loaded);
-      }
-    });
+    getActions(point, place)
+      .then(loaded => {
+        if (!cancelled) {
+          setActions(loaded);
+        }
+      })
+      .catch((err: unknown) => console.error(`Something went wrong loading the ${point} actions`, err));
     return () => {
       cancelled = true;
     };

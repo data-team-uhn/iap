@@ -21,6 +21,7 @@ import type { ComponentType } from "react";
 import { render, screen } from "@testing-library/react";
 
 import { loadAsset } from "@iap/frontend-commons/assetManager";
+import { UnreadableResponseError } from "@iap/frontend-commons/requestFailure";
 import { loadExtensions, visibleInPersona } from "@iap/ui-extension/extensionManager";
 
 // Only `loadAsset` and `LazyAsset` are replaced. The stand-in for `LazyAsset` shows the URL and props it
@@ -121,12 +122,31 @@ describe("loadExtensions", () => {
     expect(extensions[0]["ext:name"]).toBe("Ok");
   });
 
-  it("returns an empty list when the extension point itself cannot be retrieved", async () => {
+  it("resolves an extension point that has no extensions as empty", async () => {
+    mockExtensionPointResponse([]);
+
+    await expect(loadExtensions("Views")).resolves.toEqual([]);
+  });
+
+  it("rejects when the request for the extension point fails", async () => {
+    const failure = new TypeError("Failed to fetch");
+    global.fetch = vi.fn().mockRejectedValue(failure);
+
+    await expect(loadExtensions("Views")).rejects.toBe(failure);
+  });
+
+  it("rejects when the server refuses the extension point", async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 });
 
-    const extensions = await loadExtensions("Views");
+    await expect(loadExtensions("Views")).rejects.toThrow("Failed to load extensions from Views: 404");
+  });
 
-    expect(extensions).toEqual([]);
+  it("rejects when the extension point's answer is not data", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => { /* keep the output quiet */ });
+    global.fetch = vi.fn().mockResolvedValue(new Response("<html></html>", { status: 200 }));
+
+    await expect(loadExtensions("Views")).rejects.toBeInstanceOf(UnreadableResponseError);
+    warnSpy.mockRestore();
   });
 
   it("takes an extension point given as a repository path as-is", async () => {

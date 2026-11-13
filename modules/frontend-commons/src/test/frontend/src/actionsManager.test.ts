@@ -31,6 +31,11 @@ beforeEach(() => {
   mockedLoadExtensions.mockReset();
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
 describe("getActions", () => {
   it("hands back the components the extension point contributed, in its order", async () => {
     mockedLoadExtensions.mockResolvedValue([
@@ -86,17 +91,25 @@ describe("getActions", () => {
     expect(mockedLoadExtensions).toHaveBeenCalledTimes(1);
   });
 
-  it("resolves to no actions when the extension point cannot be read", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    mockedLoadExtensions.mockRejectedValue(new Error("Network is down"));
+  it("keeps an extension point that gave no actions, and does not ask again", async () => {
+    mockedLoadExtensions.mockResolvedValue([]);
 
     await expect(getActions("ThingActions")).resolves.toEqual([]);
-    expect(console.error).toHaveBeenCalled();
+    await expect(getActions("ThingActions")).resolves.toEqual([]);
+    expect(mockedLoadExtensions).toHaveBeenCalledTimes(1);
+  });
 
-    // A rejection is not kept, so the next call asks again
+  it("rejects when the extension point cannot be read, and reads it again next time", async () => {
+    // The real loader, reading a point the server refuses
+    const actual = await vi.importActual<typeof import("@iap/ui-extension/extensionManager")>(
+      "@iap/ui-extension/extensionManager");
+    mockedLoadExtensions.mockImplementation(actual.loadExtensions);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 500 })));
+
+    await expect(getActions("ThingActions")).rejects.toThrow("Failed to load extensions from ThingActions: 500");
+
     mockedLoadExtensions.mockResolvedValue([ { "ext:render": First } ]);
     await expect(getActions("ThingActions")).resolves.toEqual([First]);
-
-    vi.mocked(console.error).mockRestore();
+    expect(mockedLoadExtensions).toHaveBeenCalledTimes(2);
   });
 });

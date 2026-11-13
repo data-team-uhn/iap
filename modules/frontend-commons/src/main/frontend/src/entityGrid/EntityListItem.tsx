@@ -18,11 +18,11 @@
 
 import { Fragment, type ReactNode } from "react";
 
-import { Box, Link, Stack, Typography } from "@mui/material";
-import { Link as RouterLink } from "react-router";
+import { Box, Stack, Typography } from "@mui/material";
 
 import { formatDateTime } from "./columns";
 import { rowId, treeName } from "./gridRows";
+import { RowLink } from "./RowControls";
 
 import type { EntityRow } from "./pagination";
 import type { EntityGridColumn, EntityGridConfig } from "./registry";
@@ -52,10 +52,6 @@ export function columnContent(column: EntityGridColumn, row: EntityRow): ReactNo
   }
   return scalarContent(value);
 }
-
-// Holds an entity's actions on its card. A click on them does not reach the card, which opens the entity.
-export const CardActions = ({ children }: { children: ReactNode }) =>
-  <Box onClick={event => event.stopPropagation()} sx={{ display: "inline-flex" }}>{children}</Box>;
 
 // The card for one entity in list mode, composed from the given columns by their card slots. Each
 // column shows its cardValue, or else what it shows in the grid. Without a visible title column,
@@ -90,8 +86,7 @@ export default function EntityListItem({ row, columns, config }: {
         <Typography variant="subtitle2" component="div">{title && content(title)}</Typography>
         {badges.length + actions.length > 0 && (
           <Stack direction="row" sx={{ gap: 0.5, flexWrap: "wrap", alignItems: "center" }}>
-            {badges.map(column => <Fragment key={column.field}>{content(column)}</Fragment>)}
-            {actions.map(column => <CardActions key={column.field}>{content(column)}</CardActions>)}
+            {[ ...badges, ...actions ].map(column => <Fragment key={column.field}>{content(column)}</Fragment>)}
           </Stack>
         )}
       </Stack>
@@ -116,8 +111,7 @@ export default function EntityListItem({ row, columns, config }: {
           {children.map(({ child, key, name, link }) => (
             <Stack key={key} direction="row" sx={{ gap: 0.5, alignItems: "center" }}>
               { link
-                ? <Link component={RouterLink} to={link} variant="body2" underline="hover"
-                  onClick={event => event.stopPropagation()}>{name}</Link>
+                ? <RowLink to={link} variant="body2">{name}</RowLink>
                 : <Typography variant="body2" component="span">{name}</Typography> }
               {badges.map(column => <Fragment key={column.field}>{content(column, child)}</Fragment>)}
             </Stack>

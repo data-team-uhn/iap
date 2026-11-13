@@ -24,14 +24,13 @@ import { useLocation, useNavigate } from "react-router";
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { type SerializedNode, textValuesOf } from "@iap/frontend-commons/serializedNode";
 import TagChip from "@iap/tags/TagChip";
 
 import SchemaActions from "./SchemaActions";
 import { schemaNameFromRoute, tagsOf, titleOf, versionNameFromRoute } from "./schemaModel";
 import SchemaVersionComparison from "./SchemaVersionComparison";
 import SchemaVersionList from "./SchemaVersionList";
-import { strings } from "./schemaVersionTreeModel";
 import SchemaVersionView from "./SchemaVersionView";
 import { useSchema } from "./useSchema";
 
@@ -68,7 +67,7 @@ function SchemaPage({ extension }: { extension?: Record<string, unknown> }) {
   const { schema, loading, loadError, reload } = useSchema(name);
   const reloadSchema = useCallback(() => void reload(), [ reload ]);
   // The same array while the extension is the same, so the version list does not redraw its actions
-  const comparisonDefaults = useMemo(() => strings(extension?.comparisonDefaults), [ extension ]);
+  const comparisonDefaults = useMemo(() => textValuesOf(extension?.comparisonDefaults), [ extension ]);
 
   if (!schema) {
     return (
@@ -85,9 +84,9 @@ function SchemaPage({ extension }: { extension?: Record<string, unknown> }) {
     return (
       <SchemaVersionComparison schema={schema} names={[ comparedWith, versionName ]} pageNotices={notices}
         definitions={{
-          version: strings(extension?.comparisonVersionFieldsFrom),
-          part: strings(extension?.comparisonPartFieldsFrom),
-          option: strings(extension?.comparisonOptionFieldsFrom),
+          version: textValuesOf(extension?.comparisonVersionFieldsFrom),
+          part: textValuesOf(extension?.comparisonPartFieldsFrom),
+          option: textValuesOf(extension?.comparisonOptionFieldsFrom),
         }} />
     );
   }

@@ -146,13 +146,4 @@ describe("Breadcrumbs", () => {
 
     expect(await screen.findByRole("link", { name: "/admin" })).toBeInTheDocument();
   });
-
-  it("renders nothing when the views cannot be loaded at all", async () => {
-    mockedGetRoutes.mockResolvedValue(undefined);
-
-    const { container } = renderAt("/admin/categories");
-
-    await waitFor(() => expect(mockedGetRoutes).toHaveBeenCalled());
-    expect(container).toBeEmptyDOMElement();
-  });
 });

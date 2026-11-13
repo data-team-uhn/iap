@@ -22,7 +22,7 @@ import { Box, Chip, Link as MuiLink, Skeleton, Typography } from "@mui/material"
 import { Link as RouterLink } from "react-router";
 
 import { useAuthenticatedFetch } from "../reLogin";
-import { readJson } from "../requestFailure";
+import { readJson, RequestError } from "../requestFailure";
 
 // One figure, as a summary reports it: a count of something, or a state it is in.
 interface WidgetStat {
@@ -50,6 +50,24 @@ interface WidgetStatListProps {
   name: string;
   // Turns a figure's repository path into the route its label links to; labels are plain text without it.
   hrefFor?: (path: string) => string;
+}
+
+// What reading a summary came to: its figures, a refusal to show it to this reader, or a failure
+type Summary =
+  | { outcome: "read"; stats: WidgetStat[] }
+  | { outcome: "refused" }
+  | { outcome: "failed" };
+
+// Sling answers 404 for a resource the reader may not see, and a servlet that refuses answers 403
+const REFUSAL_STATUSES = [ 403, 404 ];
+
+// What a failed read of the summary means for this reader. Anything but a refusal is logged.
+function unreadSummary(error: unknown): Summary {
+  if (error instanceof RequestError && REFUSAL_STATUSES.includes(error.status)) {
+    return { outcome: "refused" };
+  }
+  console.error("The summary could not be read", error);
+  return { outcome: "failed" };
 }
 
 // How a count reads: the number, with a "+" when it is a lower bound, or "?" when there is no count.
@@ -151,7 +169,8 @@ function StatLabel({ stat, row, href }: { stat: WidgetStat; row: number; href?: 
 
 // A dashboard widget's list of figures, each a value and then what the value is a figure for. The
 // widget names the resource to summarize and what to call it. The list fetches the summary, shows a
-// placeholder while it loads, and says the summary is not available when it cannot be read.
+// placeholder while it loads. It says the summary is not available when the server refuses it to
+// this reader, and that it could not be loaded when the request fails.
 //
 // It is a description list: each label is a term, and its value the description. The label comes
 // first in the markup and second on screen, so a screen reader says what a figure counts before the
@@ -162,21 +181,21 @@ function StatLabel({ stat, row, href }: { stat: WidgetStat; row: number; href?: 
 //
 function WidgetStatList({ url, name, hrefFor }: WidgetStatListProps) {
   const doFetch = useAuthenticatedFetch();
-  // The summary, and the url it was read for; `stats` is null if it could not be read. A summary read for a
-  // previous url means this one is still loading.
-  const [ read, setRead ] = useState<{ url: string; stats: WidgetStat[] | null } | null>(null);
+  // The summary, and the url it was read for. A summary read for a previous url means this one is still loading.
+  const [ read, setRead ] = useState<{ url: string; summary: Summary } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const settle = (summary: Summary) => { if (!cancelled) { setRead({ url, summary }); } };
     doFetch(`${url}.adminSummary.json`, { headers: { Accept: "application/json" } })
       .then(response => {
         if (!response.ok) {
-          throw new Error(String(response.status));
+          throw new RequestError(response.status);
         }
         return readJson<unknown>(response);
       })
-      .then(body => { if (!cancelled) { setRead({ url, stats: readSummary(body) }); } })
-      .catch(() => { if (!cancelled) { setRead({ url, stats: null }); } });
+      .then(body => { settle({ outcome: "read", stats: readSummary(body) }); })
+      .catch((error: unknown) => { settle(unreadSummary(error)); });
     return () => { cancelled = true; };
   }, [ doFetch, url ]);
 
@@ -185,13 +204,12 @@ function WidgetStatList({ url, name, hrefFor }: WidgetStatListProps) {
     return <Skeleton variant="rounded" height={96} aria-label={`Loading the ${name} summary`} />;
   }
 
-  if (read.stats === null) {
-    // Not zeros, which would claim the tool holds nothing
-    return (
-      <Typography variant="placeholder">
-        The {name} summary is not available to you.
-      </Typography>
-    );
+  // Not zeros, which would claim the tool holds nothing
+  if (read.summary.outcome === "refused") {
+    return <Typography variant="placeholder">The {name} summary is not available to you.</Typography>;
+  }
+  if (read.summary.outcome === "failed") {
+    return <Typography variant="placeholder">The {name} summary could not be loaded. Try again in a moment.</Typography>;
   }
 
   return (
@@ -207,7 +225,7 @@ function WidgetStatList({ url, name, hrefFor }: WidgetStatListProps) {
       }}
     >
       {
-        read.stats.map((stat, index) => (
+        read.summary.stats.map((stat, index) => (
           <Fragment key={stat.id}>
             <StatLabel
               stat={stat}
