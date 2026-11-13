@@ -29,6 +29,7 @@ import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateUtils;
 
+import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.nodetypes.NodeTypeRules;
 import io.uhndata.iap.history.models.LastSeen;
 
@@ -41,16 +42,17 @@ import io.uhndata.iap.history.models.LastSeen;
  * editor as changed. When the two have different {@code jcr:uuid}s, it is noted as one removed and one added.</p>
  *
  * <p>Some changes are not actions, and are left out: a value derived from elsewhere ({@code COMPUTE}), the
- * modification stamps, and read markers. So is the engine's own state under {@code wf:instances}, which the action
- * already names. The repository's own trees, {@code jcr:system} and {@code oak:index}, hold no entity and are not
- * walked.</p>
+ * modification stamps, the revision token, and read markers. So is the engine's own state under
+ * {@code wf:instances}, which the action already names. The repository's own trees, {@code jcr:system} and
+ * {@code oak:index}, hold no entity and are not walked.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class ChangeCollector extends DefaultEditor
 {
-    private static final Set<String> SKIPPED_PROPERTIES = Set.of("jcr:lastModified", "jcr:lastModifiedBy");
+    private static final Set<String> SKIPPED_PROPERTIES =
+        Set.of("jcr:lastModified", "jcr:lastModifiedBy", Entity.REVISION_PROPERTY);
 
     private static final Set<String> SKIPPED_CHILDREN = Set.of("wf:instances", LastSeen.NODE_NAME);
 

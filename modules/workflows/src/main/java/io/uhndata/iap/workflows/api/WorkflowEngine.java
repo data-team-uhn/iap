@@ -34,7 +34,7 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * event on this target ({@link NoApplicableWorkflowException}); may this user fire it
  * ({@link NotAuthorizedException}); is what it carries usable ({@link InvalidPayloadException}). Only then does
  * the transition run, to quiescence, with every effect in one commit. An event either fully happened or did not
- * happen.</p>
+ * happen. An event that loses a race to another commit starts over from the first question.</p>
  *
  * <p>The current engine executes system workflows: the platform's own behaviour, stored under
  * {@code /SystemWorkflows} and matched by the target's resource type. Such a workflow runs inside the request
@@ -57,6 +57,8 @@ public interface WorkflowEngine
      * @throws NoApplicableWorkflowException when nothing is waiting for this event on this target
      * @throws NotAuthorizedException when the firing user may not do this
      * @throws InvalidPayloadException when the event's data is missing something or violates a constraint
+     * @throws InvalidStateException when the event kept losing races to other commits after every retry, or its
+     *             target was deleted meanwhile
      * @throws WorkflowDefinitionException when the matched definition itself is broken
      * @throws WorkflowFailedException when execution fails for reasons outside definition and payload
      * @throws WorkflowException never directly, only as one of the above

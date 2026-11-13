@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 import javax.jcr.AccessDeniedException;
 import javax.jcr.InvalidItemStateException;
 import javax.jcr.nodetype.ConstraintViolationException;
@@ -43,6 +45,12 @@ import io.uhndata.iap.workflows.api.WorkflowFailedException;
  */
 final class RepositoryFailures
 {
+    /** The shortest pause before an attempt that lost a race runs again, in milliseconds. */
+    private static final long SHORTEST_PAUSE_MILLIS = 10;
+
+    /** The longest pause before an attempt that lost a race runs again, in milliseconds, exclusive. */
+    private static final long LONGEST_PAUSE_MILLIS = 50;
+
     private RepositoryFailures()
     {
     }
@@ -50,6 +58,9 @@ final class RepositoryFailures
     /**
      * Runs something that commits, and runs it again when it lost a race with another commit. Each attempt must
      * start from a fresh view of the repository, so that the retry sees what the other commit did.
+     *
+     * <p>Before each retry it waits a short random time, so that writers racing for one entity spread out instead
+     * of colliding again. A thread interrupted while waiting stops retrying.</p>
      *
      * @param <T> what the attempt returns
      * @param retries how many times to run it again after a lost race
@@ -67,7 +78,24 @@ final class RepositoryFailures
                 if (left-- <= 0 || !isConflict(e)) {
                     throw e;
                 }
+                pauseAfter(e);
             }
+        }
+    }
+
+    /**
+     * Waits a short random time before an attempt that lost a race runs again.
+     *
+     * @param lostRace the refusal of the attempt that lost
+     * @throws InvalidStateException the lost race, when the thread is interrupted while waiting
+     */
+    private static void pauseAfter(final InvalidStateException lostRace) throws InvalidStateException
+    {
+        try {
+            Thread.sleep(ThreadLocalRandom.current().nextLong(SHORTEST_PAUSE_MILLIS, LONGEST_PAUSE_MILLIS));
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw lostRace;
         }
     }
 
@@ -104,6 +132,17 @@ final class RepositoryFailures
          * @throws WorkflowException when it fails
          */
         T run() throws WorkflowException;
+    }
+
+    /**
+     * The refusal of an event whose target another writer deleted while the event was being handled.
+     *
+     * @param path the path of the target
+     * @return the refusal, ready to be thrown
+     */
+    static InvalidStateException deletedMeanwhile(final String path)
+    {
+        return new InvalidStateException(path + " was deleted while this event was being handled");
     }
 
     /**

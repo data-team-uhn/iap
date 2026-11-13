@@ -75,8 +75,11 @@ public class WorkflowEngineImpl implements WorkflowEngine
      */
     static final int MAX_STEPS = 200;
 
-    /** How many times an event aimed at a task is run again after another walk of the same instance won a race. */
-    private static final int CONFLICT_RETRIES = 2;
+    /** How many times an event aimed at a task runs again after another commit to its entity won a race. */
+    private static final int TASK_CONFLICT_RETRIES = 2;
+
+    /** How many times an event that runs a system workflow runs again after another commit won a race. */
+    private static final int SYSTEM_WORKFLOW_CONFLICT_RETRIES = 5;
 
     /** How many events deep workflows may send events to each other before the definitions are declared broken. */
     private static final int MAX_SENT_EVENTS_DEPTH = 10;
@@ -124,7 +127,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
             if (privilegedTarget.isResourceType(TaskInstance.RESOURCE_TYPE)) {
                 return resume(privilegedTarget, event, actor);
             }
-            return execute(privilegedTarget, event, admit(privilegedTarget, event, actor, 0), actor);
+            return RepositoryFailures.retryingConflicts(SYSTEM_WORKFLOW_CONFLICT_RETRIES,
+                () -> execute(privilegedTarget, event, actor));
         }
     }
 
@@ -161,7 +165,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * system workflow: the decision, the task's new state and what follows from it all happen, or none of them
      * do.
      *
-     * <p>Two walks of one instance at once conflict when the second commits. The loser is reverted, which also
+     * <p>Two events on one entity at once conflict when the second commits. The loser is reverted, which also
      * brings its session up to date, and run again on top of what the winner did. Each attempt has its own
      * dispatcher, so the notifications a lost attempt announced are dropped with its writes.</p>
      *
@@ -175,12 +179,15 @@ public class WorkflowEngineImpl implements WorkflowEngine
         throws WorkflowException
     {
         final ResourceResolver resolver = task.getResourceResolver();
-        final ServiceTaskDispatcher committed = RepositoryFailures.retryingConflicts(CONFLICT_RETRIES, () -> {
+        final ServiceTaskDispatcher committed = RepositoryFailures.retryingConflicts(TASK_CONFLICT_RETRIES, () -> {
             final ServiceTaskDispatcher attempt = dispatcher();
             try {
-                final Resource current = Objects.requireNonNull(resolver.getResource(task.getPath()),
-                    "A task is never deleted while its instance runs");
+                final Resource current = resolver.getResource(task.getPath());
+                if (current == null) {
+                    throw RepositoryFailures.deletedMeanwhile(task.getPath());
+                }
                 this.taskCompletion.apply(resolver, current, event, actor, attempt.performer(event, actor));
+                EntityRevision.stamp(current);
                 this.recorder.commit(resolver, attempt.recordedAsTask(actor, event, current));
                 return attempt;
             } catch (final PersistenceException e) {
@@ -196,23 +203,32 @@ public class WorkflowEngineImpl implements WorkflowEngine
     }
 
     /**
-     * Runs the matched workflow and commits everything it changed at once. A failing event leaves no trace.
+     * Matches an event to the system workflow that catches it, runs that, and commits everything it changed at
+     * once. A failing event leaves no trace.
      *
-     * @param target the resource the event is aimed at, backed by the engine's own session
+     * <p>The match and the performer check read the target as it is now. After a lost race the event may no
+     * longer apply, and is refused.</p>
+     *
+     * @param target the resource the event is aimed at, resolved through the engine's session
      * @param event the incoming event
-     * @param start the entry point to run from
      * @param actor the user who fired the event
      * @return the variables the execution left behind
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
      */
-    private WorkflowResult execute(final Resource target, final WorkflowEvent event, final StartEvent start,
-        final String actor) throws WorkflowException
+    private WorkflowResult execute(final Resource target, final WorkflowEvent event, final String actor)
+        throws WorkflowException
     {
         final ResourceResolver resolver = target.getResourceResolver();
         final ServiceTaskDispatcher dispatcher = dispatcher();
         final Map<String, Object> variables;
         try {
-            variables = dispatcher.runSystemWorkflow(target, event, start, actor, 0);
+            final Resource current = resolver.getResource(target.getPath());
+            if (current == null) {
+                throw RepositoryFailures.deletedMeanwhile(target.getPath());
+            }
+            final StartEvent start = admit(current, event, actor, 0);
+            variables = dispatcher.runSystemWorkflow(current, event, start, actor, 0);
+            EntityRevision.stamp(current);
             this.recorder.commit(resolver, dispatcher.recordedAsSystemWorkflow(actor, event, start));
         } catch (final PersistenceException e) {
             revert(resolver);

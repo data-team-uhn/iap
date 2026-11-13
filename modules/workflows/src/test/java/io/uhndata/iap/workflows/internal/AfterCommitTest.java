@@ -17,16 +17,11 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
-import javax.jcr.InvalidItemStateException;
-
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -79,6 +74,14 @@ class AfterCommitTest
     private static final String LEAVE_WORK = "leaveWork";
 
     private static final String BROKEN = "broken";
+
+    /** Lets every commit through. */
+    private static final EngineFixture.RepositoryAction NO_RACE = () -> { };
+
+    /** Refuses every commit as one that lost a race. */
+    private static final EngineFixture.RepositoryAction LOSING_EVERY_RACE = () -> {
+        throw EngineFixture.conflict();
+    };
 
     private final SlingContext context = new SlingContext();
 
@@ -135,9 +138,9 @@ class AfterCommitTest
     void sendsWhatAWalkRetriedAfterAConflictAnnouncedOnce() throws Exception
     {
         final TaskCompletion completion = announcing(messageEvent(DECISION, APPROVERS));
-        final ArrayDeque<PersistenceException> failures = new ArrayDeque<>(List.of(conflict()));
 
-        engine(failures::poll, completion, this.told).receiveEvent(task(), DECIDED);
+        engine(new EngineFixture.OneLostRace(EngineFixture.OneLostRace.UNRELATED_CHANGE), completion, this.told)
+            .receiveEvent(task(), DECIDED);
 
         assertEquals(List.of(DECISION), this.told.events());
         // Proves the walk ran twice, so both attempts announced
@@ -148,9 +151,7 @@ class AfterCommitTest
     @Test
     void sendsNothingWhenEveryAttemptLosesItsRace() throws Exception
     {
-        final PersistenceException conflict = conflict();
-
-        assertThrows(InvalidStateException.class, () -> engine(() -> conflict,
+        assertThrows(InvalidStateException.class, () -> engine(LOSING_EVERY_RACE,
             announcing(messageEvent(DECISION, APPROVERS)), this.told).receiveEvent(task(), DECIDED));
 
         assertTrue(this.told.sent().isEmpty());
@@ -159,7 +160,7 @@ class AfterCommitTest
     @Test
     void sendsInTheOrderTheMessageEventsWereReached() throws Exception
     {
-        engine(() -> null, announcing(messageEvent("first", APPROVERS), messageEvent("second", APPROVERS)),
+        engine(NO_RACE, announcing(messageEvent("first", APPROVERS), messageEvent("second", APPROVERS)),
             this.told).receiveEvent(task(), DECIDED);
 
         assertEquals(List.of("first", "second"), this.told.events());
@@ -175,7 +176,7 @@ class AfterCommitTest
             this.told.notify(notification, roles);
         };
 
-        engine(() -> null, announcing(messageEvent("first", APPROVERS), messageEvent("second", APPROVERS)), flaky)
+        engine(NO_RACE, announcing(messageEvent("first", APPROVERS), messageEvent("second", APPROVERS)), flaky)
             .receiveEvent(task(), DECIDED);
 
         assertEquals(List.of("second"), this.told.events());
@@ -187,9 +188,9 @@ class AfterCommitTest
     void doesTheWorkAWalkRetriedAfterAConflictLeftOnce() throws Exception
     {
         final TaskCompletion completion = performing(activity("count"));
-        final ArrayDeque<PersistenceException> failures = new ArrayDeque<>(List.of(conflict()));
 
-        engine(failures::poll, completion, this.told).receiveEvent(task(), DECIDED);
+        engine(new EngineFixture.OneLostRace(EngineFixture.OneLostRace.UNRELATED_CHANGE), completion, this.told)
+            .receiveEvent(task(), DECIDED);
 
         assertEquals(List.of("count"), this.done);
         // Proves the walk ran twice, so both attempts left the work
@@ -200,9 +201,7 @@ class AfterCommitTest
     @Test
     void doesNoWorkWhenEveryAttemptLosesItsRace()
     {
-        final PersistenceException conflict = conflict();
-
-        assertThrows(InvalidStateException.class, () -> engine(() -> conflict, performing(activity("count")),
+        assertThrows(InvalidStateException.class, () -> engine(LOSING_EVERY_RACE, performing(activity("count")),
             this.told).receiveEvent(task(), DECIDED));
 
         assertTrue(this.done.isEmpty());
@@ -214,7 +213,7 @@ class AfterCommitTest
         final List<String> order = new ArrayList<>();
         final NotificationService noting = (notification, roles) -> order.add(notification.getEvent());
 
-        engine(() -> null, walking(announce(messageEvent(DECISION, APPROVERS)), perform(activity("first")),
+        engine(NO_RACE, walking(announce(messageEvent(DECISION, APPROVERS)), perform(activity("first")),
             perform(activity("second"))), noting).receiveEvent(task(), DECIDED);
         order.addAll(this.done);
 
@@ -224,7 +223,7 @@ class AfterCommitTest
     @Test
     void recordsWorkThatFailsAgainstTheStepThatLeftItAndStillDoesTheRest() throws Exception
     {
-        engine(() -> null, performing(activity(BROKEN), activity("count")), this.told).receiveEvent(task(), DECIDED);
+        engine(NO_RACE, performing(activity(BROKEN), activity("count")), this.told).receiveEvent(task(), DECIDED);
 
         assertEquals(List.of("count"), this.done);
         final ArgumentCaptor<ErrorContext> recorded = ArgumentCaptor.forClass(ErrorContext.class);
@@ -236,7 +235,7 @@ class AfterCommitTest
     @Test
     void recordsAMessageEventThatTellsNobody() throws Exception
     {
-        engine(() -> null, announcing(messageEvent(DECISION)), this.told).receiveEvent(task(), DECIDED);
+        engine(NO_RACE, announcing(messageEvent(DECISION)), this.told).receiveEvent(task(), DECIDED);
 
         assertTrue(this.told.sent().isEmpty());
         Mockito.verify(this.recorder).logProblem(Mockito.eq("A message event names no recipients"),
@@ -249,7 +248,7 @@ class AfterCommitTest
         final WorkflowEvent rejected = new WorkflowEvent(TaskCompletion.COMPLETE_EVENT,
             Map.of("outcome", "rejected", "outcomeNote", "Too long", "comment", "Not for the template"));
 
-        engine(() -> null, announcing(messageEvent(DECISION, APPROVERS)), this.told).receiveEvent(task(), rejected);
+        engine(NO_RACE, announcing(messageEvent(DECISION, APPROVERS)), this.told).receiveEvent(task(), rejected);
 
         final NotificationContext notification = this.told.sent().get(0).notification();
         assertEquals(Map.of("outcome", "rejected", "outcomeNote", "Too long"), notification.getVariables());
@@ -352,27 +351,21 @@ class AfterCommitTest
         return event;
     }
 
-    private static PersistenceException conflict()
-    {
-        return new PersistenceException("save failed", new InvalidItemStateException("this node has been modified"));
-    }
-
     /**
-     * An engine walking through the given task completion, over a session whose commits fail as told.
+     * An engine walking through the given task completion, over a session running something before each commit.
      *
-     * @param failures asked at each commit what it should throw, {@code null} for a commit that succeeds
+     * @param beforeCommit what runs before each commit, and may refuse it
      * @param completion the stand-in walk
      * @param notifications what sends the notifications
      * @return the engine
      * @throws Exception when the fixture cannot be built
      */
-    private WorkflowEngineImpl engine(final Supplier<PersistenceException> failures, final TaskCompletion completion,
-        final NotificationService notifications) throws Exception
+    private WorkflowEngineImpl engine(final EngineFixture.RepositoryAction beforeCommit,
+        final TaskCompletion completion, final NotificationService notifications) throws Exception
     {
         this.context.resourceResolver().commit();
-        final WorkflowEngineImpl engine =
-            EngineFixture.engine(EngineFixture.serviceUsersFailing(this.context, failures), List.of(this.leavingWork),
-                notifications);
+        final WorkflowEngineImpl engine = EngineFixture.engine(
+            EngineFixture.serviceUsersRunning(this.context, beforeCommit), List.of(this.leavingWork), notifications);
         EngineFixture.inject(engine, "taskCompletion", completion);
         return engine;
     }

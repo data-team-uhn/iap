@@ -70,6 +70,22 @@ class RepositoryFailuresTest
     }
 
     @Test
+    void stopsRetryingWhenInterruptedWhileWaiting()
+    {
+        final AtomicInteger attempts = new AtomicInteger();
+        Thread.currentThread().interrupt();
+
+        assertThrows(InvalidStateException.class, () -> RepositoryFailures.retryingConflicts(2, () -> {
+            attempts.incrementAndGet();
+            throw conflict();
+        }));
+        final boolean stillInterrupted = Thread.interrupted();
+
+        assertTrue(stillInterrupted);
+        assertEquals(1, attempts.get());
+    }
+
+    @Test
     void doesNotRetryAnythingElse()
     {
         final AtomicInteger attempts = new AtomicInteger();
