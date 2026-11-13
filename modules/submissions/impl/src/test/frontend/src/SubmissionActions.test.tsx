@@ -65,20 +65,4 @@ describe("SubmissionActions", () => {
 
     expect(screen.queryByRole("button", { name: "View" })).not.toBeInTheDocument();
   });
-
-  it("keeps its clicks away from the row around it", async () => {
-    const rowClick = vi.fn();
-    render(
-      <MemoryRouter>
-        { /* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */ }
-        <div onClick={rowClick}>
-          <SubmissionActions path={PATH} />
-        </div>
-      </MemoryRouter>,
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: "View" }));
-
-    expect(rowClick).not.toHaveBeenCalled();
-  });
 });

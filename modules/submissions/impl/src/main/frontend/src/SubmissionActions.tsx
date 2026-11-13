@@ -31,8 +31,7 @@ interface SubmissionActionsProps {
   onDeleted?: () => void;
 }
 
-// The actions on one row of a submissions listing. The row is a link, so the actions keep their
-// clicks from reaching it.
+// The actions on one row of a submissions listing
 function SubmissionActions({ path, title, onDeleted }: SubmissionActionsProps) {
   const navigate = useNavigate();
 
@@ -41,10 +40,7 @@ function SubmissionActions({ path, title, onDeleted }: SubmissionActionsProps) {
   }
 
   return (
-    <Box
-      sx={{ display: "flex", alignItems: "center" }}
-      onClick={event => event.stopPropagation()}
-    >
+    <Box sx={{ display: "flex", alignItems: "center" }}>
       <Tooltip title="View">
         <IconButton size="small" aria-label="View" onClick={() => void navigate(path)}>
           <VisibilityIcon fontSize="small" />

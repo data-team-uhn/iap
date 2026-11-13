@@ -433,6 +433,28 @@ describe("EntityDataGrid", () => {
     expect(await screen.findByText("Entity page")).toBeInTheDocument();
   });
 
+  it("keeps a click in a column it adds from opening the entity, before the type's columns and after", async () => {
+    mockPage([{ "@path": "/GridEntities/e1", title: "First entity", status: "draft" }]);
+    const clicked = vi.fn();
+    const button = (field: string) => ({ field, renderCell: () => <button type="button" onClick={clicked}>{field}</button> });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<EntityDataGrid entityType={TEST_TYPE} leadingColumns={[ button("Pick") ]}
+            extraColumns={[ button("Act") ]} disableVirtualization />} />
+          <Route path="/GridEntities/e1" element={<div>Entity page</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Pick" }));
+    fireEvent.click(screen.getByRole("button", { name: "Act" }));
+
+    expect(clicked).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Entity page")).toBeNull();
+    expect(screen.getByText("First entity")).toBeInTheDocument();
+  });
+
   it("routes the toolbar quick filter to the server-side full text search", async () => {
     const fetchMock = mockPage([]);
 
@@ -771,6 +793,28 @@ describe("EntityDataGrid", () => {
     expect(opened).toHaveBeenCalled();
     expect(screen.queryByText("Entity page")).toBeNull();
     expect(screen.getByText("First entity")).toBeInTheDocument();
+  });
+
+  it("keeps a click in what a column it adds shows on a card from opening the entity", async () => {
+    fakeNarrowScreen();
+    mockPage([{ "@path": "/GridEntities/e1", "title": "First entity", "status": "draft" }]);
+    const opened = vi.fn();
+    const actions = [ { field: "__actions__", cardSlot: "actions" as const,
+      cardValue: () => <button type="button" onClick={opened}>Act</button> } ];
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/"
+            element={<EntityDataGrid entityType={TEST_TYPE} extraColumns={actions} disableVirtualization />} />
+          <Route path="/GridEntities/e1" element={<div>Entity page</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Act" }));
+
+    expect(opened).toHaveBeenCalled();
+    expect(screen.queryByText("Entity page")).toBeNull();
   });
 
   it("ends a type's own card with what can be done, unless hidden", async () => {

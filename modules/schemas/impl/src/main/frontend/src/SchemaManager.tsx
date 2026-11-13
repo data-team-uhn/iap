@@ -19,7 +19,7 @@
 import { useMemo, useState } from "react";
 
 import AddIcon from "@mui/icons-material/Add";
-import { Box, Button } from "@mui/material";
+import { Button } from "@mui/material";
 import { useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
@@ -60,19 +60,13 @@ function SchemaManager() {
         schema,
         reload: () => setRefreshToken(token => token + 1),
       };
-      // A click on an action, or inside its dialog, stays out of the row, whose click opens the schema or the
-      // version
-      return (
-        <Box onClick={event => event.stopPropagation()}>
-          { version
-            ? (
-              <ActionsMenu label={`Actions for version ${labelOf(version)}`}>
-                <SchemaVersionActions place="versionList" version={version} {...shared} />
-              </ActionsMenu>
-            )
-            : <ActionsMenu label={`Actions for “${titleOf(schema)}”`}><SchemaActions {...shared} /></ActionsMenu> }
-        </Box>
-      );
+      return version
+        ? (
+          <ActionsMenu label={`Actions for version ${labelOf(version)}`}>
+            <SchemaVersionActions place="versionList" version={version} {...shared} />
+          </ActionsMenu>
+        )
+        : <ActionsMenu label={`Actions for “${titleOf(schema)}”`}><SchemaActions {...shared} /></ActionsMenu>;
     },
   } ], []);
 

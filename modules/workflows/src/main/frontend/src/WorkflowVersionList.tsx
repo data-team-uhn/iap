@@ -18,8 +18,6 @@
 
 import { useMemo } from "react";
 
-import { Box } from "@mui/material";
-
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry";
 
@@ -39,12 +37,8 @@ function WorkflowVersionList({ workflow, reload }: {
     headerName: "Actions",
     width: 220,
     cardSlot: "omit",
-    renderCell: params => (
-      // Kept from the row: a click on an action, or inside its dialog, is not a click on the version
-      <Box onClick={event => event.stopPropagation()}>
-        <WorkflowVersionActions version={versionOf(params.row)} workflow={workflow} reload={reload} />
-      </Box>
-    ),
+    renderCell: params =>
+      <WorkflowVersionActions version={versionOf(params.row)} workflow={workflow} reload={reload} />,
   } ], [ workflow, reload ]);
 
   const versions = useMemo(() => workflow.versions.map(versionRow), [ workflow ]);
