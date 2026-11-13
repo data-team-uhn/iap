@@ -18,7 +18,7 @@
 import type { MarkPlace } from "@iap/documents-pdf-viewer/marksModel";
 import {
   COMMENT_BUTTON_HEIGHT,
-  describeOpenFailure,
+  describePdfFailure,
   describePages,
   describeSorts,
   getCommentButtonPlace,
@@ -32,45 +32,37 @@ import {
   nameMarks,
   IDLE_SEARCH,
 } from "@iap/documents-pdf-viewer/pdfViewerModel";
-import { NotAuthenticatedError } from "@iap/frontend-commons/reLogin";
+import { PdfWorkerFailure } from "@iap/frontend-commons/pdfjsClient";
 import { RequestError } from "@iap/frontend-commons/requestFailure";
 
-describe("describeOpenFailure", () => {
+describe("describePdfFailure", () => {
   function pdfjsError(name: string, message: string): Error {
     const error = new Error(message);
     error.name = name;
     return error;
   }
 
-  beforeEach(() => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("asks the person to sign in again when the session has ended", () => {
-    expect(describeOpenFailure(new NotAuthenticatedError("gone"))).toBe(
-      "Your session has expired. Sign in again, then retry.",
+  it("asks for a reload when PDF.js's worker never started", () => {
+    expect(describePdfFailure(new PdfWorkerFailure("The PDF.js worker did not start"))).toBe(
+      "The document viewer could not start. Reload the page to try again.",
     );
   });
 
   it("says when the file is not a PDF that can be read", () => {
-    expect(describeOpenFailure(pdfjsError("InvalidPDFException", "Invalid PDF structure."))).toBe(
+    expect(describePdfFailure(pdfjsError("InvalidPDFException", "Invalid PDF structure."))).toBe(
       "This file is not a PDF that can be read. It may be damaged, or be another kind of file.",
     );
   });
 
   it("says when the PDF is protected by a password", () => {
-    expect(describeOpenFailure(pdfjsError("PasswordException", "No password given"))).toBe(
+    expect(describePdfFailure(pdfjsError("PasswordException", "No password given"))).toBe(
       "This PDF is protected by a password, so it cannot be shown here.",
     );
   });
 
-  it("describes any other failure as a request failure", () => {
-    expect(describeOpenFailure(new RequestError(404))).toMatch(/could not be found on the server/);
-    expect(describeOpenFailure("odd")).toBe("Something went wrong: odd");
+  it("leaves any other failure to be described as a request's", () => {
+    expect(describePdfFailure(new RequestError(404))).toBeUndefined();
+    expect(describePdfFailure("odd")).toBeUndefined();
   });
 });
 

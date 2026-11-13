@@ -18,10 +18,10 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { loadPdfViewer, type ViewerComponents } from "./pdfjsViewer";
-import { describeOpenFailure } from "./pdfViewerModel";
+import { describePdfFailure } from "./pdfViewerModel";
 
 import type { PageText } from "./marksModel";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
@@ -83,7 +83,7 @@ export function usePdfDocument(url: string | undefined) {
     const stop = new AbortController();
     void (async () => {
       try {
-        const [{ pdfjs, components, worker, dataUrls }, response] = await Promise.all([
+        const [{ pdfjs, components, worker, failed, dataUrls }, response] = await Promise.all([
           loadPdfViewer(),
           authFetch(url, { signal: stop.signal }),
         ]);
@@ -95,12 +95,13 @@ export function usePdfDocument(url: string | undefined) {
         // PDF.js's own fonts, not the system's, stand in for the fonts a PDF names without embedding
         // them. A phone without Times New Roman would otherwise set the text in a font of other widths.
         task = pdfjs.getDocument({ data, worker, useSystemFonts: false, ...dataUrls });
-        const doc = await task.promise;
+        // A worker that never started never answers
+        const doc = await Promise.race([ task.promise, failed ]);
         stop.signal.throwIfAborted();
         setOpened({ url, pdf: openedDocument(components, doc) });
       } catch (error: unknown) {
         if (!stop.signal.aborted) {
-          setOpened({ url, openError: describeOpenFailure(error) });
+          setOpened({ url, openError: describePdfFailure(error) ?? describeRequestFailure(error) });
         }
       }
     })();

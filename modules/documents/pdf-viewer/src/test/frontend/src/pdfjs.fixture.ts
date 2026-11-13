@@ -143,9 +143,19 @@ export function getAssetURL(url: string): Promise<string> {
   return Promise.resolve(`/libs/iap/resources/${name.replace(".", "/")}.0123456789abcdef.data/`);
 }
 
-// A browser worker, which jsdom does not have.
-export class FakeWorker {
-  constructor(readonly url: URL, readonly options: WorkerOptions) {}
+// A browser worker, which jsdom does not have. After fail(), its script never ran, and PDF.js never
+// hears back from it.
+export class FakeWorker extends EventTarget {
+  ran = true;
+
+  constructor(readonly url: URL, readonly options: WorkerOptions) {
+    super();
+  }
+
+  fail(): void {
+    this.ran = false;
+    this.dispatchEvent(new Event("error"));
+  }
 }
 
 // What the server answers when the viewer fetches the file: its URL, which says which document it is. A new
@@ -434,7 +444,7 @@ class FakePDFFindController {
     return this._linkService.pdfDocument?.pages ?? fakePdf.pages;
   }
 
-  // Overridden by PdfViewer's search.
+  // Overridden by FrameFindController.
   scrollMatchIntoView(_params: { element: HTMLElement; pageIndex: number; matchIndex: number }): void {
     // Nothing to scroll in the stand-in
   }
@@ -507,6 +517,20 @@ export class FakePDFWorker {
   }
 }
 
+function openDocument(url: string, worker: unknown): Promise<FakeDocument> {
+  const port = worker instanceof FakePDFWorker ? worker.port : undefined;
+  if (port instanceof FakeWorker && !port.ran) {
+    return new Promise(() => undefined);
+  }
+  if (fakePdf.openFailure !== undefined) {
+    return Promise.reject(fakePdf.openFailure);
+  }
+  return Promise.resolve().then(() => {
+    fakePdf.opened++;
+    return new FakeDocument(fakePdf.documents[url] ?? fakePdf.pages);
+  });
+}
+
 // What vi.mock("pdfjs-dist", ...) hands the viewer in place of the real module.
 export function createPdfjsModule() {
   return {
@@ -517,12 +541,7 @@ export function createPdfjsModule() {
       fakePdf.workers.push(options.worker);
       const url = new TextDecoder().decode(options.data);
       return {
-        promise: fakePdf.openFailure !== undefined
-          ? Promise.reject(fakePdf.openFailure)
-          : Promise.resolve().then(() => {
-            fakePdf.opened++;
-            return new FakeDocument(fakePdf.documents[url] ?? fakePdf.pages);
-          }),
+        promise: openDocument(url, options.worker),
         destroy: () => {
           fakePdf.destroyedTasks++;
           return Promise.resolve();

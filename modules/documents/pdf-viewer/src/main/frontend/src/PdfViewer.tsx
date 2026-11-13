@@ -105,7 +105,7 @@ export interface PdfViewerProps {
 // viewer too narrow for that, shown one at a time above it. Compared with an older version, it also marks
 // what changed, beside the older version or in this one alone.
 export default function PdfViewer(props: PdfViewerProps) {
-  // Keyed so another document starts over with nothing left from the last one.
+  // Keyed so another document, or another page to open at, starts over with nothing left from the last.
   return <PdfViewerSession key={`${props.url}\n${props.page}`} {...props} />;
 }
 
