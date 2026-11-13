@@ -25,12 +25,18 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.osgi.framework.Constants;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.status.spi.StatusReport;
 import io.uhndata.iap.status.spi.StatusReporter;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -94,6 +100,9 @@ class StatusReportManagerImplTest
 
     private final StatusReporter silent = new FakeReporter("Silent", Set.of("status"), null);
 
+    /** What the broken reporter throws, its message naming infrastructure no reader should see. */
+    private final IllegalStateException failure = new IllegalStateException("cannot reach db.internal:5432");
+
     private final StatusReporter broken = new StatusReporter()
     {
         @Override
@@ -111,7 +120,7 @@ class StatusReportManagerImplTest
         @Override
         public StatusReport report(final boolean unprivileged)
         {
-            throw new IllegalStateException("boom");
+            throw StatusReportManagerImplTest.this.failure;
         }
     };
 
@@ -151,8 +160,39 @@ class StatusReportManagerImplTest
         assertEquals(2, reports.size());
         assertEquals("Broken", reports.get(0).getName());
         assertEquals(StatusReport.Status.ERROR, reports.get(0).getStatus());
-        assertTrue(reports.get(0).getText().contains("boom"));
         assertEquals("Uptime", reports.get(1).getName());
+    }
+
+    @Test
+    void aFailedReportDoesNotQuoteTheException()
+    {
+        final StatusReportManagerImpl manager = managerWith(this.broken);
+
+        // Not even to the administrator: the text ends up in screenshots and tickets
+        for (final boolean unprivileged : new boolean[] { true, false }) {
+            final String text = manager.getReports(unprivileged).get(0).getText();
+            assertEquals("Failed to compute the report, the instance log has the reason", text);
+            assertFalse(text.contains("db.internal"));
+        }
+    }
+
+    @Test
+    void recordsAFailedReportAgainstItsReporter()
+    {
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        try {
+            managerWith(this.broken, this.uptime).getReports(true);
+
+            final ArgumentCaptor<ErrorContext> recorded = ArgumentCaptor.forClass(ErrorContext.class);
+            Mockito.verify(recorder).logError(Mockito.same(this.failure), recorded.capture());
+            assertEquals(this.broken.getClass().getName(), recorded.getValue().getComponent());
+            assertEquals("report", recorded.getValue().getOperation());
+            assertEquals("Broken", recorded.getValue().getDetails().get("reporter"));
+            Mockito.verifyNoMoreInteractions(recorder);
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
     }
 
     @Test
