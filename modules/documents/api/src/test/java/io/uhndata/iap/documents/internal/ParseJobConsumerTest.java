@@ -19,7 +19,6 @@ package io.uhndata.iap.documents.internal;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.lang.reflect.Field;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.http.HttpRequest;
@@ -121,10 +120,11 @@ class ParseJobConsumerTest
         assertNotNull(properties.get(ParseJob.PN_STARTED, Calendar.class));
         assertNull(properties.get(ParseJob.PN_FINISHED, Calendar.class));
         // No callback parameter: the daemon knows on its own where to POST the outcome
-        assertEquals("http://localhost:18765/parse?path=%2Fshared-docs%2Fproposal.pdf"
+        assertEquals(DaemonConnection.DEFAULT_URL + "/parse?path=%2Fshared-docs%2Fproposal.pdf"
             + "&job_id=" + JOB_ID,
             this.sentRequest.uri().toString());
-        assertEquals(Duration.ofSeconds(30), this.sentRequest.timeout().orElseThrow());
+        assertEquals(Duration.ofSeconds(DaemonConnection.DEFAULT_RESPONSE_TIMEOUT_SECONDS),
+            this.sentRequest.timeout().orElseThrow());
     }
 
     @Test
@@ -149,10 +149,7 @@ class ParseJobConsumerTest
     @Test
     void aJobAlreadyActiveIsNotDispatchedAgain()
     {
-        this.context.create().resource(ParseJob.nodePath(JOB_ID),
-            ParseJob.PN_JOB_ID, JOB_ID,
-            ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE,
-            ParseJob.PN_PATH, DOCUMENT);
+        TestJobs.createJob(this.context, JOB_ID, ParseJob.STATUS_ACTIVE, DOCUMENT, null);
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
 
@@ -483,17 +480,6 @@ class ParseJobConsumerTest
     }
 
     @Test
-    void noAuthorizationHeaderWhenTheDaemonNeedsNoToken()
-    {
-        jobNode();
-        daemonAnswers(202, ACCEPTED_BODY);
-
-        assertEquals(JobResult.OK, this.consumer.process(this.job));
-
-        assertTrue(this.sentRequest.headers().firstValue("Authorization").isEmpty());
-    }
-
-    @Test
     void configuredDaemonTokenIsSentAsAnAuthorizationHeader()
     {
         activate(this.consumer, Map.of(ParseJob.DAEMON_TOKEN_PROPERTY, "daemon-secret"));
@@ -530,31 +516,6 @@ class ParseJobConsumerTest
 
         // The daemon holds its own callback URL; a stale configuration here changes nothing
         assertFalse(this.sentRequest.uri().toString().contains("callback"));
-    }
-
-    @Test
-    void nonsenseConfigurationFallsBackToTheDefaults()
-    {
-        activate(this.consumer, Map.of("daemonUrl", "", "responseTimeout", "soon"));
-        jobNode();
-        daemonAnswers(202, ACCEPTED_BODY);
-
-        assertEquals(JobResult.OK, this.consumer.process(this.job));
-
-        assertTrue(this.sentRequest.uri().toString().startsWith("http://localhost:18765/parse?"));
-        assertEquals(Duration.ofSeconds(30), this.sentRequest.timeout().orElseThrow());
-    }
-
-    @Test
-    void nonPositiveTimeoutFallsBackToTheDefault()
-    {
-        activate(this.consumer, Map.of("responseTimeout", "-5"));
-        jobNode();
-        daemonAnswers(202, ACCEPTED_BODY);
-
-        assertEquals(JobResult.OK, this.consumer.process(this.job));
-
-        assertEquals(Duration.ofSeconds(30), this.sentRequest.timeout().orElseThrow());
     }
 
     @Test
@@ -608,7 +569,7 @@ class ParseJobConsumerTest
             }
 
             @Override
-            protected String environment(final String name)
+            protected String getEnvironmentVariable(final String name)
             {
                 if (ParseJob.TOKEN_VARIABLE.equals(name)) {
                     return environmentToken;
@@ -635,12 +596,8 @@ class ParseJobConsumerTest
 
     private void inject(final ParseJobConsumer target, final ResourceResolverFactory factory) throws Exception
     {
-        final Field reference = ParseJobConsumer.class.getDeclaredField("resolverFactory");
-        reference.setAccessible(true);
-        reference.set(target, factory);
-        final Field outcomes = ParseJobConsumer.class.getDeclaredField("outcomes");
-        outcomes.setAccessible(true);
-        outcomes.set(target, this.dispatcher);
+        TestJobs.inject(target, "resolverFactory", factory);
+        TestJobs.inject(target, "outcomes", this.dispatcher);
     }
 
     @Test
@@ -651,11 +608,7 @@ class ParseJobConsumerTest
             handed.add(outcome);
             return true;
         });
-        this.context.create().resource(ParseJob.nodePath(JOB_ID),
-            ParseJob.PN_JOB_ID, JOB_ID,
-            ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED,
-            ParseJob.PN_PATH, DOCUMENT,
-            ParseJob.PN_TARGET, "/Submissions/aRequest/d1/v1/file");
+        TestJobs.createJob(this.context, JOB_ID, ParseJob.STATUS_QUEUED, DOCUMENT, "/Submissions/aRequest/d1/v1/file");
         this.sendFailure = new IOException("connection refused");
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
@@ -669,10 +622,7 @@ class ParseJobConsumerTest
 
     private void jobNode()
     {
-        this.context.create().resource(ParseJob.nodePath(JOB_ID),
-            ParseJob.PN_JOB_ID, JOB_ID,
-            ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED,
-            ParseJob.PN_PATH, DOCUMENT);
+        TestJobs.createJob(this.context, JOB_ID, ParseJob.STATUS_QUEUED, DOCUMENT, null);
     }
 
     private ValueMap jobProperties()

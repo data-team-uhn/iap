@@ -25,9 +25,8 @@ starts with the root is still refused. Derived writes (``{stem}.md``) are
 new path expressions and stay tainted; they go through the I/O helpers that repeat
 ``realpath`` + ``startswith`` in the same function as the syscall.
 
-Deliberately not in ``test_docling_runtime.py``: that module skips itself wherever
-Docling is absent, which includes CI, and a security check that does not run in CI is
-not a check. :mod:`shared_docs` has no Docling dependency so this runs everywhere.
+A security check should not lean on a stand-in for Docling, so :mod:`shared_docs` has no
+Docling dependency and this runs everywhere.
 """
 
 import os

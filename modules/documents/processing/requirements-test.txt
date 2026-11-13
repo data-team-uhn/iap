@@ -18,9 +18,9 @@
 #
 #   pip install -r modules/documents/processing/requirements-test.txt
 #
-# `docling` is deliberately not listed. It is a multi-GB install with model weights, and
-# test_docling_runtime.py skips itself when it is absent, so the other 350-odd tests still
-# run. Runtime dependencies are installed by the Dockerfile, not from here.
+# `docling` is deliberately not listed. It is a multi-GB install with model weights. Without
+# it conftest.py stands in for it, and only the tests marked `requires_docling` skip. Runtime
+# dependencies are installed by the Dockerfile, not from here.
 pytest
 psutil
 pypdf

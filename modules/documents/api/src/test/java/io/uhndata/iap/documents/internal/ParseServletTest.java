@@ -18,7 +18,6 @@
 package io.uhndata.iap.documents.internal;
 
 import java.io.StringReader;
-import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.UUID;
 
@@ -319,9 +318,7 @@ class ParseServletTest
     {
         for (final Object target : new Object[] { this.servlet, this.service }) {
             try {
-                final Field reference = target.getClass().getDeclaredField(name);
-                reference.setAccessible(true);
-                reference.set(target, value);
+                TestJobs.inject(target, name, value);
             } catch (final NoSuchFieldException e) {
                 // Not every collaborator has every field
             }

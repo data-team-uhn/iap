@@ -20,30 +20,30 @@ package io.uhndata.iap.documents.internal;
 import java.util.Map;
 
 /**
- * Resolves the shared Docling callback JWT used by {@link ParseCallbackServlet} and {@link ParseJobConsumer}.
+ * Reads a token the document daemon and this module share: the callback JWT, or the daemon's own token.
  *
  * @version $Id$
  * @since 0.1.0
  */
-final class CallbackToken
+final class TokenSetting
 {
-    private CallbackToken()
+    private TokenSetting()
     {
         // Utility
     }
 
     /**
-     * Read the shared authorization token: the {@link ParseJob#TOKEN_PROPERTY} OSGi property when set, the environment
-     * value otherwise.
+     * Reads a token: the OSGi property when set, the environment value otherwise.
      *
      * @param configuration the component configuration
-     * @param environmentValue what {@link ParseJob#TOKEN_VARIABLE} holds, may be {@code null} when unset
+     * @param property the OSGi property that holds the token
+     * @param environmentValue what the token's environment variable holds, may be {@code null} when unset
      * @return the token to use, or an empty string when none is configured
      */
-    static String resolve(final Map<String, Object> configuration, final String environmentValue)
+    static String resolve(final Map<String, Object> configuration, final String property,
+        final String environmentValue)
     {
-        final String configured =
-            String.valueOf(configuration.getOrDefault(ParseJob.TOKEN_PROPERTY, "")).trim();
+        final String configured = String.valueOf(configuration.getOrDefault(property, "")).trim();
         if (!configured.isEmpty()) {
             return configured;
         }
