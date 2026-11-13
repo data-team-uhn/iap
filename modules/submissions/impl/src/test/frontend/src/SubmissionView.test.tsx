@@ -37,6 +37,7 @@ import { jsonResponse, tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 import { NEEDS_APPROVAL, approval } from "./approvals.fixture";
 import { SEND, SEND_LABEL, waitingOn } from "./workflowTasks.fixture";
+import { settle } from "./workQueue.fixture";
 
 vi.mock("@iap/ui-extension/extensionManager", () => ({
   loadExtensions: vi.fn(() => Promise.resolve([])),
@@ -798,6 +799,29 @@ describe("SubmissionView", () => {
       save.resolve(undefined);
 
       await waitFor(() => expect(completed(fetchMock)).toHaveLength(1));
+    });
+
+    it("sends an answer given while the step is on its way once the step is answered", async () => {
+      await loadAnswerComponents();
+      const completion = Promise.withResolvers<undefined>();
+      const fetchMock = withATaskWaiting({ form: ONE_QUESTION, completion: completion.promise });
+      vi.stubGlobal("fetch", fetchMock);
+      const saved = () => fetchMock.mock.calls.filter(([ url ]) => url.endsWith(".save.json"));
+
+      renderAt("/Submissions/demo-1.edit");
+      const field = await screen.findByLabelText(/Why\?/);
+      await userEvent.click(screen.getByRole("button", { name: SEND_LABEL }));
+      await waitFor(() => expect(completed(fetchMock)).toHaveLength(1));
+      await userEvent.type(field, "because");
+      await userEvent.tab();
+      await settle();
+      expect(saved()).toHaveLength(0);
+
+      await act(async () => {
+        completion.resolve(undefined);
+        await completion.promise;
+      });
+      await waitFor(() => expect(saved()).toHaveLength(1));
     });
 
     it("stops saying what is missing once the editor completes the request", async () => {
