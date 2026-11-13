@@ -15,15 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useId, useLayoutEffect, useState, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
 
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Box, ButtonBase, IconButton, Typography, useMediaQuery } from "@mui/material";
 import { useTheme, type SxProps, type Theme } from "@mui/material/styles";
 
-import { cutShort, failedColour, passageCard } from "./passageStyles";
-import { describePages, type PassageNote } from "./pdfViewerModel";
+import { cutShort, failedColour, passageCard, passageDetails, passageLayer } from "./passageStyles";
+import { capitalize, describePages, type MarkName, type PassageNote } from "./pdfViewerModel";
+import { TEXT_ENTRY } from "../textEntry";
+import { useScrollEdges } from "../useScrollEdges";
 
 import type { MarkKind } from "./marksModel";
 
@@ -32,12 +34,25 @@ import type { MarkKind } from "./marksModel";
 const MAX_PASSAGE_LINES = 3;
 const MAX_PASSAGE_LINES_ON_PHONE = 1;
 
+// The same for what the caller shows under the passage, such as a long comment.
+const MAX_DETAILS_LINES = 6;
+const MAX_DETAILS_LINES_ON_PHONE = 3;
+
+// The most of the viewer's height the card takes, scrolling past it, so the document's controls below it
+// stay in reach.
+const MAX_CARD_HEIGHT = "60%";
+
 // The passage once known, and how the search for it went, on a card in its mark's colour. Once found, the
 // passage and its note take the reader to it. A passage running past its limit of lines is cut short,
-// with a button beside it showing all of it, since a button cannot hold another. On a phone, cut to one
-// line, it shares its row with the note. One of several passages has controls for stepping through
-// them above it, and the caller's details for the passage go under it.
-export default function PassageCard({ quote, note, markedBy, stepper, details, onShowPassage }: {
+// with a button beside it showing all of it, since a button cannot hold another. One of several passages
+// has controls for stepping through them above it, and the caller's details for the passage go under it,
+// cut short too. The one button shows all of both, and so does moving the focus into what is cut. While
+// what is under the passage holds a field to type in, such as a comment being written, the card stays open
+// so the field is in reach.
+export default function PassageCard({ ref, name, quote, note, markedBy, stepper, details, onShowPassage }: {
+  ref?: Ref<HTMLDivElement>;
+  // What the mark is called, naming the button showing all of it.
+  name: MarkName;
   quote: string | undefined;
   note?: PassageNote;
   markedBy: MarkKind;
@@ -47,10 +62,37 @@ export default function PassageCard({ quote, note, markedBy, stepper, details, o
 }) {
   const phone = useMediaQuery(useTheme().breakpoints.down("sm"));
   const limit = phone ? MAX_PASSAGE_LINES_ON_PHONE : MAX_PASSAGE_LINES;
+  const detailsLimit = phone ? MAX_DETAILS_LINES_ON_PHONE : MAX_DETAILS_LINES;
   const quoteId = useId();
   const [copy, setCopy] = useState<HTMLElement | null>(null);
   const [lines, setLines] = useState(0);
   const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
+  const detailsBox = useRef<HTMLDivElement>(null);
+  const detailsEdges = useScrollEdges(detailsBox);
+  const [holdsField, setHoldsField] = useState(false);
+  const open = expanded || holdsField;
+  const detailsCut = !open && detailsEdges.below;
+  const hasDetails = details !== undefined;
+
+  useLayoutEffect(() => {
+    const box = detailsBox.current;
+    if (box === null) {
+      return undefined;
+    }
+    const check = () => setHoldsField(box.querySelector(TEXT_ENTRY) !== null);
+    check();
+    const changes = new MutationObserver(check);
+    changes.observe(box, { childList: true, subtree: true });
+    return () => changes.disconnect();
+  }, [hasDetails]);
+
+  // Once cut again, what is under the passage starts from its top, wherever it was scrolled to.
+  useLayoutEffect(() => {
+    if (!open && detailsBox.current !== null) {
+      detailsBox.current.scrollTop = 0;
+    }
+  }, [open]);
 
   // Counted on an invisible copy at the card's full width, which cutting the passage short does not change.
   useLayoutEffect(() => {
@@ -65,7 +107,7 @@ export default function PassageCard({ quote, note, markedBy, stepper, details, o
   }, [copy]);
 
   const long = lines > limit;
-  const cut = long && !expanded;
+  const cut = long && !open;
   const oneRow = phone && cut;
   const text = quote === undefined ? "" : `“${quote}”`;
   const content = (
@@ -113,10 +155,28 @@ export default function PassageCard({ quote, note, markedBy, stepper, details, o
 
   return (
     <Box
-      sx={theme => ({ ...passageCard(theme, markedBy), mb: 1, overflow: "hidden" })}
+      ref={ref}
+      role="group"
+      aria-label={capitalize(name.one)}
+      sx={theme => ({
+        ...passageCard(theme, markedBy),
+        flexShrink: 0,
+        maxHeight: MAX_CARD_HEIGHT,
+        overflowX: "hidden",
+        overflowY: "auto",
+        overscrollBehavior: "contain",
+      })}
     >
       {stepper}
-      <Box sx={{ position: "relative", display: "flex" }}>
+      <Box
+        sx={theme => ({
+          position: "relative",
+          display: "flex",
+          // The copy measured below runs the whole passage's length, which the card would otherwise scroll to
+          overflow: "clip",
+          ...passageLayer(theme, markedBy),
+        })}
+      >
         <Typography
           ref={setCopy}
           variant="body2"
@@ -143,12 +203,12 @@ export default function PassageCard({ quote, note, markedBy, stepper, details, o
             </ButtonBase>
           )
           : <Box sx={passageSx}>{content}</Box>}
-        {long
+        {!holdsField && (long || detailsCut || expanded)
           ? (
             <IconButton
-              aria-label={expanded ? "Show less of the passage" : "Show the whole passage"}
+              aria-label={expanded ? `Show less of the ${name.one}` : `Show the whole ${name.one}`}
               aria-expanded={expanded}
-              aria-controls={quoteId}
+              aria-controls={details === undefined ? quoteId : `${quoteId} ${detailsId}`}
               onClick={() => setExpanded(!expanded)}
               sx={{ alignSelf: oneRow ? "center" : "flex-end" }}
             >
@@ -157,7 +217,22 @@ export default function PassageCard({ quote, note, markedBy, stepper, details, o
           )
           : null}
       </Box>
-      {details}
+      {details === undefined
+        ? null
+        : (
+          <Box
+            ref={detailsBox}
+            id={detailsId}
+            onFocus={() => {
+              if (detailsCut) {
+                setExpanded(true);
+              }
+            }}
+            sx={passageDetails(detailsEdges, open ? undefined : detailsLimit)}
+          >
+            {details}
+          </Box>
+        )}
     </Box>
   );
 }

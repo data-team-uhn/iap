@@ -30,24 +30,27 @@ const ANCHOR: TextAnchor = {
   after: ", assist",
 };
 
-// A stand-in for the viewer, listing the marks it is given with what the widget shows under each. Its
-// Comment button gives a fixed anchor.
+// A stand-in for the viewer, listing the marks under the name it is given, with what the widget shows
+// under each. Its Comment button gives a fixed anchor.
 vi.mock("@iap/frontend-commons/pdfViewer/PdfViewer", () => ({
-  default: ({ marks, selectedMarkId, onSelectMark, onAnnotate, renderMarkDetails, onClose }: PdfViewerProps) => (
-    <div role="region" aria-label="Viewer">
-      <ul>
-        {marks.map(mark => (
-          <li key={mark.id}>
-            <button type="button" onClick={() => onSelectMark?.(mark.id)}>{`Select ${mark.id}`}</button>
-            <output>{JSON.stringify(mark)}</output>
-            {renderMarkDetails?.(mark, mark.id === selectedMarkId)}
-          </li>
-        ))}
-      </ul>
-      <button type="button" onClick={() => onAnnotate?.(ANCHOR)}>Comment</button>
-      <button type="button" onClick={onClose}>Close</button>
-    </div>
-  ),
+  default: (props: PdfViewerProps) => {
+    const { marks, markName, selectedMarkId, onSelectMark, onAnnotate, renderMarkDetails, onClose } = props;
+    return (
+      <div role="region" aria-label="Viewer">
+        <ul aria-label={markName?.many}>
+          {marks.map(mark => (
+            <li key={mark.id}>
+              <button type="button" onClick={() => onSelectMark?.(mark.id)}>{`Select ${mark.id}`}</button>
+              <output>{JSON.stringify(mark)}</output>
+              {renderMarkDetails?.(mark, mark.id === selectedMarkId)}
+            </li>
+          ))}
+        </ul>
+        <button type="button" onClick={() => onAnnotate?.(ANCHOR)}>Comment</button>
+        <button type="button" onClick={onClose}>Close</button>
+      </div>
+    );
+  },
 }));
 
 async function open() {
@@ -67,6 +70,11 @@ describe("PdfAnnotationsTestWidget", () => {
     expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
     await userEvent.type(screen.getByLabelText("PDF URL"), "/some/file.pdf");
     expect(screen.getByRole("button", { name: "Open" })).toBeEnabled();
+  });
+
+  it("has the viewer count and step through the passages as comments", async () => {
+    await open();
+    expect(screen.getByRole("list", { name: "comments" })).toBeInTheDocument();
   });
 
   it("marks a passage selected to comment on, read back from how a review comment keeps it", async () => {
