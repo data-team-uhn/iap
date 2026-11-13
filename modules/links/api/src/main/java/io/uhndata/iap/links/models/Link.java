@@ -124,7 +124,7 @@ public abstract class Link extends Content
     /**
      * Deletes this link, in the session it was read with. The caller commits the deletion.
      *
-     * @param removeBacklink whether to delete the reverse link too, if this session can read it
+     * @param removeBacklink whether to delete the reverse link too, if this session can read and remove it
      * @return {@code true} if the link was deleted; {@code false} if the deletion failed, or the links service is
      *         not available
      */
