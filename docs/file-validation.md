@@ -1,7 +1,7 @@
 # File validation
 
 **Module:** `modules/frontend-commons` · **Files:** `fileValidation.ts`, one check per
-format in `fileValidation/`, `pdfViewer/pdfjsClient.ts` · **Used by:**
+format in `fileValidation/`, `pdfjsClient.ts` · **Used by:**
 `DocumentUpload.tsx` (submissions) · **Demo:** `test-data`'s `FileValidationWidget`
 
 Checks a file in the browser before it is uploaded: its size, its type, and whether its
@@ -230,7 +230,7 @@ that way:
 - **The shared `vendor` chunk takes `chunks: 'initial'`**, only what pages need up
   front. Without it, every page would download PDF.js.
 
-PDF.js reads PDFs in a web worker, which `loadPdfjs()` in `pdfViewer/pdfjsClient.ts`
+PDF.js reads PDFs in a web worker, which `loadPdfjs()` in `pdfjsClient.ts`
 starts once and every document shares. Webpack bundles the worker as a chunk of its own:
 
 ```ts
