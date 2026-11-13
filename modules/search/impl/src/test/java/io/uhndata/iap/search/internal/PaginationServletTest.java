@@ -77,6 +77,13 @@ public class PaginationServletTest
 {
     private static final String SCOPE = "/Submissions";
 
+    /** What a request is refused with when its values do not come once per filter name. */
+    private static final String MISALIGNED_VALUE = "`fieldValue` must be sent once per filter name";
+
+    /** What a request is refused with when the query its parameters make cannot run. */
+    private static final String UNREADABLE_PARAMETERS =
+        "The filter, sort or full-text parameters could not be understood";
+
     private final SlingContext osgi = new SlingContext();
 
     private PaginationServlet servlet;
@@ -341,7 +348,7 @@ public class PaginationServletTest
         withParameter("fieldValue", "draft");
         withParameter("fieldGroup", "g1", "g2");
         this.servlet.doGet(this.request, this.response);
-        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        assertRefused("`fieldGroup` must be sent once per filter name");
     }
 
     @Test
@@ -406,7 +413,7 @@ public class PaginationServletTest
         withParameter("childField3Name", "reviewer");
         withParameter("childField3Value", "@me");
         this.servlet.doGet(this.request, this.response);
-        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        assertRefused(UNREADABLE_PARAMETERS, "childType");
     }
 
     @Test
@@ -423,18 +430,18 @@ public class PaginationServletTest
     {
         withParameter("fieldName", "status");
         this.servlet.doGet(this.request, this.response);
-        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        assertRefused(MISALIGNED_VALUE);
 
         resetOutput();
         withParameter("fieldValue", "draft", "submitted");
         this.servlet.doGet(this.request, this.response);
-        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        assertRefused(MISALIGNED_VALUE);
 
         resetOutput();
         withParameter("fieldValue", "draft");
         withParameter("fieldComparator", "=", "=");
         this.servlet.doGet(this.request, this.response);
-        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        assertRefused("`fieldComparator` must be sent once per filter name");
     }
 
     @Test
@@ -443,7 +450,7 @@ public class PaginationServletTest
         withParameter("childFieldName", "reviewer");
         withParameter("childFieldValue", "@me");
         this.servlet.doGet(this.request, this.response);
-        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        assertRefused(UNREADABLE_PARAMETERS, "childType");
     }
 
     @Test
@@ -452,7 +459,19 @@ public class PaginationServletTest
         withParameter("fieldName", "status] IS NULL or n.[x");
         withParameter("fieldValue", "draft");
         this.servlet.doGet(this.request, this.response);
-        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        assertRefused(UNREADABLE_PARAMETERS, "IS NULL");
+    }
+
+    @Test
+    public void aFullTextExpressionTheRepositoryCannotParseIsRefusedWithoutItsReason() throws Exception
+    {
+        withParameter("filter", "\"");
+        final Query query = Mockito.mock(Query.class);
+        Mockito.when(this.queryManager.createQuery(Mockito.anyString(), Mockito.eq(Query.JCR_SQL2))).thenReturn(query);
+        // What Oak throws for a malformed full-text expression
+        Mockito.when(query.execute()).thenThrow(new IllegalArgumentException("FullText: */*(*)query/*(*)/"));
+        this.servlet.doGet(this.request, this.response);
+        assertRefused(UNREADABLE_PARAMETERS, "*(*)");
     }
 
     @Test
@@ -622,6 +641,30 @@ public class PaginationServletTest
     {
         Mockito.verify(this.response, Mockito.atLeastOnce()).setStatus(expectedStatus);
         Assertions.assertTrue(getResponseJson().containsKey("error"));
+    }
+
+    /**
+     * Checks that the request was refused as the client's mistake, with the given reason.
+     *
+     * @param expectedReason the whole of the expected {@code error}
+     */
+    private void assertRefused(final String expectedReason)
+    {
+        Mockito.verify(this.response, Mockito.atLeastOnce()).setStatus(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        Assertions.assertEquals(expectedReason, getResponseJson().getString("error"));
+    }
+
+    /**
+     * Checks that the request was refused as the client's mistake, with the given reason, and without quoting the
+     * exception that refused it.
+     *
+     * @param expectedReason the whole of the expected {@code error}
+     * @param exceptionDetail a fragment of the exception's message, which must not reach the client
+     */
+    private void assertRefused(final String expectedReason, final String exceptionDetail)
+    {
+        assertRefused(expectedReason);
+        Assertions.assertFalse(this.output.toString().contains(exceptionDetail), this.output.toString());
     }
 
     @Test
