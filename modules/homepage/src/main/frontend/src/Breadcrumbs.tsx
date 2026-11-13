@@ -45,7 +45,7 @@ function Breadcrumbs() {
 
   useEffect(() => {
     getRoutes()
-      .then(response => setViews((response as View[] | undefined) ?? []))
+      .then(response => setViews(response as View[]))
       .catch((err: unknown) => console.error("Something went wrong loading the views", err));
   }, []);
 
