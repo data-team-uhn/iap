@@ -18,13 +18,16 @@
 
 import { renderHook, waitFor } from "@testing-library/react";
 
-import { useTagChoices } from "@iap/conditions/useTagChoices";
-import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
+import type { useTagChoices as UseTagChoices } from "@iap/conditions/useTagChoices";
 import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
+let useTagChoices: typeof UseTagChoices;
+
 describe("useTagChoices", () => {
-  beforeEach(() => {
-    clearTagDefinitionsCache();
+  // Each test starts with no tag definitions cached
+  beforeEach(async () => {
+    vi.resetModules();
+    ({ useTagChoices } = await import("@iap/conditions/useTagChoices"));
     vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
   });
 
@@ -43,7 +46,6 @@ describe("useTagChoices", () => {
     const { result } = renderHook(() => useTagChoices());
     await waitFor(() => expect(result.current).toEqual([ { value: "plain", label: "plain" } ]));
 
-    clearTagDefinitionsCache();
     const { unmount } = renderHook(() => useTagChoices());
     unmount();
   });

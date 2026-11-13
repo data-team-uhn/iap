@@ -23,18 +23,10 @@ import { useTheme } from "@mui/material/styles";
 
 import { chipStyle } from "@iap/frontend-commons/chipStyle";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { stringsOf } from "@iap/frontend-commons/serializedNode";
 
 import { type TagDefinition, loadTagDefinitions } from "./tagDefinitions";
 import { tagIcon } from "./tagIcons";
-
-// The values of a serialized node's `tags` property, as an array. A single string counts as one
-// value, and anything that is not a string is left out.
-function tagNames(tags: unknown): string[] {
-  if (typeof tags === "string") {
-    return [tags];
-  }
-  return Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === "string") : [];
-}
 
 // One tag, as its definition shows it: its label, styled by its color and variant (see
 // chipStyle), and its icon if tagIcons lists it. A color chipStyle refuses, or an unknown icon
@@ -84,7 +76,7 @@ function TagChip({ tags, category }: { tags?: unknown; category?: string }) {
     };
   }, [category, fetchUtil]);
 
-  const names = tagNames(tags);
+  const names = stringsOf(tags);
   if (!definitions || names.length === 0) {
     return null;
   }

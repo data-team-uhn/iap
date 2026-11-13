@@ -25,7 +25,6 @@ import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar"
 import { getPageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { stubPhone } from "@iap/frontend-commons/phone.fixture";
 import SchemaPage from "@iap/schemas/SchemaPage";
-import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
 import { CONTENT, HOMEPAGE, serveSchemas } from "./schemaServer.fixture";
 
@@ -40,7 +39,6 @@ Element.prototype.scrollIntoView = scrollIntoView;
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  clearTagDefinitionsCache();
 });
 
 // In the app's theme, which is what makes a page's title its heading

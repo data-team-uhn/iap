@@ -18,7 +18,6 @@
 
 import { getEntityTypeConfig } from "@iap/frontend-commons/entityGrid/registry";
 import { SUBMISSION_TYPE, schemaLabel } from "@iap/submissions/submissionGrid";
-import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 // Importing the module registered the configuration as a side effect
@@ -81,7 +80,6 @@ describe("the registered submission grid configuration", () => {
     });
 
     vi.unstubAllGlobals();
-    clearTagDefinitionsCache();
   });
 
   it("links each row to the submission's own page", () => {

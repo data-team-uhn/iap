@@ -22,7 +22,6 @@ import { MemoryRouter } from "react-router";
 
 import { LocationProbe, probedPath } from "@iap/frontend-commons/location.fixture";
 import MySubmissionsWidget from "@iap/submissions/MySubmissionsWidget";
-import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 // The extension the dashboard hands the widget, which is where its title and subtitle come from
@@ -113,7 +112,6 @@ function widgetFetch(options: { rows?: unknown[]; redirected?: boolean } = {}) {
 describe("MySubmissionsWidget", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    clearTagDefinitionsCache();
   });
 
   it("lists the current user's submissions with the schema and status columns", async () => {

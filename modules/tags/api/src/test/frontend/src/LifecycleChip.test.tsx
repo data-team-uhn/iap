@@ -19,14 +19,12 @@
 import { act, render, screen } from "@testing-library/react";
 
 import LifecycleChip from "@iap/tags/LifecycleChip";
-import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
 import { tagAwareFetch } from "./tagDefinitions.fixture";
 
 describe("LifecycleChip", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    clearTagDefinitionsCache();
   });
 
   it("shows where a node stands in its lifecycle, and none of its other tags", async () => {

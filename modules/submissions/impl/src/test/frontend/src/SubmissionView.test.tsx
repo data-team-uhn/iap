@@ -32,7 +32,6 @@ import {
   type SubmissionForm,
 } from "@iap/submissions/submissionForm";
 import SubmissionView from "@iap/submissions/SubmissionView";
-import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { jsonResponse, tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 import { NEEDS_APPROVAL, approval } from "./approvals.fixture";
@@ -285,7 +284,6 @@ function renderAt(path: string) {
 describe("SubmissionView", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    clearTagDefinitionsCache();
   });
 
   it("shows the label of the option an answer picked, not its stored value", async () => {
