@@ -16,11 +16,11 @@
  * limitations under the License.
  */
 
-import { Link, type LinkProps } from "@mui/material";
-import { Link as RouterLink } from "react-router";
+import type { ReactNode } from "react";
 
 import { dateValue, dayOf } from "@iap/frontend-commons/entityGrid/columns";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
+import { RowLink } from "@iap/frontend-commons/entityGrid/RowControls";
 import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
@@ -33,13 +33,8 @@ export const SCHEMA_VERSION_TYPE = "sch/SchemaVersion";
 const schemaNameOf = (version: SerializedNode): string => String(version["@path"]).split("/").at(-2) ?? "";
 
 // A version's label displayed as a link to its page
-function VersionLink({ row, children }: { row: SerializedNode } & Pick<LinkProps, "children">) {
-  return (
-    <Link component={RouterLink} to={versionPageUrl(schemaNameOf(row), nameOf(row))} underline="hover"
-      onClick={event => event.stopPropagation()}>
-      {children}
-    </Link>
-  );
+function VersionLink({ row, children }: { row: SerializedNode; children: ReactNode }) {
+  return <RowLink to={versionPageUrl(schemaNameOf(row), nameOf(row))}>{children}</RowLink>;
 }
 
 // The columns of one schema's versions. By default the versions are in the order they were created. Sorted by

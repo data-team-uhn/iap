@@ -19,7 +19,7 @@
 import { useMemo, useState } from "react";
 
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
-import { Box, Button, Checkbox, Stack, Typography } from "@mui/material";
+import { Button, Checkbox, Stack, Typography } from "@mui/material";
 import { useNavigate } from "react-router";
 
 import { ActionsMenu } from "@iap/frontend-commons/components/ActionsMenu";
@@ -47,13 +47,10 @@ function SchemaVersionList({ schema, reload, comparisonDefaults }: {
     // On a phone, one menu at the end of a version's card
     cardSlot: "actions",
     renderCell: params => (
-      // Kept from the row: a click on an action, or inside its dialog, is not a click on the version
-      <Box onClick={event => event.stopPropagation()}>
-        <ActionsMenu label={`Actions for version ${labelOf(params.row)}`}>
-          <SchemaVersionActions version={params.row} schema={schema} reload={reload}
-            comparisonDefaults={comparisonDefaults} place="versionList" />
-        </ActionsMenu>
-      </Box>
+      <ActionsMenu label={`Actions for version ${labelOf(params.row)}`}>
+        <SchemaVersionActions version={params.row} schema={schema} reload={reload}
+          comparisonDefaults={comparisonDefaults} place="versionList" />
+      </ActionsMenu>
     ),
   } ], [ schema, reload, comparisonDefaults ]);
 
@@ -73,12 +70,10 @@ function SchemaVersionList({ schema, reload, comparisonDefaults }: {
       const name = nameOf(params.row);
       const checked = picked.includes(name);
       return (
-        <Box onClick={event => event.stopPropagation()}>
-          <Checkbox size="small" checked={checked} disabled={!checked && ticked.length === 2}
-            slotProps={{ input: { "aria-label": `Compare version ${labelOf(params.row)}` } }}
-            onChange={event => setPicked(current => (event.target.checked
-              ? [ ...current, name ] : current.filter(other => other !== name)))} />
-        </Box>
+        <Checkbox size="small" checked={checked} disabled={!checked && ticked.length === 2}
+          slotProps={{ input: { "aria-label": `Compare version ${labelOf(params.row)}` } }}
+          onChange={event => setPicked(current => (event.target.checked
+            ? [ ...current, name ] : current.filter(other => other !== name)))} />
       );
     },
   } ] : []), [ picking, picked, ticked ]);
