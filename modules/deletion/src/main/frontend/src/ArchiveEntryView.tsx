@@ -22,8 +22,6 @@ import {
   Alert,
   Button,
   Chip,
-  DialogActions,
-  DialogContent,
   Divider,
   Link,
   List,
@@ -36,9 +34,7 @@ import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
-import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
-import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import {
   ARCHIVE_ROUTE,
@@ -46,10 +42,11 @@ import {
   fetchArchiveEntry,
   purgeEntry,
   restoreEntry,
-  type ActionResponse,
   type ArchiveEntryDetail,
 } from "./archiveApi";
-import { describeOutcome, failureMessage } from "./archiveOutcome";
+import { failureMessage } from "./archiveOutcome";
+import { PurgeDialog } from "./PurgeDialog";
+import { useArchiveAction } from "./useArchiveAction";
 
 /** What each restore conflict means, in words an administrator can act on. */
 const CONFLICT_REASONS: Record<string, string> = {
@@ -91,8 +88,6 @@ export function ArchiveEntryView() {
   const [ entry, setEntry ] = useState<ArchiveEntryDetail | null>(null);
   const [ settled, setSettled ] = useState(false);
   const [ loadError, setLoadError ] = useState<string | null>(null);
-  const notify = useNotice();
-  const [ busy, setBusy ] = useState(false);
   const [ confirming, setConfirming ] = useState(false);
   const [ reloadKey, setReloadKey ] = useState(0);
 
@@ -117,27 +112,11 @@ export function ArchiveEntryView() {
     return () => { latest.current += 1; };
   }, [ doFetch, resourcePath, reloadKey ]);
 
-  const act = (action: (f: AuthenticatedFetch, target: string) => Promise<ActionResponse>) => {
-    // The same action on the same entry
-    const retry = () => { act(action); };
-    setBusy(true);
-    action(doFetch, entry?.path ?? "")
-      .then((response: ActionResponse) => {
-        if (response.status === "restored" || response.status === "deleted") {
-          // The entry no longer exists
-          void navigate(ARCHIVE_ROUTE);
-          return;
-        }
-        notify(describeOutcome(response, retry));
-        // Something changed since the page read the entry, so read it again
-        setReloadKey(key => key + 1);
-      })
-      .catch(() => {
-        // The request got no answer, so nothing was decided and it can be sent again
-        notify({ severity: "error", title: "The request could not be sent.", onRetry: retry });
-      })
-      .finally(() => { setBusy(false); });
-  };
+  const { busy, act } = useArchiveAction({
+    onDone: () => { void navigate(ARCHIVE_ROUTE); },
+    // Something changed since the page read the entry, so read it again
+    onRefused: () => { setReloadKey(key => key + 1); },
+  });
 
   const conflictFor = (originalPath: string) =>
     entry?.restoreConflicts.find(conflict => conflict.originalPath === originalPath)?.reason;
@@ -187,7 +166,7 @@ export function ArchiveEntryView() {
             <Button
               variant="contained"
               disabled={busy || !entry.restorable}
-              onClick={() => { act(restoreEntry); }}
+              onClick={() => { void act(entry.path, restoreEntry); }}
             >
               Restore everything
             </Button>
@@ -204,26 +183,11 @@ export function ArchiveEntryView() {
       )}
 
       {confirming && entry && (
-        <ResponsiveDialog open onClose={() => { setConfirming(false); }} title="Purge this entry?">
-          <DialogContent dividers>
-            <Typography gutterBottom>
-              {`Everything archived under ${entry.requestedPath} will be destroyed. This cannot be undone.`}
-            </Typography>
-            <Alert severity="warning">
-              {`${String(entry.itemCount)} archived item(s) will be permanently removed.`}
-            </Alert>
-          </DialogContent>
-          <DialogActions>
-            <Button variant="outlined" onClick={() => { setConfirming(false); }}>Cancel</Button>
-            <Button
-              variant="contained"
-              color="error"
-              onClick={() => { setConfirming(false); act(purgeEntry); }}
-            >
-              Purge
-            </Button>
-          </DialogActions>
-        </ResponsiveDialog>
+        <PurgeDialog
+          entry={entry}
+          onPurge={() => act(entry.path, purgeEntry)}
+          onClose={() => { setConfirming(false); }}
+        />
       )}
 
     </AdminScreen>
