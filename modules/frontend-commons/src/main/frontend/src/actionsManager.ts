@@ -36,9 +36,8 @@ interface ContributedAction {
 }
 
 // The loaded actions of each extension point, and the requests still running. An extension point
-// that gave actions is kept for the page load, however many components ask for it. One that gave
-// none is asked again next time. The loader answers a point it cannot read as empty, and the next
-// read may succeed.
+// that was read is kept for the page load, however many components ask for it, even when it gave no
+// actions. A failed read is not kept, and the next call reads the point again.
 const actions = new Map<string, ContributedAction[]>();
 const requests = new Map<string, Promise<ContributedAction[]>>();
 
@@ -66,9 +65,7 @@ function contributedTo(extensionPoint: string): Promise<ContributedAction[]> {
         const component = extension["ext:render"] as ActionComponent | undefined;
         return component ? [ { component, places: placesOf(extension["ext:places"]) } ] : [];
       });
-      if (contributed.length > 0) {
-        actions.set(extensionPoint, contributed);
-      }
+      actions.set(extensionPoint, contributed);
       return contributed;
     })
     .finally(() => requests.delete(extensionPoint));
@@ -79,13 +76,13 @@ function contributedTo(extensionPoint: string): Promise<ContributedAction[]> {
 // The action components registered on an extension point, in the order the repository lists them. An
 // extension that names `ext:places` is shown only in those places. One naming none is shown everywhere.
 //
-// An extension that fails to load, or has no `ext:render`, is skipped. An extension point that cannot
-// be read gives no actions this time.
+// An extension that fails to load, or has no `ext:render`, is skipped.
 //
 // @param extensionPoint the node name of the extension point, such as "WorkflowVersionActions"
 // @param place the name a page gives the place where it shows the actions; undefined shows only the
 //     actions that name no places
-// @return the components to render; empty if the point has none or could not be read
+// @return the components to render; empty if the point has none. Rejects if the extension point
+//     cannot be read.
 export async function getActions(extensionPoint: string, place?: string): Promise<ActionComponent[]> {
   return (await contributedTo(extensionPoint))
     .filter(action => !action.places || (place !== undefined && action.places.includes(place)))

@@ -35,6 +35,10 @@ describe("getRoutes", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("resolves the registered Views extensions", async () => {
     const views = [{ "ext:targetURL": "/reports" }];
     mockedLoadExtensions.mockResolvedValue(views);
@@ -70,26 +74,27 @@ describe("getRoutes", () => {
     expect(mockedLoadExtensions).toHaveBeenCalledTimes(1);
   });
 
-  it("reports a failure and resolves to nothing", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
-    const failure = new Error("no extensions");
-    mockedLoadExtensions.mockRejectedValue(failure);
+  it("keeps an empty answer, and does not ask again", async () => {
+    mockedLoadExtensions.mockResolvedValue([]);
     const getRoutes = await freshRoutes();
 
-    expect(await getRoutes()).toBeUndefined();
-    expect(errorSpy).toHaveBeenCalledWith("Failed to resolve routes", failure);
-    errorSpy.mockRestore();
+    expect(await getRoutes()).toEqual([]);
+    expect(await getRoutes()).toEqual([]);
+    expect(mockedLoadExtensions).toHaveBeenCalledTimes(1);
   });
 
-  it("retries after a failure, since nothing was cached", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
-    mockedLoadExtensions.mockRejectedValueOnce(new Error("no extensions"));
+  it("rejects when the Views point cannot be read, and reads it again next time", async () => {
+    // The real loader, reading a point the server refuses
+    const actual = await vi.importActual<typeof import("@iap/ui-extension/extensionManager")>(
+      "@iap/ui-extension/extensionManager");
+    mockedLoadExtensions.mockImplementation(actual.loadExtensions);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 500 })));
     const getRoutes = await freshRoutes();
-    await getRoutes();
+
+    await expect(getRoutes()).rejects.toThrow("Failed to load extensions from Views: 500");
 
     const views = [{ "ext:targetURL": "/reports" }];
-    mockedLoadExtensions.mockResolvedValueOnce(views);
-
+    mockedLoadExtensions.mockResolvedValue(views);
     expect(await getRoutes()).toEqual(views);
     expect(mockedLoadExtensions).toHaveBeenCalledTimes(2);
   });

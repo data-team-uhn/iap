@@ -17,7 +17,9 @@ without knowing which module contributed it.
   with the point's `ext:pointId`, an `ext:name`, and usually an `ext:renderURL`.
 - **Showing a point:** `await loadExtensions("<NodeName>")` fetches a point's enabled
   extensions and loads the components their `asset:` properties name. `ExtensionList`
-  renders them. An extension whose assets fail to load is logged and left out.
+  renders them. An extension whose assets fail to load is logged and left out. It
+  rejects when the point cannot be read, and gives an empty list for a point with no
+  extensions.
 - The component gets the extension node as its `extension` prop, to read any of its
   properties, such as `ext:data`.
 
@@ -311,6 +313,7 @@ cd aggregated-frontend && mvn clean install -PautoInstallBundle
 1. Ship an `ext:Point` node under `/apps/iap/ExtensionPoints/` with a unique
    `ext:pointId` and a descriptive `ext:pointName`.
 2. Show it: `await loadExtensions("<NodeName>")`, and render with `ExtensionList`.
+   Catch the rejection, and decide what the page shows when the point cannot be read.
    Define the properties your layout reads on each extension, such as the app bar's
    `ext:appBarSection`, and document them here.
 3. For anything direction-sensitive, follow the naming rule: physical top/bottom
