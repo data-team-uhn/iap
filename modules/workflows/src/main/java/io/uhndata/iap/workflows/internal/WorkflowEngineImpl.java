@@ -19,6 +19,7 @@ package io.uhndata.iap.workflows.internal;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import org.apache.sling.api.resource.LoginException;
@@ -43,7 +44,8 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * The engine, and the one door a domain event comes in through. An event either runs the system workflow that
- * matches it, or carries on the instance whose task it was aimed at.
+ * matches it, or carries on the instance whose task it resumes: the task it was aimed at, or for a message sent to
+ * a host, the task waiting there for it.
  *
  * <p>A system workflow runs straight through, inside the request, and leaves no instance behind:
  * {@link SystemWorkflowRunner} runs it. {@link InstanceRunner} owns the other half, where a workflow persists and
@@ -91,7 +93,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference
     private ConditionEvaluator conditionEvaluator;
 
-    /** Ends the user tasks an event is aimed at, and carries their instances on. */
+    /** Ends the tasks events resume, and carries their instances on. */
     @Reference
     private TaskCompletion taskCompletion;
 
@@ -99,7 +101,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference
     private Performers performers;
 
-    /** Answers what a user could do without changing anything. */
+    /** Answers what a user could do without changing anything, and which task a message sent to a host is for. */
     @Reference
     private WorkflowQueries queries;
 
@@ -126,6 +128,11 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 "A target the caller could reach is always visible to the engine");
             if (privilegedTarget.isResourceType(TaskInstance.RESOURCE_TYPE)) {
                 return resume(privilegedTarget, event, actor);
+            }
+            final Optional<Resource> waiting =
+                this.queries.findMessageRecipient(serviceResolver, privilegedTarget, event, actor);
+            if (waiting.isPresent()) {
+                return resume(waiting.get(), event, actor);
             }
             return RepositoryFailures.retryingConflicts(SYSTEM_WORKFLOW_CONFLICT_RETRIES,
                 () -> execute(privilegedTarget, event, actor));
@@ -161,7 +168,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
     }
 
     /**
-     * Carries a running instance on from the user task the event was aimed at. The same one-commit rule as a
+     * Carries a running instance on from the task the event resumes. The same one-commit rule as a
      * system workflow: the decision, the task's new state and what follows from it all happen, or none of them
      * do.
      *
@@ -169,7 +176,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * brings its session up to date, and run again on top of what the winner did. Each attempt has its own
      * dispatcher, so the notifications a lost attempt announced are dropped with its writes.</p>
      *
-     * @param task the task the event is aimed at, resolved through the engine's session
+     * @param task the task the event resumes, resolved through the engine's session
      * @param event the incoming event
      * @param actor the user who sent the event
      * @return an empty result: ending a task creates nothing to send the caller to

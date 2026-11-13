@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.models;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -56,5 +57,18 @@ public class WorkflowInstances extends Content
     public List<WorkflowInstance> getInstances()
     {
         return this.getChildren(WorkflowInstance.RESOURCE_TYPE, WorkflowInstance.class);
+    }
+
+    /**
+     * The workflows still running over the host resource.
+     *
+     * @return the active workflow instances, empty if none is running
+     */
+    @NotNull
+    public List<WorkflowInstance> getActiveInstances()
+    {
+        return this.getInstances().stream()
+            .filter(instance -> WorkflowInstance.ACTIVE_STATUS.equals(instance.getStatus()))
+            .collect(Collectors.toList());
     }
 }

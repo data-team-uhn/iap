@@ -53,9 +53,9 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * Brings under workflow control the resource types the system workflows say they handle: every POST to a resource
- * of one of them, or to a user task, goes to the {@link WorkflowEventServlet}. Which types those are is content, the
- * {@code targetResourceType} of each system workflow version, so the servlet is registered here rather than by
- * annotation, and registered again whenever {@code /SystemWorkflows} changes.
+ * of one of them, or to a task a running workflow waits on, goes to the {@link WorkflowEventServlet}. Which types
+ * those are is content, the {@code targetResourceType} of each system workflow version, so the servlet is registered
+ * here rather than by annotation, and registered again whenever {@code /SystemWorkflows} changes.
  *
  * @version $Id$
  * @since 0.1.0

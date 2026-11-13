@@ -49,11 +49,11 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * those; this class decides what to write.</p>
  *
  * <p>Running one is always the same walk. From wherever a token rests, through whatever can be passed
- * automatically, until it has to stop. A token stops at a user task, where it parks and the walk returns, possibly
- * for days. It stops at a join that is still waiting for another branch. Or it reaches an end event, which ends its
- * branch and tells the host what the outcome meant. A terminating end event ends the whole instance. Starting an
- * instance, completing one of its tasks and firing a task's deadline are that same walk from different starting
- * points. All three live here.</p>
+ * automatically, until it has to stop. A token stops at a user task, or at a catching event waiting for a message,
+ * where it parks on a task and the walk returns, possibly for days. It stops at a join that is still waiting for
+ * another branch. Or it reaches an end event, which ends its branch and tells the host what the outcome meant. A
+ * terminating end event ends the whole instance. Starting an instance, completing one of its tasks and firing a task's
+ * deadline are that same walk from different starting points. All three live here.</p>
  *
  * <p>An instance holds one token for each branch in progress. Parallel and inclusive gateways fork a token into
  * several and join them back. The walk is therefore a queue of positions rather than a single path, and the instance
@@ -174,27 +174,60 @@ final class InstanceRunner
     }
 
     /**
-     * Records a task as completed and carries its instance on from there.
+     * Records a task as completed with a decision, and carries its instance on from there.
      *
      * @param task the task being completed
-     * @param outcome what the person decided; gateways downstream route on it
+     * @param definition the user task it was raised from
+     * @param outcome what the person decided, which gateways downstream route on
      * @throws WorkflowException when the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
-    void completeTask(final TaskInstance task, final String outcome) throws WorkflowException, PersistenceException
+    void completeTask(final TaskInstance task, final FlowNode definition, final String outcome)
+        throws WorkflowException, PersistenceException
+    {
+        final Resource instance = beginWalkFrom(task);
+        this.records.recordDecision(instance, this.records.getResource(task.getPath()), outcome);
+        carryOn(instance, task, definition);
+    }
+
+    /**
+     * Records a task as completed with nothing decided, and carries its instance on from there.
+     *
+     * @param task the task being completed
+     * @param definition the node it was raised from, a user task or a catching event
+     * @throws WorkflowException when the definition cannot be run on from here
+     * @throws PersistenceException when the instance cannot be written
+     */
+    void completeTask(final TaskInstance task, final FlowNode definition)
+        throws WorkflowException, PersistenceException
+    {
+        carryOn(beginWalkFrom(task), task, definition);
+    }
+
+    private void carryOn(final Resource instance, final TaskInstance task, final FlowNode definition)
+        throws WorkflowException, PersistenceException
+    {
+        final Resource token = this.records.findTokenAt(instance, definition.getElementId());
+        this.records.completeTask(this.records.getResource(task.getPath()), this.actor);
+        // A task's node has exactly one way out. If it leads to a gateway, the walk forks there
+        final SequenceFlow flow =
+            this.routing.selectOutgoingFlows(definition, this.records.asInstance(instance)).get(0);
+        runFrom(instance, token, targetOf(flow), flow);
+    }
+
+    /**
+     * Starts a walk carrying an instance on from one of its tasks, by stamping the instance.
+     *
+     * @param task the task the walk starts from
+     * @return the task's instance
+     */
+    private Resource beginWalkFrom(final TaskInstance task)
     {
         final WorkflowInstance instance = Objects.requireNonNull(task.getWorkflowInstance(),
             "A task always lives inside its instance");
-        // Guaranteed by the caller, which cannot authorize the completion without it
-        final Activity definition = Objects.requireNonNull(task.getDefinition(),
-            "A task is only completed once its definition has been found");
         final Resource instanceResource = this.records.getResource(instance.getPath());
-        final Resource token = this.records.findTokenAt(instanceResource, definition.getElementId());
-        this.records.completeTask(instanceResource, this.records.getResource(task.getPath()), this.actor, outcome);
-
-        // An activity has exactly one way out. If it leads to a gateway, the walk forks there
-        final SequenceFlow flow = this.routing.selectOutgoingFlows(definition, instance).get(0);
-        runFrom(instanceResource, token, targetOf(flow), flow);
+        this.records.stampWalk(instanceResource);
+        return instanceResource;
     }
 
     /**
@@ -204,19 +237,15 @@ final class InstanceRunner
      * timer leaves the task open and starts a second branch along the timer's arc, with a token of its own.</p>
      *
      * @param task the task whose deadline has passed
+     * @param definition the activity the task was raised from
      * @param timer the boundary event counting down to it
      * @throws WorkflowException when the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
-    void fireDeadline(final TaskInstance task, final IntermediateCatchingEvent timer)
+    void fireDeadline(final TaskInstance task, final Activity definition, final IntermediateCatchingEvent timer)
         throws WorkflowException, PersistenceException
     {
-        final WorkflowInstance instance = Objects.requireNonNull(task.getWorkflowInstance(),
-            "A task always lives inside its instance");
-        final Activity definition = Objects.requireNonNull(task.getDefinition(),
-            "A task is only expired once its definition has been found");
-        final Resource instanceResource = this.records.getResource(instance.getPath());
-
+        final Resource instanceResource = beginWalkFrom(task);
         if (timer.isInterrupting()) {
             // Gateways downstream see the last recorded outcome, if there is one
             this.records.cancelTask(this.records.getResource(task.getPath()));
@@ -229,8 +258,8 @@ final class InstanceRunner
     }
 
     /**
-     * Walks the instance from a node until every branch has to stop: at a user task, at a join still missing a
-     * branch, or at an end event.
+     * Walks the instance from a node until every branch has to stop: on a task, at a join still missing a branch, or
+     * at an end event.
      *
      * <p>When the queue empties, a join that could not release when its token arrived may be able to now. An
      * inclusive join waits on the branches that can still reach it, and the others have since moved as far as they
@@ -291,9 +320,8 @@ final class InstanceRunner
             this.records.spendToken(instance, token);
             return true;
         }
-        if (node instanceof Activity && ((Activity) node).getHandler() == null) {
-            // No handler means a user task. Park here and wait for a person
-            this.records.createTask(instance, (Activity) node);
+        if (node.raisesTask()) {
+            raiseTask(instance, node);
             return true;
         }
         if (node instanceof Activity) {
@@ -310,6 +338,22 @@ final class InstanceRunner
         }
         forkTokens(instance, token, node, pending);
         return true;
+    }
+
+    /**
+     * Raises the task a token parks on: work for a person at a user task, or the message a catching event waits for.
+     *
+     * @param instance the running instance
+     * @param node the node the token has stopped at
+     * @throws PersistenceException when the task cannot be written
+     */
+    private void raiseTask(final Resource instance, final FlowNode node) throws PersistenceException
+    {
+        if (node instanceof Activity) {
+            this.records.createTask(instance, (Activity) node);
+        } else {
+            this.records.createTask(instance, (IntermediateCatchingEvent) node);
+        }
     }
 
     /**

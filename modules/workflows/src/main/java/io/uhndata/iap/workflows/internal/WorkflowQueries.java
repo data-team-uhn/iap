@@ -18,9 +18,14 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.io.Closeable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -30,25 +35,30 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.utils.UserIds;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
+import io.uhndata.iap.workflows.models.FlowNode;
+import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
+import io.uhndata.iap.workflows.models.WorkflowInstances;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
- * What the engine answers without changing anything: which events a user could send to a target, and which
- * system workflow would handle one of them.
+ * What the engine answers without changing anything. It says which events a user could send to a target, which
+ * system workflow would handle one, and which task a message sent to a host is for.
  *
- * <p>Both are decided through the engine's own session, as receiving the event would decide them, since a guard may
- * look at content the asking user cannot read. Only event names, and the user's own view of a definition, are handed
- * back, so nothing the engine's session can reach ever leaves it. That is what lets one engine session answer
- * everything asked through one resolver: a serialization asks about every content node it writes, and a login per
- * question would cost one per node. The session is kept in the resolver's
- * {@link ResourceResolver#getPropertyMap() property map}, which closes it along with the resolver, so the one a
- * request resolved through lasts until the request ends.</p>
+ * <p>The task a message is for is the engine's own question, asked as it delivers the message, and the task found goes
+ * back to the engine alone. The other two are asked for a user. They are decided through the engine's own session, as
+ * receiving the event would decide them, since a guard may look at content the asking user cannot read. Only event
+ * names, and the user's own view of a definition, are handed back to the user, so nothing the engine's session can
+ * reach ever leaves it. That is what lets one engine session answer everything asked through one resolver: a
+ * serialization asks about every content node it writes, and a login per question would cost one per node. The session
+ * is kept in the resolver's {@link ResourceResolver#getPropertyMap() property map}, which closes it along with the
+ * resolver, so the one a request resolved through lasts until the request ends.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -89,7 +99,139 @@ public class WorkflowQueries
         if (privileged.isResourceType(TaskInstance.RESOURCE_TYPE)) {
             return TaskCompletion.availableEvents(privileged, scope.check());
         }
-        return SystemWorkflowLocator.availableEvents(scope.resolver, privileged, this.evaluator, scope.check());
+        final Set<String> events = new TreeSet<>(
+            SystemWorkflowLocator.availableEvents(scope.resolver, privileged, this.evaluator, scope.check()));
+        events.addAll(listWaitingMessages(privileged, scope.check()));
+        return events;
+    }
+
+    /**
+     * The task a message sent to a host is for. It is the one task open on a workflow running over the host that waits
+     * for the message and admits the sender. An event whose name does not {@link WorkflowEvent#getMarkedMessage() mark it
+     * as a message} is for the host's system workflows instead.
+     *
+     * @param serviceResolver the engine's own session
+     * @param host the resource the event is aimed at, backed by the engine's own session
+     * @param event the incoming event
+     * @param actor the user who sent it
+     * @return the task, backed by the engine's own session, or empty when the event is not a message
+     * @throws NoApplicableWorkflowException when nothing on the host waits for the message
+     * @throws InvalidStateException when several waiting tasks admit the sender, so the message must go to one of them
+     * @throws WorkflowException when no waiting task admits the sender, or the sender cannot be looked up
+     */
+    Optional<Resource> findMessageRecipient(final ResourceResolver serviceResolver, final Resource host,
+        final WorkflowEvent event, final String actor) throws WorkflowException
+    {
+        final String message = event.getMarkedMessage();
+        if (message == null) {
+            return Optional.empty();
+        }
+        final List<Wait> waiting = findWaits(host).stream()
+            .filter(wait -> message.equals(wait.message()))
+            .collect(Collectors.toList());
+        if (waiting.isEmpty()) {
+            throw new NoApplicableWorkflowException("Nothing on " + host.getPath() + " waits for the " + message
+                + " message");
+        }
+        final PerformerCheck check = this.performers.createCheck(serviceResolver, actor);
+        final List<Wait> selected = selectWaitsFor(check, waiting, host);
+        if (selected.isEmpty()) {
+            throw check.refusal();
+        }
+        if (selected.size() > 1) {
+            throw new InvalidStateException("Several tasks on " + host.getPath() + " wait for the " + message
+                + " message from you, so send it to one of them: " + listPaths(selected));
+        }
+        return Optional.of(selected.get(0).task());
+    }
+
+    /**
+     * The messages the asking user could send to a host. Each is one a task there waits for, offered only where sending
+     * it to the host would find exactly one task for them.
+     *
+     * @param host the host, backed by the engine's own session
+     * @param check whom the definitions admit, for the asking user
+     * @return the marked message names
+     * @throws WorkflowFailedException when the user's group membership cannot be read
+     */
+    private static Set<String> listWaitingMessages(final Resource host, final PerformerCheck check)
+        throws WorkflowFailedException
+    {
+        final Map<String, List<Wait>> byMessage = findWaits(host).stream()
+            .collect(Collectors.groupingBy(Wait::message));
+        final Set<String> messages = new TreeSet<>();
+        for (final Map.Entry<String, List<Wait>> waiting : byMessage.entrySet()) {
+            if (selectWaitsFor(check, waiting.getValue(), host).size() == 1) {
+                messages.add(WorkflowEvent.MESSAGE_PREFIX + waiting.getKey());
+            }
+        }
+        return messages;
+    }
+
+    /**
+     * The tasks open on the workflows running over a host that wait for a message.
+     *
+     * @param host the resource the workflows run over, backed by the engine's own session
+     * @return each such task and the catching event it was raised from
+     */
+    private static List<Wait> findWaits(final Resource host)
+    {
+        return Optional.ofNullable(host.getChild(WorkflowInstances.NODE_NAME))
+            .map(container -> container.adaptTo(WorkflowInstances.class))
+            .map(WorkflowInstances::getActiveInstances)
+            .orElse(List.of())
+            .stream()
+            .flatMap(instance -> instance.getTaskInstances().stream())
+            .filter(task -> TaskInstance.OPEN_STATUS.equals(task.getStatus()))
+            .flatMap(task -> findWaitOf(host, task).stream())
+            .collect(Collectors.toList());
+    }
+
+    private static Optional<Wait> findWaitOf(final Resource host, final TaskInstance task)
+    {
+        final FlowNode definition = task.getDefinition();
+        if (!(definition instanceof IntermediateCatchingEvent)) {
+            return Optional.empty();
+        }
+        return Optional.of(new Wait(Objects.requireNonNull(host.getResourceResolver().getResource(task.getPath()),
+            "A task just found on the host is there"), (IntermediateCatchingEvent) definition));
+    }
+
+    /**
+     * The waits that admit the actor. Where several admit them, only those whose performers name them count, if any
+     * do. A task meant for an administrator is then still found among others that let any administrator through.
+     *
+     * @param check whom the definitions admit, for the actor
+     * @param waits the tasks waiting for one message
+     * @param host the resource the workflows run over, whose creator {@code @creator} names
+     * @return the waits the message is for
+     * @throws WorkflowFailedException when the actor's group membership cannot be read
+     */
+    private static List<Wait> selectWaitsFor(final PerformerCheck check, final List<Wait> waits, final Resource host)
+        throws WorkflowFailedException
+    {
+        // Loops rather than streams: asking about a performer can fail with a checked exception
+        final List<Wait> admitted = new ArrayList<>();
+        for (final Wait wait : waits) {
+            if (check.admits(wait.event(), host)) {
+                admitted.add(wait);
+            }
+        }
+        if (admitted.size() < 2) {
+            return admitted;
+        }
+        final List<Wait> named = new ArrayList<>();
+        for (final Wait wait : admitted) {
+            if (check.names(wait.event(), host)) {
+                named.add(wait);
+            }
+        }
+        return named.isEmpty() ? admitted : named;
+    }
+
+    private static String listPaths(final List<Wait> waits)
+    {
+        return waits.stream().map(wait -> wait.task().getPath()).collect(Collectors.joining(", "));
     }
 
     /**
@@ -246,6 +388,22 @@ public class WorkflowQueries
         public void close()
         {
             this.resolver.close();
+        }
+    }
+
+    /**
+     * A task waiting for a message, and the catching event it was raised from.
+     *
+     * @param task the open task, backed by the engine's own session
+     * @param event the catching event, which names the message and who may send it
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private record Wait(Resource task, IntermediateCatchingEvent event)
+    {
+        String message()
+        {
+            return this.event.getMessageName();
         }
     }
 }

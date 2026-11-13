@@ -118,9 +118,9 @@ A **service task** is work the platform does by itself — filing a record, upda
 status, copying an answer onto the study. It takes no time from anyone's day and the
 process carries straight on through it.
 
-The distinction matters because **only user tasks make the process wait**. If your diagram
-seems to finish instantly, it is probably all service tasks and you have not said where a
-human is needed.
+The distinction matters because **only user tasks, and events waiting for a message, make
+the process wait**. If your diagram seems to finish instantly, it is probably all service
+tasks and you have not said where a human is needed.
 
 ## Gateways: splitting and rejoining
 

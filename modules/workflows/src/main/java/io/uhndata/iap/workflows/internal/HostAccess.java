@@ -40,6 +40,7 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
+import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
@@ -50,9 +51,10 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * keeps its answer in step with the definition. The definition still declares the policy. Starting an instance
  * materializes it as an access control list.</p>
  *
- * <p>Read goes to the person the instance runs for, and to the performers of every user task. Deriving that from
- * {@code performers} rather than declaring readers separately means the two cannot disagree. Access lasts for the
- * life of the instance, not only while a task is open.</p>
+ * <p>Read goes to the person the instance runs for, and to the performers of every node a token waits on. Those are
+ * the user tasks, and the catching events waiting for a message, whose performers send it. Deriving
+ * that from {@code performers} rather than declaring readers separately means the two cannot disagree. Access lasts
+ * for the life of the instance, not only while a task is open.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -85,8 +87,9 @@ public class HostAccess
     void grantReaders(final ResourceResolver resolver, final Resource host, final WorkflowVersion version,
         final String actor) throws PersistenceException
     {
-        final List<String> named = version.getActivities(null).stream()
-            .flatMap(task -> task.getPerformers().stream())
+        final List<String> named = version.getAllFlowNodes().stream()
+            .filter(FlowNode::raisesTask)
+            .flatMap(node -> node.getPerformers().stream())
             .distinct()
             .collect(Collectors.toList());
         final Set<String> readers = new LinkedHashSet<>();

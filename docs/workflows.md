@@ -287,10 +287,12 @@ The engine answers two questions about an event without it being sent, deciding 
 as sending it would:
 
 - **`getAvailableEvents(resource)`** — which events the asking user could send to the
-  resource in its current state. On a task, `complete` while it is open and its
-  `performers` admit the user; anywhere else, the message of every system start event
-  for the resource's type whose guard holds and whose `performers` admit them. Over HTTP
-  it is the `events` serialization processor, off by default: `GET
+  resource in its current state. On a task, the event that completes it while it is open
+  and its `performers` admit the user: `complete`, or the message a catching event waits
+  for. Anywhere else, the message of every system start event for the resource's type
+  whose guard holds and whose `performers` admit them, and each message a task on the
+  resource waits for from the user, with its `message.` prefix. Over HTTP it is the
+  `events` serialization processor, off by default: `GET
   /Schemas.1.simple.events.json` adds `@events` to the homepage and to each schema, so a
   listing learns its rows' actions in one request.
 - **`findApplicableWorkflow(resource, event)`** — which system workflow would handle an
@@ -334,16 +336,17 @@ calling workflow created. Calls nest at most `MAX_SENT_EVENTS_DEPTH` (10) deep.
 
 `startWorkflow` is the equivalent for content workflows. It starts an instance on a
 newly created host, inside the calling workflow, and runs it until it first has to wait:
-at a user task, or at an end event if nothing needs a person. `workflowFrom` names the
-workflow version as a chain of reference properties from the host — for a submission,
-`schemaVersion/workflow`, its schema version and then that version's workflow. Naming
-the chain rather than hard-coding it keeps the workflows module from knowing what a
-submission is. A chain that breaks off or does not end on a workflow version starts
-nothing, which is not an error; a missing `workflowFrom`, an inactive version, or one
-without exactly one start event is a definition error. With `replaceActive` set to
-`true`, any instance of the same workflow still active on the host, whatever its
-version, is cancelled first: its tokens go, its open tasks are cancelled, and it stays
-on the host with the status `cancelled`. A version that cannot start cancels nothing.
+at a user task, at a catching event waiting for a message, or at an end event if nothing
+needs anyone. `workflowFrom` names the workflow version as a chain of reference
+properties from the host — for a submission, `schemaVersion/workflow`, its schema
+version and then that version's workflow. Naming the chain rather than hard-coding it
+keeps the workflows module from knowing what a submission is. A chain that breaks off or
+does not end on a workflow version starts nothing, which is not an error; a missing
+`workflowFrom`, an inactive version, or one without exactly one start event is a
+definition error. With `replaceActive` set to `true`, any instance of the same workflow
+still active on the host, whatever its version, is cancelled first: its tokens go, its
+open tasks are cancelled, and it stays on the host with the status `cancelled`. A
+version that cannot start cancels nothing.
 
 The tag tasks make a lifecycle content: a transition is a guarded event followed by an
 `addTag` with `replaceExisting`. They may place and remove `system` tags, and touch only
@@ -627,7 +630,7 @@ for (StartEvent start : version.getStartEvents()) {
 }
 
 FlowNode resting = token.getCurrentNode();   // instance → version → node
-Activity raisedFrom = task.getDefinition();
+FlowNode raisedFrom = task.getDefinition();  // a user task, or a catching event
 ```
 
 The abstract bases — `FlowNode`, `Event`, `IntermediateEvent`, `Gateway`, `FlowNodeType`
@@ -927,6 +930,33 @@ completion lawful is still the definition. A task offering outcomes cannot be co
 without one of them, and a task offering none takes no outcome. A `complete` event aimed
 at the task closes it, records the outcome, and carries the instance on.
 
+**A catching event waits for a message.** A token reaching a catching event that
+stands in the flow and names a `messageName` parks there on a task, as at a user task.
+The task carries the event's `label` and its `performers`, who may send the message, and
+it offers no outcomes. An event of that name aimed at the task closes it and carries the
+instance on down the catching event's arc; any other event is refused. The performers
+get read access with everyone else the process involves, so they can reach the task. A
+catching event that names no message cannot be activated, since nothing could wake a
+token there.
+
+**A message can also be sent to the host,** for a sender that knows the resource a
+workflow runs over but not where its task sits. Its name carries the `message.` prefix:
+`POST <host>.message.assessmentReady.json` sends `assessmentReady`. An event without the
+prefix is for the host's system workflows, so the two can never be confused. Of the open
+tasks on the host waiting for the message, those admitting the sender are candidates.
+Where several are, those whose `performers` name the sender come first, so an
+administrator still finds the task meant for them.
+
+| Candidates | Result |
+| --- | --- |
+| One | It takes the message |
+| Several | Refused (409), naming the tasks to send it to instead |
+| None, though tasks wait for it | Refused (403) |
+| No task waits for it | Refused (409) |
+
+A host lists a message among its available events, prefix included, only where sending
+it would find exactly one task for the asking user.
+
 **A decision can be written down as a review.** A `recordReview` service task placed
 directly after the user task that decides records a `sub:Review` of the approval
 requirement its `requirement` names: by whoever completed the task, tagged with the
@@ -962,8 +992,8 @@ task alone and records that it gave up.
 **Read access is materialized when the instance starts.** Acting is authorized by the
 definitions, but reading cannot be, since no engine can run a workflow per query row. So
 the engine writes an ACL granting read to the person the instance runs for and to the
-performers of every user task in the version — derived from `performers`, so the two
-cannot disagree.
+performers of every node a token waits on, user tasks and catching events alike. It is
+derived from `performers`, so the two cannot disagree.
 
 ### More than one branch at once
 
@@ -1031,11 +1061,16 @@ each completed on its own.
 - **Instance variables are not exposed to handlers.** `outcome` persists as a
   `wf:Variable`, but a service task inside an instance sees variables that last only for
   that delivery.
-- **Nothing delivers a message to an intermediate catching event**, and event-based
-  gateways are not executed: a thrown message becomes a notification, never an event for
-  another workflow.
-  An instance reaching a free-standing catching event is refused rather than parked,
-  since nothing could wake it: the engine's door opens onto a homepage or a task.
+- **Event-based gateways are not executed,** a free-standing timer catch is refused, and
+  a thrown message becomes a notification, never an event for another workflow.
+- **An event a workflow sends never reaches a waiting task.** `sendEvent` and
+  `callActivity` hand it to the target's system workflows only, so a message sent to a
+  host that way is refused even when a task there waits for it.
+- **A message's `outcome` is not checked.** A catching event's task offers no outcomes,
+  yet one sent with the message is written to the history as the task's decision.
+- **A message reaches a host only where its type is under workflow control.** The event
+  servlet is registered for the types some system workflow targets, so a host with
+  content workflows and no system workflow of its own takes messages only at its tasks.
 - **Read access is never revoked.** It lasts for the life of the instance rather than
   while a task is open.
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created

@@ -133,6 +133,17 @@ public abstract class FlowNode extends EntityPart
     }
 
     /**
+     * Whether a token reaching this node parks there on a task, waiting for something outside the engine. Most nodes
+     * are passed, performed or ended on; the kinds that wait say so.
+     *
+     * @return {@code true} if a token reaching this node waits on a task
+     */
+    public boolean raisesTask()
+    {
+        return false;
+    }
+
+    /**
      * The tag to place on the host when execution reaches this node, e.g. {@code approved} on the end event an
      * approval leads to, or {@code submitted} on the task that waits for an approver. This is how a process says
      * what being here <em>means</em> to the thing being processed, without needing a service task whose only job is

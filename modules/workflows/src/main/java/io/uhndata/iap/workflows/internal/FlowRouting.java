@@ -75,9 +75,9 @@ public class FlowRouting
      * So may a boundary event a token stands on, since it stands there only once the event has
      * fired.
      *
-     * <p>A token stops at a user task, to wait for a person, and at an end event, where it ends. A free-standing
-     * catching event may not be passed either: a token reaching it would have to wait, and nothing can wake it yet.
-     * Any other node means nothing to the engine and may not be passed.</p>
+     * <p>A token stops where it {@link FlowNode#raisesTask() parks on a task}, and at an end event, where it ends. Any other
+     * node means nothing to the engine and may not be passed. That includes a catching event that names no message,
+     * since nothing could wake a token there.</p>
      *
      * @param node the node to ask about
      * @return {@code true} if a token may pass through it

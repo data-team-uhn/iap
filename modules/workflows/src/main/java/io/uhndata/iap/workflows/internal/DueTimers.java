@@ -56,7 +56,7 @@ import io.uhndata.iap.workflows.models.TaskInstance;
  * <p>A boundary timer is the one thing in a workflow that happens without a user involved. Every other event
  * arrives because somebody did something, and the engine takes the actor from the session that asked. This sweep
  * finds the tasks whose deadline has passed. It hands each to {@link WorkflowEngine#receiveEvent} as an ordinary
- * {@code timeout} event, through a session of the {@value TaskCompletion#TIMER_USER} service user. A timer firing
+ * {@code timeout} event, through a session of the {@value TaskDeadline#TIMER_USER} service user. A timer firing
  * therefore meets the same performer check and the same single commit as any other event. What it does is
  * recorded as the clock's doing.</p>
  *
@@ -81,7 +81,7 @@ public class DueTimers implements Runnable
     /** Where a task counts its failed deliveries. */
     static final String DELIVERY_FAILURES_PROPERTY = "deliveryFailures";
 
-    /** The subservice deadlines are delivered through, mapped to the {@value TaskCompletion#TIMER_USER} user. */
+    /** The subservice deadlines are delivered through, mapped to the {@value TaskDeadline#TIMER_USER} user. */
     static final String TIMER_SUBSERVICE = "timer";
 
     /** The name the sweep is scheduled under, so that it replaces itself rather than accumulating. */
