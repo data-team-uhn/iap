@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Finish the checks of the uploads",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Ends the reading once every upload was validated and categorised, and asks the submitter to confirm the category.",
+    "received": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "received",
+      "label": "Checks finished",
+      "messageName": "decided",
+      "performers": ["iap-extraction"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toTask": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toTask",
+        "targetRef": "record"
+      }
+    },
+    "record": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "record",
+      "label": "End the reading",
+      "handler": "endReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "recorded"
+      }
+    },
+    "recorded": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "recorded",
+      "label": "Reading ended",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

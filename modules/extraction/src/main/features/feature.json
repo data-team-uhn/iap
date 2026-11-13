@@ -1,0 +1,61 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+{
+  "bundles":[
+    {
+      // Starts after the LLM client (25), the workflow engine (26), and the submissions and schemas modules it
+      // uses (28)
+      "id":"${project.groupId}:${project.artifactId}:${project.version}",
+      "start-order":"29"
+    }
+  ],
+  "configurations":{
+    "org.apache.sling.jcr.repoinit.RepositoryInitializer~extraction":{
+      "service.ranking:Integer": 400,
+      "scripts":[
+        // The user that hands a finished parse to the workflow engine and later asks it to read the answers.
+        // The workflow definitions decide which events it may fire: the documentParsed, readingStarted,
+        // readingFailed, validated, categorised, decided and extracted start events name only this user, and so
+        // does the task an intake workflow waits at for each validation.
+        //
+        // It writes nothing: even the claim on a reading and a give-up are events, so the workflow engine makes
+        // every change as its own user.
+        // It reads /Schemas for what the schema asks it to read, and /Workflows for the tasks an intake workflow
+        // waits at. Granted by name: a service user mapped as [iap-extraction] holds only that principal, so what
+        // /Schemas grants to everyone does not reach it.
+        "create service user iap-extraction \n set ACL for iap-extraction \n allow jcr:read on /Submissions,/Schemas,/Workflows \n end"
+      ]
+    },
+    "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iapextraction":{
+      "user.mapping":[
+        "io.uhndata.iap.extraction:extraction=[iap-extraction]"
+      ]
+    },
+    // One submission read at a time, to match the LLM module's gate of one model call at a time. A wider queue
+    // would not read anything sooner: jobs would wait at the gate, where they time out and fail, instead of in
+    // the queue, where they can wait as long as needed.
+    "org.apache.sling.event.jobs.QueueConfiguration~iapextraction":{
+      "queue.name":"iap-extraction",
+      "queue.topics":[
+        "iap/extraction/decide",
+        "iap/extraction/main"
+      ],
+      "queue.type":"UNORDERED",
+      "queue.maxparallel:Double":1.0
+    }
+  }
+}

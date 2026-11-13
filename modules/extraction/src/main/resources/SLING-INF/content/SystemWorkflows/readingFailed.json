@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Give up the reading of a submission",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Marks a submission's reading failed and releases the claim, so a new reading can start.",
+    "failed": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "failed",
+      "label": "Reading job gave up",
+      "messageName": "readingFailed",
+      "performers": ["iap-extraction"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toTask": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toTask",
+        "targetRef": "giveUp"
+      }
+    },
+    "giveUp": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "giveUp",
+      "label": "Record the failure",
+      "handler": "giveUpReading",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "recorded"
+      }
+    },
+    "recorded": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "recorded",
+      "label": "Recorded",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
