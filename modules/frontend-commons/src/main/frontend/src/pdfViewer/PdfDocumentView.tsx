@@ -73,6 +73,11 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected 
           "& .textLayer": { mixBlendMode: "multiply" },
           [`& .${MARK_CLASS}`]: { borderRadius: 0.5 },
           ...markColours(theme, outlineSelected),
+          // PDF.js's own highlights of a search's matches
+          "& .textLayer .highlight": {
+            "--highlight-bg-color": (theme.vars ?? theme).palette.highlight.search,
+            "--highlight-selected-bg-color": (theme.vars ?? theme).palette.highlight.searchCurrent,
+          },
           // A click on the text over a mark selects the mark, so the cursor becomes a pointer there.
           [`&.${OVER_MARK_CLASS} .textLayer, &.${OVER_MARK_CLASS} .textLayer span`]: { cursor: "pointer" },
         })}

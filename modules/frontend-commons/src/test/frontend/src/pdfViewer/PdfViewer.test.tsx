@@ -983,4 +983,233 @@ describe("PdfViewer", () => {
       });
     });
   });
+
+  describe("searching the document", () => {
+    // "the" is on the first page and the third, so a search from the passage's page finds the second first
+    const QUERY = "the";
+
+    function getSearchField() {
+      return screen.getByRole("textbox", { name: "Search the document" });
+    }
+
+    describe("in a narrow viewer", () => {
+      async function openSearch() {
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.click(screen.getByRole("button", { name: "Search the document" }));
+      }
+
+      it("takes the toolbar's place, finds every match and steps through them, round to the first", async () => {
+        await openSearch();
+        expect(getSearchField()).toHaveFocus();
+        expect(screen.queryByRole("button", { name: "Zoom in" })).not.toBeInTheDocument();
+
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 2 of 2."));
+        expect(screen.getByText("2 of 2")).toBeInTheDocument();
+        expect(getViewer().currentPageNumber).toBe(3);
+
+        await userEvent.click(screen.getByRole("button", { name: "Next match" }));
+        expect(getStatus()).toHaveTextContent("Match 1 of 2.");
+        expect(getViewer().currentPageNumber).toBe(1);
+
+        await userEvent.click(screen.getByRole("button", { name: "Previous match" }));
+        expect(getStatus()).toHaveTextContent("Match 2 of 2.");
+      });
+
+      it("steps with Enter and Shift+Enter, and closes on Escape, giving the focus back", async () => {
+        const { onClose } = show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.click(screen.getByRole("button", { name: "Search the document" }));
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 2 of 2."));
+
+        await userEvent.keyboard("{Enter}");
+        expect(getStatus()).toHaveTextContent("Match 1 of 2.");
+        await userEvent.keyboard("{Shift>}{Enter}{/Shift}");
+        expect(getStatus()).toHaveTextContent("Match 2 of 2.");
+
+        await userEvent.keyboard("{Escape}");
+
+        expect(screen.queryByRole("textbox", { name: "Search the document" })).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Search the document" })).toHaveFocus();
+        expect(getStatus()).toHaveTextContent(FOUND);
+        expect(fakePdf.finds.at(-1)).toMatchObject({ query: "" });
+        expect(onClose).not.toHaveBeenCalled();
+      });
+
+      it("closes on Escape from its other controls too, rather than closing the viewer", async () => {
+        const { onClose } = show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.click(screen.getByRole("button", { name: "Search the document" }));
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 2 of 2."));
+
+        screen.getByRole("button", { name: "Next match" }).focus();
+        await userEvent.keyboard("{Escape}");
+
+        expect(screen.queryByRole("textbox", { name: "Search the document" })).not.toBeInTheDocument();
+        expect(onClose).not.toHaveBeenCalled();
+      });
+
+      it("closes from its own button", async () => {
+        await openSearch();
+
+        await userEvent.click(screen.getByRole("button", { name: "Close the search" }));
+
+        expect(screen.getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+      });
+
+      it("says when nothing matches", async () => {
+        await openSearch();
+
+        await userEvent.type(getSearchField(), "elephant");
+
+        await waitFor(() => expect(getStatus()).toHaveTextContent("No matches in this document."));
+        expect(screen.getByText("No matches")).toBeInTheDocument();
+      });
+
+      it("says when the document has no text to search", async () => {
+        fakePdf.pages = [ "", " " ];
+        show({ quote: "Yes" });
+        await screen.findByText("Page 1 of 2");
+        await userEvent.click(screen.getByRole("button", { name: "Search the document" }));
+
+        await userEvent.type(getSearchField(), QUERY);
+
+        await waitFor(() => expect(getStatus()).toHaveTextContent("This document has no text to search."));
+        expect(screen.getByText("No text to search")).toBeInTheDocument();
+      });
+
+      it("opens on Ctrl+F while the focus is in the viewer", async () => {
+        show();
+        await screen.findByText("Page 2 of 3");
+        getFrame().focus();
+
+        await userEvent.keyboard("{Control>}f{/Control}");
+
+        expect(getSearchField()).toHaveFocus();
+      });
+
+      it("offers no search before the document opens", () => {
+        vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+        show();
+
+        expect(screen.getByRole("button", { name: "Search the document" })).toBeDisabled();
+      });
+
+      it("searches again in the dialog it pops out into", async () => {
+        const place = createPlace();
+        show({ container: place });
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.click(screen.getByRole("button", { name: "Search the document" }));
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 2 of 2."));
+        fakePdf.finds = [];
+
+        await userEvent.click(screen.getByRole("button", { name: "Pop out" }));
+
+        await waitFor(() => expect(fakePdf.finds).toEqual([ { type: "", query: QUERY, findPrevious: false } ]));
+        expect(getStatus()).toHaveTextContent(/^Match \d of 2\.$/);
+        expect(getSearchField()).toHaveValue(QUERY);
+
+        await userEvent.click(screen.getByRole("button", { name: "Close the search" }));
+        expect(screen.getByRole("button", { name: "Search the document" })).toHaveFocus();
+      });
+    });
+
+    describe("in a wide viewer", () => {
+      beforeEach(() => {
+        stubLayout({ elementWidth: 1000 });
+      });
+
+      it("keeps the search in the toolbar, where Escape clears it, and a second Escape closes the viewer", async () => {
+        const { onClose } = show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        expect(screen.getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 2 of 2."));
+
+        await userEvent.keyboard("{Escape}");
+        expect(getSearchField()).toHaveValue("");
+        expect(getStatus()).toHaveTextContent(FOUND);
+        expect(onClose).not.toHaveBeenCalled();
+
+        await userEvent.keyboard("{Escape}");
+        expect(onClose).toHaveBeenCalled();
+      });
+
+      it("leaves the reader where they are when zooming, rather than taking them back to the match", async () => {
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 2 of 2."));
+        getFrame().scrollTop = 100;
+
+        await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+
+        expect(getFrame().scrollTop).toBe(100);
+      });
+
+      it("keeps the match buttons in place, disabled until there are matches to go between", async () => {
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        const buttons = () => [ "Previous match", "Next match" ].map(name => screen.getByRole("button", { name }));
+        buttons().forEach(button => expect(button).toBeDisabled());
+
+        // Only the cover's own page has "cover"
+        await userEvent.type(getSearchField(), "cover");
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 1 of 1."));
+        buttons().forEach(button => expect(button).toBeDisabled());
+
+        // From the cover's page, where that search left the reader
+        await userEvent.clear(getSearchField());
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 1 of 2."));
+        buttons().forEach(button => expect(button).toBeEnabled());
+      });
+
+      it("focuses the search on Ctrl+F, selecting what it holds so typing replaces it", async () => {
+        show();
+        await screen.findByText("Page 2 of 3");
+        await userEvent.type(getSearchField(), QUERY);
+        getFrame().focus();
+
+        await userEvent.keyboard("{Meta>}f{/Meta}");
+
+        const field = getSearchField() as HTMLInputElement;
+        expect(field).toHaveFocus();
+        expect([ field.selectionStart, field.selectionEnd ]).toEqual([ 0, QUERY.length ]);
+      });
+
+      it("scrolls the match into view in the frame", async () => {
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 2 of 2."));
+        getFrame().scrollTop = 0;
+
+        await userEvent.keyboard("{Enter}");
+
+        expect(getStatus()).toHaveTextContent("Match 1 of 2.");
+        expect(getFrame().scrollTop).toBe(MATCH_TOP);
+      });
+
+      it("stops taking the reader to the passage once they search", async () => {
+        fakePdf.holdText = true;
+        show();
+        await screen.findByText("Page 1 of 3");
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Match 1 of 2."));
+        getFrame().scrollTop = 0;
+
+        act(() => fakePdf.releaseText?.());
+
+        await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 2: [ ASSISTANT_MARK ] }));
+        expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
+        expect(getFrame().scrollTop).toBe(0);
+      });
+    });
+  });
 });
