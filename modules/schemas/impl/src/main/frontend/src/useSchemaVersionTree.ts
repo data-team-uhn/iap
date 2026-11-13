@@ -16,15 +16,11 @@
  * limitations under the License.
  */
 
-import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { useNode } from "@iap/frontend-commons/useNode";
-
-const asNode = (node: SerializedNode): SerializedNode => node;
 
 // One version with everything in it, in order, and what may be changed, added and removed in each part. The
 // version's `workflow` stays the identifier it is stored as.
 export function useSchemaVersionTree(path: string) {
-  const { value, loading, loadError, reload } =
-    useNode(path, "deep.-dereference.events.fields.creatable.order", asNode);
+  const { value, loading, loadError, reload } = useNode(path, "deep.-dereference.events.fields.creatable.order");
   return { tree: value, loading, loadError, reload };
 }

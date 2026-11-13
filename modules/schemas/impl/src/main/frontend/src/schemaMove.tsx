@@ -25,8 +25,10 @@ import { Alert, Box, Button, Snackbar, type Theme } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 
 import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { replaying } from "@iap/frontend-commons/keyframes";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { useKeepInPlace } from "@iap/frontend-commons/useKeepInPlace";
 import { usePhone } from "@iap/frontend-commons/usePhone";
 
 import { nameOf, pathOf } from "./schemaModel";
@@ -86,28 +88,6 @@ const moveParams = (parent: SerializedNode, before?: SerializedNode) =>
 
 const PULSE = { "50%": { scale: "1.03" } };
 
-// Keyframes under a name that changes with a count, so that an animation using them plays again as the count changes
-function replaying(name: string, count: number, frames: object) {
-  const named = `${name}${count % 2}`;
-  return { name: named, keyframes: { [`@keyframes ${named}`]: frames } };
-}
-
-// Keeps an element at the same place on the screen while places to move to open and close above it
-function useKeepInPlace(change: unknown) {
-  const kept = useRef<{ element: HTMLElement; top: number }>(undefined);
-  useLayoutEffect(() => {
-    const current = kept.current;
-    kept.current = undefined;
-    const shift = current?.element.isConnected ? current.element.getBoundingClientRect().top - current.top : 0;
-    if (shift !== 0) {
-      window.scrollBy(0, shift);
-    }
-  }, [ change ]);
-  return useCallback((element?: HTMLElement) => {
-    kept.current = element && { element, top: element.getBoundingClientRect().top };
-  }, []);
-}
-
 // Lets one part of a tree move at a time. The user chooses what moves, then where it goes, and the move is sent as
 // one event. A notice says when it is done. Answer options move one step at a time instead, one event per step.
 export function MoveMode({ children }: { children: ReactNode }) {
@@ -126,6 +106,7 @@ export function MoveMode({ children }: { children: ReactNode }) {
   const [ failures, setFailures ] = useState(0);
   const send = useTreeEvent();
   const notify = useNotice();
+  // What started or ended the move stays put while places to move to open and close above it
   const keepInPlace = useKeepInPlace(moving);
 
   const shown = useCallback((path: string | undefined, step: boolean) => {

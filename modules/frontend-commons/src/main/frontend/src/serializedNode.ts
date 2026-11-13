@@ -37,13 +37,24 @@ export function childrenOf(node: SerializedNode): SerializedNode[] {
 export const childrenOfType = (node: SerializedNode, resourceType: string): SerializedNode[] =>
   childrenOf(node).filter(child => child["sling:resourceType"] === resourceType);
 
+// A property's values as an array, one for a single value
+const valuesOf = (value: unknown): unknown[] => (Array.isArray(value) ? value : [ value ]);
+
 // The strings a property holds, as an array: one string for a single value, and empty for no value.
 // A value that is not a string is left out.
 export function stringsOf(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.filter((entry): entry is string => typeof entry === "string");
-  }
-  return typeof value === "string" ? [ value ] : [];
+  return valuesOf(value).filter((entry): entry is string => typeof entry === "string");
+}
+
+// The strings and numbers a property holds, as text: "3" for the number 3. Any other value is left out.
+export const textValuesOf = (value: unknown): string[] => valuesOf(value)
+  .filter((entry): entry is string | number => typeof entry === "string" || typeof entry === "number")
+  .map(String);
+
+// A node's string property; undefined if it is missing, not a string, or only whitespace
+export function textOf(node: SerializedNode, key: string): string | undefined {
+  const value = node[key];
+  return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
 // The last segment of a path, which is the name of the node it leads to

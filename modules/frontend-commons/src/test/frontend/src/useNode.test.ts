@@ -85,6 +85,13 @@ describe("useNode", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("hands over the node as read when the caller does not parse it", async () => {
+    vi.stubGlobal("fetch", answering({ title: "Consent" }));
+    const { result } = renderHook(() => useNode("/Schemas/consent", "1"));
+
+    await waitFor(() => { expect(result.current.value).toEqual({ title: "Consent" }); });
+  });
+
   it("keeps what it last read when reading again fails, so the page stays readable under the error", async () => {
     vi.stubGlobal("fetch", answering({ title: "Consent" }));
     const { result } = renderHook(() => useNode("/Schemas/consent", "1", titleOf));

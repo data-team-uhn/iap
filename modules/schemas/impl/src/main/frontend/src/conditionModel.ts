@@ -23,10 +23,10 @@ import {
   type Choice, type OperandShape, type OperandSource, ownPropertySource, propertySource, tagsSource,
   type ValueType,
 } from "@iap/conditions/conditionModel";
-import { isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { isNode, type SerializedNode, textValuesOf } from "@iap/frontend-commons/serializedNode";
 
 import { nameOf, pathOf } from "./schemaModel";
-import { headingOf, optionLabelOf, optionsOf, type QuestionIndex, strings } from "./schemaVersionTreeModel";
+import { headingOf, optionLabelOf, optionsOf, type QuestionIndex } from "./schemaVersionTreeModel";
 
 // The comparison type of each question data type
 const VALUE_TYPES: Record<string, ValueType | undefined> = {
@@ -46,7 +46,7 @@ export function itemChoicesOf(node: SerializedNode): Choice[] {
   return Object.entries(node)
     .filter((entry): entry is [ string, SerializedNode ] => isNode(entry[1]) && !entry[0].includes(":"))
     .flatMap(([ name, item ]) => [
-      { value: String(item["@path"]), label: strings(item.title ?? item.label).at(0) ?? name },
+      { value: String(item["@path"]), label: textValuesOf(item.title ?? item.label).at(0) ?? name },
       ...itemChoicesOf(item),
     ]);
 }
@@ -55,13 +55,13 @@ export function itemChoicesOf(node: SerializedNode): Choice[] {
 // the ones the question lists, or else the items it takes its options from, once they are loaded.
 export function answerShapeOf(question: SerializedNode, items: ItemChoices = {}): OperandShape {
   const listed = optionsOf(question).map(option => ({
-    value: strings(option.value).at(0) ?? "",
+    value: textValuesOf(option.value).at(0) ?? "",
     label: optionLabelOf(option),
   }));
-  const options = listed.length > 0 ? listed : items[strings(question.optionsFrom).at(0) ?? ""] ?? [];
+  const options = listed.length > 0 ? listed : items[textValuesOf(question.optionsFrom).at(0) ?? ""] ?? [];
   const maxAnswers = typeof question.maxAnswers === "number" ? question.maxAnswers : 1;
   return {
-    type: VALUE_TYPES[strings(question.dataType).at(0) ?? "text"],
+    type: VALUE_TYPES[textValuesOf(question.dataType).at(0) ?? "text"],
     multiple: maxAnswers !== 1,
     ...options.length > 0 ? { choices: options } : {},
   };
@@ -112,7 +112,7 @@ export function conditionKeyOf(condition: SerializedNode, index: QuestionIndex, 
         return [ key, canonical(value) ];
       }
       if (key === "value" && node.source === "answer") {
-        return [ key, strings(value).map(reference => {
+        return [ key, textValuesOf(value).map(reference => {
           const question = index.find(reference);
           return question ? keyOf(question) : reference;
         }) ];

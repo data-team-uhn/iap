@@ -34,8 +34,6 @@ import { pathOf } from "./schemaModel";
 import { conditionOf, indexQuestions } from "./schemaVersionTreeModel";
 import { useOptionsFrom } from "./useOptionsFrom";
 
-const asNode = (node: SerializedNode): SerializedNode => node;
-
 // The workflow definitions describing the fields compared, for a version, its parts and their options
 export interface ComparedFieldSources {
   version: string[];
@@ -106,8 +104,8 @@ export function useReferenceNames(fields: ComparedField[]) {
 
 // Two versions of a schema, by their names, compared on the given fields once they are known
 export function useVersionComparison(schemaPath: string, names: [ string, string ], fields?: ComparedFields) {
-  const before = useNode(`${schemaPath}/${names[0]}`, "deep.-dereference.order", asNode);
-  const after = useNode(`${schemaPath}/${names[1]}`, "deep.-dereference.order", asNode);
+  const before = useNode(`${schemaPath}/${names[0]}`, "deep.-dereference.order");
+  const after = useNode(`${schemaPath}/${names[1]}`, "deep.-dereference.order");
   const indexBefore = useMemo(() => indexQuestions(before.value ?? {}), [ before.value ]);
   const indexAfter = useMemo(() => indexQuestions(after.value ?? {}), [ after.value ]);
   // Read once for both versions: the tags conditions name, and the items questions take their options from
