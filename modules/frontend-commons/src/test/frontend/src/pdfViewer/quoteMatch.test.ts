@@ -15,7 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { findQuote, findQuoteAcrossPages, getSearchText, unquote } from "@iap/frontend-commons/pdfViewer/quoteMatch";
+import {
+  findQuote,
+  findQuoteAcrossPages,
+  getSearchText,
+  prepareText,
+  unquote,
+} from "@iap/frontend-commons/pdfViewer/quoteMatch";
 
 // The text a match covers in the page, for readable assertions.
 function matched(page: string, quote: string): string[] {
@@ -23,7 +29,7 @@ function matched(page: string, quote: string): string[] {
   if (searchText === undefined) {
     throw new Error(`"${quote}" is too short to search for`);
   }
-  return findQuote(page, searchText).map(({ index, length }) => page.slice(index, index + length));
+  return findQuote(prepareText(page), searchText).map(({ index, length }) => page.slice(index, index + length));
 }
 
 describe("getSearchText", () => {
@@ -94,7 +100,7 @@ describe("findQuote", () => {
 
   it("finds every occurrence", () => {
     const page = "Sign the form. Then sign the form again.";
-    expect(findQuote(page, "signtheform")).toEqual([ { index: 0, length: 13 }, { index: 20, length: 13 } ]);
+    expect(findQuote(prepareText(page), "signtheform")).toEqual([ { index: 0, length: 13 }, { index: 20, length: 13 } ]);
   });
 
   it("finds nothing when the page does not have the quote", () => {
@@ -114,7 +120,7 @@ describe("findQuoteAcrossPages", () => {
     if (searchText === undefined) {
       throw new Error(`"${quote}" is too short to search for`);
     }
-    const found = findQuoteAcrossPages(first, next, searchText);
+    const found = findQuoteAcrossPages(prepareText(first), prepareText(next), searchText);
     return found && [
       first.slice(found.first.index, found.first.index + found.first.length),
       next.slice(found.next.index, found.next.index + found.next.length),
@@ -133,6 +139,16 @@ describe("findQuoteAcrossPages", () => {
       "submit a Police Records Check before the vulnerable sector check is done")).toEqual([
       "submit a Police Records Check before the vulner",
       "able sector check is done",
+    ]);
+  });
+
+  it("finds the parts at the pages' edges when they also occur far from them", () => {
+    const earlier = "Volunteers who, on a casual basis, assist. ";
+    const later = " from time to time with a variety of activities.";
+    expect(parts(earlier + "Another paragraph. ".repeat(30) + FIRST, NEXT + "Another paragraph. ".repeat(30) + later,
+      QUOTE)).toEqual([
+      "Volunteers who, on a casual basis, assist",
+      "from time to time with a variety of activities.",
     ]);
   });
 

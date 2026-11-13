@@ -20,7 +20,9 @@ import {
   findQuoteAcrossPages,
   getComparedText,
   getSearchText,
+  prepareText,
   unquote,
+  type PreparedText,
   type QuoteMatch,
 } from "./quoteMatch";
 
@@ -89,6 +91,16 @@ export interface PageText {
 export type MarkPlace =
   | { status: "searching" | "tooShort" | "notFound" | "noText" }
   | { status: "found"; page: number; toPage?: number; spans: MarkSpan[]; text: string };
+
+// Each page's text in the form quotes are compared in. A page is prepared once, however many quotes are
+// looked for in it and however often the marks change.
+const preparedTexts = new WeakMap<PageText, PreparedText>();
+
+function getPrepared(page: PageText): PreparedText {
+  const prepared = preparedTexts.get(page) ?? prepareText(page.text);
+  preparedTexts.set(page, prepared);
+  return prepared;
+}
 
 // A span with the text of the page it is on.
 interface SpanOnPage {
@@ -216,12 +228,11 @@ export class MarkLocator {
     }
   }
 
-  addPage(page: number, text: string, lineEnds: number[] = []): void {
-    const pageText = { text, lineEnds };
+  addPage(page: number, pageText: PageText): void {
     this.#texts.set(page, pageText);
-    this.#hasText ||= text.trim().length > 0;
+    this.#hasText ||= pageText.text.trim().length > 0;
     for (const [ id, searchText ] of this.#searchTexts) {
-      const match = findQuote(text, searchText).at(0);
+      const match = findQuote(getPrepared(pageText), searchText).at(0);
       if (match !== undefined) {
         this.#whole.get(id)?.set(page, { span: toSpan(page, match), page: pageText });
       }
@@ -231,7 +242,7 @@ export class MarkLocator {
         if (first === undefined || next === undefined) {
           continue;
         }
-        const found = findQuoteAcrossPages(first.text, next.text, searchText);
+        const found = findQuoteAcrossPages(getPrepared(first), getPrepared(next), searchText);
         if (found !== undefined) {
           this.#across.get(id)?.set(before, [
             { span: toSpan(before, found.first), page: first },
@@ -344,7 +355,7 @@ export class MarkLocator {
     const after = ({ text }: PageText, at: number) => text.slice(at, at + around);
     const pages = [ ...this.#texts ].sort(([ one ], [ other ]) => one - other);
     return pages.flatMap(([ number, page ]) => {
-      const whole = findQuote(page.text, searchText).map(match => {
+      const whole = findQuote(getPrepared(page), searchText).map(match => {
         const span = toSpan(number, match);
         const likeness = getContextLikeness(anchor, before(page, span.start), after(page, span.end));
         return { read: [ { span, page } ], likeness };
@@ -353,7 +364,7 @@ export class MarkLocator {
       if (next === undefined) {
         return whole;
       }
-      const across = findQuoteAcrossPages(page.text, next.text, searchText);
+      const across = findQuoteAcrossPages(getPrepared(page), getPrepared(next), searchText);
       if (across === undefined) {
         return whole;
       }
@@ -385,6 +396,11 @@ export class MarkLocator {
 // document without text.
 export function cannotMark(place: MarkPlace): boolean {
   return [ "notFound", "tooShort", "noText" ].includes(place.status);
+}
+
+// Whether some passage is still being looked for.
+export function isLooking(places: Record<string, MarkPlace>): boolean {
+  return Object.values(places).some(place => place.status === "searching");
 }
 
 // The marks in the order given, with those whose passage cannot be marked after the others.
