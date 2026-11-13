@@ -17,7 +17,9 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.Default;
@@ -83,9 +85,6 @@ public class Question extends FormItem implements Referenceable
 
     @ValueMapValue
     private String extractionPrompt;
-
-    @ValueMapValue
-    private String responseShape;
 
     /**
      * The question, as the submitter reads it.
@@ -217,6 +216,22 @@ public class Question extends FormItem implements Referenceable
     }
 
     /**
+     * Whether a value is an item of the question's catalogue that is no longer offered, such as a retired category.
+     * Requests that already hold it keep it as a valid answer.
+     *
+     * @param value an answer's value
+     * @return {@code true} when the value names an item still under {@link #getOptionsFrom()}
+     */
+    public boolean isWithdrawnOption(@NotNull final String value)
+    {
+        if (this.optionsFrom == null || this.optionsFrom.isBlank()) {
+            return false;
+        }
+        final String root = this.optionsFrom.replaceAll("/+$", "") + "/";
+        return value.startsWith(root) && this.resource.getResourceResolver().getResource(value) != null;
+    }
+
+    /**
      * The options this question holds as children. A question with options is answered only with their values.
      *
      * @return the options, in stored order; empty if there are none
@@ -260,21 +275,32 @@ public class Question extends FormItem implements Referenceable
         return this.extractionPrompt;
     }
 
-    /**
-     * The shape the LLM's reply must take, as a JSON schema.
-     *
-     * @return the JSON schema; {@code null} if none is set
-     */
-    @Nullable
-    public String getResponseShape()
-    {
-        return this.responseShape;
-    }
-
     @Override
     @NotNull
     public String getIdentifier()
     {
         return this.identifier;
+    }
+
+    /**
+     * The answers this question offers, as the model is shown them and as its replies are matched against.
+     *
+     * <p>Read from {@link #getOptionsFrom()} when that path is set, otherwise from the declared
+     * {@link #getOptions() children}, sorted by {@code defaultOrder}.</p>
+     *
+     * @return the offered options, an empty list if the question has none
+     */
+    @NotNull
+    public List<OfferedOption> getOfferedOptions()
+    {
+        if (this.optionsFrom != null && !this.optionsFrom.isBlank()) {
+            return OptionCatalog.read(this.resource.getResourceResolver(), this.optionsFrom);
+        }
+        // A stable sort, so options never numbered keep the order they are stored in
+        return getOptions().stream()
+            .sorted(Comparator.comparingLong(AnswerOption::getDefaultOrder))
+            .map(option -> new OfferedOption(option.getValue(), option.getLabel(),
+                Objects.requireNonNullElse(option.getDescription(), "")))
+            .toList();
     }
 }

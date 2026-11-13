@@ -156,6 +156,15 @@ export function isApprovalRequirement(requirement: Requirement): requirement is 
   return requirement.type === APPROVAL_REQUIREMENT_TYPE;
 }
 
+// The `extractionStatus` of a submission whose documents are being read for answers
+export const READING_STATUS = "running";
+
+// Whether the submission's documents are being read for answers, from its `extractionStatus`. Until the
+// reading ends, the submitter cannot change the answers and the request is not ready to send.
+export function isBeingRead(extractionStatus: unknown): boolean {
+  return extractionStatus === READING_STATUS;
+}
+
 // What an empty document slot says. An optional one says so, or it reads as a gap.
 export function describeNothingAttached(requirement: DocumentRequirement): string {
   return requirement.required ? "Nothing attached yet" : "Nothing attached yet — optional";
