@@ -19,10 +19,13 @@ package io.uhndata.iap.uix;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import javax.jcr.NodeIterator;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.query.Query;
 import javax.script.Bindings;
 
 import jakarta.json.Json;
@@ -30,7 +33,6 @@ import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.sling.api.SlingException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.scripting.sightly.pojo.Use;
@@ -67,6 +69,11 @@ public class ExtensionsManager implements Use
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtensionsManager.class);
 
+    private static final String POINT_ID_VARIABLE = "pointId";
+
+    private static final String EXTENSIONS_QUERY = "select n.* from [ext:Extension] as n where n.'ext:pointId' = $"
+        + POINT_ID_VARIABLE + " order by n.'defaultOrder' OPTION (index tag property)";
+
     private final List<Resource> matchingExtensions = new ArrayList<>();
 
     private ResourceResolver resourceResolver;
@@ -84,7 +91,7 @@ public class ExtensionsManager implements Use
 
         try {
             findExtensions(uixp);
-        } catch (SlingException e) {
+        } catch (RepositoryException e) {
             LOGGER.error("Could not query the extensions: {}", e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(ExtensionsManager.class, "findExtensions")
                 .with("extensionPoint", uixp));
@@ -93,18 +100,24 @@ public class ExtensionsManager implements Use
 
     /**
      * Finds the extensions registered on an extension point, in their {@code defaultOrder}, and keeps them in
-     * {@link #matchingExtensions}.
+     * {@link #matchingExtensions}. A resolver without a JCR session finds none.
      *
      * @param extensionPointId the {@code ext:pointId} of the extension point, such as {@code iap/coreUI/view}
+     * @throws RepositoryException if the query fails
      */
-    private void findExtensions(final String extensionPointId)
+    private void findExtensions(final String extensionPointId) throws RepositoryException
     {
         LOGGER.debug("Looking for extensions for [{}]", extensionPointId);
-        final Iterator<Resource> result = this.resourceResolver.findResources(
-            "select n from [ext:Extension] as n where n.'ext:pointId' = '" + extensionPointId
-            + "' order by n.'defaultOrder' OPTION (index tag property)",
-            "JCR-SQL2");
-        result.forEachRemaining(extension -> this.matchingExtensions.add(extension));
+        final Session session = this.resourceResolver.adaptTo(Session.class);
+        if (session == null) {
+            return;
+        }
+        final Query query = session.getWorkspace().getQueryManager().createQuery(EXTENSIONS_QUERY, Query.JCR_SQL2);
+        query.bindValue(POINT_ID_VARIABLE, session.getValueFactory().createValue(extensionPointId));
+        final NodeIterator extensions = query.execute().getNodes();
+        while (extensions.hasNext()) {
+            this.matchingExtensions.add(this.resourceResolver.getResource(extensions.nextNode().getPath()));
+        }
         LOGGER.debug("Found [{}] extensions", this.matchingExtensions.size());
     }
 
@@ -154,10 +167,7 @@ public class ExtensionsManager implements Use
     public List<Resource> listEnabled()
     {
         return this.matchingExtensions.stream()
-            .filter(i -> {
-                Boolean b = i.getValueMap().get("ext:defaultDisabled", Boolean.class);
-                return b == null ? true : !b.booleanValue();
-            })
+            .filter(extension -> !extension.getValueMap().get("ext:defaultDisabled", false))
             .collect(Collectors.toList());
     }
 
