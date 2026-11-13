@@ -18,17 +18,18 @@
 package io.uhndata.iap.documents.internal;
 
 import java.io.StringReader;
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -68,6 +69,10 @@ class ParseCallbackServletTest
     private static final String TOKEN = "secret-jwt";
 
     private static final String GOOD_AUTHORIZATION = "Bearer " + TOKEN;
+
+    private static final String DOCUMENT = "/shared-docs/proposal.pdf";
+
+    private static final String TARGET = "/Submissions/aRequest/d1/v1/file";
 
     /** What the daemon POSTs after a successful parse. */
     private static final String SUCCESS_BODY = "{\"job_id\": \"" + JOB_ID + "\", \"ok\": true,"
@@ -128,7 +133,7 @@ class ParseCallbackServletTest
         this.context.create().resource(ParseJob.nodePath(JOB_ID),
             ParseJob.PN_JOB_ID, JOB_ID,
             ParseJob.PN_STATUS, ParseJob.STATUS_FAILED,
-            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
+            ParseJob.PN_PATH, DOCUMENT,
             ParseJob.PN_ERROR, "Calling the daemon failed: null");
 
         final MockSlingJakartaHttpServletResponse response = post(GOOD_AUTHORIZATION, SUCCESS_BODY);
@@ -144,8 +149,8 @@ class ParseCallbackServletTest
     {
         this.context.create().resource(ParseJob.nodePath(JOB_ID),
             ParseJob.PN_JOB_ID, JOB_ID,
-            ParseJob.PN_STATUS, ParseJob.STATUS_COMPLETED,
-            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
+            ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE,
+            ParseJob.PN_PATH, DOCUMENT,
             ParseJob.PN_OUTPUTS, new String[] { "/shared-docs/proposal.md" });
 
         final MockSlingJakartaHttpServletResponse response = post(GOOD_AUTHORIZATION,
@@ -156,6 +161,53 @@ class ParseCallbackServletTest
         assertEquals(ParseJob.STATUS_FAILED, properties.get(ParseJob.PN_STATUS, String.class));
         assertEquals("cannot parse", properties.get(ParseJob.PN_ERROR, String.class));
         assertNull(properties.get(ParseJob.PN_OUTPUTS, String[].class));
+    }
+
+    @Test
+    void keepsAStopAgainstALateSuccess() throws Exception
+    {
+        this.context.create().resource(ParseJob.nodePath(JOB_ID),
+            ParseJob.PN_JOB_ID, JOB_ID,
+            ParseJob.PN_STATUS, ParseJob.STATUS_FAILED,
+            ParseJob.PN_ERROR, ParseOutcome.STOPPED_ERROR,
+            ParseJob.PN_PATH, DOCUMENT);
+
+        final MockSlingJakartaHttpServletResponse response = post(GOOD_AUTHORIZATION,
+            "{\"job_id\": \"" + JOB_ID + "\", \"ok\": true, \"markdown_path\": \"/shared-docs/proposal.md\"}");
+
+        assertEquals(200, response.getStatus(), "answered, so the daemon stops retrying");
+        assertEquals(ParseOutcome.STOPPED_ERROR, jobProperties().get(ParseJob.PN_ERROR, String.class));
+        assertNull(jobProperties().get(ParseJob.PN_OUTPUTS, String[].class));
+    }
+
+    @Test
+    void recordsARepeatedOutcomeOnlyOnce() throws Exception
+    {
+        this.context.create().resource(ParseJob.nodePath(JOB_ID),
+            ParseJob.PN_JOB_ID, JOB_ID,
+            ParseJob.PN_STATUS, ParseJob.STATUS_COMPLETED,
+            ParseJob.PN_PATH, DOCUMENT,
+            ParseJob.PN_OUTPUTS, new String[] { "/shared-docs/proposal.md" });
+
+        final MockSlingJakartaHttpServletResponse response = post(GOOD_AUTHORIZATION,
+            "{\"job_id\": \"" + JOB_ID + "\", \"ok\": false, \"error\": \"cannot parse\"}");
+
+        assertEquals(200, response.getStatus());
+        assertEquals(ParseJob.STATUS_COMPLETED, jobProperties().get(ParseJob.PN_STATUS, String.class));
+    }
+
+    @Test
+    void keepsAFailureTheDaemonRepeats() throws Exception
+    {
+        this.context.create().resource(ParseJob.nodePath(JOB_ID),
+            ParseJob.PN_JOB_ID, JOB_ID,
+            ParseJob.PN_STATUS, ParseJob.STATUS_FAILED,
+            ParseJob.PN_ERROR, "first failure",
+            ParseJob.PN_PATH, DOCUMENT);
+
+        post(GOOD_AUTHORIZATION, "{\"job_id\": \"" + JOB_ID + "\", \"ok\": false, \"error\": \"again\"}");
+
+        assertEquals("first failure", jobProperties().get(ParseJob.PN_ERROR, String.class));
     }
 
     @Test
@@ -315,10 +367,77 @@ class ParseCallbackServletTest
         assertTrue(parse(response).getString("error").contains("could not be recorded"));
     }
 
+    // The sweep deleted the job while this outcome was being recorded: the usual "no such job" answer
+    @Test
+    void aJobRemovedDuringTheCommitIsNotFound() throws Exception
+    {
+        jobNode();
+        final ResourceResolver real = this.context.resourceResolver();
+        final AtomicBoolean failed = new AtomicBoolean();
+        final AtomicBoolean readAfterFailure = new AtomicBoolean();
+        final ResourceResolver recording = new ResourceResolverWrapper(real)
+        {
+            @Override
+            public Resource getResource(final String path)
+            {
+                readAfterFailure.compareAndSet(false, failed.get());
+                return super.getResource(path);
+            }
+
+            @Override
+            public void commit() throws PersistenceException
+            {
+                // Somebody else's session deletes the record and commits first
+                real.delete(real.getResource(ParseJob.nodePath(JOB_ID)));
+                real.commit();
+                failed.set(true);
+                throw new PersistenceException("Removed by somebody else");
+            }
+        };
+        final ResourceResolver fresh = new ResourceResolverWrapper(real);
+        final List<ResourceResolver> sessions = new ArrayList<>(List.of(recording, fresh));
+        inject(this.servlet, new TestResolverFactory(real)
+        {
+            @Override
+            public ResourceResolver getServiceResourceResolver(final Map<String, Object> authenticationInfo)
+            {
+                return sessions.remove(0);
+            }
+        });
+
+        assertEquals(404, post(GOOD_AUTHORIZATION, SUCCESS_BODY).getStatus());
+        assertTrue(sessions.isEmpty(), "the lookup opened a session of its own");
+        assertFalse(readAfterFailure.get(), "the session whose commit failed is not read again");
+    }
+
+    // It cannot tell whether the job is still there, so the failure stays a server error
+    @Test
+    void aFailedCommitStaysAServerErrorWhenTheJobCannotBeLookedUp() throws Exception
+    {
+        jobNode();
+        final ResourceResolver failing = failingCommits();
+        final int[] logins = { 0 };
+        inject(this.servlet, new TestResolverFactory(failing)
+        {
+            @Override
+            public ResourceResolver getServiceResourceResolver(final Map<String, Object> authenticationInfo)
+                throws LoginException
+            {
+                logins[0]++;
+                if (logins[0] > 1) {
+                    throw new LoginException("The service user went away");
+                }
+                return super.getServiceResourceResolver(authenticationInfo);
+            }
+        });
+
+        assertEquals(500, post(GOOD_AUTHORIZATION, SUCCESS_BODY).getStatus());
+    }
+
     @Test
     void theRealEnvironmentLookupIsHarmlessWhenConfigured() throws Exception
     {
-        // No overridden environment(): the real lookup runs, and the configured token keeps the outcome
+        // No overridden getEnvironmentVariable(): the real lookup runs, and the configured token keeps the outcome
         // deterministic whether or not the variable is set on the machine running the tests
         final ParseCallbackServlet real = new ParseCallbackServlet();
         inject(real, new TestResolverFactory(this.context.resourceResolver()));
@@ -342,7 +461,7 @@ class ParseCallbackServletTest
             private static final long serialVersionUID = 1L;
 
             @Override
-            protected String environment(final String name)
+            protected String getEnvironmentVariable(final String name)
             {
                 return ParseJob.TOKEN_VARIABLE.equals(name) ? token : null;
             }
@@ -353,12 +472,8 @@ class ParseCallbackServletTest
 
     private void inject(final ParseCallbackServlet target, final ResourceResolverFactory factory) throws Exception
     {
-        final Field reference = ParseCallbackServlet.class.getDeclaredField("resolverFactory");
-        reference.setAccessible(true);
-        reference.set(target, factory);
-        final Field outcomes = ParseCallbackServlet.class.getDeclaredField("outcomes");
-        outcomes.setAccessible(true);
-        outcomes.set(target, this.dispatcher);
+        TestJobs.inject(target, "resolverFactory", factory);
+        TestJobs.inject(target, "outcomes", this.dispatcher);
     }
 
     @Test
@@ -369,17 +484,13 @@ class ParseCallbackServletTest
             handed.add(outcome);
             return true;
         });
-        this.context.create().resource(ParseJob.nodePath(JOB_ID),
-            ParseJob.PN_JOB_ID, JOB_ID,
-            ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE,
-            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
-            ParseJob.PN_TARGET, "/Submissions/aRequest/d1/v1/file");
+        TestJobs.createJob(this.context, JOB_ID, ParseJob.STATUS_ACTIVE, DOCUMENT, TARGET);
 
         final MockSlingJakartaHttpServletResponse response = post(GOOD_AUTHORIZATION, SUCCESS_BODY);
 
         assertEquals(200, response.getStatus());
         assertEquals(1, handed.size());
-        assertEquals("/Submissions/aRequest/d1/v1/file", handed.get(0).target());
+        assertEquals(TARGET, handed.get(0).target());
         assertEquals("/shared-docs/proposal.md", handed.get(0).markdownPath());
         assertTrue(handed.get(0).succeeded());
         assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(JOB_ID)),
@@ -390,11 +501,7 @@ class ParseCallbackServletTest
     void anOutcomeNobodyTakesKeepsItsRecord() throws Exception
     {
         this.dispatcher.bindHandler(outcome -> false);
-        this.context.create().resource(ParseJob.nodePath(JOB_ID),
-            ParseJob.PN_JOB_ID, JOB_ID,
-            ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE,
-            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
-            ParseJob.PN_TARGET, "/Submissions/aRequest/d1/v1/file");
+        TestJobs.createJob(this.context, JOB_ID, ParseJob.STATUS_ACTIVE, DOCUMENT, TARGET);
 
         post(GOOD_AUTHORIZATION, SUCCESS_BODY);
 
@@ -409,11 +516,7 @@ class ParseCallbackServletTest
             handed.add(outcome);
             return true;
         });
-        this.context.create().resource(ParseJob.nodePath(JOB_ID),
-            ParseJob.PN_JOB_ID, JOB_ID,
-            ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE,
-            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
-            ParseJob.PN_TARGET, "/Submissions/aRequest/d1/v1/file");
+        TestJobs.createJob(this.context, JOB_ID, ParseJob.STATUS_ACTIVE, DOCUMENT, TARGET);
 
         post(GOOD_AUTHORIZATION, "{\"job_id\": \"" + JOB_ID + "\", \"ok\": false, \"error\": \"No pages\"}");
 
@@ -427,9 +530,7 @@ class ParseCallbackServletTest
     @Test
     void aHandoverThatBlowsUpDoesNotFailTheDelivery() throws Exception
     {
-        final Field outcomes = ParseCallbackServlet.class.getDeclaredField("outcomes");
-        outcomes.setAccessible(true);
-        outcomes.set(this.servlet, new ParseOutcomeDispatcher()
+        TestJobs.inject(this.servlet, "outcomes", new ParseOutcomeDispatcher()
         {
             @Override
             void settle(final ResourceResolver resolver, final Resource jobNode)
@@ -437,11 +538,7 @@ class ParseCallbackServletTest
                 throw new IllegalStateException("the handover is broken");
             }
         });
-        this.context.create().resource(ParseJob.nodePath(JOB_ID),
-            ParseJob.PN_JOB_ID, JOB_ID,
-            ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE,
-            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
-            ParseJob.PN_TARGET, "/Submissions/aRequest/d1/v1/file");
+        TestJobs.createJob(this.context, JOB_ID, ParseJob.STATUS_ACTIVE, DOCUMENT, TARGET);
 
         final MockSlingJakartaHttpServletResponse response = post(GOOD_AUTHORIZATION, SUCCESS_BODY);
 
@@ -459,7 +556,7 @@ class ParseCallbackServletTest
         this.context.create().resource(ParseJob.nodePath(JOB_ID),
             ParseJob.PN_JOB_ID, JOB_ID,
             ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE,
-            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
+            ParseJob.PN_PATH, DOCUMENT,
             ParseJob.PN_STARTED, started);
 
         final MockSlingJakartaHttpServletResponse response = post(GOOD_AUTHORIZATION, SUCCESS_BODY);
@@ -470,10 +567,7 @@ class ParseCallbackServletTest
 
     private void jobNode()
     {
-        this.context.create().resource(ParseJob.nodePath(JOB_ID),
-            ParseJob.PN_JOB_ID, JOB_ID,
-            ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED,
-            ParseJob.PN_PATH, "/shared-docs/proposal.pdf");
+        TestJobs.createJob(this.context, JOB_ID, ParseJob.STATUS_QUEUED, DOCUMENT, null);
     }
 
     private ValueMap jobProperties()

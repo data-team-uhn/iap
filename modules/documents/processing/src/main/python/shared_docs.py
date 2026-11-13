@@ -17,10 +17,7 @@
 
 """The shared-docs allowlist: the boundary between a caller-supplied path and the disk.
 
-Kept out of :mod:`docling_daemon` so it stays importable, and testable, without Docling. The
-daemon's test module skips itself wherever Docling is missing, including CI -- the wrong place
-for the one check standing between ``POST /parse?path=`` and the rest of the filesystem.
-``test_shared_docs.py`` runs everywhere.
+Kept out of :mod:`docling_daemon` so it stays importable, and testable, without Docling.
 """
 
 from __future__ import annotations
