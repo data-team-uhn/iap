@@ -65,7 +65,8 @@ import io.uhndata.iap.utils.JsonResponses;
  * </p>
  *
  * <p>
- * A repeated delivery for the same job simply overwrites the same outcome, so the daemon's retries are harmless.
+ * A repeated delivery for the same job overwrites the same outcome, or gets a 404 once the record is deleted. So the
+ * daemon's retries are harmless.
  * </p>
  *
  * @version $Id$
@@ -99,7 +100,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
     @Modified
     protected void activate(final Map<String, Object> configuration)
     {
-        final String token = CallbackToken.resolve(configuration, environment(ParseJob.TOKEN_VARIABLE));
+        final String token = CallbackToken.resolve(configuration, getEnvironmentVariable(ParseJob.TOKEN_VARIABLE));
         if (token.isEmpty()) {
             this.expectedAuthorization = null;
             LOGGER.warn("No authorization token is configured ({} or the {} environment variable);"
@@ -204,9 +205,33 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "The parse jobs storage is not accessible");
         } catch (final PersistenceException e) {
-            LOGGER.error("Cannot record the outcome of parse job {}: {}", jobId, e.getMessage(), e);
-            JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "The outcome could not be recorded");
+            // The sweep may have deleted the record since it was read: answer the usual "no such job". A record
+            // still there, such as one a stop just marked, gets a 500, and the daemon retries.
+            if (hasJob(jobId)) {
+                LOGGER.error("Cannot record the outcome of parse job {}: {}", jobId, e.getMessage(), e);
+                JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "The outcome could not be recorded");
+            } else {
+                LOGGER.info("Parse job {} was removed before this outcome could be recorded", jobId);
+                JsonResponses.writeError(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
+            }
+        }
+    }
+
+    /**
+     * Checks, with a new session, whether a job's record still exists. Used after a failed commit, whose session
+     * cannot be trusted for another read.
+     *
+     * @param jobId the job to check
+     * @return {@code true} when the record exists, or when this cannot be determined
+     */
+    private boolean hasJob(final String jobId)
+    {
+        try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
+            return resolver.getResource(ParseJob.nodePath(jobId)) != null;
+        } catch (final LoginException e) {
+            // Cannot tell, so the commit failure stays a logged server error
+            return true;
         }
     }
 
@@ -262,7 +287,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
      * @param name the variable to read
      * @return the value, or {@code null} when not set
      */
-    protected String environment(final String name)
+    protected String getEnvironmentVariable(final String name)
     {
         return System.getenv(name);
     }

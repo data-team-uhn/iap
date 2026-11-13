@@ -171,7 +171,6 @@ class QuestionTest
         assertNull(question.getDisplayMode());
         assertNull(question.getPurpose());
         assertNull(question.getExtractionPrompt());
-        assertNull(question.getResponseShape());
     }
 
     @Test
@@ -182,15 +181,13 @@ class QuestionTest
             "text", "How many participants will be recruited?",
             "displayMode", "number",
             "purpose", "Whether the sample size matches the statistical plan",
-            "extractionPrompt", "Read the target number of participants out of the recruitment section",
-            "responseShape", "{\"type\": \"integer\"}"));
+            "extractionPrompt", "Read the target number of participants out of the recruitment section"));
         final Question question = resource.adaptTo(Question.class);
 
         assertEquals("number", question.getDisplayMode());
         assertEquals("Whether the sample size matches the statistical plan", question.getPurpose());
         assertEquals("Read the target number of participants out of the recruitment section",
             question.getExtractionPrompt());
-        assertEquals("{\"type\": \"integer\"}", question.getResponseShape());
     }
 
     private Question question(final String name, final Map<String, Object> properties)
@@ -200,11 +197,75 @@ class QuestionTest
         return this.context.create().resource("/Schemas/schema/1.0/" + name, all).adaptTo(Question.class);
     }
 
+    // The model is shown each option's description, so a description declared on a child must come through
+    @Test
+    void offersDeclaredOptionsWithTheirDescriptions()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/kind",
+            "sling:resourceType", Question.RESOURCE_TYPE);
+        this.option(resource, "prom", "prom", "PROM", "The patient's own health.");
+
+        final OfferedOption offered = resource.adaptTo(Question.class).getOfferedOptions().get(0);
+
+        assertEquals("prom", offered.value());
+        assertEquals("PROM", offered.label());
+        assertEquals("The patient's own health.", offered.description());
+    }
+
+    // Declared options come by defaultOrder, lower first; options without one count as 0 and keep their stored order
+    @Test
+    void offersDeclaredOptionsInTheirPlaces()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/size",
+            "sling:resourceType", Question.RESOURCE_TYPE);
+        this.context.create().resource(resource.getPath() + "/large", "sling:resourceType", AnswerOption.RESOURCE_TYPE,
+            "value", "large", "defaultOrder", 2L);
+        this.context.create().resource(resource.getPath() + "/small", "sling:resourceType", AnswerOption.RESOURCE_TYPE,
+            "value", "small", "defaultOrder", 1L);
+        this.option(resource, "first", "first", "First");
+        this.option(resource, "second", "second", "Second");
+
+        final List<OfferedOption> offered = resource.adaptTo(Question.class).getOfferedOptions();
+
+        assertEquals(List.of("first", "second", "small", "large"),
+            offered.stream().map(OfferedOption::value).toList());
+    }
+
+    // When optionsFrom is set, the options come from that path and any declared child is ignored
+    @Test
+    void offersTheOptionsAtThePathItNames()
+    {
+        this.context.create().resource("/Choices/data", Map.of("label", "Chart review",
+            "description", "Reads records already held."));
+        this.context.create().resource("/Choices/trial", Map.of("label", "Clinical trial"));
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/category", Map.of(
+            "sling:resourceType", Question.RESOURCE_TYPE,
+            "optionsFrom", "/Choices"));
+        this.option(resource, "leftover", "ignored", "Ignored");
+
+        final List<OfferedOption> offered = resource.adaptTo(Question.class).getOfferedOptions();
+
+        assertEquals(List.of("/Choices/data", "/Choices/trial"),
+            offered.stream().map(OfferedOption::value).toList());
+        assertEquals("Reads records already held.", offered.get(0).description());
+        assertEquals("", offered.get(1).description());
+    }
+
     private void option(final Resource question, final String name, final String value, final String label)
     {
-        this.context.create().resource(question.getPath() + "/" + name, Map.of(
-            "sling:resourceType", AnswerOption.RESOURCE_TYPE,
-            "value", value,
-            "label", label));
+        this.option(question, name, value, label, null);
+    }
+
+    private void option(final Resource question, final String name, final String value, final String label,
+        final String description)
+    {
+        final Map<String, Object> properties = new HashMap<>();
+        properties.put("sling:resourceType", AnswerOption.RESOURCE_TYPE);
+        properties.put("value", value);
+        properties.put("label", label);
+        if (description != null) {
+            properties.put("description", description);
+        }
+        this.context.create().resource(question.getPath() + "/" + name, properties);
     }
 }

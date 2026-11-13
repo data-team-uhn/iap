@@ -47,7 +47,8 @@ class SchemaPartTypeTest
     void setUp()
     {
         for (final String type : new String[] { "SchemaPart", "Requirement", "FormRequirement",
-            "DocumentRequirement", "SectionRequirement", "ApprovalRequirement", "FormItem", "Section", "Question",
+            "DocumentRequirement", "SectionRequirement", "ApprovalRequirement", "ValidationRequirement",
+            "ClassificationRequirement", "FormItem", "Section", "Question",
             "AnswerOption", "SchemaVersion" }) {
             this.context.load().json("/SLING-INF/content/libs/sch/" + type + "/ROOT.json", "/libs/sch/" + type);
         }
@@ -63,6 +64,8 @@ class SchemaPartTypeTest
         assertTrue(this.isPart("sch/DocumentRequirement", "sch/Requirement"));
         assertTrue(this.isPart("sch/SectionRequirement", "sch/Requirement"));
         assertTrue(this.isPart("sch/ApprovalRequirement", "sch/Requirement"));
+        assertTrue(this.isPart("sch/ValidationRequirement", "sch/Requirement"));
+        assertTrue(this.isPart("sch/ClassificationRequirement", "sch/Requirement"));
     }
 
     @Test

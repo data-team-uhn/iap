@@ -21,7 +21,7 @@ The ``docling_*`` conversion modules import the heavy ``docling`` package, so th
 skips when it is not installed — the rest of the suite still runs anywhere. What is covered
 here is the plumbing around Docling rather than Docling itself: shared-docs path allowlisting,
 health reporting, the parse-slot semaphore, and the batch-abandon path that runs when a page
-batch fails.
+batch fails, times out, or is cancelled.
 
 Because this file skips in CI, nothing that can be tested without Docling belongs here. The
 request guards were moved to :mod:`daemon_utils` for exactly that reason; see
@@ -147,6 +147,82 @@ class TestAbandonBatches:
             done.result()
             _abandon_batches([done], log=messages.append)
         assert messages == []
+
+
+def _make_slow_chunk(seconds: float):
+    """A stand-in for ``parse_pdf_chunk`` that takes ``seconds`` to "convert" one page."""
+
+    def parse(args):
+        time.sleep(seconds)
+        _input_file, start_page, end_page = args
+        return (start_page, end_page, "ok", "md", 2, seconds, None)
+
+    return parse
+
+
+class TestRunPdfChunksAbandonsOnCancel:
+    """A cancelled parse drops the batches not yet started instead of running the whole conversion.
+
+    A ``ThreadPoolExecutor`` stands in for the real ``ProcessPoolExecutor``: the monkeypatched
+    ``parse_pdf_chunk`` is a local function, and only a process pool needs one it can pickle.
+    """
+
+    def test_raises_once_should_abandon_says_stop(self, monkeypatch):
+        monkeypatch.setattr(pdf_parser, "ABANDON_POLL_SECONDS", 0.02)
+        monkeypatch.setattr(pdf_parser, "parse_pdf_chunk", _make_slow_chunk(0.1))
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with pytest.raises(pdf_parser.ParseAbandonedError):
+                pdf_parser._run_pdf_chunks(
+                    [("doc.pdf", 1, 1)],
+                    pool,
+                    log=lambda _message: None,
+                    should_abandon=lambda: True,
+                )
+
+    def test_a_cancel_waits_out_a_healthy_batch(self, monkeypatch):
+        # A batch can run until Docling's per-batch timeout, well past ABANDON_TIMEOUT_SECONDS.
+        # Calling it stuck sooner would restart a healthy daemon.
+        started = threading.Event()
+
+        def slow(args):
+            started.set()
+            return _make_slow_chunk(0.4)(args)
+
+        monkeypatch.setattr(pdf_parser, "ABANDON_POLL_SECONDS", 0.02)
+        monkeypatch.setattr(pdf_parser, "ABANDON_TIMEOUT_SECONDS", 0.1)
+        monkeypatch.setattr(pdf_parser.PDF_PIPELINE_OPTIONS, "document_timeout", 1.0)
+        monkeypatch.setattr(pdf_parser, "parse_pdf_chunk", slow)
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with pytest.raises(pdf_parser.ParseAbandonedError):
+                pdf_parser._run_pdf_chunks(
+                    [("doc.pdf", 1, 1)],
+                    pool,
+                    log=lambda _message: None,
+                    should_abandon=started.is_set,
+                )
+
+    def test_a_cancel_waits_the_batch_timeout_and_a_margin(self, monkeypatch):
+        monkeypatch.setattr(pdf_parser.PDF_PIPELINE_OPTIONS, "document_timeout", 600.0)
+        assert pdf_parser.get_cancel_wait_seconds() == 600.0 + pdf_parser.ABANDON_TIMEOUT_SECONDS
+
+    def test_a_cancel_waits_only_the_margin_without_a_batch_timeout(self, monkeypatch):
+        monkeypatch.setattr(pdf_parser.PDF_PIPELINE_OPTIONS, "document_timeout", None)
+        assert pdf_parser.get_cancel_wait_seconds() == pdf_parser.ABANDON_TIMEOUT_SECONDS
+
+    def test_a_short_timeout_still_raises_as_before(self, monkeypatch):
+        monkeypatch.setattr(pdf_parser, "ABANDON_POLL_SECONDS", 0.02)
+        monkeypatch.setattr(pdf_parser, "parse_pdf_chunk", _make_slow_chunk(0.3))
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with pytest.raises(RuntimeError, match="exceeded"):
+                pdf_parser._run_pdf_chunks(
+                    [("doc.pdf", 1, 1)],
+                    pool,
+                    log=lambda _message: None,
+                    timeout=0.05,
+                )
 
 
 # The body drain, the bearer-token comparison and the JSON reply helper moved to
@@ -523,6 +599,55 @@ class TestParseDocumentWritesTheMarkdown:
         # write_atomically renames a temp file into place; a leftover means it did not finish.
         self._parse(monkeypatch, tmp_path)
         assert [p.name for p in tmp_path.glob(".*.tmp")] == []
+
+
+class TestParseDocumentStopsBeforeConverting:
+    """A stop that comes while LibreOffice works skips the Docling conversion."""
+
+    def test_a_stop_during_the_preparation_skips_the_conversion(self, monkeypatch, tmp_path):
+        import docling_pdf_parser
+        import parse_document as module
+
+        converted = []
+        monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
+        monkeypatch.setattr(
+            module, "convert_pdf_to_markdown", lambda *a, **k: converted.append(1) or "# Doc\n"
+        )
+        monkeypatch.setattr(module, "prepare_office_document", lambda source, **k: source)
+
+        with pytest.raises(docling_pdf_parser.ParseAbandonedError):
+            module.parse_document(write_pdf(tmp_path / "doc.pdf"), should_abandon=lambda: True)
+        assert converted == []
+        assert not (tmp_path / "doc.md").exists()
+
+
+class TestBackgroundParseStoppedWhileWaiting:
+    """A parse stopped while it waits for the slot neither converts nor calls back."""
+
+    def test_a_queued_parse_stopped_neither_converts_nor_calls_back(self, monkeypatch, tmp_path):
+        import threading
+
+        class _State:
+            parse_slots = threading.Semaphore(1)
+
+            def __init__(self):
+                self.checks = 0
+
+            def is_cancelled(self, job_id):
+                # Not yet when it is queued, but by the time it has the slot
+                self.checks += 1
+                return self.checks > 1
+
+        ran = []
+        delivered = []
+        monkeypatch.setattr(daemon, "_STATE", _State())
+        monkeypatch.setattr(daemon, "_run_parse", lambda *a, **k: ran.append(1) or {})
+        monkeypatch.setattr(daemon.parse_callbacks, "deliver", lambda *a, **k: delivered.append(1))
+
+        daemon._parse_and_call_back("job-1", "http://callback", "token", tmp_path / "doc.pdf")
+
+        assert ran == []
+        assert delivered == []
 
 
 class TestParseDocumentCorrectsHeadingLevels:
@@ -971,7 +1096,8 @@ def _parse_only_state(slots=daemon.MAX_CONCURRENT_PARSES):
     state = object.__new__(daemon.DaemonState)
     state.parse_executor = ThreadPoolExecutor(max_workers=slots, thread_name_prefix="parse")
     state.pending_parses = {}
-    state.pending_lock = threading.Lock()
+    state.cancelled_jobs = set()
+    state.pending_lock = threading.RLock()
     state.shutdown_requested = False
     state.pdf_executor_broken = False
     # A background parse takes this for the conversion itself, so that it cannot run

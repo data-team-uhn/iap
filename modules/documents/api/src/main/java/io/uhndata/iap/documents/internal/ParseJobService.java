@@ -94,7 +94,7 @@ public class ParseJobService implements ParseService
         final Object configured = configuration.get(SHARED_DOCS_PROPERTY);
         String directory = configured == null ? "" : String.valueOf(configured).trim();
         if (directory.isEmpty()) {
-            final String fromEnvironment = environment(SHARED_DOCS_VARIABLE);
+            final String fromEnvironment = getEnvironmentVariable(SHARED_DOCS_VARIABLE);
             directory = fromEnvironment == null || fromEnvironment.isBlank() ? DEFAULT_SHARED_DOCS
                 : fromEnvironment.trim();
         }
@@ -138,22 +138,25 @@ public class ParseJobService implements ParseService
     }
 
     @Override
-    public void discardStaging(final String stagedPath)
+    public boolean discardStaging(final String stagedPath)
     {
         if (stagedPath == null || stagedPath.isBlank()) {
-            return;
+            return true;
         }
         final Path folder = folderToDiscard(Path.of(stagedPath));
         if (folder == null) {
-            return;
+            return true;
         }
         try {
             deleteRecursively(folder);
             LOGGER.info("Parse staging removed: folder={}", folder);
+            return true;
         } catch (final IOException e) {
             // Logged rather than thrown: whatever was worth reading has been read by now, and failing over a
-            // leftover would lose that. The sweeper comes back for it.
+            // leftover would lose that. The result tells a caller that still has the job record to keep it, so the
+            // sweep tries again. A folder whose record is already gone stays on the volume.
             LOGGER.warn("Could not remove the staging folder {}: {}", folder, e.getMessage());
+            return false;
         }
     }
 
@@ -222,7 +225,7 @@ public class ParseJobService implements ParseService
      * @param name the variable
      * @return its value, or {@code null} when not set
      */
-    protected String environment(final String name)
+    protected String getEnvironmentVariable(final String name)
     {
         return System.getenv(name);
     }

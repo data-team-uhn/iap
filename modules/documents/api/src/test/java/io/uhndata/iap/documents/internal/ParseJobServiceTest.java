@@ -242,7 +242,7 @@ class ParseJobServiceTest
         final ParseJobService built = new ParseJobService()
         {
             @Override
-            protected String environment(final String name)
+            protected String getEnvironmentVariable(final String name)
             {
                 return ParseJobService.SHARED_DOCS_VARIABLE.equals(name) ? volumeVariable : null;
             }

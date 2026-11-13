@@ -22,7 +22,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -35,10 +37,14 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.schemas.models.FormItem;
+import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.schemas.models.ValidationRequirement;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstances;
@@ -131,6 +137,21 @@ public class Submission extends Entity
     public List<Answer> getAnswers()
     {
         return this.getChildren(Answer.RESOURCE_TYPE, Answer.class);
+    }
+
+    /**
+     * Returns what a model decided about an upload for one requirement.
+     *
+     * @param requirement the validation requirement to look up
+     * @return the validation, or {@code null} while the model has not been asked
+     */
+    @Nullable
+    public Validation findValidation(@NotNull final ValidationRequirement requirement)
+    {
+        return this.getChildren(Validation.RESOURCE_TYPE, Validation.class).stream()
+            .filter(validation -> validation.isAbout(requirement))
+            .findFirst()
+            .orElse(null);
     }
 
     /**
@@ -261,6 +282,47 @@ public class Submission extends Entity
     public boolean isApplicable(@NotNull final Conditionable item)
     {
         return this.conditionEvaluator == null || this.conditionEvaluator.applies(item, this);
+    }
+
+    /**
+     * Returns the questions one form requirement asks now, chosen by name, in schema order. A requirement, section
+     * or question whose condition does not apply is left out. The extraction uses it to read a document one
+     * requirement at a time.
+     *
+     * @param name the requirement's node name, or its full path
+     * @return its questions, empty when it does not apply, is not a form, or does not exist
+     */
+    @NotNull
+    public List<Question> getQuestions(@Nullable final String name)
+    {
+        if (name == null || name.isBlank()) {
+            return List.of();
+        }
+        return this.getQuestionsOf(requirement -> name.equals(requirement.getName())
+            || name.equals(requirement.getPath()));
+    }
+
+    private List<Question> getQuestionsOf(final Predicate<Requirement> chosen)
+    {
+        return this.getSchemaVersion().getRequirements().stream()
+            .filter(chosen)
+            .filter(FormRequirement.class::isInstance)
+            .filter(this::isApplicable)
+            .flatMap(form -> ((FormRequirement) form).getChildren().stream())
+            .flatMap(this::getApplicableQuestions)
+            .collect(Collectors.toList());
+    }
+
+    private Stream<Question> getApplicableQuestions(final FormItem item)
+    {
+        if (!this.isApplicable(item)) {
+            return Stream.empty();
+        }
+        if (item instanceof Question) {
+            return Stream.of((Question) item);
+        }
+        // Section is the only other item type
+        return ((Section) item).getChildren().stream().flatMap(this::getApplicableQuestions);
     }
 
     /**

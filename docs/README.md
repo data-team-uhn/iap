@@ -56,11 +56,12 @@ How content is shaped, related, and moved through its process.
 
 ## Documents
 
-The files people attach to a submission, from the browser to the parser.
+The files people attach to a submission, from the browser to the answers read out of them.
 
 | Document | What it covers |
 | --- | --- |
 | [file-validation.md](file-validation.md) | Checking a file in the browser before it is uploaded: size, type, and whether a PDF or Word file really is one, plus the checks the parser runs after it |
+| [extraction.md](extraction.md) | How an uploaded document is parsed, classified and read by a language model into pre-filled answers: every step, who calls whom, and the checks that keep the model's answers honest |
 
 ## The user interface
 

@@ -97,6 +97,25 @@ class DocumentRequirementTest
     }
 
     @Test
+    void isParsedUnlessTheSchemaSaysOtherwise()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/consent",
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
+
+        assertFalse(resource.adaptTo(DocumentRequirement.class).isParsingSkipped());
+    }
+
+    @Test
+    void canSkipParsing()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/signedForm", Map.of(
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE,
+            "skipParsing", true));
+
+        assertTrue(resource.adaptTo(DocumentRequirement.class).isParsingSkipped());
+    }
+
+    @Test
     void exposesTemplateWhenPresent()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/consent",

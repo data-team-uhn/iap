@@ -71,20 +71,36 @@ public class ParseOutcomeDispatcher
 
     /**
      * Tell the handlers how a job ended, and delete its record when one of them took the outcome. A record that
-     * cannot be deleted is left where it is: the outcome was taken, and a stale record is better than a retry
-     * that hands it over twice.
+     * cannot be deleted stays, and the sweep offers it again; the handler then sees the outcome is already
+     * recorded.
      *
      * @param resolver the session the job node was read through, which is also what deletes it
      * @param jobNode the settled job, its outcome already recorded and committed
      */
     void settle(final ResourceResolver resolver, final Resource jobNode)
     {
+        settle(resolver, jobNode, false);
+    }
+
+    /**
+     * Offer again the outcome of a job no handler took, as {@link #settle} does.
+     *
+     * @param resolver the session the job node was read through, which is also what deletes it
+     * @param jobNode the settled job, which settled minutes ago
+     */
+    void settleAgain(final ResourceResolver resolver, final Resource jobNode)
+    {
+        settle(resolver, jobNode, true);
+    }
+
+    private void settle(final ResourceResolver resolver, final Resource jobNode, final boolean offeredAgain)
+    {
         final ValueMap properties = jobNode.getValueMap();
         final String target = properties.get(ParseJob.PN_TARGET, String.class);
         if (target == null) {
             return;
         }
-        final ParseOutcome outcome = describe(properties, target);
+        final ParseOutcome outcome = describe(properties, target, offeredAgain);
         LOGGER.info("Parse outcome handed over: job={} target={} succeeded={} handlers={}", outcome.jobId(),
             target, outcome.succeeded(), this.handlers.size());
         boolean taken = false;
@@ -96,7 +112,7 @@ public class ParseOutcomeDispatcher
             }
         }
         if (!taken) {
-            LOGGER.warn("No handler took the outcome of parse job {}; its record is left for somebody to look at",
+            LOGGER.warn("No handler took the outcome of parse job {}; it is offered again on the next sweep",
                 outcome.jobId());
             return;
         }
@@ -105,15 +121,18 @@ public class ParseOutcomeDispatcher
             resolver.commit();
         } catch (final PersistenceException e) {
             LOGGER.error("Cannot delete the record of parse job {}: {}", outcome.jobId(), e.getMessage(), e);
+            // The sweep keeps using this session, and a failed delete left in it would fail every later commit
+            resolver.revert();
         }
     }
 
-    private static ParseOutcome describe(final ValueMap properties, final String target)
+    private static ParseOutcome describe(final ValueMap properties, final String target,
+        final boolean offeredAgain)
     {
         final String jobId = properties.get(ParseJob.PN_JOB_ID, String.class);
         final boolean succeeded = ParseJob.STATUS_COMPLETED.equals(properties.get(ParseJob.PN_STATUS, String.class));
         final String[] outputs = properties.get(ParseJob.PN_OUTPUTS, new String[0]);
         return new ParseOutcome(jobId, target, succeeded, properties.get(ParseJob.PN_ERROR, String.class),
-            outputs.length > 0 ? outputs[0] : null, properties.get(ParseJob.PN_TOKENS, Long.class));
+            outputs.length > 0 ? outputs[0] : null, properties.get(ParseJob.PN_TOKENS, Long.class), offeredAgain);
     }
 }

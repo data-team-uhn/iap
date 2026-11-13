@@ -17,14 +17,20 @@
  */
 package io.uhndata.iap.documents.internal;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -42,8 +48,11 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.documents.api.ParseOutcome;
 import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -217,6 +226,160 @@ class StaleParseJobSweeperTest
 
         assertNotNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)));
         assertTrue(this.discarded.isEmpty());
+    }
+
+    // A handler may refuse only for now, such as for a file whose upload was not committed yet
+    @Test
+    void offersAnUntakenOutcomeAgain()
+    {
+        final Resource job = job(OLD_JOB, ParseJob.STATUS_FAILED, minutesAgo(10), TARGET);
+        edit(job).put(ParseJob.PN_FINISHED, minutesAgo(5));
+
+        this.sweeper.run();
+
+        assertEquals(1, this.handed.size());
+        assertTrue(this.handed.get(0).offeredAgain());
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)), "taken this time");
+        assertTrue(this.discarded.isEmpty(), "the handler clears the folder once it reads the parse in");
+    }
+
+    // The request that settled it may still be handing it over
+    @Test
+    void leavesAnOutcomeThatSettledMomentsAgo()
+    {
+        final Resource job = job(OLD_JOB, ParseJob.STATUS_COMPLETED, minutesAgo(10), TARGET);
+        edit(job).put(ParseJob.PN_FINISHED, Calendar.getInstance());
+
+        this.sweeper.run();
+
+        assertTrue(this.handed.isEmpty());
+    }
+
+    // A folder a worker still holds open is retried on the next sweep, and only the record names it
+    @Test
+    void keepsTheRecordOfAFolderItCouldNotRemove()
+    {
+        final Resource job = job(OLD_JOB, ParseJob.STATUS_COMPLETED, minutesAgo(90), null);
+        edit(job).put(ParseJob.PN_FINISHED, minutesAgo(45));
+        edit(job).put(ParseJob.PN_PATH, "/shared-docs/busy/proposal.pdf");
+
+        this.sweeper.run();
+
+        assertNotNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)));
+    }
+
+    // After a day something other than a worker holds the folder, and keeping the record would keep it for good
+    @Test
+    void dropsTheRecordOfAFolderItCouldNotRemoveForADay()
+    {
+        final Resource job = job(OLD_JOB, ParseJob.STATUS_COMPLETED, minutesAgo(26 * 60), null);
+        edit(job).put(ParseJob.PN_FINISHED, minutesAgo(25 * 60));
+        edit(job).put(ParseJob.PN_PATH, "/shared-docs/busy/proposal.pdf");
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        try {
+            this.sweeper.run();
+
+            Mockito.verify(recorder).logProblem(Mockito.eq("A parse staging folder cannot be removed"),
+                Mockito.any());
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)));
+    }
+
+    // A stopped parse is meant to go untaken: its file stopped waiting for it, so dropping it is no fault
+    @Test
+    void reportsAnOutcomeNobodyTookButNotAStoppedOne()
+    {
+        final Resource refused = job(OLD_JOB, ParseJob.STATUS_FAILED, minutesAgo(26 * 60), TARGET);
+        edit(refused).put(ParseJob.PN_FINISHED, minutesAgo(25 * 60));
+        edit(refused).put(ParseJob.PN_ERROR, "No pages");
+        final Resource stopped = job("stopped-job", ParseJob.STATUS_FAILED, minutesAgo(26 * 60), TARGET);
+        edit(stopped).put(ParseJob.PN_FINISHED, minutesAgo(25 * 60));
+        edit(stopped).put(ParseJob.PN_ERROR, ParseOutcome.STOPPED_ERROR);
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        try {
+            this.sweeper.run();
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+
+        Mockito.verify(recorder, Mockito.times(1)).logProblem(
+            Mockito.eq("A parse outcome was never taken in, so its file may stay waiting for it"), Mockito.any());
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath("stopped-job")));
+    }
+
+    @Test
+    void reportsEveryForgottenOutcomeWhenADeletedRecordCannotBeRead() throws Exception
+    {
+        for (final String jobId : List.of(OLD_JOB, YOUNG_JOB)) {
+            edit(job(jobId, ParseJob.STATUS_FAILED, minutesAgo(90), TARGET)).put(ParseJob.PN_FINISHED,
+                minutesAgo(45));
+        }
+        this.context.resourceResolver().commit();
+        set(this.sweeper, "resolverFactory", factoryFor(unreadableOnceDeleted(this.context.resourceResolver())));
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        try {
+            this.sweeper.run();
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+
+        Mockito.verify(recorder, Mockito.times(2)).logProblem(
+            Mockito.eq("A parse outcome was never taken in, so its file may stay waiting for it"), Mockito.any());
+        assertFalse(this.context.resourceResolver().getResource(ParseJob.JOBS_PATH).hasChildren());
+    }
+
+    // The engine walk that asked for the stop failed and was rolled back, so the file still waits on the job
+    @Test
+    void handsAStoppedParseToAFileStillWaitingOnIt() throws Exception
+    {
+        job(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(10), TARGET);
+        this.context.resourceResolver().commit();
+        final ParseAbandonment abandonment = new ParseAbandonment()
+        {
+            @Override
+            protected CompletableFuture<HttpResponse<String>> sendAsync(final HttpRequest request)
+            {
+                return CompletableFuture.failedFuture(new IOException("the daemon is not running"));
+            }
+        };
+        final Field factory = ParseAbandonment.class.getDeclaredField("resolverFactory");
+        factory.setAccessible(true);
+        factory.set(abandonment, new TestResolverFactory(this.context.resourceResolver()));
+        abandonment.stopParse(OLD_JOB);
+        // Past the moment the request that stopped it could still be handing it over
+        edit(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)))
+            .put(ParseJob.PN_FINISHED, minutesAgo(5));
+
+        this.sweeper.run();
+
+        assertEquals(1, this.handed.size());
+        assertEquals(TARGET, this.handed.get(0).target());
+        assertFalse(this.handed.get(0).succeeded());
+        assertEquals(ParseOutcome.STOPPED_ERROR, this.handed.get(0).error());
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(OLD_JOB)), "taken");
+    }
+
+    // The sweep keeps using the same session, so one failed delete must not fail the deletes after it
+    @Test
+    void dropsTheNextRecordAfterOneItCannotDelete() throws Exception
+    {
+        for (final String jobId : List.of(OLD_JOB, YOUNG_JOB)) {
+            edit(job(jobId, ParseJob.STATUS_FAILED, minutesAgo(10), TARGET)).put(ParseJob.PN_FINISHED, minutesAgo(5));
+        }
+        this.context.resourceResolver().commit();
+        set(this.sweeper, "resolverFactory", factoryFor(refusingTheFirstDelete(this.context.resourceResolver())));
+
+        this.sweeper.run();
+
+        assertEquals(2, this.handed.size());
+        final List<Resource> left = new ArrayList<>();
+        this.context.resourceResolver().getResource(ParseJob.JOBS_PATH).getChildren().forEach(left::add);
+        assertEquals(1, left.size(), "only the record that could not be deleted is left");
     }
 
     @Test
@@ -412,6 +575,53 @@ class StaleParseJobSweeperTest
         };
     }
 
+    /** A session whose job nodes cannot be read once deleted, as in JCR; the mock session still reads them. */
+    private static ResourceResolver unreadableOnceDeleted(final ResourceResolver resolver)
+    {
+        final Set<String> deleted = new HashSet<>();
+        return new ResourceResolverWrapper(resolver)
+        {
+            @Override
+            public Resource getResource(final String path)
+            {
+                final Resource resource = super.getResource(path);
+                if (resource == null || !ParseJob.JOBS_PATH.equals(path)) {
+                    return resource;
+                }
+                final List<Resource> children = new ArrayList<>();
+                resource.getChildren().forEach(child -> children.add(unreadableOnceDeleted(child, deleted)));
+                final Resource spy = Mockito.spy(resource);
+                Mockito.doReturn(children).when(spy).getChildren();
+                return spy;
+            }
+
+            @Override
+            public void delete(final Resource resource) throws PersistenceException
+            {
+                deleted.add(resource.getPath());
+                super.delete(resource);
+            }
+
+            @Override
+            public void close()
+            {
+                // The context owns this session
+            }
+        };
+    }
+
+    private static Resource unreadableOnceDeleted(final Resource resource, final Set<String> deleted)
+    {
+        final Resource spy = Mockito.spy(resource);
+        Mockito.doAnswer(invocation -> {
+            if (deleted.contains(resource.getPath())) {
+                throw new IllegalArgumentException("The node at " + resource.getPath() + " was removed");
+            }
+            return resource.getValueMap();
+        }).when(spy).getValueMap();
+        return spy;
+    }
+
     /** A session that will not commit. */
     private static ResourceResolver refusingCommit(final ResourceResolver resolver)
     {
@@ -421,6 +631,52 @@ class StaleParseJobSweeperTest
             public void commit() throws PersistenceException
             {
                 throw new PersistenceException("the repository said no");
+            }
+
+            @Override
+            public void close()
+            {
+                // The context owns this session
+            }
+        };
+    }
+
+    /**
+     * A session that cannot commit the delete of the first record it is asked to delete, and keeps that delete
+     * pending until reverted, as Oak does.
+     */
+    private static ResourceResolver refusingTheFirstDelete(final ResourceResolver resolver)
+    {
+        return new ResourceResolverWrapper(resolver)
+        {
+            private String refused;
+
+            private boolean pending;
+
+            @Override
+            public void delete(final Resource resource) throws PersistenceException
+            {
+                if (this.refused == null) {
+                    this.refused = resource.getPath();
+                }
+                this.pending |= this.refused.equals(resource.getPath());
+                super.delete(resource);
+            }
+
+            @Override
+            public void commit() throws PersistenceException
+            {
+                if (this.pending) {
+                    throw new PersistenceException("Not allowed to delete " + this.refused);
+                }
+                super.commit();
+            }
+
+            @Override
+            public void revert()
+            {
+                this.pending = false;
+                super.revert();
             }
 
             @Override
@@ -467,9 +723,10 @@ class StaleParseJobSweeperTest
         }
 
         @Override
-        public void discardStaging(final String stagedPath)
+        public boolean discardStaging(final String stagedPath)
         {
             this.discarded.add(stagedPath);
+            return !stagedPath.contains("busy");
         }
     }
 }

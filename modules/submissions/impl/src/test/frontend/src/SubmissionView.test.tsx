@@ -709,6 +709,9 @@ describe("SubmissionView", () => {
     // A request with a part that still lacks something
     const INCOMPLETE = { ...DEEP_SUBMISSION, aggregatedTags: [ "incomplete" ] };
 
+    // A request whose document is being read for answers
+    const READING = { ...DEEP_SUBMISSION, extractionStatus: "running" };
+
     // A form asking one question, which is all that stands between the request and sending it
     const DETAILS: FormRequirement = {
       name: "details", path: "/Schemas/ClinicalTrial/1.0/details", type: FORM_REQUIREMENT_TYPE, label: "Request details",
@@ -772,6 +775,34 @@ describe("SubmissionView", () => {
 
       expect(await screen.findByText("Answer everything this request asks for first.")).toBeInTheDocument();
     });
+
+    it("holds the step back while the document is being read", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting({ submission: () => READING }));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("Wait until the document has been read.")).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeDisabled();
+    });
+
+    // The reading adds suggestions to the questions, so an answer saved meanwhile could clash with it
+    it("hides the questions until the document has been read, then shows what it filled in", async () => {
+      await loadAnswerComponents();
+      let reading = true;
+      const fetchMock = withATaskWaiting(
+        { form: ONE_QUESTION, submission: () => (reading ? READING : DEEP_SUBMISSION) });
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderAt("/Submissions/demo-1.edit");
+      expect(await screen.findByText("The answers are shown once the document has been read.")).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Why\?/)).toBeNull();
+      const formReads = fetchMock.mock.calls.filter(([ url ]) => url.endsWith(".form.json")).length;
+      reading = false;
+
+      expect(await screen.findByLabelText(/Why\?/, {}, { timeout: 6000 })).toBeInTheDocument();
+      expect(fetchMock.mock.calls.filter(([ url ]) => url.endsWith(".form.json")).length).toBeGreaterThan(formReads);
+      expect(screen.getByRole("button", { name: SEND_LABEL })).toBeEnabled();
+    }, 10000);
 
     it("refuses the step while the request is still missing something", async () => {
       const fetchMock = withATaskWaiting({ submission: () => INCOMPLETE });
