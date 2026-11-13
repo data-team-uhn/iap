@@ -107,6 +107,8 @@ public class RemoteNodeServlet extends SlingJakartaAllMethodsServlet
     {
         final IapToken token = authenticate(request);
         if (token == null) {
+            // RFC 7235 requires a 401 to name the scheme that would have been accepted
+            response.setHeader("WWW-Authenticate", "Bearer");
             JsonResponses.writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
                 "A valid token is required in the Authorization header");
             return;
