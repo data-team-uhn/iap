@@ -42,8 +42,6 @@ async function getDataUrls(): Promise<DataUrls> {
 /** The PDF.js worker's script never ran, so nothing sent to the worker gets an answer. */
 export class PdfWorkerFailure extends Error {}
 
-let shared: { worker: PDFWorker; failed: Promise<never> } | undefined;
-
 // A promise that rejects if the worker's script never ran. PDF.js does not watch a worker it is
 // handed. The error fires only once, so this listens from the start and keeps the failure for every
 // later caller.
@@ -62,17 +60,30 @@ function watchStart(port: Worker): Promise<never> {
   return failed;
 }
 
-// Loads PDF.js, its viewer, and the one worker every document shares. `failed` rejects if that worker
-// never started. Such a worker is not replaced, since a new one would load the same missing script.
-export async function loadPdfjs() {
+async function importPdfjs() {
   const pdfjs = await import("pdfjs-dist");
   // The viewer reads the library from here rather than importing it.
   (globalThis as { pdfjsLib?: unknown }).pdfjsLib = pdfjs;
-  const [ components, , dataUrls ] = await Promise.all([
+  const [ components ] = await Promise.all([
     import("pdfjs-dist/web/pdf_viewer.mjs"),
     import("pdfjs-dist/web/pdf_viewer.css"),
-    getDataUrls(),
   ]);
+  return { pdfjs, components };
+}
+
+// PDF.js and its viewer, imported once for all the documents opened together, and again after failing.
+let imported: ReturnType<typeof importPdfjs> | undefined;
+
+let shared: { worker: PDFWorker; failed: Promise<never> } | undefined;
+
+// Loads PDF.js, its viewer, and the one worker every document shares. `failed` rejects if that worker
+// never started. Such a worker is not replaced, since a new one would load the same missing script.
+export async function loadPdfjs() {
+  imported ??= importPdfjs().catch((error: unknown) => {
+    imported = undefined;
+    throw error;
+  });
+  const [ { pdfjs, components }, dataUrls ] = await Promise.all([ imported, getDataUrls() ]);
   if (shared === undefined) {
     // The magic comment bundles the worker as a plain module, not as the project's modern-module
     // library. Webpack 5.112 cannot render that library for an entry whose exports nobody uses, and

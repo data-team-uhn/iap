@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 import { fadeEdges, type ScrollEdges } from "../useScrollEdges";
+import { isChangeKind, type MarkKind } from "./marksModel";
 
-import type { MarkKind } from "./marksModel";
 import type { Theme } from "@mui/material/styles";
 
 // Styles that cut text short past the given number of lines.
@@ -25,19 +25,40 @@ export function cutShort(lines: number) {
   return { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" } as const;
 }
 
-// The background of a passage's card, a tint of its mark's colour. A stronger tint shows the card
-// selected or under the pointer.
-export function passageTint(theme: Theme, kind: MarkKind, strength: number): string {
-  return theme.alpha((theme.vars ?? theme).palette[kind].light, strength);
+// The colour of a kind of mark. A passage's is its palette colour, in the shade asked for. A change, whatever
+// it added or removed, is neutral: its lines carry the colour.
+export function getMarkColour(theme: Theme, kind: MarkKind, shade: "main" | "light" = "main"): string {
+  const { palette } = theme.vars ?? theme;
+  return isChangeKind(kind) ? palette.divider : palette[kind][shade];
 }
 
-// The card a passage is on: a stripe of its mark's colour at its start, over a tint of it.
+// The outline of a selected card in the list. A passage's is its mark's colour. A change's is a grey dark
+// enough to show against the paper, since its neutral colour is too light for that.
+export function getSelectedOutline(theme: Theme, kind: MarkKind): string {
+  return isChangeKind(kind) ? (theme.vars ?? theme).palette.text.secondary : getMarkColour(theme, kind);
+}
+
+// The background of a passage's card, a tint of its mark's colour. A stronger tint shows the card
+// selected or under the pointer. A change's card is untinted, and greys as a list item does.
+export function passageTint(theme: Theme, kind: MarkKind, strength: number): string {
+  if (isChangeKind(kind)) {
+    return strength > 0.25 ? (theme.vars ?? theme).palette.action.hover : "transparent";
+  }
+  return theme.alpha(getMarkColour(theme, kind, "light"), strength);
+}
+
+// The card a passage is on: a stripe of its mark's colour at its start, over a tint of it on the paper, so
+// it reads the same on the grey of the list and on the dialog. A change's card is also outlined, as it
+// has no tint to set it apart from the dialog.
 export function passageCard(theme: Theme, kind: MarkKind, strength = 0.25) {
+  const tint = passageTint(theme, kind, strength);
   return {
     borderRadius: 1,
+    ...isChangeKind(kind) ? { border: "1px solid" } : {},
     borderInlineStart: `${theme.spacing(0.5)} solid`,
-    borderColor: `${kind}.main`,
-    bgcolor: passageTint(theme, kind, strength),
+    borderColor: getMarkColour(theme, kind),
+    bgcolor: "background.paper",
+    backgroundImage: `linear-gradient(${tint}, ${tint})`,
   };
 }
 
