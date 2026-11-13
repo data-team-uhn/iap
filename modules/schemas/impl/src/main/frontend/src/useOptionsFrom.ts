@@ -18,26 +18,37 @@
 
 import { useEffect, useState } from "react";
 
+import { type Choice } from "@iap/conditions/conditionModel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { readJson } from "@iap/frontend-commons/requestFailure";
 import { textValuesOf } from "@iap/frontend-commons/serializedNode";
 
-import { type ItemChoices, itemChoicesOf } from "./conditionModel";
+import { type ItemChoices } from "./conditionModel";
 
 import type { QuestionIndex } from "./schemaVersionTreeModel";
 
-// The items the version's questions take their options from, by path. Each path is read once, however many
-// questions name it. A path that cannot be read gives no items.
+interface OfferedOptions {
+  options: Choice[];
+}
+
+// The options the version's questions take from a path, by that path. The server gives the same list the submitter
+// and a model reading the documents get, so a condition compares with values an answer can really hold. Each path is
+// read once, through one of the questions that name it. A path that cannot be read gives no options.
 export function useOptionsFrom(index: QuestionIndex): ItemChoices {
   const doFetch = useAuthenticatedFetch();
   const [ items, setItems ] = useState<ItemChoices>({});
-  const paths = [ ...new Set(index.questions.flatMap(question => textValuesOf(question.optionsFrom))) ].sort().join("\n");
+  // One "path, question" line per path, so the effect runs again only when they change
+  const sources = [ ...new Map(index.questions.flatMap(question => textValuesOf(question.optionsFrom)
+    .slice(0, 1).map(path => [ path, String(question["@path"]) ] as const))) ]
+    .map(([ path, question ]) => `${path}\t${question}`).sort().join("\n");
   useEffect(() => {
     let cancelled = false;
-    void Promise.all(paths.split("\n").filter(path => path !== "").map(async path => {
+    void Promise.all(sources.split("\n").filter(line => line !== "").map(async line => {
+      const [ path, question ] = line.split("\t");
       try {
-        const response = await doFetch(`${path}.deep.simple.json`);
-        return [ path, response.ok ? itemChoicesOf(await readJson<Record<string, unknown>>(response)) : [] ] as const;
+        const response = await doFetch(`${question}.offeredOptions.json`);
+        const options = response.ok ? (await readJson<OfferedOptions>(response)).options : [];
+        return [ path, options.map(({ value, label }) => ({ value, label })) ] as const;
       } catch {
         return [ path, [] ] as const;
       }
@@ -49,6 +60,6 @@ export function useOptionsFrom(index: QuestionIndex): ItemChoices {
     return () => {
       cancelled = true;
     };
-  }, [ paths, doFetch ]);
+  }, [ sources, doFetch ]);
   return items;
 }

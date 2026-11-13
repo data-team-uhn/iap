@@ -19,10 +19,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import EditIcon from "@mui/icons-material/Edit";
+import StopIcon from "@mui/icons-material/Stop";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
   Alert,
   Box,
+  Button,
   CircularProgress,
   Divider,
   Link,
@@ -40,8 +42,9 @@ import { formatDate } from "@iap/frontend-commons/dates";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 import { type SerializedNode, childrenOfType, isNode } from "@iap/frontend-commons/serializedNode";
-import { useNode } from "@iap/frontend-commons/useNode";
+import { readNode, useNode } from "@iap/frontend-commons/useNode";
 import { useWorkQueue } from "@iap/frontend-commons/useWorkQueue";
+import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 import { carriesTag } from "@iap/tags/carriesTag";
 import TagChip from "@iap/tags/TagChip";
 
@@ -53,6 +56,7 @@ import {
   type SubmissionForm,
   describeNothingAttached,
   isApprovalRequirement,
+  isBeingRead,
   isDocumentRequirement,
   toFileUrl
 } from "./submissionForm";
@@ -326,8 +330,21 @@ const INCOMPLETE_TAG = "incomplete";
 
 const INCOMPLETE_REASON = "Answer everything this request asks for first.";
 
+const READING_REASON = "Wait until the document has been read.";
+
+// How often to fetch the submission again while a document is being read, to see when the reading ends
+const READING_RECHECK_MILLISECONDS = 3000;
+
+// Whether a document is being read for answers. The next step waits until the reading ends.
+function isReading(submission: SerializedNode | undefined): boolean {
+  return isBeingRead(submission?.extractionStatus);
+}
+
 // Why the submission is not ready for its next step, or nothing when it is
 function whyNotReady(submission: SerializedNode | undefined): string | undefined {
+  if (isReading(submission)) {
+    return READING_REASON;
+  }
   return carriesTag(submission, INCOMPLETE_TAG) ? INCOMPLETE_REASON : undefined;
 }
 
@@ -414,17 +431,68 @@ function SubmissionView() {
     };
   }, [path, fetchUtil, reloads]);
 
-  // The way back, the steps the request is waiting for, and the switch between the two modes. It is
-  // shown in every state of the page. Loading and failure are where somebody most needs a way out.
-  const header = (
+  // The server does not tell the page when a reading ends, so ask until it has. Only the submission's own
+  // node is read while waiting, without its references, and the whole submission once, when the reading is
+  // over. Each check waits for the one before, so a slow server never gets two at once.
+  const reading = isReading(submission);
+  useEffect(() => {
+    if (!reading) {
+      return undefined;
+    }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const checkLater = () => {
+      timer = setTimeout(() => {
+        void readNode(fetchUtil, path, "0")
+          .then(node => {
+            if (cancelled) {
+              return;
+            }
+            if (isReading(node)) {
+              checkLater();
+            } else {
+              readAgain();
+            }
+          })
+          // A failed check is tried again later
+          .catch(() => {
+            if (!cancelled) {
+              checkLater();
+            }
+          });
+      }, READING_RECHECK_MILLISECONDS);
+    };
+    checkLater();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [reading, path, fetchUtil, readAgain]);
+
+  // Stopping is the one thing the reader can do while a document is read. A refusal says why.
+  const [stopFailure, setStopFailure] = useState<string>();
+  const stopReading = useCallback(() => {
+    setStopFailure(undefined);
+    void sendEvent(fetchUtil, path, "stopProcessing")
+      .then(readAgain, (e: unknown) => setStopFailure(describeRequestFailure(e)));
+  }, [fetchUtil, path, readAgain]);
+
+  // The way back, Stop, the steps the request is waiting for, and the switch between the two modes. It is
+  // shown in every state of the page. Loading and failure are where somebody most needs a way out. While a
+  // document is read, Stop is the only control left on: the rest waits for the reading to end.
+  const headerRow = (
     <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>
       <Link component={RouterLink} to="/">← Back to the dashboard</Link>
       <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+        <Button variant="outlined" color="error" startIcon={<StopIcon />} disabled={!reading} onClick={stopReading}>
+          Stop reading
+        </Button>
         <SubmissionTasks
           path={path}
           readinessNote={whyNotReady(submission)}
           queue={queue}
           checkReady={checkReady}
+          blocked={reading}
           onCompleted={() => {
             if (shownPath.current !== path) {
               return;
@@ -436,6 +504,7 @@ function SubmissionView() {
         />
         <ToggleButtonGroup
           exclusive
+          disabled={reading}
           value={editing ? "edit" : "view"}
           // An exclusive group reports null when the selected button is pressed again, and the page
           // then stays as it is
@@ -462,6 +531,12 @@ function SubmissionView() {
       </Stack>
     </Stack>
   );
+  const header = (
+    <>
+      {headerRow}
+      {stopFailure && <Alert severity="error">{stopFailure}</Alert>}
+    </>
+  );
 
   if (editing) {
     return (
@@ -469,7 +544,7 @@ function SubmissionView() {
         {header}
         {/* Keyed by path, so that another submission gets a new editor rather than showing the
             previous one's answers until its form arrives */}
-        <SubmissionEditor key={path} path={path} queueSave={queue} onChanged={readAgain} />
+        <SubmissionEditor key={path} path={path} queueSave={queue} reading={reading} onChanged={readAgain} />
       </Stack>
     );
   }

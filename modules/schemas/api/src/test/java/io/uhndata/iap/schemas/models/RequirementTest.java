@@ -96,6 +96,25 @@ class RequirementTest
         assertEquals("reb-members", ((ApprovalRequirement) requirement).getApproverGroup());
     }
 
+    // A Markdown file loaded as initial content keeps its extension in its node name
+    @Test
+    void findsItsTemplateByEitherName()
+    {
+        final Resource markdown = this.context.create().resource("/Schemas/schema/1.0/markdown",
+            "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE);
+        this.context.create().resource(markdown.getPath() + "/template.md", "jcr:primaryType", "nt:file");
+        final Resource both = this.context.create().resource("/Schemas/schema/1.0/both",
+            "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE);
+        this.context.create().resource(both.getPath() + "/template.md", "jcr:primaryType", "nt:file");
+        this.context.create().resource(both.getPath() + "/template", "jcr:primaryType", "nt:file");
+        final Resource none = this.context.create().resource("/Schemas/schema/1.0/none",
+            "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE);
+
+        assertEquals("template.md", markdown.adaptTo(Requirement.class).getReferenceTemplate().getName());
+        assertEquals("template", both.adaptTo(Requirement.class).getReferenceTemplate().getName());
+        assertNull(none.adaptTo(Requirement.class).getReferenceTemplate());
+    }
+
     @Test
     void hasNoConditionWhenNotSet()
     {

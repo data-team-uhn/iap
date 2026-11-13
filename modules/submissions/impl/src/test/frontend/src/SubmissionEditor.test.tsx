@@ -410,6 +410,17 @@ describe("SubmissionEditor", () => {
       expect(await screen.findByRole("link", { name: "note-v2.pdf" })).toBeInTheDocument();
     });
 
+    // Only the questions wait for the reading; a file changed meanwhile would not be the one read
+    it("keeps the documents in sight while a document is read, but takes no file", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} reading />);
+
+      expect(await screen.findByLabelText(/Upload a new version/)).toBeDisabled();
+      expect(screen.getByRole("link", { name: "note.pdf" })).toBeInTheDocument();
+      expect(screen.queryByText("The answers are shown once the document has been read.")).toBeNull();
+    });
+
     it("does not offer a new version for a request that can no longer be changed", async () => {
       serving(asked({ attached: [ NOTE_FILE ] }, { editable: false }));
 

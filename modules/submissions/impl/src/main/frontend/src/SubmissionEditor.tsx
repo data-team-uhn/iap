@@ -36,6 +36,7 @@ import {
   type FormQuestion,
   type SubmissionForm,
   fetchForm,
+  isFormRequirement,
   saveAnswer,
 } from "./submissionForm";
 
@@ -46,8 +47,18 @@ const CANNOT_COMPLETE_HERE = (
 );
 
 // What a requirement asks for, drawn by the component registered for its kind. A kind with no
-// component says it cannot be completed here yet.
-function RequirementBody(props: RequirementComponentProps) {
+// component says it cannot be completed here yet. While a document is being read, the questions are
+// not shown: the reading is adding suggestions to them, and an answer saved at the same time could
+// clash with it.
+function RequirementBody({ reading, ...props }: RequirementComponentProps & { reading: boolean }) {
+  if (reading && isFormRequirement(props.requirement)) {
+    return (
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+        <CircularProgress size={16} />
+        <Typography variant="placeholder">The answers are shown once the document has been read.</Typography>
+      </Stack>
+    );
+  }
   const Body = getRequirementComponent(props.requirement);
   if (!Body) {
     return CANNOT_COMPLETE_HERE;
@@ -66,10 +77,12 @@ function RequirementBody(props: RequirementComponentProps) {
 // loses.
 //
 // `onChanged` hears that a save or an attachment went through, so that the page can read the
-// submission again.
-function SubmissionEditor({ path, queueSave, onChanged }: {
+// submission again. `reading` says a document is being read for answers; until the reading ends, the
+// questions are hidden and every requirement is turned off.
+function SubmissionEditor({ path, queueSave, reading = false, onChanged }: {
   path: string;
   queueSave: Enqueue;
+  reading?: boolean;
   onChanged?: () => void;
 }) {
   const [ form, setForm ] = useState<SubmissionForm>();
@@ -128,6 +141,17 @@ function SubmissionEditor({ path, queueSave, onChanged }: {
     reload(token).catch((e: unknown) => setError(messageOf(e)));
   }, [ reload, onChanged ]);
 
+  // Load the form again when a reading ends, to show what the reading added
+  const wasReading = useRef(reading);
+  useEffect(() => {
+    if (wasReading.current && !reading) {
+      const token = latestFormRead.current + 1;
+      latestFormRead.current = token;
+      reload(token).catch((e: unknown) => setError(messageOf(e)));
+    }
+    wasReading.current = reading;
+  }, [ reading, reload ]);
+
   if (error) {
     return <Alert severity="error">{error}</Alert>;
   }
@@ -149,7 +173,8 @@ function SubmissionEditor({ path, queueSave, onChanged }: {
             <RequirementBody
               path={path}
               requirement={requirement}
-              disabled={!form.editable}
+              disabled={!form.editable || reading}
+              reading={reading}
               states={states}
               onAnswered={answered}
               queueSave={queueSave}

@@ -38,9 +38,11 @@ import { useSubmissionTasks } from "./useSubmissionTasks";
 // submission. It starts once the saves before it have settled, and a save asked for meanwhile waits
 // for it. It first calls `checkReady`. When that rejects, nothing is completed, and the reader is told
 // why. `readinessNote`, when given, says what still stands between the submission and its next step.
-function SubmissionTasks({ path, readinessNote, queue, checkReady, onCompleted }: {
+// `blocked` turns the step buttons off while something is still running, such as a document being read.
+function SubmissionTasks({ path, readinessNote, blocked = false, queue, checkReady, onCompleted }: {
   path: string;
   readinessNote?: string;
+  blocked?: boolean;
   queue: Enqueue;
   checkReady?: () => Promise<void>;
   onCompleted?: () => void;
@@ -74,7 +76,7 @@ function SubmissionTasks({ path, readinessNote, queue, checkReady, onCompleted }
           key={task.path}
           variant="contained"
           startIcon={<SendOutlinedIcon />}
-          disabled={working}
+          disabled={working || blocked}
           onClick={() => complete(task)}
         >
           {task.label}

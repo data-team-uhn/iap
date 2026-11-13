@@ -49,13 +49,14 @@ function repositoryFailingRereads(container: unknown) {
   });
 }
 
-const renderTasks = ({ readinessNote, queue = aQueue(), checkReady, onCompleted }: {
+const renderTasks = ({ readinessNote, queue = aQueue(), checkReady, blocked, onCompleted }: {
   readinessNote?: string;
   queue?: Enqueue;
   checkReady?: () => Promise<void>;
+  blocked?: boolean;
   onCompleted?: () => void;
 } = {}) => render(
-  <SubmissionTasks path={PATH} readinessNote={readinessNote} queue={queue} checkReady={checkReady}
+  <SubmissionTasks path={PATH} readinessNote={readinessNote} queue={queue} checkReady={checkReady} blocked={blocked}
     onCompleted={onCompleted} />,
   { wrapper: NoticeProvider },
 );
@@ -90,6 +91,16 @@ describe("SubmissionTasks", () => {
     renderTasks({ readinessNote: "Answer everything first." });
 
     expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeEnabled();
+  });
+
+  // Something still running, such as a document being read, must finish before the step can be taken
+  it("holds the step back while it is blocked", async () => {
+    vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND })));
+
+    renderTasks({ readinessNote: "Wait until the document has been read.", blocked: true });
+
+    expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeDisabled();
+    expect(screen.getByText("Wait until the document has been read.")).toBeInTheDocument();
   });
 
   it("completes the task with no outcome, since it has nothing to decide", async () => {

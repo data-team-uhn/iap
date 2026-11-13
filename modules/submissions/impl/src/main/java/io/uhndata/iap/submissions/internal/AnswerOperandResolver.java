@@ -120,11 +120,22 @@ public class AnswerOperandResolver implements OperandResolver
         for (final Content scope : scopes) {
             final Optional<Content> answer = this.findAnswer(scope, searched, question.identifier);
             if (answer.isPresent()) {
-                return Operand.of(answer.get().get(VALUE_PROPERTY), question.type);
+                return Operand.of(this.readValues(answer.get()), question.type);
             }
             searched = scope;
         }
         return Operand.of(null, question.type);
+    }
+
+    /**
+     * Returns the values of the answer found for the operand.
+     *
+     * @param answer the answer node
+     * @return its recorded value(s), or {@code null} when it holds none
+     */
+    protected Object readValues(final Content answer)
+    {
+        return answer.get(VALUE_PROPERTY);
     }
 
     private static List<Content> scopesUpToSubmission(final Content context)
@@ -183,8 +194,10 @@ public class AnswerOperandResolver implements OperandResolver
 
     private Optional<Content> findAnswer(final Content node, final Content searched, final String questionId)
     {
-        if (questionId.equals(node.get(QUESTION_PROPERTY, String.class))) {
-            return Optional.of(node);
+        final String answered = node.get(QUESTION_PROPERTY, String.class);
+        if (answered != null) {
+            // An answer holds its runs, never another answer, so its subtree is not searched
+            return questionId.equals(answered) ? Optional.of(node) : Optional.empty();
         }
         return node.getChildren(Content.class).stream()
             .filter(child -> searched == null || !child.getPath().equals(searched.getPath()))

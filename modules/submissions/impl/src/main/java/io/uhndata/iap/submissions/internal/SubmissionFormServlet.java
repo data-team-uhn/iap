@@ -45,6 +45,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.schemas.models.DecisionRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.internal.describers.FormKeys;
@@ -57,7 +58,8 @@ import io.uhndata.iap.utils.UserIds;
  * Served as {@code <submission>.form.json}.
  *
  * <p>Whether an item applies depends on this submission's answers. The form therefore merges the schema's structure
- * with the answers, and leaves out every requirement, section and question whose condition does not hold now.</p>
+ * with the answers, and leaves out every requirement, section and question whose condition does not hold now. It
+ * also leaves out validations and classifications: a reading of the documents makes them, not the submitter.</p>
  *
  * <p>Each requirement gets its kind's own fields from every {@link RequirementDescriber} that handles it. A kind
  * declared in another module reaches the form without this module depending on it.</p>
@@ -141,6 +143,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         final List<RequirementDescriber> current = Objects.requireNonNullElse(this.describers, List.of());
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
         version.getRequirements().stream()
+            .filter(requirement -> !(requirement instanceof DecisionRequirement))
             .filter(requirement -> this.applies(requirement, submission))
             .forEach(requirement -> requirements.add(requirement(requirement, submission, current)));
         return Json.createObjectBuilder()

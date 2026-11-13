@@ -40,25 +40,16 @@ const VALUE_TYPES: Record<string, ValueType | undefined> = {
 // The items a question's options come from, by the path it takes them from
 export type ItemChoices = Record<string, Choice[]>;
 
-// The items under a node at any depth, as its deep serialization gives them. Each is named by its path and called by
-// its title or label, or else by its name.
-export function itemChoicesOf(node: SerializedNode): Choice[] {
-  return Object.entries(node)
-    .filter((entry): entry is [ string, SerializedNode ] => isNode(entry[1]) && !entry[0].includes(":"))
-    .flatMap(([ name, item ]) => [
-      { value: String(item["@path"]), label: textValuesOf(item.title ?? item.label).at(0) ?? name },
-      ...itemChoicesOf(item),
-    ]);
-}
-
 // What the answers to a question hold: their type, whether there may be several, and the options. The options are
-// the ones the question lists, or else the items it takes its options from, once they are loaded.
+// the items the question takes its options from, once they are loaded, or else the ones it lists, the same choice the
+// server makes, so a condition never compares with a value the submitter cannot pick.
 export function answerShapeOf(question: SerializedNode, items: ItemChoices = {}): OperandShape {
   const listed = optionsOf(question).map(option => ({
     value: textValuesOf(option.value).at(0) ?? "",
     label: optionLabelOf(option),
   }));
-  const options = listed.length > 0 ? listed : items[textValuesOf(question.optionsFrom).at(0) ?? ""] ?? [];
+  const optionsFrom = textValuesOf(question.optionsFrom).at(0) ?? "";
+  const options = optionsFrom ? items[optionsFrom] ?? [] : listed;
   const maxAnswers = typeof question.maxAnswers === "number" ? question.maxAnswers : 1;
   return {
     type: VALUE_TYPES[textValuesOf(question.dataType).at(0) ?? "text"],
