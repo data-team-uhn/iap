@@ -217,7 +217,7 @@ describe("StepProgress", () => {
     const { container } = renderSteps({ activeStep: 1, disableAccent });
 
     expect(container.firstElementChild).toHaveStyle({
-      "--iap-step-accent": `var(--mui-palette-${palette}-main)`,
+      "--iap-step-accent": appTheme.palette[palette].main,
     });
   });
 

@@ -95,7 +95,7 @@ describe("StepProgressWidget", () => {
     fireEvent.click(screen.getByRole("switch", { name: "Accent" }));
 
     expect(screen.getByRole("status").parentElement).toHaveStyle({
-      "--iap-step-accent": "var(--mui-palette-primary-main)",
+      "--iap-step-accent": appTheme.palette.primary.main,
     });
   });
 });

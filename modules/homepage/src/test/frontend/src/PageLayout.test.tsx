@@ -74,6 +74,16 @@ const freshPageLayout = async () => {
   return (await import("@iap/homepage/PageLayout")).default;
 };
 
+// Finds a region's pull tab once it has rendered. A tab shows only below its region's breakpoint, and
+// jsdom matches media queries against a 1024 by 768 viewport that a test cannot resize, so a tab keeps
+// `display: none`, which hides it from the accessibility tree. It is found by its label instead.
+const findPullTab = (container: HTMLElement, label: string) =>
+  waitFor(() => {
+    const tab = container.querySelector<HTMLElement>(`[aria-label="${label}"]`);
+    expect(tab).not.toBeNull();
+    return tab!;
+  });
+
 // Asserts that `first` comes before `second` in document order.
 const expectBefore = (first: Element, second: Element) =>
   expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -143,11 +153,11 @@ describe("PageLayout", () => {
   it("pulls a rail over the content as a drawer from its narrow-screen pull tab", async () => {
     mockPoints({ FrameStart: [ext("Rail")] });
 
-    render(<PageLayout>main</PageLayout>);
+    const { container } = render(<PageLayout>main</PageLayout>);
 
     // Once in the rail, which CSS hides on a narrow screen
     expect((await screen.findAllByText("Rail content")).length).toBe(1);
-    fireEvent.click(screen.getByRole("button", { name: "Open the side panel" }));
+    fireEvent.click(await findPullTab(container, "Open the side panel"));
     // And once more in the drawer
     await waitFor(() => expect(screen.getAllByText("Rail content").length).toBe(2));
   });
@@ -158,12 +168,7 @@ describe("PageLayout", () => {
     const { container } = render(<PageLayout>main</PageLayout>);
 
     expect((await screen.findAllByText("Top bar content")).length).toBe(1);
-    // A bar's tab is shown only below the collapse height. jsdom applies no media query, so the
-    // tab keeps `display: none`, which hides it from the accessibility tree. It is found by its
-    // attribute instead.
-    const tab = container.querySelector('[aria-label="Open the top panel"]');
-    expect(tab).not.toBeNull();
-    fireEvent.click(tab as HTMLElement);
+    fireEvent.click(await findPullTab(container, "Open the top panel"));
     await waitFor(() => expect(screen.getAllByText("Top bar content").length).toBe(2));
   });
 
@@ -296,8 +301,8 @@ describe("PageLayout", () => {
 
   it("names the pull tab in a tooltip while it is hovered", async () => {
     mockPoints({ FrameStart: [ext("Rail")] });
-    render(<PageLayout>main</PageLayout>);
-    const tab = await screen.findByRole("button", { name: "Open the side panel" });
+    const { container } = render(<PageLayout>main</PageLayout>);
+    const tab = await findPullTab(container, "Open the side panel");
 
     fireEvent.mouseOver(tab);
 
@@ -310,8 +315,8 @@ describe("PageLayout", () => {
 
   it("closes the rail drawer again", async () => {
     mockPoints({ FrameStart: [ext("Rail")] });
-    render(<PageLayout>main</PageLayout>);
-    fireEvent.click(await screen.findByRole("button", { name: "Open the side panel" }));
+    const { container } = render(<PageLayout>main</PageLayout>);
+    fireEvent.click(await findPullTab(container, "Open the side panel"));
     await waitFor(() => { expect(screen.getAllByText("Rail content")).toHaveLength(2); });
 
     fireEvent.keyDown(screen.getAllByText("Rail content")[1], { key: "Escape", code: "Escape" });
@@ -322,9 +327,7 @@ describe("PageLayout", () => {
   it("closes the frame bar drawer again", async () => {
     mockPoints({ FrameTop: [ext("Top bar")] });
     const { container } = render(<PageLayout>main</PageLayout>);
-    await screen.findByText("Top bar content");
-    // Under jsdom the tab stays hidden from the accessibility tree, so it is found by its attribute
-    fireEvent.click(container.querySelector('[aria-label="Open the top panel"]')!);
+    fireEvent.click(await findPullTab(container, "Open the top panel"));
     await waitFor(() => { expect(screen.getAllByText("Top bar content")).toHaveLength(2); });
 
     fireEvent.keyDown(screen.getAllByText("Top bar content")[1], { key: "Escape", code: "Escape" });
