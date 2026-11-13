@@ -45,6 +45,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.schemas.models.DecisionRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.internal.describers.FormKeys;
@@ -141,15 +142,19 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         final List<RequirementDescriber> current = Objects.requireNonNullElse(this.describers, List.of());
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
         version.getRequirements().stream()
+            // A model makes these decisions and nobody fills them in; the category is confirmed in its own form
+            .filter(requirement -> !(requirement instanceof DecisionRequirement))
             .filter(requirement -> this.applies(requirement, submission))
             .forEach(requirement -> requirements.add(requirement(requirement, submission, current)));
-        return Json.createObjectBuilder()
+        final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(FormKeys.PATH_KEY, submission.getPath())
             .add(FormKeys.TITLE_KEY, Objects.toString(submission.getTitle(), ""))
             // The two rules the save workflow enforces, so an editor offers editing only where a save is accepted
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
-            .add("requirements", requirements)
-            .build();
+            .add("readsDocuments", ReadingProjection.isReadingDocuments(version))
+            .add("requirements", requirements);
+        ReadingProjection.describe(submission).ifPresent(reading -> json.add("extraction", reading));
+        return json.build();
     }
 
     /**

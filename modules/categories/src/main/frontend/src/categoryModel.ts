@@ -50,7 +50,7 @@ export interface CategoryNode {
   // Whether the category carries the retirement itself, rather than through an ancestor. Only that
   // category can have it lifted.
   retiredHere: boolean;
-  // The schema version bound to this category, if any.
+  // The schema version bound to this category, if any. Only a top-level one is used.
   schemaVersion?: SchemaVersionRef;
   // The subcategories, in their stored order.
   children: CategoryNode[];

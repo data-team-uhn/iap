@@ -17,18 +17,29 @@
  */
 
 import {
+  DOCUMENT_REQUIREMENT_TYPE,
+  FORM_REQUIREMENT_TYPE,
   QUESTION,
   SECTION,
   type FormItem,
   type FormQuestion,
   answerCap,
   countGuidance,
+  describeBlock,
+  describeValues,
   fetchForm,
   isBeingRead,
+  isFormRequirement,
   isMultiple,
   isQuestion,
   isRequired,
+  readAgain,
+  reviewExtraction,
+  runMainExtraction,
   saveAnswer,
+  sendDocuments,
+  stopProcessing,
+  toTitle,
 } from "@iap/submissions/submissionForm";
 
 const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
@@ -149,5 +160,77 @@ describe("saveAnswer", () => {
 
     await expect(saveAnswer(fetchMock, PATH, "details/startDate", [ "x" ]))
       .rejects.toThrow(/could not be saved \(409\)/);
+  });
+});
+
+describe("isFormRequirement", () => {
+  it("tells a form from the other kinds", () => {
+    expect(isFormRequirement({ name: "kind", path: "/k", type: FORM_REQUIREMENT_TYPE, label: "Kind" }))
+      .toBe(true);
+    expect(isFormRequirement({ name: "note", path: "/n", type: DOCUMENT_REQUIREMENT_TYPE, label: "Note" }))
+      .toBe(false);
+  });
+});
+
+describe("describeBlock", () => {
+  it("says why a reading stopped the request, and nothing when it did not", () => {
+    expect(describeBlock(undefined)).toBeUndefined();
+    expect(describeBlock({ status: "done" })).toBeUndefined();
+    expect(describeBlock({ status: "done", blocked: true, message: "Not a research proposal" }))
+      .toBe("Not a research proposal");
+    expect(describeBlock({ status: "done", blocked: true })).toMatch(/does not let this request go on/);
+  });
+});
+
+describe("describeValues", () => {
+  it("reads picked options by their labels, and anything else as it is", () => {
+    const question = {
+      name: "kind", type: QUESTION, path: "kind/kind", text: "Kind?", dataType: "text",
+      minAnswers: 0, maxAnswers: 1, options: [ { value: "drug", label: "A drug" } ], value: [],
+    } as FormQuestion;
+
+    expect(describeValues(question, [ "drug", "other" ])).toEqual([ "A drug", "other" ]);
+  });
+});
+
+describe("the reading events", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("posts each event to the submission", async () => {
+    const fetchMock = vi.fn(() => response({}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await reviewExtraction(fetch, PATH, "details/sponsor", true);
+    await stopProcessing(fetch, PATH);
+    await readAgain(fetch, PATH, true);
+    await readAgain(fetch, PATH, false);
+    await sendDocuments(fetch, PATH);
+    await runMainExtraction(fetch, PATH);
+
+    const urls = fetchMock.mock.calls.map(call => (call as unknown[])[0]);
+    expect(urls).toEqual([ `${PATH}.reviewExtraction.json`, `${PATH}.stopProcessing.json`,
+      `${PATH}.retryParse.json`, `${PATH}.readAgain.json`, `${PATH}.retryParse.json`,
+      `${PATH}.runMainExtraction.json` ]);
+    const body = (fetchMock.mock.calls[0] as unknown[])[1] as { body: URLSearchParams };
+    expect(body.body.get("question")).toBe("details/sponsor");
+    expect(body.body.get("evidenceRejected")).toBe("true");
+  });
+
+  it("reports the server's reason for a refusal, or the status when it gives none", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => response({ error: "This request is already being read" },
+      { ok: false, status: 409 })));
+    await expect(readAgain(fetch, PATH, false)).rejects.toThrow("This request is already being read");
+
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+      ok: false, status: 500, url: "", json: () => Promise.reject(new Error("not JSON")),
+    } as unknown as Response)));
+    await expect(stopProcessing(fetch, PATH)).rejects.toThrow("The reading could not be stopped (500)");
+  });
+});
+
+describe("toTitle", () => {
+  it("starts a label written to fit a sentence with a capital", () => {
+    expect(toTitle("research proposal")).toBe("Research proposal");
+    expect(toTitle("")).toBe("");
   });
 });

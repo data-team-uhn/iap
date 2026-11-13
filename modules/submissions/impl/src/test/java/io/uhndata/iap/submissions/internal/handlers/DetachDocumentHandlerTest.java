@@ -49,8 +49,11 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.internal.Referenceables;
 import io.uhndata.iap.submissions.internal.Tagging;
+import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
+import io.uhndata.iap.submissions.models.Extraction;
+import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -100,7 +103,8 @@ class DetachDocumentHandlerTest
     // JCR-backed: what is removed was attached by the real handler, which writes a real REFERENCE and binary
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
-    private final AttachDocumentHandler attacher = new AttachDocumentHandler();
+    private final AttachDocumentHandler attacher =
+        new AttachDocumentHandler(AttachDocumentHandlerTest.mockLimits(50L * 1024 * 1024));
 
     private final DetachDocumentHandler handler = new DetachDocumentHandler();
 
@@ -111,7 +115,7 @@ class DetachDocumentHandlerTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, Document.class,
-            DocumentVersion.class, Submission.class, Activity.class);
+            DocumentVersion.class, Submission.class, Activity.class, File.class, Answer.class, Extraction.class);
         Tagging.enable(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
@@ -261,6 +265,47 @@ class DetachDocumentHandlerTest
         assertNotNull(this.context.resourceResolver().getResource(SUBMISSION_PATH + "/stray"));
     }
 
+    @Test
+    void refusesWhileTheDocumentIsWithTheDaemon() throws Exception
+    {
+        attach(NOTE, "proposal.pdf");
+        final Resource file = currentFile();
+        modify(file, TYPE, File.RESOURCE_TYPE);
+        modify(file, "parseStatus", "queued");
+
+        assertThrows(InvalidStateException.class, () -> this.handler.execute(context(payload(NOTE), REQUESTER)));
+    }
+
+    @Test
+    void refusesWhileTheRequestIsBeingRead() throws Exception
+    {
+        attach(NOTE, "proposal.pdf");
+        modify(this.target, "extractionStatus", "running");
+
+        assertThrows(InvalidStateException.class, () -> this.handler.execute(context(payload(NOTE), REQUESTER)));
+    }
+
+    @Test
+    void dropsTheRunsThatReadTheDocumentAndKeepsTheAnswers() throws Exception
+    {
+        attach(NOTE, "proposal.pdf");
+        final String version = documents().get(0).getVersions().get(0).getPath();
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/answer",
+            Map.of(TYPE, Answer.RESOURCE_TYPE));
+        final Resource read = this.context.create().resource(answer.getPath() + "/read",
+            Map.of(TYPE, Extraction.RESOURCE_TYPE));
+        read.adaptTo(Node.class).setProperty("sources", new String[] {
+            present(this.context.resourceResolver().getResource(version)).adaptTo(Node.class).getIdentifier()});
+        this.context.create().resource(answer.getPath() + "/other", Map.of(TYPE, Extraction.RESOURCE_TYPE));
+        this.context.resourceResolver().commit();
+
+        this.handler.execute(context(payload(NOTE), REQUESTER));
+
+        assertNull(this.context.resourceResolver().getResource(answer.getPath() + "/read"));
+        assertNotNull(this.context.resourceResolver().getResource(answer.getPath() + "/other"));
+        assertNotNull(this.context.resourceResolver().getResource(answer.getPath()));
+    }
+
     private void attach(final String requirement, final String fileName) throws Exception
     {
         final Map<String, Object> payload = payload(requirement);
@@ -328,6 +373,13 @@ class DetachDocumentHandlerTest
             && resource.getValueMap().get(TYPE) == null) {
             modify(resource, TYPE, resourceType);
         }
+    }
+
+    /** The file of the newest version of the one document attached. */
+    private Resource currentFile()
+    {
+        final String version = documents().get(0).getVersions().get(0).getPath();
+        return present(this.context.resourceResolver().getResource(version + "/file"));
     }
 
     private <T> T present(final T found)

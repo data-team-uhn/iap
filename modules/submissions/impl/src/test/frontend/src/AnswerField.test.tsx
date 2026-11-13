@@ -95,7 +95,7 @@ describe("AnswerField", () => {
     expect(screen.getByLabelText(/Which day/)).toHaveAttribute("type", "number");
 
     rerender(<AnswerField question={question({ dataType: "text" })} state="idle" onAnswered={vi.fn()} />);
-    expect(screen.getByLabelText(/Which day/)).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText(/Which day/).tagName).toBe("TEXTAREA");
   });
 
   it("says so when a question asks for something it has no way to answer", () => {
@@ -198,5 +198,159 @@ describe("AnswerField", () => {
     render(<AnswerField question={question({ text: "" })} state="idle" onAnswered={vi.fn()} />);
 
     expect(screen.getByLabelText("startDate")).toBeInTheDocument();
+  });
+});
+
+describe("AnswerField with a suggestion", () => {
+  function suggested(overrides: Partial<FormQuestion> = {}): FormQuestion {
+    return question({
+      name: "sponsor", path: "details/sponsor", text: "Who sponsors the study?", dataType: "text",
+      provenance: {
+        suggested: [ "Acme Pharma" ],
+        offered: [ "Acme Pharma" ],
+        confidence: 0.9,
+        passages: [ { quote: "The study is sponsored by Acme Pharma" } ],
+        evidenceRejected: false,
+        actedOn: false,
+      },
+      ...overrides,
+    });
+  }
+
+  it("shows the suggestion in an empty field, and saves it only once confirmed", async () => {
+    const answered = vi.fn();
+    render(<AnswerField question={suggested()} state="idle" onAnswered={answered} />);
+
+    const field = screen.getByLabelText(/Who sponsors/);
+    expect(field).toHaveValue("Acme Pharma");
+    expect(screen.getByText("AI found:")).toBeInTheDocument();
+    // Leaving it as it is takes nothing
+    await userEvent.click(field);
+    await userEvent.tab();
+    expect(answered).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirm answer" }));
+    expect(answered).toHaveBeenCalledWith([ "Acme Pharma" ]);
+  });
+
+  it("saves an edit of the suggestion as the answer, and drops the Confirm button with the first keystroke", async () => {
+    const answered = vi.fn();
+    render(<AnswerField question={suggested()} state="idle" onAnswered={answered} />);
+
+    const field = screen.getByLabelText(/Who sponsors/);
+    await userEvent.type(field, " Inc");
+    expect(screen.queryByRole("button", { name: "Confirm answer" })).not.toBeInTheDocument();
+    await userEvent.tab();
+
+    expect(answered).toHaveBeenCalledWith([ "Acme Pharma Inc" ]);
+  });
+
+  it("saves nothing when an empty field shows nothing and is left empty", async () => {
+    const answered = vi.fn();
+    render(<AnswerField question={suggested({ provenance: undefined })} state="idle" onAnswered={answered} />);
+
+    await userEvent.click(screen.getByLabelText(/Who sponsors/));
+    await userEvent.tab();
+
+    expect(answered).not.toHaveBeenCalled();
+  });
+
+  it("keeps the submitter's answer and offers what a newer document says", async () => {
+    const answered = vi.fn();
+    const question = suggested({ value: [ "Beta Labs" ] });
+    render(<AnswerField question={question} state="idle" onAnswered={answered} />);
+
+    expect(screen.getByLabelText(/Who sponsors/)).toHaveValue("Beta Labs");
+    expect(screen.getByText("You answered differently")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "What the newer document says" }));
+    expect(screen.getByText("Acme Pharma")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    await userEvent.click(screen.getByRole("button", { name: "What the newer document says" }));
+    await userEvent.click(screen.getByRole("button", { name: "Use this answer" }));
+
+    expect(answered).toHaveBeenCalledWith([ "Acme Pharma" ]);
+  });
+
+  it("frames the picked option of a suggested choice", () => {
+    const question = suggested({
+      dataType: "boolean", text: "Is a drug given?",
+      provenance: {
+        suggested: [ "true" ], offered: [ "true" ], confidence: 0.9, passages: [],
+        evidenceRejected: false, actedOn: false,
+      },
+    });
+    render(<AnswerField question={question} state="idle" onAnswered={vi.fn()} />);
+
+    expect(screen.getByRole("radio", { name: "Yes" })).toBeChecked();
+  });
+
+  it("frames the picked option of a suggested pick from a list", () => {
+    const question = suggested({
+      text: "Which phase?",
+      options: [ { value: "one", label: "Phase 1" }, { value: "two", label: "Phase 2" } ],
+      provenance: {
+        suggested: [ "two" ], offered: [ "two" ], confidence: 0.9, passages: [],
+        evidenceRejected: false, actedOn: false,
+      },
+    });
+    render(<AnswerField question={question} state="idle" onAnswered={vi.fn()} />);
+
+    expect(screen.getByRole("radio", { name: "Phase 2" })).toBeChecked();
+  });
+
+  it("frames the ticked boxes of a suggested list", () => {
+    const question = suggested({
+      text: "Which sites?", maxAnswers: 0,
+      options: [ { value: "a", label: "Site A" }, { value: "b", label: "Site B" } ],
+      provenance: {
+        suggested: [ "b" ], offered: [ "b" ], confidence: 0.9, passages: [],
+        evidenceRejected: false, actedOn: false,
+      },
+    });
+    render(<AnswerField question={question} state="idle" onAnswered={vi.fn()} />);
+
+    expect(screen.getByRole("checkbox", { name: "Site B" })).toBeChecked();
+  });
+
+  it("frames a suggested number and date", () => {
+    const number = suggested({
+      dataType: "long", text: "How many participants?",
+      provenance: {
+        suggested: [ "120" ], offered: [ "120" ], confidence: 0.9, passages: [],
+        evidenceRejected: false, actedOn: false,
+      },
+    });
+    const { unmount } = render(<AnswerField question={number} state="idle" onAnswered={vi.fn()} />);
+    expect(screen.getByLabelText(/How many participants/)).toHaveValue(120);
+    unmount();
+
+    const date = suggested({
+      dataType: "date", text: "When does it start?",
+      provenance: {
+        suggested: [ "2027-01-04" ], offered: [ "2027-01-04" ], confidence: 0.9, passages: [],
+        evidenceRejected: false, actedOn: false,
+      },
+    });
+    render(<AnswerField question={date} state="idle" onAnswered={vi.fn()} />);
+    expect(screen.getByLabelText(/When does it start/)).toHaveValue("2027-01-04");
+  });
+
+  it("passes on a note that the quotes do not support the suggestion", async () => {
+    const rejected = vi.fn();
+    render(<AnswerField question={suggested()} state="idle" onAnswered={vi.fn()} onRejectEvidence={rejected} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /The study is sponsored/ }));
+    await userEvent.click(screen.getByRole("button", { name: "This passage does not support the answer" }));
+
+    expect(rejected).toHaveBeenCalledWith(true);
+  });
+
+  it("takes a note quietly when nobody listens for it", async () => {
+    render(<AnswerField question={suggested()} state="idle" onAnswered={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /The study is sponsored/ }));
+    await userEvent.click(screen.getByRole("button", { name: "This passage does not support the answer" }));
+
+    expect(screen.getByText("AI found:")).toBeInTheDocument();
   });
 });

@@ -698,6 +698,30 @@ class UserWorkflowTest
             (String[]) read(TASK).get(TaskInstance.OUTCOME_OPTIONS_PROPERTY));
     }
 
+    // A task can belong to one part of the form rather than to the request as a whole, and the form offers it
+    // there. Carried on the task because whoever reads it cannot necessarily read the definition.
+    @Test
+    void raisesTasksNamingTheRequirementTheyAreAbout() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        addToTheUserTask(Map.of("requirement", "proposal"));
+
+        started();
+
+        assertEquals("proposal", read(TASK).get("requirement"));
+    }
+
+    @Test
+    void raisesTasksNamingNoRequirementWhenTheDefinitionNamesNone() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        addToTheUserTask(Map.of("requirement", "   "));
+
+        started();
+
+        assertNull(read(TASK).get("requirement"), "a blank name is no requirement at all");
+    }
+
     @Test
     void raisesTasksOfferingNothingWhenThereIsNothingToDecide() throws Exception
     {

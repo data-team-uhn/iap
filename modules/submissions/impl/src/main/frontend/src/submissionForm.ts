@@ -19,6 +19,8 @@
 import { type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { readJson } from "@iap/frontend-commons/requestFailure";
 
+import type { QuestionProvenance } from "./provenance";
+
 // The form a submitter fills in, as the server serves it at `<submission>.form.json`, and the
 // events that change the submission. The server resolves the conditions, so a question absent from
 // the form does not apply now.
@@ -64,6 +66,8 @@ export interface FormQuestion {
   // The answers the question offers; empty when it is answered freely
   options: FormAnswerOption[];
   value: string[];
+  // Where a suggested answer came from, present only when a reading found one
+  provenance?: QuestionProvenance;
 }
 
 export interface FormSection {
@@ -89,6 +93,11 @@ export interface Requirement {
 // A requirement answered by filling questions in. Only this kind holds items.
 export interface FormRequirement extends Requirement {
   items: FormItem[];
+  // Whether a model fills this form in from an uploaded document
+  extracted?: boolean;
+  // Whether this form holds the category a model suggests, which the submitter confirms before the rest
+  // is read
+  confirmsCategory?: boolean;
 }
 
 // A requirement answered by attaching a file.
@@ -132,12 +141,33 @@ export function toFileUrl(path: string): string {
   return path.split("/").map(encodeURIComponent).join("/");
 }
 
+// Where reading the uploaded documents for answers stands, as the extraction module recorded it.
+// Only `running` is still going; `failed` comes with a message for the submitter.
+export interface ExtractionState {
+  status: "running" | "done" | "failed";
+  message?: string;
+  // Whether an upload has a failed parse, so trying again has to send it to be parsed again
+  retryable?: boolean;
+  // Whether no upload still waits on the parse
+  parsed?: boolean;
+  // Whether a reading job has taken the reading, which is after the parse was read in
+  reading?: boolean;
+  // Why a parse failed, in the daemon's words. For the browser console only.
+  detail?: string;
+  // Whether the reading ended with the request unable to go on; `message` says why
+  blocked?: boolean;
+}
+
 export interface SubmissionForm {
   path: string;
   title: string;
   // Whether the reader may still change the submission: they raised it, and it is still a draft
   editable: boolean;
+  // Whether a model reads the uploaded documents: it checks them, or a form is read from them
+  readsDocuments?: boolean;
   requirements: Requirement[];
+  // Where reading the documents stands; absent until a reading was asked for
+  extraction?: ExtractionState;
 }
 
 export function isQuestion(item: FormItem): item is FormQuestion {
@@ -163,6 +193,25 @@ export const READING_STATUS = "running";
 // reading ends, the submitter cannot change the answers and the request is not ready to send.
 export function isBeingRead(extractionStatus: unknown): boolean {
   return extractionStatus === READING_STATUS;
+}
+
+// What stops a request from going on, as its reading said it, or undefined when nothing does.
+export function describeBlock(extraction: ExtractionState | undefined): string | undefined {
+  if (extraction?.blocked !== true) {
+    return undefined;
+  }
+  return extraction.message ?? "The uploaded document does not let this request go on.";
+}
+
+// An answer as the option labels it picked, so a reader sees words rather than stored values
+export function describeValues(question: FormQuestion, values: string[]): string[] {
+  return values.map(value => question.options.find(option => option.value === value)?.label ?? value);
+}
+
+// A label as a heading. A requirement's label is written to fit a sentence, such as "Please upload the
+// research proposal", so it may start in lower case.
+export function toTitle(label: string): string {
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 // What an empty document slot says. An optional one says so, or it reads as a gap.
@@ -238,4 +287,48 @@ export async function attachDocument(
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(refusal.error ?? `This file could not be attached (${response.status})`);
   }
+}
+
+// Posts an event the submitter fires on their own request, and turns a refusal into its reason.
+// The event is named by a selector, so `.json` has to follow it: Sling would read a last
+// `.readAgain` as the extension.
+async function postEvent(doFetch: AuthenticatedFetch, path: string, event: string, failure: string,
+  body?: URLSearchParams): Promise<void> {
+  const response = await doFetch(`${path}.${event}.json`, { method: "POST", body });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(refusal.error ?? `${failure} (${response.status})`);
+  }
+}
+
+// Says whether the quotes behind a suggestion support it. A note about the reading only: taking or
+// changing the suggestion is a save of the answer.
+export function reviewExtraction(doFetch: AuthenticatedFetch, path: string, question: string,
+  evidenceRejected: boolean): Promise<void> {
+  const body = new URLSearchParams();
+  body.append("question", question);
+  body.append("evidenceRejected", String(evidenceRejected));
+  return postEvent(doFetch, path, "reviewExtraction", "This could not be recorded", body);
+}
+
+// Stops a parse or a reading that is still going
+export function stopProcessing(doFetch: AuthenticatedFetch, path: string): Promise<void> {
+  return postEvent(doFetch, path, "stopProcessing", "The reading could not be stopped");
+}
+
+// Sends the uploads to be read, once the submitter has uploaded what the request asks for. Only the ones
+// never parsed, or whose parse failed, are sent; the model then checks each document.
+export function sendDocuments(doFetch: AuthenticatedFetch, path: string): Promise<void> {
+  return postEvent(doFetch, path, "retryParse", "The documents could not be sent to be read");
+}
+
+// Reads the rest of the request out of the documents, once the submitter has confirmed the category
+export function runMainExtraction(doFetch: AuthenticatedFetch, path: string): Promise<void> {
+  return postEvent(doFetch, path, "runMainExtraction", "The documents could not be read");
+}
+
+// Reads the documents again: `retryParse` sends again the uploads whose parse failed, `readAgain`
+// reads again the ones already parsed
+export function readAgain(doFetch: AuthenticatedFetch, path: string, fromTheParse: boolean): Promise<void> {
+  return postEvent(doFetch, path, fromTheParse ? "retryParse" : "readAgain", "The document could not be read again");
 }

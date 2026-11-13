@@ -23,11 +23,12 @@ import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm"
 import type { FieldState } from "../requirementComponents";
 
 // The questions of a form or a section, with sections drawn as their own headed block.
-function Items({ items, disabled, states, onAnswered }: {
+function Items({ items, disabled, states, onAnswered, onRejectEvidence }: {
   items: FormItem[];
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
+  onRejectEvidence?: (question: FormQuestion, rejected: boolean) => void;
 }) {
   return (
     <Stack spacing={2}>
@@ -40,6 +41,7 @@ function Items({ items, disabled, states, onAnswered }: {
             state={states[item.path]?.state ?? "idle"}
             error={states[item.path]?.error}
             onAnswered={values => onAnswered(item, values)}
+            onRejectEvidence={rejected => onRejectEvidence?.(item, rejected)}
           />
         )
         : (
@@ -49,7 +51,13 @@ function Items({ items, disabled, states, onAnswered }: {
               <Typography variant="description">{item.description}</Typography>
             ) }
             <Box sx={{ pl: 2, pt: 1 }}>
-              <Items items={item.items} disabled={disabled} states={states} onAnswered={onAnswered} />
+              <Items
+                items={item.items}
+                disabled={disabled}
+                states={states}
+                onAnswered={onAnswered}
+                onRejectEvidence={onRejectEvidence}
+              />
             </Box>
           </Box>
         )) }

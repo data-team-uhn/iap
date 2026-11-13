@@ -26,11 +26,13 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.submissions.internal.ParseStatus;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -78,11 +80,16 @@ public class DetachDocumentHandler implements ServiceTaskHandler
             .findFirst()
             .orElseThrow(() -> new InvalidPayloadException(
                 "Nothing is attached for " + requirement.getLabel() + ", so there is nothing to remove"));
+        // Removed mid-parse, the parse lands on nothing and the reading it was for never ends
+        if (ParseStatus.isParsing(attached) || ParseStatus.isReading(submission)) {
+            throw new InvalidStateException("Wait until the document has been read, or stop the reading first");
+        }
 
         final ResourceResolver resolver = context.getResourceResolver();
         final Resource document = Objects.requireNonNull(resolver.getResource(attached.getPath()),
             "A document the submission just listed can be read by the same resolver");
         VersioningUtils.checkOut(target);
+        DocumentReadings.dropAll(resolver, submission, attached);
         for (final DocumentVersion version : attached.getVersions()) {
             resolver.delete(Objects.requireNonNull(resolver.getResource(version.getPath()),
                 "A version the document just listed can be read by the same resolver"));

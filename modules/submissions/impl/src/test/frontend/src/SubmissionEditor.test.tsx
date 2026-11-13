@@ -20,6 +20,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
+import { fetchUploadLimits } from "@iap/frontend-commons/uploadLimits";
 import { loadAnswerComponents } from "@iap/submissions/answers";
 // Imported rather than fetched. In a browser each answer component arrives as its own asset, named
 // by an extension on the AnswerComponent point, and registers itself as it is evaluated.
@@ -56,6 +57,11 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 // The file check has its own tests; here it passes every file unless a test says otherwise
 vi.mock("@iap/frontend-commons/fileValidation", () => ({
   validateUpload: vi.fn(() => Promise.resolve(undefined)),
+}));
+
+// The server gives no limits unless a test says otherwise, so the check's own defaults apply
+vi.mock("@iap/frontend-commons/uploadLimits", () => ({
+  fetchUploadLimits: vi.fn(() => Promise.resolve({})),
 }));
 
 // Settles the loads before the first render, so the editor draws the form rather than a spinner,
@@ -375,8 +381,32 @@ describe("SubmissionEditor", () => {
 
       expect(await screen.findByRole("alert")).toHaveTextContent("note.txt is not a file of an accepted type: .pdf.");
       expect(vi.mocked(validateUpload)).toHaveBeenCalledWith(
-        expect.any(File), { accepted: [ "application/pdf", "image/png" ], timeoutMs: 30_000 });
+        expect.any(File), expect.objectContaining({ accepted: [ "application/pdf", "image/png" ] }));
       expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument.json`)).toBe(false);
+    });
+
+    it("checks the file against the server's limits", async () => {
+      vi.mocked(fetchUploadLimits).mockResolvedValueOnce({ maxFileSize: 1024 });
+      vi.stubGlobal("fetch", serving(asked()));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      await waitFor(() => expect(vi.mocked(validateUpload)).toHaveBeenCalledWith(
+        expect.any(File), expect.objectContaining({ limits: { maxFileSize: 1024 } })));
+    });
+
+    it("reads the limits within the check's own time, and leaves the check what remains", async () => {
+      vi.stubGlobal("fetch", serving(asked()));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      await waitFor(() => expect(vi.mocked(validateUpload)).toHaveBeenCalled());
+      expect(vi.mocked(fetchUploadLimits).mock.lastCall?.[1]).toBeInstanceOf(AbortSignal);
+      const timeoutMs = vi.mocked(validateUpload).mock.lastCall?.[1]?.timeoutMs ?? 0;
+      expect(timeoutMs).toBeGreaterThan(0);
+      expect(timeoutMs).toBeLessThanOrEqual(30_000);
     });
 
     it("posts the file as an event on the submission, then reads the form again", async () => {
@@ -560,7 +590,8 @@ describe("SubmissionEditor", () => {
 
     render(<SubmissionEditor path={PATH} />);
 
-    expect(await screen.findByText("details")).toBeInTheDocument();
+    // As a heading, so it starts with a capital
+    expect(await screen.findByText("Details")).toBeInTheDocument();
     expect(screen.getByText("when")).toBeInTheDocument();
   });
 
@@ -622,5 +653,161 @@ describe("SubmissionEditor", () => {
 
     await waitFor(() => expect(screen.queryByText("Stale")).not.toBeInTheDocument());
     expect(screen.getByText("Newest")).toBeInTheDocument();
+  });
+});
+
+describe("SubmissionEditor with a reading", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function read(): SubmissionForm {
+    return form({
+      requirements: [ details([ {
+        ...duration(),
+        provenance: {
+          suggested: [ "multiple days" ], offered: [ "multiple days" ], confidence: 0.9,
+          passages: [ { quote: "The leave runs over several days" } ], evidenceRejected: false, actedOn: false,
+        },
+      } ], { extracted: true }) ],
+    });
+  }
+
+  it("says a form is filled in from the document, and records a note about its quotes", async () => {
+    const fetchMock = serving(read());
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SubmissionEditor path={PATH} />);
+    expect(await screen.findByText(/Filled in from your uploaded document/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /The leave runs over/ }));
+    await userEvent.click(screen.getByRole("button", { name: "This passage does not support the answer" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([ url ]) => url === `${PATH}.reviewExtraction.json`))
+      .toBe(true));
+  });
+
+  it("says when a note about the quotes was refused", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
+      ? json({ error: "Nothing was read for this question" }, { ok: false, status: 400 })
+      : json(read())));
+
+    render(<SubmissionEditor path={PATH} />);
+    await userEvent.click(await screen.findByRole("button", { name: /The leave runs over/ }));
+    await userEvent.click(screen.getByRole("button", { name: "This passage does not support the answer" }));
+
+    expect(await screen.findByText("Not saved")).toBeInTheDocument();
+  });
+});
+
+describe("SubmissionEditor in steps", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function proposal(attached: number): DocumentRequirement {
+    return {
+      name: "proposal", path: "/Schemas/study/v1/proposal", type: DOCUMENT_REQUIREMENT_TYPE,
+      label: "research proposal", required: true, acceptedFileTypes: [],
+      attached: Array.from({ length: attached }, () => ({ title: "protocol.pdf" })),
+    };
+  }
+
+  function category(value: string[]): FormRequirement {
+    return {
+      name: "category", path: "/Schemas/study/v1/category", type: FORM_REQUIREMENT_TYPE, label: "Kind of study",
+      confirmsCategory: true, items: [ {
+        name: "kind", type: QUESTION, path: "category/kind", text: "What kind of study is this?",
+        dataType: "text", minAnswers: 1, maxAnswers: 1, options: [], value,
+      } ],
+    };
+  }
+
+  function study(): FormRequirement {
+    return details([ duration() ], { name: "study", label: "The study" });
+  }
+
+  function stepped(overrides: Partial<SubmissionForm>): SubmissionForm {
+    return form({ readsDocuments: true, requirements: [ proposal(1), category([]), study() ], ...overrides });
+  }
+
+  function posts(fetchMock: ReturnType<typeof serving>): unknown[] {
+    return fetchMock.mock.calls.filter(([ , options ]) => options?.method === "POST").map(([ url ]) => url);
+  }
+
+  it("asks for each missing document before going on", async () => {
+    vi.stubGlobal("fetch", serving(stepped({ requirements: [ proposal(0), category([]), study() ] })));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByText("Research proposal")).toBeInTheDocument();
+    expect(screen.queryByText("Kind of study")).not.toBeInTheDocument();
+    expect(screen.getByText("Please upload the research proposal.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+  });
+
+  it("sends the documents to be read, then asks to confirm the category", async () => {
+    const fetchMock = serving(stepped({}));
+    vi.stubGlobal("fetch", fetchMock);
+    const onChanged = vi.fn();
+
+    render(<SubmissionEditor path={PATH} onChanged={onChanged} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("Kind of study")).toBeInTheDocument();
+    expect(posts(fetchMock)).toEqual([ `${PATH}.retryParse.json` ]);
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("reads the rest once the category is confirmed, and goes back", async () => {
+    const fetchMock = serving(stepped({ extraction: { status: "done" },
+      requirements: [ proposal(1), category([ "/Categories/x" ]), study() ] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SubmissionEditor path={PATH} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("The study")).toBeInTheDocument();
+    expect(posts(fetchMock)).toEqual([ `${PATH}.runMainExtraction.json` ]);
+    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByText("Kind of study")).toBeInTheDocument();
+  });
+
+  it("waits for the category before reading the rest", async () => {
+    vi.stubGlobal("fetch", serving(stepped({ extraction: { status: "done" } })));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByText("Confirm the category to continue.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+  });
+
+  it("locks the uploads once they were sent", async () => {
+    vi.stubGlobal("fetch", serving(stepped({ extraction: { status: "done" } })));
+
+    render(<SubmissionEditor path={PATH} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Back" }));
+
+    expect(await screen.findByLabelText(/Upload a new version for "research proposal"/)).toBeDisabled();
+  });
+
+  it("says why going on was refused", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
+      ? json({ error: "The documents could not be sent" }, { ok: false, status: 409 })
+      : json(stepped({}))));
+
+    render(<SubmissionEditor path={PATH} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("The documents could not be sent")).toBeInTheDocument();
+    expect(screen.getByText("Research proposal")).toBeInTheDocument();
+  });
+
+  it("shows a request that can no longer be changed on one page", async () => {
+    vi.stubGlobal("fetch", serving(stepped({ editable: false })));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByText("The study")).toBeInTheDocument();
+    expect(screen.getByText("Kind of study")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
   });
 });

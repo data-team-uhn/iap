@@ -40,6 +40,8 @@ export interface RequirementComponentProps {
   states: Record<string, FieldState | undefined>;
   // Called when an answer is finished, for a kind that draws questions
   onAnswered: (question: FormQuestion, values: string[]) => void;
+  // Records whether the quotes behind a question's suggestion support it
+  onRejectEvidence?: (question: FormQuestion, rejected: boolean) => void;
   // Called with each save the kind starts, so that whatever waits for the answers to be stored waits
   // for it too
   onSaving: (save: Promise<unknown>) => void;

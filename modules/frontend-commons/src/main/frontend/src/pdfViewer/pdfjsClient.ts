@@ -15,7 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { getAssetURL } from "../assetManager";
+import { centreIn } from "./markLayer";
+
 import type { PDFWorker } from "pdfjs-dist";
+import type { EventBus, PDFLinkService } from "pdfjs-dist/web/pdf_viewer.mjs";
+
+// The PDF.js options naming where to fetch what a document needs but does not carry, such as fonts,
+// and the published package folder for each.
+const DATA_FOLDERS = {
+  standardFontDataUrl: "pdfjs-dist.standard_fonts",
+  wasmUrl: "pdfjs-dist.wasm",
+  cMapUrl: "pdfjs-dist.cmaps",
+  iccUrl: "pdfjs-dist.iccs",
+};
+
+type DataUrls = Partial<Record<keyof typeof DATA_FOLDERS, string>>;
+
+// A folder that was not published is left out, for PDF.js to do without, since it refuses an empty URL.
+async function getDataUrls(): Promise<DataUrls> {
+  const urls = await Promise.all(Object.entries(DATA_FOLDERS).map(async ([ option, folder ]) =>
+    [ option, await getAssetURL(`asset:${folder}`) ] as const));
+  return Object.fromEntries(urls.filter(([ , url ]) => url.length > 0));
+}
 
 /** The PDF.js worker's script never ran, so nothing sent to the worker gets an answer. */
 export class PdfWorkerFailure extends Error {}
@@ -40,10 +62,17 @@ function watchStart(port: Worker): Promise<never> {
   return failed;
 }
 
-// Loads PDF.js and the one worker every document shares. `failed` rejects if that worker never
-// started. Such a worker is not replaced, since a new one would load the same missing script.
+// Loads PDF.js, its viewer, and the one worker every document shares. `failed` rejects if that worker
+// never started. Such a worker is not replaced, since a new one would load the same missing script.
 export async function loadPdfjs() {
   const pdfjs = await import("pdfjs-dist");
+  // The viewer reads the library from here rather than importing it.
+  (globalThis as { pdfjsLib?: unknown }).pdfjsLib = pdfjs;
+  const [ components, , dataUrls ] = await Promise.all([
+    import("pdfjs-dist/web/pdf_viewer.mjs"),
+    import("pdfjs-dist/web/pdf_viewer.css"),
+    getDataUrls(),
+  ]);
   if (shared === undefined) {
     // The magic comment bundles the worker as a plain module, not as the project's modern-module
     // library. Webpack 5.112 cannot render that library for an entry whose exports nobody uses, and
@@ -52,5 +81,30 @@ export async function loadPdfjs() {
       new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url), { type: "module" });
     shared = { failed: watchStart(port), worker: pdfjs.PDFWorker.create({ port }) };
   }
-  return { pdfjs, ...shared };
+  return { pdfjs, components, dataUrls, ...shared };
+}
+
+export type ViewerComponents = Awaited<ReturnType<typeof loadPdfjs>>["components"];
+
+// PDF.js's search, except that a match is brought into view by scrolling the frame alone. PDF.js calls
+// scrollIntoView, which on a phone also pans the page, dialog and all.
+export function createFindController(
+  components: ViewerComponents,
+  { container, linkService, eventBus }: { container: HTMLElement; linkService: PDFLinkService; eventBus: EventBus },
+) {
+  class FrameFindController extends components.PDFFindController {
+    override scrollMatchIntoView({ element, pageIndex = -1, matchIndex = -1 }: {
+      element?: HTMLElement | null;
+      pageIndex?: number;
+      matchIndex?: number;
+    }) {
+      const selected = this._selected;
+      if (!this._scrollMatches || !element || pageIndex !== selected?.pageIdx || matchIndex !== selected.matchIdx) {
+        return;
+      }
+      this._scrollMatches = false;
+      centreIn(container, element);
+    }
+  }
+  return new FrameFindController({ linkService, eventBus });
 }

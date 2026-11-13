@@ -23,20 +23,23 @@ import {
   FormControlLabel,
   FormGroup,
   FormHelperText,
-  FormLabel,
   Radio,
   RadioGroup
 } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
 import { answerCap, countGuidance, isMultiple, isRequired } from "../submissionForm";
-import { questionLabel } from "./label";
+import { getOptionFrame } from "./answerFrame";
+import AnswerRow from "./AnswerRow";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // A question answered by picking from the options it offers.
-function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
-  const label = questionLabel(question);
+function ChoiceAnswer(
+  { question, values, disabled, onAnswered, suggested, aside, corner }: AnswerComponentProps,
+) {
+  const labelledBy = getQuestionTextId(question);
   const help = question.description;
   const { options } = question;
 
@@ -54,45 +57,51 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
         : values.filter(current => current !== value));
 
     return (
-      <FormControl component="fieldset" disabled={disabled} required={isRequired(question)}>
-        <FormLabel component="legend">{label}</FormLabel>
-        <FormGroup>
-          {options.map(option => (
-            <FormControlLabel
-              key={option.value}
-              label={option.label}
-              control={
-                <Checkbox
-                  checked={values.includes(option.value)}
-                  disabled={disabled || (atCap && !values.includes(option.value))}
-                  onChange={event => toggle(option.value, event.target.checked)}
-                />
-              }
-            />
-          ))}
-        </FormGroup>
+      <FormControl fullWidth disabled={disabled} required={isRequired(question)}>
+        <QuestionText question={question} />
+        <AnswerRow aside={aside} corner={corner}>
+          <FormGroup role="group" aria-labelledby={labelledBy}>
+            {options.map(option => (
+              <FormControlLabel
+                key={option.value}
+                label={option.label}
+                sx={getOptionFrame(suggested === true && values.includes(option.value))}
+                control={
+                  <Checkbox
+                    checked={values.includes(option.value)}
+                    disabled={disabled || (atCap && !values.includes(option.value))}
+                    onChange={event => toggle(option.value, event.target.checked)}
+                  />
+                }
+              />
+            ))}
+          </FormGroup>
+        </AnswerRow>
         {guidance && <FormHelperText>{guidance}</FormHelperText>}
       </FormControl>
     );
   }
 
   return (
-    <FormControl disabled={disabled} required={isRequired(question)}>
-      <FormLabel id={`${question.path}-label`}>{label}</FormLabel>
-      <RadioGroup
-        aria-labelledby={`${question.path}-label`}
-        value={values[0] ?? ""}
-        onChange={event => onAnswered([ event.target.value ])}
-      >
-        {options.map(option => (
-          <FormControlLabel
-            key={option.value}
-            value={option.value}
-            label={option.label}
-            control={<Radio required={isRequired(question)} />}
-          />
-        ))}
-      </RadioGroup>
+    <FormControl fullWidth disabled={disabled} required={isRequired(question)}>
+      <QuestionText question={question} />
+      <AnswerRow aside={aside} corner={corner}>
+        <RadioGroup
+          aria-labelledby={labelledBy}
+          value={values[0] ?? ""}
+          onChange={event => onAnswered([ event.target.value ])}
+        >
+          {options.map(option => (
+            <FormControlLabel
+              key={option.value}
+              value={option.value}
+              label={option.label}
+              sx={getOptionFrame(suggested === true && values[0] === option.value)}
+              control={<Radio required={isRequired(question)} />}
+            />
+          ))}
+        </RadioGroup>
+      </AnswerRow>
       {/* A picked radio cannot be unpicked, so an optional answer gets a way back to none */}
       {!isRequired(question) && values.length > 0 && (
         <Button size="small" disabled={disabled} onClick={() => onAnswered([])} sx={{ alignSelf: "start" }}>

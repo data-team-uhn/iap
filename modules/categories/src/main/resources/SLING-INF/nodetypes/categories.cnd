@@ -74,9 +74,12 @@
   // What belongs in this category, written as prose for whoever chooses one
   - description (STRING)
 
-  // The sch:SchemaVersion that submissions filed under this category follow.
-  // Only leaves are expected to carry one. A node type cannot express that,
-  // so the administrative UI upholds it.
+  // The sch:SchemaVersion a new submission under this category follows; the
+  // schema version in turn references the workflow. Carried by top-level
+  // categories, which are what a submitter picks when starting a submission.
+  // The categories below them are what a classification of the uploaded
+  // document picks from. Node types cannot express where it may be set, so
+  // that is upheld by the administrative UI.
   - schemaVersion (REFERENCE)
 
   // A retired category carries the inheritable `retired` tag, which closes it

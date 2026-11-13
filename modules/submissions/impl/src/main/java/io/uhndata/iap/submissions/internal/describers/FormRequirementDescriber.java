@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.internal.describers;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,17 +36,20 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.schemas.models.ClassificationRequirement;
 import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.RequirementDescriber;
 
 /**
  * What a form requirement adds to a form: its sections and questions that apply now, each question with the answer
- * it already has.
+ * it already has and, when a reading suggested one, where that came from.
  *
  * @version $Id$
  * @since 0.1.0
@@ -56,6 +60,15 @@ public class FormRequirementDescriber implements RequirementDescriber
     private static final Logger LOGGER = LoggerFactory.getLogger(FormRequirementDescriber.class);
 
     private static final String ITEMS_KEY = "items";
+
+    /** Whether a model fills the form in from an uploaded document. */
+    private static final String EXTRACTED_KEY = "extracted";
+
+    /** Whether the form holds the category a classification suggests, which the submitter confirms first. */
+    private static final String CONFIRMS_CATEGORY_KEY = "confirmsCategory";
+
+    /** Where a question's suggested answer came from, present only when a reading found one. */
+    private static final String PROVENANCE_KEY = "provenance";
 
     private static final String VALUE_KEY = "value";
 
@@ -102,8 +115,47 @@ public class FormRequirementDescriber implements RequirementDescriber
     @Override
     public void describe(final Requirement requirement, final Submission submission, final JsonObjectBuilder json)
     {
-        json.add(ITEMS_KEY, new ItemsWriter(submission).items(((FormRequirement) requirement).getChildren(),
-            requirement.getName()));
+        final FormRequirement form = (FormRequirement) requirement;
+        json.add(ITEMS_KEY, new ItemsWriter(submission).items(form.getChildren(), requirement.getName()));
+        json.add(EXTRACTED_KEY, isExtracted(form));
+        json.add(CONFIRMS_CATEGORY_KEY, isConfirmingCategory(form, submission));
+    }
+
+    /**
+     * Whether a model fills this form in from an uploaded document: the form names the documents to read, and one
+     * of its questions, at any depth, says how to ask a model.
+     *
+     * @param form the form requirement
+     * @return {@code true} when a reading answers something here
+     */
+    private static boolean isExtracted(final FormRequirement form)
+    {
+        return !form.getDocumentRequirementNames().isEmpty() && hasExtractionPrompt(form.getChildren());
+    }
+
+    /**
+     * Whether this form holds the question a classification picks a category for. The submitter confirms it
+     * before the rest of the request is read, since the category decides which forms apply.
+     *
+     * @param form the form requirement
+     * @param submission the submission whose form is being served
+     * @return {@code true} when a classification's question is in this form
+     */
+    private static boolean isConfirmingCategory(final FormRequirement form, final Submission submission)
+    {
+        final String inside = form.getPath() + "/";
+        final SchemaVersion version = submission.findSchemaVersion();
+        return version != null && version.getRequirements().stream()
+            .filter(ClassificationRequirement.class::isInstance)
+            .map(classification -> ((ClassificationRequirement) classification).getQuestion())
+            .anyMatch(question -> question != null && question.getPath().startsWith(inside));
+    }
+
+    private static boolean hasExtractionPrompt(final List<FormItem> children)
+    {
+        return children.stream().anyMatch(child -> child instanceof Section
+            ? hasExtractionPrompt(((Section) child).getChildren())
+            : child instanceof Question && !Objects.toString(((Question) child).getExtractionPrompt(), "").isBlank());
     }
 
     /**
@@ -117,10 +169,16 @@ public class FormRequirementDescriber implements RequirementDescriber
 
         private final Map<String, List<String>> answers;
 
+        /** The answers by their question's path, for what a reading suggested. */
+        private final Map<String, Answer> answered;
+
         ItemsWriter(final Submission submission)
         {
             this.submission = submission;
             this.answers = submission.getAnswersByQuestion();
+            this.answered = new HashMap<>();
+            submission.getAnswers().forEach(answer -> Optional.ofNullable(answer.getQuestion())
+                .ifPresent(question -> this.answered.putIfAbsent(question.getPath(), answer)));
         }
 
         /**
@@ -202,6 +260,8 @@ public class FormRequirementDescriber implements RequirementDescriber
                 .add(OPTIONS_KEY, options(question))
                 .add(VALUE_KEY, value);
             addStatedConstraints(json, question);
+            ProvenanceProjection.describe(this.answered.get(question.getPath()))
+                .ifPresent(provenance -> json.add(PROVENANCE_KEY, provenance));
             return json;
         }
     }

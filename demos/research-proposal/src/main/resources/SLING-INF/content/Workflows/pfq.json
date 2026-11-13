@@ -1,0 +1,170 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Patient facing questionnaire",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "bpmnAuthoritative": true,
+    "tags": ["active"],
+    "description": "A requester answers the screening questions, uploads the questionnaire, which is first checked to be one, checks what was read, and sends it. The PFQ Council then accepts or refuses it.",
+    "created": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "created",
+      "label": "Request started",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toCheckQuestionnaire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCheckQuestionnaire",
+        "targetRef": "checkQuestionnaire"
+      }
+    },
+    // The intake: waits here until the extraction job has checked the upload (only iap-extraction
+    // performs it), then goes on unless the model is sure the upload is not what was asked for.
+    "checkQuestionnaire": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "checkQuestionnaire",
+      "label": "Check the upload is a questionnaire",
+      "performers": [ "iap-extraction" ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toIsQuestionnaire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toIsQuestionnaire",
+        "targetRef": "isQuestionnaire"
+      }
+    },
+    "isQuestionnaire": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "isQuestionnaire",
+      "label": "Is it a questionnaire?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toNotAQuestionnaire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toNotAQuestionnaire",
+        "label": "Surely not",
+        "targetRef": "notAQuestionnaire",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "validation",
+            "value": [ "is_questionnaire" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "no" ]
+          }
+        }
+      },
+      "toCheck": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCheck",
+        "targetRef": "check",
+        "isDefault": true
+      }
+    },
+    "notAQuestionnaire": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "notAQuestionnaire",
+      "label": "Not a questionnaire",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    // The requester checks what was read from the questionnaire, answers the rest, and sends it.
+    "check": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "check",
+      "label": "Send to the PFQ Council review",
+      "performers": [ "@creator" ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toMarkSubmitted": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkSubmitted",
+        "targetRef": "markSubmitted"
+      }
+    },
+    "markSubmitted": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markSubmitted",
+      "label": "Mark it submitted",
+      "handler": "addTag",
+      "tag": "submitted",
+      "replaceExisting": true,
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toReview": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toReview",
+        "targetRef": "review"
+      }
+    },
+    "review": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "review",
+      "label": "Review the questionnaire",
+      "performers": [ "pfq-council" ],
+      "outcomeOptions": [ "approved", "rejected" ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toRecord": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRecord",
+        "targetRef": "record"
+      }
+    },
+    "record": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "record",
+      "label": "Write the decision down",
+      "handler": "recordReview",
+      "requirement": "review",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDecision": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDecision",
+        "targetRef": "decision"
+      }
+    },
+    "decision": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "decision",
+      "label": "Authorized?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toApproved": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApproved",
+        "targetRef": "approved",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "variable",
+            "value": [ "outcome" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "approved" ]
+          }
+        }
+      },
+      "toRejected": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRejected",
+        "targetRef": "rejected",
+        "isDefault": true
+      }
+    },
+    "approved": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "approved",
+      "hostTag": "approved",
+      "label": "Questionnaire authorized",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "rejected": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "rejected",
+      "hostTag": "rejected",
+      "label": "Not authorized",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
