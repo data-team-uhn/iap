@@ -36,7 +36,9 @@ interface ContributedAction {
 }
 
 // The loaded actions of each extension point, and the requests still running. An extension point
-// that loaded is kept for the page load, however many components ask for it.
+// that gave actions is kept for the page load, however many components ask for it. One that gave
+// none is asked again next time. The loader answers a point it cannot read as empty, and the next
+// read may succeed.
 const actions = new Map<string, ContributedAction[]>();
 const requests = new Map<string, Promise<ContributedAction[]>>();
 
@@ -64,12 +66,10 @@ function contributedTo(extensionPoint: string): Promise<ContributedAction[]> {
         const component = extension["ext:render"] as ActionComponent | undefined;
         return component ? [ { component, places: placesOf(extension["ext:places"]) } ] : [];
       });
-      actions.set(extensionPoint, contributed);
+      if (contributed.length > 0) {
+        actions.set(extensionPoint, contributed);
+      }
       return contributed;
-    })
-    .catch((error: unknown) => {
-      console.error(`Failed to resolve the ${extensionPoint} actions`, error);
-      return [];
     })
     .finally(() => requests.delete(extensionPoint));
   requests.set(extensionPoint, request);
@@ -80,7 +80,7 @@ function contributedTo(extensionPoint: string): Promise<ContributedAction[]> {
 // extension that names `ext:places` is shown only in those places. One naming none is shown everywhere.
 //
 // An extension that fails to load, or has no `ext:render`, is skipped. An extension point that cannot
-// be read gives no actions.
+// be read gives no actions this time.
 //
 // @param extensionPoint the node name of the extension point, such as "WorkflowVersionActions"
 // @param place the name a page gives the place where it shows the actions; undefined shows only the

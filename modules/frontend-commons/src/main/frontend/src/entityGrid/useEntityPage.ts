@@ -58,6 +58,11 @@ export interface EntityPage {
   retry: () => void;
 }
 
+// The filters, with each group renamed into the scope of whoever named it. The server ORs every
+// condition in a group, so the caller's groups and the column filters' must never share a name.
+const scopedTo = (scope: string, filters: PropertyFilter[]): PropertyFilter[] =>
+  filters.map(filter => (filter.group === undefined ? filter : { ...filter, group: `${scope}:${filter.group}` }));
+
 // One page of entities from the pagination servlet, read again whenever the request changes. A
 // response that arrives after a newer request was made is dropped.
 export default function useEntityPage(request: EntityPageRequest): EntityPage {
@@ -89,7 +94,7 @@ export default function useEntityPage(request: EntityPageRequest): EntityPage {
       limit: paginationModel.pageSize,
       sortBy,
       descending,
-      filters: [...filters ?? [], ...columnFilters],
+      filters: [...scopedTo("caller", filters ?? []), ...scopedTo("column", columnFilters)],
       childFilter,
       fullText: fullText || undefined,
       resourceSelectors: config.children?.selectors,

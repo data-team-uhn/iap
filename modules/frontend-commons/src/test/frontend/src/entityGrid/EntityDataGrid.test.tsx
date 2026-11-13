@@ -290,6 +290,18 @@ describe("EntityDataGrid", () => {
       .toHaveTextContent("/TreeEntities/study (2)");
   });
 
+  it("shows the children of two entities that share a name and have no path", async () => {
+    mockPage([
+      { "@path": "/TreeEntities/study", "v1": { "@name": "v1", "kind": "version", "status": "retired" } },
+      { "@path": "/TreeEntities/trial", "v1": { "@name": "v1", "kind": "version", "status": "active" } },
+    ]);
+
+    render(<EntityDataGrid entityType={EXPANDED_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByText("retired")).toBeInTheDocument();
+    expect(screen.getByText("active")).toBeInTheDocument();
+  });
+
   it("keeps one card per entity on narrow screens", async () => {
     fakeNarrowScreen();
     mockPage(TREE_ROWS);
