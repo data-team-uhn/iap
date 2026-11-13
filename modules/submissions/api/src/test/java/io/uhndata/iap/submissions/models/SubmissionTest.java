@@ -50,6 +50,7 @@ import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.schemas.models.ValidationRequirement;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstances;
 
@@ -102,7 +103,8 @@ class SubmissionTest
         this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class,
             Document.class, Review.class, Discussion.class, Comment.class, SchemaVersion.class, FormRequirement.class,
             DocumentRequirement.class, ApprovalRequirement.class, Section.class, Question.class,
-            SingleCondition.class, WorkflowInstance.class, WorkflowInstances.class, Schema.class);
+            SingleCondition.class, WorkflowInstance.class, WorkflowInstances.class, Schema.class, Validation.class,
+            ValidationRequirement.class);
         this.created = Calendar.getInstance();
         this.created.set(2026, Calendar.APRIL, 5, 16, 20, 0);
     }
@@ -476,6 +478,96 @@ class SubmissionTest
             Objects.requireNonNull(resource.adaptTo(Submission.class)).getAnswersByQuestion().get(QUESTION_1_PATH));
     }
 
+    private void registerConditionEvaluator()
+    {
+        // Only items without a condition apply, so a test hides an item by giving it a condition
+        final ConditionEvaluator conditions = Mockito.mock(ConditionEvaluator.class);
+        Mockito.when(conditions.applies(Mockito.any(), Mockito.any()))
+            .thenAnswer(call -> call.<Conditionable>getArgument(0).getCondition() == null);
+        this.context.registerService(ConditionEvaluator.class, conditions);
+    }
+
+    private Submission createBareSubmission()
+    {
+        return this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID))
+            .adaptTo(Submission.class);
+    }
+
+    @Test
+    void asksOnlyTheQuestionsWhoseConditionHolds()
+        throws RepositoryException
+    {
+        // A question that is not shown is not asked, so nothing should judge its answer
+        this.registerConditionEvaluator();
+        this.createSchemaVersionWithRequirements();
+        this.context.create().resource("/Schemas/schema/1.0/form/q2/cond:condition", Map.of(
+            SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
+        final Submission submission = this.createBareSubmission();
+
+        assertEquals(List.of("Q1"), submission.getQuestions("form").stream().map(Question::getText).toList());
+    }
+
+    @Test
+    void asksOneRequirementByName()
+        throws RepositoryException
+    {
+        // A requirement groups questions, so the extraction can ask for one group by its name
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertEquals(List.of("Q1", "Q2"),
+            submission.getQuestions("form").stream().map(Question::getText).toList());
+    }
+
+    @Test
+    void asksOneRequirementByItsFullPath()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertEquals(List.of("Q1", "Q2"),
+            submission.getQuestions("/Schemas/schema/1.0/form").stream().map(Question::getText).toList());
+    }
+
+    @Test
+    void asksNothingOfARequirementThatIsNotBeingAsked()
+        throws RepositoryException
+    {
+        // A requirement that does not apply yet gives no questions, so it is not asked too early
+        this.registerConditionEvaluator();
+        this.createSchemaVersionWithRequirements();
+        this.context.create().resource("/Schemas/schema/1.0/form/cond:condition", Map.of(
+            SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
+        final Submission submission = this.createBareSubmission();
+
+        assertTrue(submission.getQuestions("form").isEmpty());
+    }
+
+    @Test
+    void asksNothingOfARequirementThatAsksNoQuestions()
+        throws RepositoryException
+    {
+        // A requirement that is not a form, and a name no requirement has, give no questions
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertTrue(submission.getQuestions("consent").isEmpty());
+        assertTrue(submission.getQuestions("nothing-by-that-name").isEmpty());
+    }
+
+    @Test
+    void asksNothingWhenNoRequirementIsNamed()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertTrue(submission.getQuestions(null).isEmpty());
+        assertTrue(submission.getQuestions("   ").isEmpty());
+    }
+
     @Test
     void readsAnAnswerByItsQuestionPathWithinTheSchemaVersion()
         throws RepositoryException
@@ -602,6 +694,50 @@ class SubmissionTest
         this.reviewOnDay("r2", CONSENT_ID, 7, "approved");
 
         assertNull(submission.findLatestDecisionOn(this.reb()));
+    }
+
+    @Test
+    void findsTheValidationOfARequirement()
+        throws RepositoryException
+    {
+        final Submission submission = this.submissionWithValidations();
+        this.context.create().resource(SUBMISSION_PATH + "/consent_check", Map.of(
+            SLING_RESOURCE_TYPE, Validation.RESOURCE_TYPE, "requirement", "is-consent-uuid"));
+        this.context.create().resource(SUBMISSION_PATH + "/proposal_check", Map.of(
+            SLING_RESOURCE_TYPE, Validation.RESOURCE_TYPE, "requirement", "is-proposal-uuid"));
+
+        assertEquals("proposal_check", submission.findValidation(this.getValidationRequirement()).getName());
+    }
+
+    @Test
+    void findsNoValidationBeforeTheModelIsAsked()
+        throws RepositoryException
+    {
+        final Submission submission = this.submissionWithValidations();
+
+        assertNull(submission.findValidation(this.getValidationRequirement()));
+    }
+
+    // A submission beside two validation requirements, each resolvable by its identifier
+    private Submission submissionWithValidations()
+        throws RepositoryException
+    {
+        this.context.create().resource("/Schemas/schema/1.0/is_proposal",
+            SLING_RESOURCE_TYPE, ValidationRequirement.RESOURCE_TYPE);
+        this.context.create().resource("/Schemas/schema/1.0/is_consent",
+            SLING_RESOURCE_TYPE, ValidationRequirement.RESOURCE_TYPE);
+        final Session session = Mockito.mock(Session.class);
+        this.mockNode(session, "is-proposal-uuid", "/Schemas/schema/1.0/is_proposal");
+        this.mockNode(session, "is-consent-uuid", "/Schemas/schema/1.0/is_consent");
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+        return this.context.create().resource(SUBMISSION_PATH, SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE)
+            .adaptTo(Submission.class);
+    }
+
+    private ValidationRequirement getValidationRequirement()
+    {
+        return Objects.requireNonNull(this.context.resourceResolver().getResource("/Schemas/schema/1.0/is_proposal"))
+            .adaptTo(ValidationRequirement.class);
     }
 
     // A submission whose reviews can name the schema's requirements and be read for their tags

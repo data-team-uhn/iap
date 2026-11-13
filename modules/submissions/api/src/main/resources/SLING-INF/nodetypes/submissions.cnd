@@ -70,12 +70,31 @@
   // `in-review`, `approved` or `rejected`. A submission is created as a
   // draft, and its workflow moves it on.
 
+  // How far reading answers out of the attached documents has got: running,
+  // done or failed, and a short message for the person looking at it.
+  // Set by the extraction module's steps and its reading job.
+  - extractionStatus (STRING)
+  - extractionMessage (STRING)
+
+  // Which reading job has the reading, so only one job pays a model to read
+  // the documents: the claim, and the Sling job id that holds it
+  - extractionReadingClaimed (BOOLEAN)
+  - extractionReadingClaimedBy (STRING)
+
+  // Whether a reading ended with the request unable to go on, such as a
+  // document that is not what the request asks for; extractionMessage says
+  // why. Kept for good: no new reading or parse is let start
+  - extractionBlocked (BOOLEAN)
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
   // The submitter's answers to the schema's questions
   + * (sub:Answer) = sub:Answer
+
+  // What a model decided about an upload, one per sch:ValidationRequirement
+  + * (sub:Validation)
 
   // The attached documents, such as the signed patient consent
   + * (sub:Document) = sub:Document
@@ -115,10 +134,35 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// One extraction run against one answer: what a model read out of the submitted
-// documents, and which documents it read. The node is the record that the run
-// happened. A run that found nothing has no extractedAnswer, and jcr:created is
-// when it ran.
+// What a model decided about an upload for one sch:ValidationRequirement, such
+// as whether it is a research proposal. Not an answer: nobody fills it in, so
+// it has no value of its own, only the runs.
+[sub:Validation] > data:EntityPart
+  // The runs are orderable, so they are kept in the order they ran, the
+  // newest last.
+  orderable
+
+  - sling:resourceType (STRING) = "sub/Validation" mandatory autocreated protected
+
+  // The sch:ValidationRequirement this decides
+  - requirement (REFERENCE) mandatory
+
+  // One child per run; extractedValues holds yes or no
+  + * (sub:Extraction) = sub:Extraction
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One extraction run against one answer or validation: what a model read out
+// of the submitted documents, and what it read to get there. The run's own
+// existence is the record that extraction happened, so a run that found
+// nothing is a node with no extractedValues rather than a flag, and
+// jcr:created is when it ran.
 [sub:Extraction] > data:EntityPart
   - sling:resourceType (STRING) = "sub/Extraction" mandatory autocreated protected
 
@@ -126,9 +170,9 @@
   // them. A newer revision of one of them makes the run stale.
   - sources (REFERENCE) multiple
 
-  // The answer the model read out of the documents; absent when the run found
-  // nothing
-  - extractedAnswer (STRING)
+  // The values the model read out of the documents: one for a question taking
+  // one, one per item for a list. Absent when the run found nothing
+  - extractedValues (STRING) multiple
 
   // How sure the model is, from 0 to 1
   - confidence (DOUBLE)
@@ -136,7 +180,11 @@
   // The model's explanation of how it got there
   - reasoning (STRING)
 
-  // How far the submitter's own value ended up from extractedAnswer: the raw
+  // Whether the submitter said the quoted passage does not support the
+  // answer. A note about the evidence only: it does not accept or reject the answer
+  - evidenceRejected (BOOLEAN)
+
+  // How far the submitter's own value ended up from extractedValues: the raw
   // edit distance, and that distance as a percentage of the extracted answer's
   // length. Both are written when the submitter accepts or edits the extracted
   // answer, and are absent until then.
@@ -165,7 +213,9 @@
   // can be removed without first deleting every quote taken from it.
   - source (WEAKREFERENCE)
 
-  // The quoted text
+  // The quoted text. Every stored quote was found in the document. A quote that
+  // was not found is not evidence, so it is dropped, and the answer's
+  // confidence goes down instead.
   - quote (STRING)
 
   // A little of the text just before and after the quote, so the passage can
@@ -176,8 +226,8 @@
   // The nearest heading above the quoted text
   - header (STRING)
 
-  // The page of the source PDF, when known. Absent for a document with no page
-  // markers, such as one uploaded as DOCX.
+  // The page the model gave for the quote; it is not checked. Absent for documents
+  // that carry no page markers, e.g. anything that came in as DOCX.
   - page (LONG)
 
   // Allow any other properties for extensibility
@@ -243,10 +293,16 @@
 [sub:File] > data:EntityPart, mix:referenceable, mix:lastModified
   - sling:resourceType (STRING) = "sub/File" mandatory autocreated protected
 
-  // How far parsing got: queued, active, completed or failed; and, when it
-  // failed, why
+  // Where the parse got to: queued, completed or failed. Only the parse job
+  // record uses "active". Kept here as well as on the job, so that a file that
+  // failed parsing does not look like one that was never parsed.
   - parseStatus (STRING)
   - parseError (STRING)
+  // The parse job the file was queued under, and where the upload was put on
+  // the shared volume for the daemon. The job record is deleted once its
+  // outcome has been read in, so these are what is left to trace a parse.
+  - parseJobId (STRING)
+  - sharedPath (STRING)
 
   // The token count of the Markdown, estimated as its length in characters
   // divided by 4
@@ -255,7 +311,14 @@
   // The upload, exactly as it was received
   + uploadedFile (nt:file) = nt:file
 
-  // The renditions parsing produced, such as the Markdown
+  // What the parse produced that is kept: the Markdown the extraction reads,
+  // and the PDF of this document. pdfFile exists only when LibreOffice made a
+  // PDF from an office file; a PDF upload is kept once, as uploadedFile. The
+  // .docx and anything else made along the way is not kept.
+  + markdownFile (nt:file) = nt:file
+  + pdfFile (nt:file) = nt:file
+
+  // Allowed for other renditions; the pipeline stores none today
   + * (nt:file) = nt:file
 
   // Allow any other properties for extensibility

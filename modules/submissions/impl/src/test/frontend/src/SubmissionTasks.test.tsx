@@ -55,12 +55,13 @@ function repositoryFailingRereads(container: unknown) {
   });
 }
 
-const renderTasks = ({ readinessNote, beforeComplete, onCompleted }: {
+const renderTasks = ({ readinessNote, blocked, beforeComplete, onCompleted }: {
   readinessNote?: string;
+  blocked?: boolean;
   beforeComplete?: () => Promise<void>;
   onCompleted?: () => void;
 } = {}) => render(
-  <SubmissionTasks path={PATH} readinessNote={readinessNote} beforeComplete={beforeComplete}
+  <SubmissionTasks path={PATH} readinessNote={readinessNote} blocked={blocked} beforeComplete={beforeComplete}
     onCompleted={onCompleted} />,
   { wrapper: NoticeProvider },
 );
@@ -96,6 +97,16 @@ describe("SubmissionTasks", () => {
     renderTasks({ readinessNote: "Answer everything first." });
 
     expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeEnabled();
+  });
+
+  // Something still running, such as a document being read, must finish before the step can be taken
+  it("holds the step back while it is blocked", async () => {
+    vi.stubGlobal("fetch", repository(waitingOn(PATH, { fillIn: SEND })));
+
+    renderTasks({ readinessNote: "Wait until the document has been read.", blocked: true });
+
+    expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeDisabled();
+    expect(screen.getByText("Wait until the document has been read.")).toBeInTheDocument();
   });
 
   it("completes the task with no outcome, since it has nothing to decide", async () => {

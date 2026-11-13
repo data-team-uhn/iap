@@ -50,6 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class ReferenceUtilsTest
 {
+    private static final String POINTS = "points";
+
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
     private Session session;
@@ -70,10 +72,21 @@ class ReferenceUtilsTest
     {
         final ResourceResolver resolver = this.context.resourceResolver();
 
-        ReferenceUtils.setReference(resolver.getResource("/holder"), "points", resolver.getResource("/target"));
+        ReferenceUtils.setReference(resolver.getResource("/holder"), POINTS, resolver.getResource("/target"));
 
-        assertEquals(PropertyType.REFERENCE, this.session.getNode("/holder").getProperty("points").getType());
-        assertEquals("/target", this.session.getNode("/holder").getProperty("points").getNode().getPath());
+        assertEquals(PropertyType.REFERENCE, this.session.getNode("/holder").getProperty(POINTS).getType());
+        assertEquals("/target", this.session.getNode("/holder").getProperty(POINTS).getNode().getPath());
+    }
+
+    @Test
+    void pointsAPropertyAtAnotherNodeWeakly() throws PersistenceException, RepositoryException
+    {
+        final ResourceResolver resolver = this.context.resourceResolver();
+
+        ReferenceUtils.setWeakReference(resolver.getResource("/holder"), POINTS, resolver.getResource("/target"));
+
+        assertEquals(PropertyType.WEAKREFERENCE, this.session.getNode("/holder").getProperty(POINTS).getType());
+        assertEquals("/target", this.session.getNode("/holder").getProperty(POINTS).getNode().getPath());
     }
 
     @Test
@@ -82,9 +95,9 @@ class ReferenceUtilsTest
         final Resource notNode = Mockito.mock(Resource.class);
         final Resource target = this.context.resourceResolver().getResource("/target");
 
-        assertThrows(PersistenceException.class, () -> ReferenceUtils.setReference(notNode, "points", target));
+        assertThrows(PersistenceException.class, () -> ReferenceUtils.setReference(notNode, POINTS, target));
         final Resource holder = this.context.resourceResolver().getResource("/holder");
-        assertThrows(PersistenceException.class, () -> ReferenceUtils.setReference(holder, "points", notNode));
+        assertThrows(PersistenceException.class, () -> ReferenceUtils.setReference(holder, POINTS, notNode));
     }
 
     @Test
@@ -96,7 +109,7 @@ class ReferenceUtilsTest
         final Resource plain = resolver.getResource("/plain");
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
-            () -> ReferenceUtils.setReference(holder, "points", plain));
+            () -> ReferenceUtils.setReference(holder, POINTS, plain));
 
         assertInstanceOf(RepositoryException.class, failure.getCause());
     }
@@ -106,10 +119,10 @@ class ReferenceUtilsTest
     {
         final ResourceResolver resolver = this.context.resourceResolver();
 
-        ReferenceUtils.setReferences(resolver.getResource("/holder"), "points",
+        ReferenceUtils.setReferences(resolver.getResource("/holder"), POINTS,
             List.of(resolver.getResource("/other"), resolver.getResource("/target")));
 
-        final Value[] values = this.session.getNode("/holder").getProperty("points").getValues();
+        final Value[] values = this.session.getNode("/holder").getProperty(POINTS).getValues();
         assertEquals(2, values.length);
         assertEquals(PropertyType.REFERENCE, values[0].getType());
         assertEquals("/other", this.session.getNodeByIdentifier(values[0].getString()).getPath());
@@ -119,9 +132,9 @@ class ReferenceUtilsTest
     @Test
     void pointsAPropertyAtNothingAsAnEmptyListOfReferences() throws PersistenceException, RepositoryException
     {
-        ReferenceUtils.setReferences(this.context.resourceResolver().getResource("/holder"), "points", List.of());
+        ReferenceUtils.setReferences(this.context.resourceResolver().getResource("/holder"), POINTS, List.of());
 
-        final Property points = this.session.getNode("/holder").getProperty("points");
+        final Property points = this.session.getNode("/holder").getProperty(POINTS);
         assertTrue(points.isMultiple());
         assertEquals(PropertyType.REFERENCE, points.getType());
         assertEquals(0, points.getValues().length);
@@ -135,9 +148,9 @@ class ReferenceUtilsTest
         final Resource target = this.context.resourceResolver().getResource("/target");
 
         assertThrows(PersistenceException.class,
-            () -> ReferenceUtils.setReferences(holder, "points", List.of(target, notNode)));
+            () -> ReferenceUtils.setReferences(holder, POINTS, List.of(target, notNode)));
         assertThrows(PersistenceException.class,
-            () -> ReferenceUtils.setReferences(notNode, "points", List.of(target)));
+            () -> ReferenceUtils.setReferences(notNode, POINTS, List.of(target)));
     }
 
     @Test
@@ -147,7 +160,7 @@ class ReferenceUtilsTest
         final Resource holder = resolver.getResource("/holder");
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
-            () -> ReferenceUtils.setReferences(holder, "points",
+            () -> ReferenceUtils.setReferences(holder, POINTS,
                 List.of(resolver.getResource("/target"), resolver.getResource("/plain"))));
 
         assertInstanceOf(RepositoryException.class, failure.getCause());
@@ -158,11 +171,11 @@ class ReferenceUtilsTest
     {
         final String identifier = this.session.getNode("/target").getIdentifier();
 
-        ReferenceUtils.setReference(this.context.resourceResolver().getResource("/holder"), "points",
+        ReferenceUtils.setReference(this.context.resourceResolver().getResource("/holder"), POINTS,
             () -> identifier);
 
-        assertEquals(PropertyType.REFERENCE, this.session.getNode("/holder").getProperty("points").getType());
-        assertEquals("/target", this.session.getNode("/holder").getProperty("points").getNode().getPath());
+        assertEquals(PropertyType.REFERENCE, this.session.getNode("/holder").getProperty(POINTS).getType());
+        assertEquals("/target", this.session.getNode("/holder").getProperty(POINTS).getNode().getPath());
     }
 
     @Test
@@ -170,7 +183,7 @@ class ReferenceUtilsTest
     {
         final Resource notNode = Mockito.mock(Resource.class);
 
-        assertThrows(PersistenceException.class, () -> ReferenceUtils.setReference(notNode, "points", () -> "x"));
+        assertThrows(PersistenceException.class, () -> ReferenceUtils.setReference(notNode, POINTS, () -> "x"));
     }
 
     @Test
@@ -179,7 +192,7 @@ class ReferenceUtilsTest
         final Resource holder = this.context.resourceResolver().getResource("/holder");
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
-            () -> ReferenceUtils.setReference(holder, "points", () -> "not an identifier"));
+            () -> ReferenceUtils.setReference(holder, POINTS, () -> "not an identifier"));
 
         assertInstanceOf(RepositoryException.class, failure.getCause());
     }

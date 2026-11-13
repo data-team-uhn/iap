@@ -20,6 +20,7 @@ package io.uhndata.iap.submissions.models;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -31,8 +32,8 @@ import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.utils.Referenceable;
 
 /**
- * A Sling Model wrapping a {@code sub:File} node: one uploaded file, and the renditions parsing made of it, such as
- * the Markdown.
+ * A Sling Model wrapping a {@code sub:File} node: a single uploaded file, plus everything the parsing pipeline
+ * derived from it: the Markdown and the PDF.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,9 +46,20 @@ public class File extends EntityPart implements Referenceable
     public static final String RESOURCE_TYPE = "sub/File";
 
     /** The name of the child node holding the upload as it was received. */
-    private static final String UPLOADED_FILE_CHILD = "uploadedFile";
+    public static final String UPLOADED_FILE_CHILD = "uploadedFile";
+
+    /** The name of the child node holding the Markdown the parse produced, whatever name the parse gave it. */
+    public static final String MARKDOWN_CHILD = "markdownFile";
+
+    /**
+     * The name of the child node holding the PDF LibreOffice made from an office document. Absent when the
+     * upload is already a PDF, since one copy is enough.
+     */
+    public static final String PDF_CHILD = "pdfFile";
 
     private static final String FILE_RESOURCE_TYPE = "nt:file";
+
+    private static final String PDF_MIME_TYPE = "application/pdf";
 
     @ValueMapValue
     private String parseStatus;
@@ -59,7 +71,19 @@ public class File extends EntityPart implements Referenceable
     private Long tokens;
 
     /**
-     * How far parsing got.
+     * The document revision this file belongs to.
+     *
+     * @return the revision, or {@code null} when this file does not sit under one
+     */
+    @Nullable
+    public DocumentVersion getVersion()
+    {
+        return this.getParent(DocumentVersion.RESOURCE_TYPE, DocumentVersion.class);
+    }
+
+    /**
+     * Where the parse got to: queued, completed or failed. Only the parse job record uses "active". Kept here as
+     * well as on the job, so that a file that failed parsing does not look like one that was never parsed.
      *
      * @return one of {@code queued}, {@code active}, {@code completed} and {@code failed}; {@code null} if none is
      *         recorded
@@ -104,7 +128,49 @@ public class File extends EntityPart implements Referenceable
     }
 
     /**
-     * The renditions parsing produced, such as the Markdown. The upload itself is not one of them.
+     * The Markdown the parse produced, which is what the extraction reads.
+     *
+     * @return the Markdown file, or {@code null} if the file has not been parsed
+     */
+    @Nullable
+    public Resource getMarkdownFile()
+    {
+        return this.resource.getChild(MARKDOWN_CHILD);
+    }
+
+    /**
+     * Returns the PDF of this document: the upload when it is a PDF, otherwise the PDF LibreOffice made from the
+     * office file. It is kept so a reviewer can see the document at the page a quote came from.
+     *
+     * <p>A PDF upload is stored only once, as the upload, so callers get the PDF from here either way.
+     *
+     * @return the PDF file, or {@code null} if there is no PDF of this document
+     */
+    @Nullable
+    public Resource getPdfFile()
+    {
+        final Resource rendered = this.resource.getChild(PDF_CHILD);
+        if (rendered != null) {
+            return rendered;
+        }
+        return isUploadAPdf() ? getUploadedFile() : null;
+    }
+
+    /**
+     * Whether the upload is a PDF, by its MIME type. This decides where the PDF of this document is stored.
+     *
+     * @return {@code true} if the upload is a PDF
+     */
+    public boolean isUploadAPdf()
+    {
+        final Resource content = this.resource.getChild(UPLOADED_FILE_CHILD + "/" + JcrConstants.JCR_CONTENT);
+        return content != null
+            && PDF_MIME_TYPE.equals(content.getValueMap().get(JcrConstants.JCR_MIMETYPE, String.class));
+    }
+
+    /**
+     * Every rendition stored on this file: the Markdown, the PDF, and any other file child. The node type allows
+     * other renditions, but the pipeline stores none today. The upload itself is not a rendition.
      *
      * @return the {@code nt:file} resources; empty if nothing has been rendered yet
      */

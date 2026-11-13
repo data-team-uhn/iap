@@ -77,19 +77,34 @@ class ExtractionTest
         assertNotNull(resource.adaptTo(Extraction.class));
     }
 
+    // A note about the quote behind the answer; it does not accept or reject the answer
+    @Test
+    void keepsTheSubmittersVerdictOnTheEvidence()
+    {
+        final Resource resource = this.context.create().resource(EXTRACTION_PATH, Map.of(
+            "sling:resourceType", Extraction.RESOURCE_TYPE,
+            "extractedValues", "42",
+            "evidenceRejected", true));
+        final Extraction extraction = resource.adaptTo(Extraction.class);
+
+        assertTrue(extraction.isEvidenceRejected());
+        assertFalse(extraction.isActedOn(), "judging the quote is not acting on the answer");
+    }
+
     @Test
     void exposesWhatTheModelRead()
     {
         final Resource resource = this.context.create().resource(EXTRACTION_PATH, Map.of(
             "sling:resourceType", Extraction.RESOURCE_TYPE,
-            "extractedAnswer", "42",
+            "extractedValues", "42",
             "confidence", 0.87,
             "reasoning", "The recruitment table gives 42 in the final column"));
         final Extraction extraction = resource.adaptTo(Extraction.class);
 
-        assertEquals("42", extraction.getExtractedAnswer());
+        assertEquals(List.of("42"), extraction.getExtractedValues());
         assertEquals(0.87, extraction.getConfidence());
         assertEquals("The recruitment table gives 42 in the final column", extraction.getReasoning());
+        assertFalse(extraction.isEvidenceRejected());
         // Nobody has accepted or edited it yet, so there is nothing to compare against
         assertFalse(extraction.isActedOn());
         assertNull(extraction.getEditDistance());
@@ -107,7 +122,7 @@ class ExtractionTest
         final Extraction extraction = resource.adaptTo(Extraction.class);
 
         // The run's existence is the record that extraction happened; no answer means it found nothing
-        assertNull(extraction.getExtractedAnswer());
+        assertTrue(extraction.getExtractedValues().isEmpty());
         assertEquals(1, extraction.getSources().size());
         assertEquals("v0", extraction.getSources().get(0).getName());
     }
@@ -133,7 +148,7 @@ class ExtractionTest
     {
         final Resource resource = this.context.create().resource(EXTRACTION_PATH, Map.of(
             "sling:resourceType", Extraction.RESOURCE_TYPE,
-            "extractedAnswer", "42 participants",
+            "extractedValues", "42 participants",
             "editDistance", 3L,
             "percentageDistance", 20.0));
         final Extraction extraction = resource.adaptTo(Extraction.class);
@@ -169,9 +184,10 @@ class ExtractionTest
 
         assertNotNull(extraction);
         assertTrue(extraction.getSources().isEmpty());
-        assertNull(extraction.getExtractedAnswer());
+        assertTrue(extraction.getExtractedValues().isEmpty());
         assertNull(extraction.getConfidence());
         assertNull(extraction.getReasoning());
+        assertFalse(extraction.isEvidenceRejected());
         assertNull(extraction.getEditDistance());
         assertNull(extraction.getPercentageDistance());
         assertFalse(extraction.isActedOn());

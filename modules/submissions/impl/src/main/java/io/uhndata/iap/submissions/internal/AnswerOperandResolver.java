@@ -120,11 +120,23 @@ public class AnswerOperandResolver implements OperandResolver
         for (final Content scope : scopes) {
             final Optional<Content> answer = this.findAnswer(scope, searched, question.identifier);
             if (answer.isPresent()) {
-                return Operand.of(answer.get().get(VALUE_PROPERTY), question.type);
+                return Operand.of(this.readValues(answer.get()), question.type);
             }
             searched = scope;
         }
         return Operand.of(null, question.type);
+    }
+
+    /**
+     * Returns the values of the answer found for the operand. A subclass can read something else, such as a
+     * suggestion.
+     *
+     * @param answer the answer node
+     * @return its recorded value(s), or {@code null} when it holds none
+     */
+    protected Object readValues(final Content answer)
+    {
+        return answer.get(VALUE_PROPERTY);
     }
 
     private static List<Content> scopesUpToSubmission(final Content context)

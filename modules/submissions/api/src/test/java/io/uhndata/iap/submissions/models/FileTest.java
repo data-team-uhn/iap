@@ -33,7 +33,6 @@ import io.uhndata.iap.entities.models.EntityPart;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link File}.
@@ -48,12 +47,21 @@ class FileTest
 
     private static final String NT_FILE = "nt:file";
 
+    private static final String SLING_RESOURCE_TYPE = "sling:resourceType";
+
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, File.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, File.class, DocumentVersion.class);
+    }
+
+    private void uploadOfType(final String mimeType)
+    {
+        this.context.create().resource(FILE_PATH + "/uploadedFile", SLING_RESOURCE_TYPE, NT_FILE);
+        this.context.create().resource(FILE_PATH + "/uploadedFile/jcr:content",
+            Map.of("jcr:primaryType", "nt:resource", "jcr:mimeType", mimeType));
     }
 
     @Test
@@ -70,29 +78,35 @@ class FileTest
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource(FILE_PATH,
-            "sling:resourceType", File.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
         assertNotNull(resource.adaptTo(File.class));
     }
 
     @Test
-    void exposesWhatTheParsingPipelineRecorded()
+    void namesTheRevisionItBelongsTo()
     {
-        final Resource resource = this.context.create().resource(FILE_PATH, Map.of(
-            "sling:resourceType", File.RESOURCE_TYPE,
-            "parseStatus", "completed",
-            "tokens", 12000L));
-        final File file = resource.adaptTo(File.class);
+        final String versionPath = FILE_PATH.substring(0, FILE_PATH.lastIndexOf('/'));
+        this.context.create().resource(versionPath, SLING_RESOURCE_TYPE, DocumentVersion.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource(FILE_PATH,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
 
-        assertEquals("completed", file.getParseStatus());
-        assertEquals(12000L, file.getTokens());
-        assertNull(file.getParseError());
+        assertEquals(versionPath, resource.adaptTo(File.class).getVersion().getPath());
+    }
+
+    @Test
+    void hasNoRevisionOutsideOne()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/loose",
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+
+        assertNull(resource.adaptTo(File.class).getVersion());
     }
 
     @Test
     void reportsAFailedParse()
     {
         final Resource resource = this.context.create().resource(FILE_PATH, Map.of(
-            "sling:resourceType", File.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE,
             "parseStatus", "failed",
             "parseError", "LibreOffice exited with 139"));
         final File file = resource.adaptTo(File.class);
@@ -102,36 +116,93 @@ class FileTest
     }
 
     @Test
-    void tellsTheUploadApartFromTheRenditions()
+    void tellsTheUploadApartFromWhatTheParseProduced()
     {
         final Resource resource = this.context.create().resource(FILE_PATH,
-            "sling:resourceType", File.RESOURCE_TYPE);
-        this.context.create().resource(FILE_PATH + "/uploadedFile", "sling:resourceType", NT_FILE);
-        this.context.create().resource(FILE_PATH + "/consent.md", "sling:resourceType", NT_FILE);
-        this.context.create().resource(FILE_PATH + "/consent.pdf", "sling:resourceType", NT_FILE);
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+        this.context.create().resource(FILE_PATH + "/uploadedFile", SLING_RESOURCE_TYPE, NT_FILE);
+        this.context.create().resource(FILE_PATH + "/markdownFile", SLING_RESOURCE_TYPE, NT_FILE);
+        this.context.create().resource(FILE_PATH + "/pdfFile", SLING_RESOURCE_TYPE, NT_FILE);
         final File file = resource.adaptTo(File.class);
 
         assertEquals("uploadedFile", file.getUploadedFile().getName());
+        assertEquals("markdownFile", file.getMarkdownFile().getName());
+        assertEquals("pdfFile", file.getPdfFile().getName());
+    }
+
+    @Test
+    void takesAPdfUploadAsThePdfItself()
+    {
+        final Resource resource = this.context.create().resource(FILE_PATH,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+        uploadOfType("application/pdf");
+        final File file = resource.adaptTo(File.class);
+
+        assertEquals("uploadedFile", file.getPdfFile().getName(),
+            "a PDF upload is the PDF, and is not copied a second time");
+    }
+
+    @Test
+    void hasNoPdfWhenTheUploadIsNotOneAndNoneWasRendered()
+    {
+        final Resource resource = this.context.create().resource(FILE_PATH,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+        uploadOfType("application/msword");
+        final File file = resource.adaptTo(File.class);
+
+        assertNull(file.getPdfFile());
+    }
+
+    @Test
+    void prefersTheRenderedPdfOverTheUpload()
+    {
+        final Resource resource = this.context.create().resource(FILE_PATH,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+        uploadOfType("application/pdf");
+        this.context.create().resource(FILE_PATH + "/pdfFile", SLING_RESOURCE_TYPE, NT_FILE);
+        final File file = resource.adaptTo(File.class);
+
+        assertEquals("pdfFile", file.getPdfFile().getName());
+    }
+
+    @Test
+    void tellsTheUploadApartFromTheRenditions()
+    {
+        final Resource resource = this.context.create().resource(FILE_PATH,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+        this.context.create().resource(FILE_PATH + "/uploadedFile", SLING_RESOURCE_TYPE, NT_FILE);
+        this.context.create().resource(FILE_PATH + "/markdownFile", SLING_RESOURCE_TYPE, NT_FILE);
+        this.context.create().resource(FILE_PATH + "/pdfFile", SLING_RESOURCE_TYPE, NT_FILE);
+        final File file = resource.adaptTo(File.class);
 
         final List<Resource> renditions = file.getRenditions();
 
         assertEquals(2, renditions.size());
-        assertEquals("consent.md", renditions.get(0).getName());
-        assertEquals("consent.pdf", renditions.get(1).getName());
+        assertEquals("markdownFile", renditions.get(0).getName());
+        assertEquals("pdfFile", renditions.get(1).getName());
     }
 
     @Test
-    void toleratesAFileNothingHasBeenDoneToYet()
+    void carriesTheSizeTheParseMeasured()
     {
-        final Resource resource = this.context.create().resource(FILE_PATH,
-            "sling:resourceType", File.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource(FILE_PATH, Map.of(
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE,
+            "tokens", 12000L));
+
         final File file = resource.adaptTo(File.class);
 
-        assertNotNull(file);
-        assertNull(file.getParseStatus());
-        assertNull(file.getParseError());
+        assertEquals(12000L, file.getTokens());
+    }
+
+    // An unparsed document has no token count, not a count of zero
+    @Test
+    void hasNoSizeWhenTheDocumentWasNeverParsed()
+    {
+        final Resource resource = this.context.create().resource(FILE_PATH,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+
+        final File file = resource.adaptTo(File.class);
+
         assertNull(file.getTokens());
-        assertNull(file.getUploadedFile());
-        assertTrue(file.getRenditions().isEmpty());
     }
 }

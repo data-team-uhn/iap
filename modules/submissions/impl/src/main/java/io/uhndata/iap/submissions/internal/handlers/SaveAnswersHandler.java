@@ -248,8 +248,13 @@ public class SaveAnswersHandler implements ServiceTaskHandler
             return;
         }
         if (existing != null) {
-            modifiable(Objects.requireNonNull(target.getResourceResolver().getResource(existing),
-                "An answer the submission just reported is still where it said")).put(VALUE_PROPERTY, values);
+            final Resource answer = Objects.requireNonNull(target.getResourceResolver().getResource(existing),
+                "An answer the submission just reported is still where it said");
+            // What the form offered is read before the save changes the answer it is compared with
+            final List<String> offered = SuggestionDistance.getOffered(answer);
+            modifiable(answer).put(VALUE_PROPERTY, values);
+            // Only an answer that already exists can hold a suggestion, since a reading writes under an answer
+            SuggestionDistance.record(answer, values, offered);
             return;
         }
         final Resource answer = target.getResourceResolver().create(target, UUID.randomUUID().toString(),
