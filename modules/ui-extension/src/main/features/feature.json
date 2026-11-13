@@ -33,7 +33,7 @@
       "start-order":"26"
     },
     {
-      "id":"javax.jcr:jcr:2.0",
+      "id":"javax.jcr:jcr:${jcr.version}",
       "start-order":"26"
     },
     {

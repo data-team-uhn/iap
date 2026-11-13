@@ -168,11 +168,23 @@
     <app.name>Institutional Authorization</app.name>
 
     <!-- Versions to be replaced in the feature files -->
+    <angus.mail.version>2.0.5</angus.mail.version>
     <asm.version>9.9.1</asm.version>
+    <commons.codec.version>1.23.0</commons.codec.version>
+    <commons.collections.version>3.2.2</commons.collections.version>
+    <commons.collections4.version>4.6.0</commons.collections4.version>
+    <commons.io.version>2.22.0</commons.io.version>
     <commons.lang3.version>3.22.0</commons.lang3.version>
+    <commons.text.version>1.15.0</commons.text.version>
     <composum.nodes.version>4.3.5</composum.nodes.version>
+    <felix.framework.version>7.0.5</felix.framework.version>
+    <felix.healthcheck.api.version>2.0.4</felix.healthcheck.api.version>
     <jackson.annotations.version>2.23</jackson.annotations.version>
     <jackson.version>2.23.0</jackson.version>
+    <jakarta.activation.version>2.1.4</jakarta.activation.version>
+    <jcr.version>2.0</jcr.version>
+    <osgi.service.component.version>1.5.1</osgi.service.component.version>
+    <velocity.version>2.4.1</velocity.version>
 
     <enforcer.skip>false</enforcer.skip>
     <checkstyle.skip>false</checkstyle.skip>
@@ -218,27 +230,27 @@
       <dependency>
         <groupId>commons-io</groupId>
         <artifactId>commons-io</artifactId>
-        <version>2.22.0</version>
+        <version>${commons.io.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-text</artifactId>
-        <version>1.15.0</version>
+        <version>${commons.text.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.velocity</groupId>
         <artifactId>velocity-engine-core</artifactId>
-        <version>2.4.1</version>
+        <version>${velocity.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-collections4</artifactId>
-        <version>4.6.0</version>
+        <version>${commons.collections4.version}</version>
       </dependency>
       <dependency>
         <groupId>commons-collections</groupId>
         <artifactId>commons-collections</artifactId>
-        <version>3.2.2</version>
+        <version>${commons.collections.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.commons</groupId>
@@ -275,7 +287,7 @@
       <dependency>
         <groupId>org.osgi</groupId>
         <artifactId>org.osgi.service.component</artifactId>
-        <version>1.5.1</version>
+        <version>${osgi.service.component.version}</version>
       </dependency>
       <dependency>
         <groupId>org.osgi</groupId>
@@ -330,7 +342,7 @@
       <dependency>
         <groupId>javax.jcr</groupId>
         <artifactId>jcr</artifactId>
-        <version>2.0</version>
+        <version>${jcr.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.jackrabbit</groupId>
@@ -415,7 +427,7 @@
       <dependency>
         <groupId>org.apache.felix</groupId>
         <artifactId>org.apache.felix.healthcheck.api</artifactId>
-        <version>2.0.4</version>
+        <version>${felix.healthcheck.api.version}</version>
       </dependency>
       <dependency>
         <!-- The Jakarta Servlet Whiteboard API (ServletContextHelper and the whiteboard property constants) -->
@@ -471,12 +483,12 @@
       <dependency>
         <groupId>org.eclipse.angus</groupId>
         <artifactId>jakarta.mail</artifactId>
-        <version>2.0.5</version>
+        <version>${angus.mail.version}</version>
       </dependency>
       <dependency>
         <groupId>jakarta.activation</groupId>
         <artifactId>jakarta.activation-api</artifactId>
-        <version>2.1.4</version>
+        <version>${jakarta.activation.version}</version>
       </dependency>
       <dependency>
         <groupId>org.osgi</groupId>
@@ -2633,11 +2645,11 @@
           <version>1.9.8</version>
           <extensions>true</extensions>
           <configuration>
-            <replacePropertyVariables>asm.version,jackrabbit.version,oak.version,sling.saml.version,slf4j.version,composum.nodes.version,commons.lang3.version,jackson.annotations.version,jackson.version,iap.version,sling.adapter.version,sling.api.version,sling.auth.core.version,sling.auth.form.version,sling.auth.oauth-client.version,sling.bundleresource.impl.version,sling.caconfig.api.version,sling.caconfig.impl.version,sling.caconfig.spi.version,sling.commons.classloader.version,sling.commons.compiler.version,sling.commons.crypto.version,sling.commons.fsclassloader.version,sling.commons.johnzon.version,sling.commons.log.version,sling.commons.log.webconsole.version,sling.commons.logservice.version,sling.commons.messaging.mail.version,sling.commons.messaging.version,sling.commons.metrics.version,sling.commons.mime.version,sling.commons.osgi.version,sling.commons.scheduler.version,sling.commons.threads.version,sling.datasource.version,sling.discovery.api.version,sling.discovery.base.version,sling.discovery.commons.version,sling.discovery.oak.version,sling.discovery.support.version,sling.engine.version,sling.event.api.version,sling.event.dea.version,sling.event.version,sling.extensions.threaddump.version,sling.extensions.webconsolebranding.version,sling.extensions.webconsolesecurityprovider.version,sling.fsresource.version,sling.hc.api.version,sling.hc.support.version,sling.i18n.version,sling.installer.console.version,sling.installer.core.version,sling.installer.factory.configuration.version,sling.installer.factory.packages.version,sling.installer.hc.version,sling.installer.provider.file.version,sling.installer.provider.jcr.version,sling.javax.activation.version,sling.jaxp-configurator.version,sling.jcr.api.version,sling.jcr.base.version,sling.jcr.contentloader.version,sling.jcr.jackrabbit.accessmanager.version,sling.jcr.jackrabbit.usermanager.version,sling.jcr.jcr-wrapper.version,sling.jcr.oak.server.version,sling.jcr.registration.version,sling.jcr.repoinit.version,sling.jcr.resource.version,sling.jcr.webconsole.version,sling.models.api.version,sling.models.caconfig.version,sling.models.impl.version,sling.models.jacksonexporter.version,sling.models.validation-impl.version,sling.provisioning.model.version,sling.repoinit.parser.version,sling.resource.filter.version,sling.resourceresolver.version,sling.scripting.api.version,sling.scripting.core.version,sling.scripting.el-api.version,sling.scripting.javascript.version,sling.scripting.jsp-api.version,sling.scripting.jsp.taglib.version,sling.scripting.jsp.version,sling.scripting.sightly.compiler.java.version,sling.scripting.sightly.compiler.version,sling.scripting.sightly.js.provider.version,sling.scripting.sightly.runtime.version,sling.scripting.sightly.version,sling.scripting.spi.version,sling.serviceuser.webconsole.version,sling.serviceusermapper.version,sling.servlet-helpers.version,sling.servlets.get.version,sling.servlets.post.version,sling.servlets.resolver.version,sling.settings.version,sling.validation.api.version,sling.validation.core.version,sling.xss.version</replacePropertyVariables>
+            <replacePropertyVariables>asm.version,jackrabbit.version,oak.version,sling.saml.version,slf4j.version,composum.nodes.version,commons.lang3.version,jackson.annotations.version,jackson.version,iap.version,sling.adapter.version,sling.api.version,sling.auth.core.version,sling.auth.form.version,sling.auth.oauth-client.version,sling.bundleresource.impl.version,sling.caconfig.api.version,sling.caconfig.impl.version,sling.caconfig.spi.version,sling.commons.classloader.version,sling.commons.compiler.version,sling.commons.crypto.version,sling.commons.fsclassloader.version,sling.commons.johnzon.version,sling.commons.log.version,sling.commons.log.webconsole.version,sling.commons.logservice.version,sling.commons.messaging.mail.version,sling.commons.messaging.version,sling.commons.metrics.version,sling.commons.mime.version,sling.commons.osgi.version,sling.commons.scheduler.version,sling.commons.threads.version,sling.datasource.version,sling.discovery.api.version,sling.discovery.base.version,sling.discovery.commons.version,sling.discovery.oak.version,sling.discovery.support.version,sling.engine.version,sling.event.api.version,sling.event.dea.version,sling.event.version,sling.extensions.threaddump.version,sling.extensions.webconsolebranding.version,sling.extensions.webconsolesecurityprovider.version,sling.fsresource.version,sling.hc.api.version,sling.hc.support.version,sling.i18n.version,sling.installer.console.version,sling.installer.core.version,sling.installer.factory.configuration.version,sling.installer.factory.packages.version,sling.installer.hc.version,sling.installer.provider.file.version,sling.installer.provider.jcr.version,sling.javax.activation.version,sling.jaxp-configurator.version,sling.jcr.api.version,sling.jcr.base.version,sling.jcr.contentloader.version,sling.jcr.jackrabbit.accessmanager.version,sling.jcr.jackrabbit.usermanager.version,sling.jcr.jcr-wrapper.version,sling.jcr.oak.server.version,sling.jcr.registration.version,sling.jcr.repoinit.version,sling.jcr.resource.version,sling.jcr.webconsole.version,sling.models.api.version,sling.models.caconfig.version,sling.models.impl.version,sling.models.jacksonexporter.version,sling.models.validation-impl.version,sling.provisioning.model.version,sling.repoinit.parser.version,sling.resource.filter.version,sling.resourceresolver.version,sling.scripting.api.version,sling.scripting.core.version,sling.scripting.el-api.version,sling.scripting.javascript.version,sling.scripting.jsp-api.version,sling.scripting.jsp.taglib.version,sling.scripting.jsp.version,sling.scripting.sightly.compiler.java.version,sling.scripting.sightly.compiler.version,sling.scripting.sightly.js.provider.version,sling.scripting.sightly.runtime.version,sling.scripting.sightly.version,sling.scripting.spi.version,sling.serviceuser.webconsole.version,sling.serviceusermapper.version,sling.servlet-helpers.version,sling.servlets.get.version,sling.servlets.post.version,sling.servlets.resolver.version,sling.settings.version,sling.validation.api.version,sling.validation.core.version,sling.xss.version,angus.mail.version,commons.codec.version,commons.collections.version,commons.collections4.version,commons.io.version,commons.text.version,felix.framework.version,felix.healthcheck.api.version,jakarta.activation.version,jcr.version,osgi.service.component.version,velocity.version,jjwt.version</replacePropertyVariables>
             <framework>
               <groupId>org.apache.felix</groupId>
               <artifactId>org.apache.felix.framework</artifactId>
-              <version>7.0.5</version>
+              <version>${felix.framework.version}</version>
             </framework>
           </configuration>
           <executions>

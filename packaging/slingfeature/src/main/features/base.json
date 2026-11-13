@@ -17,7 +17,7 @@
 {
     "execution-environment:JSON|false":{
         "framework":{
-            "id":"org.apache.felix:org.apache.felix.framework:7.0.5"
+            "id":"org.apache.felix:org.apache.felix.framework:${felix.framework.version}"
         }
     },
     "bundles":[
@@ -26,11 +26,11 @@
             "start-order":"5"
         },
         {
-            "id":"commons-codec:commons-codec:1.23.0",
+            "id":"commons-codec:commons-codec:${commons.codec.version}",
             "start-order":"5"
         },
         {
-            "id":"commons-collections:commons-collections:3.2.2",
+            "id":"commons-collections:commons-collections:${commons.collections.version}",
             "start-order":"15"
         },
         {
@@ -38,7 +38,7 @@
             "start-order":"20"
         },
         {
-            "id":"org.apache.commons:commons-collections4:4.6.0",
+            "id":"org.apache.commons:commons-collections4:${commons.collections4.version}",
             "start-order":"15"
         },
         {
@@ -174,7 +174,7 @@
             "start-order":"5"
         },
         {
-            "id":"commons-io:commons-io:2.22.0",
+            "id":"commons-io:commons-io:${commons.io.version}",
             "start-order":"5"
         },
         {

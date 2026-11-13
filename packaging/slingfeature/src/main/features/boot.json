@@ -28,7 +28,7 @@
             "start-order":"1"
         },
         {
-            "id":"org.apache.commons:commons-text:1.15.0",
+            "id":"org.apache.commons:commons-text:${commons.text.version}",
             "start-order":"1"
         },
         {
@@ -136,7 +136,7 @@
             "start-order":"1"
         },
         {
-            "id":"org.osgi:org.osgi.service.component:1.5.1",
+            "id":"org.osgi:org.osgi.service.component:${osgi.service.component.version}",
             "start-order":"1"
         },
         {
