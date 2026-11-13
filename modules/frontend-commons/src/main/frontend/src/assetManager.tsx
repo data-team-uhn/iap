@@ -153,12 +153,6 @@ const loadModule = async function(assetURL: string): Promise<unknown> {
 // @return the module's default export, or the export the `component` parameter names; null if the
 //     asset is unknown
 const loadAsset = async function(assetURL: string): Promise<unknown> {
-  if (process.env.NODE_ENV == 'production') {
-    if (assetURL == 'asset:iap-login.ReLoginDialog.js') {
-      // In production, the page's own script holds this dialog
-      return;
-    }
-  }
   if (!assets[assetURL]) {
     const dependencies = await getAssetDependencies(assetURL);
     // Dependencies load recursively, so a cycle between them would never end. An asset already

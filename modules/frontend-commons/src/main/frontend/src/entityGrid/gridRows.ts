@@ -45,9 +45,13 @@ export const treeDataPath = (row: EntityRow): string[] => row[TREE_PATH] as stri
 // What the tree column shows for a row: its tree field, or its node name when it has none
 export const treeName = (row: EntityRow, tree: EntityGridChildren): unknown => row[tree.treeField] ?? row["@name"];
 
-// A row's id in the grid: its path, else its node name, else its position in `rows`. The grid
-// throws on duplicate ids, so two rows with neither a path nor a name must still differ.
+// A row's id in the grid, which must be unique: the grid throws on duplicate ids. In a tree, the id
+// is the row's position in the tree, so the children of two entities with the same name differ.
+// Otherwise it is the row's path, or failing that its node name, or failing that its index in `rows`.
 export function rowId(row: EntityRow, rows: EntityRow[]): string {
+  if (TREE_PATH in row) {
+    return treeDataPath(row).join("\n");
+  }
   const path = row["@path"] ?? row["@name"];
   return typeof path === "string" ? path : `@${rows.indexOf(row)}`;
 }
