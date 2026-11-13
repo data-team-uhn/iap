@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Read a submission's documents again",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Queues another reading of a submission's parsed documents.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Asked to read again",
+      "messageName": "readAgain",
+      "performers": ["@creator"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toQueue": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toQueue",
+        "targetRef": "queue"
+      }
+    },
+    "queue": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "queue",
+      "label": "Queue the reading",
+      "handler": "readAgain",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Queued",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
