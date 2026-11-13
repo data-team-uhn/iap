@@ -23,6 +23,7 @@ import { Alert, CircularProgress, Stack, Typography } from "@mui/material";
 import ErrorBoundary from "@iap/frontend-commons/components/ErrorBoundary";
 import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 
 import {
   getRequirementComponent,
@@ -47,10 +48,6 @@ const CANNOT_COMPLETE_HERE = (
   <Typography variant="placeholder">This part of the request cannot be completed here yet.</Typography>
 );
 
-function ignoreSave(): void {
-  // Nothing on the page waits for the answers to be stored
-}
-
 // What a requirement asks for, drawn by the component registered for its kind. A kind with no
 // component says it cannot be completed here yet.
 function RequirementBody(props: RequirementComponentProps) {
@@ -66,12 +63,16 @@ function RequirementBody(props: RequirementComponentProps) {
 // again. Which questions apply depends on the answers, and only the server decides it. A question
 // that stops applying is absent from the next read.
 //
-// `onSaving` hears of each save as it is asked for, for whatever must wait until the answers are
-// stored. `onChanged` hears that a save or an attachment went through, so that the page can read
-// the submission again.
-function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
+// Each save, of an answer or of a file a requirement's component attaches, goes through `queueSave`,
+// the queue of the work on this submission. It starts once the work before it has settled. Two saves
+// of one submission in flight together would be rival commits, and the engine refuses the one that
+// loses.
+//
+// `onChanged` hears that a save or an attachment went through, so that the page can read the
+// submission again.
+function SubmissionEditor({ path, queueSave, onChanged }: {
   path: string;
-  onSaving?: (save: Promise<unknown>) => void;
+  queueSave: Enqueue;
   onChanged?: () => void;
 }) {
   const [ form, setForm ] = useState<SubmissionForm>();
@@ -82,10 +83,6 @@ function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
   // again, and the reads can land out of order. Only the newest is applied, or an older form would put
   // back what a newer one replaced.
   const latestFormRead = useRef(0);
-  // The newest save. Each save waits for the one before it to settle, whichever way it went, so that
-  // answers reach the server one at a time and in order. Two saves of one submission in flight
-  // together would be rival commits, and the engine refuses the one that loses.
-  const previousSave = useRef<Promise<unknown>>(Promise.resolve());
   const doFetch = useAuthenticatedFetch();
   // A requirement drawn by another module's component waits for that component to load. Until then
   // it would show as something that cannot be completed here.
@@ -107,11 +104,7 @@ function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
     const token = latestFormRead.current + 1;
     latestFormRead.current = token;
     setStates(current => ({ ...current, [question.path]: { state: "saving" } }));
-    const store = () => saveAnswer(doFetch, path, question.path, values);
-    const save = previousSave.current.then(store, store);
-    previousSave.current = save;
-    onSaving(save);
-    save
+    queueSave(() => saveAnswer(doFetch, path, question.path, values))
       // The field's own outcome, applied even when a later answer has overtaken this one. Handled
       // here rather than in the trailing catch, which is for the read alone.
       .then(
@@ -127,7 +120,7 @@ function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
       .then(() => reload(token))
       // A failed read is reported for the form, not for the field
       .catch((e: unknown) => setError(message(e)));
-  }, [ doFetch, path, reload, onSaving, onChanged ]);
+  }, [ doFetch, path, reload, queueSave, onChanged ]);
 
   // Reads the form again after a requirement's component changed the submission, such as by
   // attaching a file
@@ -162,7 +155,7 @@ function SubmissionEditor({ path, onSaving = ignoreSave, onChanged }: {
               disabled={!form.editable}
               states={states}
               onAnswered={answered}
-              onSaving={onSaving}
+              queueSave={queueSave}
               onChanged={changed}
             />
           </ErrorBoundary>

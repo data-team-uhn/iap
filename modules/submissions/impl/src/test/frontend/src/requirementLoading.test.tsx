@@ -26,6 +26,8 @@ import SubmissionEditor from "@iap/submissions/SubmissionEditor";
 import type { SubmissionForm } from "@iap/submissions/submissionForm";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
+import { aQueue } from "./workQueue.fixture";
+
 vi.mock("@iap/ui-extension/extensionManager", () => ({
   loadExtensions: vi.fn(),
 }));
@@ -72,7 +74,7 @@ describe("drawing a requirement whose component another module contributes", () 
     const fetchMock = servingTheForm();
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
     // Every pending read settles, leaving only the components on their way
     await act(() => new Promise(resolve => setTimeout(resolve, 0)));
 
