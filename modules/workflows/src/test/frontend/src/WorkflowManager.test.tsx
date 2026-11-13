@@ -26,7 +26,6 @@ import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { getPageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
-import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import type { WorkflowActionProps } from "@iap/workflows/WorkflowActions";
 import WorkflowManager from "@iap/workflows/WorkflowManager";
@@ -132,7 +131,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  clearTagDefinitionsCache();
 });
 
 describe("WorkflowManager", () => {

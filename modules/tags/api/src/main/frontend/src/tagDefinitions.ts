@@ -74,7 +74,7 @@ export function loadTagDefinitions(
 // tagValueOptions starts the fetch itself, so that the choices are there before the returned
 // function is first called. A filter input that finds none of its applied values among the
 // choices shows none, and its next edit saves only what it shows. The returned function fetches
-// again too, in case the cache was cleared.
+// again too, in case the last fetch failed.
 export function tagValueOptions(
   category: string
 ): () => { value: string; label: string; color?: string; variant?: string }[] {
@@ -89,10 +89,4 @@ export function tagValueOptions(
         variant: definition.variant,
       }));
   };
-}
-
-// Forgets the fetched definitions, for tests that stub fetch per test
-export function clearTagDefinitionsCache(): void {
-  definitionCache.clear();
-  resolvedDefinitions.clear();
 }

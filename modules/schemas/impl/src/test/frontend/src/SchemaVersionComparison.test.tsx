@@ -23,7 +23,6 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import SchemaPage from "@iap/schemas/SchemaPage";
 import { comparisonPageUrl } from "@iap/schemas/useSchemaList";
-import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
 import { serveSchemas } from "./schemaServer.fixture";
 
@@ -136,7 +135,6 @@ const part = async (heading: string) => (await screen.findByText(heading)).close
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  clearTagDefinitionsCache();
 });
 
 describe("SchemaVersionComparison", () => {
