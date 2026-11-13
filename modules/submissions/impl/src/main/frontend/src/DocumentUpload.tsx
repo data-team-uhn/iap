@@ -24,6 +24,7 @@ import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
+import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 
 import {
   type DocumentRequirement,
@@ -87,12 +88,14 @@ export interface DocumentUploadProps {
   requirement: DocumentRequirement;
   // Whether the reader may no longer change the request: the form's `editable`, negated
   disabled: boolean;
+  // Sends the upload in its turn among the saves of the submission
+  queueSave: Enqueue;
   onAttached: () => void;
 }
 
 // Answers a document requirement: what has been attached for it, and a way to attach a file. It
 // offers no removal. A newer upload for the same requirement becomes a new version of the document.
-function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUploadProps) {
+function DocumentUpload({ path, requirement, disabled, queueSave, onAttached }: DocumentUploadProps) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const doFetch = useAuthenticatedFetch();
@@ -118,7 +121,7 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: DocumentUpl
       if (problem !== undefined) {
         throw new Error(problem);
       }
-      return attachDocument(doFetch, path, requirement.name, file);
+      return queueSave(() => attachDocument(doFetch, path, requirement.name, file));
     }).then(
       () => {
         setBusy(false);

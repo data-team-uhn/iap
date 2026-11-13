@@ -20,9 +20,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 import SubmissionTasks from "@iap/submissions/SubmissionTasks";
 
 import { SEND, SEND_LABEL, waitingOn } from "./workflowTasks.fixture";
+import { aQueue, settle } from "./workQueue.fixture";
 
 type FetchStub = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -55,12 +57,13 @@ function repositoryFailingRereads(container: unknown) {
   });
 }
 
-const renderTasks = ({ readinessNote, beforeComplete, onCompleted }: {
+const renderTasks = ({ readinessNote, queue = aQueue(), checkReady, onCompleted }: {
   readinessNote?: string;
-  beforeComplete?: () => Promise<void>;
+  queue?: Enqueue;
+  checkReady?: () => Promise<void>;
   onCompleted?: () => void;
 } = {}) => render(
-  <SubmissionTasks path={PATH} readinessNote={readinessNote} beforeComplete={beforeComplete}
+  <SubmissionTasks path={PATH} readinessNote={readinessNote} queue={queue} checkReady={checkReady}
     onCompleted={onCompleted} />,
   { wrapper: NoticeProvider },
 );
@@ -130,27 +133,54 @@ describe("SubmissionTasks", () => {
     await waitFor(() => expect(fetchMock.mock.calls.filter(call => call[1]?.method !== "POST")).toHaveLength(2));
   });
 
-  it("waits for the answers still being saved before completing the step", async () => {
+  it("checks and completes the step once the work queued before it has settled", async () => {
     const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
     vi.stubGlobal("fetch", fetchMock);
+    const queue = aQueue();
     const saving = Promise.withResolvers<undefined>();
+    const checkReady = vi.fn(() => Promise.resolve());
+    void queue(() => saving.promise);
 
-    renderTasks({ beforeComplete: () => saving.promise });
+    renderTasks({ queue, checkReady });
     await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
+    expect(checkReady).not.toHaveBeenCalled();
     expect(posted(fetchMock)).toHaveLength(0);
 
     saving.resolve(undefined);
     await waitFor(() => expect(posted(fetchMock)).toHaveLength(1));
+    expect(checkReady).toHaveBeenCalledTimes(1);
   });
 
-  it("completes nothing when an answer could not be saved", async () => {
+  it("holds the work queued after the step until the step is answered", async () => {
+    const completion = Promise.withResolvers<Response>();
+    const fetchMock = vi.fn<FetchStub>((url, init) => (init?.method === "POST"
+      ? completion.promise
+      : repository(waitingOn(PATH, { fillIn: SEND }))(url, init)));
+    vi.stubGlobal("fetch", fetchMock);
+    const queue = aQueue();
+    const later = vi.fn(() => Promise.resolve());
+
+    renderTasks({ queue });
+    await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
+    await waitFor(() => expect(posted(fetchMock)).toHaveLength(1));
+    void queue(later);
+    await settle();
+    expect(later).not.toHaveBeenCalled();
+
+    completion.resolve({ url: TASK, redirected: false, ok: true, status: 200,
+      json: () => Promise.resolve({}) } as unknown as Response);
+    await waitFor(() => expect(later).toHaveBeenCalledTimes(1));
+  });
+
+  it("completes nothing when the submission is not ready for the step", async () => {
     const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
     vi.stubGlobal("fetch", fetchMock);
 
-    renderTasks({ beforeComplete: () => Promise.reject(new Error("The answer was refused")) });
+    renderTasks({ checkReady: () => Promise.reject(new Error("Answer everything first.")) });
     await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
 
     expect(await screen.findByText(`${SEND_LABEL} did not go through`)).toBeInTheDocument();
+    expect(screen.getByText("Answer everything first.")).toBeInTheDocument();
     expect(posted(fetchMock)).toHaveLength(0);
   });
 

@@ -18,6 +18,7 @@
 import type { ReactElement } from "react";
 
 import { type Candidate, createCandidateRegistry } from "@iap/frontend-commons/candidateRegistry";
+import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 
 import type { SaveState } from "./AnswerField";
 import type { FormQuestion, Requirement } from "./submissionForm";
@@ -40,9 +41,9 @@ export interface RequirementComponentProps {
   states: Record<string, FieldState | undefined>;
   // Called when an answer is finished, for a kind that draws questions
   onAnswered: (question: FormQuestion, values: string[]) => void;
-  // Called with each save the kind starts, so that whatever waits for the answers to be stored waits
-  // for it too
-  onSaving: (save: Promise<unknown>) => void;
+  // Takes each request the kind would send to change the submission. The request waits for the work
+  // queued before it, such as other saves or a step that completes the submission.
+  queueSave: Enqueue;
   // Called after a kind changed the submission, so the editor reads the form again
   onChanged: () => void;
 }

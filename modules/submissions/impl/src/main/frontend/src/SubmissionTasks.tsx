@@ -23,6 +23,7 @@ import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
+import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 import { offers, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 import { COMPLETE_EVENT, type SubmissionTask } from "./taskModel";
@@ -32,13 +33,16 @@ import { useSubmissionTasks } from "./useSubmissionTasks";
 //
 // Only a task whose `@events` offers the reader `complete` is shown. Another person's task is absent,
 // not disabled. A task with outcome options is left out, since the button sends no outcome.
-// `beforeComplete` settles once anything a completion must not overtake is done, such as an answer
-// still being saved. When it rejects, nothing is completed, and the reader is told why.
-// `readinessNote`, when given, says what still stands between the submission and its next step.
-function SubmissionTasks({ path, readinessNote, beforeComplete, onCompleted }: {
+//
+// Completing a task is one piece of work on `queue`, the queue that also holds the saves of the
+// submission. It starts once the saves before it have settled, and a save asked for meanwhile waits
+// for it. It first calls `checkReady`. When that rejects, nothing is completed, and the reader is told
+// why. `readinessNote`, when given, says what still stands between the submission and its next step.
+function SubmissionTasks({ path, readinessNote, queue, checkReady, onCompleted }: {
   path: string;
   readinessNote?: string;
-  beforeComplete?: () => Promise<void>;
+  queue: Enqueue;
+  checkReady?: () => Promise<void>;
   onCompleted?: () => void;
 }) {
   const { tasks, reload } = useSubmissionTasks(path);
@@ -47,8 +51,10 @@ function SubmissionTasks({ path, readinessNote, beforeComplete, onCompleted }: {
   // Each completion reports its own failure, since only it knows which task's label to name
   const { working, run } = useAsyncAction({ onFailure: () => undefined });
 
-  const complete = (task: SubmissionTask) => run(() => (beforeComplete?.() ?? Promise.resolve())
-    .then(() => sendEvent(doFetch, task.path, COMPLETE_EVENT))
+  const checkAndComplete = (task: SubmissionTask) => (checkReady?.() ?? Promise.resolve())
+    .then(() => sendEvent(doFetch, task.path, COMPLETE_EVENT));
+
+  const complete = (task: SubmissionTask) => run(() => queue(() => checkAndComplete(task))
     .then(() => {
       onCompleted?.();
       return reload();

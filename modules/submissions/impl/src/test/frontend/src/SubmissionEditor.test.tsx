@@ -20,6 +20,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { validateUpload } from "@iap/frontend-commons/fileValidation";
+import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 import { loadAnswerComponents } from "@iap/submissions/answers";
 // Imported rather than fetched. In a browser each answer component arrives as its own asset, named
 // by an extension on the AnswerComponent point, and registers itself as it is evaluated.
@@ -48,6 +49,7 @@ import {
 } from "@iap/submissions/submissionForm";
 
 import { NEEDS_APPROVAL, approval } from "./approvals.fixture";
+import { aQueue, settle } from "./workQueue.fixture";
 
 vi.mock("@iap/ui-extension/extensionManager", () => ({
   loadExtensions: vi.fn(() => Promise.resolve([])),
@@ -136,7 +138,7 @@ describe("SubmissionEditor", () => {
   it("shows what the request asks and what it already answers", async () => {
     vi.stubGlobal("fetch", serving(form()));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
     expect(await screen.findByText("A long weekend")).toBeInTheDocument();
     expect(screen.getByText("Request details")).toBeInTheDocument();
@@ -151,7 +153,7 @@ describe("SubmissionEditor", () => {
     const fetchMock = serving(form(), withEndDate);
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "multiple days");
     await userEvent.tab();
 
@@ -164,7 +166,7 @@ describe("SubmissionEditor", () => {
     const changed = vi.fn();
     vi.stubGlobal("fetch", serving(form()));
 
-    render(<SubmissionEditor path={PATH} onChanged={changed} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} onChanged={changed} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "multiple days");
     await userEvent.tab();
 
@@ -174,7 +176,7 @@ describe("SubmissionEditor", () => {
   it("reports a refused save on the field it belongs to", async () => {
     vi.stubGlobal("fetch", refusingSaves());
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
     await userEvent.tab();
 
@@ -185,7 +187,7 @@ describe("SubmissionEditor", () => {
     const changed = vi.fn();
     vi.stubGlobal("fetch", refusingSaves());
 
-    render(<SubmissionEditor path={PATH} onChanged={changed} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} onChanged={changed} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
     await userEvent.tab();
 
@@ -196,7 +198,7 @@ describe("SubmissionEditor", () => {
   it("cannot be answered once the request is no longer the submitter's to change", async () => {
     vi.stubGlobal("fetch", serving(form({ editable: false })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
     expect(await screen.findByText(/can no longer be changed/)).toBeInTheDocument();
     expect(screen.getByLabelText(/several days/)).toBeDisabled();
@@ -209,19 +211,19 @@ describe("SubmissionEditor", () => {
       } ],
     })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
     expect(await screen.findByText("Ethics")).toBeInTheDocument();
     expect(screen.getByText(/cannot be completed here yet/)).toBeInTheDocument();
   });
 
   describe("drawing a kind of requirement another module registers", () => {
-    const A_SAVE = Promise.resolve();
+    const A_RESULT = "stored";
 
-    // Shows the submission path it was handed, and reports a save and a change when pressed
-    const Thing: RequirementComponent = ({ path, onSaving, onChanged }) => (
+    // Shows the submission path it was handed, and queues a save and reports a change when pressed
+    const Thing: RequirementComponent = ({ path, queueSave, onChanged }) => (
       <button type="button" onClick={() => {
-        onSaving(A_SAVE);
+        void queueSave(() => Promise.resolve(A_RESULT));
         onChanged();
       }}>{path}</button>
     );
@@ -245,15 +247,22 @@ describe("SubmissionEditor", () => {
 
     it("draws it with the registered component, handing it the submission and the editor's callbacks", async () => {
       registerRequirementComponent(candidateFor("test/Thing", Thing));
-      const saving = vi.fn();
+      // Starts each piece of work at once, and keeps it
+      const queued: Promise<unknown>[] = [];
+      const queueSave: Enqueue = start => {
+        const work = start();
+        queued.push(work);
+        return work;
+      };
       const changed = vi.fn();
       const fetchMock = serving(form({ requirements: [ contributed("test/Thing") ] }));
       vi.stubGlobal("fetch", fetchMock);
 
-      render(<SubmissionEditor path={PATH} onSaving={saving} onChanged={changed} />);
+      render(<SubmissionEditor path={PATH} queueSave={queueSave} onChanged={changed} />);
       await userEvent.click(await screen.findByRole("button", { name: PATH }));
 
-      expect(saving).toHaveBeenCalledWith(A_SAVE);
+      expect(queued).toHaveLength(1);
+      await expect(queued[0]).resolves.toBe(A_RESULT);
       expect(changed).toHaveBeenCalledTimes(1);
       // The form is read again
       await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
@@ -264,7 +273,7 @@ describe("SubmissionEditor", () => {
       registerRequirementComponent(candidateFor("test/Broken", Broken));
       vi.stubGlobal("fetch", serving(form({ requirements: [ contributed("test/Broken"), details([ duration() ]) ] })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
       expect(await screen.findByText("A test/Broken")).toBeInTheDocument();
       expect(screen.getByText(/cannot be completed here yet/)).toBeInTheDocument();
@@ -275,7 +284,7 @@ describe("SubmissionEditor", () => {
   it("says who an approval needs, since somebody else grants it", async () => {
     vi.stubGlobal("fetch", serving(form({ requirements: [ approval() ] })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
     expect(await screen.findByText("Approval")).toBeInTheDocument();
     expect(screen.getByText(NEEDS_APPROVAL)).toBeInTheDocument();
@@ -308,7 +317,7 @@ describe("SubmissionEditor", () => {
     it("offers to attach a file, with the types it takes and nothing else", async () => {
       vi.stubGlobal("fetch", serving(asked()));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
       const input = await screen.findByLabelText(/Attach a file for "Doctor's note"/);
       expect(input).toHaveAttribute("accept", "application/pdf,image/png");
@@ -319,7 +328,7 @@ describe("SubmissionEditor", () => {
     it("says nothing about types where the requirement names none", async () => {
       vi.stubGlobal("fetch", serving(asked({ acceptedFileTypes: [] })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
       expect(await screen.findByLabelText(/Attach a file/)).not.toHaveAttribute("accept");
     });
@@ -327,7 +336,7 @@ describe("SubmissionEditor", () => {
     it("names what is already there, so a form reopened later does not look untouched", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
       const link = await screen.findByRole("link", { name: "note.pdf" });
       expect(link).toHaveAttribute("href", NOTE_FILE.path);
@@ -338,7 +347,7 @@ describe("SubmissionEditor", () => {
     it("names an attachment with no file yet without linking it", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ { title: "note.pdf" } ] })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
       expect(await screen.findByText(/note\.pdf/)).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "note.pdf" })).toBeNull();
@@ -347,7 +356,7 @@ describe("SubmissionEditor", () => {
     it("offers a new version, not removal, while a file is attached", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
       const input = await screen.findByLabelText(/Upload a new version for "Doctor's note"/);
       expect(input).toHaveAttribute("accept", "application/pdf,image/png");
@@ -359,7 +368,7 @@ describe("SubmissionEditor", () => {
       const changed = vi.fn();
       vi.stubGlobal("fetch", serving(asked(), asked({ attached: [ NOTE_FILE ] })));
 
-      render(<SubmissionEditor path={PATH} onChanged={changed} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} onChanged={changed} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
@@ -370,7 +379,7 @@ describe("SubmissionEditor", () => {
       const fetchMock = serving(asked());
       vi.stubGlobal("fetch", fetchMock);
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       fireEvent.change(await screen.findByLabelText(/Attach a file/), { target: { files: [ pick("note.txt") ] } });
 
       expect(await screen.findByRole("alert")).toHaveTextContent("note.txt is not a file of an accepted type: .pdf.");
@@ -383,7 +392,7 @@ describe("SubmissionEditor", () => {
       const fetchMock = serving(asked(), asked({ attached: [ NOTE_FILE ] }));
       vi.stubGlobal("fetch", fetchMock);
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       const upload = fetchMock.mock.calls.find(call => call[0] === `${PATH}.attachDocument.json`);
@@ -403,7 +412,7 @@ describe("SubmissionEditor", () => {
       const fetchMock = serving(asked({ attached: [ NOTE_FILE ] }), asked({ attached: [ newer ] }));
       vi.stubGlobal("fetch", fetchMock);
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.upload(await screen.findByLabelText(/Upload a new version/), pick("note-v2.pdf"));
 
       const upload = fetchMock.mock.calls.find(call => call[0] === `${PATH}.attachDocument.json`);
@@ -418,7 +427,7 @@ describe("SubmissionEditor", () => {
     it("does not offer a new version for a request that can no longer be changed", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ NOTE_FILE ] }, { editable: false })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
       expect(await screen.findByLabelText(/Upload a new version/)).toBeDisabled();
     });
@@ -431,7 +440,7 @@ describe("SubmissionEditor", () => {
           ? json({ error: "A image/gif is not accepted here" }, { ok: false, status: 400 })
           : json(asked({ acceptedFileTypes: [] }))));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick("scan.gif", "image/gif"));
 
       expect(await screen.findByText("A image/gif is not accepted here")).toBeInTheDocument();
@@ -448,7 +457,7 @@ describe("SubmissionEditor", () => {
           } as unknown as Response)
           : json(asked())));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       expect(await screen.findByText(/This file could not be attached \(502\)/)).toBeInTheDocument();
@@ -460,7 +469,7 @@ describe("SubmissionEditor", () => {
           ? Promise.reject("the network went away")
           : json(asked())));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       expect(await screen.findByText("the network went away")).toBeInTheDocument();
@@ -479,7 +488,7 @@ describe("SubmissionEditor", () => {
         return json(asked());
       }));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       const input = await screen.findByLabelText(/Attach a file/);
       await userEvent.upload(input, pick());
       await screen.findByText("The server was busy");
@@ -507,7 +516,7 @@ describe("SubmissionEditor", () => {
         return event.defaultPrevented;
       };
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       const input = await screen.findByLabelText(/Attach a file/);
       expect(leave()).toBe(false);
 
@@ -518,11 +527,38 @@ describe("SubmissionEditor", () => {
       await waitFor(() => expect(leave()).toBe(false));
     });
 
+    it("sends a file once the answer being saved has been stored", async () => {
+      const posted: string[] = [];
+      let store: () => void = () => undefined;
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) => {
+        if (options?.method !== "POST") {
+          return json(form({ requirements: [ details([ duration() ]), NOTE ] }));
+        }
+        posted.push(url);
+        return url === `${PATH}.save.json`
+          ? new Promise<Response>(resolve => {
+            store = () => resolve(json({}));
+          })
+          : json({});
+      }));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+      await userEvent.type(await screen.findByLabelText(/several days/), "half day");
+      await userEvent.tab();
+      await userEvent.upload(screen.getByLabelText(/Attach a file/), pick());
+      await settle();
+      expect(posted).toEqual([ `${PATH}.save.json` ]);
+
+      store();
+
+      await waitFor(() => expect(posted).toEqual([ `${PATH}.save.json`, `${PATH}.attachDocument.json` ]));
+    });
+
     it("does nothing when the file dialog was dismissed without a choice", async () => {
       const fetchMock = serving(asked());
       vi.stubGlobal("fetch", fetchMock);
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       // A dismissed dialog, which `userEvent.upload` cannot express, since it always gives a file
       fireEvent.change(await screen.findByLabelText(/Attach a file/), { target: { files: [] } });
 
@@ -532,7 +568,7 @@ describe("SubmissionEditor", () => {
     it("cannot be attached to once the request is no longer the submitter's to change", async () => {
       vi.stubGlobal("fetch", serving(asked({}, { editable: false })));
 
-      render(<SubmissionEditor path={PATH} />);
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
       expect(await screen.findByLabelText(/Attach a file/)).toBeDisabled();
     });
@@ -544,7 +580,7 @@ describe("SubmissionEditor", () => {
         description: "When you are away", items: [ endDate() ] } ]) ],
     })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
     expect(await screen.findByText("Dates")).toBeInTheDocument();
     expect(screen.getByText("When you are away")).toBeInTheDocument();
@@ -558,7 +594,7 @@ describe("SubmissionEditor", () => {
         [ { name: "when", type: SECTION, label: "", items: [ endDate() ] } ], { label: "" }) ],
     })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
     expect(await screen.findByText("details")).toBeInTheDocument();
     expect(screen.getByText("when")).toBeInTheDocument();
@@ -570,7 +606,7 @@ describe("SubmissionEditor", () => {
       : json(form()));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
     await userEvent.tab();
 
@@ -582,7 +618,7 @@ describe("SubmissionEditor", () => {
   it("says so when the request asks nothing", async () => {
     vi.stubGlobal("fetch", serving(form({ requirements: [] })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
     expect(await screen.findByText(/asks nothing yet/)).toBeInTheDocument();
   });
@@ -590,7 +626,7 @@ describe("SubmissionEditor", () => {
   it("reports a form that would not load", async () => {
     vi.stubGlobal("fetch", vi.fn(() => json({}, { ok: false, status: 404 })));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
 
     expect(await screen.findByText(/could not be loaded \(404\)/)).toBeInTheDocument();
   });
@@ -609,7 +645,7 @@ describe("SubmissionEditor", () => {
       });
     }));
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
     await userEvent.type(screen.getByLabelText(/Why do you need it/), "a wedding");
     await userEvent.tab();
@@ -642,7 +678,7 @@ describe("SubmissionEditor", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SubmissionEditor path={PATH} />);
+    render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
     await userEvent.tab();
     await userEvent.type(screen.getByLabelText(/several days/), " really");
