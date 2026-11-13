@@ -92,7 +92,7 @@
 
   // The submitter's answers to the schema's questions
   + * (sub:Answer) = sub:Answer
-au
+
   // What a model decided about an upload, one per sch:ValidationRequirement
   + * (sub:Validation)
 
