@@ -14,14 +14,16 @@ version. Once a version is published, only its wording can change.
 /Schemas                         sch:SchemasHomepage
 └── clinicalStudy                sch:Schema           title
     └── v1                       sch:SchemaVersion    version, description, workflow → wf:WorkflowVersion
-        ├── basics               sch:FormRequirement  label
+        ├── basics               sch:FormRequirement  label, documents, template
         │   ├── design           sch:Section          title
         │   │   └── arms         sch:Question         text, dataType, minAnswers, maxAnswers, …
         │   │       └── placebo  sch:AnswerOption     value, label
         │   └── cond:condition   (when this requirement applies)
-        ├── consent              sch:DocumentRequirement  required, acceptedFileTypes, template
+        ├── consent              sch:DocumentRequirement  required, skipParsing, acceptedFileTypes, template
         ├── protocol             sch:DocumentRequirement
         │   └── funding          sch:SectionRequirement   label, required, headings, locationPrompt
+        ├── is_proposal          sch:ValidationRequirement      prompt, document, confidenceThreshold, template
+        ├── study_kind           sch:ClassificationRequirement  …, question → sch:Question (e.g. basics/kind)
         └── reb                  sch:ApprovalRequirement  approverGroup
             └── privacy          sch:Topic            text, description, assessmentPrompt, sources
 ```
@@ -43,6 +45,50 @@ for, `sources` names the requirements and questions that bear on it, and
 `assessmentPrompt` is what the AI is asked. Each review, and the AI's screening,
 assesses every topic on its own.
 
+### Decisions about an upload
+
+Two requirements ask a model about an uploaded document before anything else is read
+out of it. Both name the document requirement whose upload is read (`document`), what
+to ask (`prompt`), how sure the answer must be (`confidenceThreshold`, default 0.7), and
+optional reference text (a `template` or `template.md` child). They share the abstract
+`sch:DecisionRequirement`.
+
+| Type | Asks | The answer is saved as |
+|---|---|---|
+| `sch:ValidationRequirement` | Is the upload what the request needs, e.g. a research proposal? | a `sub:Validation` on the submission; the submitter never answers it |
+| `sch:ClassificationRequirement` | Which kind of request is it? | a suggestion on the answer to the question it references (`question`), which the submitter confirms |
+
+Each validation reads one document: the proposal has its own, the consent form its own,
+each with its own prompt and template. Once the uploads are parsed, the decisions are
+made one document at a time, in the order of the document requirements: the document's
+validation, then its classification. A sure `no` stops there. The document
+requirement's `label` goes into what the submitter is told, so it is written to fit
+"Please upload the <label>", "Unable to identify the <label>" and "The <label> is
+missing, please upload it", such as "research proposal".
+
+The classification's question is an ordinary question in a form requirement, so the form
+shows it like any other. A reference to a question of the same version still points at
+the right question when the version is copied.
+
+### What a model reads for a form
+
+A form requirement names the documents whose uploads a model reads to answer its
+questions (`documents`, the names of document requirements, in the order they are
+sent). It may carry reference text the model is shown with the questions, such as where
+a protocol usually states its sample size (a `template` or `template.md` child, as the
+decisions have). A form that names no documents is not read: its questions are left to
+the submitter.
+
+| Form | `documents` | What the model reads |
+|---|---|---|
+| Study details | `["proposal"]` | the proposal |
+| Clinical trial | `["proposal", "consent"]` | both, joined, each under its own heading |
+| Category | none | nothing: the classification fills its question |
+
+Only the questions with an `extractionPrompt` are asked, and only while the form applies,
+so a form whose condition reads the confirmed category is read only for that category.
+See [extraction.md](extraction.md).
+
 ### Questions
 
 | Property | Notes |
@@ -53,7 +99,7 @@ assesses every topic on its own.
 | `minValue`, `maxValue` | Bounds for numeric answers. |
 | `pattern`, `patternMessage` | A regular expression every text value must match in full, and what the submitter is told when one does not. |
 | `optionsFrom` | A content path whose items are the options, instead of child options. |
-| `purpose`, `extractionPrompt`, `responseShape` | What answer extraction needs. |
+| `purpose`, `extractionPrompt` | What answer extraction needs. |
 
 A question with `sch:AnswerOption` children is answered only with their values. The
 **value** is what an answer stores and what a condition compares against, so changing it

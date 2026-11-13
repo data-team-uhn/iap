@@ -143,6 +143,12 @@ by hand.
   finishes there, retiring the host's tags that share any of its categories. Elsewhere
   in a process, the `addTag` and `removeTag` service tasks do the same job.
 
+A service task's configuration reaches the stored node through the `properties` list of
+its vocabulary entry, `ServiceTask.json`: each line maps an `iap:` attribute to an
+activity property, and a trailing `[]` makes it a list, written comma-separated. A
+handler parameter with no line there is dropped when the diagram is parsed, and nothing
+reports it, so a new parameter needs a new line.
+
 ### The vocabulary
 
 `/WorkflowTypes` is the translation table between BPMN and the repository. Each
@@ -1035,9 +1041,23 @@ each completed on its own.
   gateways are not executed: a thrown message becomes a notification, never an event for
   another workflow.
   An instance reaching a free-standing catching event is refused rather than parked,
-  since nothing could wake it: the engine's door opens onto a homepage or a task.
+  since nothing could wake it: the engine's door opens onto a homepage or a task. So
+  the extraction's intake waits at a task that a background job completes; see
+  [extraction.md](extraction.md#waiting-for-the-engine).
 - **Read access is never revoked.** It lasts for the life of the instance rather than
   while a task is open.
+- **A failed step undoes the whole walk.** A walk is one commit, so a handler that
+  throws reverts everything the walk wrote before it. An `ErrorBoundaryEvent` is
+  imported but never fires: nothing catches a step's failure and carries on. A handler
+  that must keep earlier work records the failure itself and returns normally.
+- **`startWorkflow` quietly starts nothing.** When its `workflowFrom` chain leads
+  nowhere, or not to a workflow version, the step succeeds and no workflow runs, since
+  an entity whose data names no workflow simply has none. A caller that needs one to run
+  checks the chain itself first.
+- **A running walk cannot be stopped.** The engine has no way to cancel a walk in
+  progress; it ends when its last step returns. So long work, such as a model call,
+  runs outside any walk: the extraction module calls the model in background jobs, which
+  a Stop interrupts, and saves each result through a short system workflow.
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created
   without it and the problem recorded; a guard is written as a `cond:condition` in the
   arc's `extensionElements`.
