@@ -47,6 +47,11 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-error-tracking-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <!-- The nullability annotations on the exported API and SPI -->
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>

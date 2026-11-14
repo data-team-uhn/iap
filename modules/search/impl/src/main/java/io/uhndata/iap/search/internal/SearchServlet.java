@@ -186,13 +186,13 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     {
         try {
             writeResponse(request, response);
-        } catch (final InvalidQueryException e) {
+        } catch (final InvalidQueryException | IllegalArgumentException e) {
+            // Oak throws IllegalArgumentException for a malformed full-text expression, among others. The message
+            // quotes the statement and the repository's own grammar, so it stays in the log, and a client's mistake
+            // is not a fault.
+            LOGGER.debug("Refused a search that cannot run: {}", e.getMessage(), e);
             JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
-                "Invalid query: " + e.getMessage());
-        } catch (final IllegalArgumentException e) {
-            // What Oak throws for a malformed full-text expression, among others
-            JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
-                "Invalid query: " + e.getMessage());
+                "The `query` or `fulltext` parameter could not be understood");
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to execute search query: {}", e.getMessage(), e);
             JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR,

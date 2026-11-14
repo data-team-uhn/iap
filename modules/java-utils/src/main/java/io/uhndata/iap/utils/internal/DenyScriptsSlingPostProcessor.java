@@ -34,6 +34,11 @@ import io.uhndata.iap.utils.UserIds;
  * such as an uploaded JavaScript or HTML file. Only the user whose canonical id is {@code admin} may. Served back,
  * such a file would run in the browser with IAP's own origin.
  *
+ * <p>This is not what keeps a stored file from running. It misses other types that can carry a script, such as
+ * {@code image/svg+xml}; it only sees the Sling POST servlet, not a workflow handler storing an upload; and it reads
+ * the type the uploader declared, while Sling serves a file declared {@code application/octet-stream} by its name.
+ * {@link StoredFileDownloadFilter} serves every stored file as a download instead.</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */

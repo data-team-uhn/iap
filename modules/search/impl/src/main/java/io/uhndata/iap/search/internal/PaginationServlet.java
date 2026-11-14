@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -137,9 +136,15 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         try {
             final RowIterator rows = prepareQuery(request).execute().getRows();
             writeResponse(request, response, rows);
-        } catch (final IllegalArgumentException e) {
+        } catch (final MisalignedParameterException e) {
             JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
-                Objects.requireNonNullElse(e.getMessage(), "Invalid request"));
+                "`" + e.getParameter() + "` must be sent once per filter name");
+        } catch (final IllegalArgumentException e) {
+            // A name the query cannot use, or a malformed full-text expression. The message quotes the request and
+            // the repository's own grammar, so it stays in the log, and a client's mistake is not a fault.
+            LOGGER.debug("Refused a pagination request: {}", e.getMessage(), e);
+            JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
+                "The filter, sort or full-text parameters could not be understood");
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to execute pagination query: {}", e.getMessage(), e);
             JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR,
@@ -213,7 +218,7 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      *            for conditions on a descendant node
      * @param asking what the special names are resolved against: the homepage, and who is asking
      * @return the filters; empty if the request sends no names with the given prefix
-     * @throws IllegalArgumentException if the values are not sent once per name, or if the comparators or the
+     * @throws MisalignedParameterException if the values are not sent once per name, or if the comparators or the
      *             groups are sent, but not once per name
      */
     private List<Filter> parseFilters(final SlingJakartaHttpServletRequest request, final String prefix,
@@ -227,8 +232,7 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         final String[] comparators = getAlignedParameter(request, prefix + "Comparator", names.length);
         final String[] groups = getAlignedParameter(request, prefix + "Group", names.length);
         if (values == null) {
-            throw new IllegalArgumentException(
-                "A " + prefix + "Value parameter must be provided for every " + prefix + "Name");
+            throw new MisalignedParameterException(prefix + "Value");
         }
         final List<Filter> result = new ArrayList<>(names.length);
         for (int i = 0; i < names.length; ++i) {
@@ -291,15 +295,14 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      * @param name the parameter name
      * @param expectedLength the number of filter names the parameter must align with
      * @return the parameter values; {@code null} if the request does not send the parameter
-     * @throws IllegalArgumentException if the parameter is present a different number of times
+     * @throws MisalignedParameterException if the parameter is present a different number of times
      */
     private String[] getAlignedParameter(final SlingJakartaHttpServletRequest request, final String name,
         final int expectedLength)
     {
         final String[] values = request.getParameterValues(name);
         if (values != null && values.length != expectedLength) {
-            throw new IllegalArgumentException(
-                "The " + name + " parameters must be provided once per filter name");
+            throw new MisalignedParameterException(name);
         }
         return values;
     }
@@ -382,6 +385,40 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         } catch (final RuntimeException e) {
             LOGGER.warn("Failed to serialize {} for pagination: {}", path, e.getMessage(), e);
             return null;
+        }
+    }
+
+    /**
+     * A filter parameter sent a different number of times than the filter names it goes with. It names the parameter,
+     * so the answer can say which one is wrong without quoting an exception's message.
+     *
+     * @since 0.1.0
+     */
+    private static final class MisalignedParameterException extends IllegalArgumentException
+    {
+        private static final long serialVersionUID = 1L;
+
+        private final String parameter;
+
+        /**
+         * Reports a misaligned parameter.
+         *
+         * @param parameter the parameter's name, such as {@code fieldValue} or {@code childField2Group}
+         */
+        MisalignedParameterException(final String parameter)
+        {
+            super("The " + parameter + " parameter must be sent once per filter name");
+            this.parameter = parameter;
+        }
+
+        /**
+         * The parameter sent the wrong number of times.
+         *
+         * @return the parameter's name, such as {@code fieldValue}
+         */
+        String getParameter()
+        {
+            return this.parameter;
         }
     }
 }

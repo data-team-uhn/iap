@@ -30,6 +30,8 @@ import org.osgi.service.component.annotations.ReferencePolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.status.api.StatusReportManager;
 import io.uhndata.iap.status.spi.StatusReport;
 import io.uhndata.iap.status.spi.StatusReporter;
@@ -37,7 +39,8 @@ import io.uhndata.iap.status.spi.StatusReporter;
 /**
  * Gathers the reports of the registered {@link StatusReporter} services. If a reporter's {@code report} throws an
  * unchecked exception, an {@link StatusReport.Status#ERROR} report takes its place, and the other reporters still
- * report. That report has the reporter's name, and its text quotes the exception's message.
+ * report. That report has the reporter's name, and says only that the report could not be computed: an exception's
+ * message can name infrastructure, and the reports reach readers who are not logged in.
  *
  * @version $Id$
  * @since 0.1.0
@@ -45,6 +48,9 @@ import io.uhndata.iap.status.spi.StatusReporter;
 @Component
 public class StatusReportManagerImpl implements StatusReportManager
 {
+    /** The text of the report standing in for a reporter that threw. */
+    private static final String FAILED_REPORT_TEXT = "Failed to compute the report, the instance log has the reason";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(StatusReportManagerImpl.class);
 
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, fieldOption = FieldOption.REPLACE,
@@ -76,9 +82,13 @@ public class StatusReportManagerImpl implements StatusReportManager
         try {
             return reporter.report(unprivileged);
         } catch (final RuntimeException e) {
-            LOGGER.warn("Status reporter {} failed: {}", reporter.getName(), e.getMessage(), e);
-            return new StatusReport(reporter.getName(), StatusReport.Status.ERROR,
-                "Failed to compute report: " + e.getMessage());
+            LOGGER.warn("Status reporter {} failed", reporter.getName(), e);
+            // The ERROR report says something is wrong, not what, so the fault is recorded where an administrator
+            // can triage it, against the reporter that needs fixing. A monitor polls this, and a broken reporter
+            // fails on every poll, but the error log folds repeats of one stack trace into a single record
+            ErrorLogger.logError(e,
+                ErrorContext.of(reporter.getClass(), "report").with("reporter", reporter.getName()));
+            return new StatusReport(reporter.getName(), StatusReport.Status.ERROR, FAILED_REPORT_TEXT);
         }
     }
 }
