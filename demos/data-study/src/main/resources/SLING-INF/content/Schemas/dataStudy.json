@@ -1,0 +1,40 @@
+{
+  "jcr:primaryType": "sch:Schema",
+  "title": "Retrospective data study",
+  "v1": {
+    "jcr:primaryType": "sch:SchemaVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "jcr:reference:workflow": "/Workflows/dataStudy/v1",
+    "description": "Ask for data that already exists, and have it released. Say what the study is for, choose the fields it needs from the registry, and a data steward decides.",
+    "about": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "About the study",
+      "description": "What you are asking, and why.",
+      "question": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What question is the study trying to answer?",
+        "dataType": "text",
+        "minAnswers": 1
+      },
+      "period": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which years should the data cover?",
+        "dataType": "text",
+        "minAnswers": 1
+      }
+    },
+    "data": {
+      "jcr:primaryType": "datareq:DataRequirement",
+      "label": "Which data do you need?",
+      "description": "Choose the fields your analysis needs, and no more. Your choice stays tied to the registry version you chose from, so a later version cannot change it.",
+      "jcr:reference:catalogue": "/Catalogues/demoRegistry"
+    },
+    "approval": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Data access approval",
+      "description": "A data steward decides whether the data is released.",
+      "approverGroup": "data-stewards"
+    }
+  }
+}

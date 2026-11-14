@@ -1,0 +1,203 @@
+{
+  "jcr:primaryType": "datareq:Catalogue",
+  "title": "Demo clinical registry",
+  "description": "An invented clinical registry, published twice: v2 is current, and v1 is what a study bound to it still answers against.",
+  "v1": {
+    "jcr:primaryType": "datareq:CatalogueVersion",
+    "version": "2026-02",
+    "description": "The first publication. It holds a legacy identifier that v2 dropped.",
+    "tags": ["retired"],
+    "visits": {
+      "jcr:primaryType": "datareq:Database",
+      "identifier": "visits",
+      "label": "Clinic visits",
+      "description": "One record per attendance",
+      "Visit": {
+        "jcr:primaryType": "datareq:Collection",
+        "identifier": "Visit",
+        "label": "Visit",
+        "visitDate": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "visitDate",
+          "label": "Date of visit",
+          "description": "The day the person attended",
+          "cardinality": "1..1",
+          "dataType": "date",
+          "phi": true
+        },
+        "department": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "department",
+          "label": "Department",
+          "description": "Which service the person attended",
+          "cardinality": "1..1",
+          "dataType": "code",
+          "phi": false
+        },
+        "attendingClinician": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "attendingClinician",
+          "label": "Attending clinician",
+          "description": "Who saw the person",
+          "cardinality": "0..1",
+          "dataType": "text",
+          "phi": true
+        }
+      }
+    },
+    "people": {
+      "jcr:primaryType": "datareq:Database",
+      "identifier": "people",
+      "label": "Person records",
+      "description": "One record per person known to the registry",
+      "Person": {
+        "jcr:primaryType": "datareq:Collection",
+        "identifier": "Person",
+        "label": "Person",
+        "birthYear": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "birthYear",
+          "label": "Year of birth",
+          "description": "The year alone, not the date",
+          "cardinality": "0..1",
+          "dataType": "integer",
+          "phi": false
+        },
+        "sex": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "sex",
+          "label": "Sex",
+          "cardinality": "0..1",
+          "dataType": "code",
+          "phi": false
+        },
+        "postalArea": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "postalArea",
+          "label": "Postal area",
+          "description": "The leading characters only",
+          "cardinality": "0..1",
+          "dataType": "text",
+          "phi": false
+        },
+        "recordNumber": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "recordNumber",
+          "label": "Record number",
+          "description": "The registry's own identifier for the person",
+          "cardinality": "1..1",
+          "dataType": "text",
+          "phi": true
+        },
+        "legacyId": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "legacyId",
+          "label": "Legacy identifier",
+          "description": "Carried over from the system this registry replaced",
+          "cardinality": "0..1",
+          "dataType": "text",
+          "phi": true
+        }
+      }
+    }
+  },
+  "v2": {
+    "jcr:primaryType": "datareq:CatalogueVersion",
+    "version": "2026-08",
+    "description": "What is published now. The legacy identifier is gone, and the discharge date is new.",
+    "tags": ["active"],
+    "visits": {
+      "jcr:primaryType": "datareq:Database",
+      "identifier": "visits",
+      "label": "Clinic visits",
+      "description": "One record per attendance",
+      "Visit": {
+        "jcr:primaryType": "datareq:Collection",
+        "identifier": "Visit",
+        "label": "Visit",
+        "visitDate": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "visitDate",
+          "label": "Date of visit",
+          "description": "The day the person attended",
+          "cardinality": "1..1",
+          "dataType": "date",
+          "phi": true
+        },
+        "dischargeDate": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "dischargeDate",
+          "label": "Date of discharge",
+          "description": "The day the person was discharged",
+          "cardinality": "0..1",
+          "dataType": "date",
+          "phi": true
+        },
+        "department": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "department",
+          "label": "Department",
+          "description": "Which service the person attended",
+          "cardinality": "1..1",
+          "dataType": "code",
+          "phi": false
+        },
+        "attendingClinician": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "attendingClinician",
+          "label": "Attending clinician",
+          "description": "Who saw the person",
+          "cardinality": "0..1",
+          "dataType": "text",
+          "phi": true
+        }
+      }
+    },
+    "people": {
+      "jcr:primaryType": "datareq:Database",
+      "identifier": "people",
+      "label": "Person records",
+      "description": "One record per person known to the registry",
+      "Person": {
+        "jcr:primaryType": "datareq:Collection",
+        "identifier": "Person",
+        "label": "Person",
+        "birthYear": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "birthYear",
+          "label": "Year of birth",
+          "description": "The year alone, not the date",
+          "cardinality": "0..1",
+          "dataType": "integer",
+          "phi": false
+        },
+        "sex": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "sex",
+          "label": "Sex",
+          "cardinality": "0..1",
+          "dataType": "code",
+          "phi": false
+        },
+        "postalArea": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "postalArea",
+          "label": "Postal area",
+          "description": "The leading characters only",
+          "cardinality": "0..1",
+          "dataType": "text",
+          "phi": false
+        },
+        "recordNumber": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "recordNumber",
+          "label": "Record number",
+          "description": "The registry's own identifier for the person",
+          "cardinality": "1..1",
+          "dataType": "text",
+          "phi": true
+        }
+      }
+    }
+  }
+}

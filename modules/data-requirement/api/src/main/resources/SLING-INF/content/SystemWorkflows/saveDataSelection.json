@@ -1,0 +1,66 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Record the data a submitter chose",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Records the fields a submitter chose for a data requirement, against the catalogue version of the first save.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Data chosen",
+      "messageName": "saveDataSelection",
+      "performers": ["@creator"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toRecord": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRecord",
+        "targetRef": "record"
+      }
+    },
+    "record": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "record",
+      "label": "Record the selection",
+      "handler": "saveDataSelection",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toParts": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toParts",
+        "targetRef": "parts"
+      }
+    },
+    "parts": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "parts",
+      "label": "Give each item asked for a part of its own",
+      "handler": "createParts",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "mark"
+      }
+    },
+    "mark": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "mark",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Selection recorded",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
