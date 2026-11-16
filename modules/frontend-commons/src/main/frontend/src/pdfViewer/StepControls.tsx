@@ -20,20 +20,24 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { Box, IconButton, Typography } from "@mui/material";
 
 // Steps through a list one item at a time, with Previous and Next buttons around the position, as in
-// "2 of 5". Each button is disabled at its end of the list. Positions count from 1.
-export default function StepControls({ position, count, itemName, onStep }: {
+// "2 of 5". Each button is disabled at its end of the list. Positions count from 1. Given a heading, as
+// above a list, it shows that between the buttons instead of the count.
+export default function StepControls({ position, count, itemName, heading, onStep }: {
   position: number;
   count: number;
   // The item's name in the button labels, as "passage" in "Next passage".
   itemName: string;
+  heading?: string;
   onStep: (position: number) => void;
 }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+    <Box sx={{ display: "flex", alignItems: "center", flexShrink: 0, justifyContent: "space-between" }}>
       <IconButton aria-label={`Previous ${itemName}`} disabled={position <= 1} onClick={() => onStep(position - 1)}>
         <ChevronLeftIcon />
       </IconButton>
-      <Typography variant="caption" noWrap>{`${position} of ${count}`}</Typography>
+      {heading === undefined
+        ? <Typography variant="caption" noWrap>{`${position} of ${count}`}</Typography>
+        : <Typography variant="subtitle2" component="p" noWrap>{heading}</Typography>}
       <IconButton aria-label={`Next ${itemName}`} disabled={position >= count} onClick={() => onStep(position + 1)}>
         <ChevronRightIcon />
       </IconButton>
