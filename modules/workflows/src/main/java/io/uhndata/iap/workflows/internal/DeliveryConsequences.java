@@ -44,8 +44,11 @@ import io.uhndata.iap.workflows.spi.Execution;
 
 /**
  * What one delivery leaves behind besides its writes. What its steps said they did, and the instance it started, are
- * recorded by its commit. Once it commits, the notifications its message events announced are sent, and the work its
- * steps left for after the commit is done, such as checking back in the nodes they checked out.
+ * recorded by its commit. Once it commits, the notifications its message events announced are sent, the work its
+ * steps left for after the commit is done, and the nodes they checked out are checked back in.
+ *
+ * <p>A checkout takes effect at once and survives a revert. The nodes a delivery checked out are therefore checked
+ * back in whether it commits or not.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -59,6 +62,8 @@ final class DeliveryConsequences
     private final List<RecordedEffect> effects = new ArrayList<>();
 
     private final List<CommittedWork> afterCommit = new ArrayList<>();
+
+    private final List<CommittedWork> checkIns = new ArrayList<>();
 
     private String startedInstance;
 
@@ -113,13 +118,13 @@ final class DeliveryConsequences
     }
 
     /**
-     * Notes a node to check back in once the delivery has committed.
+     * Notes a node to check back in once the delivery has committed, or has been reverted.
      *
      * @param path the path of the versionable node
      */
     void checkInAfterCommit(final String path)
     {
-        this.afterCommit.add(new CommittedWork(resolver -> checkIn(resolver, path),
+        this.checkIns.add(new CommittedWork(resolver -> checkIn(resolver, path),
             ErrorContext.of(DeliveryConsequences.class, "checkIn").about(path)));
     }
 
@@ -168,9 +173,9 @@ final class DeliveryConsequences
     }
 
     /**
-     * Finishes what waited for the commit: sends the notifications, then does the work the steps left, in the order
-     * they left it. The delivery has committed by then, so a piece of work that fails is reported rather than thrown,
-     * and the rest still runs.
+     * Finishes what waited for the commit: sends the notifications, does the work the steps left in the order they
+     * left it, then checks back in what they checked out. The delivery has committed by then, so a piece of work
+     * that fails is reported rather than thrown, and the rest still runs.
      *
      * @param resolver the engine's resolver, which committed the delivery
      */
@@ -178,6 +183,23 @@ final class DeliveryConsequences
     {
         this.notifications.send();
         this.afterCommit.forEach(work -> work.perform(resolver));
+        checkInAll(resolver);
+    }
+
+    /**
+     * Cleans up after a delivery that did not commit: checks back in what its steps checked out. Its notifications
+     * and the work its steps left are dropped.
+     *
+     * @param resolver the engine's resolver, reverted, since a check-in refuses pending changes
+     */
+    void abandon(final ResourceResolver resolver)
+    {
+        checkInAll(resolver);
+    }
+
+    private void checkInAll(final ResourceResolver resolver)
+    {
+        this.checkIns.forEach(work -> work.perform(resolver));
     }
 
     private static void checkIn(final ResourceResolver resolver, final String path)

@@ -19,16 +19,29 @@ package io.uhndata.iap.workflows.internal;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.Workspace;
+import javax.jcr.version.VersionManager;
+
+import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -49,13 +62,15 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for what the engine does once a delivery has committed: send the notifications its message events
- * announced, and do the work its steps left. A stand-in task completion announces the messages and performs the
- * activities a test names: the mock repository cannot undo a lost attempt, so a real walk cannot be retried here.
+ * announced, do the work its steps left, and check back in what they checked out. A stand-in task completion
+ * announces the messages and performs the activities a test names: the mock repository cannot undo a lost attempt,
+ * so a real walk cannot be retried here.
  *
  * @version $Id$
  * @since 0.1.0
@@ -75,6 +90,11 @@ class AfterCommitTest
 
     private static final String BROKEN = "broken";
 
+    private static final String CHECK_OUT = "checkOut";
+
+    /** The versionable node a step checks out, checked in at rest. */
+    private static final String VERSIONABLE = "/Submissions/request";
+
     /** Lets every commit through. */
     private static final EngineFixture.RepositoryAction NO_RACE = () -> { };
 
@@ -91,6 +111,32 @@ class AfterCommitTest
 
     /** The work done after the commit, named by the activity that left it. */
     private final List<String> done = new ArrayList<>();
+
+    /** The nodes checked out, which outlive any revert of the engine's session. */
+    private final Set<String> checkedOut = new HashSet<>();
+
+    private final VersionManager versions = Mockito.mock(VersionManager.class);
+
+    /**
+     * A handler checking a node out as {@code VersioningUtils.checkOut} does: only when it is checked in, asking for
+     * a check-in only then.
+     */
+    private final ServiceTaskHandler checkingOut = new ServiceTaskHandler()
+    {
+        @Override
+        public String getName()
+        {
+            return CHECK_OUT;
+        }
+
+        @Override
+        public void execute(final WorkflowTaskContext step)
+        {
+            if (AfterCommitTest.this.checkedOut.add(VERSIONABLE)) {
+                step.checkInAfterCommit(VERSIONABLE);
+            }
+        }
+    };
 
     /**
      * A handler leaving work for after the commit: recording its activity's name as done, or failing for the broken
@@ -118,8 +164,12 @@ class AfterCommitTest
     };
 
     @BeforeEach
-    void setUp()
+    void setUp() throws RepositoryException
     {
+        Mockito.when(this.versions.isCheckedOut(Mockito.anyString()))
+            .thenAnswer(invocation -> this.checkedOut.contains(invocation.<String>getArgument(0)));
+        Mockito.doAnswer(invocation -> this.checkedOut.remove(invocation.<String>getArgument(0)))
+            .when(this.versions).checkin(Mockito.anyString());
         WorkflowFixture.setUp(this.context);
         this.context.create().resource("/Submissions/request", TYPE, "sub/Submission");
         this.context.create().resource("/Submissions/request/wf:instances/process", TYPE,
@@ -233,6 +283,25 @@ class AfterCommitTest
     }
 
     @Test
+    void checksBackInWhatAnAttemptRetriedAfterAConflictCheckedOut() throws Exception
+    {
+        engine(new EngineFixture.OneLostRace(EngineFixture.OneLostRace.UNRELATED_CHANGE),
+            performing(checkOutStep()), this.told).receiveEvent(task(), DECIDED);
+
+        assertFalse(this.checkedOut.contains(VERSIONABLE));
+        Mockito.verify(this.versions, Mockito.times(2)).checkin(VERSIONABLE);
+    }
+
+    @Test
+    void checksBackInWhatADeliveryThatFailedCheckedOut() throws Exception
+    {
+        assertThrows(InvalidStateException.class, () -> engine(LOSING_EVERY_RACE, performing(checkOutStep()),
+            this.told).receiveEvent(task(), DECIDED));
+
+        assertFalse(this.checkedOut.contains(VERSIONABLE));
+    }
+
+    @Test
     void recordsAMessageEventThatTellsNobody() throws Exception
     {
         engine(NO_RACE, announcing(messageEvent(DECISION)), this.told).receiveEvent(task(), DECIDED);
@@ -323,6 +392,19 @@ class AfterCommitTest
     }
 
     /**
+     * An activity of a definition checking the versionable node out.
+     *
+     * @return the activity
+     */
+    private static Activity checkOutStep()
+    {
+        final Activity activity = Mockito.mock(Activity.class);
+        Mockito.when(activity.getHandler()).thenReturn(CHECK_OUT);
+        Mockito.when(activity.getPath()).thenReturn("/Workflows/process/v1/" + CHECK_OUT);
+        return activity;
+    }
+
+    /**
      * A message event of a definition that tells one role.
      *
      * @param name the message it announces
@@ -365,9 +447,41 @@ class AfterCommitTest
     {
         this.context.resourceResolver().commit();
         final WorkflowEngineImpl engine = EngineFixture.engine(
-            EngineFixture.serviceUsersRunning(this.context, beforeCommit), List.of(this.leavingWork), notifications);
+            versioned(EngineFixture.serviceUsersRunning(this.context, beforeCommit)),
+            List.of(this.leavingWork, this.checkingOut), notifications);
         EngineFixture.inject(engine, "taskCompletion", completion);
         return engine;
+    }
+
+    /**
+     * Hands out the factory's sessions with this test's version manager and versionable node, which the mock
+     * resources lack.
+     *
+     * @param factory the factory whose sessions to extend
+     * @return a factory handing out the extended sessions
+     * @throws LoginException never, the stubbed method merely declares it
+     */
+    private ResourceResolverFactory versioned(final ResourceResolverFactory factory) throws LoginException
+    {
+        final ResourceResolverFactory versioned = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(versioned.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation -> {
+            final ResourceResolver delegate = factory.getServiceResourceResolver(invocation.getArgument(0));
+            final Session session = Mockito.mock(JackrabbitSession.class,
+                AdditionalAnswers.delegatesTo(delegate.adaptTo(Session.class)));
+            final Workspace workspace = Mockito.mock(Workspace.class);
+            Mockito.doReturn(workspace).when(session).getWorkspace();
+            Mockito.doReturn(true).when(session).nodeExists(VERSIONABLE);
+            Mockito.doReturn(this.versions).when(workspace).getVersionManager();
+            return new ResourceResolverWrapper(delegate)
+            {
+                @Override
+                public <T> T adaptTo(final Class<T> type)
+                {
+                    return type == Session.class ? type.cast(session) : super.adaptTo(type);
+                }
+            };
+        });
+        return versioned;
     }
 
     private Resource task()

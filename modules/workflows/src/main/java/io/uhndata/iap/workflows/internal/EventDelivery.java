@@ -34,7 +34,8 @@ import io.uhndata.iap.workflows.api.WorkflowResult;
  *
  * <p>Each attempt reads the target afresh and has a dispatcher of its own. A lost attempt is reverted, which also
  * brings its session up to date, and the notifications it announced and the work it left are dropped with its
- * writes. The attempt that commits marks the entity it changed, then finishes what waited for its commit.</p>
+ * writes. What it checked out is checked back in, since a checkout survives a revert. The attempt that commits
+ * marks the entity it changed, then finishes what waited for its commit.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -97,10 +98,10 @@ final class EventDelivery
             EntityRevision.stamp(current);
             this.recorder.commit(resolver, outcome.action());
         } catch (final PersistenceException e) {
-            revert(resolver);
+            abandon(resolver, dispatcher);
             throw RepositoryFailures.translate(e);
         } catch (final WorkflowException | RuntimeException e) {
-            revert(resolver);
+            abandon(resolver, dispatcher);
             throw e;
         }
         dispatcher.completeAfterCommit(resolver);
@@ -108,16 +109,17 @@ final class EventDelivery
     }
 
     /**
-     * Discards whatever an aborted attempt had already changed. A failing event leaves no trace in the engine's
-     * session.
+     * Discards whatever an aborted attempt had already changed. A failing event leaves no trace.
      *
      * @param resolver the engine's session
+     * @param dispatcher the attempt's dispatcher, which knows what its steps checked out
      */
-    private static void revert(final ResourceResolver resolver)
+    private static void abandon(final ResourceResolver resolver, final ServiceTaskDispatcher dispatcher)
     {
         if (resolver.hasChanges()) {
             resolver.revert();
         }
+        dispatcher.consequences().abandon(resolver);
     }
 
     /**

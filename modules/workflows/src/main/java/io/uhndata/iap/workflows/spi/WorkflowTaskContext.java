@@ -129,7 +129,8 @@ public interface WorkflowTaskContext extends Execution
     /**
      * Asks for a versionable node to be checked back in once this delivery has committed. A step that had to check
      * a node out cannot check it back in itself. A check-in refuses pending changes, and the delivery's changes stay
-     * pending until the engine commits them all at once.
+     * pending until the engine commits them all at once. A checkout survives a revert, so a delivery that fails, or
+     * an attempt retried after a conflict, checks the node back in too.
      *
      * @param path the absolute path of the versionable node
      */

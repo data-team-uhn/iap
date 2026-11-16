@@ -776,7 +776,9 @@ ask the engine for more within the same execution and commit; the built-in
 `callActivity` and `startWorkflow` handlers are thin over them. `recordRole` names, for
 the [history](history.md), the part a resource played in the step, such as `retired`;
 what changed is recorded without it. A step that checked a node out cannot check it back
-in, since a check-in refuses pending changes, so it asks with `checkInAfterCommit`.
+in, since a check-in refuses pending changes, so it asks with `checkInAfterCommit`. A
+checkout survives a revert, so the node is checked back in after a delivery that fails,
+or an attempt retried after a conflict, as well.
 `afterCommit` leaves other work for once the delivery has committed. It is for work that
 is low-risk, not critical and not expected to fail, and that either needs the commit to
 have happened or cannot be undone. For example:
