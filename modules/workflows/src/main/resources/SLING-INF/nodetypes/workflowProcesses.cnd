@@ -30,7 +30,9 @@
 //-----------------------------------------------------------------------------
 // Mixin that can be added to any nodetype to let workflows run over it. The
 // instances live inside the thing they drive, rather than being pointed at from
-// it, so that they are found, secured and deleted along with it.
+// it, so that they are found, secured and deleted along with it. Only an entity,
+// or a part of one, may carry it: every event moving an instance gives that
+// entity a new revision, so two events moving one instance at once conflict.
 [wf:WorkflowAttachable]
   mixin
 
@@ -88,11 +90,6 @@
 
   // When this instance finished
   - endTime (DATE)
-
-  // Changed by every event that carries the instance on from a task, so two
-  // such events at once conflict when the second commits, instead of each
-  // seeing only its own branch arrive at a join.
-  - walkId (STRING)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

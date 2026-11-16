@@ -1036,10 +1036,11 @@ instance resumed days later.
 default. One with a single unconditioned way out is a merge, and passes a token straight
 through.
 
-**Two events on one instance cannot both commit.** Every event aimed at a task stamps
-its instance with a new `walkId`, so two requests moving branches of one instance at
-once conflict, and the loser is reverted and run again on top of the winner. Without
-this, two branches reaching a join in two requests would each see only itself arrive.
+**Two events on one instance cannot both commit.** An instance is a part of the entity
+it runs over, and every event aimed at a task gives that entity a new `revision`, as
+below. Two requests moving branches of one instance at once therefore conflict, and the
+loser is reverted and run again on top of the winner. Without this, two branches
+reaching a join in two requests would each see only itself arrive.
 
 **Two events on one entity cannot both commit either.** Every event the engine commits
 writes a fresh `revision` on each entity it changed: the one it is aimed at, any a step
