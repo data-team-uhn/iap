@@ -727,6 +727,26 @@ class WorkflowEngineImplTest
     }
 
     @Test
+    void undoesWhatTheWorkflowOfASentEventRegisteredWhenTheDeliveryFails() throws Exception
+    {
+        final Resource entity = createEntity();
+        createOtherEntity();
+        EngineFixture.createSystemWorkflow(this.context, Entity.RESOURCE_TYPE);
+        createNoopGraph();
+        createWorkflow("/SystemWorkflows/touching/v1", Entity.RESOURCE_TYPE, "touch", EngineFixture.ADMIN,
+            Map.of("handler", "undoable"));
+        final WorkflowEvent touch = new WorkflowEvent("touch", Map.of());
+        final List<String> undone = new ArrayList<>();
+        final WorkflowEngine engine = engine(new PersistenceException("the disk is on fire"),
+            new StepHandler("noop", step -> step.sendEvent(otherEntity(step), touch)),
+            new StepHandler("undoable", step -> step.onRollback(() -> undone.add("touch"))));
+
+        assertThrows(WorkflowFailedException.class, () -> engine.receiveEvent(entity, CREATE));
+
+        assertEquals(List.of("touch"), undone);
+    }
+
+    @Test
     void marksTheEntityEnclosingTheTaskAnEventCompletes() throws Exception
     {
         final Resource task = createTask();

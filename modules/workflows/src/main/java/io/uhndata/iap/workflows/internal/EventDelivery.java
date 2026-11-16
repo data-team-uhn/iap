@@ -34,8 +34,8 @@ import io.uhndata.iap.workflows.api.WorkflowResult;
  *
  * <p>Each attempt reads the target afresh and has a dispatcher of its own. A lost attempt is reverted, which also
  * brings its session up to date, and the notifications it announced and the work it left are dropped with its
- * writes. What it checked out is checked back in, since a checkout survives a revert. The attempt that commits
- * marks each entity it changed, then finishes what waited for its commit.</p>
+ * writes. The actions its steps registered for a rollback then run. The attempt that commits marks each entity it
+ * changed, then finishes what waited for its commit.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -105,22 +105,23 @@ final class EventDelivery
             abandon(resolver, dispatcher);
             throw e;
         }
-        dispatcher.completeAfterCommit(resolver);
+        dispatcher.completeAfterCommit();
         return new WorkflowResult(outcome.variables());
     }
 
     /**
-     * Discards whatever an aborted attempt had already changed. A failing event leaves no trace.
+     * Discards whatever an aborted attempt had already changed, then undoes what its steps registered for a rollback.
+     * A failing event leaves no trace.
      *
      * @param resolver the engine's session
-     * @param dispatcher the attempt's dispatcher, which knows what its steps checked out
+     * @param dispatcher the attempt's dispatcher, which holds the actions its steps registered for a rollback
      */
     private static void abandon(final ResourceResolver resolver, final ServiceTaskDispatcher dispatcher)
     {
         if (resolver.hasChanges()) {
             resolver.revert();
         }
-        dispatcher.consequences().abandon(resolver);
+        dispatcher.consequences().abandon();
     }
 
     /**

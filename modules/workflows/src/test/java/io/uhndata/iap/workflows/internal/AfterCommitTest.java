@@ -19,29 +19,17 @@ package io.uhndata.iap.workflows.internal;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
-import javax.jcr.Workspace;
-import javax.jcr.version.VersionManager;
-
-import org.apache.jackrabbit.api.JackrabbitSession;
-import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -52,6 +40,7 @@ import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.Event;
 import io.uhndata.iap.workflows.models.TaskInstance;
@@ -62,15 +51,14 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for what the engine does once a delivery has committed: send the notifications its message events
- * announced, do the work its steps left, and check back in what they checked out. A stand-in task completion
- * announces the messages and performs the activities a test names: the mock repository cannot undo a lost attempt,
- * so a real walk cannot be retried here.
+ * announced, and do the work its steps left. And for what it does when an attempt does not commit: run the actions
+ * its steps registered for a rollback. A stand-in task completion announces the messages and performs the activities
+ * a test names: the mock repository cannot undo a lost attempt, so a real walk cannot be retried here.
  *
  * @version $Id$
  * @since 0.1.0
@@ -90,10 +78,11 @@ class AfterCommitTest
 
     private static final String BROKEN = "broken";
 
+    private static final String UNDOABLE = "undoable";
+
     private static final String CHECK_OUT = "checkOut";
 
-    /** The versionable node a step checks out, checked in at rest. */
-    private static final String VERSIONABLE = "/Submissions/request";
+    private static final String CHECK_IN = "checkIn";
 
     /** Lets every commit through. */
     private static final EngineFixture.RepositoryAction NO_RACE = () -> { };
@@ -101,6 +90,11 @@ class AfterCommitTest
     /** Refuses every commit as one that lost a race. */
     private static final EngineFixture.RepositoryAction LOSING_EVERY_RACE = () -> {
         throw EngineFixture.conflict();
+    };
+
+    /** Refuses every commit for a reason a retry cannot help. */
+    private static final EngineFixture.RepositoryAction FAILING_EVERY_COMMIT = () -> {
+        throw new PersistenceException("The disk is full");
     };
 
     private final SlingContext context = new SlingContext();
@@ -112,14 +106,12 @@ class AfterCommitTest
     /** The work done after the commit, named by the activity that left it. */
     private final List<String> done = new ArrayList<>();
 
-    /** The nodes checked out, which outlive any revert of the engine's session. */
-    private final Set<String> checkedOut = new HashSet<>();
-
-    private final VersionManager versions = Mockito.mock(VersionManager.class);
+    /** What the steps did and undid, in order, named by their activity. */
+    private final List<String> log = new ArrayList<>();
 
     /**
-     * A handler checking a node out as {@code VersioningUtils.checkOut} does: only when it is checked in, asking for
-     * a check-in only then.
+     * A handler checking a node out, and registering its check-in for the commit and for a rollback. The log stands
+     * for the node's checkouts and check-ins.
      */
     private final ServiceTaskHandler checkingOut = new ServiceTaskHandler()
     {
@@ -132,9 +124,36 @@ class AfterCommitTest
         @Override
         public void execute(final WorkflowTaskContext step)
         {
-            if (AfterCommitTest.this.checkedOut.add(VERSIONABLE)) {
-                step.checkInAfterCommit(VERSIONABLE);
-            }
+            AfterCommitTest.this.log.add(CHECK_OUT);
+            final Runnable checkIn = () -> AfterCommitTest.this.log.add(CHECK_IN);
+            step.afterCommit(checkIn);
+            step.onRollback(checkIn);
+        }
+    };
+
+    /**
+     * A handler noting its activity's name as done, and registering an action that notes it undone, or fails for the
+     * broken one.
+     */
+    private final ServiceTaskHandler undoable = new ServiceTaskHandler()
+    {
+        @Override
+        public String getName()
+        {
+            return UNDOABLE;
+        }
+
+        @Override
+        public void execute(final WorkflowTaskContext step)
+        {
+            final String name = step.getActivity().getName();
+            AfterCommitTest.this.log.add("did " + name);
+            step.onRollback(() -> {
+                if (BROKEN.equals(name)) {
+                    throw new IllegalStateException("The undo failed");
+                }
+                AfterCommitTest.this.log.add("undid " + name);
+            });
         }
     };
 
@@ -164,12 +183,8 @@ class AfterCommitTest
     };
 
     @BeforeEach
-    void setUp() throws RepositoryException
+    void setUp()
     {
-        Mockito.when(this.versions.isCheckedOut(Mockito.anyString()))
-            .thenAnswer(invocation -> this.checkedOut.contains(invocation.<String>getArgument(0)));
-        Mockito.doAnswer(invocation -> this.checkedOut.remove(invocation.<String>getArgument(0)))
-            .when(this.versions).checkin(Mockito.anyString());
         WorkflowFixture.setUp(this.context);
         this.context.create().resource("/Submissions/request", TYPE, "sub/Submission");
         this.context.create().resource("/Submissions/request/wf:instances/process", TYPE,
@@ -288,17 +303,56 @@ class AfterCommitTest
         engine(new EngineFixture.OneLostRace(EngineFixture.OneLostRace.UNRELATED_CHANGE),
             performing(checkOutStep()), this.told).receiveEvent(task(), DECIDED);
 
-        assertFalse(this.checkedOut.contains(VERSIONABLE));
-        Mockito.verify(this.versions, Mockito.times(2)).checkin(VERSIONABLE);
+        assertEquals(List.of(CHECK_OUT, CHECK_IN, CHECK_OUT, CHECK_IN), this.log);
     }
 
     @Test
-    void checksBackInWhatADeliveryThatFailedCheckedOut() throws Exception
+    void checksBackInWhatADeliveryThatFailedCheckedOut()
     {
-        assertThrows(InvalidStateException.class, () -> engine(LOSING_EVERY_RACE, performing(checkOutStep()),
+        assertThrows(WorkflowFailedException.class, () -> engine(FAILING_EVERY_COMMIT, performing(checkOutStep()),
             this.told).receiveEvent(task(), DECIDED));
 
-        assertFalse(this.checkedOut.contains(VERSIONABLE));
+        assertEquals(List.of(CHECK_OUT, CHECK_IN), this.log);
+    }
+
+    @Test
+    void undoesALostAttemptBeforeRetryingIt() throws Exception
+    {
+        engine(new EngineFixture.OneLostRace(EngineFixture.OneLostRace.UNRELATED_CHANGE),
+            performing(undoableStep("count")), this.told).receiveEvent(task(), DECIDED);
+
+        assertEquals(List.of("did count", "undid count", "did count"), this.log);
+    }
+
+    @Test
+    void undoesNothingOnceTheDeliveryCommits() throws Exception
+    {
+        engine(NO_RACE, performing(undoableStep("count")), this.told).receiveEvent(task(), DECIDED);
+
+        assertEquals(List.of("did count"), this.log);
+    }
+
+    @Test
+    void undoesTheLastStepFirst()
+    {
+        assertThrows(WorkflowFailedException.class, () -> engine(FAILING_EVERY_COMMIT,
+            performing(undoableStep("first"), undoableStep("second")), this.told).receiveEvent(task(), DECIDED));
+
+        assertEquals(List.of("did first", "did second", "undid second", "undid first"), this.log);
+    }
+
+    @Test
+    void recordsAnUndoThatFailsAgainstItsStepAndStillUndoesTheRest()
+    {
+        assertThrows(WorkflowFailedException.class, () -> engine(FAILING_EVERY_COMMIT,
+            performing(undoableStep("first"), undoableStep(BROKEN)), this.told).receiveEvent(task(), DECIDED));
+
+        assertEquals(List.of("did first", "did " + BROKEN, "undid first"), this.log);
+        final ArgumentCaptor<ErrorContext> recorded = ArgumentCaptor.forClass(ErrorContext.class);
+        Mockito.verify(this.recorder).logError(Mockito.any(IllegalStateException.class), recorded.capture());
+        assertEquals(UNDOABLE, recorded.getValue().getComponent());
+        assertEquals("rollback", recorded.getValue().getOperation());
+        assertEquals("/Workflows/process/v1/" + BROKEN, recorded.getValue().getSubject());
     }
 
     @Test
@@ -384,23 +438,36 @@ class AfterCommitTest
      */
     private static Activity activity(final String name)
     {
-        final Activity activity = Mockito.mock(Activity.class);
-        Mockito.when(activity.getHandler()).thenReturn(LEAVE_WORK);
-        Mockito.when(activity.getName()).thenReturn(name);
-        Mockito.when(activity.getPath()).thenReturn("/Workflows/process/v1/" + name);
-        return activity;
+        return step(LEAVE_WORK, name);
     }
 
     /**
-     * An activity of a definition checking the versionable node out.
+     * An activity of a definition checking a node out.
      *
      * @return the activity
      */
     private static Activity checkOutStep()
     {
+        return step(CHECK_OUT, CHECK_OUT);
+    }
+
+    /**
+     * An activity of a definition registering an undo, failing when it is the broken one.
+     *
+     * @param name the activity's name, which the step notes as done and undone
+     * @return the activity
+     */
+    private static Activity undoableStep(final String name)
+    {
+        return step(UNDOABLE, name);
+    }
+
+    private static Activity step(final String handler, final String name)
+    {
         final Activity activity = Mockito.mock(Activity.class);
-        Mockito.when(activity.getHandler()).thenReturn(CHECK_OUT);
-        Mockito.when(activity.getPath()).thenReturn("/Workflows/process/v1/" + CHECK_OUT);
+        Mockito.when(activity.getHandler()).thenReturn(handler);
+        Mockito.when(activity.getName()).thenReturn(name);
+        Mockito.when(activity.getPath()).thenReturn("/Workflows/process/v1/" + name);
         return activity;
     }
 
@@ -447,41 +514,10 @@ class AfterCommitTest
     {
         this.context.resourceResolver().commit();
         final WorkflowEngineImpl engine = EngineFixture.engine(
-            versioned(EngineFixture.serviceUsersRunning(this.context, beforeCommit)),
-            List.of(this.leavingWork, this.checkingOut), notifications);
+            EngineFixture.serviceUsersRunning(this.context, beforeCommit),
+            List.of(this.leavingWork, this.checkingOut, this.undoable), notifications);
         EngineFixture.inject(engine, "taskCompletion", completion);
         return engine;
-    }
-
-    /**
-     * Hands out the factory's sessions with this test's version manager and versionable node, which the mock
-     * resources lack.
-     *
-     * @param factory the factory whose sessions to extend
-     * @return a factory handing out the extended sessions
-     * @throws LoginException never, the stubbed method merely declares it
-     */
-    private ResourceResolverFactory versioned(final ResourceResolverFactory factory) throws LoginException
-    {
-        final ResourceResolverFactory versioned = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(versioned.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation -> {
-            final ResourceResolver delegate = factory.getServiceResourceResolver(invocation.getArgument(0));
-            final Session session = Mockito.mock(JackrabbitSession.class,
-                AdditionalAnswers.delegatesTo(delegate.adaptTo(Session.class)));
-            final Workspace workspace = Mockito.mock(Workspace.class);
-            Mockito.doReturn(workspace).when(session).getWorkspace();
-            Mockito.doReturn(true).when(session).nodeExists(VERSIONABLE);
-            Mockito.doReturn(this.versions).when(workspace).getVersionManager();
-            return new ResourceResolverWrapper(delegate)
-            {
-                @Override
-                public <T> T adaptTo(final Class<T> type)
-                {
-                    return type == Session.class ? type.cast(session) : super.adaptTo(type);
-                }
-            };
-        });
-        return versioned;
     }
 
     private Resource task()

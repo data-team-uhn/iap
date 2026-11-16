@@ -20,10 +20,13 @@ package io.uhndata.iap.utils;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.Workspace;
 import javax.jcr.version.VersionException;
+import javax.jcr.version.VersionManager;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -32,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -41,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link VersioningUtils}: whichever versionable node holds content read-only is checked out, and
- * nothing is touched when the content is writable already.
+ * nothing is touched when the content is writable already. A checked-out node is checked back in.
  *
  * @version $Id$
  * @since 0.1.0
@@ -146,5 +150,70 @@ class VersioningUtilsTest
 
         assertTrue(refusal.getMessage().contains("/record"), refusal.getMessage());
         assertInstanceOf(RepositoryException.class, refusal.getCause());
+    }
+
+    @Test
+    void checksInACheckedOutNode() throws PersistenceException, RepositoryException
+    {
+        this.session.getWorkspace().getVersionManager().checkout("/record");
+
+        VersioningUtils.checkIn(this.context.resourceResolver(), "/record");
+
+        assertFalse(this.record.isCheckedOut());
+    }
+
+    @Test
+    void leavesARemovedNodeAlone()
+    {
+        assertDoesNotThrow(() -> VersioningUtils.checkIn(this.context.resourceResolver(), "/gone"));
+    }
+
+    @Test
+    void leavesACheckedInNodeAlone() throws PersistenceException, RepositoryException
+    {
+        // Checking in a checked-in node changes nothing in Oak, so only a mock shows it is not asked to
+        final VersionManager versions = Mockito.mock(VersionManager.class);
+
+        VersioningUtils.checkIn(resolverWith(versions), "/record");
+
+        Mockito.verify(versions, Mockito.never()).checkin(Mockito.anyString());
+    }
+
+    @Test
+    void checksInNothingWithoutAJcrSession()
+    {
+        assertDoesNotThrow(() -> VersioningUtils.checkIn(Mockito.mock(ResourceResolver.class), "/record"));
+    }
+
+    @Test
+    void reportsANodeThatCannotBeCheckedInAsAFailedWrite() throws RepositoryException
+    {
+        final VersionManager versions = Mockito.mock(VersionManager.class);
+        Mockito.when(versions.isCheckedOut("/record")).thenThrow(new RepositoryException("gone"));
+        final ResourceResolver resolver = resolverWith(versions);
+
+        final PersistenceException refusal =
+            assertThrows(PersistenceException.class, () -> VersioningUtils.checkIn(resolver, "/record"));
+
+        assertTrue(refusal.getMessage().contains("/record"), refusal.getMessage());
+        assertInstanceOf(RepositoryException.class, refusal.getCause());
+    }
+
+    /**
+     * Mocks a resolver whose JCR session has a node at {@code /record}, versioned through a given version manager.
+     *
+     * @param versions the version manager the session's workspace answers with
+     * @return the mocked resolver
+     */
+    private static ResourceResolver resolverWith(final VersionManager versions) throws RepositoryException
+    {
+        final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
+        final Session session = Mockito.mock(Session.class);
+        final Workspace workspace = Mockito.mock(Workspace.class);
+        Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);
+        Mockito.when(session.getWorkspace()).thenReturn(workspace);
+        Mockito.when(session.nodeExists("/record")).thenReturn(true);
+        Mockito.when(workspace.getVersionManager()).thenReturn(versions);
+        return resolver;
     }
 }

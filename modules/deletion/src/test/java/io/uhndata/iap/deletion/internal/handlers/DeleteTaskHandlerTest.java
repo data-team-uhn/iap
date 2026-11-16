@@ -20,7 +20,13 @@ package io.uhndata.iap.deletion.internal.handlers;
 import java.lang.reflect.Field;
 import java.util.List;
 
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.Workspace;
+import javax.jcr.version.VersionManager;
+
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -117,14 +123,54 @@ class DeleteTaskHandlerTest
     }
 
     @Test
-    void asksForWhatTheDeletionCheckedOutToBeCheckedInOnceTheDeliveryCommits() throws Exception
+    void checksInWhatTheDeletionCheckedOutWhetherTheDeliveryCommitsOrNot() throws Exception
     {
         answer(DeletionResult.Status.ARCHIVED, List.of("/Schemas", "/Schemas/other"));
+        final ArgumentCaptor<Runnable> afterCommit = ArgumentCaptor.forClass(Runnable.class);
+        final ArgumentCaptor<Runnable> onRollback = ArgumentCaptor.forClass(Runnable.class);
 
         this.handler.execute(this.context);
 
-        Mockito.verify(this.context).checkInAfterCommit("/Schemas");
-        Mockito.verify(this.context).checkInAfterCommit("/Schemas/other");
+        Mockito.verify(this.context, Mockito.times(2)).afterCommit(afterCommit.capture());
+        Mockito.verify(this.context, Mockito.times(2)).onRollback(onRollback.capture());
+        assertEquals(afterCommit.getAllValues(), onRollback.getAllValues());
+    }
+
+    @Test
+    void checksInTheNodeWhenTheDeliveryIsOver() throws Exception
+    {
+        answer(DeletionResult.Status.ARCHIVED, List.of("/Schemas"));
+        final VersionManager versions = checkedOutInTheRepository("/Schemas");
+
+        this.handler.execute(this.context);
+        registeredCheckIn().run();
+
+        Mockito.verify(versions).checkin("/Schemas");
+    }
+
+    @Test
+    void failsForTheEngineToRecordWhenTheCheckInFails() throws Exception
+    {
+        answer(DeletionResult.Status.ARCHIVED, List.of("/Schemas"));
+        final VersionManager versions = checkedOutInTheRepository("/Schemas");
+        Mockito.when(versions.checkin("/Schemas")).thenThrow(new RepositoryException("locked"));
+
+        this.handler.execute(this.context);
+        final Runnable checkIn = registeredCheckIn();
+
+        final IllegalStateException failure = assertThrows(IllegalStateException.class, checkIn::run);
+        assertTrue(failure.getMessage().contains("/Schemas"), failure.getMessage());
+    }
+
+    @Test
+    void checksInNothingWhenTheDeletionCheckedNothingOut() throws Exception
+    {
+        answer(DeletionResult.Status.ARCHIVED);
+
+        this.handler.execute(this.context);
+
+        Mockito.verify(this.context, Mockito.never()).afterCommit(Mockito.any());
+        Mockito.verify(this.context, Mockito.never()).onRollback(Mockito.any());
     }
 
     @Test
@@ -173,6 +219,34 @@ class DeleteTaskHandlerTest
             .thenThrow(new DeletionException("no service user", null));
 
         assertThrows(WorkflowFailedException.class, () -> this.handler.execute(this.context));
+    }
+
+    /**
+     * Gives the step a JCR session in which a node exists and is checked out.
+     *
+     * @param path the absolute path of the checked-out node
+     * @return the version manager the check-in goes through
+     */
+    private VersionManager checkedOutInTheRepository(final String path) throws RepositoryException
+    {
+        final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
+        final Session session = Mockito.mock(Session.class);
+        final Workspace workspace = Mockito.mock(Workspace.class);
+        final VersionManager versions = Mockito.mock(VersionManager.class);
+        Mockito.when(this.context.getResourceResolver()).thenReturn(resolver);
+        Mockito.when(resolver.adaptTo(Session.class)).thenReturn(session);
+        Mockito.when(session.getWorkspace()).thenReturn(workspace);
+        Mockito.when(session.nodeExists(path)).thenReturn(true);
+        Mockito.when(workspace.getVersionManager()).thenReturn(versions);
+        Mockito.when(versions.isCheckedOut(path)).thenReturn(true);
+        return versions;
+    }
+
+    private Runnable registeredCheckIn()
+    {
+        final ArgumentCaptor<Runnable> checkIn = ArgumentCaptor.forClass(Runnable.class);
+        Mockito.verify(this.context).afterCommit(checkIn.capture());
+        return checkIn.getValue();
     }
 
     /**

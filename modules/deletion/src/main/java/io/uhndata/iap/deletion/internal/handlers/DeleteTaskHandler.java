@@ -19,7 +19,9 @@ package io.uhndata.iap.deletion.internal.handlers;
 
 import java.util.stream.Collectors;
 
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
@@ -28,6 +30,7 @@ import io.uhndata.iap.deletion.api.DeletionOptions;
 import io.uhndata.iap.deletion.api.DeletionResult;
 import io.uhndata.iap.deletion.api.DeletionService;
 import io.uhndata.iap.deletion.api.Veto;
+import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -42,8 +45,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * with an {@link InvalidStateException}. The archive records the user the workflow acts for as having deleted it.
  *
  * <p>The deletion is made {@link DeletionService#deleteWithin within the delivery}: the engine commits it with the
- * delivery's other changes, or reverts it with them. The nodes it checks out are checked back in after that
- * commit.</p>
+ * delivery's other changes, or reverts it with them. The nodes it checks out are checked back in either way.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -81,13 +83,37 @@ public class DeleteTaskHandler implements ServiceTaskHandler
             throw new WorkflowFailedException("Could not delete " + target.getPath(), e);
         }
         switch (result.getStatus()) {
-            case ARCHIVED, DELETED -> result.getCheckedOut().forEach(context::checkInAfterCommit);
+            case ARCHIVED, DELETED -> result.getCheckedOut().forEach(path -> checkInAfterDelivery(context, path));
             case VETOED -> throw new InvalidStateException(result.getImpact().getVetoes().stream()
                 .map(Veto::getReason)
                 .distinct()
                 .collect(Collectors.joining("; ")));
             case REQUIRES_CONFIRMATION -> throw new InvalidStateException(result.getImpact().getSummary());
             default -> throw new NotAuthorizedException("The workflow may not delete " + target.getPath());
+        }
+    }
+
+    /**
+     * Checks a node the deletion checked out back in once the delivery is over. A check-in refuses pending changes, so
+     * it waits for the commit. A checkout survives a revert, so it also runs when the delivery does not commit.
+     *
+     * @param context the context of the step that deleted
+     * @param path the absolute path of the versionable node the deletion checked out
+     */
+    private static void checkInAfterDelivery(final WorkflowTaskContext context, final String path)
+    {
+        final ResourceResolver resolver = context.getResourceResolver();
+        final Runnable checkIn = () -> checkIn(resolver, path);
+        context.afterCommit(checkIn);
+        context.onRollback(checkIn);
+    }
+
+    private static void checkIn(final ResourceResolver resolver, final String path)
+    {
+        try {
+            VersioningUtils.checkIn(resolver, path);
+        } catch (final PersistenceException e) {
+            throw new IllegalStateException("Could not check " + path + " back in", e);
         }
     }
 }

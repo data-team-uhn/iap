@@ -19,16 +19,19 @@ package io.uhndata.iap.utils;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 import javax.jcr.version.VersionException;
+import javax.jcr.version.VersionManager;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Makes versioned content writable. A checked-in versionable node is read-only, with everything under it, so the
- * versionable node holding content has to be checked out before the content changes.
+ * Makes versioned content writable, and read-only again afterwards. A checked-in versionable node is read-only, with
+ * everything under it, so the versionable node holding content has to be checked out before the content changes.
  *
  * @version $Id$
  * @since 0.1.0
@@ -89,6 +92,32 @@ public final class VersioningUtils
             return checkOut(node);
         } catch (final RepositoryException e) {
             throw new PersistenceException("Cannot check out " + resource.getPath(), e);
+        }
+    }
+
+    /**
+     * Checks a versionable node back in, making it read-only again. A check-in refuses pending changes, so it comes
+     * after the changes made while the node was checked out are saved or discarded. A node that no longer exists, or
+     * that is checked in already, is left alone.
+     *
+     * @param resolver the resolver whose JCR session checks the node in; nothing is checked in if it has no session
+     * @param path the absolute path of the versionable node, as {@link #checkOut(Resource)} returns it
+     * @throws PersistenceException when the check-in fails
+     */
+    public static void checkIn(@NotNull final ResourceResolver resolver, @NotNull final String path)
+        throws PersistenceException
+    {
+        final Session session = resolver.adaptTo(Session.class);
+        if (session == null) {
+            return;
+        }
+        try {
+            final VersionManager versions = session.getWorkspace().getVersionManager();
+            if (session.nodeExists(path) && versions.isCheckedOut(path)) {
+                versions.checkin(path);
+            }
+        } catch (final RepositoryException e) {
+            throw new PersistenceException("Cannot check in " + path, e);
         }
     }
 }

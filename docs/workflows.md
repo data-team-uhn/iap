@@ -756,8 +756,8 @@ void             sendEvent(Resource target, WorkflowEvent event);
 void             startWorkflow(Resource host, WorkflowVersion version);
 void             replaceWorkflow(Resource host, WorkflowVersion version);
 void             recordRole(Resource resource, String role);
-void             checkInAfterCommit(String path);
 void             afterCommit(Runnable work);
+void             onRollback(Runnable action);
 
 // ExecutionHost, Payloads — reading a task's input the way the built-in handlers do
 static Resource        ExecutionHost.of(WorkflowTaskContext context);
@@ -776,11 +776,7 @@ ask the engine for more within the same execution and commit; the built-in
 `callActivity` and `startWorkflow` handlers are thin over them. `recordRole` names, for
 the [history](history.md), the part a resource played in the step, such as `retired`;
 what changed is recorded without it. It also gives the resource's entity a new
-`revision`, so a step that changes an entity other than its target names it there. A
-step that checked a node out cannot check it back in, since a check-in refuses pending
-changes, so it asks with `checkInAfterCommit`. A checkout survives a revert, so the node
-is checked back in after a delivery that fails, or an attempt retried after a conflict,
-as well.
+`revision`, so a step that changes an entity other than its target names it there.
 `afterCommit` leaves other work for once the delivery has committed. It is for work that
 is low-risk, not critical and not expected to fail, and that either needs the commit to
 have happened or cannot be undone. For example:
@@ -795,6 +791,21 @@ have happened or cannot be undone. For example:
 Work left by a delivery that fails, or by an attempt retried after a conflict, never
 runs. Work that fails is recorded against the step that left it, nothing retries it, and
 the rest still runs. Work the workflow cannot do without belongs in the delivery itself.
+
+`onRollback` is its twin. It registers an action that undoes a side effect of the step
+when the delivery does not commit: after a delivery that fails, and after an attempt
+lost to a conflict, before the retry. A delivery that commits never runs it. The action
+runs after the delivery's writes are reverted, so it cannot rely on them. Only an effect
+that persists without the commit needs one; Oak drops plain repository writes with the
+rest. The actions run last registered first, including those of the workflows a sent
+event ran. One that fails is recorded against its step, and the rest still run.
+
+A checkout is such an effect. It takes effect at once and survives a revert, and a step
+cannot check the node back in itself, since a check-in refuses pending changes.
+The step registers one action calling `VersioningUtils.checkIn` with both `afterCommit`
+and `onRollback`, so the node is checked back in whether the delivery commits or not.
+It does so only for a node it checked out itself: `VersioningUtils.checkOut` returns
+`null` for one that was writable already.
 
 Two helpers keep a module's handlers consistent with the built-in ones in
 `internal.handlers`. `ExecutionHost.of` is what a task acts on, as its activity answers

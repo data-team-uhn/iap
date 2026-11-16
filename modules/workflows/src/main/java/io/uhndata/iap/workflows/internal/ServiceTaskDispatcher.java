@@ -136,12 +136,10 @@ final class ServiceTaskDispatcher
 
     /**
      * Finishes what waited for this delivery's commit: its notifications, and the work its steps left.
-     *
-     * @param resolver the engine's resolver, which committed the delivery
      */
-    void completeAfterCommit(final ResourceResolver resolver)
+    void completeAfterCommit()
     {
-        this.consequences.completeAfterCommit(resolver);
+        this.consequences.completeAfterCommit();
     }
 
     /**
