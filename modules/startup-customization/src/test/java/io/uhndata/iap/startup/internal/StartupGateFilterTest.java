@@ -90,6 +90,9 @@ class StartupGateFilterTest
     private static final List<String> REQUIRED =
         List.of(LOGIN_CHECK, FRAMEWORK_CHECK, BUNDLES_CHECK, AUTH_CHECK, SERVICES_CHECK);
 
+    /** Stands in for the startup page, so each test can tell it apart from what the application serves. */
+    private static final String PAGE = "<p>Starting up</p>";
+
     /** Stands in for the timings and stack traces that real checks put in their messages. */
     private static final String RESULT_MESSAGE = "diagnostics that must not be part of the description";
 
@@ -119,7 +122,8 @@ class StartupGateFilterTest
         this.bundleContext = mock(BundleContext.class);
         when(this.componentContext.getBundleContext()).thenReturn(this.bundleContext);
         this.poller = mock(ScheduledExecutorService.class);
-        this.filter = new StartupGateFilter(this.executor, this.componentContext, this.poller);
+        this.filter = new StartupGateFilter(this.executor, this.componentContext, this.poller,
+            new StartupPage(PAGE));
         this.request = mock(HttpServletRequest.class);
         when(this.request.getRequestURI()).thenReturn("/some/page.html");
         this.response = mock(HttpServletResponse.class);
@@ -196,10 +200,11 @@ class StartupGateFilterTest
     }
 
     /** Rebuilds the gate as an end-to-end launch starts it, with {@link StartupGateFilter#RETIRE_WHEN_QUIET} set. */
-    private void retiringWhenQuiet() throws IOException
+    private void retiringWhenQuiet()
     {
         when(this.bundleContext.getProperty(StartupGateFilter.RETIRE_WHEN_QUIET)).thenReturn("true");
-        this.filter = new StartupGateFilter(this.executor, this.componentContext, this.poller);
+        this.filter = new StartupGateFilter(this.executor, this.componentContext, this.poller,
+            new StartupPage(PAGE));
     }
 
     private void aServiceChanges()
@@ -231,7 +236,7 @@ class StartupGateFilterTest
         verify(this.chain, never()).doFilter(this.request, this.response);
         verify(this.response).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
         verify(this.response).setHeader("Cache-Control", "no-store");
-        assertEquals(StartupPageFixture.stubPage(), this.body.toString());
+        assertEquals(PAGE, this.body.toString());
     }
 
     @Test
@@ -328,7 +333,7 @@ class StartupGateFilterTest
 
         verify(this.chain, never()).doFilter(this.request, this.response);
         verify(this.response).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-        assertEquals(StartupPageFixture.stubPage(), this.body.toString());
+        assertEquals(PAGE, this.body.toString());
     }
 
     @Test
@@ -501,7 +506,7 @@ class StartupGateFilterTest
     }
 
     @Test
-    void retiresOnceReadinessHasHeldAndTheFrameworkIsQuietWhenTheLaunchAsks() throws IOException
+    void retiresOnceReadinessHasHeldAndTheFrameworkIsQuietWhenTheLaunchAsks()
     {
         retiringWhenQuiet();
         everythingPasses();
@@ -538,7 +543,7 @@ class StartupGateFilterTest
     }
 
     @Test
-    void aServiceChangeRestartsTheQuietWindow() throws IOException
+    void aServiceChangeRestartsTheQuietWindow()
     {
         retiringWhenQuiet();
         everythingPasses();
@@ -556,7 +561,7 @@ class StartupGateFilterTest
     }
 
     @Test
-    void aBundleChangeRestartsTheQuietWindow() throws IOException
+    void aBundleChangeRestartsTheQuietWindow()
     {
         retiringWhenQuiet();
         everythingPasses();
@@ -574,7 +579,7 @@ class StartupGateFilterTest
     }
 
     @Test
-    void countsAChangeOnlyAgainstThePollThatFollowsIt() throws IOException
+    void countsAChangeOnlyAgainstThePollThatFollowsIt()
     {
         retiringWhenQuiet();
         everythingPasses();
@@ -587,7 +592,7 @@ class StartupGateFilterTest
     }
 
     @Test
-    void retiresAfterTheSettlePeriodEvenIfTheFrameworkNeverGoesQuiet() throws IOException
+    void retiresAfterTheSettlePeriodEvenIfTheFrameworkNeverGoesQuiet()
     {
         retiringWhenQuiet();
         everythingPasses();
@@ -696,7 +701,7 @@ class StartupGateFilterTest
     }
 
     @Test
-    void stopsPollingAndListeningWhenDeactivatedAfterAskingToRetireWhenQuiet() throws IOException
+    void stopsPollingAndListeningWhenDeactivatedAfterAskingToRetireWhenQuiet()
     {
         retiringWhenQuiet();
         final ArgumentCaptor<AllServiceListener> serviceListener = ArgumentCaptor.forClass(AllServiceListener.class);

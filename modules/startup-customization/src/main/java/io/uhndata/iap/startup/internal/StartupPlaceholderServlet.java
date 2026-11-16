@@ -18,10 +18,6 @@
 package io.uhndata.iap.startup.internal;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Objects;
 
 import jakarta.servlet.Servlet;
 import jakarta.servlet.http.HttpServlet;
@@ -49,32 +45,33 @@ public final class StartupPlaceholderServlet extends HttpServlet
 {
     private static final long serialVersionUID = 1L;
 
-    /** The "starting up" page, as HTML. */
-    private final String startupPage;
+    /** The "starting up" page. */
+    private final StartupPage startupPage;
 
     /**
-     * Loads the startup page from the bundle.
+     * Creates the servlet with the page this bundle ships.
      *
      * @throws IOException if the startup page cannot be read from the bundle, which means a broken build
      */
     @Activate
     public StartupPlaceholderServlet() throws IOException
     {
-        try (InputStream stub = Objects.requireNonNull(StartupPlaceholderServlet.class.getResourceAsStream(
-            "/custom_index.html"))) {
-            this.startupPage = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(stub.readAllBytes())).toString();
-        }
+        this(StartupPage.bundled());
+    }
+
+    /**
+     * Creates the servlet with the given page.
+     *
+     * @param startupPage the page to answer every request with
+     */
+    StartupPlaceholderServlet(final StartupPage startupPage)
+    {
+        this.startupPage = startupPage;
     }
 
     @Override
-    // The startup page is HTML
-    @SuppressWarnings("checkstyle:directResponseWriter")
     protected void service(final HttpServletRequest request, final HttpServletResponse response) throws IOException
     {
-        response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-        response.setContentType("text/html;charset=UTF-8");
-        // The real page replaces the stub at this URL once the gate opens, so the browser must not keep the stub
-        response.setHeader("Cache-Control", "no-store");
-        response.getWriter().write(this.startupPage);
+        this.startupPage.serve(response);
     }
 }

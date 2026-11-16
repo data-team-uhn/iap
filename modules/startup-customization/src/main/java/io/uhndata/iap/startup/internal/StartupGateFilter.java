@@ -18,9 +18,6 @@
 package io.uhndata.iap.startup.internal;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -187,8 +184,8 @@ public final class StartupGateFilter implements Filter
 
     private final BundleListener bundleListener = event -> this.frameworkChanged.set(true);
 
-    /** The "starting up" page, as HTML. */
-    private final String startupPage;
+    /** The "starting up" page. */
+    private final StartupPage startupPage;
 
     /** Whether requests may pass through. Written by the poller, read by every request. */
     private volatile boolean open;
@@ -226,28 +223,26 @@ public final class StartupGateFilter implements Filter
     public StartupGateFilter(@Reference final HealthCheckExecutor healthCheckExecutor,
         final ComponentContext componentContext) throws IOException
     {
-        this(healthCheckExecutor, componentContext, newPoller());
+        this(healthCheckExecutor, componentContext, newPoller(), StartupPage.bundled());
     }
 
     /**
-     * Creates the gate with the scheduler to poll on, so the tests can call {@link #poll} themselves.
+     * Creates the gate with the scheduler to poll on and the page to serve, so the tests can call {@link #poll}
+     * themselves.
      *
      * @param healthCheckExecutor runs the health checks tagged {@code systemalive}
      * @param componentContext gives the framework properties, and disables this component and the placeholder servlet
      *            and context when the gate retires
      * @param poller the scheduler that runs {@link #poll} every {@link #POLL_INTERVAL_MS}
-     * @throws IOException if the startup page cannot be read from the bundle
+     * @param startupPage the page to answer held requests with
      */
     StartupGateFilter(final HealthCheckExecutor healthCheckExecutor, final ComponentContext componentContext,
-        final ScheduledExecutorService poller) throws IOException
+        final ScheduledExecutorService poller, final StartupPage startupPage)
     {
         this.healthCheckExecutor = healthCheckExecutor;
         this.componentContext = componentContext;
         this.poller = poller;
-        try (InputStream stub = Objects.requireNonNull(StartupGateFilter.class.getResourceAsStream(
-            "/custom_index.html"))) {
-            this.startupPage = StandardCharsets.UTF_8.decode(ByteBuffer.wrap(stub.readAllBytes())).toString();
-        }
+        this.startupPage = startupPage;
         final BundleContext bundleContext = componentContext.getBundleContext();
         this.retireWhenQuiet = Boolean.parseBoolean(bundleContext.getProperty(RETIRE_WHEN_QUIET));
         if (this.retireWhenQuiet) {
@@ -284,8 +279,6 @@ public final class StartupGateFilter implements Filter
     }
 
     @Override
-    // The startup page is HTML
-    @SuppressWarnings("checkstyle:directResponseWriter")
     public void doFilter(final ServletRequest request, final ServletResponse response, final FilterChain chain)
         throws IOException, ServletException
     {
@@ -293,12 +286,7 @@ public final class StartupGateFilter implements Filter
             chain.doFilter(request, response);
             return;
         }
-        final HttpServletResponse httpResponse = (HttpServletResponse) response;
-        httpResponse.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-        httpResponse.setContentType("text/html;charset=UTF-8");
-        // The real page replaces the stub at this URL once the gate opens, so the browser must not keep the stub
-        httpResponse.setHeader("Cache-Control", "no-store");
-        httpResponse.getWriter().write(this.startupPage);
+        this.startupPage.serve((HttpServletResponse) response);
     }
 
     /** Evaluates readiness now, on the scheduler's thread. */
