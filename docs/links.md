@@ -122,7 +122,7 @@ Two writes commit on their own, as the `iap-links` service user. A missing `link
 container is created and committed at once, since adding it may mean checking out a
 versionable resource the caller cannot. When the service user cannot see the content,
 such as content not committed yet, the caller's session creates the container instead.
-The other is the automatic completion of backlinks.
+The other is keeping backlink pairs whole.
 
 `getDefinition(type)` takes no resolver. Everybody may read the definitions, and the
 manager reads them with its own `iap-link-types` service user, which can read nothing
@@ -154,11 +154,27 @@ Two links reverse each other when their endpoints are swapped and one's definiti
 names the other's as its `backlink`. Both facts are in the stored links. The listener
 also sees the reverse being created, finds the pair complete, and adds nothing.
 
+Removing a link removes its reverse the same way:
+
+- `remove(true)` deletes the reverse in the same session, when that session may
+  remove it.
+- Otherwise `BacklinkRemovalObserver` removes it after the commit, as the `iap-links`
+  service user. It is an Oak observer: it reads each removed link as it was before
+  the commit, and removes the link under its destination that points back at its
+  source with a type that pairs with its own, unless another link of the source
+  still pairs with it. Removing a whole `link:links` container works the same way.
+
+The observer removes a link only as the reverse of a removed one. A link still
+waiting for its reverse, or of a type given a `backlink` after it was made, stays. Content removed
+with its links is left to the definitions' `onDelete` ([deletion](deletion.md)).
+
+Giving a type a `backlink` is an administrator's decision that its links come in
+pairs, so **the service user ignores the access rights of the user who changed one
+half**, both ways. The observer also removes a reverse that `remove(false)` or
+`removeLinks` left behind.
+
 `getBacklinks()` asks Oak for the references to the content's node. It returns
 `InternalLink`s only, since external links point at nothing in the repository.
-
-`remove(true)` deletes the reverse too, in the same session, when that session can
-read it.
 
 ## External links
 

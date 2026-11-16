@@ -18,22 +18,15 @@
 package io.uhndata.iap.links.internal;
 
 import java.util.List;
-import java.util.Map;
 
-import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.observation.ResourceChange;
 import org.apache.sling.api.resource.observation.ResourceChangeListener;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import io.uhndata.iap.errortracking.api.ErrorContext;
-import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.links.models.InternalLink;
 
@@ -51,13 +44,19 @@ import io.uhndata.iap.links.models.InternalLink;
 })
 public class AutocreateBacklinksListener implements ResourceChangeListener
 {
-    private static final Logger LOGGER = LoggerFactory.getLogger(AutocreateBacklinksListener.class);
-
     @Reference
     private ResourceResolverFactory resolverFactory;
 
     @Reference
     private LinkOperations linkOperations;
+
+    private LinksServiceUser serviceUser;
+
+    @Activate
+    protected void activate()
+    {
+        this.serviceUser = new LinksServiceUser(this.resolverFactory, AutocreateBacklinksListener.class);
+    }
 
     @Override
     public void onChange(final List<ResourceChange> changes)
@@ -72,23 +71,11 @@ public class AutocreateBacklinksListener implements ResourceChangeListener
         if (!path.contains("/" + LinkManager.CONTAINER_NAME + "/")) {
             return;
         }
-        try (ResourceResolver serviceResolver = this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, LinkManagerImpl.SUBSERVICE_NAME))) {
+        this.serviceUser.commit(path, "completeBacklink", serviceResolver -> {
             final Resource resource = serviceResolver.getResource(path);
             if (resource != null) {
                 this.linkOperations.addBacklink(resource);
-                if (serviceResolver.hasChanges()) {
-                    serviceResolver.commit();
-                }
             }
-        } catch (final LoginException e) {
-            LOGGER.warn("Failed to get a service session for completing backlinks: {}", e.getMessage(), e);
-            ErrorLogger.logError(e, ErrorContext.of(AutocreateBacklinksListener.class, "serviceLogin")
-                .about(path));
-        } catch (final PersistenceException e) {
-            LOGGER.warn("Failed to complete the backlink for {}: {}", path, e.getMessage(), e);
-            ErrorLogger.logError(e, ErrorContext.of(AutocreateBacklinksListener.class, "completeBacklink")
-                .about(path));
-        }
+        });
     }
 }

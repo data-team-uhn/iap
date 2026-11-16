@@ -21,7 +21,8 @@ set ACL for everyone
     allow   jcr:read    on /LinkTypes
 end
 
-# Adds the missing link containers, and the reverse links a user may not add.
+# Adds the missing link containers, adds the reverse links a user may not add,
+# and removes the reverse links a user may not remove.
 # It writes wherever links go, and checks out a checked-in resource to add its
 # container.
 create service user iap-links

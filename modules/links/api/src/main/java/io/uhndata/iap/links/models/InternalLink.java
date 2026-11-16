@@ -154,15 +154,7 @@ public class InternalLink extends Link
     {
         final InternalLinkDefinition thisType = this.getDefinition();
         final InternalLinkDefinition otherType = other.getDefinition();
-        if (thisType == null || otherType == null) {
-            return false;
-        }
-        if (thisType.hasBacklink()) {
-            final InternalLinkDefinition backlink = thisType.getBacklink();
-            return backlink != null && backlink.getPath().equals(otherType.getPath());
-        }
-        final InternalLinkDefinition otherBacklink = otherType.hasBacklink() ? otherType.getBacklink() : null;
-        return otherBacklink != null && otherBacklink.getPath().equals(thisType.getPath());
+        return thisType != null && otherType != null && thisType.pairsWith(otherType);
     }
 
     /**

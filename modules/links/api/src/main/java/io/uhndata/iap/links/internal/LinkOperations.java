@@ -130,7 +130,8 @@ public interface LinkOperations
      * Deletes a link, in the link's session. The caller commits the deletion.
      *
      * @param link a link node
-     * @param removeBacklink whether to delete the reverse link too, if the link's session can read and remove it
+     * @param removeBacklink whether to delete the reverse link too, in the same session, when that session can read
+     *            and remove it. After the commit, the {@code iap-links} service user removes any reverse left behind.
      * @return {@code true} if the link was deleted; {@code false} if the node is not a link, or the deletion
      *         failed
      */

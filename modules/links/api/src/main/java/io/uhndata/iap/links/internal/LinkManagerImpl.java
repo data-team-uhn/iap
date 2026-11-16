@@ -389,7 +389,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     {
         final InternalLink backlink = link.getBacklink();
         final Resource backlinkResource = backlink == null ? null : resolver.getResource(backlink.getPath());
-        // A reverse this session may read but not remove stays where it is
+        // A reverse this session may read but not remove stays until the commit, then the service user removes it
         if (backlinkResource != null
             && this.sessionMay(resolver, backlinkResource.getPath(), Session.ACTION_REMOVE)) {
             this.delete(resolver, backlinkResource);
