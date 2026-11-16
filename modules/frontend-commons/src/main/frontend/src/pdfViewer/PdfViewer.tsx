@@ -15,38 +15,45 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CloseIcon from "@mui/icons-material/Close";
 import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import FitWidthIcon from "@mui/icons-material/FitScreen";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
-import ZoomInIcon from "@mui/icons-material/ZoomIn";
-import ZoomOutIcon from "@mui/icons-material/ZoomOut";
-import { Box, ButtonBase, DialogContent, IconButton, Typography, useMediaQuery } from "@mui/material";
-import { useTheme, type SxProps, type Theme } from "@mui/material/styles";
+import { Box, DialogContent, IconButton, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 import { createPortal } from "react-dom";
 
-import { getFileName, getPassageNote, getPassageStatus, type PassageNote } from "./pdfViewerModel";
-import { unquote } from "./quoteMatch";
-import { usePdfViewer } from "./usePdfViewer";
+import MarkList from "./MarkList";
+import { cannotMark, getMarksKey, orderMarks } from "./marksModel";
+import PassageCard from "./PassageCard";
+import PdfDocumentView from "./PdfDocumentView";
+import PdfToolbar from "./PdfToolbar";
+import { getFileName, getPassageNote, getPassageStatus } from "./pdfViewerModel";
+import StepControls from "./StepControls";
+import { useMarkPlaces, type MarkPlaces } from "./useMarkPlaces";
+import { useNarrowViewer } from "./useNarrowViewer";
+import { usePdfDocument } from "./usePdfDocument";
+import { usePdfView } from "./usePdfView";
 import LoadError from "../components/LoadError";
 import ResponsiveDialog from "../components/ResponsiveDialog";
+
+import type { Mark } from "./marksModel";
 
 export interface PdfViewerProps {
   // The PDF to open.
   url: string;
-  // The page to open it at, and to start looking for the quote from.
+  // The page to open it at: the selected mark's own page when absent, or else the first.
   page?: number;
-  // The passage to find and highlight.
-  quote: string;
-  // Whose mark the passage carries: an AI assistant's, or a person's.
-  markedBy: "assistant" | "annotation";
+  // The passages to find and mark, in the order to list them. Each is looked for from its own page
+  // onwards. New marks equal to the last ones are not looked for again.
+  marks: Mark[];
+  // The selected mark. The viewer takes the reader to it once it is found, and again each time the
+  // caller selects another. When absent or not among the marks, the viewer selects the first mark not
+  // known to be missing from the document.
+  selectedMarkId?: string;
+  // Called with the mark the person selects, in the document or in the list of passages.
+  onSelectMark?: (id: string) => void;
   // What the viewer is called; the PDF's file name when absent.
   title?: string;
   // An element for the viewer to fill, with a button to pop it out into a dialog. The element needs a
@@ -56,45 +63,51 @@ export interface PdfViewerProps {
   onClose: () => void;
 }
 
-// Enough page to read, even when a long quote takes most of the viewer.
-const MIN_FRAME_HEIGHT = 200;
-
-// Past this many lines, the passage is cut short until the person asks for all of it. On a phone it is
-// cut to one line, sharing its row with the note and the button showing all of it.
-const MAX_PASSAGE_LINES = 3;
-const MAX_PASSAGE_LINES_ON_PHONE = 1;
-
-// The error colour, in the shade that stays readable as small text on the passage's card in each scheme
-function failedColour(theme: Theme) {
-  const { error } = (theme.vars ?? theme).palette;
-  return { color: error.dark, ...theme.applyStyles("dark", { color: `color-mix(in srgb, ${error.main}, white)` }) };
-}
-
-function cutShort(lines: number) {
-  return { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" } as const;
-}
-
-// Opens a PDF, finds the quote in it and highlights it. The document still opens when the quote
-// cannot be found.
-export default function PdfViewer({ url, page, quote, markedBy, title, container, onClose }: PdfViewerProps) {
-  // Keyed so another document or quote starts over with nothing left from the last one.
-  return (
-    <PdfViewerSession
-      key={`${url}\n${page}\n${quote}`}
-      url={url}
-      page={page}
-      quote={quote}
-      markedBy={markedBy}
-      title={title}
-      container={container}
-      onClose={onClose}
-    />
-  );
+// Opens a PDF, finds the passages in it and marks them. The document still opens when a passage
+// cannot be found. One passage is shown above the document; several are listed beside it, or, in a
+// viewer too narrow for that, shown one at a time above it.
+export default function PdfViewer(props: PdfViewerProps) {
+  // Keyed so another document starts over with nothing left from the last one.
+  return <PdfViewerSession key={`${props.url}\n${props.page}`} {...props} />;
 }
 
 // The document stays open here while the viewer moves between the container and the dialog.
-function PdfViewerSession({ url, page, quote, markedBy, title, container, onClose }: PdfViewerProps) {
-  const viewer = usePdfViewer(url, page, quote);
+function PdfViewerSession(props: PdfViewerProps) {
+  const { url, page, selectedMarkId, onSelectMark, title, container, onClose } = props;
+  const marksKey = getMarksKey(props.marks);
+  const marks = useMemo(() => JSON.parse(marksKey) as Mark[], [marksKey]);
+  const [chosenId, setChosenId] = useState<string | undefined>(undefined);
+  // The mark last reported to the caller. The caller selecting it in turn does not move the reader.
+  const reportedId = useRef<string | undefined>(undefined);
+  // The mark the caller last selected. A change to the marks does not move the reader to it again.
+  const followedId = useRef<string | undefined>(undefined);
+  const { pdf, openError, retry } = usePdfDocument(url);
+  const places = useMarkPlaces(pdf, marks);
+  const firstMarkable = marks.find(mark => !cannotMark(places[mark.id]));
+  const selectedId = [ selectedMarkId, chosenId ].find(id => marks.some(mark => mark.id === id))
+    ?? (firstMarkable ?? marks.at(0))?.id;
+  const select = useCallback((id: string) => {
+    reportedId.current = id;
+    setChosenId(id);
+    onSelectMark?.(id);
+  }, [onSelectMark]);
+  const view = usePdfView(pdf, {
+    page: page ?? marks.find(mark => mark.id === selectedId)?.page,
+    marks,
+    places,
+    selectedId,
+    onSelectMark: select,
+  });
+  const { showMark } = view;
+  useEffect(() => {
+    if (selectedMarkId === followedId.current || !marks.some(mark => mark.id === selectedMarkId)) {
+      return;
+    }
+    followedId.current = selectedMarkId;
+    if (selectedMarkId !== undefined && selectedMarkId !== reportedId.current) {
+      showMark(selectedMarkId);
+    }
+  }, [selectedMarkId, marks, showMark]);
   const [poppedOut, setPoppedOut] = useState(false);
   const titleId = useId();
   const placeButtonRef = useRef<HTMLButtonElement>(null);
@@ -130,9 +143,13 @@ function PdfViewerSession({ url, page, quote, markedBy, title, container, onClos
     <ViewerBody
       titleId={titleId}
       title={title ?? getFileName(url)}
-      quote={quote}
-      markedBy={markedBy}
-      viewer={viewer}
+      marks={marks}
+      places={places}
+      selectedId={selectedId}
+      onSelect={select}
+      openError={openError}
+      onRetry={retry}
+      view={view}
       placeButton={placeButton}
       edgeToEdge={inDialog}
       onClose={onClose}
@@ -164,9 +181,13 @@ function PdfViewerSession({ url, page, quote, markedBy, title, container, onClos
 interface ViewerBodyProps {
   titleId: string;
   title: string;
-  quote: string;
-  markedBy: PdfViewerProps["markedBy"];
-  viewer: ReturnType<typeof usePdfViewer>;
+  marks: Mark[];
+  places: MarkPlaces;
+  selectedId: string | undefined;
+  onSelect: (id: string) => void;
+  openError: string | undefined;
+  onRetry: () => Promise<void>;
+  view: ReturnType<typeof usePdfView>;
   // Moves the viewer between its container and the dialog, when it has a container.
   placeButton: ReactNode;
   // In the dialog on a phone, the document spans the full screen width, past the dialog's padding.
@@ -174,15 +195,47 @@ interface ViewerBodyProps {
   onClose: () => void;
 }
 
-function ViewerBody({ titleId, title, quote, markedBy, viewer, placeButton, edgeToEdge, onClose }: ViewerBodyProps) {
-  const { state, setFrame, showPage, showPassage, zoomIn, zoomOut, fitWidth, retry } = viewer;
-  const pageCount = state.pageCount ?? 0;
-  // 0 until the document opens, which keeps both page buttons disabled.
-  const shownPage = state.page ?? 0;
-  const opened = state.pageCount !== undefined;
+function ViewerBody(props: ViewerBodyProps) {
+  const { titleId, title, marks, places, selectedId, onSelect, openError, onRetry, view } = props;
+  const { placeButton, edgeToEdge, onClose } = props;
+  const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
+  const [body, setBody] = useState<HTMLElement | null>(null);
+  const narrow = useNarrowViewer(body);
+  const ordered = useMemo(() => orderMarks(marks, places), [marks, places]);
+  const position = ordered.findIndex(mark => mark.id === selectedId);
+  const selected = position < 0 ? undefined : ordered[position];
+  const several = ordered.length > 1;
+  const among = { index: position + 1, count: ordered.length };
+  const status = { openError, page };
+  const showSelected = (id: string) => {
+    onSelect(id);
+    showMark(id);
+  };
+
+  const card = selected === undefined || (several && !narrow)
+    ? null
+    : (
+      <PassageCard
+        key={selected.id}
+        quote={selected.quote}
+        note={getPassageNote(status, places[selected.id])}
+        markedBy={selected.kind}
+        stepper={several
+          ? (
+            <StepControls
+              position={among.index}
+              count={among.count}
+              itemName="passage"
+              onStep={next => showSelected(ordered[next - 1].id)}
+            />
+          )
+          : undefined}
+        onShowPassage={() => showMark(selected.id)}
+      />
+    );
 
   return (
-    <>
+    <Box ref={setBody} sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
       <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
         <Typography id={titleId} variant="h6" component="h2" noWrap sx={{ flex: 1, minWidth: 0 }}>
           {title}
@@ -192,240 +245,45 @@ function ViewerBody({ titleId, title, quote, markedBy, viewer, placeButton, edge
           <CloseIcon />
         </IconButton>
       </Box>
-      <PassageLine
-        quote={quote}
-        note={getPassageNote(state)}
-        status={getPassageStatus(state)}
-        markedBy={markedBy}
-        onShowPassage={showPassage}
-      />
-      {/* One line even on a narrow phone: only the page label gives way. */}
-      <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
-        <IconButton
-          aria-label="Previous page"
-          edge="start"
-          disabled={shownPage <= 1}
-          onClick={() => showPage(shownPage - 1)}
-        >
-          <ChevronLeftIcon />
-        </IconButton>
-        <Typography variant="caption" noWrap sx={{ minWidth: 0, mx: 0.5 }}>
-          {opened ? `Page ${shownPage} of ${pageCount}` : "Page"}
-        </Typography>
-        <IconButton aria-label="Next page" disabled={shownPage >= pageCount} onClick={() => showPage(shownPage + 1)}>
-          <ChevronRightIcon />
-        </IconButton>
-        <Box sx={{ flexGrow: 1 }} />
-        <IconButton aria-label="Zoom out" disabled={!opened} onClick={zoomOut}>
-          <ZoomOutIcon />
-        </IconButton>
-        <IconButton aria-label="Fit to width" disabled={!opened} onClick={fitWidth}>
-          <FitWidthIcon />
-        </IconButton>
-        <IconButton aria-label="Zoom in" edge="end" disabled={!opened} onClick={zoomIn}>
-          <ZoomInIcon />
-        </IconButton>
-      </Box>
-      {state.openError === undefined
-        ? null
-        : (
-          <LoadError
-            title="The document could not be opened"
-            message={state.openError}
-            onRetry={retry}
-            sx={{ mb: 1 }}
-          />
-        )}
-      {/* PDF.js needs its scrolling container absolutely positioned, so this box gives it the room. */}
-      <Box
-        sx={{
-          position: "relative",
-          flex: "1 1 auto",
-          minHeight: MIN_FRAME_HEIGHT,
-          mx: edgeToEdge ? { xs: -2, sm: 0 } : 0,
-        }}
-      >
-        <Box
-          ref={setFrame}
-          role="region"
-          aria-label="Document"
-          tabIndex={0}
-          sx={theme => ({
-            position: "absolute",
-            inset: 0,
-            overflow: "auto",
-            bgcolor: "background.default",
-            borderRadius: edgeToEdge ? { xs: 0, sm: 1 } : 1,
-            // Sheets on the canvas, apart from each other
-            "& .pdfViewer.removePageBorders .page": { my: 1.5, mx: "auto", boxShadow: 2 },
-            // Multiplied like a highlighter's ink, so marks tint the paper and leave the text as dark.
-            "& .textLayer": { mixBlendMode: "multiply" },
-            "& .textLayer .highlight": {
-              "--highlight-bg-color": (theme.vars ?? theme).palette.highlight[markedBy],
-              "--highlight-selected-bg-color": (theme.vars ?? theme).palette.highlight[`${markedBy}Current`],
-            },
-          })}
-        >
-          <div className="pdfViewer" />
-        </Box>
-      </Box>
-    </>
-  );
-}
-
-// The passage and how the search for it went, on a card in its mark's colour. Once it is found, the
-// passage and its note take the reader to it. A passage running past its limit of lines is cut short,
-// with a button beside it showing all of it, since a button cannot hold another.
-function PassageLine({ quote, note, status, markedBy, onShowPassage }: {
-  quote: string;
-  note?: PassageNote;
-  status: string;
-  markedBy: PdfViewerProps["markedBy"];
-  onShowPassage: () => void;
-}) {
-  const phone = useMediaQuery(useTheme().breakpoints.down("sm"));
-  const limit = phone ? MAX_PASSAGE_LINES_ON_PHONE : MAX_PASSAGE_LINES;
-  const quoteId = useId();
-  const [copy, setCopy] = useState<HTMLElement | null>(null);
-  const [lines, setLines] = useState(0);
-  const [expanded, setExpanded] = useState(false);
-
-  // Counted on an invisible copy at the card's full width, which cutting the passage short does not change.
-  useLayoutEffect(() => {
-    if (copy === null) {
-      return undefined;
-    }
-    const measure = () => setLines(copy.firstElementChild?.getClientRects().length ?? 0);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(copy);
-    return () => observer.disconnect();
-  }, [copy]);
-
-  const long = lines > limit;
-  const cut = long && !expanded;
-  const oneRow = phone && cut;
-  const text = `“${unquote(quote)}”`;
-  const content = (
-    <>
-      <Typography
-        id={quoteId}
-        variant="body2"
-        component="span"
-        sx={cut ? { ...cutShort(limit), ...(oneRow ? { flex: 1, minWidth: 0 } : {}) } : { display: "block" }}
-      >
-        {text}
-        {long || note === undefined ? null : (
-          <Typography component="span" variant="caption" aria-hidden sx={{ color: "text.secondary" }}>
-            {" — "}
-            <NoteText note={note} />
-          </Typography>
-        )}
-      </Typography>
-      {long && note !== undefined
-        ? (
-          <Typography
-            component="span"
-            variant="caption"
-            aria-hidden
-            sx={{ display: "block", flexShrink: 0, pl: oneRow ? 1 : 0, color: "text.secondary" }}
-          >
-            <NoteText note={note} short={oneRow} />
-          </Typography>
-        )
-        : null}
-    </>
-  );
-  const passageSx: SxProps<Theme> = {
-    flex: 1,
-    minWidth: 0,
-    minHeight: 40,
-    px: 1.5,
-    py: 1,
-    display: "flex",
-    flexDirection: oneRow ? "row" : "column",
-    alignItems: oneRow ? "center" : "stretch",
-    justifyContent: "center",
-    textAlign: "start",
-  };
-
-  return (
-    <Box
-      sx={theme => ({
-        position: "relative",
-        display: "flex",
-        mb: 1,
-        borderRadius: 1,
-        overflow: "hidden",
-        borderInlineStart: `${theme.spacing(0.5)} solid`,
-        borderColor: `${markedBy}.main`,
-        bgcolor: theme.alpha((theme.vars ?? theme).palette[markedBy].light, 0.25),
-      })}
-    >
-      <Typography
-        ref={setCopy}
-        variant="body2"
-        component="span"
-        aria-hidden
-        sx={{ position: "absolute", insetInline: 0, px: 1.5, visibility: "hidden", pointerEvents: "none" }}
-      >
-        <span>{text}</span>
-      </Typography>
-      {note !== undefined && "foundOnPage" in note
-        ? (
-          <ButtonBase
-            focusRipple
-            aria-label={note.toPage === undefined
-              ? `Show the passage on page ${note.foundOnPage}`
-              : `Show the passage on pages ${note.foundOnPage} and ${note.toPage}`}
-            aria-describedby={quoteId}
-            onClick={onShowPassage}
-            sx={{
-              ...passageSx,
-              "@media (hover: hover)": { "&:hover": { bgcolor: "action.hover" } },
-              "&.Mui-focusVisible": { bgcolor: "action.hover" },
-            }}
-          >
-            {content}
-          </ButtonBase>
-        )
-        : <Box sx={passageSx}>{content}</Box>}
-      {long
-        ? (
-          <IconButton
-            aria-label={expanded ? "Show less of the passage" : "Show the whole passage"}
-            aria-expanded={expanded}
-            aria-controls={quoteId}
-            onClick={() => setExpanded(!expanded)}
-            sx={{ alignSelf: oneRow ? "center" : "flex-end" }}
-          >
-            {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-          </IconButton>
-        )
-        : null}
+      {card}
       {/* Always rendered, even empty: a screen reader only announces changes to a status it already has. */}
-      <Box role="status" sx={visuallyHidden}>{status}</Box>
-    </Box>
-  );
-}
-
-// When the passage was found on a page other than the one shown, the page number is styled as a link.
-// The passage and its note take the reader there.
-function NoteText({ note, short = false }: { note: PassageNote; short?: boolean }) {
-  if ("text" in note) {
-    const text = short ? note.short : note.text;
-    return note.failed ? <Box component="span" sx={failedColour}>{text}</Box> : text;
-  }
-  const pages = note.toPage === undefined ? `${note.foundOnPage}` : `${note.foundOnPage}–${note.toPage}`;
-  return (
-    <>
-      {short ? "p. " : `found on ${note.toPage === undefined ? "page" : "pages"} `}
-      <Box
-        component="span"
-        sx={note.shown ? undefined : { color: "primary.main", textDecoration: "underline" }}
-      >
-        {pages}
+      <Box role="status" sx={visuallyHidden}>
+        {selected === undefined ? "" : getPassageStatus(status, places[selected.id], several ? among : undefined)}
       </Box>
-    </>
+      <Box sx={{ display: "flex", gap: 2, flex: "1 1 auto", minHeight: 0 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
+          <PdfToolbar
+            page={page}
+            pageCount={pageCount}
+            onShowPage={showPage}
+            onZoomIn={zoomIn}
+            onZoomOut={zoomOut}
+            onFitWidth={fitWidth}
+          />
+          {openError === undefined
+            ? null
+            : (
+              <LoadError
+                title="The document could not be opened"
+                message={openError}
+                onRetry={onRetry}
+                sx={{ mb: 1 }}
+              />
+            )}
+          <PdfDocumentView setFrame={setFrame} edgeToEdge={edgeToEdge} outlineSelected={several} />
+        </Box>
+        {several && !narrow
+          ? (
+            <MarkList
+              marks={ordered}
+              places={places}
+              status={status}
+              selectedId={selected?.id}
+              onSelect={showSelected}
+            />
+          )
+          : null}
+      </Box>
+    </Box>
   );
 }
