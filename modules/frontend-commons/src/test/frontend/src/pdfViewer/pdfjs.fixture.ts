@@ -59,6 +59,12 @@ function createDefaults() {
     openOptions: [] as object[],
     workers: [] as unknown[],
     textReads: [] as number[],
+    // How many pages PDF.js's search has gone through for the last query, every page when undefined.
+    pagesSearched: undefined as number | undefined,
+    // Set to hold a new search pending until releaseSearch() is called, keeping the last search's matches
+    // meanwhile.
+    holdSearch: false,
+    releaseSearch: undefined as (() => void) | undefined,
     // Every search asked of PDF.js, as its find events.
     finds: [] as { type: string; query: string; findPrevious: boolean }[],
     hashes: [] as string[],
@@ -371,6 +377,7 @@ class FakePDFFindController {
   _eventBus: FakeEventBus;
   _selected = { pageIdx: -1, matchIdx: -1 };
   _scrollMatches = false;
+  _dirtyMatch = false;
   #matches: { pageIdx: number; matchIdx: number }[] = [];
   #position = -1;
 
@@ -383,14 +390,34 @@ class FakePDFFindController {
     });
   }
 
+  // The matches on each page searched so far, by page: none before the search has searched any.
+  get pageMatches(): number[][] | undefined {
+    const searched = fakePdf.pagesSearched ?? fakePdf.pages.length;
+    if (searched === 0) {
+      return undefined;
+    }
+    return fakePdf.pages.slice(0, searched)
+      .map((_, pageIdx) => this.#matches.filter(match => match.pageIdx === pageIdx).map(({ matchIdx }) => matchIdx));
+  }
+
   // Overridden by PdfViewer's search.
   scrollMatchIntoView(_params: { element: HTMLElement; pageIndex: number; matchIndex: number }): void {
     // Nothing to scroll in the stand-in
   }
 
-  #find({ type, query, findPrevious }: FindEvent): void {
+  #find(event: FindEvent): void {
+    const { type, query, findPrevious } = event;
     const count = (current: number) => ({ matchesCount: { current, total: this.#matches.length } });
     this._eventBus.dispatch("updatefindcontrolstate", { state: FindState.PENDING, ...count(0) });
+    if (type === "" && query !== "" && fakePdf.holdSearch) {
+      this._dirtyMatch = true;
+      fakePdf.releaseSearch = () => {
+        fakePdf.holdSearch = false;
+        this._dirtyMatch = false;
+        this.#find(event);
+      };
+      return;
+    }
     if (type === "") {
       this.#matches = query === ""
         ? []

@@ -41,6 +41,10 @@ interface MatchesCount {
   total: number;
 }
 
+// How often, in milliseconds, a search still counting its matches shows its count and checks whether
+// PDF.js has searched every page. Each time draws the viewer again.
+const COUNT_INTERVAL = 250;
+
 // Asks PDF.js's search to look for the query, or for its next or previous match, ignoring case and
 // accents, and highlighting every match. An empty query clears the highlights.
 function dispatchFind(eventBus: EventBus, query: string, again?: { previous: boolean }): void {
@@ -103,6 +107,8 @@ export function usePdfView(
   // The query, searched for anew when the viewer is rebuilt in another frame.
   const queryRef = useRef("");
   const eventBusRef = useRef<EventBus | undefined>(undefined);
+  // Starts showing the matches of a new search as PDF.js counts them, or stops.
+  const countRef = useRef<{ start: () => void; stop: () => void } | undefined>(undefined);
   const onSelectMarkRef = useRef(onSelectMark);
   useEffect(() => {
     onSelectMarkRef.current = onSelectMark;
@@ -122,7 +128,8 @@ export function usePdfView(
     viewerRef.current = viewer;
     eventBusRef.current = eventBus;
     linkService.setViewer(viewer);
-    viewer.findController = createFindController(components, { container: frame, linkService, eventBus });
+    const findController = createFindController(components, { container: frame, linkService, eventBus });
+    viewer.findController = findController;
 
     const { FOUND, NOT_FOUND, PENDING, WRAPPED } = components.FindState;
     // A document without text has no matches either. The search says it has no text instead.
@@ -132,10 +139,46 @@ export function usePdfView(
         setSearch(previous => ({ ...previous, ...noText, announcement: getSearchStatus(noText) }));
       }
     };
-    // PDF.js counts a new search's matches as 0 of 0 until it has picked the one to show.
+    // PDF.js counts a new search's matches as it searches the pages. The latest count is shown every
+    // COUNT_INTERVAL until every page has been searched. It counts them as 0 of 0 until it has picked the
+    // one to show.
+    let latestCount: MatchesCount | undefined;
+    let counting = 0;
+    const showCount = () => {
+      // While PDF.js waits for the typing to stop, a new search is pending and the last one's matches
+      // are kept.
+      const searched = (findController.pageMatches ?? []).reduce((pages: number) => pages + 1, 0);
+      const done = findController._dirtyMatch !== true && searched >= doc.numPages;
+      if (done) {
+        window.clearInterval(counting);
+      }
+      const count = latestCount;
+      setSearch(previous => {
+        const next = { ...previous, ...count, counting: !done };
+        const same = next.current === previous.current && next.total === previous.total;
+        if (same && next.counting === previous.counting) {
+          return previous;
+        }
+        // A match found before its count is known is announced once the count is.
+        const firstCount = previous.outcome === "found" && previous.current === 0 && next.current > 0;
+        return firstCount ? { ...next, announcement: getSearchStatus(next) } : next;
+      });
+    };
+    const stopCounting = () => {
+      window.clearInterval(counting);
+      latestCount = undefined;
+    };
+    countRef.current = {
+      start: () => {
+        stopCounting();
+        setSearch(previous => ({ ...previous, counting: true }));
+        counting = window.setInterval(showCount, COUNT_INTERVAL);
+      },
+      stop: stopCounting,
+    };
     eventBus.on("updatefindmatchescount", ({ matchesCount }: { matchesCount: MatchesCount }) => {
       if (matchesCount.current > 0) {
-        setSearch(previous => ({ ...previous, ...matchesCount }));
+        latestCount = matchesCount;
       }
     });
     eventBus.on("updatefindcontrolstate", ({ state, matchesCount }: { state: number; matchesCount: MatchesCount }) => {
@@ -147,8 +190,10 @@ export function usePdfView(
       if (state === PENDING) {
         return;
       }
+      // PDF.js may tell a match is found before it has counted it, as 0 of 0.
+      const count = matchesCount.current > 0 ? matchesCount : latestCount ?? matchesCount;
       const settled = state === FOUND || state === WRAPPED
-        ? { outcome: "found", ...matchesCount } as const
+        ? { outcome: "found", ...count } as const
         : { outcome: "notFound", current: 0, total: 0 } as const;
       setSearch(previous => ({ ...previous, ...settled, announcement: getSearchStatus(settled) }));
       if (state === NOT_FOUND) {
@@ -166,6 +211,7 @@ export function usePdfView(
         linkService.setHash(locationRef.current);
       }
       if (queryRef.current.trim() !== "") {
+        countRef.current?.start();
         dispatchFind(eventBus, queryRef.current);
       }
       setShown({ eventBus, frame });
@@ -215,6 +261,8 @@ export function usePdfView(
     return () => {
       resizes.disconnect();
       cancelAnimationFrame(fitting);
+      stopCounting();
+      countRef.current = undefined;
       stop.abort();
       viewer.setDocument(null);
       viewerRef.current = undefined;
@@ -292,6 +340,11 @@ export function usePdfView(
     const searching = query.trim() !== "";
     setSearch(previous => (searching ? { ...previous, query } : { ...IDLE_SEARCH, query }));
     if (eventBusRef.current !== undefined) {
+      if (searching) {
+        countRef.current?.start();
+      } else {
+        countRef.current?.stop();
+      }
       dispatchFind(eventBusRef.current, searching ? query : "");
     }
   }, []);

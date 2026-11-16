@@ -197,6 +197,10 @@ describe("getSearchStatus", () => {
     expect(getSearchStatus({ ...counts, outcome: "notFound" })).toBe("No matches in this document.");
     expect(getSearchStatus({ ...counts, outcome: "noText" })).toBe("This document has no text to search.");
   });
+
+  it("says nothing of a match found before it has been counted", () => {
+    expect(getSearchStatus({ current: 0, total: 0, outcome: "found" })).toBe("");
+  });
 });
 
 describe("getCommentButtonPlace", () => {
