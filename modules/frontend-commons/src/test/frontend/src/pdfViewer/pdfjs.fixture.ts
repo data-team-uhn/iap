@@ -31,6 +31,9 @@ export const MATCH_TOP = 500;
 const PAGE_WIDTH = 600;
 const PAGE_HEIGHT = 800;
 
+// As PDF.js's viewer exports it
+const FindState = { FOUND: 0, NOT_FOUND: 1, WRAPPED: 2, PENDING: 3 };
+
 type Listener = (event: never) => void;
 
 function createDefaults() {
@@ -56,6 +59,8 @@ function createDefaults() {
     openOptions: [] as object[],
     workers: [] as unknown[],
     textReads: [] as number[],
+    // Every search asked of PDF.js, as its find events.
+    finds: [] as { type: string; query: string; findPrevious: boolean }[],
     hashes: [] as string[],
     viewers: [] as FakePDFViewer[],
     // Every zoom the viewer was set to, in order.
@@ -191,6 +196,7 @@ class FakePDFViewer {
   readonly removePageBorders: boolean;
   readonly abortSignal: AbortSignal | undefined;
   doc: FakeDocument | null = null;
+  findController: FakePDFFindController | null = null;
   #pageViews: FakePageView[] = [];
   #page = 1;
   #scale: string | number = "auto";
@@ -263,6 +269,7 @@ class FakePDFViewer {
     fakePdf.scales.push(scale);
     this.#scale = scale;
     this.#updateViewArea();
+    this.findController?.redrawMatch();
     // PDF.js keeps a page's text layer when zooming, and says it is drawn again.
     this.#pageViews.forEach((pageView, index) => {
       if (pageView.textLayer !== null) {
@@ -319,6 +326,16 @@ class FakePDFLinkService {
   pdfViewer: FakePDFViewer | null = null;
   pdfDocument: FakeDocument | null = null;
 
+  get page(): number {
+    return this.pdfViewer?.currentPageNumber ?? 1;
+  }
+
+  set page(page: number) {
+    if (this.pdfViewer !== null) {
+      this.pdfViewer.currentPageNumber = page;
+    }
+  }
+
   setViewer(viewer: FakePDFViewer): void {
     this.pdfViewer = viewer;
   }
@@ -335,6 +352,84 @@ class FakePDFLinkService {
       this.pdfViewer.currentScaleValue = Number.isNaN(Number(zoom)) ? zoom : Number(zoom);
       this.pdfViewer.currentPageNumber = Number(params.get("page"));
     }
+  }
+}
+
+interface FindEvent {
+  type: string;
+  query: string;
+  findPrevious: boolean;
+}
+
+// PDF.js's search: every match of the query in the pages' text, ignoring case, the first from the page
+// shown, then the next or previous one each time it is asked again, wrapping round. It says it is
+// pending, then how it went, sets the link service's page to the match, and asks for it to be
+// scrolled into view.
+class FakePDFFindController {
+  _linkService: FakePDFLinkService;
+  _eventBus: FakeEventBus;
+  _selected = { pageIdx: -1, matchIdx: -1 };
+  _scrollMatches = false;
+  #matches: { pageIdx: number; matchIdx: number }[] = [];
+  #position = -1;
+
+  constructor({ linkService, eventBus }: { linkService: FakePDFLinkService; eventBus: FakeEventBus }) {
+    this._linkService = linkService;
+    this._eventBus = eventBus;
+    eventBus.on("find", (event: FindEvent) => {
+      fakePdf.finds.push({ type: event.type, query: event.query, findPrevious: event.findPrevious });
+      this.#find(event);
+    });
+  }
+
+  // Overridden by PdfViewer's search.
+  scrollMatchIntoView(_params: { element: HTMLElement; pageIndex: number; matchIndex: number }): void {
+    // Nothing to scroll in the stand-in
+  }
+
+  #find({ type, query, findPrevious }: FindEvent): void {
+    const count = (current: number) => ({ matchesCount: { current, total: this.#matches.length } });
+    this._eventBus.dispatch("updatefindcontrolstate", { state: FindState.PENDING, ...count(0) });
+    if (type === "") {
+      this.#matches = query === ""
+        ? []
+        : fakePdf.pages.flatMap((text, pageIdx) => text.toLowerCase().split(query.toLowerCase())
+          .slice(1)
+          .map((_, matchIdx) => ({ pageIdx, matchIdx })));
+      if (query === "") {
+        return;
+      }
+      const from = this._linkService.page - 1;
+      const next = this.#matches.findIndex(match => match.pageIdx >= from);
+      this.#position = next < 0 ? 0 : next;
+    } else {
+      this.#position += findPrevious ? -1 : 1;
+    }
+    if (this.#matches.length === 0) {
+      this._eventBus.dispatch("updatefindcontrolstate", { state: FindState.NOT_FOUND, ...count(0) });
+      return;
+    }
+    const wrapped = this.#position < 0 || this.#position >= this.#matches.length;
+    this.#position = (this.#position + this.#matches.length) % this.#matches.length;
+    this._selected = this.#matches[this.#position];
+    this._eventBus.dispatch("updatefindmatchescount", count(this.#position + 1));
+    const state = wrapped ? FindState.WRAPPED : FindState.FOUND;
+    this._eventBus.dispatch("updatefindcontrolstate", { state, ...count(this.#position + 1) });
+    this._scrollMatches = true;
+    this._linkService.page = this._selected.pageIdx + 1;
+    this.redrawMatch();
+  }
+
+  // Drawing the text of the match's page, as zooming does, asks for the match to be scrolled into view,
+  // each time.
+  redrawMatch(): void {
+    const { pageIdx, matchIdx } = this._selected;
+    if (pageIdx < 0) {
+      return;
+    }
+    const element = document.createElement("span");
+    element.getBoundingClientRect = () => new DOMRect(0, MATCH_TOP, 100, 20);
+    this.scrollMatchIntoView({ element, pageIndex: pageIdx, matchIndex: matchIdx });
   }
 }
 
@@ -378,6 +473,8 @@ export function createPdfjsModule() {
 export function createViewerModule() {
   return {
     EventBus: FakeEventBus,
+    FindState,
+    PDFFindController: FakePDFFindController,
     PDFLinkService: FakePDFLinkService,
     PDFViewer: FakePDFViewer,
   };
