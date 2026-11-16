@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -47,6 +48,9 @@ import io.uhndata.iap.workflows.spi.Execution;
  * recorded by its commit. Once it commits, the notifications its message events announced are sent, the work its
  * steps left for after the commit is done, and the nodes they checked out are checked back in.
  *
+ * <p>What the delivery's events were aimed at, and what its steps said they did, are what it changed. Each entity
+ * among them gets a new revision token before the commit.</p>
+ *
  * <p>A checkout takes effect at once and survives a revert. The nodes a delivery checked out are therefore checked
  * back in whether it commits or not.</p>
  *
@@ -64,6 +68,8 @@ final class DeliveryConsequences
     private final List<CommittedWork> afterCommit = new ArrayList<>();
 
     private final List<CommittedWork> checkIns = new ArrayList<>();
+
+    private final List<String> targets = new ArrayList<>();
 
     private String startedInstance;
 
@@ -92,6 +98,26 @@ final class DeliveryConsequences
         final WorkflowEvent cause, final String actor) throws WorkflowDefinitionException
     {
         this.notifications.hold(source, source.actsOn(new Run(target, variables)), cause, actor);
+    }
+
+    /**
+     * Notes a resource an event of this delivery is aimed at: the event that came in, or one a step sent.
+     *
+     * @param path the path of the resource
+     */
+    void noteTarget(final String path)
+    {
+        this.targets.add(path);
+    }
+
+    /**
+     * The resources this delivery changed: what its events were aimed at, and what its steps said they did.
+     *
+     * @return the paths of the resources, possibly repeated; some may since have been removed
+     */
+    List<String> changedPaths()
+    {
+        return Stream.concat(this.targets.stream(), this.effects.stream().map(RecordedEffect::path)).toList();
     }
 
     /**

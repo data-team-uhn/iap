@@ -228,6 +228,7 @@ final class ServiceTaskDispatcher
     void send(final Resource target, final WorkflowEvent event, final String actor, final int depth)
         throws WorkflowException, PersistenceException
     {
+        this.consequences.noteTarget(target.getPath());
         runSystemWorkflow(target, event, this.chain.admit(target, event, actor, depth), actor, depth);
     }
 

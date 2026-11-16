@@ -35,7 +35,7 @@ import io.uhndata.iap.workflows.api.WorkflowResult;
  * <p>Each attempt reads the target afresh and has a dispatcher of its own. A lost attempt is reverted, which also
  * brings its session up to date, and the notifications it announced and the work it left are dropped with its
  * writes. What it checked out is checked back in, since a checkout survives a revert. The attempt that commits
- * marks the entity it changed, then finishes what waited for its commit.</p>
+ * marks each entity it changed, then finishes what waited for its commit.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -94,8 +94,9 @@ final class EventDelivery
             if (current == null) {
                 throw RepositoryFailures.deletedMeanwhile(path);
             }
+            dispatcher.consequences().noteTarget(path);
             outcome = run.apply(current, dispatcher);
-            EntityRevision.stamp(current);
+            EntityRevision.stamp(resolver, dispatcher.consequences().changedPaths());
             this.recorder.commit(resolver, outcome.action());
         } catch (final PersistenceException e) {
             abandon(resolver, dispatcher);

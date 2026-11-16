@@ -120,6 +120,9 @@ public interface WorkflowTaskContext extends Execution
      * Says what this step did to a resource, for the history: the part the resource played, named by its purpose.
      * The history records what changed on its own; only the meaning of the change has to be said.
      *
+     * <p>The delivery also gives the entity the resource belongs to a new revision token, so that another event
+     * changing it at the same time conflicts. A step that changes an entity other than its target names it here.</p>
+     *
      * @param resource the resource; a part of an entity stands for the entity it belongs to
      * @param role a word for the part it played, in the vocabulary of the workflow rather than of the storage, such
      *            as {@code submitted}, {@code retired} or {@code activated}

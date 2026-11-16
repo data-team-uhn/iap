@@ -775,10 +775,12 @@ also how they reach the channel that fired the event. `sendEvent` and `startWork
 ask the engine for more within the same execution and commit; the built-in
 `callActivity` and `startWorkflow` handlers are thin over them. `recordRole` names, for
 the [history](history.md), the part a resource played in the step, such as `retired`;
-what changed is recorded without it. A step that checked a node out cannot check it back
-in, since a check-in refuses pending changes, so it asks with `checkInAfterCommit`. A
-checkout survives a revert, so the node is checked back in after a delivery that fails,
-or an attempt retried after a conflict, as well.
+what changed is recorded without it. It also gives the resource's entity a new
+`revision`, so a step that changes an entity other than its target names it there. A
+step that checked a node out cannot check it back in, since a check-in refuses pending
+changes, so it asks with `checkInAfterCommit`. A checkout survives a revert, so the node
+is checked back in after a delivery that fails, or an attempt retried after a conflict,
+as well.
 `afterCommit` leaves other work for once the delivery has committed. It is for work that
 is low-risk, not critical and not expected to fail, and that either needs the commit to
 have happened or cannot be undone. For example:
@@ -1040,8 +1042,9 @@ once conflict, and the loser is reverted and run again on top of the winner. Wit
 this, two branches reaching a join in two requests would each see only itself arrive.
 
 **Two events on one entity cannot both commit either.** Every event the engine commits
-writes a fresh `revision` on the entity it is aimed at, or on the entity enclosing the
-part it is aimed at. Two events changing one submission at once therefore conflict, and
+writes a fresh `revision` on each entity it changed: the one it is aimed at, any a step
+sent an event to, and any a step names in `recordRole`. A part stands for the entity
+enclosing it. Two events changing one submission at once therefore conflict, and
 the loser is reverted, matched and admitted again on the winner's state, and run again.
 It may then no longer apply, as a save does not once the request was submitted. Two
 saves of the same answer keep the later one: the editor sends its saves one at a time,
