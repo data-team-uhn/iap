@@ -21,8 +21,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
-  DialogActions,
-  DialogContent,
   Link as MuiLink,
   Stack,
   Table,
@@ -41,20 +39,19 @@ import { Link as RouterLink } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
-import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
-import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import {
   entryRoute,
   fetchArchiveEntries,
   purgeEntry,
   restoreEntry,
-  type ActionResponse,
   type ArchiveEntry,
   type ArchivePage,
 } from "./archiveApi";
-import { describeOutcome, failureMessage } from "./archiveOutcome";
+import { failureMessage } from "./archiveOutcome";
+import { PurgeDialog } from "./PurgeDialog";
+import { useArchiveAction } from "./useArchiveAction";
 
 /** How long to wait after the last keystroke before asking the server again. */
 const FILTER_DELAY_MS = 300;
@@ -99,9 +96,9 @@ export function ArchiveBrowser() {
   const [ settled, setSettled ] = useState(false);
   const [ loadError, setLoadError ] = useState<string | null>(null);
 
-  const notify = useNotice();
-  const [ busyPath, setBusyPath ] = useState<string | null>(null);
   const [ confirming, setConfirming ] = useState<ArchiveEntry | null>(null);
+
+  const { busy, act } = useArchiveAction({ onDone: () => { setReloadKey(key => key + 1); } });
 
   // Answers can arrive out of order. Only the latest request's answer is shown.
   const latest = useRef(0);
@@ -142,30 +139,6 @@ export function ArchiveBrowser() {
       setDescending(true);
     }
     setPage(0);
-  };
-
-  const act = (entry: ArchiveEntry, action: (f: AuthenticatedFetch, path: string) => Promise<ActionResponse>) => {
-    // The same action on the same entry
-    const retry = () => { act(entry, action); };
-    setBusyPath(entry.path);
-    action(doFetch, entry.path)
-      .then((response: ActionResponse) => {
-        notify(describeOutcome(response, retry));
-        // A refusal changed nothing, so the table stays
-        if (response.status === "restored" || response.status === "deleted") {
-          setReloadKey(key => key + 1);
-        }
-      })
-      .catch(() => {
-        // The request got no answer, so nothing was decided and it can be sent again
-        notify({ severity: "error", title: "The request could not be sent.", onRetry: retry });
-      })
-      .finally(() => { setBusyPath(null); });
-  };
-
-  const purgeConfirmed = (entry: ArchiveEntry) => {
-    setConfirming(null);
-    act(entry, purgeEntry);
   };
 
   const rows = data?.rows ?? [];
@@ -228,15 +201,15 @@ export function ArchiveBrowser() {
                   <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
                     <Button
                       size="small"
-                      disabled={busyPath !== null}
-                      onClick={() => { act(entry, restoreEntry); }}
+                      disabled={busy}
+                      onClick={() => { void act(entry.path, restoreEntry); }}
                     >
                       Restore
                     </Button>
                     <Button
                       size="small"
                       color="error"
-                      disabled={busyPath !== null}
+                      disabled={busy}
                       onClick={() => { setConfirming(entry); }}
                     >
                       Purge
@@ -273,22 +246,11 @@ export function ArchiveBrowser() {
 
       {/* Mounted only while asking, so that its entry is never null */}
       {confirming !== null && (
-        <ResponsiveDialog open onClose={() => { setConfirming(null); }} title="Purge this entry?">
-          <DialogContent dividers>
-            <Typography gutterBottom>
-              {`Everything archived under ${confirming.requestedPath} will be destroyed. This cannot be undone.`}
-            </Typography>
-            <Alert severity="warning">
-              {`${String(confirming.itemCount)} archived item(s) will be permanently removed.`}
-            </Alert>
-          </DialogContent>
-          <DialogActions>
-            <Button variant="outlined" onClick={() => { setConfirming(null); }}>Cancel</Button>
-            <Button variant="contained" color="error" onClick={() => { purgeConfirmed(confirming); }}>
-              Purge
-            </Button>
-          </DialogActions>
-        </ResponsiveDialog>
+        <PurgeDialog
+          entry={confirming}
+          onPurge={() => act(confirming.path, purgeEntry)}
+          onClose={() => { setConfirming(null); }}
+        />
       )}
 
     </AdminScreen>

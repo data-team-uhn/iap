@@ -206,18 +206,44 @@ describe("WidgetStatList", () => {
     expect(screen.getByLabelText("Loading the recorded errors summary")).toBeInTheDocument();
   });
 
-  it("says the summary is unavailable rather than showing nothing", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 404 }));
+  it.each([ 403, 404 ])("says the summary is not available to a reader the server refuses with %i", async status => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status }));
     render(<MemoryRouter><WidgetStatList url="/Archive" name="archive" /></MemoryRouter>);
 
     expect(await screen.findByText("The archive summary is not available to you.")).toBeInTheDocument();
   });
 
-  it("says the same when the answer cannot be read at all", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("not json", { status: 200 }));
-    render(<MemoryRouter><WidgetStatList url="/Archive" name="archive" /></MemoryRouter>);
+  describe("when the summary cannot be read", () => {
+    beforeEach(() => {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+    });
 
-    expect(await screen.findByText("The archive summary is not available to you.")).toBeInTheDocument();
+    const showsFailure = async () => {
+      render(<MemoryRouter><WidgetStatList url="/Archive" name="archive" /></MemoryRouter>);
+
+      expect(await screen.findByText("The archive summary could not be loaded. Try again in a moment."))
+        .toBeInTheDocument();
+      expect(screen.queryByText("The archive summary is not available to you.")).not.toBeInTheDocument();
+      expect(console.error).toHaveBeenCalled();
+    };
+
+    it("says a server error is a failure, not a refusal", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 500 }));
+
+      await showsFailure();
+    });
+
+    it("says a lost connection is a failure, not a refusal", async () => {
+      vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+
+      await showsFailure();
+    });
+
+    it("says an answer that is not data is a failure, not a refusal", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("not json", { status: 200 }));
+
+      await showsFailure();
+    });
   });
 
   it("leaves out an entry that is not a figure rather than showing a gap", async () => {

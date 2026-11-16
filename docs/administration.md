@@ -66,9 +66,9 @@ so every tool's summary reads the same way. Each figure shows its value, then wh
 a figure for. The values share one column, so the labels line up however many digits the
 values have. The widget names the resource to summarize and what to call it, as in
 `<WidgetStatList url="/Archive" name="archive" />`. The list fetches
-`<url>.adminSummary.json` itself, and shows a placeholder while it waits. If the request
-fails, it says the summary is not available to this reader. The widget holds nothing
-about the tool's figures.
+`<url>.adminSummary.json` itself, and shows a placeholder while it waits. A refusal (403
+or 404) says the summary is not available to this reader; any other failure says it could
+not be loaded. The widget holds nothing about the tool's figures.
 
 The summary answers with a dictionary of figures, in the order they are displayed:
 

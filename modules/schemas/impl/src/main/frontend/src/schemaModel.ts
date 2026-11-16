@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { childrenOf, stringsOf, type SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { childrenOf, stringsOf, textOf, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { nextVersionLabel as labelAfter } from "@iap/frontend-commons/versionNumbers";
 
 // Reading schemas and their versions from their JSON serialization. Where each stands is its lifecycle
@@ -34,11 +34,6 @@ export const listing = (depth: number): string => `${depth}.simple.events.fields
 const isOfType = (value: unknown, primaryType: string): value is SerializedNode =>
   typeof value === "object" && value !== null && (value as SerializedNode)["jcr:primaryType"] === primaryType;
 
-const text = (node: SerializedNode, key: string): string | undefined => {
-  const value = node[key];
-  return typeof value === "string" && value.trim() !== "" ? value : undefined;
-};
-
 export const pathOf = (node: SerializedNode): string => String(node["@path"]);
 
 // The path a node would have if renamed in place
@@ -54,11 +49,11 @@ export const childNamesOf = (node: SerializedNode): string[] => childrenOf(node)
 // The name of a node, or undefined for no node, such as the sibling after the last one
 export const nameIfAny = (node?: SerializedNode): string | undefined => node && nameOf(node);
 
-export const titleOf = (schema: SerializedNode): string => text(schema, "title") ?? nameOf(schema);
+export const titleOf = (schema: SerializedNode): string => textOf(schema, "title") ?? nameOf(schema);
 
-export const labelOf = (version: SerializedNode): string => text(version, "version") ?? nameOf(version);
+export const labelOf = (version: SerializedNode): string => textOf(version, "version") ?? nameOf(version);
 
-export const descriptionOf = (version: SerializedNode): string | undefined => text(version, "description");
+export const descriptionOf = (version: SerializedNode): string | undefined => textOf(version, "description");
 
 // A schema's versions by label, with numbers compared as numbers. A schema does not keep its versions in order.
 export const versionsOf = (schema: SerializedNode): SerializedNode[] => Object.values(schema)
@@ -66,7 +61,7 @@ export const versionsOf = (schema: SerializedNode): SerializedNode[] => Object.v
   .sort((one, other) => labelOf(one).localeCompare(labelOf(other), undefined, { numeric: true }));
 
 // When a version was created, in milliseconds since 1970, or 0 when that is not known
-export const createdOf = (version: SerializedNode): number => Date.parse(text(version, "jcr:created") ?? "") || 0;
+export const createdOf = (version: SerializedNode): number => Date.parse(textOf(version, "jcr:created") ?? "") || 0;
 
 // The version created last. Of versions created at the same time, or at no known time, the last by label.
 export const latestVersion = (schema: SerializedNode): SerializedNode | undefined => versionsOf(schema)
@@ -81,7 +76,7 @@ export const schemasOf = (homepage: SerializedNode): SerializedNode[] =>
   Object.values(homepage).filter(value => isOfType(value, "sch:Schema"));
 
 // What the update workflow that would run on the node says about it, such as that only its wording can change
-export const noticeOf = (node: SerializedNode): string | undefined => text(node, "@notice");
+export const noticeOf = (node: SerializedNode): string | undefined => textOf(node, "@notice");
 
 // The names a path holds: a schema's, then its version's if there is one. A page's path and the
 // repository's have the same shape, /admin/schemas/clinicalStudy/v2 and /Schemas/clinicalStudy/v2.

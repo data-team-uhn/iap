@@ -21,7 +21,7 @@
 // resolves to sch/SchemaPart through sch/Requirement or sch/FormItem. No React, no fetch.
 
 import { fieldsOf } from "@iap/frontend-commons/fields/fieldsModel";
-import { childrenOf, isNode, type SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { childrenOf, isNode, textOf, textValuesOf, type SerializedNode } from "@iap/frontend-commons/serializedNode";
 
 import { nameOf } from "./schemaModel";
 
@@ -31,19 +31,10 @@ export const OPTION_TYPE = "sch/AnswerOption";
 
 export const QUESTION_TYPE = "sch/Question";
 
-const text = (node: SerializedNode, key: string): string | undefined => {
-  const value = node[key];
-  return typeof value === "string" && value.trim() !== "" ? value : undefined;
-};
-
 const number = (node: SerializedNode, key: string): number | undefined => {
   const value = node[key];
   return typeof value === "number" ? value : undefined;
 };
-
-export const strings = (value: unknown): string[] => (Array.isArray(value) ? value : [ value ])
-  .filter((item): item is string | number => typeof item === "string" || typeof item === "number")
-  .map(String);
 
 export const resourceTypeOf = (node: SerializedNode): string => String(node["sling:resourceType"]);
 
@@ -65,11 +56,9 @@ export const conditionOf = (part: SerializedNode): SerializedNode | undefined =>
 
 // What a part is called where it is shown: a requirement's label, a section's title, a question's text
 export const headingOf = (part: SerializedNode): string =>
-  text(part, "text") ?? text(part, "label") ?? text(part, "title") ?? nameOf(part);
+  textOf(part, "text") ?? textOf(part, "label") ?? textOf(part, "title") ?? nameOf(part);
 
-export const detailOf = (node: SerializedNode, key: string): string | undefined => text(node, key);
-
-export const optionLabelOf = (option: SerializedNode): string => text(option, "label") ?? strings(option.value).at(0) ?? "";
+export const optionLabelOf = (option: SerializedNode): string => textOf(option, "label") ?? textValuesOf(option.value).at(0) ?? "";
 
 // What a part or an option is called where it is shown
 export const shownNameOf = (node: SerializedNode): string =>
@@ -87,7 +76,7 @@ const DATA_TYPES: Partial<Record<string, string>> = {
 
 // A question's type of answer, in the words of the update that would change it, as its edit dialog shows it
 export const dataTypeOf = (question: SerializedNode): string => {
-  const dataType = text(question, "dataType") ?? "text";
+  const dataType = textOf(question, "dataType") ?? "text";
   const choices = fieldsOf(question).find(field => field.name === "dataType")?.choices ?? [];
   return choices.find(choice => choice.value === dataType)?.label
     ?? (Object.hasOwn(DATA_TYPES, dataType) ? DATA_TYPES[dataType] : undefined) ?? dataType;

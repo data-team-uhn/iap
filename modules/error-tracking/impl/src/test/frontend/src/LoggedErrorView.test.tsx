@@ -22,7 +22,6 @@ import { MemoryRouter, useNavigate } from "react-router";
 
 import LoggedErrorView from "@iap/error-tracking/LoggedErrorView";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
-import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
 const TRIAGE_DEFINITIONS = [
   { name: "unacknowledged", label: "Needs attention", color: "#c62828", order: 90, category: [ "error-triage" ] },
@@ -93,7 +92,6 @@ const reads = (fetchMock: { mock: { calls: [string, RequestInit?][] } }) =>
 describe("LoggedErrorView", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    clearTagDefinitionsCache();
   });
 
   it("says so, and asks for nothing, when the address names no single error", async () => {

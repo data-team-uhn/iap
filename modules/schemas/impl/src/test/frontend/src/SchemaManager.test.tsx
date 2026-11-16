@@ -21,7 +21,6 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import SchemaManager from "@iap/schemas/SchemaManager";
-import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
 import { serveSchemas } from "./schemaServer.fixture";
 
@@ -32,7 +31,6 @@ vi.mock("@iap/frontend-commons/actionsManager", () => ({
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  clearTagDefinitionsCache();
   window.localStorage.clear();
 });
 

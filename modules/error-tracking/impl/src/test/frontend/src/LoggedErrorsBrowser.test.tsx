@@ -21,7 +21,6 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 
 import LoggedErrorsBrowser from "@iap/error-tracking/LoggedErrorsBrowser";
-import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
 /** The four error-triage definitions this module ships, as /Tags.search.json answers them. */
 const TRIAGE_DEFINITIONS = [
@@ -66,7 +65,6 @@ const listings = (fetchMock: { mock: { calls: [string, ...unknown[]][] } }) =>
 describe("LoggedErrorsBrowser", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    clearTagDefinitionsCache();
   });
 
   it("lists the recorded errors from their own homepage, newest fault first", async () => {

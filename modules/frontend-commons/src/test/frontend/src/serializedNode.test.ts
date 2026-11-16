@@ -16,7 +16,9 @@
  * limitations under the License.
  */
 
-import { childrenOf, childrenOfType, isNode, lastSegmentOf, stringsOf } from "@iap/frontend-commons/serializedNode";
+import {
+  childrenOf, childrenOfType, isNode, lastSegmentOf, stringsOf, textOf, textValuesOf,
+} from "@iap/frontend-commons/serializedNode";
 
 describe("isNode", () => {
   it("tells a node from a value or a list of values", () => {
@@ -61,6 +63,23 @@ describe("stringsOf", () => {
     expect(stringsOf("a")).toEqual([ "a" ]);
     expect(stringsOf(undefined)).toEqual([]);
     expect(stringsOf(3)).toEqual([]);
+  });
+});
+
+describe("textValuesOf", () => {
+  it("reads strings and numbers as text, from a list or a bare single value", () => {
+    expect(textValuesOf([ "a", 1, null, { b: 2 } ])).toEqual([ "a", "1" ]);
+    expect(textValuesOf(3)).toEqual([ "3" ]);
+    expect(textValuesOf(undefined)).toEqual([]);
+  });
+});
+
+describe("textOf", () => {
+  it("reads a string property that says something, and nothing else", () => {
+    const node = { title: "Consent", blank: "  ", count: 3 };
+
+    expect(textOf(node, "title")).toBe("Consent");
+    expect([ "blank", "count", "missing" ].map(key => textOf(node, key))).toEqual([ undefined, undefined, undefined ]);
   });
 });
 

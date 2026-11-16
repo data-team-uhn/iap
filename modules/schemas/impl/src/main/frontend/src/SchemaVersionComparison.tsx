@@ -27,6 +27,7 @@ import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { usePageCrumbs } from "@iap/frontend-commons/pageCrumbs";
 import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
+import { listed } from "@iap/frontend-commons/words";
 
 import { type ComparisonSummary, type LabelledDifference } from "./schemaComparisonModel";
 import PartList, { FieldChanges } from "./SchemaComparisonOutline";
@@ -35,10 +36,6 @@ import { comparisonPageUrl, schemaPageUrl } from "./useSchemaList";
 import {
   type ComparedFields, type ComparedFieldSources, useComparedFields, useReferenceNames, useVersionComparison,
 } from "./useVersionComparison";
-
-// Words one after the other, the last joined with "and"
-const listed = (words: string[]): string => (words.length < 2 ? words.join("")
-  : `${words.slice(0, -1).join(", ")} and ${words.slice(-1).join("")}`);
 
 // The counts of a comparison as one sentence, naming only what there is: "3 parts added, 1 removed and 2 moved."
 // When no part changed, the sentence names the version's own fields that changed, if any.
