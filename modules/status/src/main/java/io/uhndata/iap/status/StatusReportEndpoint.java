@@ -85,8 +85,7 @@ public class StatusReportEndpoint extends SlingJakartaSafeMethodsServlet
             return;
         }
         response.setCharacterEncoding("UTF-8");
-        final Set<String> tags = request.getParameterValues("tags") == null ? Collections.emptySet()
-            : Set.of(request.getParameterValues("tags"));
+        final Set<String> tags = requestedTags(request);
         if ("txt".equals(request.getRequestPathInfo().getExtension())) {
             final String result = String.join("\n\n",
                 this.manager.getReports(unprivileged, targetStatus, tags).stream()
@@ -103,5 +102,17 @@ public class StatusReportEndpoint extends SlingJakartaSafeMethodsServlet
             response.setContentType("application/json");
             response.getWriter().print(results.build().toString());
         }
+    }
+
+    /**
+     * The tags a request selects reporters by. A tag repeated in the query, as in {@code ?tags=a&tags=a}, counts once.
+     *
+     * @param request the request to read the {@code tags} parameter of
+     * @return the distinct tags, empty if the request names none
+     */
+    private static Set<String> requestedTags(final SlingJakartaHttpServletRequest request)
+    {
+        final String[] tags = request.getParameterValues("tags");
+        return tags == null ? Collections.emptySet() : Set.copyOf(Arrays.asList(tags));
     }
 }

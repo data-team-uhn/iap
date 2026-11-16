@@ -88,6 +88,9 @@ public class SearchServletTest
 
     private static final String QUERY = "query";
 
+    /** What a search the repository cannot make sense of is refused with. */
+    private static final String UNREADABLE_QUERY = "The `query` or `fulltext` parameter could not be understood";
+
     private static final String SUBMISSION = "sub:Submission";
 
     /** The text a search is for, wherever the text itself does not matter. */
@@ -227,7 +230,7 @@ public class SearchServletTest
 
         this.servlet.doPost(this.request, this.response);
 
-        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        assertRefused(UNREADABLE_QUERY, "Syntax error");
     }
 
     @Test
@@ -613,7 +616,7 @@ public class SearchServletTest
         Mockito.when(this.queryManager.createQuery(Mockito.anyString(), Mockito.eq(Query.JCR_SQL2)))
             .thenThrow(new InvalidQueryException("Syntax error"));
         this.servlet.doGet(this.request, this.response);
-        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        assertRefused(UNREADABLE_QUERY, "Syntax error");
     }
 
     @Test
@@ -856,7 +859,7 @@ public class SearchServletTest
         Mockito.when(this.queryManager.createQuery(Mockito.anyString(), Mockito.eq(Query.JCR_SQL2)))
             .thenThrow(new IllegalArgumentException("Query: */*(*)query/*(*)/"));
         this.servlet.doGet(this.request, this.response);
-        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        assertRefused(UNREADABLE_QUERY, "*(*)");
     }
 
     @Test
@@ -1231,6 +1234,20 @@ public class SearchServletTest
     {
         Mockito.verify(this.response, Mockito.atLeastOnce()).setStatus(expectedStatus);
         Assertions.assertTrue(getResponseJson().containsKey("error"));
+    }
+
+    /**
+     * Checks that the request was refused as the client's mistake, with the given reason, and without quoting what the
+     * repository said about it.
+     *
+     * @param expectedReason the whole of the expected {@code error}
+     * @param repositoryDetail a fragment of the exception's message, which must not reach the client
+     */
+    private void assertRefused(final String expectedReason, final String repositoryDetail)
+    {
+        Mockito.verify(this.response).setStatus(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+        Assertions.assertEquals(expectedReason, getResponseJson().getString("error"));
+        Assertions.assertFalse(this.output.toString().contains(repositoryDetail), this.output.toString());
     }
 
     /**

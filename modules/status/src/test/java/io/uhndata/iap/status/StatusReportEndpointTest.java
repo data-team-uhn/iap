@@ -115,6 +115,31 @@ class StatusReportEndpointTest
     }
 
     @Test
+    void countsARepeatedTagOnce() throws Exception
+    {
+        Mockito.when(this.manager.getReports(true, StatusReport.Status.INFO, Set.of("problems")))
+            .thenReturn(List.of(new StatusReport("Problems", StatusReport.Status.WARNING, "Something is off")));
+
+        final MockSlingJakartaHttpServletResponse response =
+            get(null, Map.of("tags", new String[] { "problems", "problems" }));
+
+        assertEquals(200, response.getStatus());
+        assertEquals(1, Json.createReader(new StringReader(response.getOutputAsString())).readArray().size());
+        Mockito.verify(this.manager).getReports(true, StatusReport.Status.INFO, Set.of("problems"));
+    }
+
+    @Test
+    void selectsByEveryTagGiven() throws Exception
+    {
+        Mockito.when(this.manager.getReports(Mockito.anyBoolean(), Mockito.any(), Mockito.any()))
+            .thenReturn(List.of());
+
+        get("txt", Map.of("tags", new String[] { "status", "problems", "status" }));
+
+        Mockito.verify(this.manager).getReports(true, StatusReport.Status.INFO, Set.of("status", "problems"));
+    }
+
+    @Test
     void rejectsInvalidTargetStatus() throws Exception
     {
         final MockSlingJakartaHttpServletResponse response = get(null, Map.of("targetStatus", "LOUDER"));

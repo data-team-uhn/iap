@@ -135,6 +135,24 @@ public class InternalLinkDefinition extends LinkDefinition
     }
 
     /**
+     * Whether a link of this type and a link of the other type can reverse each other. When this definition names a
+     * backlink, it must name the other. Otherwise the other must name this one.
+     *
+     * @param other another internal definition, possibly this one
+     * @return {@code true} if one definition names the other as its backlink
+     */
+    public boolean pairsWith(@NotNull final InternalLinkDefinition other)
+    {
+        return this.hasBacklink() ? this.namesAsBacklink(other) : other.namesAsBacklink(this);
+    }
+
+    private boolean namesAsBacklink(final InternalLinkDefinition other)
+    {
+        final InternalLinkDefinition named = this.getBacklink();
+        return named != null && named.getPath().equals(other.getPath());
+    }
+
+    /**
      * Whether links of this type are only created as the reverse of another link, never directly.
      *
      * @return {@code true} if a link of this type cannot be added directly

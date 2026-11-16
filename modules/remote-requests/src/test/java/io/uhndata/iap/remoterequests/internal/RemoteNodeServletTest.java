@@ -146,6 +146,26 @@ public class RemoteNodeServletTest
     }
 
     @Test
+    public void aRefusalNamesTheBearerScheme() throws Exception
+    {
+        request("not.a.token", VALID_BODY);
+
+        this.servlet.doPost(this.request, this.response);
+
+        verify(this.response).setHeader("WWW-Authenticate", "Bearer");
+    }
+
+    @Test
+    public void anAcceptedRequestIsNotChallenged() throws Exception
+    {
+        request(VALID_TOKEN, VALID_BODY);
+
+        this.servlet.doPost(this.request, this.response);
+
+        verify(this.response, never()).setHeader(eq("WWW-Authenticate"), anyString());
+    }
+
+    @Test
     public void unverifiableTokenIsRejected() throws Exception
     {
         request("not.a.token", VALID_BODY);

@@ -121,7 +121,8 @@
   // The path of the definition of the reverse link, which goes from the linked
   // content back to the content holding the link. A definition may name
   // itself. The reverse is added with the link when the user may add it, and
-  // by the links service user after the commit otherwise.
+  // by the links service user after the commit otherwise. It is removed with
+  // the link the same way.
   - backlink (PATH)
 
   // Whether links of this type are only created as the reverse of another
