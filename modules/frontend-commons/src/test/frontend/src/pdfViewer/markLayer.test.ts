@@ -15,7 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { centreIn, drawMarks, findMark, keepInView, markAt } from "@iap/frontend-commons/pdfViewer/markLayer";
+import {
+  centreIn,
+  drawMarks,
+  findMark,
+  getSelectedSpans,
+  getTextEnd,
+  keepInView,
+  markAt,
+} from "@iap/frontend-commons/pdfViewer/markLayer";
 
 const LINES = [ "Volunteers who, on a casual basis,", "assist from time to time." ];
 
@@ -149,6 +157,167 @@ describe("drawMarks", () => {
     drawMarks(textLayer, [ { id: "a", kind: "assistant", start: 0, end: 10 } ], undefined);
 
     expect(textLayer).toBeEmptyDOMElement();
+  });
+});
+
+describe("getSelectedSpans", () => {
+  // Pages as PDF.js draws them in its viewer. Each is a numbered element holding its text layer, which
+  // holds a span per piece of text and a break at each line end. While text is selected, the layer also
+  // holds an element with no text.
+  function createPages(...pages: string[][]): HTMLDivElement {
+    const frame = document.createElement("div");
+    pages.forEach((lines, index) => {
+      const page = document.createElement("div");
+      page.dataset.pageNumber = String(index + 1);
+      const canvas = document.createElement("canvas");
+      const textLayer = document.createElement("div");
+      textLayer.className = "textLayer";
+      for (const line of lines) {
+        const span = document.createElement("span");
+        span.textContent = line;
+        textLayer.append(span, document.createElement("br"));
+      }
+      const endOfContent = document.createElement("div");
+      endOfContent.className = "endOfContent";
+      textLayer.append(endOfContent);
+      page.append(canvas, textLayer);
+      frame.append(page);
+    });
+    document.body.append(frame);
+    return frame;
+  }
+
+  // The text node of the nth span in the frame.
+  function textAt(frame: HTMLElement, index: number) {
+    return frame.querySelectorAll("span")[index].firstChild as Text;
+  }
+
+  function select(from: [ Node, number ], to: [ Node, number ]): Range {
+    const range = document.createRange();
+    range.setStart(...from);
+    range.setEnd(...to);
+    return range;
+  }
+
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("selects offsets into the page's text, which runs on from one line to the next", () => {
+    const frame = createPages(LINES);
+
+    const spans = getSelectedSpans(frame, select([ textAt(frame, 0), 16 ], [ textAt(frame, 1), 6 ]));
+
+    expect(spans).toEqual([ { page: 1, start: 16, end: 40 } ]);
+    expect(LINES.join("").slice(16, 40)).toBe("on a casual basis,assist");
+  });
+
+  it("selects a span on each page a selection runs over, in order", () => {
+    const frame = createPages([ "Cover page." ], LINES, [ "The end." ]);
+
+    const spans = getSelectedSpans(frame, select([ textAt(frame, 0), 6 ], [ textAt(frame, 3), 3 ]));
+
+    expect(spans).toEqual([
+      { page: 1, start: 6, end: 11 },
+      { page: 2, start: 0, end: LINES.join("").length },
+      { page: 3, start: 0, end: 3 },
+    ]);
+  });
+
+  it("selects from the start of the text of a selection starting outside it, and to the end of one ending outside", () => {
+    const frame = createPages(LINES);
+    const page = frame.firstElementChild as HTMLElement;
+    const textLayer = page.querySelector<HTMLElement>(".textLayer")!;
+
+    expect(getSelectedSpans(frame, select([ page, 0 ], [ textAt(frame, 0), 10 ])))
+      .toEqual([ { page: 1, start: 0, end: 10 } ]);
+    expect(getSelectedSpans(frame, select([ textAt(frame, 1), 7 ], [ textLayer, textLayer.childNodes.length ])))
+      .toEqual([ { page: 1, start: 41, end: LINES.join("").length } ]);
+    expect(getSelectedSpans(frame, select([ textAt(frame, 1), 7 ], [ frame, 1 ])))
+      .toEqual([ { page: 1, start: 41, end: LINES.join("").length } ]);
+  });
+
+  it("selects from where the text goes on, at a point between the layer's elements", () => {
+    const frame = createPages(LINES);
+    const textLayer = frame.querySelector<HTMLElement>(".textLayer")!;
+    const endOfContent = textLayer.querySelector(".endOfContent")!;
+
+    expect(getSelectedSpans(frame, select([ textLayer, 2 ], [ textLayer, 3 ])))
+      .toEqual([ { page: 1, start: LINES[0].length, end: LINES.join("").length } ]);
+    expect(getSelectedSpans(frame, select([ textAt(frame, 1), 7 ], [ endOfContent, 0 ])))
+      .toEqual([ { page: 1, start: 41, end: LINES.join("").length } ]);
+  });
+
+  it("leaves out pages not drawn yet", () => {
+    const frame = createPages([ "Cover page." ], LINES);
+    frame.querySelector('[data-page-number="1"] .textLayer')!.remove();
+
+    expect(getSelectedSpans(frame, select([ frame, 0 ], [ textAt(frame, 0), 10 ])))
+      .toEqual([ { page: 2, start: 0, end: 10 } ]);
+  });
+
+  it("leaves out the spaces at either end of the selection", () => {
+    const frame = createPages([ "  The memo  ", "  covers it.  " ]);
+
+    expect(getSelectedSpans(frame, select([ textAt(frame, 0), 0 ], [ textAt(frame, 1), 14 ])))
+      .toEqual([ { page: 1, start: 2, end: 24 } ]);
+  });
+
+  it("leaves out pages it selects no text of", () => {
+    const frame = createPages([ "Cover page." ], [ "   " ], [ "The end." ]);
+
+    expect(getSelectedSpans(frame, select([ textAt(frame, 0), 11 ], [ textAt(frame, 2), 3 ])))
+      .toEqual([ { page: 3, start: 0, end: 3 } ]);
+    expect(getSelectedSpans(frame, select([ textAt(frame, 0), 11 ], [ textAt(frame, 2), 0 ]))).toEqual([]);
+  });
+
+  it("leaves out text outside the pages' text layers", () => {
+    const frame = createPages(LINES);
+    const caption = document.createElement("p");
+    caption.textContent = "Not the document's";
+    frame.prepend(caption);
+
+    expect(getSelectedSpans(frame, select([ caption.firstChild as Text, 0 ], [ textAt(frame, 0), 10 ])))
+      .toEqual([ { page: 1, start: 0, end: 10 } ]);
+  });
+});
+
+describe("getTextEnd", () => {
+  beforeEach(() => {
+    Range.prototype.getClientRects = function (this: Range) {
+      return rectsOf(this) as unknown as DOMRectList;
+    };
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (Range.prototype as Partial<Range>).getClientRects;
+  });
+
+  // A frame holding one page, drawn, whose text layer is the one createTextLayer lays out.
+  function createFrame(): HTMLDivElement {
+    const frame = document.createElement("div");
+    const page = document.createElement("div");
+    page.dataset.pageNumber = "2";
+    const textLayer = createTextLayer();
+    textLayer.className = "textLayer";
+    page.append(textLayer);
+    frame.append(page);
+    document.body.append(frame);
+    return frame;
+  }
+
+  it("is the box of the last piece of text the spans cover, not of the elements holding it", () => {
+    const frame = createFrame();
+
+    expect(getTextEnd(frame, [ { page: 2, start: 5, end: 34 + 6 } ])).toEqual(new DOMRect(0, 100, 60, 20));
+  });
+
+  it("is none for spans covering nothing, or on a page not drawn", () => {
+    const frame = createFrame();
+
+    expect(getTextEnd(frame, [])).toBeUndefined();
+    expect(getTextEnd(frame, [ { page: 3, start: 0, end: 5 } ])).toBeUndefined();
   });
 });
 

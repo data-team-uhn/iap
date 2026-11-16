@@ -268,6 +268,7 @@ class FakePDFViewer {
   set currentScaleValue(scale: string | number) {
     fakePdf.scales.push(scale);
     this.#scale = scale;
+    this.eventBus.dispatch("scalechanging", { scale: this.#numericScale() });
     this.#updateViewArea();
     this.findController?.redrawMatch();
     // PDF.js keeps a page's text layer when zooming, and says it is drawn again.
