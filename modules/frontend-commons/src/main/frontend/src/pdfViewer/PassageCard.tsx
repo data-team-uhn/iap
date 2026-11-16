@@ -23,23 +23,22 @@ import { Box, ButtonBase, IconButton, Typography, useMediaQuery } from "@mui/mat
 import { useTheme, type SxProps, type Theme } from "@mui/material/styles";
 
 import { cutShort, failedColour, passageCard } from "./passageStyles";
-import { unquote } from "./quoteMatch";
+import { describePages, type PassageNote } from "./pdfViewerModel";
 
 import type { MarkKind } from "./marksModel";
-import type { PassageNote } from "./pdfViewerModel";
 
 // Past this many lines, the passage is cut short until the person asks for all of it. On a phone it is
 // cut to one line, sharing its row with the note and the button showing all of it.
 const MAX_PASSAGE_LINES = 3;
 const MAX_PASSAGE_LINES_ON_PHONE = 1;
 
-// The passage and how the search for it went, on a card in its mark's colour. Once it is found, the
+// The passage once known, and how the search for it went, on a card in its mark's colour. Once found, the
 // passage and its note take the reader to it. A passage running past its limit of lines is cut short,
 // with a button beside it showing all of it, since a button cannot hold another. On a phone, cut to one
 // line, it shares its row with the note. One of several passages has controls for stepping through
 // them above it.
 export default function PassageCard({ quote, note, markedBy, stepper, onShowPassage }: {
-  quote: string;
+  quote: string | undefined;
   note?: PassageNote;
   markedBy: MarkKind;
   stepper?: ReactNode;
@@ -67,7 +66,7 @@ export default function PassageCard({ quote, note, markedBy, stepper, onShowPass
   const long = lines > limit;
   const cut = long && !expanded;
   const oneRow = phone && cut;
-  const text = `“${unquote(quote)}”`;
+  const text = quote === undefined ? "" : `“${quote}”`;
   const content = (
     <>
       <Typography
@@ -79,7 +78,7 @@ export default function PassageCard({ quote, note, markedBy, stepper, onShowPass
         {text}
         {long || note === undefined ? null : (
           <Typography component="span" variant="caption" aria-hidden sx={{ color: "text.secondary" }}>
-            {" — "}
+            {text === "" ? "" : " — "}
             <NoteText note={note} />
           </Typography>
         )}
@@ -130,9 +129,7 @@ export default function PassageCard({ quote, note, markedBy, stepper, onShowPass
           ? (
             <ButtonBase
               focusRipple
-              aria-label={note.toPage === undefined
-                ? `Show the passage on page ${note.foundOnPage}`
-                : `Show the passage on pages ${note.foundOnPage} and ${note.toPage}`}
+              aria-label={`Show the passage on ${describePages(note.foundOnPage, note.toPage)}`}
               aria-describedby={quoteId}
               onClick={onShowPassage}
               sx={{

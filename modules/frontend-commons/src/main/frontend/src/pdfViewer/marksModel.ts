@@ -15,48 +15,98 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { findQuote, findQuoteAcrossPages, getSearchText, type QuoteMatch } from "./quoteMatch";
+import { findQuote, findQuoteAcrossPages, getSearchText, unquote, type QuoteMatch } from "./quoteMatch";
 
 export const MARK_KINDS = [ "assistant", "annotation" ] as const;
 
 export type MarkKind = typeof MARK_KINDS[number];
 
-export interface Mark {
-  id: string;
-  // The passage to find and highlight.
-  quote: string;
-  // The page to start looking for it from: the first when absent.
-  page?: number;
-  // Whose mark it is, an AI assistant's or a person's. It is coloured accordingly.
-  kind: MarkKind;
-}
-
 // What a mark covers on one page, as offsets into the page's text as PDF.js reads it for its text
-// layer. A passage broken across two pages has one span on each.
+// layer: the whole passage, or the part of it on that page. Equal offsets are a point between two
+// characters.
 export interface MarkSpan {
   page: number;
   start: number;
   end: number;
 }
 
-// Where a passage is, once it is known. A passage broken across two pages ends on the next one.
+interface MarkBase {
+  id: string;
+  // Whose mark it is, an AI assistant's or a person's. It is coloured accordingly.
+  kind: MarkKind;
+}
+
+// A passage to find and highlight, looked for from `page` onwards, or from the first page.
+export interface QuotedMark extends MarkBase {
+  quote: string;
+  page?: number;
+}
+
+// A passage whose place is known, as the spans it covers on each page it runs over.
+export interface PlacedMark extends MarkBase {
+  spans: MarkSpan[];
+}
+
+export type Mark = QuotedMark | PlacedMark;
+
+// A page's text as PDF.js reads it for its text layer, and the offsets where its lines end. The text
+// layer ends a line with an element, not a character.
+export interface PageText {
+  text: string;
+  lineEnds: number[];
+}
+
+// Where a passage is, once it is known, from the page it starts on to the one it ends on, and the text
+// it covers there.
 export type MarkPlace =
   | { status: "searching" | "tooShort" | "notFound" | "noText" }
-  | { status: "found"; page: number; toPage?: number; spans: MarkSpan[] };
+  | { status: "found"; page: number; toPage?: number; spans: MarkSpan[]; text: string };
+
+// A span with the text of the page it is on.
+interface SpanOnPage {
+  span: MarkSpan;
+  page: PageText;
+}
 
 function toSpan(page: number, { index, length }: QuoteMatch): MarkSpan {
   return { page, start: index, end: index + length };
 }
 
+// The text between two offsets of a page as it reads. A line end reads as a space, unless a hyphen
+// breaks a word there. Runs of spaces read as one.
+export function getPassageText({ text, lineEnds }: PageText, start: number, end: number): string {
+  let passage = "";
+  let from = start;
+  for (const lineEnd of lineEnds.filter(offset => offset > start && offset < end)) {
+    const line = text.slice(from, lineEnd);
+    passage += line.endsWith("-") ? line : `${line} `;
+    from = lineEnd;
+  }
+  return `${passage}${text.slice(from, end)}`.replace(/\s+/g, " ").trim();
+}
+
+// The page a mark is on, or looked for from.
+export function getMarkPage(mark: Mark): number | undefined {
+  return "spans" in mark ? mark.spans.at(0)?.page : mark.page;
+}
+
+// What a mark's passage says: the quote given, or, for a mark placed by its spans, the text found there.
+export function getMarkText(mark: Mark, place: MarkPlace): string | undefined {
+  if ("quote" in mark) {
+    return unquote(mark.quote);
+  }
+  return place.status === "found" ? place.text : undefined;
+}
+
 export class MarkLocator {
   readonly #marks: Mark[];
   readonly #pageCount: number;
-  readonly #texts = new Map<number, string>();
+  readonly #texts = new Map<number, PageText>();
   readonly #searchTexts = new Map<string, string>();
   // Each passage's first whole occurrence on each page, by page.
-  readonly #whole = new Map<string, Map<number, MarkSpan>>();
+  readonly #whole = new Map<string, Map<number, SpanOnPage>>();
   // The page breaks each passage fits across, by the page before the break.
-  readonly #across = new Map<string, Map<number, [ MarkSpan, MarkSpan ]>>();
+  readonly #across = new Map<string, Map<number, [ SpanOnPage, SpanOnPage ]>>();
   #hasText = false;
 
   // Without a page count, as before the document opens, every passage long enough to look for is
@@ -65,7 +115,7 @@ export class MarkLocator {
     this.#marks = marks;
     this.#pageCount = pageCount;
     for (const mark of marks) {
-      const searchText = getSearchText(mark.quote);
+      const searchText = "quote" in mark ? getSearchText(mark.quote) : undefined;
       if (searchText !== undefined) {
         this.#searchTexts.set(mark.id, searchText);
         this.#whole.set(mark.id, new Map());
@@ -74,22 +124,27 @@ export class MarkLocator {
     }
   }
 
-  addPage(page: number, text: string): void {
-    this.#texts.set(page, text);
+  addPage(page: number, text: string, lineEnds: number[] = []): void {
+    const pageText = { text, lineEnds };
+    this.#texts.set(page, pageText);
     this.#hasText ||= text.trim().length > 0;
     for (const [ id, searchText ] of this.#searchTexts) {
       const match = findQuote(text, searchText).at(0);
       if (match !== undefined) {
-        this.#whole.get(id)?.set(page, toSpan(page, match));
+        this.#whole.get(id)?.set(page, { span: toSpan(page, match), page: pageText });
       }
       for (const before of [ page - 1, page ]) {
         const first = this.#texts.get(before);
         const next = this.#texts.get(before + 1);
-        const found = first === undefined || next === undefined
-          ? undefined
-          : findQuoteAcrossPages(first, next, searchText);
+        if (first === undefined || next === undefined) {
+          continue;
+        }
+        const found = findQuoteAcrossPages(first.text, next.text, searchText);
         if (found !== undefined) {
-          this.#across.get(id)?.set(before, [ toSpan(before, found.first), toSpan(before + 1, found.next) ]);
+          this.#across.get(id)?.set(before, [
+            { span: toSpan(before, found.first), page: first },
+            { span: toSpan(before + 1, found.next), page: next },
+          ]);
         }
       }
     }
@@ -100,6 +155,9 @@ export class MarkLocator {
   }
 
   #getPlace(mark: Mark): MarkPlace {
+    if ("spans" in mark) {
+      return this.#getPlaceOf(mark.spans);
+    }
     const searchText = this.#searchTexts.get(mark.id);
     if (searchText === undefined) {
       return { status: "tooShort" };
@@ -112,18 +170,50 @@ export class MarkLocator {
       if (!this.#texts.has(page)) {
         return { status: "searching" };
       }
-      const span = this.#whole.get(mark.id)?.get(page);
-      if (span !== undefined) {
-        return { status: "found", page, spans: [ span ] };
+      const whole = this.#whole.get(mark.id)?.get(page);
+      if (whole !== undefined) {
+        return this.#found([ whole ]);
       }
     }
     for (const page of order) {
-      const spans = this.#across.get(mark.id)?.get(page);
-      if (spans !== undefined) {
-        return { status: "found", page, toPage: page + 1, spans };
+      const across = this.#across.get(mark.id)?.get(page);
+      if (across !== undefined) {
+        return this.#found(across);
       }
     }
     return { status: this.#hasText ? "notFound" : "noText" };
+  }
+
+  // A mark's spans are taken as they are once their pages are read. They are not found if one is on a
+  // page the document lacks, or runs backwards or past its page's text.
+  #getPlaceOf(spans: MarkSpan[]): MarkPlace {
+    const outside = this.#pageCount > 0 && spans.some(({ page }) => page < 1 || page > this.#pageCount);
+    if (spans.length === 0 || outside) {
+      return { status: "notFound" };
+    }
+    const read = spans.flatMap(span => {
+      const page = this.#texts.get(span.page);
+      return page === undefined ? [] : [ { span, page } ];
+    });
+    if (read.length < spans.length) {
+      return { status: "searching" };
+    }
+    const fits = read.every(({ span: { start, end }, page }) => (
+      Number.isInteger(start) && Number.isInteger(end) && start >= 0 && start <= end && end <= page.text.length
+    ));
+    return fits ? this.#found(read) : { status: "notFound" };
+  }
+
+  #found(read: SpanOnPage[]): MarkPlace {
+    const spans = read.map(({ span }) => span);
+    const pages = spans.map(({ page }) => page);
+    const page = Math.min(...pages);
+    const toPage = Math.max(...pages);
+    const text = read
+      .map(({ span: { start, end }, page: on }) => getPassageText(on, start, end))
+      .filter(part => part !== "")
+      .join(" ");
+    return { status: "found", page, ...(toPage === page ? {} : { toPage }), spans, text };
   }
 
   #searchOrder(from: number | undefined): number[] {
@@ -148,5 +238,13 @@ export function orderMarks(marks: Mark[], places: Record<string, MarkPlace>): Ma
 // A key that changes only when the marks' contents do. A caller writing the marks inline passes new
 // but equal objects on every render.
 export function getMarksKey(marks: Mark[]): string {
-  return JSON.stringify(marks.map(({ id, quote, page, kind }) => ({ id, quote, page, kind })));
+  return JSON.stringify(marks.map(mark => ("spans" in mark
+    ? { id: mark.id, kind: mark.kind, spans: mark.spans.map(({ page, start, end }) => ({ page, start, end })) }
+    : { id: mark.id, quote: mark.quote, page: mark.page, kind: mark.kind })));
+}
+
+// The pages that marks placed by their spans are on, in order. These are read first.
+export function getPlacedPages(marks: Mark[]): number[] {
+  const pages = new Set(marks.flatMap(mark => ("spans" in mark ? mark.spans.map(({ page }) => page) : [])));
+  return [ ...pages ].sort((one, other) => one - other);
 }
