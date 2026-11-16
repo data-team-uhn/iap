@@ -20,11 +20,16 @@ import {
   COMMENT_BUTTON_HEIGHT,
   describeOpenFailure,
   describePages,
+  describeSorts,
   getCommentButtonPlace,
   getFileName,
   getPassageNote,
   getPassageStatus,
   getSearchStatus,
+  countMarks,
+  getStepNames,
+  getWidestHeadings,
+  nameMarks,
   IDLE_SEARCH,
 } from "@iap/frontend-commons/pdfViewer/pdfViewerModel";
 import { NotAuthenticatedError } from "@iap/frontend-commons/reLogin";
@@ -137,21 +142,25 @@ describe("getPassageNote", () => {
   });
 
   it("says which pages a passage broken across two was found on, and whether one is the one shown", () => {
-    expect(getPassageNote(onPage2, found(2, 3))).toEqual({ foundOnPage: 2, toPage: 3, shown: true });
+    expect(getPassageNote(onPage2, found(2, 3)))
+      .toEqual({ foundOnPage: 2, toPage: 3, shown: true, searched: true });
     expect(getPassageNote({ page: 3 }, found(2, 3)))
-      .toEqual({ foundOnPage: 2, toPage: 3, shown: true });
+      .toEqual({ foundOnPage: 2, toPage: 3, shown: true, searched: true });
     expect(getPassageNote({ page: 1 }, found(2, 3)))
-      .toEqual({ foundOnPage: 2, toPage: 3, shown: false });
+      .toEqual({ foundOnPage: 2, toPage: 3, shown: false, searched: true });
+    expect(getPassageNote({ page: 1 }, found(2, 3), false))
+      .toEqual({ foundOnPage: 2, toPage: 3, shown: false, searched: false });
   });
 
   it("counts a page between the first and the last of a passage's as shown", () => {
-    expect(getPassageNote({ page: 4 }, found(3, 5))).toEqual({ foundOnPage: 3, toPage: 5, shown: true });
+    expect(getPassageNote({ page: 4 }, found(3, 5)))
+      .toEqual({ foundOnPage: 3, toPage: 5, shown: true, searched: true });
   });
 
   it("says which page the passage was found on, and whether it is the one shown", () => {
-    expect(getPassageNote(onPage2, found(2))).toEqual({ foundOnPage: 2, shown: true });
+    expect(getPassageNote(onPage2, found(2))).toEqual({ foundOnPage: 2, shown: true, searched: true });
     expect(getPassageNote({ page: 3 }, found(2)))
-      .toEqual({ foundOnPage: 2, shown: false });
+      .toEqual({ foundOnPage: 2, shown: false, searched: true });
   });
 });
 
@@ -233,5 +242,40 @@ describe("getCommentButtonPlace", () => {
     expect(getCommentButtonPlace({ x: 2, bottom: -50 }, FRAME, false)).toEqual({ top: 8, left: 8 });
     expect(getCommentButtonPlace({ x: 598, bottom: 900 }, FRAME, true))
       .toEqual({ top: 800 - COMMENT_BUTTON_HEIGHT - 8, right: 8 });
+  });
+});
+
+describe("nameMarks", () => {
+  const NOTES = { one: "note", many: "notes" };
+  const CHANGES = { one: "change", many: "changes" };
+  const marks = [ { id: "a" }, { id: "x" }, { id: "b" }, { id: "y" }, { id: "z" } ];
+  const naming = nameMarks(marks, mark => ("xyz".includes(mark.id) ? CHANGES : NOTES));
+
+  it("numbers each mark among those of its own sort, in the order given", () => {
+    expect([ ...naming ]).toEqual([
+      [ "a", { name: NOTES, index: 1, count: 2 } ],
+      [ "x", { name: CHANGES, index: 1, count: 3 } ],
+      [ "b", { name: NOTES, index: 2, count: 2 } ],
+      [ "y", { name: CHANGES, index: 2, count: 3 } ],
+      [ "z", { name: CHANGES, index: 3, count: 3 } ],
+    ]);
+  });
+
+  it("calls a list of them by their sorts, and gives the widest heading of each sort", () => {
+    expect(describeSorts(naming.values())).toBe("Notes and changes");
+    expect(describeSorts(nameMarks([ { id: "a" } ], () => NOTES).values())).toBe("Notes");
+    expect(describeSorts([])).toBe("");
+    expect(getWidestHeadings(naming.values())).toEqual([ "Note 2 of 2", "Change 3 of 3" ]);
+  });
+
+  it("counts them by sort", () => {
+    expect(countMarks(naming.values())).toBe("2 notes and 3 changes");
+    expect(countMarks(nameMarks([ { id: "a" } ], () => NOTES).values())).toBe("1 note");
+  });
+
+  it("names the marks either side of one for the buttons stepping to them, the nearest past either end", () => {
+    expect(getStepNames(marks, naming, 2, NOTES)).toEqual({ previous: "note", next: "note" });
+    expect(getStepNames(marks, naming, 1, NOTES)).toEqual({ previous: "note", next: "change" });
+    expect(getStepNames([], new Map(), 0, NOTES)).toEqual({ previous: "note", next: "note" });
   });
 });

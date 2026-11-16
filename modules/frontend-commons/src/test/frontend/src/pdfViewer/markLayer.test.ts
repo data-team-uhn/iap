@@ -21,6 +21,8 @@ import {
   findMark,
   getSelectedSpans,
   getTextEnd,
+  getTextPointAt,
+  getTextPointRect,
   keepInView,
   markAt,
 } from "@iap/frontend-commons/pdfViewer/markLayer";
@@ -89,12 +91,14 @@ describe("drawMarks", () => {
     delete (Range.prototype as Partial<Range>).getClientRects;
   });
 
-  it("draws its marks on a layer covering the page, letting the pointer through to the text", () => {
+  it("draws its marks on a layer covering the page, under the text, letting the pointer through to it", () => {
     const textLayer = createTextLayer();
 
     drawMarks(textLayer, [ { id: "m", kind: "assistant", start: 34, end: 50 } ], undefined);
 
-    const layer = textLayer.lastElementChild as HTMLElement;
+    // First, so the text, and a search's matches on it, are drawn over the marks
+    const layer = textLayer.firstElementChild as HTMLElement;
+    expect(layer.querySelector("[data-mark-id=m]")).not.toBeNull();
     const { position, inset, pointerEvents } = layer.style;
     expect({ position, inset, pointerEvents }).toEqual({ position: "absolute", inset: "0px", pointerEvents: "none" });
     expect((layer.firstElementChild as HTMLElement).style.position).toBe("absolute");
@@ -149,6 +153,52 @@ describe("drawMarks", () => {
     drawMarks(textLayer, [], undefined);
 
     expect(drawn(textLayer)).toEqual([]);
+  });
+
+  it("draws a point as a marker the line's height, after the character before it, or before the one it starts", () => {
+    const textLayer = createTextLayer();
+
+    // After "Volunteers", and before the first character of the second line, which it starts
+    drawMarks(textLayer, [
+      { id: "a", kind: "removed", start: 10, end: 10 },
+      { id: "b", kind: "added", start: 34, end: 34, starts: true },
+    ], "a");
+
+    expect(drawn(textLayer)).toEqual([
+      {
+        id: "a",
+        className: "iap-mark iap-mark-removed iap-mark-point selected",
+        top: "0%",
+        left: "12.5%",
+        width: "0%",
+        height: "2%",
+      },
+      { id: "b", className: "iap-mark iap-mark-added iap-mark-point", top: "10%", left: "0%", width: "0%", height: "2%" },
+    ]);
+  });
+
+  it("marks a point starting the text its mark covers", () => {
+    const textLayer = createTextLayer();
+
+    drawMarks(textLayer, [
+      { id: "a", kind: "added", start: 34, end: 34, starts: true },
+      { id: "a", kind: "added", start: 34, end: 40 },
+      { id: "b", kind: "added", start: 10, end: 10 },
+    ], undefined);
+
+    expect(drawn(textLayer).map(({ id, className }) => [ id, className ])).toEqual([
+      [ "a", "iap-mark iap-mark-added iap-mark-point iap-mark-start" ],
+      [ "a", "iap-mark iap-mark-added" ],
+      [ "b", "iap-mark iap-mark-added iap-mark-point" ],
+    ]);
+  });
+
+  it("draws a point at the start of the text before the first character", () => {
+    const textLayer = createTextLayer();
+
+    drawMarks(textLayer, [ { id: "a", kind: "removed", start: 0, end: 0 } ], undefined);
+
+    expect(drawn(textLayer).map(({ left, top }) => [ left, top ])).toEqual([ [ "0%", "0%" ] ]);
   });
 
   it("draws nothing on a page without text", () => {
@@ -321,6 +371,67 @@ describe("getTextEnd", () => {
   });
 });
 
+describe("getTextPointAt and getTextPointRect", () => {
+  beforeEach(() => {
+    Range.prototype.getClientRects = function (this: Range) {
+      return rectsOf(this) as unknown as DOMRectList;
+    };
+    // Each line's span where createTextLayer lays it out
+    vi.spyOn(HTMLSpanElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return new DOMRect(0, Number(this.dataset.line) * 100, 400, 20);
+    });
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (Range.prototype as Partial<Range>).getClientRects;
+    vi.restoreAllMocks();
+  });
+
+  // A frame holding a first page, its text drawn as createTextLayer lays it out, 1000 high, and a second page
+  // under it, its text not drawn yet.
+  function createFrame(): HTMLDivElement {
+    const frame = document.createElement("div");
+    const textLayer = createTextLayer();
+    textLayer.className = "textLayer";
+    for (const [ index, top ] of [ 0, 1020 ].entries()) {
+      const page = document.createElement("div");
+      page.dataset.pageNumber = String(index + 1);
+      page.getBoundingClientRect = () => new DOMRect(0, top, 800, 1000);
+      page.append(...index === 0 ? [ textLayer ] : []);
+      frame.append(page);
+    }
+    document.body.append(frame);
+    return frame;
+  }
+
+  it("finds the start of the first piece of text reaching down to a height", () => {
+    const frame = createFrame();
+
+    expect(getTextPointAt(frame, 10)).toEqual({ page: 1, char: 0 });
+    expect(getTextPointAt(frame, 50)).toEqual({ page: 1, char: 34 });
+  });
+
+  it("finds the last piece of text of a page reaching down to a height below its text", () => {
+    expect(getTextPointAt(createFrame(), 500)).toEqual({ page: 1, char: 34 });
+  });
+
+  it("finds nothing on a page whose text is not drawn, or below every page", () => {
+    const frame = createFrame();
+
+    expect(getTextPointAt(frame, 1500)).toBeUndefined();
+    expect(getTextPointAt(frame, 3000)).toBeUndefined();
+  });
+
+  it("gives the box of the character at a point, or of the point at the end of the text", () => {
+    const frame = createFrame();
+
+    expect(getTextPointRect(frame, { page: 1, char: 10 })).toEqual(new DOMRect(100, 0, 10, 20));
+    expect(getTextPointRect(frame, { page: 1, char: LINES.join("").length })).toEqual(new DOMRect(250, 100, 0, 20));
+    expect(getTextPointRect(frame, { page: 2, char: 0 })).toBeUndefined();
+  });
+});
+
 describe("findMark", () => {
   it("finds the first piece of a mark drawn", () => {
     const frame = document.createElement("div");
@@ -355,6 +466,59 @@ describe("markAt", () => {
     frame.children[0].classList.remove("selected");
     frame.children[1].classList.add("selected");
     expect(markAt(frame, 50, 10)).toBe("a");
+  });
+});
+
+describe("markAt on a point", () => {
+  // A point drawn 100 along a line of the height given, as thin as a point is
+  function createPoint(height = 20): HTMLElement {
+    const frame = document.createElement("div");
+    frame.innerHTML = '<div class="iap-mark iap-mark-point" data-mark-id="p"></div>';
+    (frame.firstElementChild as HTMLElement).getBoundingClientRect = () => new DOMRect(100, 0, 0, height);
+    return frame;
+  }
+
+  it("finds a point within a few pixels of it, with a mouse", () => {
+    const frame = createPoint();
+
+    expect(markAt(frame, 107, 10)).toBe("p");
+    expect(markAt(frame, 109, 10)).toBeUndefined();
+  });
+
+  it("finds a point within a fingertip of it, tapped", () => {
+    const frame = createPoint();
+
+    expect(markAt(frame, 118, 28, true)).toBe("p");
+    expect(markAt(frame, 122, 10, true)).toBeUndefined();
+  });
+
+  it("finds a mark tapped on before a point it is only beside, selected or not", () => {
+    const frame = createPoint();
+    frame.insertAdjacentHTML("beforeend", '<div class="iap-mark selected" data-mark-id="word"></div>');
+    (frame.lastElementChild as HTMLElement).getBoundingClientRect = () => new DOMRect(102, 0, 30, 20);
+
+    expect(markAt(frame, 110, 10, true)).toBe("word");
+    expect(markAt(frame, 100, 10, true)).toBe("p");
+  });
+
+  it("finds a point on its box inside another mark, the one not selected first", () => {
+    const frame = createPoint();
+    frame.insertAdjacentHTML("beforeend", '<div class="iap-mark" data-mark-id="comment"></div>');
+    const comment = frame.lastElementChild as HTMLElement;
+    comment.getBoundingClientRect = () => new DOMRect(60, 0, 80, 20);
+
+    comment.classList.add("selected");
+    expect(markAt(frame, 103, 10)).toBe("p");
+    comment.classList.remove("selected");
+    frame.firstElementChild?.classList.add("selected");
+    expect(markAt(frame, 103, 10)).toBe("comment");
+  });
+
+  it("finds a point anywhere on its box, drawn larger than a fingertip on a tall line", () => {
+    const frame = createPoint(100);
+
+    expect(markAt(frame, 135, 105)).toBe("p");
+    expect(markAt(frame, 137, 50)).toBeUndefined();
   });
 });
 

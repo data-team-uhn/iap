@@ -65,15 +65,19 @@ function openedDocument(components: ViewerComponents, doc: PDFDocumentProxy): Op
   return { components, doc, getPageText, getPageTextWithLines };
 }
 
-// Opens the PDF, or says why it could not be opened. `retry` tries again.
-export function usePdfDocument(url: string) {
+// Opens the PDF, or says why it could not be opened. `retry` tries again. Without a URL, nothing is opened.
+export function usePdfDocument(url: string | undefined) {
   const authFetch = useAuthenticatedFetch();
   const [attempt, setAttempt] = useState(0);
-  const [opened, setOpened] = useState<{ pdf?: OpenedDocument; openError?: string }>({});
+  // What was opened, from where. Another URL's, or none, is not this one's.
+  const [opened, setOpened] = useState<{ url?: string; pdf?: OpenedDocument; openError?: string }>({});
 
   // The file is fetched here rather than by PDF.js, so an expired session gets the same sign-in
   // every other request gets.
   useEffect(() => {
+    if (url === undefined) {
+      return undefined;
+    }
     let task: PDFDocumentLoadingTask | undefined;
     const stop = new AbortController();
     void (async () => {
@@ -92,17 +96,18 @@ export function usePdfDocument(url: string) {
         task = pdfjs.getDocument({ data, worker, useSystemFonts: false, ...dataUrls });
         const doc = await task.promise;
         stop.signal.throwIfAborted();
-        setOpened({ pdf: openedDocument(components, doc) });
+        setOpened({ url, pdf: openedDocument(components, doc) });
       } catch (error: unknown) {
         if (!stop.signal.aborted) {
-          setOpened({ openError: describeOpenFailure(error) });
+          setOpened({ url, openError: describeOpenFailure(error) });
         }
       }
     })();
     return () => {
       stop.abort();
-      // The shared worker is not the task's, so this only drops the document.
+      // The shared worker is not the task's, so this only drops the document, which is then no one's.
       void task?.destroy();
+      setOpened(previous => (previous.url === url ? {} : previous));
     };
   }, [url, authFetch, attempt]);
 
@@ -113,5 +118,6 @@ export function usePdfDocument(url: string) {
     return Promise.resolve();
   }, []);
 
-  return { ...opened, retry };
+  const { pdf, openError } = opened.url === url ? opened : { pdf: undefined, openError: undefined };
+  return { pdf, openError, retry };
 }
