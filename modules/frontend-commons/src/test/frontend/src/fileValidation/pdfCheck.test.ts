@@ -18,7 +18,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { checkPdf } from "@iap/frontend-commons/fileValidation/pdfCheck";
-import { PdfWorkerFailure } from "@iap/frontend-commons/pdfViewer/pdfjsClient";
+import { PdfWorkerFailure } from "@iap/frontend-commons/pdfjsClient";
 
 // What the fake PDF.js does with the next file it is asked to open. Like the real one, destroying a
 // task never settles its promise, and a worker that failed to start stays failed.
@@ -67,8 +67,8 @@ const pdfjs = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@iap/frontend-commons/pdfViewer/pdfjsClient", async importOriginal => ({
-  ...await importOriginal<typeof import("@iap/frontend-commons/pdfViewer/pdfjsClient")>(),
+vi.mock("@iap/frontend-commons/pdfjsClient", async importOriginal => ({
+  ...await importOriginal<typeof import("@iap/frontend-commons/pdfjsClient")>(),
   loadPdfjs: () => fake.loadFails
     ? Promise.reject(new Error("Loading chunk pdfjs failed"))
     : Promise.resolve({ pdfjs, worker: sharedWorker, failed: fake.workerFailed }),
