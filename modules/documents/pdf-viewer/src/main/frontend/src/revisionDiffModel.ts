@@ -698,16 +698,23 @@ function countBefore<T>(items: T[], isBefore: (item: T) => boolean): number {
   return low;
 }
 
+// A point mapped into the other version, and whether it is on a word the two versions share.
+export interface MappedPoint {
+  point: TextPoint;
+  shared: boolean;
+}
+
 // The place in the other version matching a point in the version `from`. A word the versions share maps to
 // the start of its match. A word only one version has maps to where its change is in the other.
-export function mapPoint(alignment: Alignment, from: "older" | "newer", { page, char }: TextPoint): TextPoint {
+export function mapPoint(alignment: Alignment, from: "older" | "newer", { page, char }: TextPoint): MappedPoint {
   const [ side, otherSide ] = from === "older" ? [ 0, 1 ] as const : [ 1, 0 ] as const;
   const others = alignment[from === "older" ? "newer" : "older"];
   const isAtOrBefore = (word: Word) => word.page < page || (word.page === page && word.start <= char);
   const index = countBefore(alignment[from], isAtOrBefore) - 1;
   const pairs = countBefore(alignment.pairs, each => each[side] <= index);
   const pair = pairs > 0 ? alignment.pairs[pairs - 1] : undefined;
-  const matching = pair === undefined ? 0 : pair[otherSide] + (pair[side] === index ? 0 : 1);
+  const shared = pair?.[side] === index;
+  const matching = pair === undefined ? 0 : pair[otherSide] + (shared ? 0 : 1);
   const word = others.at(Math.min(matching, others.length - 1));
-  return word === undefined ? { page: 1, char: 0 } : { page: word.page, char: word.start };
+  return { point: word === undefined ? { page: 1, char: 0 } : { page: word.page, char: word.start }, shared };
 }

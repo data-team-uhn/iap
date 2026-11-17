@@ -109,6 +109,30 @@ test.describe('comparing two versions of a PDF', () => {
       .toBeLessThanOrEqual(1);
   });
 
+  test('holds the older version still while the newer goes through text only it has', async ({ page }) => {
+    const { older, newer } = await openComparison(page);
+    await newer.hover();
+    const isInInsertion = () => newer.evaluate(frame => {
+      const middle = frame.getBoundingClientRect().top + frame.clientHeight / 2;
+      return Array.from(frame.querySelectorAll('.textLayer span[role="presentation"]'))
+        .find(span => span.getBoundingClientRect().bottom >= middle)?.textContent.startsWith('Inserted') ?? false;
+    });
+    while (!await isInInsertion()) {
+      await page.mouse.wheel(0, 100);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
+    }
+
+    // Through a few lines of the added paragraphs, a little at a time
+    const heldAt: number[] = [];
+    for (let step = 0; step < 6; step++) {
+      await page.mouse.wheel(0, 20);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      heldAt.push(await older.evaluate(frame => frame.scrollTop));
+    }
+
+    expect(Math.max(...heldAt) - Math.min(...heldAt)).toBeLessThan(1);
+  });
+
   test('takes both versions to a change stepped to', async ({ page }) => {
     const { older, newer } = await openComparison(page);
     const status = page.getByRole('dialog').getByRole('status');

@@ -114,6 +114,24 @@ describe("useScrollSync", () => {
     expect(showNewer).toHaveBeenCalledExactlyOnceWith({ page: 2, char: 4 }, 40);
   });
 
+  it("keeps the other version still while the one scrolled goes through text only it has", async () => {
+    const older = createShown();
+    older.drawText();
+    const newer = createShown();
+    Object.defineProperty(newer.shown.frame, "clientHeight", { value: 100 });
+    textTop = -10;
+    const showNewer = vi.fn();
+    renderHook(() => useScrollSync({
+      older: { shown: older.shown, showPoint: vi.fn() },
+      newer: { shown: newer.shown, showPoint: showNewer },
+    }, { ...ALIGNMENT, pairs: [] }));
+
+    await scrollByHand(older.shown.frame);
+
+    // Where the change is, in the middle, however far down its line the text scrolled is
+    expect(showNewer).toHaveBeenCalledExactlyOnceWith({ page: 2, char: 4 }, 50);
+  });
+
   it("lets both versions go their own way once released, until the next scroll by hand", async () => {
     const older = createShown();
     older.drawText();

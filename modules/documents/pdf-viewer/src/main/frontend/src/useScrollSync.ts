@@ -69,8 +69,9 @@ export function useScrollSync(views: Record<Version, SyncedView>, alignment: Ali
     const show = { older: showOlder, newer: showNewer };
     // The pane waiting for the text in its middle to be drawn, for the other to follow it.
     let waiting: Version | undefined;
-    // Moves the other pane so that the same text is in its middle. The point keeps its offset into the line,
-    // so the other pane moves smoothly rather than a line at a time.
+    // Moves the other pane so that the same text is in its middle. A shared word keeps its offset into the
+    // line, so the other pane moves smoothly rather than a line at a time. Text only one version has maps to
+    // one place in the other, where its change is, which then stays still in the middle.
     const follow = (from: Version) => {
       const { frame } = shown[from];
       const middle = frame.getBoundingClientRect().top + frame.clientHeight / 2;
@@ -78,9 +79,10 @@ export function useScrollSync(views: Record<Version, SyncedView>, alignment: Ali
       waiting = point === undefined ? from : undefined;
       if (point !== undefined) {
         const to = getOther(from);
-        const line = getTextPointRect(frame, point);
+        const { point: there, shared } = mapPoint(alignment, from, point);
+        const line = shared ? getTextPointRect(frame, point) : undefined;
         const below = line === undefined ? 0 : Math.min(Math.max(middle - line.top, 0), line.height);
-        show[to](mapPoint(alignment, from, point), shown[to].frame.clientHeight / 2 - below);
+        show[to](there, shown[to].frame.clientHeight / 2 - below);
       }
     };
     // The pane the other follows, and until when, unless the pointer is held down on it.
