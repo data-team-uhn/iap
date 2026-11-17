@@ -16,9 +16,9 @@
  * limitations under the License.
  */
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 
-import { PdfViewerWidget } from '../../pages/pdfViewer.page';
+import { getCharBoxes, PdfViewerWidget } from '../../pages/pdfViewer.page';
 import { writePdf } from '../../support/pdf';
 
 const URL = '/e2e/pdf-text-layer/narrow-and-wide.pdf';
@@ -29,8 +29,40 @@ const RUN = 60;
 /** Helvetica's advance widths, in thousandths of the font size, which PDF.js draws the font at. */
 const ADVANCE = { i: 222, x: 500, m: 833 };
 
-/** A line of narrow letters, then the `x`, then wide letters, on a page wide enough for it. */
-const PDF = writePdf([ [ `${'i'.repeat(RUN)}x${'m'.repeat(RUN)}` ] ], { width: 842, height: 200 });
+/**
+ * A tagged page with a line of narrow letters, then the `x`, then wide letters, between two others. Tagged,
+ * PDF.js ends lines with empty pieces of text it draws nothing for, as on most real documents.
+ */
+const PDF = writePdf(
+  [ [ 'Before the line.', `${'i'.repeat(RUN)}x${'m'.repeat(RUN)}`, 'After the line.' ] ],
+  { width: 842, height: 240, tagged: true },
+);
+
+/** Where the line's ends are, and where its `x` starts. */
+interface Line {
+  start: number;
+  end: number;
+  x: number;
+}
+
+/** Measures the line of narrow and wide letters: its first and last letters, and its `x`. */
+async function measureLine(line: Locator): Promise<Line> {
+  const text = await line.textContent() ?? '';
+  const at = text.indexOf('x');
+  const [ first, last, x ] = await getCharBoxes(line, [
+    { from: 0, to: 1 },
+    { from: text.length - 1, to: text.length },
+    { from: at, to: at + 1 },
+  ]);
+  return { start: first.left, end: last.right, x: x.left };
+}
+
+/** Checks that the `x` is as far along the line as its glyphs put it, to within a pixel. */
+function expectOnGlyph({ start, end, x }: Line): void {
+  const total = RUN * ADVANCE.i + ADVANCE.x + RUN * ADVANCE.m;
+  const drawnAt = start + (end - start) * RUN * ADVANCE.i / total;
+  expect(Math.abs(x - drawnAt)).toBeLessThan(1);
+}
 
 /**
  * The text layer in a real browser, which lays its text out. Selecting, searching and marking all read where
@@ -45,26 +77,26 @@ test.describe('the text of a PDF', () => {
 
   test('puts each character where the page draws it, on a line of narrow and wide letters', async ({ page }) => {
     const viewer = await new PdfViewerWidget(page).open({ url: URL });
-    const line = viewer.locator('.textLayer span', { hasText: 'ix' });
+    const line = viewer.locator('.textLayer span[role="presentation"]', { hasText: 'ix' });
 
     // Set in the font PDF.js loaded for the page, named after the document and the font
     await expect(line).toHaveCSS('font-family', /^"?g_d\d+_f\d+"?, /);
-    const { start, end, x } = await line.evaluate(span => {
-      const text = span.firstChild as Text;
-      const measure = (from: number, to: number) => {
-        const range = document.createRange();
-        range.setStart(text, from);
-        range.setEnd(text, to);
-        return range.getBoundingClientRect();
-      };
-      const at = text.data.indexOf('x');
-      const last = text.data.length;
-      return { start: measure(0, 1).left, end: measure(last - 1, last).right, x: measure(at, at + 1).left };
-    });
+    expectOnGlyph(await measureLine(line));
+  });
 
-    // The line's two ends are where PDF.js stretched it to, and the x is as far along it as its glyphs are
-    const total = RUN * ADVANCE.i + ADVANCE.x + RUN * ADVANCE.m;
-    const drawnAt = start + (end - start) * RUN * ADVANCE.i / total;
-    expect(Math.abs(x - drawnAt)).toBeLessThan(1);
+  test('keeps each character where the page draws it after a zoom', async ({ page }) => {
+    const viewer = await new PdfViewerWidget(page).open({ url: URL });
+    const line = viewer.locator('.textLayer span[role="presentation"]', { hasText: 'ix' });
+    await expect(line).toHaveCSS('font-family', /^"?g_d\d+_f\d+"?, /);
+    const before = await measureLine(line);
+
+    await viewer.getByRole('button', { name: 'Zoom in' }).click();
+
+    // PDF.js lays the line out again at the new scale
+    await expect.poll(async () => {
+      const { start, end } = await measureLine(line);
+      return end - start;
+    }).toBeGreaterThan(before.end - before.start + 10);
+    expectOnGlyph(await measureLine(line));
   });
 });

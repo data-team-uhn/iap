@@ -18,7 +18,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { PdfViewerWidget } from '../../pages/pdfViewer.page';
+import { getCharBoxes, PdfViewerWidget, type Box } from '../../pages/pdfViewer.page';
 import { writePdf } from '../../support/pdf';
 import { PHONE, pastTheEdge } from '../../support/phone';
 
@@ -39,14 +39,6 @@ const PDF = writePdf([
   ...[ 5, 6, 7, 8 ].map(page => [ `Page ${page} adds nothing new.` ]),
 ]);
 
-/** Where an element or a piece of text is on the screen, in pixels. */
-interface Box {
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
-}
-
 /** Where the elements a locator finds are on the screen, as one box around all of them. */
 async function getBox(elements: Locator): Promise<Box> {
   const boxes = await elements.evaluateAll(found => found.map(element => element.getBoundingClientRect()));
@@ -66,16 +58,11 @@ async function getWidth(elements: Locator): Promise<number> {
 }
 
 /** Where the text layer puts some words of a page's text. */
-function getTextBox(viewer: Locator, page: number, words: string): Promise<Box> {
-  return viewer.locator(`[data-page-number="${page}"] .textLayer span`, { hasText: words }).first()
-    .evaluate((span, wanted) => {
-      const text = span.firstChild as Text;
-      const range = document.createRange();
-      range.setStart(text, text.data.indexOf(wanted));
-      range.setEnd(text, text.data.indexOf(wanted) + wanted.length);
-      const { left, right, top, bottom } = range.getBoundingClientRect();
-      return { left, right, top, bottom };
-    }, words);
+async function getTextBox(viewer: Locator, page: number, words: string): Promise<Box> {
+  const span = viewer.locator(`[data-page-number="${page}"] .textLayer span[role="presentation"]`, { hasText: words }).first();
+  const from = (await span.textContent() ?? '').indexOf(words);
+  const [ box ] = await getCharBoxes(span, [ { from, to: from + words.length } ]);
+  return box;
 }
 
 /** Checks that a mark covers the words it marks, to within a pixel at either end. */
@@ -157,7 +144,7 @@ test.describe('the PDF viewer', () => {
 
     // Each page drawn on the way is a chance to pull the reader back to the passage. A page this far on is
     // drawn only once the reader reaches it.
-    await expect(viewer.locator('[data-page-number="7"] .textLayer span', { hasText: 'Page 7' })).toBeInViewport();
+    await expect(viewer.locator('[data-page-number="7"] .textLayer span[role="presentation"]', { hasText: 'Page 7' })).toBeInViewport();
     await expect(mark).not.toBeInViewport();
   });
 

@@ -53,7 +53,7 @@ async function printPdf(browser: Browser, paragraphs: string[]): Promise<Buffer>
 async function getMiddleParagraph(pane: Locator): Promise<number> {
   return pane.evaluate(frame => {
     const middle = frame.getBoundingClientRect().top + frame.clientHeight / 2;
-    const line = Array.from(frame.querySelectorAll('.textLayer span'))
+    const line = Array.from(frame.querySelectorAll('.textLayer span[role="presentation"]'))
       .find(span => /Paragraph \d+/.test(span.textContent) && span.getBoundingClientRect().bottom >= middle);
     return Number(/Paragraph (\d+)/.exec(line?.textContent ?? '')?.[1] ?? 0);
   });
