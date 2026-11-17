@@ -16,15 +16,20 @@
  * limitations under the License.
  */
 // Previous and Next buttons stepping through a list of marks, such as passages or changes.
+import { useEffect, useRef } from "react";
+
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { Box, IconButton, Typography } from "@mui/material";
+
+import type { StepDirection } from "./pdfViewerModel";
 
 // Steps through a list one item at a time, with Previous and Next buttons around the position, as in
 // "2 of 5". Positions count from 1. Each button is disabled at its end of the list. Given a heading, it
 // shows the heading between the buttons instead of the count. The text between the buttons keeps the
 // width of the widest text it can take, so stepping never moves the buttons. That is the count at the
-// last position, or else the `widest` texts given with the heading.
+// last position, or else the `widest` texts given with the heading. The button pressed keeps the focus, and
+// at its end of the list the other button takes it.
 export default function StepControls(props: {
   position: number;
   count: number;
@@ -38,10 +43,31 @@ export default function StepControls(props: {
   variant?: "caption" | "subtitle2";
   // Lets the text between the buttons be cut short where the row has no room for it, as in a toolbar.
   shrinks?: boolean;
-  onStep: (position: number) => void;
+  // The button with the focus as the controls are drawn, for controls drawn anew by a step, as on a card
+  // drawn for the next item.
+  focused?: StepDirection;
+  onStep: (position: number, direction: StepDirection) => void;
 }) {
-  const { position, count, itemName, heading, widest, variant, shrinks, onStep } = props;
+  const { position, count, itemName, heading, widest, variant, shrinks, focused, onStep } = props;
   const names = typeof itemName === "string" ? { previous: itemName, next: itemName } : itemName;
+  const previousButton = useRef<HTMLButtonElement>(null);
+  const nextButton = useRef<HTMLButtonElement>(null);
+  const pressed = useRef(focused);
+  const step = (direction: StepDirection) => {
+    pressed.current = direction;
+    onStep(direction === "next" ? position + 1 : position - 1, direction);
+  };
+  // A button disabled under the focus loses it, so at an end the focus goes to the other button.
+  useEffect(() => {
+    const direction = pressed.current;
+    pressed.current = undefined;
+    if (direction === undefined) {
+      return;
+    }
+    const atEnd = direction === "next" ? position >= count : position <= 1;
+    const nextKeeps = (direction === "next") !== atEnd;
+    (nextKeeps ? nextButton : previousButton).current?.focus();
+  }, [position, count]);
   const [ text, sizes, style ] = heading === undefined
     ? [ `${position} of ${count}`, [ `${count} of ${count}` ], variant ?? "caption" ]
     : [ heading, widest ?? [], variant ?? "subtitle2" ];
@@ -59,9 +85,10 @@ export default function StepControls(props: {
   return (
     <Box sx={{ display: "flex", alignItems: "center", minWidth: 0, flexShrink: shrinks ? 1 : 0, justifyContent: "space-between" }}>
       <IconButton
+        ref={previousButton}
         aria-label={`Previous ${names.previous}`}
         disabled={position <= 1}
-        onClick={() => onStep(position - 1)}
+        onClick={() => step("previous")}
       >
         <ChevronLeftIcon />
       </IconButton>
@@ -79,7 +106,12 @@ export default function StepControls(props: {
         {widthHolders}
         <Typography variant={style} component="span" noWrap sx={{ maxWidth: "100%" }}>{text}</Typography>
       </Box>
-      <IconButton aria-label={`Next ${names.next}`} disabled={position >= count} onClick={() => onStep(position + 1)}>
+      <IconButton
+        ref={nextButton}
+        aria-label={`Next ${names.next}`}
+        disabled={position >= count}
+        onClick={() => step("next")}
+      >
         <ChevronRightIcon />
       </IconButton>
     </Box>

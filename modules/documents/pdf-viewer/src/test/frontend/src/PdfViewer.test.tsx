@@ -992,6 +992,17 @@ describe("PdfViewer", () => {
         expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
       });
 
+      it("keeps the focus on the step button pressed as the next passage is shown", async () => {
+        showMarks();
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        await userEvent.click(screen.getByRole("button", { name: "Next passage" }));
+        expect(screen.getByRole("button", { name: "Next passage" })).toHaveFocus();
+
+        await userEvent.click(screen.getByRole("button", { name: "Next passage" }));
+        expect(screen.getByRole("button", { name: "Previous passage" })).toHaveFocus();
+      });
+
       it("ends with the passages that cannot be marked", async () => {
         showMarks();
         await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
