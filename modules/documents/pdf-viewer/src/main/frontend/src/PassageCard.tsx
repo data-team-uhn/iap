@@ -182,7 +182,7 @@ export default function PassageCard(props: {
       >
         {text}
         {long || note === undefined ? null : (
-          <Typography component="span" variant="caption" aria-hidden sx={{ color: "text.secondary" }}>
+          <Typography component="span" variant="caption" aria-hidden>
             {text === "" ? "" : " — "}
             <NoteText note={note} />
           </Typography>
@@ -194,7 +194,7 @@ export default function PassageCard(props: {
             component="span"
             variant="caption"
             aria-hidden
-            sx={{ display: "block", flexShrink: 0, pl: oneRow ? 1 : 0, color: "text.secondary" }}
+            sx={{ display: "block", flexShrink: 0, pl: oneRow ? 1 : 0 }}
           >
             <NoteText note={note} short={oneRow} />
           </Typography>

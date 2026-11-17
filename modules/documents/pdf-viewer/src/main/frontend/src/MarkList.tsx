@@ -224,7 +224,7 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
       {note === undefined
         ? null
         : (
-          <Typography component="span" variant="caption" sx={{ display: "block", color: "text.secondary" }}>
+          <Typography component="span" variant="caption" sx={{ display: "block" }}>
             <NoteText note={note} />
           </Typography>
         )}
