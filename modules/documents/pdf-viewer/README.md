@@ -107,6 +107,21 @@ and where they are (`quote` and `page`, `spans`, or `anchor`). A mark that has n
 changed keeps the place found for it, so adding a mark, such as a new comment, leaves
 the others where they are and looks only for the new one.
 
+## The text over the page
+
+Marks, selections and search matches are drawn on PDF.js's text layer: transparent text
+laid over each page. PDF.js sets it in a generic font, `sans-serif`, `serif` or
+`monospace`, and stretches each piece of text to the width the page draws it. A
+character inside a piece then sits where the generic font puts it, up to tens of pixels
+from its glyph on a line mixing narrow and wide letters. Selecting it could pick up a
+letter beside it.
+
+`textLayerFonts` sets each piece in the font PDF.js loaded to draw the page, and keeps its
+width. Once a page has both its text and its fonts, the viewer aligns it and draws its
+marks again. This relies on PDF.js internals, listed in that file: where they do not hold,
+the text keeps PDF.js's own layout. The `pdf-text-layer` integration test checks a line of
+narrow and wide letters in a real browser, so a PDF.js upgrade that changes them fails it.
+
 ## Listing and selecting
 
 A single passage is shown on a card above the document, and several are listed beside

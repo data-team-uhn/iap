@@ -39,37 +39,49 @@ export interface OpenedDocument {
   // The same text, with where its lines end. A page gives the same object every time, so what is worked
   // out from its text can be kept against that object.
   getPageTextWithLines: (pageNumber: number) => Promise<PageText>;
+  // The name PDF.js gave the font of each piece of a page's text, in the order the text layer draws them, one
+  // per span. The name is the one PDF.js loads the font under to draw the page. Read with the text.
+  getPageFonts: (pageNumber: number) => Promise<string[]>;
 }
 
-// A page's text as PDF.js reads it for its text layer, with where its lines end. It is empty for a page
-// PDF.js cannot read.
-async function readPageText(doc: PDFDocumentProxy, pageNumber: number): Promise<PageText> {
-  const page: PageText = { text: "", lineEnds: [] };
+// A page's text, and the font of each piece of it.
+interface ReadPage {
+  text: PageText;
+  fonts: string[];
+}
+
+// A page's text as PDF.js reads it for its text layer, with where its lines end, and the font of each piece.
+// It is empty for a page PDF.js cannot read.
+async function readPage(doc: PDFDocumentProxy, pageNumber: number): Promise<ReadPage> {
+  const page: ReadPage = { text: { text: "", lineEnds: [] }, fonts: [] };
   try {
     const content = await (await doc.getPage(pageNumber)).getTextContent({ disableNormalization: true });
     for (const item of content.items) {
       if ("str" in item) {
-        page.text += item.str;
+        page.text.text += item.str;
+        page.fonts.push(item.fontName);
         if (item.hasEOL) {
-          page.lineEnds.push(page.text.length);
+          page.text.lineEnds.push(page.text.text.length);
         }
       }
     }
     return page;
   } catch {
-    return { text: "", lineEnds: [] };
+    return { text: { text: "", lineEnds: [] }, fonts: [] };
   }
 }
 
 function createOpenedDocument(components: ViewerComponents, doc: PDFDocumentProxy): OpenedDocument {
-  const texts = new Map<number, Promise<PageText>>();
-  const getPageTextWithLines = (pageNumber: number) => {
-    const text = texts.get(pageNumber) ?? readPageText(doc, pageNumber);
-    texts.set(pageNumber, text);
-    return text;
+  const pages = new Map<number, Promise<ReadPage>>();
+  const read = (pageNumber: number) => {
+    const page = pages.get(pageNumber) ?? readPage(doc, pageNumber);
+    pages.set(pageNumber, page);
+    return page;
   };
+  const getPageTextWithLines = async (pageNumber: number) => (await read(pageNumber)).text;
   const getPageText = async (pageNumber: number) => (await getPageTextWithLines(pageNumber)).text;
-  return { components, doc, getPageText, getPageTextWithLines };
+  const getPageFonts = async (pageNumber: number) => (await read(pageNumber)).fonts;
+  return { components, doc, getPageText, getPageTextWithLines, getPageFonts };
 }
 
 // Opens the PDF at a URL, or says why it could not. `retry` tries again. Without a URL, it opens nothing.

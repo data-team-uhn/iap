@@ -36,6 +36,7 @@ import {
 import { createFindController } from "./pdfjsViewer";
 import { getSearchStatus, IDLE_SEARCH, type DocumentSearch } from "./pdfViewerModel";
 import { isScrollByHand, SCROLL_INPUTS } from "./scrollByHand";
+import { alignTextLayer, readPageFonts } from "./textLayerFonts";
 
 import type { Mark, TextPoint } from "./marksModel";
 import type { MarkPlaces } from "./useMarkPlaces";
@@ -127,6 +128,8 @@ export function usePdfView(
   // the reader goes elsewhere.
   const followSelectedRef = useRef(true);
   const goToMarkRef = useRef<(() => void) | undefined>(undefined);
+  // Draws a page's marks again, once its text has moved.
+  const redrawPageRef = useRef<((pageNumber: number) => void) | undefined>(undefined);
   // The selected mark's id, for drawing marks after it was selected.
   const selectedIdRef = useRef(selectedId);
   // The text layers whose text PDF.js has drawn. PDF.js gives a page a new text layer when it draws the
@@ -261,6 +264,22 @@ export function usePdfView(
         renderedTextRef.current.add(textLayer);
       }
     });
+    // A page's text is set in the fonts the page is drawn with, once both are there: the text after
+    // `textlayerrendered`, the fonts after `pagerendered`. The marks on it are then drawn again.
+    const alignPage = (pageNumber: number) => {
+      const textLayer = (viewer.getPageView(pageNumber - 1) as PDFPageView | undefined)?.textLayer?.div;
+      const fonts = readPageFonts();
+      if (textLayer === undefined || fonts === undefined) {
+        return;
+      }
+      void pdf.getPageFonts(pageNumber).then(fontNames => {
+        if (alignTextLayer(textLayer, fontNames, fonts)) {
+          redrawPageRef.current?.(pageNumber);
+        }
+      });
+    };
+    eventBus.on("textlayerrendered", ({ pageNumber }: { pageNumber: number }) => alignPage(pageNumber));
+    eventBus.on("pagerendered", ({ pageNumber }: { pageNumber: number }) => alignPage(pageNumber));
     eventBus.on("updateviewarea", ({ location }: { location: { pdfOpenParams: string } }) => {
       locationRef.current = { of: doc, params: location.pdfOpenParams.replace(/^#/, "") };
     });
@@ -369,11 +388,14 @@ export function usePdfView(
       }
     };
     const stop = new AbortController();
-    eventBus.on("textlayerrendered", ({ source, pageNumber }: { source: PDFPageView; pageNumber: number }) => {
-      const textLayer = source.textLayer?.div;
+    const drawPage = (pageNumber: number) => {
+      const textLayer = (viewer.getPageView(pageNumber - 1) as PDFPageView | undefined)?.textLayer?.div;
       if (textLayer !== undefined) {
         drawMarks(textLayer, getPageMarks(marks, places, pageNumber), selectedIdRef.current);
       }
+    };
+    eventBus.on("textlayerrendered", ({ pageNumber }: { pageNumber: number }) => {
+      drawPage(pageNumber);
       goToMark();
     }, { signal: stop.signal });
     // Every page is measured before marks are placed on any, so the browser lays the document out once.
@@ -385,9 +407,11 @@ export function usePdfView(
       .forEach(page => placeMarks(page, selectedIdRef.current));
     goToMark();
     goToMarkRef.current = goToMark;
+    redrawPageRef.current = drawPage;
     return () => {
       stop.abort();
       goToMarkRef.current = undefined;
+      redrawPageRef.current = undefined;
     };
   }, [shown, marks, places]);
 

@@ -29,6 +29,9 @@ const DEFAULT_PAGES = [ "Cover page of the document.", QUOTE, "The schedule cont
 // How far down its page every passage sits, so a test can tell whether it was scrolled into view.
 export const MATCH_TOP = 500;
 
+// The name PDF.js loads the page's one font under.
+export const FONT_NAME = "g_d0_f1";
+
 const PAGE_WIDTH = 600;
 const PAGE_HEIGHT = 800;
 
@@ -192,8 +195,9 @@ class FakeDocument {
           throw createPdfjsError("UnknownErrorException", "Bad text content");
         }
         const lines = (this.pages[pageNumber - 1] ?? "").split("\n");
-        // Marked content, which says how the text is structured, holds none of it.
-        const items = lines.map((str, index) => ({ str, hasEOL: index < lines.length - 1 }));
+        // Marked content, which says how the text is structured, holds none of it. Every line is in one font,
+        // loaded under the name PDF.js gives it.
+        const items = lines.map((str, index) => ({ str, hasEOL: index < lines.length - 1, fontName: FONT_NAME }));
         return { items: [ { type: "beginMarkedContent" }, ...items, { type: "endMarkedContent" } ] };
       },
     });
@@ -364,6 +368,8 @@ class FakePDFViewer {
     for (const line of (this.doc?.pages[pageNumber - 1] ?? "").split("\n")) {
       const span = document.createElement("span");
       span.textContent = line;
+      // PDF.js sets a piece of text in a generic font.
+      span.style.fontFamily = "sans-serif";
       div.append(span, document.createElement("br"));
     }
     div.getBoundingClientRect = () => new DOMRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
