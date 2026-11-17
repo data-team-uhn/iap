@@ -20,6 +20,7 @@
 
 import { PdfWorkerFailure } from "@iap/frontend-commons/pdfjsClient";
 import { lastSegmentOf } from "@iap/frontend-commons/serializedNode";
+import { capitalize } from "@iap/frontend-commons/words";
 
 import type { MarkPlace } from "./marksModel";
 
@@ -72,11 +73,6 @@ export interface MarkName {
 export const PASSAGES: MarkName = { one: "passage", many: "passages" };
 
 export const CHANGES: MarkName = { one: "change", many: "changes" };
-
-// The word with its first letter in upper case, to start a sentence or a label.
-export function capitalize(word: string): string {
-  return word.charAt(0).toUpperCase() + word.slice(1);
-}
 
 // A mark by its place among several, as in "Passage 3 of 12".
 export function describeAmong(name: MarkName, { index, count }: { index: number; count: number }): string {

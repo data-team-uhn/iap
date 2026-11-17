@@ -16,6 +16,9 @@
  * limitations under the License.
  */
 
+// The word with its first letter in upper case, to start a sentence or a label
+export const capitalize = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1);
+
 // Joins words into a list for a sentence: "a, b and c"
 export const listed = (words: string[]): string => (words.length < 2 ? words.join("")
   : `${words.slice(0, -1).join(", ")} and ${words.slice(-1).join("")}`);
