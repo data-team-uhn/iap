@@ -121,40 +121,86 @@ function getPointRect(nodes: TextNodeAt[], offset: number, starts = false): DOMR
 
 const formatPercent = (part: number, whole: number) => `${(100 * part / whole).toFixed(4)}%`;
 
-// Draws the marks on a page's text layer, replacing any drawn before. They go inside the text layer, which
-// PDF.js keeps when zooming, and are sized in percentages of it to scale with the page. They go under its
-// text, so the matches of a search, drawn on the text, show over them.
-export function drawMarks(textLayer: HTMLElement, marks: PageMark[], selectedId: string | undefined): void {
+// One box of a mark, where it goes on its page's text layer, in percentages of the layer.
+interface MarkPiece {
+  mark: PageMark;
+  point: boolean;
+  starts: boolean;
+  left: string;
+  top: string;
+  width: string;
+  height: string;
+}
+
+// A page's marks as measured, ready to be placed on its text layer.
+export interface MeasuredMarks {
+  textLayer: HTMLElement;
+  pieces: MarkPiece[];
+}
+
+// Where each mark goes on a page's text layer, in percentages of it, so the marks scale with the page as
+// PDF.js zooms it. This only reads the page's layout, so measuring every page before placing on any lays
+// the document out once.
+export function measureMarks(textLayer: HTMLElement, marks: PageMark[]): MeasuredMarks {
+  const nodes = marks.length === 0 ? [] : getTextNodes(textLayer);
+  if (nodes.length === 0) {
+    return { textLayer, pieces: [] };
+  }
+  const box = textLayer.getBoundingClientRect();
+  const pieces = marks.flatMap(mark => {
+    const { id, start, end } = mark;
+    const point = start === end;
+    const rects = point
+      ? [ getPointRect(nodes, start, mark.starts === true) ].filter(rect => rect !== undefined)
+      : getTextRects(nodes, start, end);
+    const starts = point && marks.some(other => other.id === id && other.end > other.start);
+    return joinLines(rects).map(rect => ({
+      mark,
+      point,
+      starts,
+      left: formatPercent(rect.left - box.left, box.width),
+      top: formatPercent(rect.top - box.top, box.height),
+      width: formatPercent(rect.width, box.width),
+      height: formatPercent(rect.height, box.height),
+    }));
+  });
+  return { textLayer, pieces };
+}
+
+// Places measured marks on their text layer, replacing any placed before. They go inside the text layer,
+// which PDF.js keeps when zooming. They go under its text, so the matches of a search, drawn on the text,
+// show over them.
+export function placeMarks({ textLayer, pieces }: MeasuredMarks, selectedId: string | undefined): void {
   textLayer.querySelector(`:scope > .${LAYER_CLASS}`)?.remove();
-  const nodes = getTextNodes(textLayer);
-  if (nodes.length === 0 || marks.length === 0) {
+  if (pieces.length === 0) {
     return;
   }
   const layer = document.createElement("div");
   layer.className = LAYER_CLASS;
   Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none" });
-  const box = textLayer.getBoundingClientRect();
-  for (const { id, kind, start, end, starts } of marks) {
-    const point = start === end;
-    const rects = point
-      ? [ getPointRect(nodes, start, starts === true) ].filter(rect => rect !== undefined)
-      : getTextRects(nodes, start, end);
-    for (const rect of joinLines(rects)) {
-      const element = document.createElement("div");
-      element.dataset.markId = id;
-      element.classList.add(MARK_CLASS, `${MARK_CLASS}-${kind}`);
-      element.classList.toggle(POINT_CLASS, point);
-      element.classList.toggle(START_CLASS, point && marks.some(other => other.id === id && other.end > other.start));
-      element.classList.toggle("selected", id === selectedId);
-      element.style.position = "absolute";
-      element.style.left = formatPercent(rect.left - box.left, box.width);
-      element.style.top = formatPercent(rect.top - box.top, box.height);
-      element.style.width = formatPercent(rect.width, box.width);
-      element.style.height = formatPercent(rect.height, box.height);
-      layer.append(element);
-    }
+  for (const { mark: { id, kind }, point, starts, left, top, width, height } of pieces) {
+    const element = document.createElement("div");
+    element.dataset.markId = id;
+    element.classList.add(MARK_CLASS, `${MARK_CLASS}-${kind}`);
+    element.classList.toggle(POINT_CLASS, point);
+    element.classList.toggle(START_CLASS, starts);
+    element.classList.toggle("selected", id === selectedId);
+    Object.assign(element.style, { position: "absolute", left, top, width, height });
+    layer.append(element);
   }
   textLayer.prepend(layer);
+}
+
+// Draws the marks on a page's text layer, replacing any drawn before.
+export function drawMarks(textLayer: HTMLElement, marks: PageMark[], selectedId: string | undefined): void {
+  placeMarks(measureMarks(textLayer, marks), selectedId);
+}
+
+// Shows which mark is selected among those drawn in the frame, without drawing any of them again.
+export function selectMarks(frame: HTMLElement, selectedId: string | undefined): void {
+  for (const mark of frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)) {
+    mark.classList.toggle("selected", mark.dataset.markId === selectedId);
+  }
 }
 
 // The text a range selects on the pages drawn in the frame, as one span per page, in order, without the

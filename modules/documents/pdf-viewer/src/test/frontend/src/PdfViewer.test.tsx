@@ -1324,6 +1324,22 @@ describe("PdfViewer", () => {
         expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2.");
         expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
       });
+
+      it("shows another selection on the marks drawn, without drawing them again", async () => {
+        const viewer = (selected: string) => (
+          withTheme(<PdfViewer url={URL} marks={MARKS} selectedMarkId={selected} onClose={vi.fn()} />)
+        );
+        const { rerender } = render(viewer("volunteers"));
+        await waitFor(() => expect(getDrawnMarks(getFrame())[3]).toHaveLength(1));
+        const drawn = Array.from(getFrame().querySelectorAll("[data-mark-id]"));
+
+        rerender(viewer("schedule"));
+
+        // The very elements drawn before, not new ones that look the same
+        expect(drawn.every(mark => mark.isConnected)).toBe(true);
+        expect(getFrame().querySelector("[data-mark-id='schedule']")).toHaveClass("selected");
+        expect(getFrame().querySelector("[data-mark-id='volunteers']")).not.toHaveClass("selected");
+      });
     });
 
     describe("in the document", () => {

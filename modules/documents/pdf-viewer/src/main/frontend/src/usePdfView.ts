@@ -17,7 +17,18 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { centreIn, drawMarks, findMark, findMarkAt, getTextPointRect, OVER_MARK_CLASS, type PageMark } from "./markLayer";
+import {
+  centreIn,
+  drawMarks,
+  findMark,
+  findMarkAt,
+  getTextPointRect,
+  measureMarks,
+  OVER_MARK_CLASS,
+  placeMarks,
+  selectMarks,
+  type PageMark,
+} from "./markLayer";
 import { createFindController } from "./pdfjsViewer";
 import { getSearchStatus, IDLE_SEARCH, type DocumentSearch } from "./pdfViewerModel";
 import { isScrollByHand, SCROLL_INPUTS } from "./scrollByHand";
@@ -106,6 +117,8 @@ export function usePdfView(
   const goToRef = useRef<string | undefined>(undefined);
   const followSelectedRef = useRef(true);
   const goToMarkRef = useRef<(() => void) | undefined>(undefined);
+  // The selected mark, for marks drawn after it was selected.
+  const selectedIdRef = useRef(selectedId);
   // The place in the text to take the reader to once its page is drawn, and how far down the frame.
   const pointRef = useRef<{ point: TextPoint; atY: number } | undefined>(undefined);
   const goToPointRef = useRef<(() => void) | undefined>(undefined);
@@ -292,6 +305,15 @@ export function usePdfView(
     };
   }, [pdf, frame, openAt]);
 
+  // A new selection is shown on the marks already drawn, and is taken to while the view follows it.
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+    if (shown !== undefined) {
+      selectMarks(shown.frame, selectedId);
+      goToMarkRef.current?.();
+    }
+  }, [shown, selectedId]);
+
   // The marks are drawn on each page as PDF.js draws its text, and again as passages are found.
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -299,14 +321,8 @@ export function usePdfView(
       return undefined;
     }
     const { eventBus, frame: shownIn } = shown;
-    const draw = (pageView: PDFPageView, pageNumber: number) => {
-      const textLayer = pageView.textLayer?.div;
-      if (textLayer !== undefined) {
-        drawMarks(textLayer, getPageMarks(marks, places, pageNumber), selectedId);
-      }
-    };
     const goToMark = () => {
-      const id = goToRef.current ?? (followSelectedRef.current ? selectedId : undefined);
+      const id = goToRef.current ?? (followSelectedRef.current ? selectedIdRef.current : undefined);
       const place = id === undefined ? undefined : places[id];
       if (id === undefined || place?.status !== "found") {
         return;
@@ -323,19 +339,26 @@ export function usePdfView(
     };
     const stop = new AbortController();
     eventBus.on("textlayerrendered", ({ source, pageNumber }: { source: PDFPageView; pageNumber: number }) => {
-      draw(source, pageNumber);
+      const textLayer = source.textLayer?.div;
+      if (textLayer !== undefined) {
+        drawMarks(textLayer, getPageMarks(marks, places, pageNumber), selectedIdRef.current);
+      }
       goToMark();
     }, { signal: stop.signal });
-    for (let index = 0; index < viewer.pagesCount; index++) {
-      draw(viewer.getPageView(index) as PDFPageView, index + 1);
-    }
+    // Every page is measured before any is drawn on, so the whole document is laid out once.
+    Array.from({ length: viewer.pagesCount }, (_, index) => index)
+      .flatMap(index => {
+        const textLayer = (viewer.getPageView(index) as PDFPageView | undefined)?.textLayer?.div;
+        return textLayer === undefined ? [] : [ measureMarks(textLayer, getPageMarks(marks, places, index + 1)) ];
+      })
+      .forEach(page => placeMarks(page, selectedIdRef.current));
     goToMark();
     goToMarkRef.current = goToMark;
     return () => {
       stop.abort();
       goToMarkRef.current = undefined;
     };
-  }, [shown, marks, places, selectedId]);
+  }, [shown, marks, places]);
 
   // A place in the text is taken to once its page is drawn, as PDF.js draws it.
   useEffect(() => {
