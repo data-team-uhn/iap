@@ -329,10 +329,7 @@ function getChangeText(spans: MarkSpan[], pages: PageText[]): string {
   return spans
     .map(({ page, start, end }) => getPassageText(pages[page - 1], start, end))
     .filter(text => text !== "")
-    .reduce((text, next) => {
-      const broken = /\p{L}[-\u00ad\u2010]$/u.test(text);
-      return text === "" ? next : `${text}${broken ? "" : " "}${next}`;
-    }, "");
+    .reduce((text, next) => (text === "" ? next : `${text}${isBrokenWord(text, next) ? "" : " "}${next}`), "");
 }
 
 // A change while it is collected: where it starts in each version's words, and the words removed and added.
