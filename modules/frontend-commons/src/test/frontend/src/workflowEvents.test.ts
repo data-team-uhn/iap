@@ -21,11 +21,13 @@ import { offers, patch, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 const failure = (sending: Promise<unknown>) => sending.then(() => undefined, (error: unknown) => error);
 
-const answer = (response: Partial<Response>) => vi.fn(() => Promise.resolve(response as Response));
+// The engine answers in JSON: what an event created, or why it was refused
+const answer = (status: number, body: unknown) =>
+  vi.fn(() => Promise.resolve(new Response(JSON.stringify(body), { status })));
 
 describe("sendEvent", () => {
   it("posts the event to the node, named by its selector", async () => {
-    const doFetch = answer({ ok: true, status: 200, redirected: false });
+    const doFetch = answer(200, { status: "completed" });
 
     await expect(sendEvent(doFetch, "/Workflows/review/v2", "retire")).resolves.toBeUndefined();
 
@@ -34,7 +36,7 @@ describe("sendEvent", () => {
   });
 
   it("sends a file as the body it was given", async () => {
-    const doFetch = answer({ ok: true, status: 200, redirected: false });
+    const doFetch = answer(200, { status: "completed" });
     const upload = new FormData();
     upload.set("bpmn.xml", new File([ "<definitions/>" ], "bpmn.xml"));
 
@@ -43,22 +45,14 @@ describe("sendEvent", () => {
     expect(doFetch).toHaveBeenCalledWith("/Workflows/review/v2.save.json", { method: "POST", body: upload });
   });
 
-  it("resolves with what the event created", async () => {
-    const doFetch = answer({ ok: true, status: 200, redirected: true, url: "http://localhost/Workflows/new" });
-
-    await expect(sendEvent(doFetch, "/Workflows", "create", { title: "New" })).resolves.toBe("/Workflows/new");
-  });
-
-  it("gives what the event created by its path in the repository, not as the URL encodes it", async () => {
-    const doFetch = answer({ ok: true, status: 200, redirected: true,
-      url: "http://localhost/Schemas/study/v1/q/%C3%A0%20la%20carte" });
+  it("resolves with the path of what the event created, as the repository names it", async () => {
+    const doFetch = answer(201, { status: "created", path: "/Schemas/study/v1/q/à la carte" });
 
     await expect(sendEvent(doFetch, "/Schemas/study/v1/q/x", "move")).resolves.toBe("/Schemas/study/v1/q/à la carte");
   });
 
   it("passes the engine's reason for a refusal on as it stands", async () => {
-    const doFetch = answer({ ok: false, status: 409, redirected: false,
-      json: () => Promise.resolve({ error: "This request has been submitted and can no longer be changed" }) });
+    const doFetch = answer(409, { status: "error", error: "This request has been submitted and can no longer be changed" });
 
     await expect(sendEvent(doFetch, "/Submissions/request", "save"))
       .rejects.toThrow("can no longer be changed");
@@ -66,8 +60,7 @@ describe("sendEvent", () => {
   });
 
   it("tells a server error, which may pass, from a refusal", async () => {
-    const doFetch = answer({ ok: false, status: 500, redirected: false,
-      json: () => Promise.resolve({ error: "Cannot update it" }) });
+    const doFetch = answer(500, { status: "error", error: "Cannot update it" });
 
     const error = await failure(sendEvent(doFetch, "/Submissions/request", "save"));
 
@@ -76,9 +69,7 @@ describe("sendEvent", () => {
   });
 
   it("describes a refusal that gives no reason like any failed request", async () => {
-    const doFetch = answer({
-      ok: false, status: 403, redirected: false, json: () => Promise.reject(new SyntaxError()),
-    });
+    const doFetch = vi.fn(() => Promise.resolve(new Response("Forbidden", { status: 403 })));
 
     await expect(sendEvent(doFetch, "/Workflows", "create")).rejects.toThrow("You do not have permission");
     // Without a reason, it may be retried

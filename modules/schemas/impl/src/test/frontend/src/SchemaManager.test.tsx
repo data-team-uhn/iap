@@ -183,7 +183,7 @@ describe("SchemaManager", () => {
   });
 
   it("creates a schema and opens its page", async () => {
-    const posted = serveSchemas({ answers: { "/Schemas.create.json": { redirect: "/Schemas/trial" } } });
+    const posted = serveSchemas({ answers: { "/Schemas.create.json": { created: "/Schemas/trial" } } });
     renderManager();
 
     const dialog = await fillNewSchema("  Trial ");
@@ -197,7 +197,7 @@ describe("SchemaManager", () => {
   });
 
   it("starts a schema as a copy of any schema's version", async () => {
-    const posted = serveSchemas({ answers: { "/Schemas.create.json": { redirect: "/Schemas/trial" } } });
+    const posted = serveSchemas({ answers: { "/Schemas.create.json": { created: "/Schemas/trial" } } });
     renderManager();
 
     const dialog = await fillNewSchema("Trial");

@@ -21,23 +21,19 @@ import { createVersion, createWorkflow, draftFromVersion, saveDiagram, updateWor
 // A stubbed fetch: the URL, and the request options an event carries.
 type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
 
-// An engine that runs every event it's given. One that created something answers with a redirect,
-// which fetch follows on its own — so the caller sees a response whose final URL is the created
-// entity, exactly as in the browser.
+// An engine that runs every event it's given. One that created something answers with its path.
 const acceptingFetch = (created = (url: string) => `${url.split(".")[0]}/created`) =>
   vi.fn<FetchStub>(url => Promise.resolve({
     ok: true,
-    status: 200,
-    redirected: true,
-    url: `http://localhost:8080${created(url)}`,
-    json: () => Promise.resolve({}),
+    status: 201,
+    url: `http://localhost:8080${url}`,
+    json: () => Promise.resolve({ status: "created", path: created(url) }),
   } as unknown as Response));
 
 // An engine that ran the event but created nothing, which is every event but the two that do.
 const completingFetch = () => vi.fn<FetchStub>(() => Promise.resolve({
   ok: true,
   status: 200,
-  redirected: false,
   url: "http://localhost:8080/Workflows",
   json: () => Promise.resolve({ status: "completed" }),
 } as unknown as Response));

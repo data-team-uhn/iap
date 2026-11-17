@@ -20,13 +20,13 @@ import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 
 // A stand-in server for the schema tool's tests. It serves the schemas, the lifecycle tag
 // definitions and a live session, and records every event posted. It answers each event as a test
-// asks: completed, refused with the engine's reason, or redirected to what it created.
+// asks: completed, refused with the engine's reason, or created, with the path of what it created.
 
 export interface EventAnswer {
   status?: number;
   error?: string;
-  // Where the engine redirected to, which fetch has already followed
-  redirect?: string;
+  // The path of what the event created
+  created?: string;
 }
 
 export interface PostedEvent {
@@ -228,7 +228,7 @@ const LIFECYCLE = {
 };
 
 const json = (url: string, body: unknown, status = 200) => Promise.resolve({
-  ok: status < 400, status, url, redirected: false, json: () => Promise.resolve(body),
+  ok: status < 400, status, url, json: () => Promise.resolve(body),
 } as unknown as Response);
 
 // A node as the serializer identifies it, with its children identified too
@@ -293,10 +293,8 @@ export function serveSchemas(
     if (init?.method === "POST" && url.startsWith("/")) {
       posted.push({ url, params: new URLSearchParams(init.body as URLSearchParams) });
       const answer = answers[url] ?? {};
-      if (answer.redirect) {
-        return Promise.resolve({
-          ok: true, status: 200, url: `http://localhost${answer.redirect}`, redirected: true,
-        } as unknown as Response);
+      if (answer.created) {
+        return json(url, { status: "created", path: answer.created }, 201);
       }
       return answer.status && answer.status >= 400
         ? json(url, answer.error ? { error: answer.error } : {}, answer.status)

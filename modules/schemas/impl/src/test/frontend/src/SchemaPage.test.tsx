@@ -183,7 +183,7 @@ describe("SchemaPage", () => {
   });
 
   it("adds a version as a copy of the one made last, and opens it", async () => {
-    const posted = serveSchemas({ answers: { "/Schemas/study.createVersion.json": { redirect: "/Schemas/study/v4" } } });
+    const posted = serveSchemas({ answers: { "/Schemas/study.createVersion.json": { created: "/Schemas/study/v4" } } });
     renderPage("study");
 
     fireEvent.click(await screen.findByRole("button", { name: "New version" }));

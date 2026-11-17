@@ -19,8 +19,11 @@ package io.uhndata.iap.workflows.internal;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.Map;
 
+import jakarta.json.Json;
+import jakarta.json.JsonObject;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletException;
 
@@ -58,6 +61,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -88,7 +92,7 @@ class WorkflowEventServletTest
     }
 
     @Test
-    void redirectsToTheCreatedEntity() throws WorkflowException, IOException, ServletException
+    void answersCreatedNamingTheCreatedEntity() throws WorkflowException, IOException, ServletException
     {
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of(WorkflowResult.CREATED_PATH_VARIABLE, "/Workflows/myCoolWorkflow")));
@@ -96,9 +100,11 @@ class WorkflowEventServletTest
 
         this.servlet.doPost(request(Map.of("title", "My cool workflow")), response);
 
-        assertEquals(302, response.getStatus());
+        assertEquals(201, response.getStatus());
         assertEquals("/Workflows/myCoolWorkflow", response.getHeader("Location"));
-        assertTrue(response.getOutputAsString().contains("/Workflows/myCoolWorkflow"));
+        final JsonObject answer = Json.createReader(new StringReader(response.getOutputAsString())).readObject();
+        assertEquals("created", answer.getString("status"));
+        assertEquals("/Workflows/myCoolWorkflow", answer.getString("path"));
     }
 
     @Test
@@ -111,6 +117,7 @@ class WorkflowEventServletTest
         this.servlet.doPost(request(Map.of("title", "My cool workflow")), response);
 
         assertEquals(200, response.getStatus());
+        assertNull(response.getHeader("Location"));
         assertTrue(response.getOutputAsString().contains("completed"));
     }
 

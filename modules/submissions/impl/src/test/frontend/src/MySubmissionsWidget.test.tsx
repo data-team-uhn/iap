@@ -71,12 +71,12 @@ function page(rows: unknown[]) {
   return { rows, offset: 0, limit: 5, returnedrows: rows.length, totalrows: rows.length, totalIsApproximate: false };
 }
 
-function json(body: unknown) {
+function json(body: unknown, status = 200) {
   // A real Response rather than an object literal. The deletion controls fetch through
   // useAuthenticatedFetch, which reads `response.url` to tell an expired session from an answer,
   // and throws on a literal without one.
   return Promise.resolve(new Response(JSON.stringify(body), {
-    status: 200,
+    status,
     headers: { "Content-Type": "application/json" },
   }));
 }
@@ -84,8 +84,8 @@ function json(body: unknown) {
 // A fetch covering everything the widget and the controls inside it ask for. The listing, the
 // schemas on offer, the POST that raises a submission, and the two DELETEs: the dry run the
 // confirmation is built from, then the deletion itself.
-function widgetFetch(options: { rows?: unknown[]; redirected?: boolean } = {}) {
-  const { rows = [], redirected = true } = options;
+function widgetFetch(options: { rows?: unknown[]; creates?: boolean } = {}) {
+  const { rows = [], creates = true } = options;
   return vi.fn((input: string | URL, init?: { method?: string }) => {
     const url = String(input);
     if (init?.method === "DELETE") {
@@ -94,13 +94,7 @@ function widgetFetch(options: { rows?: unknown[]; redirected?: boolean } = {}) {
         : { "status.code": 200, "status": "archived", "archiveEntry": "/Archive/ab/cd/ef/entry" });
     }
     if (url === "/Submissions" && init?.method === "POST") {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        redirected,
-        url: redirected ? `http://localhost${SUBMISSION_PATH}` : "http://localhost/Submissions",
-        json: () => Promise.resolve({}),
-      } as unknown as Response);
+      return creates ? json({ status: "created", path: SUBMISSION_PATH }, 201) : json({ status: "completed" });
     }
     if (url.startsWith("/Schemas")) {
       return json(SCHEMAS);
@@ -181,7 +175,7 @@ describe("MySubmissionsWidget", () => {
   });
 
   it("stays on the dashboard when the engine created nothing to open, and re-reads the listing", async () => {
-    const fetchMock = widgetFetch({ redirected: false });
+    const fetchMock = widgetFetch({ creates: false });
     vi.stubGlobal("fetch", fetchMock);
 
     render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });

@@ -77,7 +77,7 @@ test.describe('a story: the time off process, over HTTP', () => {
   // engine refuses the loser.
   test.describe.serial('raising and deciding a request', () => {
     // The request the story is about. A submission is named by a UUID, so its path is whatever the engine's
-    // redirect said.
+    // answer said.
     let raised = '';
 
     test('lets an ordinary user raise a request they hold no rights to create', async ({ request }) => {

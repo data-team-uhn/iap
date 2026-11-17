@@ -209,7 +209,7 @@ describe("SchemaVersionView", () => {
   });
 
   it("renames a part on its own, then saves the rest where it now is", async () => {
-    const posted = serveSchemas({ answers: { [RENAME_NAME]: { redirect: "/Schemas/study/v3/intake/fullName" } } });
+    const posted = serveSchemas({ answers: { [RENAME_NAME]: { created: "/Schemas/study/v3/intake/fullName" } } });
     renderVersion("study", "v3");
 
     const dialog = await editPart("Your name");
@@ -250,7 +250,7 @@ describe("SchemaVersionView", () => {
   });
 
   it("renames from the keyboard, and keeps its name when confirmed as it is", async () => {
-    const posted = serveSchemas({ answers: { [RENAME_NAME]: { redirect: "/Schemas/study/v3/intake/fullName" } } });
+    const posted = serveSchemas({ answers: { [RENAME_NAME]: { created: "/Schemas/study/v3/intake/fullName" } } });
     renderVersion("study", "v3");
 
     const dialog = await editPart("Your name");
@@ -273,7 +273,7 @@ describe("SchemaVersionView", () => {
 
   it("reads the tree again when closed after a rename, even when the save that followed was refused", async () => {
     serveSchemas({ answers: {
-      [RENAME_NAME]: { redirect: "/Schemas/study/v3/intake/fullName" },
+      [RENAME_NAME]: { created: "/Schemas/study/v3/intake/fullName" },
       "/Schemas/study/v3/intake/fullName.update.json": { status: 400, error: "text cannot be empty" },
     } });
     renderVersion("study", "v3");
@@ -521,7 +521,7 @@ describe("SchemaVersionView", () => {
 
   it("moves a part before another, where nothing else can be done meanwhile", async () => {
     const posted = serveSchemas({ answers: {
-      "/Schemas/study/v3/intake/age.move.json": { redirect: "/Schemas/study/v3/intake/age" },
+      "/Schemas/study/v3/intake/age.move.json": { created: "/Schemas/study/v3/intake/age" },
     } });
     renderVersion("study", "v3");
 
@@ -554,7 +554,7 @@ describe("SchemaVersionView", () => {
 
   it("moves a part to the end of a closed part, which opens to show it", async () => {
     const posted = serveSchemas({ answers: {
-      "/Schemas/study/v3/intake/age.move.json": { redirect: "/Schemas/study/v3/followUp/age" },
+      "/Schemas/study/v3/intake/age.move.json": { created: "/Schemas/study/v3/followUp/age" },
     } });
     renderVersion("study", "v3");
 
@@ -582,7 +582,7 @@ describe("SchemaVersionView", () => {
 
   it("moves an option up or down among its question's, from under the pointer", async () => {
     const posted = serveSchemas({ answers: {
-      "/Schemas/study/v3/intake/name/full.move.json": { redirect: "/Schemas/study/v3/intake/name/full" },
+      "/Schemas/study/v3/intake/name/full.move.json": { created: "/Schemas/study/v3/intake/name/full" },
     } });
     const scrollBy = vi.fn();
     vi.stubGlobal("scrollBy", scrollBy);
@@ -616,7 +616,7 @@ describe("SchemaVersionView", () => {
 
   it("moves an option down before the one after next, or last, and says why one did not", async () => {
     const posted = serveSchemas({ answers: {
-      "/Schemas/study/v3/intake/name/short.move.json": { redirect: "/Schemas/study/v3/intake/name/short" },
+      "/Schemas/study/v3/intake/name/short.move.json": { created: "/Schemas/study/v3/intake/name/short" },
       "/Schemas/study/v3/intake/name/full.move.json": { status: 409, error: "Somebody else changed this" },
     } });
     renderVersion("study", "v3");
@@ -735,7 +735,7 @@ describe("SchemaVersionView", () => {
   });
 
   it("starts a new version as a copy of this one, and opens it", async () => {
-    const posted = serveSchemas({ answers: { "/Schemas/study.createVersion.json": { redirect: "/Schemas/study/v4" } } });
+    const posted = serveSchemas({ answers: { "/Schemas/study.createVersion.json": { created: "/Schemas/study/v4" } } });
     renderVersion("study", "v2");
 
     fireEvent.click(await screen.findByRole("button", { name: "New version from this one" }));
@@ -879,7 +879,7 @@ describe("SchemaVersionView", () => {
 
     it("moves a part chosen from its menu, showing only moving meanwhile, and saying only where it goes", async () => {
       serveSchemas({ answers: {
-        "/Schemas/study/v3/intake/age.move.json": { redirect: "/Schemas/study/v3/intake/age" },
+        "/Schemas/study/v3/intake/age.move.json": { created: "/Schemas/study/v3/intake/age" },
       } });
       renderVersion("study", "v3");
 

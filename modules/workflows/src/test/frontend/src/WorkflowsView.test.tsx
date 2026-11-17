@@ -56,13 +56,12 @@ const stubFetch = (homepages: unknown[], rows: unknown[] = [workflowRow]) => {
     const body = path === "/Workflows.homepages.json" ? { homepages } : page(rows);
     return Promise.resolve({
       ok: true,
-      status: 200,
-      // An event that created something answers with a redirect to it, which fetch follows on its
-      // own, so the final URL is where a creation reads the path to open the editor on
-      redirected: options?.method === "POST",
-      url: `http://localhost${path.split(".")[0]}/created`,
+      status: options?.method === "POST" ? 201 : 200,
+      url: new URL(url, "http://localhost").href,
       headers: new Headers(),
-      json: () => Promise.resolve(body),
+      // An event answers with the path of what it created, where a creation opens the editor
+      json: () => Promise.resolve(options?.method === "POST"
+        ? { status: "created", path: `${path.split(".")[0]}/created` } : body),
     } as unknown as Response);
   });
   vi.stubGlobal("fetch", fetchMock);

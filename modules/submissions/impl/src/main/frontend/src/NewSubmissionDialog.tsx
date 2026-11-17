@@ -67,24 +67,18 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
       body: new URLSearchParams({ title: title.trim(), schemaVersion: selected }),
     })
       .then(async response => {
-        // The engine redirects to the submission it created, and fetch has followed. The status is
-        // the created page's, and says nothing about the creation. Checked before the status, or a
-        // created submission could read as refused.
-        if (response.redirected) {
-          onCreated(new URL(response.url).pathname);
-          return;
-        }
+        const answer = (await response.json().catch(() => ({}))) as { error?: string; path?: string };
         if (!response.ok) {
           // A refusal carries the engine's reason, such as "A title is required", shown as it stands
-          const body = (await response.json().catch(() => ({}))) as { error?: string };
-          if (body.error) {
-            setSubmitError(body.error);
+          if (answer.error) {
+            setSubmitError(answer.error);
             return;
           }
           throw new RequestError(response.status);
         }
-        // Accepted without creating anything, so there is nowhere to send the submitter
-        onCreated("");
+        // The engine answers with the path of the submission it created. Without one, it was accepted
+        // without creating anything, so there is nowhere to send the submitter.
+        onCreated(answer.path ?? "");
       })
       .catch((error: unknown) => setSubmitError(isNotAuthenticated(error)
         ? "You are no longer signed in, so the submission was not raised. Sign in and try again."

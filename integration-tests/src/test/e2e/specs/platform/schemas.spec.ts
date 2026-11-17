@@ -37,7 +37,7 @@ test.describe('the schemas', () => {
     const created = await request.post('/Schemas.create.json', {
       headers: adminAuth, form: { title: `Listing check ${Date.now()}` }, maxRedirects: 0,
     });
-    expect(created.status(), await created.text()).toBe(302);
+    expect(created.status(), await created.text()).toBe(201);
     const path = (await created.json() as { path: string }).path;
 
     expect(await versionsOf(request, path, 'simple'), 'a draft is not listed by default').toHaveLength(0);

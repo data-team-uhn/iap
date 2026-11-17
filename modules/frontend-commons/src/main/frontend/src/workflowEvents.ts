@@ -24,9 +24,9 @@ import type { AuthenticatedFetch } from "./reLogin";
 // Sends a workflow event to a node, as a POST to `<path>.<event>.json`. The engine decides what it
 // does. The parameters go as a form, or as the FormData given, for an event that brings a file.
 //
-// It resolves with the path of the node the event created, which the engine redirects to; undefined
-// if the event created nothing. The path is decoded, as the repository names it, so that it compares
-// with the `@path` of a serialized node.
+// It resolves with the path of the node the event created, as the engine's answer names it; undefined
+// if the event created nothing. The path is the repository's, so it compares with the `@path` of a
+// serialized node.
 //
 // A failure that carries the engine's reason rejects with a RequestError holding that reason, which
 // is worded for the user. Any other failure rejects with an Error whose message is a sentence for the
@@ -46,17 +46,14 @@ export async function sendEvent(
   } catch (error: unknown) {
     throw new Error(describeRequestFailure(error));
   }
-  if (response.redirected) {
-    return decodeURIComponent(new URL(response.url).pathname);
-  }
+  const answer = (await response.json().catch(() => ({}))) as { error?: unknown; path?: unknown };
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { error?: unknown };
-    if (typeof body.error === "string" && body.error) {
-      throw new RequestError(response.status, body.error);
+    if (typeof answer.error === "string" && answer.error) {
+      throw new RequestError(response.status, answer.error);
     }
     throw new Error(describeRequestFailure(new RequestError(response.status)));
   }
-  return undefined;
+  return typeof answer.path === "string" ? answer.path : undefined;
 }
 
 // Whether the current user may send the event to the node. The node must come from the `events`
