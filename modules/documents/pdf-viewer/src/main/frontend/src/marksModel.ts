@@ -425,20 +425,28 @@ export function orderMarks(marks: Mark[], places: Record<string, MarkPlace>): Ma
   return [ ...marks.filter(mark => !isUnmarked(mark)), ...marks.filter(isUnmarked) ];
 }
 
+// A mark's contents, as plain data that compares equal for equal marks whatever objects hold them.
+function getMarkContents(mark: Mark): object {
+  const { id, kind } = mark;
+  if ("anchor" in mark) {
+    const { start, end, quote, before, after } = mark.anchor;
+    const copyPoint = ({ page, char }: TextPoint) => ({ page, char });
+    return { id, kind, anchor: { start: copyPoint(start), end: copyPoint(end), quote, before, after } };
+  }
+  return "spans" in mark
+    ? { id, kind, spans: mark.spans.map(({ page, start, end, starts }) => ({ page, start, end, starts })) }
+    : { id, quote: mark.quote, page: mark.page, kind };
+}
+
+// A key that changes only when a mark's contents do.
+export function getMarkKey(mark: Mark): string {
+  return JSON.stringify(getMarkContents(mark));
+}
+
 // A key that changes only when the marks' contents do. A caller writing the marks inline passes new
 // but equal objects on every render.
 export function getMarksKey(marks: Mark[]): string {
-  return JSON.stringify(marks.map(mark => {
-    const { id, kind } = mark;
-    if ("anchor" in mark) {
-      const { start, end, quote, before, after } = mark.anchor;
-      const copyPoint = ({ page, char }: TextPoint) => ({ page, char });
-      return { id, kind, anchor: { start: copyPoint(start), end: copyPoint(end), quote, before, after } };
-    }
-    return "spans" in mark
-      ? { id, kind, spans: mark.spans.map(({ page, start, end, starts }) => ({ page, start, end, starts })) }
-      : { id, quote: mark.quote, page: mark.page, kind };
-  }));
+  return JSON.stringify(marks.map(getMarkContents));
 }
 
 // The pages marks say they are on, in order: those of their spans or anchors, and the page a quote is

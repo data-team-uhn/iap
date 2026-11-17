@@ -1351,6 +1351,18 @@ describe("PdfViewer", () => {
         expect(getFrame().querySelector("[data-mark-id='schedule']")).toHaveClass("selected");
         expect(getFrame().querySelector("[data-mark-id='volunteers']")).not.toHaveClass("selected");
       });
+
+      it("keeps the passages already found marked when another is added", async () => {
+        const viewer = (marks: Mark[]) => withTheme(<PdfViewer url={URL} marks={marks} onClose={vi.fn()} />);
+        const { rerender } = render(viewer(MARKS));
+        await waitFor(() => expect(getDrawnMarks(getFrame())[3]).toHaveLength(1));
+        const added: Mark = { id: "added", quote: TEXTS[1], kind: "annotation" };
+
+        rerender(viewer([ ...MARKS, added ]));
+
+        expect(getDrawnMarks(getFrame())[3]).toHaveLength(1);
+        await waitFor(() => expect(getDrawnMarks(getFrame())[2]).toHaveLength(2));
+      });
     });
 
     describe("in the document", () => {
