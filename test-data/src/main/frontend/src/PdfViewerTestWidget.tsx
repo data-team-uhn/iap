@@ -72,6 +72,9 @@ function PdfViewerTestWidget() {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [draftText, setDraftText] = useState("");
   const [count, setCount] = useState(0);
+  // How many times Open was pressed. Each opening is a viewer of its own, since its passages reuse the ids
+  // of the last one's.
+  const [openings, setOpenings] = useState(0);
   const draftInput = useRef<HTMLTextAreaElement>(null);
   const draftId = comments.find(comment => comment.draft)?.id;
 
@@ -85,6 +88,7 @@ function PdfViewerTestWidget() {
     const firstPage = Number(page) > 0 ? Number(page) : undefined;
     setComments([]);
     setSelectedId(undefined);
+    setOpenings(openings + 1);
     setShown({
       url: url.trim(),
       page: firstPage,
@@ -253,6 +257,7 @@ function PdfViewerTestWidget() {
       <Box ref={setPlace} sx={{ display: shown?.inPlace ? "block" : "none", height: "70vh", mt: 2 }} />
       {shown !== undefined && (
         <PdfViewer
+          key={openings}
           url={shown.url}
           page={shown.page}
           marks={[ ...shown.passages, ...commentMarks ]}
