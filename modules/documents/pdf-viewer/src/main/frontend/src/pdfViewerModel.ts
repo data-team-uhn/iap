@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import { PdfWorkerFailure } from "@iap/frontend-commons/pdfjsClient";
 import { lastSegmentOf } from "@iap/frontend-commons/serializedNode";
 
 import type { MarkPlace } from "./marksModel";
@@ -31,8 +32,11 @@ export interface ViewerStatus {
 }
 
 // Why PDF.js could not open the document, in the person's words, or nothing when the failure was not
-// PDF.js's.
+// PDF.js's. Retry would reuse a worker that never started, so that one asks for a reload.
 export function describePdfFailure(error: unknown): string | undefined {
+  if (error instanceof PdfWorkerFailure) {
+    return "The document viewer could not start. Reload the page to try again.";
+  }
   const name = error instanceof Error ? error.name : undefined;
   if (name === "InvalidPDFException") {
     return "This file is not a PDF that can be read. It may be damaged, or be another kind of file.";
