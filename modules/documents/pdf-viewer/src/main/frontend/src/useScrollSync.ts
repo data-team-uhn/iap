@@ -18,7 +18,7 @@
 // Scrolls two versions of a document shown side by side together, matched by the text they share.
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { getTextPointAt, getTextPointRect } from "./markLayer";
+import { getTextLinesAround, getTextPointAt, getTextPointRect } from "./markLayer";
 import { mapPoint, type Alignment } from "./revisionDiffModel";
 import { isScrollByHand, SCROLL_INPUTS } from "./scrollByHand";
 
@@ -31,6 +31,12 @@ export type Version = "older" | "newer";
 interface SyncedView {
   shown: ShownDocument | undefined;
   showPoint: (point: TextPoint, atY: number) => void;
+}
+
+// Where a pane puts a place in its text: a point of the text, and how far below the pane's top it goes.
+interface Placement {
+  point: TextPoint;
+  atY: number;
 }
 
 // How long a pane's scrolling counts as the person's after they touch it, by wheel, finger, key or pointer,
@@ -69,20 +75,48 @@ export function useScrollSync(views: Record<Version, SyncedView>, alignment: Ali
     const show = { older: showOlder, newer: showNewer };
     // The pane waiting for the text in its middle to be drawn, for the other to follow it.
     let waiting: Version | undefined;
-    // Moves the other pane so that the same text is in its middle. A shared word keeps its offset into the
-    // line, so the other pane moves smoothly rather than a line at a time. Text only one version has maps to
-    // one place in the other, where its change is, which then stays still in the middle.
+    // Where the other pane puts the place in the middle of this one, by the lines either side of that middle.
+    // Each line goes to its place in the other version, and the middle goes as far between those two places as
+    // it is between the lines. Text only one version has maps to one place in the other, where its change is.
+    // The other pane then stays still through it, and starts and stops moving smoothly at its ends.
+    // `undefined` unless both lines and both places are drawn.
+    const placeBetweenLines = (from: Version, middle: number): Placement | undefined => {
+      const lines = getTextLinesAround(shown[from].frame, middle);
+      if (lines === undefined) {
+        return undefined;
+      }
+      const to = getOther(from);
+      const [ above, below ] = [ lines.above, lines.below ].map(line => mapPoint(alignment, from, line.point).point);
+      const aboveRect = getTextPointRect(shown[to].frame, above);
+      const belowRect = getTextPointRect(shown[to].frame, below);
+      if (aboveRect === undefined || belowRect === undefined) {
+        return undefined;
+      }
+      const share = (middle - lines.above.top) / (lines.below.top - lines.above.top);
+      return { point: above, atY: shown[to].frame.clientHeight / 2 - share * (belowRect.top - aboveRect.top) };
+    };
+    // Where the other pane puts the place in the middle of this one, by the line in that middle alone. A shared
+    // word keeps its offset into the line. Text only one version has goes to where its change is.
+    // `undefined` while the text in the middle is not drawn.
+    const placeAtLine = (from: Version, middle: number): Placement | undefined => {
+      const { frame } = shown[from];
+      const point = getTextPointAt(frame, middle);
+      if (point === undefined) {
+        return undefined;
+      }
+      const { point: there, shared } = mapPoint(alignment, from, point);
+      const line = shared ? getTextPointRect(frame, point) : undefined;
+      const below = line === undefined ? 0 : Math.min(Math.max(middle - line.top, 0), line.height);
+      return { point: there, atY: shown[getOther(from)].frame.clientHeight / 2 - below };
+    };
+    // Moves the other pane so that the same text is in its middle.
     const follow = (from: Version) => {
       const { frame } = shown[from];
       const middle = frame.getBoundingClientRect().top + frame.clientHeight / 2;
-      const point = getTextPointAt(frame, middle);
-      waiting = point === undefined ? from : undefined;
-      if (point !== undefined) {
-        const to = getOther(from);
-        const { point: there, shared } = mapPoint(alignment, from, point);
-        const line = shared ? getTextPointRect(frame, point) : undefined;
-        const below = line === undefined ? 0 : Math.min(Math.max(middle - line.top, 0), line.height);
-        show[to](there, shown[to].frame.clientHeight / 2 - below);
+      const placement = placeBetweenLines(from, middle) ?? placeAtLine(from, middle);
+      waiting = placement === undefined ? from : undefined;
+      if (placement !== undefined) {
+        show[getOther(from)](placement.point, placement.atY);
       }
     };
     // The pane the other follows, and until when, unless the pointer is held down on it.

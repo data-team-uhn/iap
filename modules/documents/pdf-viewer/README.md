@@ -382,10 +382,13 @@ Side by side, the versions scroll together, matched by their text (`useScrollSyn
 Whatever is in the middle of the version scrolled by hand goes to the middle of the
 other, through the words the comparison paired (`mapPoint`). A word only one version has
 goes to where its change is in the other, so the versions move at different speeds
-through added or removed text. The matching text is also put as far down its line as in
-the version scrolled, so the other version moves smoothly rather than a line at a time.
-Through text only one version has, the other holds still. After a zoom, or a page picked
-from either page bar, the other version follows.
+through added or removed text. The lines either side of the middle each go to their
+place in the other version. The middle goes as far between those places as it is between
+the lines (`getTextLinesAround`). The other version thus moves smoothly rather than a
+line at a time. Through text only one version has, the other holds still, and it starts
+and stops moving without a jump at that text's ends. While the lines are not drawn, the
+line in the middle alone is followed. After a zoom, or a page picked from either page
+bar, the other version follows.
 
 | Going to | The older version |
 |---|---|

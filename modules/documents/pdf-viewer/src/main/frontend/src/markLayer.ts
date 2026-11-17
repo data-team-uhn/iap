@@ -274,6 +274,41 @@ export function getTextPointAt(frame: HTMLElement, y: number): TextPoint | undef
   return at === undefined ? undefined : { page: Number(pageView.dataset.pageNumber), char: at.start };
 }
 
+// A line of a page's text: the place it starts, and how far down the window it is drawn.
+export interface TextLine {
+  point: TextPoint;
+  top: number;
+}
+
+// The lines of a page's drawn text, in the order the page's text lists them. Pieces of text drawn less than
+// half a line apart in height are one line, which starts at the first of them. None while it is not drawn.
+function getTextLines(pageView: HTMLElement): TextLine[] {
+  const textLayer = pageView.querySelector<HTMLElement>(".textLayer");
+  if (textLayer === null) {
+    return [];
+  }
+  const page = Number(pageView.dataset.pageNumber);
+  const lines: { start: number; box: DOMRect }[] = [];
+  for (const { node, start } of getTextNodes(textLayer)) {
+    const box = node.parentElement?.getBoundingClientRect();
+    if (box !== undefined && !lines.some(line => Math.abs(line.box.top - box.top) < line.box.height / 2)) {
+      lines.push({ start, box });
+    }
+  }
+  return lines.map(({ start, box }) => ({ point: { page, char: start }, top: box.top }));
+}
+
+// The lines of the frame's text either side of a height in the window: the last one starting at or above
+// it, and the first one starting below it. They are looked for on the first page reaching down to that
+// height and on the pages either side of it. `undefined` unless both are drawn.
+export function getTextLinesAround(frame: HTMLElement, y: number): { above: TextLine; below: TextLine } | undefined {
+  const pageViews = Array.from(frame.querySelectorAll<HTMLElement>("[data-page-number]"));
+  const at = pageViews.findIndex(view => view.getBoundingClientRect().bottom >= y);
+  const lines = pageViews.slice(Math.max(at - 1, 0), at + 2).flatMap(getTextLines).sort((a, b) => a.top - b.top);
+  const next = lines.findIndex(line => line.top > y);
+  return next > 0 ? { above: lines[next - 1], below: lines[next] } : undefined;
+}
+
 // Where a point of a page's text is drawn in the frame. It is the box of the character at it, or of the
 // point itself at the end of the text. `undefined` while its page's text is not drawn.
 export function getTextPointRect(frame: HTMLElement, { page, char }: TextPoint): DOMRect | undefined {
