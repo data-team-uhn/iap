@@ -41,8 +41,8 @@ export function getTextAnchor(spans: MarkSpan[], getPage: (page: number) => Page
     start: { page: first.page, char: first.start },
     end: { page: last.page, char: last.end },
     quote,
-    before: before.slice(-CONTEXT_LENGTH).trimStart(),
-    after: after.slice(0, CONTEXT_LENGTH).trimEnd(),
+    before: Array.from(before).slice(-CONTEXT_LENGTH).join("").trimStart(),
+    after: Array.from(after).slice(0, CONTEXT_LENGTH).join("").trimEnd(),
   };
 }
 
