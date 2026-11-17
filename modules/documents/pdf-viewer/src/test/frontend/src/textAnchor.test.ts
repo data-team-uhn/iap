@@ -15,10 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests building an anchor from the spans of a passage, and writing it as text and reading it back.
+
 import type { PageText, TextAnchor } from "@iap/documents-pdf-viewer/marksModel";
 import { decodeAnchor, encodeAnchor, getTextAnchor } from "@iap/documents-pdf-viewer/textAnchor";
 
-// Two pages, the first read as three lines, which run on in its text without a space.
+// Two pages, the first in three lines. As PDF.js reads a page, the lines run on in its text with no space
+// between them.
 const PAGES: Record<number, PageText> = {
   1: {
     text: "Memo to all principals and staff.The board asks for a Police Records Checkfrom every new volunteer.",

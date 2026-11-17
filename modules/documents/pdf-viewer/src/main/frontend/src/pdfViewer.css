@@ -16,6 +16,6 @@
  * limitations under the License.
  */
 
-/* PDF.js's stylesheet stays on the page once loaded, and sets rules on :root that reach the whole app.
-   In a layer of its own, any rule of the app's outranks it. */
+/* The stylesheet of PDF.js's viewer. It stays on the page once loaded, and sets rules on :root that reach
+   the whole app. In a cascade layer of its own, it is outranked by any rule of the app's outside a layer. */
 @import "pdfjs-dist/web/pdf_viewer.css" layer(pdfjs);

@@ -15,13 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests `useScrollEdges` and `fadeEdges`. jsdom has no layout, so element heights and `ResizeObserver` are
+// stubbed.
+
 import { useState } from "react";
 
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 
-// A list that says where it has more to show. Without `shown`, the list is not there yet.
+// A list with a status saying where it has more to show. With `shown` false, the list is not there yet.
 function List({ entries, shown = true }: { entries: number; shown?: boolean }) {
   const [ list, setList ] = useState<HTMLUListElement | null>(null);
   const { above, below } = useScrollEdges(list);
@@ -40,7 +43,8 @@ function List({ entries, shown = true }: { entries: number; shown?: boolean }) {
 const getList = () => screen.getByRole("list", { name: "Entries" });
 const getEdges = () => screen.getByRole("status");
 
-// jsdom has no layout: a list is 100px high, an entry 50px unless grown, and the scroll position kept as set.
+// Every element is 100px high and holds 50px per child, or `entryHeight` once grown. jsdom keeps the scroll
+// position as set. `resized` calls the hook's ResizeObserver back.
 let entryHeight = 50;
 let observed: Set<Element>;
 let resized: (() => void) | undefined;
@@ -97,7 +101,7 @@ describe("useScrollEdges", () => {
     scrollTo(100);
     expect(getEdges()).toHaveTextContent("more above, more below");
 
-    // Within a pixel of the end, for sizes rounded by the browser
+    // Within a pixel of the end counts as the end
     scrollTo(199.5);
     expect(getEdges()).toHaveTextContent("more above");
   });

@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The search field of the viewer's toolbar, with the buttons stepping through its matches.
 import type { KeyboardEvent, Ref } from "react";
 
 import CloseIcon from "@mui/icons-material/Close";
@@ -27,19 +28,18 @@ import { getFailedColour } from "./passageStyles";
 
 import type { DocumentSearch } from "./pdfViewerModel";
 
-// The field searching the document, then buttons going to the previous and next match, wrapping round.
-// The end of the field says which match is shown of how many, or that there are none. A spinner shows
-// beside the count while pages are still being searched. Enter in the field goes to the next match and
-// Shift+Enter to the previous one. Escape anywhere in it clears the search, or closes it where it can be
-// closed, rather than closing the viewer around it.
+// The field searching the document, then the buttons going to the previous and next match. The end of the
+// field says which match is shown out of how many, or that nothing matches. A spinner shows there while
+// pages are still being searched. Enter in the field goes to the next match, and Shift+Enter to the
+// previous one. Escape anywhere in it closes the search where it can be closed, or else clears it. Only an
+// Escape with nothing to close or clear goes on to the elements around it.
 export default function SearchField({ search, inputRef, disabled, onFind, onFindAgain, onClose }: {
   search: DocumentSearch;
   inputRef?: Ref<HTMLInputElement>;
   disabled?: boolean;
   onFind: (query: string) => void;
   onFindAgain: (previous: boolean) => void;
-  // Given only where the search takes the toolbar's place. The search then fills the toolbar's width, with
-  // a button closing it.
+  // Closes the search. When it is given, the search fills the width it has and ends with a Close button.
   onClose?: () => void;
 }) {
   const onEnter = (event: KeyboardEvent) => {

@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The card that shows one mark, and `NoteText`, the note on where its passage is.
+
 import { useId, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
 
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
@@ -37,43 +39,50 @@ import type { SxProps, Theme } from "@mui/material/styles";
 const MAX_PASSAGE_LINES = 3;
 const MAX_PASSAGE_LINES_ON_PHONE = 1;
 
-// The lines kept for what stands in for a quote, such as a change's diff: always as many, so stepping
-// through the marks does not move what is under the card.
+// The height kept for what stands in for a quote, such as a change's diff, in lines. It does not change
+// with what the body holds, so stepping through the marks does not move what is under the card.
 const BODY_LINES = 2;
 
-// The same for what the caller shows under the passage, such as a long comment.
+// Past this many lines, what the caller shows under the passage, such as a long comment, is cut short. A
+// phone shows fewer.
 const MAX_DETAILS_LINES = 6;
 const MAX_DETAILS_LINES_ON_PHONE = 3;
 
-// The most of the viewer's height the card takes, scrolling past it, so the document's controls below it
-// stay in reach.
+// The card's greatest height, as a share of what holds it. Past it the card scrolls, so the document keeps
+// some room.
 const MAX_CARD_HEIGHT = "60%";
 
 function scrollToTop(element: HTMLElement): void {
   element.scrollTop = 0;
 }
 
-// The passage once known, and how the search for it went, on a card in its mark's colour. Once found, the
-// passage and its note take the reader to it. A passage running past its limit of lines is cut short,
-// with a button beside it showing all of it, since a button cannot hold another. One of several passages
-// has controls for stepping through them above it, and the caller's details for the passage go under it,
-// cut short too. The one button shows all of both, and so does moving the focus into what is cut. While
-// what is under the passage holds a field to type in, such as a comment being written, the card stays open
-// so the field is in reach.
+// The card showing one mark in its mark's colour: the passage or what stands in for it, and a note on how
+// the search for it went. Once the passage is found, clicking it takes the reader there. A passage longer
+// than its limit of lines is cut short, and so are the caller's details under it. One button shows all of
+// both. It sits beside the passage, since the passage is itself a button and a button cannot hold another.
+// Moving the focus into the cut details also shows them all. While the details hold a field to type in,
+// such as a comment being written, the card stays open.
 export default function PassageCard(props: {
   ref?: Ref<HTMLDivElement>;
-  // What the mark is called, naming the button showing all of it.
+  // What the mark is called, for the card's label and the button showing all of it.
   name: MarkName;
   quote: string | undefined;
-  // What shows the mark in place of a quote, such as a change's diff, what it says to a screen reader, which
-  // does not read inside the button, and what to call it on the button taking the reader to it.
+  // What shows the mark in place of a quote, such as a change's diff.
   body?: ReactNode;
+  // What the body says, for a screen reader. A button's label replaces what the button holds, so this is
+  // given as the button's description.
   bodySaid?: string;
+  // What to call the mark on the button taking the reader to it, such as "passage" or "change".
   what?: string;
+  // How the search for the passage went, or where it was found.
   note?: PassageNote;
+  // The kind of mark, which sets the card's colour.
   markedBy: MarkKind;
+  // Controls for stepping through several marks, shown above the passage.
   stepper?: ReactNode;
+  // What the caller shows under the passage, such as comments.
   details?: ReactNode;
+  // Takes the reader to the passage in the document.
   onShowPassage: () => void;
 }) {
   const { ref, name, quote, body, bodySaid, what = "passage", note, markedBy, stepper, details, onShowPassage } = props;
@@ -93,6 +102,7 @@ export default function PassageCard(props: {
   const open = expanded || holdsField;
   const detailsCut = !open && detailsEdges.below;
 
+  // Whether the details hold a field to type in, checked again whenever they change.
   useLayoutEffect(() => {
     if (detailsBox === null) {
       return undefined;
@@ -104,14 +114,14 @@ export default function PassageCard(props: {
     return () => changes.disconnect();
   }, [detailsBox]);
 
-  // Once cut again, what is under the passage starts from its top, wherever it was scrolled to.
+  // Once the details are cut short again, they scroll back to their top.
   useLayoutEffect(() => {
     if (!open && detailsBox !== null) {
       scrollToTop(detailsBox);
     }
   }, [open, detailsBox]);
 
-  // Whether what stands in for the quote runs past its lines, measured while it is held to them.
+  // Whether the body runs past its lines, measured while it is held to them.
   useLayoutEffect(() => {
     const box = bodyBox.current;
     if (box === null || expanded) {
@@ -124,7 +134,8 @@ export default function PassageCard(props: {
     return () => observer.disconnect();
   }, [body, expanded]);
 
-  // Counted on an invisible copy at the card's full width, which cutting the passage short does not change.
+  // The passage's lines, counted on a hidden copy at the card's full width, which cutting the passage short
+  // does not change.
   useLayoutEffect(() => {
     if (copy === null) {
       return undefined;
@@ -222,7 +233,7 @@ export default function PassageCard(props: {
         sx={theme => ({
           position: "relative",
           display: "flex",
-          // The copy measured below runs the whole passage's length, which the card would otherwise scroll to
+          // Without it, the card would scroll down the whole length of the hidden copy below.
           overflow: "clip",
           ...getPassageLayerStyle(theme, markedBy),
         })}
@@ -290,8 +301,8 @@ export default function PassageCard(props: {
   );
 }
 
-// When the passage was found on a page other than the one shown, the page number is styled as a link.
-// The passage and its note take the reader there.
+// The note on a passage, in full or `short`. A failed search is in the error colour. A page number looks
+// like a link when it is not the page shown.
 export function NoteText({ note, short = false }: { note: PassageNote; short?: boolean }) {
   if ("text" in note) {
     const text = short ? note.short : note.text;

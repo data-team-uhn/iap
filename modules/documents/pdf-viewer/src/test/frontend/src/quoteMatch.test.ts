@@ -15,6 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests bringing a quote to the form quotes are compared in, and finding it in a page's text, whole or
+// across a page break.
+
 import {
   findQuote,
   findQuoteAcrossPages,
@@ -23,7 +26,7 @@ import {
   unquote,
 } from "@iap/documents-pdf-viewer/quoteMatch";
 
-// The text a match covers in the page, for readable assertions.
+// The text each match covers in the page, so that the assertions read as text.
 function matched(page: string, quote: string): string[] {
   const searchText = getSearchText(quote);
   if (searchText === undefined) {
@@ -114,7 +117,7 @@ describe("findQuoteAcrossPages", () => {
   const FIRST = "The memo covers new volunteers.\nVolunteers who, on a casual basis, assist\nPage 2 of 3";
   const NEXT = "Volunteer guidelines\nfrom time to time with a variety of activities. They may require a check.";
 
-  // The text each part covers on its page, for readable assertions.
+  // The text each part of the quote covers on its page, so that the assertions read as text.
   function parts(first: string, next: string, quote: string): [ string, string ] | undefined {
     const searchText = getSearchText(quote);
     if (searchText === undefined) {

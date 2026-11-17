@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests comparing two versions of a document word by word, on pages of text written as strings.
 import type { MarkSpan, PageText } from "@iap/documents-pdf-viewer/marksModel";
 import {
   compareRevisions,
@@ -32,7 +33,8 @@ import {
   type RevisionChange,
 } from "@iap/documents-pdf-viewer/revisionDiffModel";
 
-// Pages as PDF.js reads them: a line per item, with no character where one ends.
+// Pages as PDF.js reads them, from one string per page with "\n" between lines. No character ends a line,
+// and `lineEnds` holds where each line but the last ends.
 function pages(...texts: string[]): PageText[] {
   return texts.map(text => {
     const lineEnds: number[] = [];
@@ -458,7 +460,8 @@ describe("getChangeInContext", () => {
       return [ before, removed, added, after ];
     };
 
-    // A minor change is shown with all the others, the others without the minor ones
+    // The minor change's words stop at the change after it. The other change's words run past the minor
+    // change, which is not shown with it.
     expect(changes.map(inContext)).toEqual([ [ "The", "Fee", "fee", "" ], [ "The fee", "100", "120", "is due." ] ]);
   });
 

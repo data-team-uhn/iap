@@ -15,6 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Tests telling which inputs in a document's frame scroll it by hand.
+
 import { fireEvent } from "@testing-library/react";
 
 import { isScrollByHand } from "@iap/documents-pdf-viewer/scrollByHand";

@@ -15,6 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Shows an opened PDF in PDF.js's viewer, with its marks drawn on the pages, and searches it. It moves the
+// reader to a mark, a page or a place in the text, and stops as soon as the reader scrolls by hand.
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -38,14 +42,15 @@ import type { MarkPlaces } from "./useMarkPlaces";
 import type { OpenedDocument } from "./usePdfDocument";
 import type { EventBus, PDFPageView, PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
 
-// Where the viewer in viewerRef shows the document, once PDF.js has laid out its pages.
+// The frame a document is shown in, once PDF.js has laid out its pages, and the event bus of the viewer
+// showing it.
 export interface ShownDocument {
   eventBus: EventBus;
   frame: HTMLDivElement;
 }
 
-// How far the pointer may move between press and release and still count as a click on a mark. Any
-// further is a drag selecting text, even one that selected nothing.
+// How far, in pixels, the pointer may move between press and release and still click a mark. Any further
+// is a drag selecting text, even one that selected nothing.
 const DRAG_DISTANCE = 4;
 
 interface MatchesCount {
@@ -54,7 +59,7 @@ interface MatchesCount {
 }
 
 // How often, in milliseconds, a search still counting its matches shows its count and checks whether
-// PDF.js has searched every page. Each time draws the viewer again.
+// PDF.js has searched every page.
 const COUNT_INTERVAL = 250;
 
 // Asks PDF.js's search to look for the query, or for its next or previous match, ignoring case and
@@ -94,10 +99,9 @@ function getPageMarks(marks: Mark[], places: MarkPlaces, page: number): PageMark
   });
 }
 
-// Shows the document in whichever frame it is given, opened at the page given, with the marks drawn
-// where they were found. It takes the reader to the selected mark once that is found. Clicking a mark
-// selects it. It searches the document too. Moving to another frame keeps the page, the zoom, the marks
-// and the search.
+// Shows the document in the frame given to setFrame, opened at `page`, with the marks drawn where they
+// were found. It takes the reader to the selected mark once that is found. Clicking a mark selects it.
+// Moving the document to another frame keeps the page, the zoom, the marks and the search.
 export function usePdfView(
   pdf: OpenedDocument | undefined,
   { page, marks, places, selectedId, onSelectMark }: {
@@ -109,30 +113,31 @@ export function usePdfView(
   },
 ) {
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
-  // The page given when the view starts. A later page, given as the selection changes, does not move
-  // the reader.
+  // The page given when the view starts. A page given later does not move the reader.
   const [openAt] = useState(page);
   const [shown, setShown] = useState<ShownDocument | undefined>(undefined);
-  // The pages of the document they were counted in.
+  // The page count and the page shown, with the document they belong to.
   const [pages, setPages] = useState<{ of?: object; count?: number; shown?: number }>({});
   const viewerRef = useRef<PDFViewer | undefined>(undefined);
-  // Where the reader is, as PDF.js's open parameters, once the document has been shown.
+  // Where the reader is, as PDF.js's open parameters, with the document. A new frame opens there.
   const locationRef = useRef<{ of: object; params: string } | undefined>(undefined);
-  // The mark to take the reader to once it is found and its page drawn. Until the reader goes
-  // elsewhere, it is the selected mark, even as the selection changes.
+  // A mark to take the reader to once it is found and its page drawn.
   const goToRef = useRef<string | undefined>(undefined);
+  // Whether to take the reader to the selected mark, whichever it is, once it is found. It stays true until
+  // the reader goes elsewhere.
   const followSelectedRef = useRef(true);
   const goToMarkRef = useRef<(() => void) | undefined>(undefined);
-  // The selected mark, for marks drawn after it was selected.
+  // The selected mark's id, for drawing marks after it was selected.
   const selectedIdRef = useRef(selectedId);
-  // The text layers PDF.js has drawn the text of. PDF.js gives a page a new text layer when it draws the
-  // page again, so one dropped meanwhile does not count.
+  // The text layers whose text PDF.js has drawn. PDF.js gives a page a new text layer when it draws the
+  // page again, and the new layer counts only once its own text is drawn.
   const renderedTextRef = useRef(new WeakSet<HTMLElement>());
-  // The place in the text to take the reader to once its page is drawn, and how far down the frame.
+  // The place in the text to take the reader to once its page is drawn, and how far down the frame, in
+  // pixels.
   const pointRef = useRef<{ point: TextPoint; atY: number } | undefined>(undefined);
   const goToPointRef = useRef<(() => void) | undefined>(undefined);
   const [search, setSearch] = useState<DocumentSearch>(IDLE_SEARCH);
-  // The query, searched for anew when the viewer is rebuilt in another frame.
+  // The query, searched for again when the viewer moves to another frame.
   const queryRef = useRef("");
   const eventBusRef = useRef<EventBus | undefined>(undefined);
   // Starts showing the matches of a new search as PDF.js counts them, or stops.
@@ -149,7 +154,8 @@ export function usePdfView(
     const { components, doc } = pdf;
     const eventBus = new components.EventBus();
     const linkService = new components.PDFLinkService({ eventBus });
-    // Aborting the signal is what stops the viewer watching the frame's size and scrolling.
+    // Aborting it removes the listeners on the frame, and stops the viewer watching the frame's size and
+    // scrolling.
     const stop = new AbortController();
     const options = { container: frame, eventBus, linkService, removePageBorders: true, abortSignal: stop.signal };
     const viewer = new components.PDFViewer(options);
@@ -168,13 +174,14 @@ export function usePdfView(
       }
     };
     // PDF.js counts a new search's matches as it searches the pages. The latest count is shown every
-    // COUNT_INTERVAL until every page has been searched. It counts them as 0 of 0 until it has picked the
-    // one to show.
+    // COUNT_INTERVAL until every page has been searched. A count of 0 of 0, which PDF.js reports until it
+    // has picked the match to show, is not kept.
     let latestCount: MatchesCount | undefined;
     let counting = 0;
     const showCount = () => {
-      // While PDF.js waits for the typing to stop, a new search is pending and the last one's matches
-      // are kept.
+      // pageMatches has an entry for each page searched so far and holes for the rest, which reduce skips.
+      // While PDF.js waits for the typing to stop, the new search is pending and pageMatches still holds
+      // the last one's.
       const searched = (findController.pageMatches ?? []).reduce((pages: number) => pages + 1, 0);
       const done = findController._dirtyMatch !== true && searched >= doc.numPages;
       if (done) {
@@ -218,7 +225,7 @@ export function usePdfView(
       if (state === PENDING) {
         return;
       }
-      // PDF.js may tell a match is found before it has counted it, as 0 of 0.
+      // PDF.js may report a match found before it has counted it, as 0 of 0.
       const count = matchesCount.current > 0 ? matchesCount : latestCount ?? matchesCount;
       const settled = state === FOUND || state === WRAPPED
         ? { outcome: "found", ...count } as const
@@ -247,7 +254,7 @@ export function usePdfView(
       }
       setShown({ eventBus, frame });
     });
-    // Heard from before the document is set, so the pages PDF.js draws before the marks are drawn count too.
+    // Listened to before the document is set, so the pages PDF.js draws before any mark is drawn count too.
     eventBus.on("textlayerrendered", ({ source }: { source: PDFPageView }) => {
       const textLayer = source.textLayer?.div;
       if (textLayer !== undefined) {
@@ -277,8 +284,8 @@ export function usePdfView(
     });
     resizes.observe(frame, { box: "border-box" });
 
-    // Once the reader scrolls by hand, nothing still on its way moves them: no mark not found yet, selected
-    // or shown, and no place in the text.
+    // Once the reader scrolls by hand, nothing still waiting to be shown moves them: not a mark, selected
+    // or asked for, and not a place in the text.
     for (const type of SCROLL_INPUTS) {
       frame.addEventListener(type, event => {
         if (isScrollByHand(event, frame)) {
@@ -369,7 +376,7 @@ export function usePdfView(
       }
       goToMark();
     }, { signal: stop.signal });
-    // Every page is measured before any is drawn on, so the whole document is laid out once.
+    // Every page is measured before marks are placed on any, so the browser lays the document out once.
     Array.from({ length: viewer.pagesCount }, (_, index) => index)
       .flatMap(index => {
         const textLayer = (viewer.getPageView(index) as PDFPageView | undefined)?.textLayer?.div;
@@ -415,14 +422,14 @@ export function usePdfView(
     };
   }, [shown]);
 
-  // The controls act on the viewer shown, and are disabled until there is one.
+  // Acts on the viewer, or does nothing before there is one.
   const withViewer = useCallback((act: (viewer: PDFViewer) => void) => {
     if (viewerRef.current !== undefined) {
       act(viewerRef.current);
     }
   }, []);
 
-  // After the reader goes to a page by hand, finding a mark or a place in the text no longer moves them.
+  // Goes to a page, and stops taking the reader to a mark or a place in the text.
   const showPage = useCallback((pageNumber: number) => {
     goToRef.current = undefined;
     pointRef.current = undefined;
@@ -432,7 +439,8 @@ export function usePdfView(
     });
   }, [withViewer]);
 
-  // Searching stops taking the reader to a mark. The matches take them instead.
+  // Searches the document, or clears the search for a blank query. From then on the matches move the
+  // reader, instead of a mark or a place in the text.
   const find = useCallback((query: string) => {
     queryRef.current = query;
     goToRef.current = undefined;
@@ -450,20 +458,22 @@ export function usePdfView(
     }
   }, []);
 
+  // Goes to the next match of the search, or to the previous one.
   const findAgain = useCallback((previous: boolean) => {
     if (eventBusRef.current !== undefined && queryRef.current.trim() !== "") {
       dispatchFind(eventBusRef.current, queryRef.current, { previous });
     }
   }, []);
 
+  // Takes the reader to a mark once it is found and its page drawn, instead of to a place in the text.
   const showMark = useCallback((id: string) => {
     goToRef.current = id;
     pointRef.current = undefined;
     goToMarkRef.current?.();
   }, []);
 
-  // Puts a place in the text that far down the frame: the place's page first, while it is not drawn, then
-  // the place itself once it is. A mark the reader was still on their way to no longer moves them.
+  // Puts a place in the text atY pixels down the frame, instead of taking the reader to a mark. Until the
+  // place's page is drawn, it goes to that page.
   const showPoint = useCallback((point: TextPoint, atY: number) => {
     goToRef.current = undefined;
     followSelectedRef.current = false;

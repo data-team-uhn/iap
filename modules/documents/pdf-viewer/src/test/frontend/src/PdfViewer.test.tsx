@@ -15,6 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests of the PDF viewer on a single document: finding and marking passages, moving around, searching and
+// commenting. PDF.js is replaced by the stand-in in pdfjs.fixture, whose document has three pages with
+// QUOTE on the second. It lays nothing out, so the viewer is narrow unless a test widens it with stubLayout.
 import { useState, type ReactElement } from "react";
 
 import { ThemeProvider } from "@mui/material/styles";
@@ -52,8 +55,8 @@ function withTheme(element: ReactElement): ReactElement {
   return <ThemeProvider theme={appTheme} defaultMode="light">{element}</ThemeProvider>;
 }
 
-// `quote` and `markedBy` make the one mark the viewer gets, looked for from the page it opens at,
-// unless `marks` are given.
+// The viewer's props for `show`. Unless `marks` is given, the viewer gets one mark made of `quote` and
+// `markedBy`. It is looked for from the page the viewer opens at, page 1 unless `page` is given.
 type ShowProps = Partial<PdfViewerProps> & { quote?: string; markedBy?: MarkKind };
 
 function createViewer({ quote = QUOTE, markedBy = "assistant", ...props }: ShowProps, onClose: () => void) {
@@ -62,6 +65,7 @@ function createViewer({ quote = QUOTE, markedBy = "assistant", ...props }: ShowP
   return withTheme(<PdfViewer url={URL} page={page} marks={marks} onClose={onClose} {...props} />);
 }
 
+// Shows the viewer. Gives back its onClose mock, and a rerender that changes the props given.
 function show(props: ShowProps = {}) {
   const onClose = vi.fn();
   const { rerender, unmount } = render(createViewer(props, onClose));
@@ -72,7 +76,7 @@ function show(props: ShowProps = {}) {
   };
 }
 
-// The passage as shown, rather than the hidden copy that measures it
+// The passage as shown, rather than the hidden copy that measures it.
 function getPassage(text: string) {
   return screen.getByText(text, { ignore: "[aria-hidden=true], [aria-hidden=true] *" });
 }
@@ -94,7 +98,7 @@ function getViewer() {
   return viewer;
 }
 
-// Containers a test made for the viewer, removed after it.
+// The containers a test made for the viewer, removed after each test.
 const places: HTMLDivElement[] = [];
 
 function createPlace(): HTMLDivElement {
@@ -135,7 +139,7 @@ describe("PdfViewer", () => {
     });
 
     it("cuts a passage running past three lines short, with a button showing all of it", async () => {
-      // jsdom lays nothing out, so the passage's text says how many lines it runs over
+      // jsdom lays nothing out. Five client rects make the passage run over five lines.
       vi.spyOn(HTMLSpanElement.prototype, "getClientRects").mockReturnValue({ length: 5 } as DOMRectList);
       show();
       await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
@@ -165,7 +169,7 @@ describe("PdfViewer", () => {
     });
 
     it("on a phone, cuts a passage running past one line to one row, with its page and a button", async () => {
-      // A phone-width screen, and a passage running over two lines
+      // A phone-width screen, and a passage running over two lines.
       vi.stubGlobal("matchMedia", (media: string) => ({
         media,
         matches: media.includes("max-width"),
@@ -182,7 +186,7 @@ describe("PdfViewer", () => {
       await userEvent.click(screen.getByRole("button", { name: "Show the whole passage" }));
 
       expect(screen.getByRole("button", { name: "Show the passage on page 2" })).toHaveTextContent("found on page 2");
-      // The layout changed under the button, which kept its place and the focus
+      // The layout changed around the button, and the button kept the focus.
       expect(screen.getByRole("button", { name: "Show less of the passage" })).toHaveFocus();
     });
 
@@ -430,7 +434,8 @@ describe("PdfViewer", () => {
     });
 
     describe("when the frame changes width", () => {
-      // Size changes are only seen through the observers watching for them, which jsdom does not run.
+      // The viewer sees a size change only through a ResizeObserver, and jsdom never resizes anything. This
+      // stand-in keeps each callback for resize() to call.
       const observers: ResizeObserverCallback[] = [];
 
       beforeEach(() => {
@@ -440,11 +445,11 @@ describe("PdfViewer", () => {
           }
 
           observe(): void {
-            // Told by resize() instead
+            // resize() calls every callback instead.
           }
 
           disconnect(): void {
-            // Nothing to stop
+            // Nothing to disconnect.
           }
         });
       });
@@ -453,6 +458,7 @@ describe("PdfViewer", () => {
         observers.splice(0);
       });
 
+      // Gives the frame a new width, tells the observers, and waits for the next animation frame.
       async function resize(width: number) {
         Object.defineProperty(getFrame(), "offsetWidth", { value: width, configurable: true });
         act(() => observers.forEach(observer => observer([], {} as ResizeObserver)));
@@ -500,7 +506,6 @@ describe("PdfViewer", () => {
       show();
 
       expect(screen.getByRole("progressbar", { name: "Opening the document" })).toBeInTheDocument();
-      // Still there once the file is opened, while PDF.js lays out its pages.
       await waitFor(() => expect(fakePdf.releasePages).toBeDefined());
       expect(screen.getByRole("progressbar", { name: "Opening the document" })).toBeInTheDocument();
 
@@ -730,7 +735,7 @@ describe("PdfViewer", () => {
       await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 2: [ ASSISTANT_MARK ] }));
       expect(getStatus()).toHaveTextContent(FOUND);
       expect(getFrame().scrollTop).toBe(0);
-      // Read once, as far as the passage, not again for the dialog.
+      // Pages 1 and 2 were read once, as far as the passage, and not again for the dialog.
       expect(fakePdf.textReads).toEqual([ 1, 2 ]);
     });
 
@@ -829,13 +834,14 @@ describe("PdfViewer", () => {
       { id: "schedule", quote: TEXTS[2], kind: "annotation" },
     ];
 
+    // Shows the viewer with MARKS, and gives back its onSelectMark mock.
     function showMarks(props: Partial<PdfViewerProps> = {}) {
       const onSelectMark = vi.fn();
       render(withTheme(<PdfViewer url={URL} marks={MARKS} onSelectMark={onSelectMark} onClose={vi.fn()} {...props} />));
       return onSelectMark;
     }
 
-    // Where the fake layout puts every mark, on whichever page
+    // A point on every mark the fake layout draws, whatever its page.
     const AT_MARK = { clientX: 50, clientY: MATCH_TOP + 10 };
 
     async function clickMark() {
@@ -905,7 +911,7 @@ describe("PdfViewer", () => {
 
       describe("swiped by touch", () => {
         beforeEach(() => {
-          // jsdom has neither `matchMedia` nor `animate`
+          // jsdom has neither `matchMedia` nor `animate`.
           vi.stubGlobal("matchMedia", (media: string) => ({
             media,
             matches: false,
@@ -917,7 +923,7 @@ describe("PdfViewer", () => {
           Element.prototype.animate = vi.fn();
         });
 
-        // A finger moving across the card from its count, right for a positive distance
+        // Moves a finger across the card from its count, to the right for a positive distance.
         function swipe(across: number) {
           const card = screen.getByText(/^\d of 3$/);
           const at = (clientX: number) => ({ pointerType: "touch", pointerId: 1, clientX, clientY: 10 });
@@ -1038,7 +1044,7 @@ describe("PdfViewer", () => {
     });
 
     describe("with what the caller shows with each passage", () => {
-      // A text field, such as a comment box, which must not go inside the button selecting a passage.
+      // A text field standing for a comment box, labelled with its mark and whether that mark is selected.
       const renderMarkDetails = (mark: Mark, selected: boolean) => (
         <input aria-label={`About ${mark.id}${selected ? ", selected" : ""}`} />
       );
@@ -1094,7 +1100,7 @@ describe("PdfViewer", () => {
         const field = screen.getByRole("textbox", { name: "About schedule" });
 
         act(() => field.focus());
-        // As the browser scrolls it to show the focus
+        // As the browser scrolls it to show the focus.
         field.parentElement!.scrollTop = 40;
         act(() => field.blur());
 
@@ -1102,7 +1108,7 @@ describe("PdfViewer", () => {
       });
 
       describe("on the card above the document", () => {
-        // A comment with a reply button
+        // A long comment with a Reply button.
         const renderComment = (mark: Mark) => (
           <div>
             <p>{`A long comment on ${mark.id}`}</p>
@@ -1110,6 +1116,7 @@ describe("PdfViewer", () => {
           </div>
         );
 
+        // Makes what is shown under the passage run past the height it is cut to.
         function runLong(shown: HTMLElement) {
           Object.defineProperty(shown, "clientHeight", { value: 60 });
           Object.defineProperty(shown, "scrollHeight", { value: 200 });
@@ -1138,7 +1145,7 @@ describe("PdfViewer", () => {
           await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
           const shown = screen.getByText("A long comment on volunteers").parentElement!.parentElement!;
           runLong(shown);
-          // As the browser scrolls it to show the focus
+          // As the browser scrolls it to show the focus.
           shown.scrollTop = 40;
 
           await userEvent.click(screen.getByRole("button", { name: "Show the whole passage" }));
@@ -1166,12 +1173,12 @@ describe("PdfViewer", () => {
         });
 
         describe("with a field to type in under the passage", () => {
-          // A passage running past its lines, so the card has a button saying whether it is open
+          // A passage running past its lines, so the card has a button saying whether it is open.
           beforeEach(() => {
             vi.spyOn(HTMLSpanElement.prototype, "getClientRects").mockReturnValue({ length: 5 } as DOMRectList);
           });
 
-          // A comment, written in a box opened by Reply and closed by Save
+          // A comment, written in a box opened by Reply and closed by Save.
           function Comment({ writing: startWriting }: { writing: boolean }) {
             const [ writing, setWriting ] = useState(startWriting);
             return writing
@@ -1326,7 +1333,7 @@ describe("PdfViewer", () => {
         render(withTheme(<Choosing />));
         await waitFor(() => expect(getFrame().scrollTop).toBe(MATCH_TOP));
         await userEvent.pointer({ keys: "[MouseLeft]", target: getFrame(), coords: AT_MARK });
-        // Behind the viewer's dialog, as a panel of the caller's would be
+        // The caller's buttons are behind the viewer's dialog, which hides them from screen readers.
         fireEvent.click(screen.getByRole("button", { name: "Choose the schedule", hidden: true }));
         expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
 
@@ -1346,7 +1353,7 @@ describe("PdfViewer", () => {
 
         rerender(viewer("schedule"));
 
-        // The very elements drawn before, not new ones that look the same
+        // The very elements drawn before, not new ones that look the same.
         expect(drawn.every(mark => mark.isConnected)).toBe(true);
         expect(getFrame().querySelector("[data-mark-id='schedule']")).toHaveClass("selected");
         expect(getFrame().querySelector("[data-mark-id='volunteers']")).not.toHaveClass("selected");
@@ -1367,7 +1374,7 @@ describe("PdfViewer", () => {
 
     describe("in the document", () => {
       it("selects a mark clicked, without moving the reader", async () => {
-        // Selected first, on page 3; the click falls on the mark drawn first, on page 2.
+        // The first mark given is selected, on page 3. The click falls on the mark drawn first, on page 2.
         const onSelectMark = showMarks({ marks: [ MARKS[2], MARKS[1] ] });
         await waitFor(() => expect(getFrame().scrollTop).toBe(MATCH_TOP));
         getFrame().scrollTop = 0;
@@ -1458,6 +1465,7 @@ describe("PdfViewer", () => {
       fakePdf.pages = [ "The memo, its cover and title.", LINES, "The schedule continues for one year." ];
     });
 
+    // One mark, placed by the spans given.
     const placedOn = (...spans: MarkSpan[]): Mark[] => [ { id: "placed", spans, kind: "annotation" } ];
 
     it("stops taking the reader to a passage found where nothing can be drawn once its page is drawn", async () => {
@@ -1467,7 +1475,7 @@ describe("PdfViewer", () => {
       expect(await screen.findByText("Page 2 of 3")).toBeInTheDocument();
       await waitFor(() => expect(getViewer().getPageView(1)?.textLayer).not.toBeNull());
 
-      // As PDF.js moves to the page the reader scrolls to, and draws it
+      // As PDF.js moves to the page the reader scrolls to, and draws it.
       act(() => {
         getViewer().currentPageNumber = 3;
       });
@@ -1525,6 +1533,7 @@ describe("PdfViewer", () => {
       fakePdf.pages = [ "Cover page of the document.", LINES, "The schedule continues for one year." ];
     });
 
+    // Shows the viewer with no marks, and gives back its onAnnotate and onClose mocks.
     function showAnnotating(props: Partial<PdfViewerProps> = {}) {
       const onAnnotate = vi.fn();
       const onClose = vi.fn();
@@ -1543,8 +1552,8 @@ describe("PdfViewer", () => {
       selection.addRange(range);
     }
 
-    // Waits until every page is drawn and the viewer follows the selection, which it starts to once they
-    // are shown.
+    // Waits until every page is drawn, then for the viewer to start following the selection, which it does
+    // once the document is shown.
     async function waitForPages() {
       await waitFor(() => expect(getFrame().querySelectorAll(".textLayer")).toHaveLength(3));
       await act(() => Promise.resolve());
@@ -1721,7 +1730,8 @@ describe("PdfViewer", () => {
   });
 
   describe("searching the document", () => {
-    // "the" is on the first page and the third, so a search from the passage's page finds the second first
+    // "the" is on the first page and the third. A search from the passage's page, the second, finds the match
+    // on the third first.
     const QUERY = "the";
 
     function getSearchField() {
@@ -1729,6 +1739,7 @@ describe("PdfViewer", () => {
     }
 
     describe("in a narrow viewer", () => {
+      // Shows the viewer, and opens its search once the passage is found.
       async function openSearch() {
         show();
         await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
@@ -1899,7 +1910,7 @@ describe("PdfViewer", () => {
         expect(screen.getByRole("progressbar", { name: "Searching the pages" })).toBeInTheDocument();
 
         fakePdf.pagesSearched = 2;
-        // A count of none changes nothing.
+        // A count without a current match changes nothing.
         act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 0, total: 3 } }));
         act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 2, total: 5 } }));
         expect(await screen.findByText("2 of 5")).toBeInTheDocument();
@@ -1992,12 +2003,12 @@ describe("PdfViewer", () => {
         const buttons = () => [ "Previous match", "Next match" ].map(name => screen.getByRole("button", { name }));
         buttons().forEach(button => expect(button).toBeDisabled());
 
-        // Only the cover's own page has "cover"
+        // Only the cover's own page has "cover".
         await userEvent.type(getSearchField(), "cover");
         await waitFor(() => expect(getStatus()).toHaveTextContent("Match 1 of 1."));
         buttons().forEach(button => expect(button).toBeDisabled());
 
-        // From the cover's page, where that search left the reader
+        // From the cover's page, where that search left the reader.
         await userEvent.clear(getSearchField());
         await userEvent.type(getSearchField(), QUERY);
         await waitFor(() => expect(getStatus()).toHaveTextContent("Match 1 of 2."));

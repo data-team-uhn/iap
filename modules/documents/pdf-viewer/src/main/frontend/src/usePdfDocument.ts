@@ -15,6 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Fetches a PDF and opens it with PDF.js, or says why it could not be opened.
+
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
@@ -26,17 +29,20 @@ import { describePdfFailure } from "./pdfViewerModel";
 import type { PageText } from "./marksModel";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 
+// A document PDF.js has opened, with the viewer's components to show it in.
 export interface OpenedDocument {
   components: ViewerComponents;
   doc: PDFDocumentProxy;
   // The text of a page as PDF.js reads it for its text layer, so offsets into it are offsets into the
   // layer's text. A page PDF.js cannot read has no text. Each page is read once.
   getPageText: (pageNumber: number) => Promise<string>;
-  // The same, with where its lines end, as the same object for a page every time. What is worked out
-  // from a page's text can be kept by that object.
+  // The same text, with where its lines end. A page gives the same object every time, so what is worked
+  // out from its text can be kept against that object.
   getPageTextWithLines: (pageNumber: number) => Promise<PageText>;
 }
 
+// A page's text as PDF.js reads it for its text layer, with where its lines end. It is empty for a page
+// PDF.js cannot read.
 async function readPageText(doc: PDFDocumentProxy, pageNumber: number): Promise<PageText> {
   const page: PageText = { text: "", lineEnds: [] };
   try {
@@ -66,11 +72,11 @@ function createOpenedDocument(components: ViewerComponents, doc: PDFDocumentProx
   return { components, doc, getPageText, getPageTextWithLines };
 }
 
-// Opens the PDF, or says why it could not be opened. `retry` tries again. Without a URL, nothing is opened.
+// Opens the PDF at a URL, or says why it could not. `retry` tries again. Without a URL, it opens nothing.
 export function usePdfDocument(url: string | undefined) {
   const authFetch = useAuthenticatedFetch();
   const [attempt, setAttempt] = useState(0);
-  // What was opened, from where. Another URL's, or none, is not this one's.
+  // What was opened, or why it was not, and from which URL. What came from another URL is not given.
   const [opened, setOpened] = useState<{ url?: string; pdf?: OpenedDocument; openError?: string }>({});
 
   // The file is fetched here rather than by PDF.js, so an expired session gets the same sign-in
@@ -95,7 +101,7 @@ export function usePdfDocument(url: string | undefined) {
         // PDF.js's own fonts, not the system's, stand in for the fonts a PDF names without embedding
         // them. A phone without Times New Roman would otherwise set the text in a font of other widths.
         task = pdfjs.getDocument({ data, worker, useSystemFonts: false, ...dataUrls });
-        // A worker that never started never answers
+        // A worker that never started never answers, so its failure ends the wait.
         const doc = await Promise.race([ task.promise, failed ]);
         stop.signal.throwIfAborted();
         setOpened({ url, pdf: createOpenedDocument(components, doc) });
@@ -107,13 +113,14 @@ export function usePdfDocument(url: string | undefined) {
     })();
     return () => {
       stop.abort();
-      // The shared worker is not the task's, so this only drops the document, which is then no one's.
+      // This frees the document. The worker is shared, and PDF.js leaves a worker it was handed running.
       void task?.destroy();
       setOpened(previous => (previous.url === url ? {} : previous));
     };
   }, [url, authFetch, attempt]);
 
-  // The note says the document is opening again, so Retry needs no progress of its own.
+  // Opens the document again. The promise resolves at once, since the document has neither a PDF nor an
+  // error until the new attempt settles, and so shows as opening.
   const retry = useCallback((): Promise<void> => {
     setOpened({});
     setAttempt(previous => previous + 1);

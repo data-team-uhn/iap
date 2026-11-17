@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Scrolls two versions of a document shown side by side together, matched by the text they share.
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { getTextPointAt, getTextPointRect } from "./markLayer";
@@ -32,15 +33,17 @@ interface SyncedView {
   showPoint: (point: TextPoint, atY: number) => void;
 }
 
-// How long a pane's scrolling counts as the person's after they touch it, by wheel, finger, key or
-// pointer. Each scroll since extends it, as a fling goes on scrolling after the finger lifts. While the
-// pointer is still held down on the pane, as when dragging its scrollbar, it counts for as long as that.
+// How long a pane's scrolling counts as the person's after they touch it, by wheel, finger, key or pointer,
+// in milliseconds. Each scroll within that time extends it, since a fling goes on scrolling after the finger
+// lifts. It also counts for as long as the pointer is held down on the pane, as when dragging its scrollbar.
 const BY_HAND_TIME = 500;
 
-// How long a pane told to lead keeps leading, such as while its page bar moves it to a page not drawn yet.
+// How long a pane told to lead keeps leading, in milliseconds, such as while its page bar moves it to a page
+// not drawn yet.
 const LEAD_TIME = 1500;
 
-// Pressing a finger or the pointer anywhere may start a scroll, by dragging the page or a selection.
+// The inputs that make a pane's scrolling the person's. Pressing a finger or the pointer anywhere on the pane
+// counts, since dragging the page or a selection can scroll it.
 const INPUTS = [ ...SCROLL_INPUTS, "touchstart" ];
 
 const getOther = (version: Version): Version => (version === "older" ? "newer" : "older");
@@ -48,9 +51,10 @@ const getOther = (version: Version): Version => (version === "older" ? "newer" :
 // Scrolls each pane with the other, matched by the text the versions share. The place in the middle of the
 // pane scrolled by hand goes to the middle of the other. Through text only one version has, the panes move
 // at different speeds. While the text in the middle is not drawn yet, such as on a page just scrolled to,
-// the other pane follows once it is. A pane moved this way does not move the first one back. Gives `lead`,
-// making a pane lead, such as after zooming or going to a page, and `release`, letting both panes go their
-// own way until the next scroll by hand, such as when each is taken to the same change or searched.
+// the other pane follows once it is. A pane moved this way does not move the first one back.
+//
+// Returns `lead`, which moves the other pane to the one given and lets that one lead for a while. It also
+// returns `release`, which lets both panes go their own way until the next scroll by hand.
 export function useScrollSync(views: Record<Version, SyncedView>, alignment: Alignment | undefined) {
   const { shown: olderShown, showPoint: showOlder } = views.older;
   const { shown: newerShown, showPoint: showNewer } = views.newer;
@@ -63,9 +67,10 @@ export function useScrollSync(views: Record<Version, SyncedView>, alignment: Ali
     }
     const shown = { older: olderShown, newer: newerShown };
     const show = { older: showOlder, newer: showNewer };
+    // The pane waiting for the text in its middle to be drawn, for the other to follow it.
     let waiting: Version | undefined;
-    // The middle of one pane goes to the middle of the other, as far into the line of the same text, so the
-    // other moves as smoothly, not a line at a time.
+    // Moves the other pane so that the same text is in its middle. The point keeps its offset into the line,
+    // so the other pane moves smoothly rather than a line at a time.
     const follow = (from: Version) => {
       const { frame } = shown[from];
       const middle = frame.getBoundingClientRect().top + frame.clientHeight / 2;
@@ -78,6 +83,7 @@ export function useScrollSync(views: Record<Version, SyncedView>, alignment: Ali
         show[to](mapPoint(alignment, from, point), shown[to].frame.clientHeight / 2 - below);
       }
     };
+    // The pane the other follows, and until when, unless the pointer is held down on it.
     let leader: Version | undefined;
     let leadsUntil = 0;
     let request = 0;
@@ -85,8 +91,8 @@ export function useScrollSync(views: Record<Version, SyncedView>, alignment: Ali
       leader = version;
       leadsUntil = performance.now() + time;
     };
-    // The pane the pointer is held down on, if any. A release may never be told, as when it happens outside
-    // the window, so the pointer moving with no button down ends the hold too.
+    // The pane the pointer is held down on, if any. The browser may not report the release, as when it
+    // happens outside the window. The pointer moving with no button down therefore ends the hold too.
     let held: Version | undefined;
     const stop = new AbortController();
     for (const type of [ "pointerup", "pointercancel", "pointermove" ] as const) {

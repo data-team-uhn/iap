@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The PDF viewer: it opens a document, marks passages in it, and can compare it with an older version.
+// The work is done by hooks; this file joins them and lays out what they show.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { Box, Typography } from "@mui/material";
@@ -60,39 +62,41 @@ import ViewerToolbar, { type ViewerToolbarHandle } from "./ViewerToolbar";
 import type { Mark, MarkSpan, TextAnchor } from "./marksModel";
 
 export interface PdfViewerProps {
-  // The PDF to open.
+  // The URL of the PDF to open.
   url: string;
-  // The page to open it at: the selected mark's own page when absent, or else the first. Another page given
-  // later takes the reader there.
+  // The page to open at, counting from 1. When absent, the document opens at the selected mark's page, if
+  // it has one, or else at the first page. A different page given later takes the reader there.
   page?: number;
-  // The passages to mark, in the order to list them. A quote is looked for from its own page onwards,
-  // and spans are placed where they say. New marks equal to the last ones are not looked for again.
+  // The passages to mark, in the order to list them. Those that cannot be marked are listed last. A quote
+  // is looked for from its own page onwards, and spans are placed where they say. New marks equal to the
+  // last ones given are not looked for again.
   marks: Mark[];
-  // The selected mark. The viewer takes the reader to it once it is found, and again each time the
-  // caller selects another. When absent or not among the marks, the viewer selects the first mark not
-  // known to be missing from the document.
+  // The id of the selected mark. The viewer takes the reader to it once it is found, and again each time
+  // the caller selects another. When it is absent or not among the marks, the mark the person last chose
+  // stays selected. Until they choose one, it is the first mark not yet known to be impossible to mark.
   selectedMarkId?: string;
-  // Called with the mark the person selects, in the document or in the list of passages.
+  // Called with the id of each mark the person selects, in the document or beside it.
   onSelectMark?: (id: string) => void;
-  // Told the passage the person selected in the document, when they press the Comment button the viewer
-  // offers under it. Without it, there is no Comment button.
+  // Given the anchor of the text the person selected in the document, when they press the Comment button
+  // under it. Without it, the viewer offers no Comment button.
   onAnnotate?: (anchor: TextAnchor) => void;
   // What to show under a passage, such as the comments on it, given the mark and whether it is selected.
   // Give the same function on every render, such as one from useCallback, or the passages are drawn again
   // each time a search counts its matches.
   renderMarkDetails?: (mark: Mark, selected: boolean) => ReactNode;
-  // What the marks are called where the viewer counts and steps through them, such as comments on a review
-  // screen ("Comment 3 of 12"). Passages when absent. Changes are called changes, and counted apart. The
-  // text a mark covers is still called a passage.
+  // What the marks are called where the viewer counts and steps through them, such as comments ("Comment
+  // 3 of 12"). Passages when absent. Changes are called changes, and counted apart. The text a mark covers
+  // is still called a passage, as in "Show the passage on page 2".
   markName?: MarkName;
-  // What the viewer is called; the PDF's file name when absent.
+  // The viewer's title. When absent, it is the PDF's file name.
   title?: string;
   // An older version of the document to compare it with. The changes between them are marked, as marks of a
-  // kind of their own, and listed with the passages while this version is shown alone. Its label goes above
-  // it when the two are shown side by side. Another older version is compared with in place, the reader
-  // keeping their place in this one.
+  // kind of their own, and listed with the passages while this version is shown alone. The label goes above
+  // the older version when the two are shown side by side. Given another older version later, the viewer
+  // compares with that one, and the reader stays where they are in this one.
   compareWith?: { url: string; label?: string };
-  // What this version is called above it when shown beside the older one, such as "Version 3".
+  // What this version is called above it when shown beside the older one, such as "Version 3". "Newer
+  // version" when absent.
   label?: string;
   // An element for the viewer to fill, with a button to pop it out into a dialog. The element needs a
   // height of its own. Without a container, the viewer opens in a dialog. Null, as a ref is before
@@ -101,26 +105,28 @@ export interface PdfViewerProps {
   onClose: () => void;
 }
 
-// Opens a PDF, finds the passages in it and marks them. The document still opens when a passage
-// cannot be found. One passage is shown above the document; several are listed beside it, or, in a
-// viewer too narrow for that, shown one at a time above it. Compared with an older version, it also marks
-// what changed, beside the older version or in this one alone.
+// Opens a PDF, finds the passages given in it, and marks them. A passage that cannot be found does not
+// stop the document opening. A single passage is shown on a card above the document. Several are listed
+// beside the document, or shown one at a time on the card in a viewer too narrow for the list. Compared
+// with an older version, the viewer also marks what changed, beside the older version or in this one alone.
 export default function PdfViewer(props: PdfViewerProps) {
-  // Keyed so another document starts over with nothing left from the last. Another page of the same one
-  // only moves the reader, keeping the zoom and the search.
+  // Keyed by URL, so another document starts with nothing left from the last one. Another page of the same
+  // document only moves the reader, who keeps the zoom and the search.
   return <PdfViewerSession key={props.url} {...props} />;
 }
 
+// One empty list, the same on every render, for the memos that depend on it.
 const NO_MARKS: Mark[] = [];
 
-// The document stays open here while the viewer moves between the container and the dialog.
+// Holds the open document and the reader's place in it above the placement, so both survive the viewer
+// moving between its container and the dialog.
 function PdfViewerSession(props: PdfViewerProps) {
   const { url, page, selectedMarkId, onSelectMark, onAnnotate, renderMarkDetails, title, container, onClose } = props;
   const { compareWith } = props;
   const marksKey = getMarksKey(props.marks);
   const callerMarks = useMemo(() => JSON.parse(marksKey) as Mark[], [marksKey]);
   const [chosenId, setChosenId] = useState<string | undefined>(undefined);
-  // The mark last reported to the caller. The caller selecting it in turn does not move the reader.
+  // The mark last reported to the caller. When the caller then selects it, the reader stays where they are.
   const reportedId = useRef<string | undefined>(undefined);
   // The mark the caller last selected. A change to the marks does not move the reader to it again.
   const followedId = useRef<string | undefined>(undefined);
@@ -138,7 +144,8 @@ function PdfViewerSession(props: PdfViewerProps) {
   const olderMarks = comparing?.olderMarks ?? NO_MARKS;
   const { places: olderPlaces } = useMarkPlaces(comparing?.older.pdf, olderMarks);
   const firstMarkable = marks.find(mark => !isUnmarkable(places[mark.id]));
-  // A change chosen and then left out, as a minor one, gives way to the change shown nearest to it.
+  // When the change the person chose is then left out, as a minor one, the change shown nearest to it is
+  // selected instead.
   const allChanges = comparing?.state.status === "compared" ? comparing.state.changes : undefined;
   const chosenLeftOut = chosenId !== undefined && !marks.some(mark => mark.id === chosenId);
   const nearestId = !chosenLeftOut || allChanges === undefined || changes === undefined
@@ -157,8 +164,8 @@ function PdfViewerSession(props: PdfViewerProps) {
     marks,
     places,
     selectedId,
-    // A change selected in one version is brought into view in the other. The older version follows this
-    // one to any other mark, which it does not have.
+    // A change selected in this version is brought into view in the older one too. For any other mark,
+    // which the older version does not have, the older version follows this one.
     onSelectMark: id => {
       select(id);
       if (comparing !== undefined && changeIds.has(id)) {
@@ -185,7 +192,8 @@ function PdfViewerSession(props: PdfViewerProps) {
   const { lead, release } = sync;
   const { showMark: showNewerMark } = view;
   const { showMark: showOlderMark } = olderView;
-  // Both versions go to a change. Only this one has the caller's marks, and the older one follows it there.
+  // Takes both versions to a change. For a mark of the caller's, which only this version has, the older
+  // version follows this one.
   const showMark = useCallback((id: string) => {
     showNewerMark(id);
     if (changeIds.has(id)) {
@@ -197,7 +205,8 @@ function PdfViewerSession(props: PdfViewerProps) {
   }, [changeIds, showNewerMark, showOlderMark, release, lead]);
   const selectedText = useSelectedText(view.shown, onAnnotate !== undefined);
   const { dismiss } = selectedText;
-  // Clears the selection once the passage is passed on, so the mark the caller makes of it shows.
+  // Passes the selected text on as an anchor, then clears the selection so the mark the caller makes of it
+  // shows.
   const annotate = pdf === undefined || onAnnotate === undefined
     ? undefined
     : async (spans: MarkSpan[]) => {
@@ -206,6 +215,7 @@ function PdfViewerSession(props: PdfViewerProps) {
       dismiss();
       document.getSelection()?.removeAllRanges();
     };
+  // Takes the reader to each mark the caller selects, unless it is the one the person just chose.
   useEffect(() => {
     if (selectedMarkId === followedId.current || !marks.some(mark => mark.id === selectedMarkId)) {
       return;
@@ -214,8 +224,8 @@ function PdfViewerSession(props: PdfViewerProps) {
     if (selectedMarkId !== undefined && selectedMarkId !== reportedId.current) {
       showMark(selectedMarkId);
     }
-    // Whether echoed or overtaken, the report is used up, so the caller selecting that mark again later
-    // moves the reader to it.
+    // The report is used up, whether the caller echoed it or selected another mark. The caller selecting
+    // that mark again later moves the reader to it.
     reportedId.current = undefined;
   }, [selectedMarkId, marks, showMark]);
   // Another page the caller asks for takes the reader there once the document is shown. The page asked
@@ -240,8 +250,8 @@ function PdfViewerSession(props: PdfViewerProps) {
       lead("newer");
     }
   }, [olderShown, getScaleValue, zoomOlderTo, lead]);
-  // Once compared, the older version comes to where this one is, unless both are on their way to the
-  // selected change, as when first opened at one.
+  // Once the versions are compared, the older one comes to where this one is. On the first comparison it
+  // does not when a change is selected, since both versions are already on their way to it.
   const comparedRef = useRef(false);
   const selectedChangeRef = useRef(false);
   useEffect(() => {
@@ -264,10 +274,10 @@ function PdfViewerSession(props: PdfViewerProps) {
   }, [changeIds, renderMarkDetails]);
   const titleId = useId();
 
-  // Both versions are searched and zoomed alike. A search, and each next or previous match, takes each
-  // version to its own match, and they stay apart until the next scroll by hand. That way text only the
-  // older one has can be found too. After a zoom or a page from this one's page bar, the older one follows
-  // this one.
+  // Both versions are searched and zoomed together. A search, and each step to the next or previous match,
+  // takes each version to its own match. The two then move apart until the next scroll by hand. Text only
+  // the older version has can be found that way too. After a zoom, or a page chosen from this version's
+  // page controls, the older version follows this one.
   const shownView: typeof view = comparing === undefined
     ? view
     : {
@@ -291,7 +301,7 @@ function PdfViewerSession(props: PdfViewerProps) {
       },
       showMark,
     };
-  // The older version's own page bar takes it to a page, and this one follows.
+  // The older version's own page controls take it to a page, and this version follows.
   const olderShownView: typeof olderView = {
     ...olderView,
     showPage: page => {
@@ -299,6 +309,7 @@ function PdfViewerSession(props: PdfViewerProps) {
       lead("older");
     },
   };
+  // Zooms both versions, then has the older one follow this one.
   function zoomBoth(zoom: (each: typeof view) => void) {
     [ view, olderView ].forEach(zoom);
     lead("newer");
@@ -340,14 +351,14 @@ function PdfViewerSession(props: PdfViewerProps) {
   );
 }
 
-// The space between the viewer's rows, kept small on a phone, where the document has the least room.
+// The space between the viewer's rows, smaller on a phone.
 const ROW_GAP = { xs: 0.5, sm: 1 };
 
-// The narrowest viewer with room for two versions side by side and the list of marks beside them. A
-// narrower one shows the marks one at a time above the versions.
+// The narrowest viewer, in pixels, with room for two versions side by side and the list of marks beside
+// them. A narrower one shows the marks one at a time above the versions.
 const SPLIT_WITH_LIST_WIDTH = 1440;
 
-// A comparison with an older version, and the view showing that version.
+// A comparison with an older version, the view showing that version, and the labels above each version.
 type ComparisonPanes = Comparing & {
   olderView: ReturnType<typeof usePdfView>;
   olderLabel?: string;
@@ -371,15 +382,17 @@ interface ViewerBodyProps {
   selectedText: ReturnType<typeof useSelectedText>;
   onAnnotate: ((spans: MarkSpan[]) => Promise<void>) | undefined;
   comparison: ComparisonPanes | undefined;
-  // The changes' ids among the marks.
+  // The ids of the marks that are changes.
   changeIds: Set<string>;
-  // Moves the viewer between its container and the dialog, when it has a container.
+  // The button moving the viewer between its container and the dialog, or null without a container.
   placeButton: ReactNode;
-  // In the dialog on a phone, the document spans the full screen width, past the dialog's padding.
+  // Whether the document spans the full width of a phone screen, past the dialog's padding.
   edgeToEdge: boolean;
   onClose: () => void;
 }
 
+// The viewer's contents, wherever it is placed: its title, the comparison controls, the passages and the
+// document.
 function ViewerBody(props: ViewerBodyProps) {
   const { titleId, title, marks, markName, places, pagesRead, selectedId, onSelect, openError, onRetry, view } = props;
   const { renderMarkDetails, selectedText, onAnnotate, comparison, placeButton, edgeToEdge, onClose } = props;
@@ -389,11 +402,11 @@ function ViewerBody(props: ViewerBodyProps) {
   const [body, setBody] = useState<HTMLElement | null>(null);
   const narrow = useNarrowViewer(body);
   const noRoomForList = useNarrowerThan(body, SPLIT_WITH_LIST_WIDTH);
-  // A narrow viewer shows this version alone, but keeps what was chosen for a wider one.
+  // A narrow viewer shows this version alone, but keeps the choice of side by side for when it is wider.
   const split = comparison !== undefined && !narrow && comparison.view === "split";
   const toolbarRef = useRef<ViewerToolbarHandle>(null);
-  // Ctrl+F, or Cmd+F, searches the document while focus is in the viewer, rather than the page. Escape
-  // hides the Comment button before it closes anything.
+  // Ctrl+F, or Cmd+F, searches the document while the focus is in the viewer, rather than the browser
+  // searching the page. Escape hides the Comment button before it closes anything.
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Escape" && selectedText.selected !== undefined) {
       event.stopPropagation();
@@ -407,12 +420,13 @@ function ViewerBody(props: ViewerBodyProps) {
   };
   const ordered = useMemo(() => orderMarks(marks, places), [marks, places]);
   const changes = comparison?.changes;
-  // Side by side, the versions show the changes, which are stepped through apart from the other marks.
+  // Side by side, the comparison controls step through the changes, and the list and the card leave them
+  // out.
   const listed = useMemo(
     () => (split ? ordered.filter(mark => !changeIds.has(mark.id)) : ordered),
     [ordered, changeIds, split],
   );
-  // Changes are called changes, and the caller's marks as it says, each numbered among its own sort.
+  // Changes are called changes and the caller's marks by `markName`, each numbered among marks of its sort.
   const naming = useMemo(
     () => nameMarks(listed, mark => (changeIds.has(mark.id) ? CHANGES : markName)),
     [listed, changeIds, markName],
@@ -420,7 +434,8 @@ function ViewerBody(props: ViewerBodyProps) {
   const sorts = new Set(Array.from(naming.values(), each => each.name)).size;
   const selectedAt = listed.findIndex(mark => mark.id === selectedId);
   const selected = selectedAt < 0 ? undefined : listed[selectedAt];
-  // The card keeps the mark listed last selected while a change is, side by side, which is not listed.
+  // Side by side, a selected change is not listed. The card then keeps showing the listed mark selected
+  // last.
   const [cardId, setCardId] = useState<string | undefined>(undefined);
   if (selected !== undefined && selected.id !== cardId) {
     setCardId(selected.id);
@@ -437,14 +452,15 @@ function ViewerBody(props: ViewerBodyProps) {
     showMark(id);
   }, [onSelect, showMark]);
   const stepTo = (index: number) => showSelected(listed[index].id);
-  // Swiping the card above the document steps through the passages, as far as the ends.
+  // Swiping the card steps through the marks listed, stopping at either end.
   const swipeRef = useSwipe(
     cardAt > 0 ? () => stepTo(cardAt - 1) : undefined,
     cardAt < listed.length - 1 ? () => stepTo(cardAt + 1) : undefined,
   );
   const olderView = comparison?.olderView;
   const olderOpenError = comparison?.older.openError;
-  // A version that could not be opened says so itself, and nothing is compared, nor while changes are off.
+  // Nothing is compared while changes are off, or while either version could not be opened. A version
+  // that could not be opened shows its own error.
   const comparing = comparison !== undefined && comparison.view !== "off";
   const comparisonState = comparing && openError === undefined && olderOpenError === undefined
     ? comparison.state
@@ -455,11 +471,10 @@ function ViewerBody(props: ViewerBodyProps) {
   const changeIndex = changes?.findIndex(change => change.id === selectedId) ?? -1;
   const selectedChange = changeIndex < 0 ? undefined : changes?.[changeIndex];
   const minor = comparisonState?.status === "compared" ? countMinorChanges(comparisonState.changes) : undefined;
-  // Once there are changes, the caption only says what minor ones are left out or included, which a narrow
-  // viewer leaves to the menu.
+  // When there are changes, the caption only speaks of the minor changes left out or included. A narrow
+  // viewer leaves that to the changes menu.
   const caption = narrow && described?.count !== undefined ? "" : described?.caption ?? "";
-  // A change is shown as what it removed and added among the words around it, in place of the text it marks,
-  // and said as a sentence.
+  // A change is shown in place of the text it marks, as what it removed and added among the words around it.
   const renderBody = useMemo(() => {
     const byId = new Map(changes?.map(change => [ change.id, change ]));
     return function renderChange(mark: Mark) {
@@ -467,11 +482,14 @@ function ViewerBody(props: ViewerBodyProps) {
       return change === undefined ? undefined : <ChangeInContext change={change} />;
     };
   }, [changes]);
+  // What a screen reader is told of each change, as a sentence.
   const describeBody = useMemo(() => {
     const said = new Map(changes?.map(change => [ change.id, describeChange(change) ]));
     return (mark: Mark) => said.get(mark.id);
   }, [changes]);
 
+  // What the status says: the search while there is one, or else the selected change, the selected mark or
+  // the comparison, in that order.
   let said = search.announcement;
   if (search.outcome === "none" && selectedChange !== undefined && changes !== undefined) {
     said = describeChange(selectedChange, { index: changeIndex + 1, count: changes.length });
@@ -484,7 +502,8 @@ function ViewerBody(props: ViewerBodyProps) {
 
   const settled = comparisonState !== undefined && comparisonState.status !== "reading"
     && comparisonState.status !== "comparing";
-  // Said apart from the status while it speaks of a selected mark, rather than of the comparison itself.
+  // What the comparison found, once it is done. It is announced on its own, before the status, while the
+  // status speaks of a selected mark.
   const speaksOfMark = search.outcome === "none" && (selectedChange !== undefined || selected !== undefined);
   const summary = settled && described !== undefined && speaksOfMark ? described.said : "";
 
@@ -519,7 +538,8 @@ function ViewerBody(props: ViewerBodyProps) {
         onShowPassage={() => showSelected(onCard.id)}
       />
     );
-  // While the versions are read and compared, as while passages are looked for, a bar runs along each.
+  // A bar along each version shows the progress while the versions are read and compared, or while the
+  // passages are looked for.
   let looking: { share: number; what: string } | undefined;
   if (comparisonState?.status === "reading" || comparisonState?.status === "comparing") {
     const share = comparisonState.status === "reading" && comparisonState.total > 0
@@ -582,8 +602,7 @@ function ViewerBody(props: ViewerBodyProps) {
           />
         )}
       {card}
-      {/* Always rendered, even empty: a screen reader only announces changes to a status it already has. */}
-      {/* What the comparison found, once it is done, before the mark selected along with it */}
+      {/* Always rendered, even empty. A screen reader announces only changes to a live region already there. */}
       <Box aria-live="polite" sx={visuallyHidden}>{summary}</Box>
       <Box role="status" sx={visuallyHidden}>{said}</Box>
       <Box sx={{ display: "flex", gap: 2, flex: "1 1 auto", minHeight: 0 }}>
@@ -651,7 +670,7 @@ function ViewerBody(props: ViewerBodyProps) {
   );
 }
 
-// A change among the words around it, what it removed struck through.
+// A change among the words around it, with what it removed struck through.
 function ChangeInContext({ change }: { change: RevisionChange }) {
   const { before, removed, added, after } = getChangeInContext(change);
   return (
@@ -663,8 +682,8 @@ function ChangeInContext({ change }: { change: RevisionChange }) {
   );
 }
 
-// The versions shown: side by side, the older one beside this one, given as its document; otherwise this one
-// alone.
+// The versions shown. Side by side, the older version is drawn here beside this one. Otherwise this version
+// is shown alone. This version's document comes in as `children`.
 function VersionPanes({ older, newerLabel, view, outlineSelected, looking, children }: {
   older: { view: ReturnType<typeof usePdfView>; label: string | undefined; failed: boolean } | undefined;
   newerLabel: string | undefined;
@@ -695,7 +714,8 @@ function VersionPanes({ older, newerLabel, view, outlineSelected, looking, child
   );
 }
 
-// A version of the document. Shown beside another, it is under its name and its own page controls.
+// One version of the document. With a label, as beside another version, it has a row above it holding the
+// label and its own page controls.
 function Pane({ label, view, children }: {
   label: string | undefined;
   view: ReturnType<typeof usePdfView>;

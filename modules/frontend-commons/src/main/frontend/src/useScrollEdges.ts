@@ -15,20 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tells whether a scrolling element has more to show above or below, and fades its content out at those
+// edges.
+
 import { useEffect, useState } from "react";
 
+// Whether an element has more to show above and below what it shows now.
 export interface ScrollEdges {
   above: boolean;
   below: boolean;
 }
 
-// How far an element fades out where it goes on beyond what it shows.
+// How far from an edge the fade reaches, in pixels.
 const FADE = 32;
 
-// Whether an element scrolling up and down goes on beyond what it shows, above or below. It is measured
-// again as it scrolls, as it or its children change size, and as children come and go. It changes only
-// when one of the two does, not at each step of a scroll. It takes the element itself, as a callback ref
-// keeps it. An element that appears later is then watched too, such as details that arrive after the rest.
+// Whether an element that scrolls up and down has more to show above or below. It is measured again as the
+// element scrolls, as it or its children change size, and as children come and go. The result changes only
+// when one of the two answers does, not at each step of a scroll. Pass the element itself, as a callback
+// ref keeps it, so that an element that appears after the first render is watched too.
 export function useScrollEdges(element: HTMLElement | null): ScrollEdges {
   const [ edges, setEdges ] = useState({ above: false, below: false });
 
@@ -38,12 +42,13 @@ export function useScrollEdges(element: HTMLElement | null): ScrollEdges {
     }
     const measure = () => {
       const above = element.scrollTop > 0;
+      // A pixel of slack, for sizes the browser rounds.
       const below = element.scrollTop + element.clientHeight < element.scrollHeight - 1;
       setEdges(previous => (previous.above === above && previous.below === below ? previous : { above, below }));
     };
     const stop = new AbortController();
     element.addEventListener("scroll", measure, { signal: stop.signal });
-    // The element keeps its size while what it holds grows and shrinks, so its children are watched too.
+    // An element can keep its size while what it holds grows and shrinks, so its children are watched too.
     const resizes = new ResizeObserver(measure);
     resizes.observe(element);
     for (const child of element.children) {
@@ -69,6 +74,7 @@ export function useScrollEdges(element: HTMLElement | null): ScrollEdges {
 }
 
 // A mask fading an element's content out at its top, its bottom or both, where there is more of it that way.
+// Undefined when there is no more either way.
 export function fadeEdges({ above, below }: ScrollEdges): string | undefined {
   if (!above && !below) {
     return undefined;

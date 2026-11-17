@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The viewer's toolbar. Where it is too narrow for the search field, the search opens in its place.
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 
 import SearchIcon from "@mui/icons-material/Search";
@@ -26,17 +27,19 @@ import { useNarrowerThan } from "./useNarrowViewer";
 
 import type { DocumentSearch } from "./pdfViewerModel";
 
-// The narrowest toolbar with room for the search field beside its page and zoom controls.
+// The narrowest toolbar, in pixels, with room for the search field beside its page and zoom controls.
 const SEARCH_FIELD_ROOM = 600;
 
+// What the viewer can ask of its toolbar.
 export interface ViewerToolbarHandle {
   // Puts the focus in the search field, opening it where it takes the toolbar's place.
   openSearch: () => void;
 }
 
-// The viewer's toolbar: the page controls given, the search, and zoom. Without room for the search field,
-// a button opens it in the toolbar's place. It stays there while it is open or holds a query. It takes the
-// focus, and gives it back to the button once closed.
+// The viewer's toolbar: the page controls given, the search field and the zoom buttons. Where there is no
+// room for the search field, a Search button opens it in place of the toolbar. The field stays there while
+// it is open or holds a query. It takes the focus when it opens, and closing it gives the focus back to the
+// Search button.
 export default function ViewerToolbar({ ref, pages, opened, search, onFind, onFindAgain, ...zoom }: {
   ref?: Ref<ViewerToolbarHandle>;
   pages?: ReactNode;
@@ -53,6 +56,7 @@ export default function ViewerToolbar({ ref, pages, opened, search, onFind, onFi
   const [searchOpen, setSearchOpen] = useState(false);
   const searchInPlace = compact && (searchOpen || search.query !== "");
   const searchButtonRef = useRef<HTMLButtonElement>(null);
+  // Set while closing the search, so the focus goes back to the Search button once it is shown again.
   const closingSearch = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {

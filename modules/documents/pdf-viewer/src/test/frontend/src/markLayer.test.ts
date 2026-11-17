@@ -15,6 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Tests drawing marks on a page's text layer and reading the layer back. jsdom lays nothing out, so each
+// test gives the boxes a browser would.
+
 import {
   centreIn,
   drawMarks,
@@ -29,9 +33,8 @@ import {
 
 const LINES = [ "Volunteers who, on a casual basis,", "assist from time to time." ];
 
-// A text layer as PDF.js draws one, laid out the way jsdom cannot: 800 by 1000, each line 20 high and
-// 100 below the last, and each character 10 wide. A line is one span, or several, each given with
-// where it starts along the line.
+// A text layer as PDF.js draws one, 800 by 1000. As rectsOf lays it out, each line is 20 high and 100
+// below the last, and each character is 10 wide. A line is one span, or several, each given with where it starts along the line.
 function createTextLayer(lines: (string | [ string, number ][])[] = LINES): HTMLDivElement {
   const textLayer = document.createElement("div");
   lines.forEach((line, index) => {
@@ -68,6 +71,7 @@ function rectsOf(range: Range): DOMRect[] {
   });
 }
 
+// The marks drawn on a text layer, with their classes and their places as percentages of the layer.
 function drawn(textLayer: HTMLElement) {
   return Array.from(textLayer.querySelectorAll<HTMLElement>("[data-mark-id]")).map(mark => ({
     id: mark.dataset.markId,
@@ -96,7 +100,6 @@ describe("drawMarks", () => {
 
     drawMarks(textLayer, [ { id: "m", kind: "assistant", start: 34, end: 50 } ], undefined);
 
-    // First, so the text, and a search's matches on it, are drawn over the marks
     const layer = textLayer.firstElementChild as HTMLElement;
     expect(layer.querySelector("[data-mark-id=m]")).not.toBeNull();
     const { position, inset, pointerEvents } = layer.style;
@@ -344,7 +347,7 @@ describe("getTextEnd", () => {
     delete (Range.prototype as Partial<Range>).getClientRects;
   });
 
-  // A frame holding one page, drawn, whose text layer is the one createTextLayer lays out.
+  // A frame holding page 2, its text layer drawn by createTextLayer.
   function createFrame(): HTMLDivElement {
     const frame = document.createElement("div");
     const page = document.createElement("div");
@@ -376,7 +379,7 @@ describe("getTextPointAt and getTextPointRect", () => {
     Range.prototype.getClientRects = function (this: Range) {
       return rectsOf(this) as unknown as DOMRectList;
     };
-    // Each line's span where createTextLayer lays it out
+    // Each line's span, where rectsOf lays out its text.
     vi.spyOn(HTMLSpanElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
       return new DOMRect(0, Number(this.dataset.line) * 100, 400, 20);
     });
@@ -388,8 +391,8 @@ describe("getTextPointAt and getTextPointRect", () => {
     vi.restoreAllMocks();
   });
 
-  // A frame holding a first page, its text drawn as createTextLayer lays it out, 1000 high, and a second page
-  // under it, its text not drawn yet.
+  // A frame holding two pages, each 1000 high. The first has its text drawn by createTextLayer. The second
+  // is under it, its text not drawn yet.
   function createFrame(): HTMLDivElement {
     const frame = document.createElement("div");
     const textLayer = createTextLayer();
@@ -470,7 +473,7 @@ describe("findMarkAt", () => {
 });
 
 describe("findMarkAt on a point", () => {
-  // A point drawn 100 along a line of the height given, as thin as a point is
+  // A point drawn 100 along a line of the height given, with no width.
   function createPoint(height = 20): HTMLElement {
     const frame = document.createElement("div");
     frame.innerHTML = '<div class="iap-mark iap-mark-point" data-mark-id="p"></div>';
