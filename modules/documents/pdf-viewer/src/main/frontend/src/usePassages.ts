@@ -74,8 +74,6 @@ export function usePassages({ marks, places, changeIds, changesListed, markName,
   );
 
   return {
-    // Every mark, the ones that cannot be marked last.
-    ordered,
     listed,
     naming,
     // How many sorts of mark are listed, such as comments and changes.

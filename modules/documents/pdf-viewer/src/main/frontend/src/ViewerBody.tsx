@@ -104,7 +104,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
   const passages = usePassages({
     marks, places, changeIds, changesListed: !split, markName, selectedId, onSelect, showMark,
   });
-  const { ordered, listed, naming, sorts, selected, selectedNaming, cardAt, onCard, several, showSelected } = passages;
+  const { listed, naming, sorts, selected, selectedNaming, cardAt, onCard, several, showSelected } = passages;
   const toolbarRef = useRef<ViewerToolbarHandle>(null);
   // Ctrl+F, or Cmd+F, searches the document while the focus is in the viewer, rather than the browser
   // searching the page. Escape hides the Comment button before it closes anything.
@@ -182,7 +182,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
     <PdfDocumentView
       setFrame={setFrame}
       edgeToEdge={edgeToEdge && !split}
-      outlineSelected={ordered.length > 1}
+      outlineSelected={marks.length > 1}
       opening={!opened && openError === undefined}
       looking={opened ? looking : undefined}
     >
@@ -250,7 +250,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
               : undefined}
             newerLabel={compared.newerLabel}
             view={view}
-            outlineSelected={ordered.length > 1}
+            outlineSelected={marks.length > 1}
             looking={looking}
           >
             {shownDocument}
