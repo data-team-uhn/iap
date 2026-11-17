@@ -42,7 +42,8 @@ export interface PdfViewerProps {
   page?: number;
   // The passages to mark, in the order to list them. Those that cannot be marked are listed last. A quote
   // is looked for from its own page onwards, and spans are placed where they say. New marks equal to the
-  // last ones given are not looked for again.
+  // last ones given are not looked for again. An id names the same mark from one render to the next, and the
+  // person's choice of a mark is kept by its id.
   marks: Mark[];
   // The id of the selected mark. The viewer takes the reader to it once it is found, and again each time
   // the caller selects another. When it is absent or not among the marks, the mark the person last chose
