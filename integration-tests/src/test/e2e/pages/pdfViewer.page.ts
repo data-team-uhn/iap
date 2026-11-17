@@ -20,6 +20,34 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { ADMIN, signInAs } from '../support/auth';
 
+/** Where something is on the screen, in pixels. */
+export interface Box {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** A run of characters of a piece of text, from `from` up to `to`. */
+export interface CharRange {
+  from: number;
+  to: number;
+}
+
+/**
+ * Where the text layer puts runs of characters of one of its pieces of text, the span PDF.js draws it in.
+ * Selecting, searching and marking all read the text layer this way, through a DOM Range.
+ */
+export function getCharBoxes(span: Locator, ranges: CharRange[]): Promise<Box[]> {
+  return span.evaluate((piece, runs) => runs.map(({ from, to }) => {
+    const range = document.createRange();
+    range.setStart(piece.firstChild as Text, from);
+    range.setEnd(piece.firstChild as Text, to);
+    const { left, right, top, bottom } = range.getBoundingClientRect();
+    return { left, right, top, bottom };
+  }), ranges);
+}
+
 /** What the test-data widget is told to open. */
 export interface Opening {
   url: string;

@@ -25,8 +25,15 @@ export interface PageLayout {
   fontSize: number;
 }
 
+/** How a written PDF is made: its layout, and whether each line is tagged as a paragraph. */
+export interface PdfOptions extends PageLayout {
+  // Each line in marked content, as a tagged PDF has it. PDF.js then ends many lines with an empty piece of
+  // text, as it does for most real documents.
+  tagged: boolean;
+}
+
 /** A US Letter page, in 12-point type. */
-const LETTER: PageLayout = { width: 612, height: 792, fontSize: 12 };
+const LETTER: PdfOptions = { width: 612, height: 792, fontSize: 12, tagged: false };
 
 /** The space left of the text and above its first line. */
 const MARGIN = 72;
@@ -39,11 +46,15 @@ const MARGIN = 72;
  * every part a reader needs: the objects, the table of where each one starts, and the trailer.
  *
  * @param pages the lines of each page, in ASCII, without parentheses or backslashes
- * @param layout the page size and type size, US Letter in 12-point type when absent
+ * @param options the page size and type size, US Letter in 12-point type when absent, and whether lines are
+ *   tagged, not when absent
  * @returns the file's bytes
  */
-export function writePdf(pages: string[][], layout: Partial<PageLayout> = {}): Buffer {
-  const { width, height, fontSize } = { ...LETTER, ...layout };
+export function writePdf(pages: string[][], options: Partial<PdfOptions> = {}): Buffer {
+  const { width, height, fontSize, tagged } = { ...LETTER, ...options };
+  const show = (line: string, index: number) => (tagged
+    ? `/P << /MCID ${index} >> BDC (${line}) Tj EMC`
+    : `(${line}) Tj`);
   const pageIds = pages.map((_, index) => 4 + 2 * index);
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
@@ -53,7 +64,7 @@ export function writePdf(pages: string[][], layout: Partial<PageLayout> = {}): B
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] /Contents ${pageIds[index] + 1} 0 R`
         + ' /Resources << /Font << /F1 3 0 R >> >> >>',
       contentStream(`BT /F1 ${fontSize} Tf ${MARGIN} ${height - MARGIN} Td `
-        + lines.map(line => `(${line}) Tj`).join(` 0 -${1.5 * fontSize} Td `) + ' ET'),
+        + lines.map(show).join(` 0 -${1.5 * fontSize} Td `) + ' ET'),
     ]),
   ].map((object, index) => `${index + 1} 0 obj\n${object}\nendobj\n`);
   const starts = objects.map((_, index) => HEADER.length + objects.slice(0, index).join('').length);
