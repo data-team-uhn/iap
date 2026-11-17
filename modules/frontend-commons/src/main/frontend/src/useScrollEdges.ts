@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useState } from "react";
 
 export interface ScrollEdges {
   above: boolean;
@@ -27,12 +27,12 @@ const FADE = 32;
 
 // Whether an element scrolling up and down goes on beyond what it shows, above or below. It is measured
 // again as it scrolls, as it or its children change size, and as children come and go. It changes only
-// when one of the two does, not at each step of a scroll.
-export function useScrollEdges(ref: RefObject<HTMLElement | null>): ScrollEdges {
+// when one of the two does, not at each step of a scroll. It takes the element itself, as a callback ref
+// keeps it. An element that appears later is then watched too, such as details that arrive after the rest.
+export function useScrollEdges(element: HTMLElement | null): ScrollEdges {
   const [ edges, setEdges ] = useState({ above: false, below: false });
 
   useEffect(() => {
-    const element = ref.current;
     if (element === null) {
       return undefined;
     }
@@ -63,7 +63,7 @@ export function useScrollEdges(ref: RefObject<HTMLElement | null>): ScrollEdges 
       resizes.disconnect();
       changes.disconnect();
     };
-  }, [ref]);
+  }, [element]);
 
   return edges;
 }

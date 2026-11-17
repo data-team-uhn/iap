@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { memo, useEffect, useId, useRef, type ReactNode } from "react";
+import { memo, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { Box, ButtonBase, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
@@ -67,16 +67,16 @@ function MarkList(props: {
   onSelect: (id: string) => void;
 }) {
   const { marks, naming, places, status, selectedId, renderBody, describeBody, renderDetails, onSelect } = props;
-  const list = useRef<HTMLUListElement>(null);
+  const [list, setList] = useState<HTMLUListElement | null>(null);
   const entries = useRef(new Map<string, HTMLElement>());
   const edges = useScrollEdges(list);
 
   useEffect(() => {
     const entry = selectedId === undefined ? undefined : entries.current.get(selectedId);
-    if (list.current !== null && entry !== undefined) {
-      keepInView(list.current, entry);
+    if (list !== null && entry !== undefined) {
+      keepInView(list, entry);
     }
-  }, [selectedId]);
+  }, [list, selectedId]);
 
   const position = marks.findIndex(mark => mark.id === selectedId) + 1;
   const selected = naming.get(selectedId ?? "");
@@ -104,7 +104,7 @@ function MarkList(props: {
         onStep={next => onSelect(marks[next - 1].id)}
       />
       <Box
-        ref={list}
+        ref={setList}
         component="ul"
         aria-label={describeSorts(naming.values())}
         sx={{
@@ -165,11 +165,11 @@ function MarkList(props: {
 }
 
 function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
-  const box = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
   const edges = useScrollEdges(box);
   return (
     <Box
-      ref={box}
+      ref={setBox}
       // Back to its top once the focus leaves, wherever the focus scrolled it while it was cut
       onBlur={event => {
         if (!event.currentTarget.contains(event.relatedTarget)) {

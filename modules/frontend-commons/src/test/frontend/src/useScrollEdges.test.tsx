@@ -15,22 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useRef } from "react";
+import { useState } from "react";
 
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 
-// A list that says where it has more to show.
-function List({ entries }: { entries: number }) {
-  const ref = useRef<HTMLUListElement>(null);
-  const { above, below } = useScrollEdges(ref);
+// A list that says where it has more to show. Without `shown`, the list is not there yet.
+function List({ entries, shown = true }: { entries: number; shown?: boolean }) {
+  const [ list, setList ] = useState<HTMLUListElement | null>(null);
+  const { above, below } = useScrollEdges(list);
   return (
     <>
       <output>{[ above && "more above", below && "more below" ].filter(Boolean).join(", ") || "all of it"}</output>
-      <ul ref={ref} aria-label="Entries">
-        {Array.from({ length: entries }, (_, index) => <li key={index}>{`Entry ${index + 1}`}</li>)}
-      </ul>
+      {shown && (
+        <ul ref={setList} aria-label="Entries">
+          {Array.from({ length: entries }, (_, index) => <li key={index}>{`Entry ${index + 1}`}</li>)}
+        </ul>
+      )}
     </>
   );
 }
@@ -136,12 +138,22 @@ describe("useScrollEdges", () => {
 
   it("says nothing more of an element not shown", () => {
     function Nothing() {
-      const { above, below } = useScrollEdges(useRef<HTMLElement>(null));
+      const { above, below } = useScrollEdges(null);
       return <p>{above || below ? "more" : "nothing more"}</p>;
     }
     render(<Nothing />);
 
     expect(screen.getByText("nothing more")).toBeInTheDocument();
+  });
+
+  it("watches an element that appears after the first render", () => {
+    const { rerender } = render(<List entries={6} shown={false} />);
+    expect(getEdges()).toHaveTextContent("all of it");
+
+    rerender(<List entries={6} shown />);
+
+    expect(getEdges()).toHaveTextContent("more below");
+    expect(observed).toContain(getList());
   });
 
   it("stops watching when the element goes", () => {
