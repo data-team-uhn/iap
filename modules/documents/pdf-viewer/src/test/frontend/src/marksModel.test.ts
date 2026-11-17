@@ -340,12 +340,22 @@ describe("getMarkText", () => {
 describe("getPlacedPages", () => {
   it("lists the pages marks placed by their spans are on, once each, in order", () => {
     const marks = [
-      mark(5),
       placed({ page: 3, start: 0, end: 1 }, { page: 2, start: 0, end: 1 }),
       { ...placed({ page: 3, start: 4, end: 5 }), id: "n" },
     ];
 
     expect(getPlacedPages(marks, 5)).toEqual([ 2, 3 ]);
+  });
+
+  it("lists the page a quote is looked for from, so it is read before the pages ahead of it", () => {
+    const marks = [
+      mark(5),
+      { ...mark(), id: "n" },
+      { ...mark(9), id: "o" },
+      { ...placed({ page: 3, start: 0, end: 1 }), id: "p" },
+    ];
+
+    expect(getPlacedPages(marks, 6)).toEqual([ 3, 5 ]);
   });
 
   it("lists every page an anchor runs over, within the document", () => {

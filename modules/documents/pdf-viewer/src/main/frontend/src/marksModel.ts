@@ -441,13 +441,17 @@ export function getMarksKey(marks: Mark[]): string {
   }));
 }
 
-// The pages that marks placed by their spans or kept as anchors are on, in order. These are read first.
+// The pages marks say they are on, in order: those of their spans or anchors, and the page a quote is
+// looked for from. These are read first, so a passage that is where it says is found without waiting for
+// the pages before it.
 export function getPlacedPages(marks: Mark[], pageCount: number): number[] {
   const pages = new Set(marks.flatMap(mark => {
     if ("anchor" in mark) {
       return getPagesBetween(mark.anchor.start.page, mark.anchor.end.page, pageCount);
     }
-    return "spans" in mark ? mark.spans.map(({ page }) => page).filter(page => page >= 1 && page <= pageCount) : [];
+    return "spans" in mark ? mark.spans.map(({ page }) => page) : [ mark.page ];
   }));
-  return [ ...pages ].sort((one, other) => one - other);
+  return [ ...pages ]
+    .filter((page): page is number => page !== undefined && Number.isInteger(page) && page >= 1 && page <= pageCount)
+    .sort((one, other) => one - other);
 }
