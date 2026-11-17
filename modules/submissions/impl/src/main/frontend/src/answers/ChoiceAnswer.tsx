@@ -29,13 +29,16 @@ import {
 
 import { registerAnswerComponent } from "../answerComponents";
 import { answerCap, countGuidance, isMultiple, isRequired } from "../submissionForm";
+import { getOptionFrame } from "./answerFrame";
 import AnswerRow from "./AnswerRow";
 import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // A question answered by picking from the options it offers.
-function ChoiceAnswer({ question, values, disabled, onAnswered, aside }: AnswerComponentProps) {
+function ChoiceAnswer(
+  { question, values, disabled, onAnswered, suggested, aside, corner }: AnswerComponentProps,
+) {
   const labelledBy = getQuestionTextId(question);
   const help = question.description;
   const { options } = question;
@@ -56,12 +59,13 @@ function ChoiceAnswer({ question, values, disabled, onAnswered, aside }: AnswerC
     return (
       <FormControl fullWidth disabled={disabled} required={isRequired(question)}>
         <QuestionText question={question} />
-        <AnswerRow aside={aside}>
+        <AnswerRow aside={aside} corner={corner}>
           <FormGroup role="group" aria-labelledby={labelledBy}>
             {options.map(option => (
               <FormControlLabel
                 key={option.value}
                 label={option.label}
+                sx={getOptionFrame(suggested === true && values.includes(option.value))}
                 control={
                   <Checkbox
                     checked={values.includes(option.value)}
@@ -81,7 +85,7 @@ function ChoiceAnswer({ question, values, disabled, onAnswered, aside }: AnswerC
   return (
     <FormControl fullWidth disabled={disabled} required={isRequired(question)}>
       <QuestionText question={question} />
-      <AnswerRow aside={aside}>
+      <AnswerRow aside={aside} corner={corner}>
         <RadioGroup
           aria-labelledby={labelledBy}
           value={values[0] ?? ""}
@@ -92,6 +96,7 @@ function ChoiceAnswer({ question, values, disabled, onAnswered, aside }: AnswerC
               key={option.value}
               value={option.value}
               label={option.label}
+              sx={getOptionFrame(suggested === true && values[0] === option.value)}
               control={<Radio required={isRequired(question)} />}
             />
           ))}

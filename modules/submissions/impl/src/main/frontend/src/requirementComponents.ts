@@ -44,6 +44,8 @@ export interface RequirementComponentProps {
   // Takes each request the kind would send to change the submission. The request waits for the work
   // queued before it, such as other saves or a step that completes the submission.
   queueSave: Enqueue;
+  // Records whether the quotes behind a question's suggestion support it
+  onRejectEvidence?: (question: FormQuestion, rejected: boolean) => void;
   // Called after a kind changed the submission, so the editor reads the form again
   onChanged: () => void;
 }
