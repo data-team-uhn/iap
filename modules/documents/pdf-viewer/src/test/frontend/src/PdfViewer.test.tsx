@@ -1448,6 +1448,22 @@ describe("PdfViewer", () => {
 
     const placedOn = (...spans: MarkSpan[]): Mark[] => [ { id: "placed", spans, kind: "annotation" } ];
 
+    it("stops taking the reader to a passage found where nothing can be drawn once its page is drawn", async () => {
+      fakePdf.pages = [ "The memo, its cover and title.", "", "The schedule continues for one year." ];
+      fakePdf.drawShownPageOnly = true;
+      render(withTheme(<PdfViewer url={URL} marks={placedOn({ page: 2, start: 0, end: 0 })} onClose={vi.fn()} />));
+      expect(await screen.findByText("Page 2 of 3")).toBeInTheDocument();
+      await waitFor(() => expect(getViewer().getPageView(1)?.textLayer).not.toBeNull());
+
+      // As PDF.js moves to the page the reader scrolls to, and draws it
+      act(() => {
+        getViewer().currentPageNumber = 3;
+      });
+
+      await waitFor(() => expect(getViewer().getPageView(2)?.textLayer).not.toBeNull());
+      expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
+    });
+
     it("marks the passage where its spans say, showing the text found there", async () => {
       const marks = placedOn({ page: 2, start: 16, end: AFTER_BREAK + 6 });
       render(withTheme(<PdfViewer url={URL} marks={marks} onClose={vi.fn()} />));

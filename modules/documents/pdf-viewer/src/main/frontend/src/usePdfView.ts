@@ -125,6 +125,9 @@ export function usePdfView(
   const goToMarkRef = useRef<(() => void) | undefined>(undefined);
   // The selected mark, for marks drawn after it was selected.
   const selectedIdRef = useRef(selectedId);
+  // The text layers PDF.js has drawn the text of. PDF.js gives a page a new text layer when it draws the
+  // page again, so one dropped meanwhile does not count.
+  const renderedTextRef = useRef(new WeakSet<HTMLElement>());
   // The place in the text to take the reader to once its page is drawn, and how far down the frame.
   const pointRef = useRef<{ point: TextPoint; atY: number } | undefined>(undefined);
   const goToPointRef = useRef<(() => void) | undefined>(undefined);
@@ -244,6 +247,13 @@ export function usePdfView(
       }
       setShown({ eventBus, frame });
     });
+    // Heard from before the document is set, so the pages PDF.js draws before the marks are drawn count too.
+    eventBus.on("textlayerrendered", ({ source }: { source: PDFPageView }) => {
+      const textLayer = source.textLayer?.div;
+      if (textLayer !== undefined) {
+        renderedTextRef.current.add(textLayer);
+      }
+    });
     eventBus.on("updateviewarea", ({ location }: { location: { pdfOpenParams: string } }) => {
       locationRef.current = { of: doc, params: location.pdfOpenParams.replace(/^#/, "") };
     });
@@ -327,6 +337,12 @@ export function usePdfView(
       return undefined;
     }
     const { eventBus, frame: shownIn } = shown;
+    // A mark found where nothing can be drawn, such as on a page without text, is followed only until its
+    // page has been drawn. Otherwise each page drawn after would take the reader back to it.
+    const isPageTextDrawn = (pageNumber: number) => {
+      const textLayer = (viewer.getPageView(pageNumber - 1) as PDFPageView | undefined)?.textLayer?.div;
+      return textLayer !== undefined && renderedTextRef.current.has(textLayer);
+    };
     const goToMark = () => {
       const id = goToRef.current ?? (followSelectedRef.current ? selectedIdRef.current : undefined);
       const place = id === undefined ? undefined : places[id];
@@ -337,9 +353,11 @@ export function usePdfView(
         viewer.currentPageNumber = place.page;
       }
       const mark = findMark(shownIn, id);
-      if (mark !== undefined) {
+      if (mark !== undefined || isPageTextDrawn(place.page)) {
         goToRef.current = undefined;
         followSelectedRef.current = false;
+      }
+      if (mark !== undefined) {
         centreIn(shownIn, mark);
       }
     };
