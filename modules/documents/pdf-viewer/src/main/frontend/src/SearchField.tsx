@@ -23,7 +23,7 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import SearchIcon from "@mui/icons-material/Search";
 import { Box, CircularProgress, IconButton, InputAdornment, TextField, Typography } from "@mui/material";
 
-import { failedColour } from "./passageStyles";
+import { getFailedColour } from "./passageStyles";
 
 import type { DocumentSearch } from "./pdfViewerModel";
 
@@ -103,7 +103,7 @@ export default function SearchField({ search, inputRef, disabled, onFind, onFind
                         noWrap
                         sx={theme => ({
                           fontVariantNumeric: "tabular-nums",
-                          ...search.outcome === "found" ? { color: "text.secondary" } : failedColour(theme),
+                          ...search.outcome === "found" ? { color: "text.secondary" } : getFailedColour(theme),
                         })}
                       >
                         {result}

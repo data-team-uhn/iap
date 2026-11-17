@@ -19,12 +19,12 @@ import {
   centreIn,
   drawMarks,
   findMark,
+  findMarkAt,
   getSelectedSpans,
   getTextEnd,
   getTextPointAt,
   getTextPointRect,
   keepInView,
-  markAt,
 } from "@iap/documents-pdf-viewer/markLayer";
 
 const LINES = [ "Volunteers who, on a casual basis,", "assist from time to time." ];
@@ -443,7 +443,7 @@ describe("findMark", () => {
   });
 });
 
-describe("markAt", () => {
+describe("findMarkAt", () => {
   it("finds the mark drawn at a point, if any", () => {
     const frame = document.createElement("div");
     frame.innerHTML = '<div class="iap-mark" data-mark-id="a"></div><div class="iap-mark" data-mark-id="b"></div>';
@@ -451,8 +451,8 @@ describe("markAt", () => {
     a.getBoundingClientRect = () => new DOMRect(0, 0, 100, 20);
     b.getBoundingClientRect = () => new DOMRect(0, 100, 100, 20);
 
-    expect(markAt(frame, 50, 110)).toBe("b");
-    expect(markAt(frame, 50, 50)).toBeUndefined();
+    expect(findMarkAt(frame, 50, 110)).toBe("b");
+    expect(findMarkAt(frame, 50, 50)).toBeUndefined();
   });
 
   it("finds a mark not selected first where marks overlap, so clicking again reaches the other", () => {
@@ -462,14 +462,14 @@ describe("markAt", () => {
       mark.getBoundingClientRect = () => new DOMRect(0, 0, 100, 20);
     }
 
-    expect(markAt(frame, 50, 10)).toBe("b");
+    expect(findMarkAt(frame, 50, 10)).toBe("b");
     frame.children[0].classList.remove("selected");
     frame.children[1].classList.add("selected");
-    expect(markAt(frame, 50, 10)).toBe("a");
+    expect(findMarkAt(frame, 50, 10)).toBe("a");
   });
 });
 
-describe("markAt on a point", () => {
+describe("findMarkAt on a point", () => {
   // A point drawn 100 along a line of the height given, as thin as a point is
   function createPoint(height = 20): HTMLElement {
     const frame = document.createElement("div");
@@ -481,15 +481,15 @@ describe("markAt on a point", () => {
   it("finds a point within a few pixels of it, with a mouse", () => {
     const frame = createPoint();
 
-    expect(markAt(frame, 107, 10)).toBe("p");
-    expect(markAt(frame, 109, 10)).toBeUndefined();
+    expect(findMarkAt(frame, 107, 10)).toBe("p");
+    expect(findMarkAt(frame, 109, 10)).toBeUndefined();
   });
 
   it("finds a point within a fingertip of it, tapped", () => {
     const frame = createPoint();
 
-    expect(markAt(frame, 118, 28, true)).toBe("p");
-    expect(markAt(frame, 122, 10, true)).toBeUndefined();
+    expect(findMarkAt(frame, 118, 28, true)).toBe("p");
+    expect(findMarkAt(frame, 122, 10, true)).toBeUndefined();
   });
 
   it("finds a mark tapped on before a point it is only beside, selected or not", () => {
@@ -497,8 +497,8 @@ describe("markAt on a point", () => {
     frame.insertAdjacentHTML("beforeend", '<div class="iap-mark selected" data-mark-id="word"></div>');
     (frame.lastElementChild as HTMLElement).getBoundingClientRect = () => new DOMRect(102, 0, 30, 20);
 
-    expect(markAt(frame, 110, 10, true)).toBe("word");
-    expect(markAt(frame, 100, 10, true)).toBe("p");
+    expect(findMarkAt(frame, 110, 10, true)).toBe("word");
+    expect(findMarkAt(frame, 100, 10, true)).toBe("p");
   });
 
   it("finds a point on its box inside another mark, the one not selected first", () => {
@@ -508,17 +508,17 @@ describe("markAt on a point", () => {
     comment.getBoundingClientRect = () => new DOMRect(60, 0, 80, 20);
 
     comment.classList.add("selected");
-    expect(markAt(frame, 103, 10)).toBe("p");
+    expect(findMarkAt(frame, 103, 10)).toBe("p");
     comment.classList.remove("selected");
     frame.firstElementChild?.classList.add("selected");
-    expect(markAt(frame, 103, 10)).toBe("comment");
+    expect(findMarkAt(frame, 103, 10)).toBe("comment");
   });
 
   it("finds a point anywhere on its box, drawn larger than a fingertip on a tall line", () => {
     const frame = createPoint(100);
 
-    expect(markAt(frame, 135, 105)).toBe("p");
-    expect(markAt(frame, 137, 50)).toBeUndefined();
+    expect(findMarkAt(frame, 135, 105)).toBe("p");
+    expect(findMarkAt(frame, 137, 50)).toBeUndefined();
   });
 });
 

@@ -297,7 +297,7 @@ Selecting a passage from the list scrolls the document to it. Clicking a mark in
 its card in the list and brings the card into view, or, in a narrow viewer, shows it above the
 document. When the viewer opens, it selects the first passage in the order given that is not known
 to be missing, and takes the reader to it once found, unless they have scrolled the document by hand
-meanwhile, by a wheel, a finger, its scrollbar or a key that scrolls (`scrollsByHand`). The selection
+meanwhile, by a wheel, a finger, its scrollbar or a key that scrolls (`isScrollByHand`). The selection
 stays there until the person selects another.
 
 A caller that needs to follow or set the selection, such as a review screen showing comments beside

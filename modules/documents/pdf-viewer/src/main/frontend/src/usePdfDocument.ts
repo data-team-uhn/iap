@@ -55,7 +55,7 @@ async function readPageText(doc: PDFDocumentProxy, pageNumber: number): Promise<
   }
 }
 
-function openedDocument(components: ViewerComponents, doc: PDFDocumentProxy): OpenedDocument {
+function createOpenedDocument(components: ViewerComponents, doc: PDFDocumentProxy): OpenedDocument {
   const texts = new Map<number, Promise<PageText>>();
   const getPageTextWithLines = (pageNumber: number) => {
     const text = texts.get(pageNumber) ?? readPageText(doc, pageNumber);
@@ -98,7 +98,7 @@ export function usePdfDocument(url: string | undefined) {
         // A worker that never started never answers
         const doc = await Promise.race([ task.promise, failed ]);
         stop.signal.throwIfAborted();
-        setOpened({ url, pdf: openedDocument(components, doc) });
+        setOpened({ url, pdf: createOpenedDocument(components, doc) });
       } catch (error: unknown) {
         if (!stop.signal.aborted) {
           setOpened({ url, openError: describePdfFailure(error) ?? describeRequestFailure(error) });

@@ -118,8 +118,8 @@ export function getStepNames(
   position: number,
   fallback: MarkName,
 ): { previous: string; next: string } {
-  const nameAt = (at: number) => naming.get(marks[Math.min(Math.max(at, 0), marks.length - 1)]?.id ?? "")?.name;
-  return { previous: (nameAt(position - 2) ?? fallback).one, next: (nameAt(position) ?? fallback).one };
+  const getNameAt = (at: number) => naming.get(marks[Math.min(Math.max(at, 0), marks.length - 1)]?.id ?? "")?.name;
+  return { previous: (getNameAt(position - 2) ?? fallback).one, next: (getNameAt(position) ?? fallback).one };
 }
 
 // How many marks are so named, of each sort, as in "5 comments" or "3 notes and 2 changes".

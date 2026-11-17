@@ -119,7 +119,7 @@ function getPointRect(nodes: TextNodeAt[], offset: number, starts = false): DOMR
   return before === undefined ? undefined : new DOMRect(before.right, before.top, 0, before.height);
 }
 
-const percent = (part: number, whole: number) => `${(100 * part / whole).toFixed(4)}%`;
+const formatPercent = (part: number, whole: number) => `${(100 * part / whole).toFixed(4)}%`;
 
 // Draws the marks on a page's text layer, replacing any drawn before. They go inside the text layer, which
 // PDF.js keeps when zooming, and are sized in percentages of it to scale with the page. They go under its
@@ -147,10 +147,10 @@ export function drawMarks(textLayer: HTMLElement, marks: PageMark[], selectedId:
       element.classList.toggle(START_CLASS, point && marks.some(other => other.id === id && other.end > other.start));
       element.classList.toggle("selected", id === selectedId);
       element.style.position = "absolute";
-      element.style.left = percent(rect.left - box.left, box.width);
-      element.style.top = percent(rect.top - box.top, box.height);
-      element.style.width = percent(rect.width, box.width);
-      element.style.height = percent(rect.height, box.height);
+      element.style.left = formatPercent(rect.left - box.left, box.width);
+      element.style.top = formatPercent(rect.top - box.top, box.height);
+      element.style.width = formatPercent(rect.width, box.width);
+      element.style.height = formatPercent(rect.height, box.height);
       layer.append(element);
     }
   }
@@ -258,7 +258,7 @@ function getHitBox(mark: HTMLElement, pointSize: number): DOMRect {
 // selected across them, and a click is matched to a mark here by where it falls, or, for a point, within
 // a fingertip of it on a touch screen. A mark the click falls on comes before a point it is only beside.
 // Where marks overlap, one not selected comes first, so clicking again reaches the other.
-export function markAt(frame: HTMLElement, x: number, y: number, touch = false): string | undefined {
+export function findMarkAt(frame: HTMLElement, x: number, y: number, touch = false): string | undefined {
   const pointSize = touch ? POINT_HIT_SIZE.touch : POINT_HIT_SIZE.mouse;
   const hits = Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).flatMap(mark => {
     const { left, right, top, bottom } = getHitBox(mark, pointSize);

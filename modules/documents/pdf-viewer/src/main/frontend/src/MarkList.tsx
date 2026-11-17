@@ -25,7 +25,7 @@ import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges"
 import { keepInView } from "./markLayer";
 import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
-import { cutShort, getSelectedOutline, passageCard, passageDetails, passageLayer, passageTint } from "./passageStyles";
+import { getCutShortStyle, getPassageCardStyle, getPassageDetailsStyle, getPassageLayerStyle, getPassageTint, getSelectedOutline } from "./passageStyles";
 import {
   describeAmong,
   describePages,
@@ -134,7 +134,7 @@ function MarkList(props: {
                 };
               }}
               sx={theme => ({
-                ...passageCard(theme, mark.kind, selected ? 0.5 : 0.25),
+                ...getPassageCardStyle(theme, mark.kind, selected ? 0.5 : 0.25),
                 // Each card keeps its full height, and the list scrolls instead.
                 flexShrink: 0,
                 overflow: "hidden",
@@ -177,7 +177,7 @@ function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
         }
       }}
       sx={{
-        ...passageDetails(edges, cut ? MAX_DETAILS_LINES : undefined),
+        ...getPassageDetailsStyle(edges, cut ? MAX_DETAILS_LINES : undefined),
         "&:focus-within": { maxHeight: "none", maskImage: "none" },
       }}
     >
@@ -203,7 +203,7 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
     <>
       {body === undefined || body === null
         ? null
-        : <Box component="span" sx={selected ? { display: "block" } : cutShort(MAX_LINES)}>{body}</Box>}
+        : <Box component="span" sx={selected ? { display: "block" } : getCutShortStyle(MAX_LINES)}>{body}</Box>}
       {bodySaid === undefined
         ? null
         : <Box component="span" id={`${quoteId}-said`} sx={visuallyHidden}>{bodySaid}</Box>}
@@ -211,7 +211,7 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
         id={quoteId}
         variant="body2"
         component="span"
-        sx={selected ? { display: "block" } : cutShort(MAX_LINES)}
+        sx={selected ? { display: "block" } : getCutShortStyle(MAX_LINES)}
       >
         {text === undefined || text === "" ? null : `“${text}”`}
       </Typography>
@@ -243,9 +243,9 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
         px: 1.5,
         py: 1,
         textAlign: "start",
-        ...passageLayer(theme, mark.kind),
-        "@media (hover: hover)": { "&:hover": { bgcolor: passageTint(theme, mark.kind, 0.5) } },
-        "&.Mui-focusVisible": { bgcolor: passageTint(theme, mark.kind, 0.5) },
+        ...getPassageLayerStyle(theme, mark.kind),
+        "@media (hover: hover)": { "&:hover": { bgcolor: getPassageTint(theme, mark.kind, 0.5) } },
+        "&.Mui-focusVisible": { bgcolor: getPassageTint(theme, mark.kind, 0.5) },
       })}
     >
       {content}
