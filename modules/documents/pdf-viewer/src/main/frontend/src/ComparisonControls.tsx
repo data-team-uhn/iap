@@ -35,7 +35,7 @@ import {
 import { TOUCH_TARGET } from "@iap/frontend-commons/touchTarget";
 
 import { countChanges } from "./comparisonText";
-import { CHANGES, describeAmong } from "./pdfViewerModel";
+import { CHANGES, describeAmong, getNameFor } from "./pdfViewerModel";
 import StepControls from "./StepControls";
 
 import type { RevisionChange } from "./revisionDiffModel";
@@ -151,7 +151,7 @@ function describeMinorOption(minor: number | undefined): string {
   if (minor === 0) {
     return "No minor changes";
   }
-  return `Include ${minor} minor ${minor === 1 ? "change" : "changes"}`;
+  return `Include ${minor} minor ${getNameFor(CHANGES, minor)}`;
 }
 
 // The row of controls above a document compared with an older version. It has the menu choosing how changes

@@ -20,7 +20,7 @@
 
 import { PdfWorkerFailure } from "@iap/frontend-commons/pdfjsClient";
 import { lastSegmentOf } from "@iap/frontend-commons/serializedNode";
-import { capitalize } from "@iap/frontend-commons/words";
+import { capitalize, listed } from "@iap/frontend-commons/words";
 
 import type { MarkPlace } from "./marksModel";
 
@@ -74,6 +74,11 @@ export const PASSAGES: MarkName = { one: "passage", many: "passages" };
 
 export const CHANGES: MarkName = { one: "change", many: "changes" };
 
+// What so many marks are called: the name of one for one, and of many otherwise.
+export function getNameFor(name: MarkName, count: number): string {
+  return count === 1 ? name.one : name.many;
+}
+
 // A mark by its place among several, as in "Passage 3 of 12".
 export function describeAmong(name: MarkName, { index, count }: { index: number; count: number }): string {
   return `${capitalize(name.one)} ${index} of ${count}`;
@@ -107,8 +112,7 @@ export function nameMarks<T extends { id: string }>(
 // A name for a list of the marks, from their sorts in the order they first appear, as in "Passages and
 // changes".
 export function describeSorts(namings: Iterable<MarkNaming>): string {
-  const names = [ ...new Set(Array.from(namings, naming => naming.name.many)) ];
-  return capitalize(names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0] ?? "");
+  return capitalize(listed([ ...new Set(Array.from(namings, naming => naming.name.many)) ]));
 }
 
 // What the marks before and after the one at `position`, counting from 1, are called, for the buttons that
@@ -126,8 +130,7 @@ export function getStepNames(
 // How many marks of each sort there are, as in "5 comments" or "3 notes and 2 changes".
 export function countMarks(namings: Iterable<MarkNaming>): string {
   const counts = new Map(Array.from(namings, naming => [ naming.name, naming.count ] as const));
-  const each = Array.from(counts, ([ name, count ]) => `${count} ${count === 1 ? name.one : name.many}`);
-  return each.length > 1 ? `${each.slice(0, -1).join(", ")} and ${each.at(-1)}` : each[0] ?? "";
+  return listed(Array.from(counts, ([ name, count ]) => `${count} ${getNameFor(name, count)}`));
 }
 
 // The heading of the last mark of each sort, as in "Passage 12 of 12": the widest that sort can take.

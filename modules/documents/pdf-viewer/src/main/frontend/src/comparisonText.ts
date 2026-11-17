@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 // The text a comparison of two versions shows on screen and says to a screen reader.
+import { CHANGES, describeAmong, getNameFor } from "./pdfViewerModel";
 import {
   countMinorChanges,
   getChangeType,
@@ -36,7 +37,7 @@ function quote(text: string): string {
 // The page is the newer version's. Without `among`, the first sentence is left out.
 export function describeChange(change: RevisionChange, among?: { index: number; count: number }): string {
   const { page } = change.newer[0];
-  const which = among === undefined ? "" : `Change ${among.index} of ${among.count}.`;
+  const which = among === undefined ? "" : `${describeAmong(CHANGES, among)}.`;
   switch (getChangeType(change)) {
     case "added":
       return `${which} Text added on page ${page}. It says ${quote(change.added)}.`.trim();
@@ -92,7 +93,7 @@ export function describeComparison(
 
 // A number of changes, as in "7 changes".
 export function countChanges(count: number): string {
-  return `${count} ${count === 1 ? "change" : "changes"}`;
+  return `${count} ${getNameFor(CHANGES, count)}`;
 }
 
 // The caption about the minor changes left out or, when `strict`, included. Empty when there are none.
@@ -100,6 +101,6 @@ export function describeMinor(minor: number, strict: boolean): string {
   if (minor === 0) {
     return "";
   }
-  const changes = `${minor} minor ${minor === 1 ? "change" : "changes"} of punctuation or letter case`;
+  const changes = `${minor} minor ${getNameFor(CHANGES, minor)} of punctuation or letter case`;
   return strict ? `Including ${changes}.` : `${changes} left out.`;
 }
