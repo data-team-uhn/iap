@@ -521,8 +521,8 @@ deployment's brand colours reach a component only through the theme. What it add
   only `main` and `line`, for what moved. So has `palette.diff.hunk`, for the band
   that stands in for unchanged content left out.
 - `assistant` for anything an AI assistant contributed, and `annotation` for what a person
-  marked. Both are full palette colours: `color="assistant"` on a `Chip`, `Button`,
-  `IconButton` or icon, `"assistant.main"` in `sx`.
+  marked. Both are full palette colours, read in `sx` as `"assistant.main"`. No component's
+  `color` prop takes them yet.
 - `highlight.assistant` and `highlight.annotation` for marks over a document's own content,
   `highlight.search` for the matches of a search, and `highlight.added` and `highlight.removed` for
   what a comparison found, each with a `…Current` variant for the one in focus, and the last two with a
