@@ -97,6 +97,9 @@ export interface AnchoredMark extends MarkBase {
 
 export type Mark = QuotedMark | PlacedMark | AnchoredMark;
 
+// No marks: one empty list, the same on every render, for the memos that depend on it.
+export const NO_MARKS: Mark[] = [];
+
 // A page's text as PDF.js builds its text layer, and the offsets where its lines end. The text holds no
 // character at a line end, since the text layer breaks the line with an element.
 export interface PageText {

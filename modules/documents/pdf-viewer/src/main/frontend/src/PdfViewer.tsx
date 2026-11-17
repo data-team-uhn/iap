@@ -30,7 +30,7 @@ import CommentButton from "./CommentButton";
 import ComparisonControls from "./ComparisonControls";
 import { describeChange, describeComparison } from "./comparisonText";
 import MarkList from "./MarkList";
-import { getMarkPage, getMarksKey, getMarkText, isLooking, isUnmarkable, orderMarks } from "./marksModel";
+import { getMarkPage, getMarksKey, getMarkText, isLooking, isUnmarkable, NO_MARKS, orderMarks } from "./marksModel";
 import PassageCard from "./PassageCard";
 import PdfDocumentView from "./PdfDocumentView";
 import { PageControls } from "./PdfToolbar";
@@ -49,12 +49,12 @@ import {
 import { countMinorChanges, getChangeInContext, getNearestShown, type RevisionChange } from "./revisionDiffModel";
 import StepControls from "./StepControls";
 import { getTextAnchor } from "./textAnchor";
+import { useComparedVersions } from "./useComparedVersions";
 import { useComparison, type Comparing } from "./useComparison";
 import { useMarkPlaces, type MarkPlaces } from "./useMarkPlaces";
 import { useNarrowerThan, useNarrowViewer } from "./useNarrowViewer";
 import { usePdfDocument } from "./usePdfDocument";
 import { usePdfView } from "./usePdfView";
-import { useScrollSync } from "./useScrollSync";
 import { useSelectedText } from "./useSelectedText";
 import ViewerPlacement, { ViewerTitle } from "./ViewerPlacement";
 import ViewerToolbar, { type ViewerToolbarHandle } from "./ViewerToolbar";
@@ -115,9 +115,6 @@ export default function PdfViewer(props: PdfViewerProps) {
   return <PdfViewerSession key={props.url} {...props} />;
 }
 
-// One empty list, the same on every render, for the memos that depend on it.
-const NO_MARKS: Mark[] = [];
-
 // Holds the open document and the reader's place in it above the placement, so both survive the viewer
 // moving between its container and the dialog.
 function PdfViewerSession(props: PdfViewerProps) {
@@ -141,8 +138,6 @@ function PdfViewerSession(props: PdfViewerProps) {
     [callerMarks, changeMarks],
   );
   const { places, read } = useMarkPlaces(pdf, marks);
-  const olderMarks = comparing?.olderMarks ?? NO_MARKS;
-  const { places: olderPlaces } = useMarkPlaces(comparing?.older.pdf, olderMarks);
   const firstMarkable = marks.find(mark => !isUnmarkable(places[mark.id]));
   // When the change the person chose is then left out, as a minor one, the change shown nearest to it is
   // selected instead.
@@ -164,45 +159,13 @@ function PdfViewerSession(props: PdfViewerProps) {
     marks,
     places,
     selectedId,
-    // A change selected in this version is brought into view in the older one too. For any other mark,
-    // which the older version does not have, the older version follows this one.
     onSelectMark: id => {
       select(id);
-      if (comparing !== undefined && changeIds.has(id)) {
-        sync.release();
-        olderView.showMark(id);
-      } else if (comparing !== undefined) {
-        sync.lead("newer");
-      }
+      versions.followSelection(id);
     },
   });
-  const olderView = usePdfView(comparing?.older.pdf, {
-    page: undefined,
-    marks: olderMarks,
-    places: olderPlaces,
-    selectedId,
-    onSelectMark: id => {
-      select(id);
-      sync.release();
-      view.showMark(id);
-    },
-  });
-  const alignment = comparing?.state.status === "compared" ? comparing.state.alignment : undefined;
-  const sync = useScrollSync({ older: olderView, newer: view }, alignment);
-  const { lead, release } = sync;
-  const { showMark: showNewerMark } = view;
-  const { showMark: showOlderMark } = olderView;
-  // Takes both versions to a change. For a mark of the caller's, which only this version has, the older
-  // version follows this one.
-  const showMark = useCallback((id: string) => {
-    showNewerMark(id);
-    if (changeIds.has(id)) {
-      release();
-      showOlderMark(id);
-    } else {
-      lead("newer");
-    }
-  }, [changeIds, showNewerMark, showOlderMark, release, lead]);
+  const versions = useComparedVersions(comparing, view, { selectedId, select, changeIds });
+  const { showMark, lead } = versions;
   const selectedText = useSelectedText(view.shown, onAnnotate !== undefined);
   const { dismiss } = selectedText;
   // Passes the selected text on as an anchor, then clears the selection so the mark the caller makes of it
@@ -240,31 +203,6 @@ function PdfViewerSession(props: PdfViewerProps) {
     showNewerPage(page);
     lead("newer");
   }, [newerShown, page, showNewerPage, lead]);
-  // The older version, shown again beside this one, takes the zoom this one was given meanwhile.
-  const { shown: olderShown, zoomTo: zoomOlderTo } = olderView;
-  const { getScaleValue } = view;
-  useEffect(() => {
-    const scale = getScaleValue();
-    if (olderShown !== undefined && scale !== undefined) {
-      zoomOlderTo(scale);
-      lead("newer");
-    }
-  }, [olderShown, getScaleValue, zoomOlderTo, lead]);
-  // Once the versions are compared, the older one comes to where this one is. On the first comparison it
-  // does not when a change is selected, since both versions are already on their way to it.
-  const comparedRef = useRef(false);
-  const selectedChangeRef = useRef(false);
-  useEffect(() => {
-    selectedChangeRef.current = selectedId !== undefined && changeIds.has(selectedId);
-  });
-  useEffect(() => {
-    if (alignment !== undefined) {
-      if (comparedRef.current || !selectedChangeRef.current) {
-        lead("newer");
-      }
-      comparedRef.current = true;
-    }
-  }, [alignment, lead]);
   // The caller's details go under its own marks, not under the changes, which it does not know of.
   const details = useMemo(() => {
     if (changeIds.size === 0 || renderMarkDetails === undefined) {
@@ -273,47 +211,6 @@ function PdfViewerSession(props: PdfViewerProps) {
     return (mark: Mark, selected: boolean) => (changeIds.has(mark.id) ? undefined : renderMarkDetails(mark, selected));
   }, [changeIds, renderMarkDetails]);
   const titleId = useId();
-
-  // Both versions are searched and zoomed together. A search, and each step to the next or previous match,
-  // takes each version to its own match. The two then move apart until the next scroll by hand. Text only
-  // the older version has can be found that way too. After a zoom, or a page chosen from this version's
-  // page controls, the older version follows this one.
-  const shownView: typeof view = comparing === undefined
-    ? view
-    : {
-      ...view,
-      find: query => {
-        release();
-        view.find(query);
-        olderView.find(query);
-      },
-      findAgain: previous => {
-        release();
-        view.findAgain(previous);
-        olderView.findAgain(previous);
-      },
-      zoomIn: () => zoomBoth(each => each.zoomIn()),
-      zoomOut: () => zoomBoth(each => each.zoomOut()),
-      fitWidth: () => zoomBoth(each => each.fitWidth()),
-      showPage: page => {
-        view.showPage(page);
-        lead("newer");
-      },
-      showMark,
-    };
-  // The older version's own page controls take it to a page, and this version follows.
-  const olderShownView: typeof olderView = {
-    ...olderView,
-    showPage: page => {
-      olderView.showPage(page);
-      lead("older");
-    },
-  };
-  // Zooms both versions, then has the older one follow this one.
-  function zoomBoth(zoom: (each: typeof view) => void) {
-    [ view, olderView ].forEach(zoom);
-    lead("newer");
-  }
 
   return (
     <ViewerPlacement
@@ -334,14 +231,14 @@ function PdfViewerSession(props: PdfViewerProps) {
           onSelect={select}
           openError={openError}
           onRetry={retry}
-          view={shownView}
+          view={versions.newerView}
           renderMarkDetails={details}
           selectedText={selectedText}
           onAnnotate={annotate}
           changeIds={changeIds}
           comparison={comparing === undefined
             ? undefined
-            : { ...comparing, olderView: olderShownView, olderLabel: compareWith?.label, newerLabel: props.label }}
+            : { ...comparing, olderView: versions.olderView, olderLabel: compareWith?.label, newerLabel: props.label }}
           placeButton={placeButton}
           edgeToEdge={inDialog}
           onClose={onClose}
