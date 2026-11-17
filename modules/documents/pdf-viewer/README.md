@@ -282,13 +282,14 @@ counts as the same only inside a matching sentence. A rewritten passage is not s
 into several changes around it. Two changes in a sentence with only a few words between
 them, no more than half the size of each, are joined into one (`joinChanges`).
 
-`getWordKey` decides when two words are the same. It ignores spacing, line ends, case,
-the punctuation around a word, and hyphens inside it, which a line break may add.
-Apostrophes count, so "patient's" and "patients" differ. A word with a digit keeps its
-separators, hyphens and sign, so "1,000" and "1.000" differ, as do "IL-6" and "IL6". Two
-words that match but differ in case or punctuation are a minor change, and so is a
-change of punctuation alone. A full stop or a capital that only moved because of the
-change beside it is not a change at all.
+`getLenientKey` decides when two words are the same, and `getStrictKey` when they are
+written the same. It ignores spacing, line ends, case, the punctuation around a word,
+and hyphens inside it, which a line break may add. Apostrophes count, so "patient's" and
+"patients" differ. A word with a digit keeps its separators, hyphens and sign, so
+"1,000" and "1.000" differ, as do "IL-6" and "IL6". Two words that match but differ in
+case or punctuation are a minor change, and so is a change of punctuation alone. A full
+stop or a capital that only moved because of the change beside it is not a change at
+all.
 
 Each version's pages are read into words, each with its page and offsets. A change is
 therefore marked straight from them, even across a page break, and versions that break
