@@ -307,6 +307,13 @@ describe("PdfViewer", () => {
       expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
     });
 
+    it.each([ 0, 2.5 ])("opens at the first page when given %s, which is no page's number", async page => {
+      fakePdf.pages = [ "Contents.", "More contents.", "The end." ];
+      show({ page });
+
+      expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
+    });
+
     it("says when the passage is not in the document, and stays at the page given", async () => {
       show({ page: 3, quote: "A sentence that is nowhere in the document." });
 
