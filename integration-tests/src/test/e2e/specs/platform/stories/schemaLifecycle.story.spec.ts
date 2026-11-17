@@ -237,10 +237,11 @@ test.describe('stories: a schema from its first draft to a second version', () =
     await dialog.getByRole('textbox', { name: 'Title', exact: true }).fill(TITLE);
     await dialog.getByRole('button', { name: 'Create' }).click();
 
-    // Named by a UUID, and filed under buckets named after its first three pairs of characters
-    await expect(page).toHaveURL(/\/Submissions\/([0-9a-f]{2})\/([0-9a-f]{2})\/([0-9a-f]{2})\/\1\2\3[0-9a-f-]+$/);
-    submission = new URL(page.url()).pathname;
-    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    // Named by a UUID, filed under buckets named after its first three pairs of characters, and opened in the
+    // editor, since a new request is only opened to be filled in
+    await expect(page).toHaveURL(
+      /\/Submissions\/([0-9a-f]{2})\/([0-9a-f]{2})\/([0-9a-f]{2})\/\1\2\3[0-9a-f-]+\.edit$/);
+    submission = new URL(page.url()).pathname.replace(/\.edit$/, '');
 
     // Asked only when its condition holds, which the server decides as each answer is saved
     const what = page.getByLabel(WHAT, { exact: true });

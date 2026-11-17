@@ -37,8 +37,14 @@ import Items from "./Items";
 // The components for the kinds of requirement this module declares. Each casts the requirement
 // unchecked, because its candidate has already checked the kind.
 
-export const QuestionSet: RequirementComponent = ({ requirement, disabled, states, onAnswered }) => (
-  <Items items={(requirement as FormRequirement).items} disabled={disabled} states={states} onAnswered={onAnswered} />
+export const QuestionSet: RequirementComponent = ({ requirement, disabled, states, onAnswered, onRejectEvidence }) => (
+  <Items
+    items={(requirement as FormRequirement).items}
+    disabled={disabled}
+    states={states}
+    onAnswered={onAnswered}
+    onRejectEvidence={onRejectEvidence}
+  />
 );
 
 export const DocumentSection: RequirementComponent = ({ path, requirement, disabled, onChanged }) => (
