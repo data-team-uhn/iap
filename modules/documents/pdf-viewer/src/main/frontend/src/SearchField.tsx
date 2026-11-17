@@ -104,7 +104,7 @@ export default function SearchField({ search, inputRef, disabled, onFind, onFind
                         noWrap
                         sx={theme => ({
                           fontVariantNumeric: "tabular-nums",
-                          ...search.outcome === "found" ? { color: "text.secondary" } : getFailedColour(theme),
+                          ...search.outcome === "found" ? {} : getFailedColour(theme),
                         })}
                       >
                         {result}
