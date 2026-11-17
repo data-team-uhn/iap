@@ -111,6 +111,10 @@ export function useFieldProps(props: ValueInputProps, onceLeft: string[] = []) {
       error: shown.length > 0,
       helperText: shown.length > 0 ? shown.join(" ") : description,
       fullWidth: true,
+      // The value may have changed from outside since the last commit, through an undo for one
+      onFocus: () => {
+        committed.current = values;
+      },
     },
   };
 }
