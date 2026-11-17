@@ -64,6 +64,11 @@ interface MatchesCount {
 // PDF.js has searched every page.
 const COUNT_INTERVAL = 250;
 
+// A page's text layer, once PDF.js has drawn it.
+function getTextLayer(viewer: PDFViewer, pageNumber: number): HTMLElement | undefined {
+  return (viewer.getPageView(pageNumber - 1) as PDFPageView | undefined)?.textLayer?.div;
+}
+
 // Asks PDF.js's search to look for the query, or for its next or previous match, ignoring case and
 // accents, and highlighting every match. An empty query clears the highlights.
 function dispatchFind(eventBus: EventBus, query: string, again?: StepDirection): void {
@@ -281,7 +286,7 @@ export function usePdfView(
     // A page's text is set in the fonts the page is drawn with, once both are there: the text after
     // `textlayerrendered`, the fonts after `pagerendered`. The marks on it are then drawn again.
     const alignPage = (pageNumber: number) => {
-      const textLayer = (viewer.getPageView(pageNumber - 1) as PDFPageView | undefined)?.textLayer?.div;
+      const textLayer = getTextLayer(viewer, pageNumber);
       const fonts = readPageFonts();
       if (textLayer === undefined || fonts === undefined) {
         return;
@@ -380,7 +385,7 @@ export function usePdfView(
     // A mark found where nothing can be drawn, such as on a page without text, is followed only until its
     // page has been drawn. Otherwise each page drawn after would take the reader back to it.
     const isPageTextDrawn = (pageNumber: number) => {
-      const textLayer = (viewer.getPageView(pageNumber - 1) as PDFPageView | undefined)?.textLayer?.div;
+      const textLayer = getTextLayer(viewer, pageNumber);
       return textLayer !== undefined && renderedTextRef.current.has(textLayer);
     };
     const goToMark = () => {
@@ -403,7 +408,7 @@ export function usePdfView(
     };
     const stop = new AbortController();
     const drawPage = (pageNumber: number) => {
-      const textLayer = (viewer.getPageView(pageNumber - 1) as PDFPageView | undefined)?.textLayer?.div;
+      const textLayer = getTextLayer(viewer, pageNumber);
       if (textLayer !== undefined) {
         drawMarks(textLayer, getPageMarks(marks, places, pageNumber), selectedIdRef.current);
       }
@@ -415,7 +420,7 @@ export function usePdfView(
     // Every page is measured before marks are placed on any, so the browser lays the document out once.
     Array.from({ length: viewer.pagesCount }, (_, index) => index)
       .flatMap(index => {
-        const textLayer = (viewer.getPageView(index) as PDFPageView | undefined)?.textLayer?.div;
+        const textLayer = getTextLayer(viewer, index + 1);
         return textLayer === undefined ? [] : [ measureMarks(textLayer, getPageMarks(marks, places, index + 1)) ];
       })
       .forEach(page => placeMarks(page, selectedIdRef.current));
