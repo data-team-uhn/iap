@@ -307,6 +307,9 @@ class FakePDFViewer {
   }
 
   set currentPageNumber(page: number) {
+    if (!Number.isInteger(page)) {
+      throw new Error("Invalid page number.");
+    }
     if (page === this.#page) {
       return;
     }
