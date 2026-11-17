@@ -49,6 +49,10 @@ const MAX_DETAILS_LINES_ON_PHONE = 3;
 // stay in reach.
 const MAX_CARD_HEIGHT = "60%";
 
+function scrollToTop(element: HTMLElement): void {
+  element.scrollTop = 0;
+}
+
 // The passage once known, and how the search for it went, on a card in its mark's colour. Once found, the
 // passage and its note take the reader to it. A passage running past its limit of lines is cut short,
 // with a button beside it showing all of it, since a button cannot hold another. One of several passages
@@ -81,33 +85,31 @@ export default function PassageCard(props: {
   const [lines, setLines] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
-  const detailsBox = useRef<HTMLDivElement>(null);
+  const [detailsBox, setDetailsBox] = useState<HTMLDivElement | null>(null);
   const detailsEdges = useScrollEdges(detailsBox);
   const [holdsField, setHoldsField] = useState(false);
   const bodyBox = useRef<HTMLSpanElement>(null);
   const [bodyCut, setBodyCut] = useState(false);
   const open = expanded || holdsField;
   const detailsCut = !open && detailsEdges.below;
-  const hasDetails = details !== undefined;
 
   useLayoutEffect(() => {
-    const box = detailsBox.current;
-    if (box === null) {
+    if (detailsBox === null) {
       return undefined;
     }
-    const check = () => setHoldsField(box.querySelector(TEXT_ENTRY) !== null);
+    const check = () => setHoldsField(detailsBox.querySelector(TEXT_ENTRY) !== null);
     check();
     const changes = new MutationObserver(check);
-    changes.observe(box, { childList: true, subtree: true });
+    changes.observe(detailsBox, { childList: true, subtree: true });
     return () => changes.disconnect();
-  }, [hasDetails]);
+  }, [detailsBox]);
 
   // Once cut again, what is under the passage starts from its top, wherever it was scrolled to.
   useLayoutEffect(() => {
-    if (!open && detailsBox.current !== null) {
-      detailsBox.current.scrollTop = 0;
+    if (!open && detailsBox !== null) {
+      scrollToTop(detailsBox);
     }
-  }, [open]);
+  }, [open, detailsBox]);
 
   // Whether what stands in for the quote runs past its lines, measured while it is held to them.
   useLayoutEffect(() => {
@@ -272,7 +274,7 @@ export default function PassageCard(props: {
         ? null
         : (
           <Box
-            ref={detailsBox}
+            ref={setDetailsBox}
             id={detailsId}
             onFocus={() => {
               if (detailsCut) {
