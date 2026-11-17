@@ -69,7 +69,7 @@ export function getSearchText(quote: string): string | undefined {
 export function findQuote(page: PreparedText, searchText: string): QuoteMatch[] {
   const matches: QuoteMatch[] = [];
   for (let at = page.text.indexOf(searchText); at >= 0; at = page.text.indexOf(searchText, at + searchText.length)) {
-    matches.push(toMatch(page, at, searchText.length));
+    matches.push(createQuoteMatch(page, at, searchText.length));
   }
   return matches;
 }
@@ -93,13 +93,13 @@ export function findQuoteAcrossPages(
     const restAt = start.indexOf(rest);
     const headFits = headAt >= endFrom && headAt + head.length >= first.text.length - PAGE_EDGE;
     if (headFits && restAt >= 0 && restAt <= PAGE_EDGE) {
-      return { first: toMatch(first, headAt, head.length), next: toMatch(next, restAt, rest.length) };
+      return { first: createQuoteMatch(first, headAt, head.length), next: createQuoteMatch(next, restAt, rest.length) };
     }
   }
   return undefined;
 }
 
-function toMatch(page: { offsets: number[] }, at: number, length: number): QuoteMatch {
+function createQuoteMatch(page: { offsets: number[] }, at: number, length: number): QuoteMatch {
   const start = page.offsets[at];
   return { index: start, length: page.offsets[at + length - 1] + 1 - start };
 }

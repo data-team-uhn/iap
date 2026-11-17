@@ -41,7 +41,7 @@ const MARK_FILL = "--iap-mark-fill";
 
 // Colours each kind of mark, in a deeper shade when selected. With outlineSelected, the selected mark
 // is also outlined.
-function markColours(theme: Theme, outlineSelected: boolean): Record<string, object> {
+function getMarkColours(theme: Theme, outlineSelected: boolean): Record<string, object> {
   const { palette } = theme.vars ?? theme;
   return Object.fromEntries(MARK_KINDS.flatMap((kind): [ string, object ][] => {
     const colour = isChangeKind(kind) ? palette.highlight[`${kind}Marker`] : palette[kind].main;
@@ -64,7 +64,7 @@ const CURSOR = [ "center / 2px 100%", "top / 100% 2px", "bottom / 100% 2px" ]
   .map(place => `linear-gradient(var(${MARK_COLOUR}), var(${MARK_COLOUR})) ${place} no-repeat`)
   .join(", ");
 
-function changeMarks(theme: Theme) {
+function getChangeMarkStyles(theme: Theme) {
   return {
     ...CHANGE_MARKS,
     // Where text took the place of removed text, a bar in the colour of removed text starts it, a little
@@ -139,8 +139,8 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
         // Multiplied like a highlighter's ink, so marks tint the paper and leave the text as dark.
         "& .textLayer": { mixBlendMode: "multiply" },
         [`& .${MARK_CLASS}`]: { borderRadius: 0.5 },
-        ...markColours(theme, outlineSelected),
-        ...changeMarks(theme),
+        ...getMarkColours(theme, outlineSelected),
+        ...getChangeMarkStyles(theme),
         // PDF.js's own highlights of a search's matches
         "& .textLayer .highlight": {
           "--highlight-bg-color": (theme.vars ?? theme).palette.highlight.search,

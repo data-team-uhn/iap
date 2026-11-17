@@ -184,22 +184,22 @@ const SENTENCE_END = /[.!?…]["'”’)\]]*$/u;
 // The words just before and after a change (the words from `from` to `to`): up to CONTEXT_WORDS, stopping at
 // the end of the sentence or at the changes either side (`within`). "…" shows the sentence goes on.
 function getContext(words: Word[], from: number, to: number, within: { start: number; end: number }): Context {
-  const endsSentence = (index: number) => SENTENCE_END.test(words[index].text);
+  const isSentenceEndAt = (index: number) => SENTENCE_END.test(words[index].text);
   let start = from;
-  while (start > within.start && from - start < CONTEXT_WORDS && !endsSentence(start - 1)) {
+  while (start > within.start && from - start < CONTEXT_WORDS && !isSentenceEndAt(start - 1)) {
     start--;
   }
   let end = to;
-  if (to === from || !endsSentence(to - 1)) {
-    while (end < within.end && end - to < CONTEXT_WORDS && (end === to || !endsSentence(end - 1))) {
+  if (to === from || !isSentenceEndAt(to - 1)) {
+    while (end < within.end && end - to < CONTEXT_WORDS && (end === to || !isSentenceEndAt(end - 1))) {
       end++;
     }
   }
   const before = words.slice(start, from).map(word => word.text).join(" ");
   const after = words.slice(to, end).map(word => word.text).join(" ");
   return {
-    before: before !== "" && start > 0 && !endsSentence(start - 1) ? `…${before}` : before,
-    after: after !== "" && end < words.length && !endsSentence(end - 1) ? `${after}…` : after,
+    before: before !== "" && start > 0 && !isSentenceEndAt(start - 1) ? `…${before}` : before,
+    after: after !== "" && end < words.length && !isSentenceEndAt(end - 1) ? `${after}…` : after,
   };
 }
 
@@ -316,7 +316,7 @@ function getPointBefore(words: Word[], index: number, starts: boolean): MarkSpan
 }
 
 // The text the spans cover. A word hyphenated across a page break is joined, as across a line.
-function getSpansText(spans: MarkSpan[], pages: PageText[]): string {
+function getChangeText(spans: MarkSpan[], pages: PageText[]): string {
   return spans
     .map(({ page, start, end }) => getPassageText(pages[page - 1], start, end))
     .filter(text => text !== "")
@@ -372,8 +372,8 @@ function walkDiff(
 
 // Whether a change only touches punctuation or letter case.
 function isMinor({ removed, added }: OpenChange): boolean {
-  const said = (words: KeyedWord[]) => words.flatMap(word => word.lenientKey ?? []).join(" ");
-  return said(removed) === said(added);
+  const getLenientText = (words: KeyedWord[]) => words.flatMap(word => word.lenientKey ?? []).join(" ");
+  return getLenientText(removed) === getLenientText(added);
 }
 
 // A part of a diff: words only the older version has, only the newer, or both.
@@ -406,8 +406,8 @@ export function joinChanges(parts: DiffPart[]): DiffPart[] {
     let current = segment;
     while (!current.same && joined.length >= 2) {
       const [ before, shared ] = joined.slice(-2);
-      const size = (change: Segment) => (change.same ? 0 : Math.max(change.removed, change.added));
-      if (before.same || !shared.same || 2 * shared.count > size(before) || 2 * shared.count > size(current)) {
+      const getSize = (change: Segment) => (change.same ? 0 : Math.max(change.removed, change.added));
+      if (before.same || !shared.same || 2 * shared.count > getSize(before) || 2 * shared.count > getSize(current)) {
         break;
       }
       joined.splice(-2);
@@ -463,13 +463,13 @@ function diffWords(older: KeyedWord[], newer: KeyedWord[], limits: DiffLimits): 
   const at = { older: 0, newer: 0 };
   const changed = { older: 0, newer: 0 };
   // How many words `count` sentences from `start` hold.
-  const wordsOf = (sentences: { from: number; to: number }[], start: number, count: number) => (count === 0
+  const countWords = (sentences: { from: number; to: number }[], start: number, count: number) => (count === 0
     ? 0
     : sentences[start + count - 1].to - sentences[start].from);
   // Diffs the words of the sentences changed since the last shared one. False once over the limits.
   const flush = (): boolean => {
-    const removed = wordsOf(olderSentences, at.older - changed.older, changed.older);
-    const added = wordsOf(newerSentences, at.newer - changed.newer, changed.newer);
+    const removed = countWords(olderSentences, at.older - changed.older, changed.older);
+    const added = countWords(newerSentences, at.newer - changed.newer, changed.newer);
     let within: DiffPart[] | undefined = [];
     if (removed > 0 && added > 0) {
       const olderFrom = olderSentences[at.older - changed.older].from;
@@ -503,7 +503,7 @@ function diffWords(older: KeyedWord[], newer: KeyedWord[], limits: DiffLimits): 
       if (!flush()) {
         return undefined;
       }
-      parts.push({ count: wordsOf(olderSentences, at.older, count) });
+      parts.push({ count: countWords(olderSentences, at.older, count) });
       at.older += count;
       at.newer += count;
     }
@@ -631,7 +631,7 @@ function compareNow(older: PageText[], newer: PageText[], limits: DiffLimits, id
     const { from, removed, added } = change;
     const previous = minor[index] ? ends.all[index] : ends.major[index];
     const next = minor[index] ? starts.all[index] : starts.major[index];
-    const within = (version: "older" | "newer", words: KeyedWord[]) => ({
+    const getBounds = (version: "older" | "newer", words: KeyedWord[]) => ({
       start: previous === undefined
         ? 0
         : previous.from[version] + (version === "older" ? previous.removed : previous.added).length,
@@ -648,13 +648,13 @@ function compareNow(older: PageText[], newer: PageText[], limits: DiffLimits, id
     return {
       id: `${idPrefix}-${index + 1}`,
       minor: minor[index],
-      removed: removed.length > 0 ? getSpansText(olderSpans, older) : "",
-      added: added.length > 0 ? getSpansText(newerSpans, newer) : "",
+      removed: removed.length > 0 ? getChangeText(olderSpans, older) : "",
+      added: added.length > 0 ? getChangeText(newerSpans, newer) : "",
       older: olderSpans,
       newer: newerSpans,
       context: {
-        older: getContext(before, from.older, from.older + removed.length, within("older", before)),
-        newer: getContext(after, from.newer, from.newer + added.length, within("newer", after)),
+        older: getContext(before, from.older, from.older + removed.length, getBounds("older", before)),
+        newer: getContext(after, from.newer, from.newer + added.length, getBounds("newer", after)),
       },
     };
   });

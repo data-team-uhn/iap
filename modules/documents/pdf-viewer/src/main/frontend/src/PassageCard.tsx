@@ -26,7 +26,7 @@ import { TEXT_ENTRY } from "@iap/frontend-commons/textEntry";
 import { usePhone } from "@iap/frontend-commons/usePhone";
 import { useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 
-import { cutShort, failedColour, passageCard, passageDetails, passageLayer } from "./passageStyles";
+import { getCutShortStyle, getFailedColour, getPassageCardStyle, getPassageDetailsStyle, getPassageLayerStyle } from "./passageStyles";
 import { capitalize, describePages, type MarkName, type PassageNote } from "./pdfViewerModel";
 
 import type { MarkKind } from "./marksModel";
@@ -164,7 +164,7 @@ export default function PassageCard(props: {
         id={quoteId}
         variant="body2"
         component="span"
-        sx={cut ? { ...cutShort(limit), ...(oneRow ? { flex: 1, minWidth: 0 } : {}) } : { display: "block" }}
+        sx={cut ? { ...getCutShortStyle(limit), ...(oneRow ? { flex: 1, minWidth: 0 } : {}) } : { display: "block" }}
       >
         {text}
         {long || note === undefined ? null : (
@@ -207,7 +207,7 @@ export default function PassageCard(props: {
       role="group"
       aria-label={capitalize(name.one)}
       sx={theme => ({
-        ...passageCard(theme, markedBy),
+        ...getPassageCardStyle(theme, markedBy),
         flexShrink: 0,
         maxHeight: MAX_CARD_HEIGHT,
         overflowX: "hidden",
@@ -222,7 +222,7 @@ export default function PassageCard(props: {
           display: "flex",
           // The copy measured below runs the whole passage's length, which the card would otherwise scroll to
           overflow: "clip",
-          ...passageLayer(theme, markedBy),
+          ...getPassageLayerStyle(theme, markedBy),
         })}
       >
         <Typography
@@ -279,7 +279,7 @@ export default function PassageCard(props: {
                 setExpanded(true);
               }
             }}
-            sx={passageDetails(detailsEdges, open ? undefined : detailsLimit)}
+            sx={getPassageDetailsStyle(detailsEdges, open ? undefined : detailsLimit)}
           >
             {details}
           </Box>
@@ -293,7 +293,7 @@ export default function PassageCard(props: {
 export function NoteText({ note, short = false }: { note: PassageNote; short?: boolean }) {
   if ("text" in note) {
     const text = short ? note.short : note.text;
-    return note.failed ? <Box component="span" sx={failedColour}>{text}</Box> : text;
+    return note.failed ? <Box component="span" sx={getFailedColour}>{text}</Box> : text;
   }
   const pages = note.toPage === undefined ? `${note.foundOnPage}` : `${note.foundOnPage}–${note.toPage}`;
   return (

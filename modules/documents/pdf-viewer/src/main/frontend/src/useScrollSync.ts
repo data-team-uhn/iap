@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { getTextPointAt, getTextPointRect } from "./markLayer";
 import { mapPoint, type Alignment } from "./revisionDiffModel";
-import { SCROLL_INPUTS, scrollsByHand } from "./scrollByHand";
+import { isScrollByHand, SCROLL_INPUTS } from "./scrollByHand";
 
 import type { TextPoint } from "./marksModel";
 import type { ShownDocument } from "./usePdfView";
@@ -105,7 +105,7 @@ export function useScrollSync(views: Record<Version, SyncedView>, alignment: Ali
       }, { signal: stop.signal });
       for (const type of INPUTS) {
         frame.addEventListener(type, event => {
-          if (event.type !== "keydown" || scrollsByHand(event, frame)) {
+          if (event.type !== "keydown" || isScrollByHand(event, frame)) {
             lead(version, BY_HAND_TIME);
             held = event.type === "pointerdown" ? version : held;
           }

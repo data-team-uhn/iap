@@ -28,7 +28,7 @@ import CommentButton from "./CommentButton";
 import ComparisonControls from "./ComparisonControls";
 import { describeChange, describeComparison } from "./comparisonText";
 import MarkList from "./MarkList";
-import { cannotMark, getMarkPage, getMarksKey, getMarkText, isLooking, orderMarks } from "./marksModel";
+import { getMarkPage, getMarksKey, getMarkText, isLooking, isUnmarkable, orderMarks } from "./marksModel";
 import PassageCard from "./PassageCard";
 import PdfDocumentView from "./PdfDocumentView";
 import { PageControls } from "./PdfToolbar";
@@ -135,7 +135,7 @@ function PdfViewerSession(props: PdfViewerProps) {
   const { places, read } = useMarkPlaces(pdf, marks);
   const olderMarks = comparing?.olderMarks ?? NO_MARKS;
   const { places: olderPlaces } = useMarkPlaces(comparing?.older.pdf, olderMarks);
-  const firstMarkable = marks.find(mark => !cannotMark(places[mark.id]));
+  const firstMarkable = marks.find(mark => !isUnmarkable(places[mark.id]));
   // A change chosen and then left out, as a minor one, gives way to the change shown nearest to it.
   const allChanges = comparing?.state.status === "compared" ? comparing.state.changes : undefined;
   const chosenLeftOut = chosenId !== undefined && !marks.some(mark => mark.id === chosenId);

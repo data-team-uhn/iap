@@ -22,7 +22,7 @@ import { isChangeKind, type MarkKind } from "./marksModel";
 import type { Theme } from "@mui/material/styles";
 
 // Styles that cut text short past the given number of lines.
-export function cutShort(lines: number) {
+export function getCutShortStyle(lines: number) {
   return { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" } as const;
 }
 
@@ -41,7 +41,7 @@ export function getSelectedOutline(theme: Theme, kind: MarkKind): string {
 
 // The background of a passage's card, a tint of its mark's colour. A stronger tint shows the card
 // selected or under the pointer. A change's card is untinted, and greys as a list item does.
-export function passageTint(theme: Theme, kind: MarkKind, strength: number): string {
+export function getPassageTint(theme: Theme, kind: MarkKind, strength: number): string {
   if (isChangeKind(kind)) {
     return strength > 0.25 ? (theme.vars ?? theme).palette.action.hover : "transparent";
   }
@@ -51,8 +51,8 @@ export function passageTint(theme: Theme, kind: MarkKind, strength: number): str
 // The card a passage is on: a stripe of its mark's colour at its start, over a tint of it on the paper, so
 // it reads the same on the grey of the list and on the dialog. A change's card is also outlined, as it
 // has no tint to set it apart from the dialog.
-export function passageCard(theme: Theme, kind: MarkKind, strength = 0.25) {
-  const tint = passageTint(theme, kind, strength);
+export function getPassageCardStyle(theme: Theme, kind: MarkKind, strength = 0.25) {
+  const tint = getPassageTint(theme, kind, strength);
   return {
     borderRadius: 1,
     ...isChangeKind(kind) ? { border: "1px solid" } : {},
@@ -65,14 +65,14 @@ export function passageCard(theme: Theme, kind: MarkKind, strength = 0.25) {
 
 // The background of a passage's own text, a shade deeper in its mark's colour than its card, setting it
 // apart from what the caller shows under it.
-export function passageLayer(theme: Theme, kind: MarkKind) {
-  return { bgcolor: passageTint(theme, kind, 0.25) };
+export function getPassageLayerStyle(theme: Theme, kind: MarkKind) {
+  return { bgcolor: getPassageTint(theme, kind, 0.25) };
 }
 
 // What the caller shows under a passage, such as comments, cut short past `lines` lines when given, and
 // faded out where it is cut. The room above keeps a field's label, which reaches up out of the field, from
 // being cut off. Hidden when empty.
-export function passageDetails(edges: ScrollEdges, lines?: number) {
+export function getPassageDetailsStyle(edges: ScrollEdges, lines?: number) {
   return {
     pt: 1,
     "&:empty": { display: "none" },
@@ -84,7 +84,7 @@ export function passageDetails(edges: ScrollEdges, lines?: number) {
 
 // The error colour, in the shade that stays readable as small text in each scheme, on a passage's card or
 // beside a search
-export function failedColour(theme: Theme) {
+export function getFailedColour(theme: Theme) {
   const { error } = (theme.vars ?? theme).palette;
   return { color: error.dark, ...theme.applyStyles("dark", { color: `color-mix(in srgb, ${error.main}, white)` }) };
 }

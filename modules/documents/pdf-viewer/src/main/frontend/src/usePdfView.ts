@@ -17,10 +17,10 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { centreIn, drawMarks, findMark, getTextPointRect, markAt, OVER_MARK_CLASS, type PageMark } from "./markLayer";
+import { centreIn, drawMarks, findMark, findMarkAt, getTextPointRect, OVER_MARK_CLASS, type PageMark } from "./markLayer";
 import { createFindController } from "./pdfjsViewer";
 import { getSearchStatus, IDLE_SEARCH, type DocumentSearch } from "./pdfViewerModel";
-import { SCROLL_INPUTS, scrollsByHand } from "./scrollByHand";
+import { isScrollByHand, SCROLL_INPUTS } from "./scrollByHand";
 
 import type { Mark, TextPoint } from "./marksModel";
 import type { MarkPlaces } from "./useMarkPlaces";
@@ -252,7 +252,7 @@ export function usePdfView(
     // does a place in the text they were on their way to.
     for (const type of SCROLL_INPUTS) {
       frame.addEventListener(type, event => {
-        if (scrollsByHand(event, frame)) {
+        if (isScrollByHand(event, frame)) {
           followSelectedRef.current = false;
           pointRef.current = undefined;
         }
@@ -267,13 +267,13 @@ export function usePdfView(
       const moved = Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) > DRAG_DISTANCE;
       const id = moved || window.getSelection()?.isCollapsed === false
         ? undefined
-        : markAt(frame, event.clientX, event.clientY, pressedAt.touch);
+        : findMarkAt(frame, event.clientX, event.clientY, pressedAt.touch);
       if (id !== undefined) {
         onSelectMarkRef.current(id);
       }
     }, { signal: stop.signal });
     frame.addEventListener("pointermove", event => {
-      frame.classList.toggle(OVER_MARK_CLASS, markAt(frame, event.clientX, event.clientY) !== undefined);
+      frame.classList.toggle(OVER_MARK_CLASS, findMarkAt(frame, event.clientX, event.clientY) !== undefined);
     }, { signal: stop.signal });
 
     viewer.setDocument(doc);

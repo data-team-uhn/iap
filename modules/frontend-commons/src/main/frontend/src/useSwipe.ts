@@ -32,7 +32,7 @@ const SLIDE_FROM = 48;
 // How far the element follows a finger dragging it where there is nowhere to go, as a share of the drag.
 const AT_THE_END = 1 / 3;
 
-const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const isReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // A ref for an element that people swipe by touch to go to the previous or the next item. A swipe right
 // goes to the previous one and left to the next, the other way round in a right-to-left layout. The element
@@ -66,17 +66,19 @@ export function useSwipe(onPrevious: (() => void) | undefined, onNext: (() => vo
     let rtl = false;
     element.style.touchAction = "pan-y pinch-zoom";
     // The handler for the way the finger went, if there is one.
-    const towards = (across: number) => (across < 0 !== rtl ? handlers.current.onNext : handlers.current.onPrevious);
+    const getHandlerTowards = (across: number) => (
+      across < 0 !== rtl ? handlers.current.onNext : handlers.current.onPrevious
+    );
     const springBack = () => {
       const from = element.style.transform;
       element.style.transform = "";
-      if (from !== "" && !reducedMotion()) {
+      if (from !== "" && !isReducedMotion()) {
         element.animate([ { transform: from }, { transform: "none" } ],
           { duration: duration.shortest, easing: easing.easeOut });
       }
     };
 
-    if (slideIn.current !== undefined && !reducedMotion()) {
+    if (slideIn.current !== undefined && !isReducedMotion()) {
       const from = `translateX(${slideIn.current * SLIDE_FROM}px)`;
       element.animate([ { transform: from, opacity: 0.4 }, { transform: "none", opacity: 1 } ],
         { duration: duration.shorter, easing: easing.easeOut });
@@ -99,7 +101,7 @@ export function useSwipe(onPrevious: (() => void) | undefined, onNext: (() => vo
       const across = event.clientX - start.x;
       dragging ||= Math.abs(across) >= DRAG_START && Math.abs(across) > 2 * Math.abs(event.clientY - start.y);
       if (dragging) {
-        const followed = towards(across) === undefined ? across * AT_THE_END : across;
+        const followed = getHandlerTowards(across) === undefined ? across * AT_THE_END : across;
         element.style.transform = `translateX(${followed}px)`;
       }
     }, { signal });
@@ -114,7 +116,7 @@ export function useSwipe(onPrevious: (() => void) | undefined, onNext: (() => vo
       const across = event.clientX - start.x;
       const down = event.clientY - start.y;
       start = undefined;
-      const step = towards(across);
+      const step = getHandlerTowards(across);
       if (Math.abs(across) < SWIPE_DISTANCE || Math.abs(across) < 2 * Math.abs(down) || step === undefined) {
         springBack();
         return;

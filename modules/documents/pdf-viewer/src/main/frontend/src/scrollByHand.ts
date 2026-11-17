@@ -35,7 +35,7 @@ const SCROLL_KEYS = new Set([
 // Whether an input in a frame scrolls it: a scrolling key without Ctrl, Alt or Meta, which do something
 // else, and not typed into a field of the document; the pointer pressed on the frame itself, which only its
 // scrollbars show, the pages covering the rest; or a wheel or a finger moving.
-export function scrollsByHand(event: Event, frame: HTMLElement): boolean {
+export function isScrollByHand(event: Event, frame: HTMLElement): boolean {
   if (event instanceof KeyboardEvent) {
     const typing = event.target instanceof HTMLElement
       && (event.target.isContentEditable || [ "INPUT", "TEXTAREA", "SELECT" ].includes(event.target.tagName));
