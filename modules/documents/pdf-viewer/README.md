@@ -43,7 +43,8 @@ before React attaches it, shows nothing until the element is there.
 A spinner shows in the frame until PDF.js has laid out the pages. On a phone, the space
 around and between the viewer's rows is kept small, and the document runs to the bottom
 of the screen. Scrolling the document stops at its ends, rather than scrolling the
-dialog that holds it.
+dialog that holds it. A file dropped on the document does nothing, rather than replacing
+the page.
 
 ## Marks
 
@@ -383,7 +384,8 @@ other, through the words the comparison paired (`mapPoint`). A word only one ver
 goes to where its change is in the other, so the versions move at different speeds
 through added or removed text. The matching text is also put as far down its line as in
 the version scrolled, so the other version moves smoothly rather than a line at a time.
-After a zoom, or a page picked from either page bar, the other version follows.
+Through text only one version has, the other holds still. After a zoom, or a page picked
+from either page bar, the other version follows.
 
 | Going to | The older version |
 |---|---|
