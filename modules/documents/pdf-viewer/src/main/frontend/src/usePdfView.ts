@@ -514,3 +514,6 @@ export function usePdfView(
     findAgain,
   };
 }
+
+// What a view of a document offers: where it is shown, the reader's place in it, and what moves the reader.
+export type PdfView = ReturnType<typeof usePdfView>;
