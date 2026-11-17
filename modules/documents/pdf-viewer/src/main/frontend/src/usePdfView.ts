@@ -72,9 +72,15 @@ function dispatchFind(eventBus: EventBus, query: string, again?: { previous: boo
   });
 }
 
+// Whether some page has text. It reads one page at a time and stops at the first with text, so a document
+// with text is rarely read past its first page.
 async function hasText({ doc, getPageText }: OpenedDocument): Promise<boolean> {
-  const texts = await Promise.all(Array.from({ length: doc.numPages }, (_, index) => getPageText(index + 1)));
-  return texts.some(text => text.trim() !== "");
+  for (let page = 1; page <= doc.numPages; page++) {
+    if ((await getPageText(page)).trim() !== "") {
+      return true;
+    }
+  }
+  return false;
 }
 
 // The marks to draw on a page, from where their passages were found.
