@@ -23,6 +23,7 @@ import { Box, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 
 import LoadError from "@iap/frontend-commons/components/LoadError";
+import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 
 import CommentButton from "./CommentButton";
 import ComparisonControls from "./ComparisonControls";
@@ -41,7 +42,7 @@ import {
 } from "./pdfViewerModel";
 import StepControls from "./StepControls";
 import { useComparisonDisplay, type ComparisonPanes, type Progress } from "./useComparisonDisplay";
-import { useNarrowerThan, useNarrowViewer } from "./useNarrowViewer";
+import { useNarrowViewer } from "./useNarrowViewer";
 import { usePassages } from "./usePassages";
 import { ViewerTitle } from "./ViewerPlacement";
 import ViewerToolbar, { type ViewerToolbarHandle } from "./ViewerToolbar";

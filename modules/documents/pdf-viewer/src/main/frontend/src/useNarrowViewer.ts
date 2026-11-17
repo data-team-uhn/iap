@@ -15,31 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Hooks telling whether an element, such as the viewer, is narrower than a given width as it is resized.
-import { useLayoutEffect, useState } from "react";
+// Whether the viewer is narrow, as it is resized.
+import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 
 // The width, in pixels, below which a viewer shows its passages one at a time above the document rather
 // than in a list beside it.
-export const NARROW_VIEWER_WIDTH = 720;
-
-// Whether the element is narrower than the width given, in pixels, kept up to date as it is resized. It
-// counts as narrow until it is measured.
-export function useNarrowerThan(element: HTMLElement | null, width: number): boolean {
-  const [narrow, setNarrow] = useState(true);
-
-  useLayoutEffect(() => {
-    if (element === null) {
-      return undefined;
-    }
-    const measure = () => setNarrow(element.getBoundingClientRect().width < width);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [element, width]);
-
-  return narrow;
-}
+const NARROW_VIEWER_WIDTH = 720;
 
 // Whether the viewer's element is narrower than NARROW_VIEWER_WIDTH.
 export function useNarrowViewer(viewer: HTMLElement | null): boolean {

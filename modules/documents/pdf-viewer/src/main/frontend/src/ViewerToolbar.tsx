@@ -21,9 +21,10 @@ import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type 
 import SearchIcon from "@mui/icons-material/Search";
 import { Box, IconButton } from "@mui/material";
 
+import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
+
 import PdfToolbar from "./PdfToolbar";
 import SearchField from "./SearchField";
-import { useNarrowerThan } from "./useNarrowViewer";
 
 import type { DocumentSearch } from "./pdfViewerModel";
 
