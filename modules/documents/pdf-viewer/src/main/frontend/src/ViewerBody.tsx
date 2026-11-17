@@ -95,7 +95,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   // The document has opened once its pages are counted.
   const opened = pageCount !== undefined;
-  const { search, find, findAgain } = view;
+  const { search, find, findNext, findPrevious } = view;
   const [body, setBody] = useState<HTMLElement | null>(null);
   const narrow = useNarrowViewer(body);
   const noRoomForList = useNarrowerThan(body, SPLIT_WITH_LIST_WIDTH);
@@ -229,7 +229,8 @@ export default function ViewerBody(props: ViewerBodyProps) {
             opened={opened}
             search={search}
             onFind={find}
-            onFindAgain={findAgain}
+            onFindNext={findNext}
+            onFindPrevious={findPrevious}
           />
           {older?.error === undefined
             ? null

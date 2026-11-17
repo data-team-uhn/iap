@@ -41,14 +41,15 @@ export interface ViewerToolbarHandle {
 // Where there is no room for the search field, a Search button opens it in place of the toolbar. The field
 // stays there while it is open or holds a query. It takes the focus when it opens, and closing it gives the
 // focus back to the Search button.
-export default function ViewerToolbar({ ref, start, tools, opened, search, onFind, onFindAgain }: {
+export default function ViewerToolbar({ ref, start, tools, opened, search, onFind, onFindNext, onFindPrevious }: {
   ref?: Ref<ViewerToolbarHandle>;
   start?: ReactNode;
   tools?: ReactNode;
   opened: boolean;
   search: DocumentSearch;
   onFind: (query: string) => void;
-  onFindAgain: (previous: boolean) => void;
+  onFindNext: () => void;
+  onFindPrevious: () => void;
 }) {
   const [row, setRow] = useState<HTMLElement | null>(null);
   const compact = useNarrowerThan(row, SEARCH_FIELD_ROOM);
@@ -89,7 +90,8 @@ export default function ViewerToolbar({ ref, start, tools, opened, search, onFin
               search={search}
               inputRef={searchInputRef}
               onFind={onFind}
-              onFindAgain={onFindAgain}
+              onFindNext={onFindNext}
+              onFindPrevious={onFindPrevious}
               onClose={closeSearch}
             />
           </Box>
@@ -115,7 +117,8 @@ export default function ViewerToolbar({ ref, start, tools, opened, search, onFin
                   inputRef={searchInputRef}
                   disabled={!opened}
                   onFind={onFind}
-                  onFindAgain={onFindAgain}
+                  onFindNext={onFindNext}
+                  onFindPrevious={onFindPrevious}
                 />
               )}
           />

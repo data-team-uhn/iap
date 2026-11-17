@@ -79,6 +79,9 @@ export function getNameFor(name: MarkName, count: number): string {
   return count === 1 ? name.one : name.many;
 }
 
+// A way to step through a list, such as a search's matches or the marks listed.
+export type StepDirection = "previous" | "next";
+
 // A mark by its place among several, as in "Passage 3 of 12".
 export function describeAmong(name: MarkName, { index, count }: { index: number; count: number }): string {
   return `${capitalize(name.one)} ${index} of ${count}`;
