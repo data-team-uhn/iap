@@ -425,6 +425,21 @@ describe("PdfViewer", () => {
       expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
     });
 
+    it("takes the reader to a mark the caller selects together with its page", async () => {
+      fakePdf.pages = [ "Cover.", "Contents.", "Foreword.", QUOTE ];
+      fakePdf.holdTextFrom = 4;
+      const { rerender } = show({ page: 1 });
+      await screen.findByText("Page 1 of 4");
+      await waitFor(() => expect(fakePdf.releaseText).toBeDefined());
+      fireEvent.wheel(getFrame());
+
+      rerender({ page: 4, selectedMarkId: "passage" });
+      act(() => fakePdf.releaseText?.());
+
+      await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 4: [ ASSISTANT_MARK ] }));
+      await waitFor(() => expect(getFrame().scrollTop).toBe(MATCH_TOP));
+    });
+
     it("goes from page to page, and not past either end", async () => {
       show();
       await screen.findByText("Page 2 of 3");
