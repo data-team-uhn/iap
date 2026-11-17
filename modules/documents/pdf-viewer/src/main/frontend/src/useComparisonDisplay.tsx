@@ -42,6 +42,15 @@ export interface Progress {
   what: string;
 }
 
+// How far a comparison that is still reading or comparing has got. Until both versions are open, its pages are
+// not counted yet, and nothing is read.
+function getComparedShare(state: Comparing["state"]): number {
+  if (state.status !== "reading") {
+    return 1;
+  }
+  return state.total > 0 ? state.read / state.total : 0;
+}
+
 // A change among the words around it, with what it removed struck through.
 function ChangeInContext({ change }: { change: RevisionChange }) {
   const { before, removed, added, after } = getChangeInContext(change);
@@ -89,7 +98,7 @@ export function useComparisonDisplay(comparison: ComparisonPanes | undefined, { 
     return (mark: Mark) => said.get(mark.id);
   }, [changes]);
   const progress: Progress | undefined = state?.status === "reading" || state?.status === "comparing"
-    ? { share: state.status === "reading" && state.total > 0 ? state.read / state.total : 1, what: "the changes" }
+    ? { share: getComparedShare(state), what: "the changes" }
     : undefined;
   // When there are changes, the caption only speaks of the minor changes left out or included. A narrow viewer
   // leaves that to the changes menu.
