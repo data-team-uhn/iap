@@ -18,7 +18,7 @@
 
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 
-import { ADMIN, signInAs } from '../../support/auth';
+import { PdfViewerWidget } from '../../pages/pdfViewer.page';
 
 const OLDER = '/e2e/pdf-comparison/older.pdf';
 const NEWER = '/e2e/pdf-comparison/newer.pdf';
@@ -61,34 +61,27 @@ async function getMiddleParagraph(pane: Locator): Promise<number> {
 
 /** Signs in, opens the versions compared in a dialog, and shows them side by side. */
 async function openComparison(page: Page): Promise<{ older: Locator; newer: Locator }> {
-  await signInAs(page, ADMIN);
-  await page.goto('/');
-  const widget = page.locator('div').filter({ has: page.getByLabel('Older version URL (optional)') })
-    .filter({ has: page.getByRole('button', { name: 'Open' }) }).last();
-  await widget.getByLabel('PDF URL').fill(NEWER);
-  await widget.getByLabel('Older version URL (optional)').fill(OLDER);
-  await widget.getByRole('checkbox', { name: 'Show in place, below the form' }).uncheck();
-  await widget.getByRole('button', { name: 'Open' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('status')).toHaveText(/^Change 1 of \d+\./);
-  await dialog.getByRole('button', { name: /^Show \d+ changes/ }).click();
+  const viewer = await new PdfViewerWidget(page).open({ url: NEWER, olderUrl: OLDER });
+  await expect(viewer.getByRole('status')).toHaveText(/^Change 1 of \d+\./);
+  await viewer.getByRole('button', { name: /^Show \d+ changes/ }).click();
   await page.getByRole('menuitemradio', { name: 'Side by side' }).click();
-  const panes = dialog.getByRole('region', { name: 'Document' });
+  const panes = viewer.getByRole('region', { name: 'Document' });
   await expect(panes).toHaveCount(2);
   return { older: panes.first(), newer: panes.last() };
 }
 
 /**
  * Two versions of a PDF compared side by side, in a real browser, which lays the pages out. Chromium prints
- * the PDFs and the test serves them itself, so nothing is stored on the instance.
+ * the PDFs.
  */
 test.describe('comparing two versions of a PDF', () => {
   test.skip(({ browserName }) => browserName !== 'chromium', 'Only Chromium prints a page to PDF');
 
   test.beforeEach(async ({ page, browser }) => {
     const [ older, newer ] = await Promise.all([ printPdf(browser, OLDER_TEXT), printPdf(browser, NEWER_TEXT) ]);
-    await page.route(`**${OLDER}`, route => route.fulfill({ contentType: 'application/pdf', body: older }));
-    await page.route(`**${NEWER}`, route => route.fulfill({ contentType: 'application/pdf', body: newer }));
+    const widget = new PdfViewerWidget(page);
+    await widget.serve(OLDER, older);
+    await widget.serve(NEWER, newer);
   });
 
   test('scrolls the newer version with the older, matched by their text', async ({ page }) => {

@@ -18,23 +18,43 @@
 
 const HEADER = '%PDF-1.4\n';
 
+/** How a written PDF's pages are laid out, in points. */
+export interface PageLayout {
+  width: number;
+  height: number;
+  fontSize: number;
+}
+
+/** A US Letter page, in 12-point type. */
+const LETTER: PageLayout = { width: 612, height: 792, fontSize: 12 };
+
+/** The space left of the text and above its first line. */
+const MARGIN = 72;
+
 /**
- * A real PDF of one page, showing one line of text.
+ * A real PDF whose pages show lines of text in Helvetica, named but not embedded, so its letters have known
+ * widths. Each line sits one and a half lines below the one before it.
  *
  * The browser opens a PDF before uploading it, and refuses a file that only starts like one. This one has
  * every part a reader needs: the objects, the table of where each one starts, and the trailer.
  *
- * @param text the line on the page, in ASCII, without parentheses or backslashes
+ * @param pages the lines of each page, in ASCII, without parentheses or backslashes
+ * @param layout the page size and type size, US Letter in 12-point type when absent
  * @returns the file's bytes
  */
-export function onePagePdf(text: string): Buffer {
+export function writePdf(pages: string[][], layout: Partial<PageLayout> = {}): Buffer {
+  const { width, height, fontSize } = { ...LETTER, ...layout };
+  const pageIds = pages.map((_, index) => 4 + 2 * index);
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R'
-      + ' /Resources << /Font << /F1 5 0 R >> >> >>',
-    contentStream(`BT /F1 12 Tf 72 720 Td (${text}) Tj ET`),
+    `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`,
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ...pages.flatMap((lines, index) => [
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] /Contents ${pageIds[index] + 1} 0 R`
+        + ' /Resources << /Font << /F1 3 0 R >> >> >>',
+      contentStream(`BT /F1 ${fontSize} Tf ${MARGIN} ${height - MARGIN} Td `
+        + lines.map(line => `(${line}) Tj`).join(` 0 -${1.5 * fontSize} Td `) + ' ET'),
+    ]),
   ].map((object, index) => `${index + 1} 0 obj\n${object}\nendobj\n`);
   const starts = objects.map((_, index) => HEADER.length + objects.slice(0, index).join('').length);
   const body = HEADER + objects.join('');
@@ -42,6 +62,16 @@ export function onePagePdf(text: string): Buffer {
     + starts.map(start => `${String(start).padStart(10, '0')} 00000 n \n`).join('');
   const trailer = `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${body.length}\n%%EOF\n`;
   return Buffer.from(body + xref + trailer, 'latin1');
+}
+
+/**
+ * A real PDF of one US Letter page, showing one line of text.
+ *
+ * @param text the line on the page, in ASCII, without parentheses or backslashes
+ * @returns the file's bytes
+ */
+export function onePagePdf(text: string): Buffer {
+  return writePdf([ [ text ] ]);
 }
 
 function contentStream(content: string): string {
