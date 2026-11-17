@@ -22,9 +22,9 @@ import { memo, useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { Box, ButtonBase, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 
+import { keepInView } from "@iap/frontend-commons/scrollWithin";
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 
-import { keepInView } from "./markLayer";
 import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
 import { getCutShortStyle, getPassageCardStyle, getPassageDetailsStyle, getPassageLayerStyle, getPassageTint, getSelectedOutline } from "./passageStyles";
