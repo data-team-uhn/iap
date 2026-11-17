@@ -130,7 +130,8 @@ public class Linkable extends Content
 
     /**
      * Deletes this content's links of one type, to the given content and with the given label, in the session
-     * this model was read with. The caller commits the deletions.
+     * this model was read with, with their reverses as {@link Link#remove()} does. The caller commits the
+     * deletions.
      *
      * @param destination the linked content; {@code null} to match any target, external links
      *            included; content without a {@code jcr:uuid} matches no link

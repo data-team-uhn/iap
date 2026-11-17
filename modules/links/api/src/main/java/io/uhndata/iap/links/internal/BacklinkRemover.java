@@ -59,6 +59,6 @@ final class BacklinkRemover extends DiffObserver
     {
         // A link is left out of its owner's versions, so removing one needs no checkout
         this.serviceUser.commit(removed.getPath(), "removeBacklink", resolver -> removed.findReverses(resolver)
-            .forEach(reverse -> this.linkOperations.remove(reverse, false)));
+            .forEach(this.linkOperations::remove));
     }
 }

@@ -102,8 +102,8 @@ public interface LinkOperations
         @Nullable String label);
 
     /**
-     * Deletes a node's links of one type, to the given content and with the given label, in the node's session.
-     * The caller commits the deletions.
+     * Deletes a node's links of one type, to the given content and with the given label, in the node's session,
+     * with their reverses as {@link #remove} does. The caller commits the deletions.
      *
      * @param source the node holding the links
      * @param destination the linked content; {@code null} to match any target, external links
@@ -127,13 +127,12 @@ public interface LinkOperations
     boolean addBacklink(@NotNull Resource link);
 
     /**
-     * Deletes a link, in the link's session. The caller commits the deletion.
+     * Deletes a link and its reverse, in the link's session. The caller commits the deletion. A reverse this session
+     * may not read or remove is left to the {@code iap-links} service user, which removes it after the commit.
      *
      * @param link a link node
-     * @param removeBacklink whether to delete the reverse link too, in the same session, when that session can read
-     *            and remove it. After the commit, the {@code iap-links} service user removes any reverse left behind.
      * @return {@code true} if the link was deleted; {@code false} if the node is not a link, or the deletion
      *         failed
      */
-    boolean remove(@NotNull Resource link, boolean removeBacklink);
+    boolean remove(@NotNull Resource link);
 }

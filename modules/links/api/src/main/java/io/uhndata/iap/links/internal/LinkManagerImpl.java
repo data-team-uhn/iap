@@ -372,14 +372,14 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     }
 
     @Override
-    public boolean remove(final Resource link, final boolean removeBacklink)
+    public boolean remove(final Resource link)
     {
         final ResourceResolver resolver = link.getResourceResolver();
         final Link model = Link.toLink(link);
         if (model == null) {
             return false;
         }
-        if (removeBacklink && model instanceof InternalLink) {
+        if (model instanceof InternalLink) {
             this.removeBacklink(resolver, (InternalLink) model);
         }
         return this.delete(resolver, link);
@@ -388,7 +388,11 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     private void removeBacklink(final ResourceResolver resolver, final InternalLink link)
     {
         final InternalLink backlink = link.getBacklink();
-        final Resource backlinkResource = backlink == null ? null : resolver.getResource(backlink.getPath());
+        // A link from content to itself, of a type that is its own backlink, is its own reverse
+        if (backlink == null || backlink.getPath().equals(link.getPath())) {
+            return;
+        }
+        final Resource backlinkResource = resolver.getResource(backlink.getPath());
         // A reverse this session may read but not remove stays until the commit, then the service user removes it
         if (backlinkResource != null
             && this.sessionMay(resolver, backlinkResource.getPath(), Session.ACTION_REMOVE)) {
@@ -411,7 +415,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
             .filter(child -> this.isSelected(child.getValueMap(), definitionId, destination, label))
             .collect(Collectors.toList());
         for (final Resource link : matching) {
-            if (this.delete(source.getResourceResolver(), link)) {
+            if (this.remove(link)) {
                 ++removed;
             }
         }

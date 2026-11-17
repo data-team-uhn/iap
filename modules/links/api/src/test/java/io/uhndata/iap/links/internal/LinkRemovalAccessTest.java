@@ -97,7 +97,7 @@ class LinkRemovalAccessTest
         this.createEditor(SOURCE_PATH);
 
         try (ResourceResolver editor = this.loginEditor()) {
-            assertTrue(this.manager.remove(editor.getResource(this.linkPath), true));
+            assertTrue(this.manager.remove(editor.getResource(this.linkPath)));
 
             assertDoesNotThrow(editor::commit);
         }
@@ -113,7 +113,7 @@ class LinkRemovalAccessTest
         this.createEditor("/Things");
 
         try (ResourceResolver editor = this.loginEditor()) {
-            assertTrue(this.manager.remove(editor.getResource(this.linkPath), true));
+            assertTrue(this.manager.remove(editor.getResource(this.linkPath)));
 
             editor.commit();
         }

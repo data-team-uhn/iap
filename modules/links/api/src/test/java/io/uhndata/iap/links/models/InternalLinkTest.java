@@ -418,6 +418,6 @@ class InternalLinkTest
         final InternalLink link = (InternalLink) this.createFixture().adaptTo(Link.class);
 
         assertFalse(link.addBacklink());
-        assertFalse(link.remove(true));
+        assertFalse(link.remove());
     }
 }

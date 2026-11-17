@@ -152,7 +152,7 @@ class BacklinkRemoverTest
         final String reverse = citation.getBacklink().getPath();
         final NodeState before = this.rootWith(reverse);
 
-        this.removeAs(EDITOR, reverse, true);
+        this.removeAs(EDITOR, reverse);
         this.observe(before, without(before, reverse));
 
         assertFalse(this.exists(citation.getPath()));
@@ -223,9 +223,8 @@ class BacklinkRemoverTest
         // A link to c that has lost its own counterpart, so only its destination tells it apart
         final InternalLink cToB = this.link(C, B, REFERENCES, null);
         final String toC = cToB.getBacklink().getPath();
-        final ResourceResolver admin = this.context.resourceResolver();
-        this.manager.remove(admin.getResource(cToB.getPath()), false);
-        admin.commit();
+        this.adminSession.getNode(cToB.getPath()).remove();
+        this.adminSession.save();
 
         this.editorRemovesTheLink();
 
@@ -238,7 +237,7 @@ class BacklinkRemoverTest
         final String otherReverse = this.link(C, A, REFERENCES, null).getBacklink().getPath();
         final NodeState before = this.rootWith(this.linkPath, this.reversePath);
         final NodeState withoutLink = without(before, this.linkPath);
-        this.removeAs(EDITOR, this.linkPath, true);
+        this.removeAs(EDITOR, this.linkPath);
         this.observe(before, withoutLink);
 
         this.remover.contentChanged(without(withoutLink, this.reversePath), CommitInfo.EMPTY);
@@ -254,7 +253,7 @@ class BacklinkRemoverTest
         this.allowToChange(EDITOR, THINGS);
         final NodeState before = this.rootWith(this.linkPath, this.reversePath);
 
-        this.removeAs(EDITOR, this.linkPath, true);
+        this.removeAs(EDITOR, this.linkPath);
         this.observe(before, without(without(before, this.linkPath), this.reversePath));
 
         assertFalse(this.exists(this.reversePath));
@@ -280,7 +279,7 @@ class BacklinkRemoverTest
     void leavesTheLinksOfRemovedContentToTheirDefinitions() throws Exception
     {
         final NodeState before = this.rootWith(this.linkPath);
-        this.removeAs(EDITOR, this.linkPath, true);
+        this.removeAs(EDITOR, this.linkPath);
 
         this.observe(before, without(before, A));
 
@@ -316,7 +315,7 @@ class BacklinkRemoverTest
     void removesTheReverseInAnExternalChange() throws Exception
     {
         final NodeState before = this.rootWith(this.linkPath);
-        this.removeAs(EDITOR, this.linkPath, true);
+        this.removeAs(EDITOR, this.linkPath);
 
         this.remover.contentChanged(before, CommitInfo.EMPTY_EXTERNAL);
         this.remover.contentChanged(without(before, this.linkPath), CommitInfo.EMPTY_EXTERNAL);
@@ -337,7 +336,7 @@ class BacklinkRemoverTest
         versions.checkin(versioned.getPath());
         final NodeState before = this.rootWith(link.getPath());
 
-        this.removeAs(EDITOR, link.getPath(), true);
+        this.removeAs(EDITOR, link.getPath());
         assertFalse(versions.isCheckedOut(versioned.getPath()));
         this.observe(before, without(before, link.getPath()));
 
@@ -350,7 +349,7 @@ class BacklinkRemoverTest
         final BacklinkRemovalObserver observer = this.context.registerInjectActivateService(
             new BacklinkRemovalObserver());
         final NodeState before = this.rootWith(this.linkPath);
-        this.removeAs(EDITOR, this.linkPath, true);
+        this.removeAs(EDITOR, this.linkPath);
 
         observer.contentChanged(before, CommitInfo.EMPTY);
         observer.contentChanged(without(before, this.linkPath), CommitInfo.EMPTY);
@@ -464,11 +463,11 @@ class BacklinkRemoverTest
             ResourceResolverFactory.PASSWORD, name.toCharArray()));
     }
 
-    private void removeAs(final String name, final String path, final boolean removeBacklink)
+    private void removeAs(final String name, final String path)
         throws LoginException, PersistenceException
     {
         try (ResourceResolver user = this.login(name)) {
-            assertTrue(this.manager.remove(user.getResource(path), removeBacklink));
+            assertTrue(this.manager.remove(user.getResource(path)));
             user.commit();
         }
     }
@@ -477,7 +476,7 @@ class BacklinkRemoverTest
     private void editorRemovesTheLink() throws RepositoryException, LoginException, PersistenceException
     {
         final NodeState before = this.rootWith(this.linkPath);
-        this.removeAs(EDITOR, this.linkPath, true);
+        this.removeAs(EDITOR, this.linkPath);
         this.observe(before, without(before, this.linkPath));
     }
 
