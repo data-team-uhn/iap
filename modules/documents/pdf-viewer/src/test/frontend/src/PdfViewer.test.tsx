@@ -27,11 +27,13 @@ import userEvent from "@testing-library/user-event";
 import { OVER_MARK_CLASS } from "@iap/documents-pdf-viewer/markLayer";
 import type { Mark, MarkKind, MarkSpan } from "@iap/documents-pdf-viewer/marksModel";
 import PdfViewer, { type PdfViewerProps } from "@iap/documents-pdf-viewer/PdfViewer";
+import { readPageFonts } from "@iap/documents-pdf-viewer/textLayerFonts";
 import { SETTLE_TIME } from "@iap/documents-pdf-viewer/useSelectedText";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 
 import {
   createPdfjsError,
+  FONT_NAME,
   fakePdf,
   FakeWorker,
   getDrawnMarks,
@@ -43,6 +45,11 @@ import {
 
 vi.mock("pdfjs-dist", async () => (await import("./pdfjs.fixture")).createPdfjsModule());
 vi.mock("pdfjs-dist/web/pdf_viewer.mjs", async () => (await import("./pdfjs.fixture")).createViewerModule());
+// Without fonts to measure, as in jsdom, the text stays as PDF.js laid it out. One test gives it some.
+vi.mock("@iap/documents-pdf-viewer/textLayerFonts", async importOriginal => ({
+  ...await importOriginal<typeof import("@iap/documents-pdf-viewer/textLayerFonts")>(),
+  readPageFonts: vi.fn(),
+}));
 vi.mock("@iap/frontend-commons/assetManager", async () => ({
   getAssetURL: (await import("./pdfjs.fixture")).getAssetURL,
 }));
@@ -98,6 +105,18 @@ function getViewer() {
   return viewer;
 }
 
+// The page's own font, loaded, and twice as wide as the generic one.
+const LOADED_FONTS = {
+  loaded: new Set([ FONT_NAME ]),
+  measure: (text: string, family: string) => text.length * (family.startsWith(`"${FONT_NAME}"`) ? 2 : 1),
+};
+
+// The font family of each piece of text on a page, without the quotes the browser may drop.
+function getFontFamilies(page: number): string[] {
+  return Array.from(getFrame().querySelectorAll<HTMLElement>(`[data-page-number="${page}"] .textLayer span`))
+    .map(span => span.style.fontFamily.replaceAll("\"", ""));
+}
+
 // The containers a test made for the viewer, removed after each test.
 const places: HTMLDivElement[] = [];
 
@@ -121,6 +140,7 @@ describe("PdfViewer", () => {
     places.splice(0).forEach(place => place.remove());
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    vi.mocked(readPageFonts).mockReset();
     fakePdf.reset();
   });
 
@@ -358,6 +378,31 @@ describe("PdfViewer", () => {
   });
 
   describe("moving around", () => {
+    it("sets a page's text in the font the page is drawn with as soon as the text is there", async () => {
+      vi.mocked(readPageFonts).mockReturnValue(LOADED_FONTS);
+      show();
+
+      await waitFor(() => {
+        const families = getFontFamilies(2);
+        expect(families).not.toHaveLength(0);
+        expect(families).toEqual(families.map(() => `${FONT_NAME}, sans-serif`));
+      });
+    });
+
+    it("sets a page's text in the font the page is drawn with, and draws its marks again", async () => {
+      show();
+      // A passage can be found before its page's text is drawn, which its mark waits for
+      await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 2: [ ASSISTANT_MARK ] }));
+      const drawn = getFrame().querySelector("[data-mark-id]");
+      vi.mocked(readPageFonts).mockReturnValue(LOADED_FONTS);
+
+      act(() => getViewer().eventBus.dispatch("pagerendered", { pageNumber: 2 }));
+
+      await waitFor(() => expect(drawn?.isConnected).toBe(false));
+      expect(getFontFamilies(2)).toEqual(getFontFamilies(2).map(() => `${FONT_NAME}, sans-serif`));
+      expect(getDrawnMarks(getFrame())).toEqual({ 2: [ ASSISTANT_MARK ] });
+    });
+
     it("goes to another page given for the same document, without opening it again", async () => {
       fakePdf.pages = [ "Cover.", "Contents.", QUOTE ];
       const { rerender } = show({ page: 1, quote: "Yes" });
