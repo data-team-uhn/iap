@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 // The zoom buttons: Zoom out, Fit to width and Zoom in.
-import FitWidthIcon from "@mui/icons-material/FitScreen";
+import FitWidthIcon from "@mui/icons-material/WidthFull";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { IconButton } from "@mui/material";
