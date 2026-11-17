@@ -39,6 +39,11 @@ const PDF = writePdf([
   ...[ 5, 6, 7, 8 ].map(page => [ `Page ${page} adds nothing new.` ]),
 ]);
 
+const LONG_URL = '/e2e/pdf-viewer/long.pdf';
+
+/** Forty pages, each mentioning the committee once, for a search with as many matches. */
+const LONG_PDF = writePdf(Array.from({ length: 40 }, (_, index) => [ `Page ${index + 1} names the committee.` ]));
+
 /** Where the elements a locator finds are on the screen, as one box around all of them. */
 async function getBox(elements: Locator): Promise<Box> {
   const boxes = await elements.evaluateAll(found => found.map(element => element.getBoundingClientRect()));
@@ -173,6 +178,31 @@ test.describe('the PDF viewer', () => {
     await expect(viewer.getByText('2 of 3', { exact: true })).toBeVisible();
     await field.press('Shift+Enter');
     await expect(viewer.getByText('1 of 3', { exact: true })).toBeVisible();
+  });
+
+  test('counts the matches while stepping, and after the reader moves away from them', async ({ page }) => {
+    const widget = new PdfViewerWidget(page);
+    await widget.serve(LONG_URL, LONG_PDF);
+    const viewer = await widget.open({ url: LONG_URL });
+    const field = viewer.getByRole('textbox', { name: 'Search the document' });
+    await field.fill('committee');
+
+    // Stepped to before every page is counted
+    await expect(viewer.getByText(/^1 of \d+$/)).toBeVisible();
+    await field.press('Enter');
+    await expect(viewer.getByText('2 of 40', { exact: true })).toBeVisible();
+    await field.press('Enter');
+    await expect(viewer.getByText('3 of 40', { exact: true })).toBeVisible();
+
+    // Away from the match, PDF.js searches again from the page in view
+    for (let step = 0; step < 3; step++) {
+      await viewer.getByRole('button', { name: 'Next page' }).click();
+    }
+    await field.press('Shift+Enter');
+
+    // The match on the page in view, counted among all forty
+    await expect(viewer.getByText('6 of 40', { exact: true })).toBeVisible();
+    await expect(viewer.getByRole('button', { name: 'Next match' })).toBeEnabled();
   });
 
   test('pops out into a dialog and back, keeping the page', async ({ page }) => {

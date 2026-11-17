@@ -149,8 +149,9 @@ export function usePdfView(
   // The query, searched for again when the viewer moves to another frame.
   const queryRef = useRef("");
   const eventBusRef = useRef<EventBus | undefined>(undefined);
-  // Starts showing the matches of a new search as PDF.js counts them, or stops.
-  const countRef = useRef<{ start: () => void; stop: () => void } | undefined>(undefined);
+  // Starts showing the matches of a new search as PDF.js counts them, follows them again after a step to another
+  // match, or stops.
+  const countRef = useRef<{ start: () => void; follow: () => void; stop: () => void } | undefined>(undefined);
   const onSelectMarkRef = useRef(onSelectMark);
   useEffect(() => {
     onSelectMarkRef.current = onSelectMark;
@@ -195,9 +196,11 @@ export function usePdfView(
         setSearch(previous => ({ ...previous, ...noText, announcement: getSearchStatus(noText) }));
       }
     };
-    // PDF.js counts a new search's matches as it searches the pages. The latest count is shown every
-    // COUNT_INTERVAL until every page has been searched. A count of 0 of 0, which PDF.js reports until it
-    // has picked the match to show, is not kept.
+    // PDF.js counts a search's matches as it searches the pages. The latest count is shown every
+    // COUNT_INTERVAL until every page has been searched. That is followed for a new search, and for each
+    // step to another match: one taken away from the match shown makes PDF.js search again from the page in
+    // view, and count afresh. A count of 0 of 0, which PDF.js reports until it has picked the match to show,
+    // is not kept.
     let latestCount: MatchesCount | undefined;
     let counting = 0;
     const showCount = () => {
@@ -221,6 +224,10 @@ export function usePdfView(
         return firstCount ? { ...next, announcement: getSearchStatus(next) } : next;
       });
     };
+    const followCount = () => {
+      window.clearInterval(counting);
+      counting = window.setInterval(showCount, COUNT_INTERVAL);
+    };
     const stopCounting = () => {
       window.clearInterval(counting);
       latestCount = undefined;
@@ -229,8 +236,9 @@ export function usePdfView(
       start: () => {
         stopCounting();
         setSearch(previous => ({ ...previous, counting: true }));
-        counting = window.setInterval(showCount, COUNT_INTERVAL);
+        followCount();
       },
+      follow: followCount,
       stop: stopCounting,
     };
     eventBus.on("updatefindmatchescount", ({ matchesCount }: { matchesCount: MatchesCount }) => {
@@ -248,7 +256,10 @@ export function usePdfView(
         return;
       }
       // PDF.js may report a match found before it has counted it, as 0 of 0.
-      const count = matchesCount.current > 0 ? matchesCount : latestCount ?? matchesCount;
+      if (matchesCount.current > 0) {
+        latestCount = matchesCount;
+      }
+      const count = latestCount ?? matchesCount;
       const settled = state === FOUND || state === WRAPPED
         ? { outcome: "found", ...count } as const
         : { outcome: "notFound", current: 0, total: 0 } as const;
@@ -508,6 +519,7 @@ export function usePdfView(
   // Goes to the next match of the search, or to the previous one.
   const findAgain = useCallback((direction: StepDirection) => {
     if (eventBusRef.current !== undefined && queryRef.current.trim() !== "") {
+      countRef.current?.follow();
       dispatchFind(eventBusRef.current, queryRef.current, direction);
     }
   }, []);
