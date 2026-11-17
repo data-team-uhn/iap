@@ -139,6 +139,19 @@ function fitsPage({ span: { start, end }, page }: SpanOnPage): boolean {
   return Number.isInteger(start) && Number.isInteger(end) && start >= 0 && start <= end && end <= page.text.length;
 }
 
+// The two spans of a quote found across the break after page `before`: the end of that page and the start
+// of the next.
+function getAcrossSpans(
+  before: number,
+  found: { first: QuoteMatch; next: QuoteMatch },
+  pages: { first: PageText; next: PageText },
+): [ SpanOnPage, SpanOnPage ] {
+  return [
+    { span: getMatchSpan(before, found.first), page: pages.first },
+    { span: getMatchSpan(before + 1, found.next), page: pages.next },
+  ];
+}
+
 // The text between two offsets of a page, as a person reads it. A line end reads as a space, except after
 // a hyphen, where the word goes on with no space. Runs of spaces read as one, and none is kept at either
 // end.
@@ -275,10 +288,7 @@ export class MarkLocator {
         }
         const found = findQuoteAcrossPages(getPrepared(first), getPrepared(next), searchText);
         if (found !== undefined) {
-          this.#across.get(id)?.set(before, [
-            { span: getMatchSpan(before, found.first), page: first },
-            { span: getMatchSpan(before + 1, found.next), page: next },
-          ]);
+          this.#across.get(id)?.set(before, getAcrossSpans(before, found, { first, next }));
         }
       }
     }
@@ -403,10 +413,7 @@ export class MarkLocator {
       if (across === undefined) {
         return whole;
       }
-      const read = [
-        { span: getMatchSpan(number, across.first), page },
-        { span: getMatchSpan(number + 1, across.next), page: next },
-      ];
+      const read = getAcrossSpans(number, across, { first: page, next });
       const likeness = getContextLikeness(
         anchor,
         getTextBefore(page, read[0].span.start),
