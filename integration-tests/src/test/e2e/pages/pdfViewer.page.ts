@@ -76,7 +76,8 @@ export class PdfViewerWidget {
   /**
    * Signs in as the administrator, fills the widget's form and opens the viewer.
    *
-   * @returns the viewer, from its title to its documents, in its dialog or below the form
+   * @returns the viewer, from its title to its documents, in its dialog or below the form. Its frame is the
+ *   region named "Document", or one per version side by side, each named after it.
    */
   async open(opening: Opening): Promise<Locator> {
     const title = opening.title ?? 'The document';
@@ -93,7 +94,7 @@ export class PdfViewerWidget {
     await form.getByRole('button', { name: 'Open' }).click();
     const viewer = this.page.locator('div')
       .filter({ has: this.page.getByRole('heading', { name: title, exact: true }) })
-      .filter({ has: this.page.getByRole('region', { name: 'Document' }) })
+      .filter({ has: this.page.getByRole('region') })
       .last();
     await expect(viewer).toBeVisible();
     return viewer;

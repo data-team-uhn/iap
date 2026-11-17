@@ -17,7 +17,7 @@
  */
 // The viewer's contents, wherever it is placed: its title, the comparison's controls, the passages and the
 // versions of the document.
-import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { Box, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
@@ -178,9 +178,13 @@ export default function ViewerBody(props: ViewerBodyProps) {
     ? { share: pagesRead / pageCount, what: `the ${looked > 1 ? markName.many : markName.one}` }
     : undefined);
 
+  // Side by side, each version is named after its label, so that the two can be told apart.
+  const olderName = compared.older?.label ?? "Older version";
+  const newerName = compared.newerLabel ?? "Newer version";
   const shownDocument = (
     <PdfDocumentView
       setFrame={setFrame}
+      name={split ? newerName : "Document"}
       edgeToEdge={edgeToEdge && !split}
       outlineSelected={marks.length > 1}
       opening={!opened && openError === undefined}
@@ -246,9 +250,9 @@ export default function ViewerBody(props: ViewerBodyProps) {
             )}
           <VersionPanes
             older={split && older !== undefined
-              ? { view: older.view, label: older.label, failed: older.error !== undefined }
+              ? { view: older.view, label: olderName, failed: older.error !== undefined }
               : undefined}
-            newerLabel={compared.newerLabel}
+            newerLabel={newerName}
             view={view}
             outlineSelected={marks.length > 1}
             looking={looking}
@@ -279,8 +283,8 @@ export default function ViewerBody(props: ViewerBodyProps) {
 // The versions shown. Side by side, the older version is drawn here beside this one. Otherwise this version
 // is shown alone. This version's document comes in as `children`.
 function VersionPanes({ older, newerLabel, view, outlineSelected, looking, children }: {
-  older: { view: PdfView; label: string | undefined; failed: boolean } | undefined;
-  newerLabel: string | undefined;
+  older: { view: PdfView; label: string; failed: boolean } | undefined;
+  newerLabel: string;
   view: PdfView;
   outlineSelected: boolean;
   looking: Progress | undefined;
@@ -291,9 +295,10 @@ function VersionPanes({ older, newerLabel, view, outlineSelected, looking, child
       {older === undefined
         ? null
         : (
-          <Pane key="older" label={older.label ?? "Older version"} view={older.view}>
+          <Pane key="older" label={older.label} view={older.view}>
             <PdfDocumentView
               setFrame={older.view.setFrame}
+              name={older.label}
               edgeToEdge={false}
               outlineSelected={outlineSelected}
               opening={older.view.pageCount === undefined && !older.failed}
@@ -301,7 +306,7 @@ function VersionPanes({ older, newerLabel, view, outlineSelected, looking, child
             />
           </Pane>
         )}
-      <Pane key="newer" label={older === undefined ? undefined : newerLabel ?? "Newer version"} view={view}>
+      <Pane key="newer" label={older === undefined ? undefined : newerLabel} view={view}>
         {children}
       </Pane>
     </Box>
@@ -309,19 +314,26 @@ function VersionPanes({ older, newerLabel, view, outlineSelected, looking, child
 }
 
 // One version of the document. With a label, as beside another version, it has a row above it holding the
-// label and its own page controls.
+// label and its own page controls, grouped under the label so that each version's controls can be told apart.
 function Pane({ label, view, children }: {
   label: string | undefined;
   view: PdfView;
   children: ReactNode;
 }) {
+  const labelId = useId();
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 0", minWidth: 0 }}>
       {label === undefined
         ? null
         : (
-          <Box sx={{ display: "flex", alignItems: "center", minWidth: 0 }}>
-            <Typography variant="subtitle2" component="h3" noWrap sx={{ flex: "1 1 auto", minWidth: 0, mr: 1 }}>
+          <Box role="group" aria-labelledby={labelId} sx={{ display: "flex", alignItems: "center", minWidth: 0 }}>
+            <Typography
+              id={labelId}
+              variant="subtitle2"
+              component="h3"
+              noWrap
+              sx={{ flex: "1 1 auto", minWidth: 0, mr: 1 }}
+            >
               {label}
             </Typography>
             <PageControls page={view.page} pageCount={view.pageCount} onShowPage={view.showPage} />

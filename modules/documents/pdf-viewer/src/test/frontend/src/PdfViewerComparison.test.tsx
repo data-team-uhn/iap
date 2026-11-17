@@ -65,8 +65,9 @@ function getStatus() {
   return screen.getByRole("status");
 }
 
+// The frame of each version shown: "Document" alone, or each named after its version side by side.
 function getFrames() {
-  return screen.getAllByRole("region", { name: "Document" });
+  return screen.getAllByRole("region", { name: /^Document$|version|Version/ });
 }
 
 function getNewerFrame() {
@@ -147,7 +148,11 @@ describe("PdfViewer compared with an older version", () => {
       expect(screen.getByRole("dialog", { name: "protocol-v2.pdf" })).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Version 1" })).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Newer version" })).toBeInTheDocument();
-      const [ older, newer ] = getFrames();
+      // Each version's frame and page buttons are named after it, so that the two can be told apart
+      const older = screen.getByRole("region", { name: "Version 1" });
+      const newer = screen.getByRole("region", { name: "Newer version" });
+      expect(within(screen.getByRole("group", { name: "Version 1" })).getByRole("button", { name: "Next page" }))
+        .toBeInTheDocument();
       // The text added in place of the text removed starts with a point.
       await waitFor(() => expect(getDrawnMarks(newer)).toEqual({
         1: [ "iap-mark iap-mark-added iap-mark-point iap-mark-start selected", "iap-mark iap-mark-added selected" ],
