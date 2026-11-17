@@ -25,6 +25,7 @@ import {
   purgeEntry,
   restoreEntry,
 } from "@iap/deletion/archiveApi";
+import { UNREADABLE_RESPONSE } from "@iap/frontend-commons/requestFailure";
 
 const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status,
@@ -131,18 +132,29 @@ describe("purgeEntry", () => {
 });
 
 describe("an answer this page cannot read", () => {
+  let warned: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warned = vi.spyOn(console, "warn").mockImplementation(() => { /* kept out of the test output */ });
+  });
+
   it("is never taken as success, even on a 200", async () => {
     // A login redirect or an HTML error page can arrive instead of the endpoint's own answer
     const doFetch = vi.fn().mockResolvedValue(new Response("<html>signed out</html>", { status: 200 }));
     const answer = await purgeEntry(doFetch, "/Archive/ab/one");
-    expect(answer.status).toBe("failed");
-    expect(answer["status.message"]).toContain("200");
+    expect(answer).toEqual({ status: "failed", "status.message": UNREADABLE_RESPONSE });
+  });
+
+  it("is logged with its status, which the user is not shown", async () => {
+    const doFetch = vi.fn().mockResolvedValue(new Response("<html>signed out</html>", { status: 200 }));
+    await purgeEntry(doFetch, "/Archive/ab/one");
+    expect(warned).toHaveBeenCalledWith(expect.stringContaining("HTTP 200"), expect.anything());
   });
 
   it("is reported when the body parses but says nothing useful", async () => {
     const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, { unexpected: true }));
     await expect(restoreEntry(doFetch, "/Archive/ab/one"))
-      .resolves.toMatchObject({ status: "failed" });
+      .resolves.toEqual({ status: "failed", "status.message": UNREADABLE_RESPONSE });
   });
 });
 

@@ -18,6 +18,7 @@
 
 import { requestDeletion } from "@iap/deletion/deletionApi";
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { UNREADABLE_RESPONSE } from "@iap/frontend-commons/requestFailure";
 
 const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status,
@@ -29,6 +30,10 @@ const answering = (response: Response) =>
   vi.fn<AuthenticatedFetch>().mockResolvedValue(response);
 
 describe("requestDeletion", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("sends a bare DELETE when no options are given", async () => {
     const fetchMock = answering(jsonResponse(200, { "status.code": 200, status: "archived" }));
 
@@ -67,12 +72,14 @@ describe("requestDeletion", () => {
     expect(outcome.referrers?.[0].count).toBe(2);
   });
 
-  it("reports an unreadable body as a failure instead of crashing", async () => {
+  it("reports an unreadable body as a failure instead of crashing, logging its status", async () => {
+    const warned = vi.spyOn(console, "warn").mockImplementation(() => { /* kept out of the test output */ });
+
     const outcome = await requestDeletion(
       answering(new Response("<html>Server Error</html>", { status: 500 })), "/content/victim");
 
-    expect(outcome.status).toBe("failed");
-    expect(outcome["status.message"]).toContain("500");
+    expect(outcome).toEqual({ "status.code": 500, status: "failed", "status.message": UNREADABLE_RESPONSE });
+    expect(warned).toHaveBeenCalledWith(expect.stringContaining("HTTP 500"), expect.anything());
   });
 
   it("reports an unreadable 404 as a missing resource", async () => {

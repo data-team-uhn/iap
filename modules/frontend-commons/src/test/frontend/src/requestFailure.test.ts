@@ -22,6 +22,7 @@ import {
   isRefusal,
   messageOf,
   readJson,
+  readOutcome,
   RequestError,
   UnreadableResponseError,
 } from "@iap/frontend-commons/requestFailure";
@@ -200,5 +201,33 @@ describe("readJson", () => {
     await expect(failure).rejects.toBeInstanceOf(TypeError);
     await expect(failure.catch(describeRequestFailure)).resolves.toContain("The server could not be reached");
     expect(warned).not.toHaveBeenCalled();
+  });
+});
+
+describe("readOutcome", () => {
+  let warned: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warned = vi.spyOn(console, "warn").mockImplementation(() => { /* kept out of the test output */ });
+  });
+
+  it("reads the outcome a refusal states, whatever its HTTP status", async () => {
+    const conflict = new Response('{"status":"conflict","status.message":"Changed meanwhile"}', { status: 409 });
+
+    await expect(readOutcome(conflict)).resolves.toEqual({ status: "conflict", "status.message": "Changed meanwhile" });
+    expect(warned).not.toHaveBeenCalled();
+  });
+
+  it("answers null for a page, and logs its status", async () => {
+    const page = new Response("<html><body>Bad gateway</body></html>", { status: 502 });
+
+    await expect(readOutcome(page)).resolves.toBeNull();
+    expect(warned).toHaveBeenCalledWith("Expected data, got a page (HTTP 502)", "");
+  });
+
+  it("answers null for data that states no outcome", async () => {
+    await expect(readOutcome(new Response("null", { status: 200 }))).resolves.toBeNull();
+    await expect(readOutcome(new Response('{"status":404}', { status: 200 }))).resolves.toBeNull();
+    expect(warned).toHaveBeenCalledTimes(2);
   });
 });

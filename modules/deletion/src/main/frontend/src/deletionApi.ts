@@ -17,6 +17,8 @@
  */
 
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { readOutcome, UNREADABLE_RESPONSE } from "@iap/frontend-commons/requestFailure";
+
 
 // Calls the deletion endpoint documented in docs/deletion.md, and describes what it answers.
 // The call takes the fetch to use as its first argument, and components pass `useAuthenticatedFetch()`.
@@ -102,19 +104,9 @@ export const requestDeletion = async (
  * The endpoint's answer. Something else can answer instead, such as an HTML error page or a login
  * redirect. The outcome is then `missing` for a 404, and `failed` otherwise, even for a 2xx.
  */
-const readResponse = async (response: Response): Promise<DeletionResponse> => {
-  try {
-    // `null` is valid JSON, so the parse can succeed and still yield nothing
-    const body = await response.json() as DeletionResponse | null;
-    if (typeof body?.status === "string") {
-      return body;
-    }
-  } catch {
-    // Falls through to the synthesized outcome below
-  }
-  return {
+const readResponse = async (response: Response): Promise<DeletionResponse> =>
+  await readOutcome<DeletionResponse>(response) ?? {
     "status.code": response.status,
     status: response.status === 404 ? "missing" : "failed",
-    "status.message": `The server answered ${response.status} without an explanation.`
+    "status.message": UNREADABLE_RESPONSE,
   };
-};

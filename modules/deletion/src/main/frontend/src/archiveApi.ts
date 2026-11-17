@@ -20,7 +20,8 @@
 // Every call takes the fetch to use as its first argument, and components pass `useAuthenticatedFetch()`.
 
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { readJson } from "@iap/frontend-commons/requestFailure";
+import { readJson, readOutcome, UNREADABLE_RESPONSE } from "@iap/frontend-commons/requestFailure";
+
 
 /** One archive entry, as a listing row. */
 export interface ArchiveEntry {
@@ -180,21 +181,8 @@ export const purgeEntry = (doFetch: AuthenticatedFetch, path: string): Promise<A
 
 const act = async (doFetch: AuthenticatedFetch, url: string, method: string): Promise<ActionResponse> => {
   const response = await doFetch(url, { method, headers: { Accept: "application/json" } });
-  try {
-    // `null` is valid JSON, so the parse can succeed and still yield nothing
-    const body = await response.json() as ActionResponse | null;
-    if (typeof body?.status === "string") {
-      return body;
-    }
-  } catch {
-    // Falls through to the synthesized outcome below
-  }
-  // Something other than the endpoint answered, such as an HTML error page or a login redirect.
-  // An unreadable body is a failure, even with a 2xx status.
-  return {
-    status: "failed",
-    "status.message": `The server gave an answer this page could not read (${String(response.status)})`,
-  };
+  // An unreadable body is a failure, even with a 2xx status
+  return await readOutcome<ActionResponse>(response) ?? { status: "failed", "status.message": UNREADABLE_RESPONSE };
 };
 
 /**
