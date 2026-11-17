@@ -163,7 +163,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
   const local = givenRows !== undefined;
   const sortedColumn = columns.find(column => column.field === sortModel[0]?.field);
   const page = useEntityPage({
-    config: local ? undefined : config, homepage, paginationModel,
+    config: local ? undefined : config, homepage, paginationModel, setPaginationModel,
     sortBy: sortedColumn && serverProperty(sortedColumn), descending: sortModel[0]?.sort === "desc",
     filters, childFilter, columnFilters, fullText, refreshToken,
   });

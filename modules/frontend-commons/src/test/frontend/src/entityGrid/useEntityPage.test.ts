@@ -40,6 +40,7 @@ describe("useEntityPage", () => {
     renderHook(() => useEntityPage({
       config: { homepage: "/Submissions", columns: [] },
       paginationModel: { page: 0, pageSize: 10 },
+      setPaginationModel: vi.fn(),
       descending: false,
       filters: [
         { name: "status", value: "draft", group: "item0" },
