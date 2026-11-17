@@ -224,7 +224,7 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
       {note === undefined
         ? null
         : (
-          <Typography component="span" variant="caption" sx={{ display: "block" }}>
+          <Typography id={`${quoteId}-note`} component="span" variant="caption" sx={{ display: "block" }}>
             <NoteText note={note} />
           </Typography>
         )}
@@ -235,12 +235,17 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
   if (place.status === "found") {
     label = `Show ${name.one} ${index} on ${describePages(place.page, place.toPage)}`;
   }
+  // A passage found has its page in the label. Of any other, the note says why it is not marked.
+  const described = [
+    bodySaid === undefined ? quoteId : `${quoteId}-said`,
+    note === undefined || place.status === "found" ? undefined : `${quoteId}-note`,
+  ].filter(id => id !== undefined).join(" ");
 
   return (
     <ButtonBase
       focusRipple
       aria-label={label}
-      aria-describedby={bodySaid === undefined ? quoteId : `${quoteId}-said`}
+      aria-describedby={described}
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
       sx={theme => ({
