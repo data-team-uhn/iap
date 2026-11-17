@@ -134,6 +134,11 @@ function getMatchSpan(page: number, { index, length }: QuoteMatch): MarkSpan {
   return { page, start: index, end: index + length };
 }
 
+// Whether a span lies in its page's text: whole offsets, running forwards, and no further than the text.
+function fitsPage({ span: { start, end }, page }: SpanOnPage): boolean {
+  return Number.isInteger(start) && Number.isInteger(end) && start >= 0 && start <= end && end <= page.text.length;
+}
+
 // The text between two offsets of a page, as a person reads it. A line end reads as a space, except after
 // a hyphen, where the word goes on with no space. Runs of spaces read as one, and none is kept at either
 // end.
@@ -187,10 +192,7 @@ function getSpansBetween(start: TextPoint, end: TextPoint, pages: PageText[]): S
     const to = on === end.page ? end.char : page.text.length;
     return { span: { page: on, start: from, end: to }, page };
   });
-  const fits = read.every(({ span, page }) => (
-    span.start >= 0 && span.start <= span.end && span.end <= page.text.length
-  ));
-  return fits ? read : undefined;
+  return read.every(fitsPage) ? read : undefined;
 }
 
 // The text a run of spans covers, as a person reads it, with a space between pages.
@@ -339,10 +341,7 @@ export class MarkLocator {
     if (read.length < spans.length) {
       return { status: "searching" };
     }
-    const fits = read.every(({ span: { start, end }, page }) => (
-      Number.isInteger(start) && Number.isInteger(end) && start >= 0 && start <= end && end <= page.text.length
-    ));
-    return fits ? this.#found(read) : { status: "notFound" };
+    return read.every(fitsPage) ? this.#found(read) : { status: "notFound" };
   }
 
   // An anchored mark is where its anchor says, as soon as those pages are read, if the text there still
