@@ -202,6 +202,13 @@ export default function ViewerBody(props: ViewerBodyProps) {
     </PdfDocumentView>
   );
   const { older } = compared;
+  // Drawn even when empty, since a screen reader announces only the changes to a live region already there.
+  const spoken = (
+    <>
+      <Box aria-live="polite" sx={visuallyHidden}>{summary}</Box>
+      <Box role="status" sx={visuallyHidden}>{said}</Box>
+    </>
+  );
 
   return (
     <Box
@@ -219,9 +226,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
         ? null
         : <ComparisonControls {...compared.controls} onShowChange={showSelected} />}
       {card}
-      {/* Always rendered, even empty. A screen reader announces only changes to a live region already there. */}
-      <Box aria-live="polite" sx={visuallyHidden}>{summary}</Box>
-      <Box role="status" sx={visuallyHidden}>{said}</Box>
+      {spoken}
       <Box sx={{ display: "flex", gap: 2, flex: "1 1 auto", minHeight: 0 }}>
         <Box sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0 }}>
           <ViewerToolbar
