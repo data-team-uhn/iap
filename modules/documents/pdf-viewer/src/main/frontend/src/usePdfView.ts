@@ -248,11 +248,12 @@ export function usePdfView(
     });
     resizes.observe(frame, { box: "border-box" });
 
-    // Once the reader scrolls by hand, the selected mark, if still to be found, no longer moves them, nor
-    // does a place in the text they were on their way to.
+    // Once the reader scrolls by hand, nothing still on its way moves them: no mark not found yet, selected
+    // or shown, and no place in the text.
     for (const type of SCROLL_INPUTS) {
       frame.addEventListener(type, event => {
         if (isScrollByHand(event, frame)) {
+          goToRef.current = undefined;
           followSelectedRef.current = false;
           pointRef.current = undefined;
         }

@@ -251,6 +251,21 @@ describe("PdfViewer", () => {
       expect(screen.getByText("Page 1 of 4")).toBeInTheDocument();
     });
 
+    it("leaves the reader where they scrolled by hand while the passage the caller selected was looked for", async () => {
+      fakePdf.pages = [ "Cover.", "Contents.", "Foreword.", QUOTE ];
+      fakePdf.holdTextFrom = 4;
+      show({ selectedMarkId: "passage" });
+      await screen.findByText("Page 1 of 4");
+      await waitFor(() => expect(fakePdf.releaseText).toBeDefined());
+
+      fireEvent.wheel(getFrame());
+      act(() => fakePdf.releaseText?.());
+
+      await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 4: [ ASSISTANT_MARK ] }));
+      expect(getFrame().scrollTop).toBe(0);
+      expect(screen.getByText("Page 1 of 4")).toBeInTheDocument();
+    });
+
     it.each([
       [ "a key scrolling it", { key: "ArrowDown" }, 0 ],
       [ "no key that does not scroll it, such as Tab", { key: "Tab" }, MATCH_TOP ],
