@@ -47,6 +47,9 @@ public class DocumentRequirement extends Requirement
     private boolean required;
 
     @ValueMapValue
+    private boolean skipParsing;
+
+    @ValueMapValue
     private String[] acceptedFileTypes;
 
     @ValueMapValue
@@ -60,6 +63,16 @@ public class DocumentRequirement extends Requirement
     public boolean isRequired()
     {
         return this.required;
+    }
+
+    /**
+     * Whether uploads for this requirement are never parsed, so no reading uses them.
+     *
+     * @return {@code true} if uploads for this requirement are not sent for parsing
+     */
+    public boolean isParsingSkipped()
+    {
+        return this.skipParsing;
     }
 
     /**

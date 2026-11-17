@@ -137,6 +137,22 @@ class AnswerOperandResolverTest
         assertNull(resolved.getType());
     }
 
+    // The answer to another question comes first, and its runs are not searched
+    @Test
+    void passesOverTheAnswersToOtherQuestions()
+    {
+        final ConditionOperand operand = this.createOperand(QUESTION_ID);
+        final Content submission = this.createSubmission("/Submissions/sub");
+        this.createAnswer("/Submissions/sub/a0", "00000000-0000-0000-0000-000000000000", "no");
+        this.createAnswer("/Submissions/sub/a0/run", QUESTION_ID, "inside another answer");
+        this.createAnswer("/Submissions/sub/a1", QUESTION_ID, "yes");
+
+        final Operand resolved = this.resolver.resolve(operand, submission);
+
+        assertEquals(1, resolved.size());
+        assertEquals("yes", resolved.get(0));
+    }
+
     @Test
     void resolvesAnswersByQuestionPath()
         throws RepositoryException

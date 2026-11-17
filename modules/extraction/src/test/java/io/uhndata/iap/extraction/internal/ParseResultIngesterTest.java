@@ -1,0 +1,379 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.uhndata.iap.extraction.internal;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
+import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ValueMap;
+import org.apache.sling.testing.mock.sling.ResourceResolverType;
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mockito;
+
+import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Unit tests for {@link ParseResultIngester}: how a finished parse is saved in the repository. Clearing the
+ * shared volume is left to whoever commits.
+ *
+ * @version $Id$
+ * @since 0.1.0
+ */
+@ExtendWith(SlingContextExtension.class)
+class ParseResultIngesterTest
+{
+    private static final String FILE_PATH = "/Submissions/s1/proposal/v1/file";
+
+    private static final String MARKDOWN = "# Proposal\n\nThe whole document.\n";
+
+    /** Stands in for the PDF. The ingester copies the bytes and never reads them. */
+    private static final String PDF = "%PDF-1.7 the whole document";
+
+    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
+
+    private ParseResultIngester ingester;
+
+    private final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
+
+    /** The paths the ingester asked to remove from the volume. */
+    private final List<String> discarded = new ArrayList<>();
+
+    @TempDir
+    private Path volume;
+
+    private Path markdown;
+
+    private Path pdf;
+
+    @BeforeEach
+    void setUp() throws Exception
+    {
+        this.ingester = createIngester(this.discarded::add);
+        this.context.create().resource(FILE_PATH, Map.of("sling:resourceType", "sub/File"));
+        this.markdown = this.volume.resolve("proposal.md");
+        Files.writeString(this.markdown, MARKDOWN, StandardCharsets.UTF_8);
+        this.pdf = this.volume.resolve("proposal.pdf");
+        Files.writeString(this.pdf, PDF, StandardCharsets.UTF_8);
+        ErrorLogger.setService(this.errors);
+    }
+
+    @AfterEach
+    void tearDown()
+    {
+        ErrorLogger.unsetService(this.errors);
+    }
+
+    /** Checks that an administrator was told about the file, whatever the wording. */
+    private void verifyProblemReported()
+    {
+        Mockito.verify(this.errors).logProblem(Mockito.anyString(),
+            Mockito.argThat(errorContext -> FILE_PATH.equals(errorContext.getSubject())));
+    }
+
+    /**
+     * Creates an ingester whose parse service only records the paths it is asked to remove.
+     *
+     * <p>The documents module does the real removing, because only it knows which root a path must be under
+     * before it deletes anything. So the test records the request instead of touching the filesystem.</p>
+     */
+    private static ParseResultIngester createIngester(final Consumer<String> onDiscard) throws Exception
+    {
+        final ParseResultIngester built = new ParseResultIngester();
+        TestComponents.inject(built, "parseService", new RecordingParseService(onDiscard));
+        return built;
+    }
+
+    /** A parse service that records what it is asked to remove from the volume. */
+    private static final class RecordingParseService implements ParseService
+    {
+        private final Consumer<String> onDiscard;
+
+        RecordingParseService(final Consumer<String> onDiscard)
+        {
+            this.onDiscard = onDiscard;
+        }
+
+        @Override
+        public String stage(final String fileName, final InputStream content)
+        {
+            throw new UnsupportedOperationException("an ingest stages nothing");
+        }
+
+        @Override
+        public String queue(final String path, final String target)
+        {
+            throw new UnsupportedOperationException("an ingest queues nothing");
+        }
+
+        @Override
+        public boolean discardStaging(final String stagedPath)
+        {
+            this.onDiscard.accept(stagedPath);
+            return true;
+        }
+
+        @Override
+        public boolean isStagedPath(final String path)
+        {
+            // The real service checks where the volume is mounted. Here every path counts except one naming
+            // "elsewhere".
+            return path != null && !path.contains("elsewhere");
+        }
+    }
+
+    private Resource getFile()
+    {
+        return this.context.resourceResolver().getResource(FILE_PATH);
+    }
+
+    private ValueMap getProperties()
+    {
+        return getFile().getValueMap();
+    }
+
+    /** Adds an upload with the given MIME type to the file node, so the ingester can see its type. */
+    private void setUploadType(final String mimeType) throws PersistenceException
+    {
+        final Resource upload = this.context.resourceResolver()
+            .create(getFile(), "uploadedFile", Map.of("jcr:primaryType", "nt:file"));
+        this.context.resourceResolver().create(upload, "jcr:content",
+            Map.of("jcr:primaryType", "nt:resource", "jcr:mimeType", mimeType));
+        this.context.resourceResolver().commit();
+    }
+
+    private static String readText(final Resource ntFile) throws IOException
+    {
+        final Resource content = ntFile.getChild("jcr:content");
+        assertNotNull(content, "the file should carry its content");
+        try (InputStream data = content.getValueMap().get("jcr:data", InputStream.class)) {
+            return StandardCharsets.UTF_8.decode(ByteBuffer.wrap(data.readAllBytes())).toString();
+        }
+    }
+
+    private static String readMimeType(final Resource ntFile)
+    {
+        final Resource content = ntFile.getChild("jcr:content");
+        assertNotNull(content, "the file should carry its content");
+        return content.getValueMap().get("jcr:mimeType", String.class);
+    }
+
+    private void ingestADocument() throws IOException
+    {
+        this.ingester.ingest(getFile(), this.markdown, this.pdf, 12000L);
+    }
+
+    @Test
+    void recordsWhatTheParseSaidAboutTheDocument() throws IOException
+    {
+        ingestADocument();
+
+        final ValueMap properties = getProperties();
+        assertEquals("completed", properties.get("parseStatus", String.class));
+        assertEquals(12000L, properties.get("tokens", Long.class));
+    }
+
+    @Test
+    void keepsTheMarkdownOfTheWholeDocument() throws IOException
+    {
+        ingestADocument();
+
+        final Resource stored = getFile().getChild("markdownFile");
+        assertNotNull(stored, "the Markdown is kept under a fixed name, not the one the file had");
+        assertEquals(MARKDOWN, readText(stored));
+        assertEquals("text/markdown", readMimeType(stored));
+    }
+
+    // Parsing the same upload again replaces the old output instead of failing because it already exists
+    @Test
+    void writesOverWhatAnEarlierParseLeft() throws IOException
+    {
+        ingestADocument();
+        Files.writeString(this.markdown, "# Revised", StandardCharsets.UTF_8);
+
+        ingestADocument();
+
+        assertEquals("# Revised", readText(getFile().getChild("markdownFile")));
+    }
+
+    @Test
+    void keepsThePdfTheMarkdownWasReadOutOf() throws IOException
+    {
+        ingestADocument();
+
+        final Resource stored = getFile().getChild("pdfFile");
+        assertNotNull(stored);
+        assertEquals(PDF, readText(stored));
+        assertEquals("application/pdf", readMimeType(stored));
+    }
+
+    @Test
+    void doesNotKeepAPdfTheUploadAlreadyIs() throws IOException
+    {
+        setUploadType("application/pdf");
+
+        ingestADocument();
+
+        assertNull(getFile().getChild("pdfFile"), "the upload is the PDF; one copy is enough");
+    }
+
+    @Test
+    void keepsARenderedPdfWhenTheUploadIsAnOfficeDocument() throws IOException
+    {
+        setUploadType("application/msword");
+
+        ingestADocument();
+
+        assertNotNull(getFile().getChild("pdfFile"), "nothing else holds the PDF LibreOffice made");
+    }
+
+    @Test
+    void copesWithNoPdfToKeep() throws IOException
+    {
+        Files.delete(this.pdf);
+
+        this.ingester.ingest(getFile(), this.markdown, this.pdf, 12000L);
+
+        assertEquals("completed", getProperties().get("parseStatus", String.class));
+        assertNotNull(getFile().getChild("markdownFile"));
+        assertNull(getFile().getChild("pdfFile"));
+    }
+
+    // Reading in does not clear the volume. What was read is still in an open transaction, and if the commit
+    // failed after the delete, there would be no parse and no outputs to make one again.
+    @Test
+    void leavesTheStagingFolderWhereItIsUntilSomebodyHasCommitted() throws IOException
+    {
+        ingestADocument();
+
+        assertEquals(List.of(), this.discarded, "clearing the volume is the committer's, not the ingester's");
+    }
+
+    @Test
+    void copesWithAParseTheDaemonDidNotMeasure() throws IOException
+    {
+        this.ingester.ingest(getFile(), this.markdown, this.pdf, null);
+
+        assertEquals("completed", getProperties().get("parseStatus", String.class));
+        assertNull(getProperties().get("tokens", Long.class), "a daemon that said nothing leaves the size unset");
+        assertNotNull(getFile().getChild("markdownFile"));
+    }
+
+    // A parse that says it finished, but names text the volume does not have, has not finished. Saved as
+    // completed, it would send an empty document on, and the document would be blamed.
+    @Test
+    void refusesToCallAParseDoneWhenItsTextIsNotThere() throws IOException
+    {
+        Files.delete(this.markdown);
+
+        this.ingester.ingest(getFile(), this.markdown, this.pdf, 12000L);
+
+        assertEquals("failed", getProperties().get("parseStatus", String.class));
+        // The path is on the volume, the file is just missing. Saying "not on the volume" would send someone
+        // looking in the wrong place.
+        assertEquals("The parse named " + this.markdown + ", which is not there",
+            getProperties().get("parseError", String.class));
+        assertNull(getFile().getChild("markdownFile"));
+        assertEquals(List.of(), this.discarded, "and clearing the volume is still the committer's");
+    }
+
+    @Test
+    void reportsAResultThatIsNotThere() throws IOException
+    {
+        Files.delete(this.markdown);
+
+        this.ingester.ingest(getFile(), this.markdown, this.pdf, 12000L);
+
+        verifyProblemReported();
+    }
+
+    @Test
+    void refusesToCallAParseDoneWhenItNamedNoTextAtAll() throws IOException
+    {
+        this.ingester.ingest(getFile(), null, this.pdf, 12000L);
+
+        assertEquals("failed", getProperties().get("parseStatus", String.class));
+        assertEquals("The parse finished without naming the text it produced",
+            getProperties().get("parseError", String.class));
+        assertNull(getFile().getChild("markdownFile"));
+        verifyProblemReported();
+    }
+
+    @Test
+    void refusesToRecordAParseOnSomethingItCannotWrite()
+    {
+        final Resource readOnly = SubmissionTree.wrapReadOnly(getFile());
+
+        assertThrows(PersistenceException.class,
+            () -> this.ingester.ingest(readOnly, this.markdown, this.pdf, 12000L));
+    }
+
+    // The paths come from the daemon, and this side does not control what it sends. Deleting already refuses
+    // a path outside the shared root, so reading must refuse the same paths.
+    @Test
+    void refusesToReadTextFromOutsideTheSharedVolume() throws IOException
+    {
+        final Path elsewhere = this.markdown.getParent().resolve("elsewhere.md");
+        Files.writeString(elsewhere, "# Not ours\n");
+
+        this.ingester.ingest(getFile(), elsewhere, this.pdf, 12000L);
+
+        assertEquals("failed", getProperties().get("parseStatus", String.class));
+        assertTrue(getProperties().get("parseError", String.class).contains("not on the shared volume"));
+        assertNull(getFile().getChild("markdownFile"));
+        verifyProblemReported();
+    }
+
+    @Test
+    void refusesToKeepAPdfFromOutsideTheSharedVolume() throws IOException
+    {
+        final Path elsewhere = this.pdf.getParent().resolve("elsewhere.pdf");
+        Files.write(elsewhere, new byte[] { 1, 2, 3 });
+        setUploadType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+
+        this.ingester.ingest(getFile(), this.markdown, elsewhere, 12000L);
+
+        assertEquals("completed", getProperties().get("parseStatus", String.class),
+            "the text was ours, so the parse still landed");
+        assertNotNull(getFile().getChild("markdownFile"));
+        assertNull(getFile().getChild("pdfFile"), "but the rendition named off the volume is not kept");
+    }
+}

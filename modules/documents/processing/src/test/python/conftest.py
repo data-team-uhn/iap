@@ -22,13 +22,52 @@ The modules under test (``markdown_cleanup``, ``markdown_markers``,
 their bare module name. This file sits in ``src/test/python``. Put the source directory
 on ``sys.path`` so the tests run the same way whether launched by Maven or by ``pytest``
 from anywhere else.
+
+``docling`` is a multi-GB install that CI leaves out. Without it, a stand-in takes its place
+so the daemon and the PDF loop can still be imported and their own logic tested. A test that
+needs the real package is marked ``requires_docling`` and skips.
 """
 
+import importlib.util
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
 
 # .../src/test/python/conftest.py -> parents[2] is .../src
 PYTHON_SOURCE_ROOT = Path(__file__).resolve().parents[2] / "main" / "python"
 
 if str(PYTHON_SOURCE_ROOT) not in sys.path:
     sys.path.insert(0, str(PYTHON_SOURCE_ROOT))
+
+HAS_DOCLING = importlib.util.find_spec("docling") is not None
+
+# Every docling module the code under src/main/python imports from
+DOCLING_MODULES = (
+    "docling",
+    "docling.datamodel",
+    "docling.datamodel.accelerator_options",
+    "docling.datamodel.base_models",
+    "docling.datamodel.document",
+    "docling.datamodel.pipeline_options",
+    "docling.datamodel.settings",
+    "docling.document_converter",
+)
+
+if not HAS_DOCLING:
+    for name in DOCLING_MODULES:
+        sys.modules[name] = MagicMock(name=name)
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "requires_docling: needs the real docling package")
+
+
+def pytest_collection_modifyitems(config, items):
+    if HAS_DOCLING:
+        return
+    skip = pytest.mark.skip(reason="docling not installed")
+    for item in items:
+        if "requires_docling" in item.keywords:
+            item.add_marker(skip)

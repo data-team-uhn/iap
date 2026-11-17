@@ -2,9 +2,10 @@
 
 Unit tests for the document-processing Python code in `../main/python`.
 
-Most of the suite runs anywhere, with no heavy dependencies. `test_docling_runtime.py`
-needs `docling` itself and skips via `importorskip` when it is absent, so a plain
-`python -m pytest` is always safe to run.
+The suite runs anywhere, with no heavy dependencies. Where `docling` is not installed,
+`conftest.py` puts a stand-in in its place, so the daemon and the PDF loop still import. Only
+tests marked `requires_docling` (all of `test_docling_config.py`) need the real package, and
+they skip without it.
 
 Production shape (what these tests exercise pieces of): Java stages an upload under
 `IAP_SHARED_DOCS` (default `/shared-docs`); the Docling daemon runs
@@ -21,8 +22,8 @@ which is the only file the parse itself writes.
 | `test_shared_docs.py` | the shared-docs allowlist, the input size ceilings, and the guarded write helpers |
 | `test_libreoffice_convert.py` | `soffice` invocation, its timeout and process-group kill, the best-effort sibling PDF |
 | `test_docling_batch_sizing.py` | worker/RAM/batch-page arithmetic, including cgroup v1 and v2 quota reading |
-| `test_docling_config.py` | the shared Docling pipeline options: heading hierarchy, table structure, timeouts |
-| `test_docling_runtime.py` | daemon plumbing with no model inference: `IAP_SHARED_DOCS` path allowlisting for `POST /parse`, body draining, health reporting, broken PDF-pool shutdown, batch-abandon path, and that `parse_document` writes the Markdown atomically |
+| `test_docling_config.py` | the shared Docling pipeline options: heading hierarchy, table structure, timeouts (needs the real `docling`) |
+| `test_docling_runtime.py` | daemon plumbing with no model inference: `IAP_SHARED_DOCS` path allowlisting for `POST /parse`, body draining, health reporting, broken PDF-pool shutdown, batch-abandon path, stopping one parse (`POST /cancel`), callback delivery, and that `parse_document` writes the Markdown atomically |
 
 ## Running
 
@@ -43,7 +44,7 @@ name regardless of where pytest is launched. `pytest.ini` limits collection to
 `src/test/python`.
 
 Requires `pytest`, `psutil` and `pypdf` on the interpreter used. `docling` is optional;
-without it `test_docling_runtime.py` skips.
+without it only `test_docling_config.py` skips.
 
 ## From the Maven build
 

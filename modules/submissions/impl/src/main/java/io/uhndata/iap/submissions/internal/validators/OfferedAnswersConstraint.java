@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 
 import org.osgi.service.component.annotations.Component;
 
-import io.uhndata.iap.schemas.models.AnswerOption;
+import io.uhndata.iap.schemas.models.OfferedOption;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.submissions.spi.AnswerConstraint;
 
@@ -33,7 +33,8 @@ import io.uhndata.iap.submissions.spi.AnswerConstraint;
  * freely, in whatever its data type accepts.
  *
  * <p>An option's value is what conditions compare against, so a value outside the options would make the request
- * ask questions nobody chose.</p>
+ * ask questions nobody chose. A catalogue item no longer offered, such as a retired category, is still accepted:
+ * a request that picked it before must stay savable.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,13 +45,17 @@ public final class OfferedAnswersConstraint implements AnswerConstraint
     @Override
     public Optional<String> refusal(final Question question, final List<String> values)
     {
+        if (values.isEmpty()) {
+            // Every save checks every question, and reading a catalogue for an unanswered one is wasted work
+            return Optional.empty();
+        }
         final Set<String> offered =
-            question.getOptions().stream().map(AnswerOption::getValue).collect(Collectors.toSet());
+            question.getOfferedOptions().stream().map(OfferedOption::value).collect(Collectors.toSet());
         if (offered.isEmpty()) {
             return Optional.empty();
         }
         return values.stream()
-            .filter(value -> !offered.contains(value))
+            .filter(value -> !offered.contains(value) && !question.isWithdrawnOption(value))
             .findFirst()
             .map(value -> "\"" + value + "\" is not one of the answers \"" + question.getText() + "\" offers.");
     }

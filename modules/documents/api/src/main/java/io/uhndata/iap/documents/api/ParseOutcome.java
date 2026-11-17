@@ -17,6 +17,9 @@
  */
 package io.uhndata.iap.documents.api;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * How a parse ended, for the node it was queued for.
  *
@@ -27,10 +30,24 @@ package io.uhndata.iap.documents.api;
  * @param markdownPath where the Markdown rendition is, on the shared volume; {@code null} on failure
  * @param tokens roughly how large the document turned out to be, as the daemon measured it; {@code null} when
  *            it did not say
+ * @param offeredAgain {@code true} when the sweep hands this outcome over again, at least two minutes after it
+ *            settled, so its target will not change any more; {@code false} the first time
  * @version $Id$
  * @since 0.1.0
  */
-public record ParseOutcome(String jobId, String target, boolean succeeded, String error, String markdownPath,
-    Long tokens)
+public record ParseOutcome(@NotNull String jobId, @NotNull String target, boolean succeeded, @Nullable String error,
+    @Nullable String markdownPath, @Nullable Long tokens, boolean offeredAgain)
 {
+    /** The error of a parse that was stopped before it finished, see {@link ParseControl#stopParse}. */
+    public static final String STOPPED_ERROR = "Stopped";
+
+    /**
+     * Whether the parse was stopped before it finished, rather than failing on its own.
+     *
+     * @return {@code true} for a stopped parse
+     */
+    public boolean isStopped()
+    {
+        return !this.succeeded && STOPPED_ERROR.equals(this.error);
+    }
 }
