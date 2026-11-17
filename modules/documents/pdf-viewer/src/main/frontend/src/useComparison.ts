@@ -33,13 +33,13 @@ const isView = (value: unknown): value is ComparisonView => value === "off" || v
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
 
 // How the person chose to see changes, on the newer version by default. Kept across documents and visits.
-export function useComparisonView() {
+function useComparisonView() {
   return useStoredSetting<ComparisonView>("iap.pdfComparison.view", "unified", isView);
 }
 
 // Whether the person chose to include minor changes, of punctuation or letter case. Off by default, and kept
 // across documents and visits.
-export function useStrictComparison() {
+function useStrictComparison() {
   return useStoredSetting<boolean>("iap.pdfComparison.strict", false, isBoolean);
 }
 
