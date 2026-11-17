@@ -1777,6 +1777,18 @@ describe("PdfViewer", () => {
         expect(screen.getByText("No matches")).toBeInTheDocument();
       });
 
+      it("reads only as far as the first page with text to tell that the document has text", async () => {
+        fakePdf.pages = [ "Cover.", "Contents.", "Foreword.", "Index." ];
+        show({ quote: "Yes" });
+        await screen.findByText("Page 1 of 4");
+        await userEvent.click(screen.getByRole("button", { name: "Search the document" }));
+
+        await userEvent.type(getSearchField(), "elephant");
+
+        await waitFor(() => expect(getStatus()).toHaveTextContent("No matches in this document."));
+        expect(fakePdf.textReads).toEqual([ 1 ]);
+      });
+
       it("says when the document has no text to search", async () => {
         fakePdf.pages = [ "", " " ];
         show({ quote: "Yes" });
