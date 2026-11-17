@@ -25,7 +25,8 @@ import {
   getChangeType,
   getNearestShown,
   getShownChanges,
-  getWordKey,
+  getLenientKey,
+  getStrictKey,
   getWords,
   joinChanges,
   mapPoint,
@@ -94,8 +95,8 @@ describe("getWords", () => {
   });
 });
 
-describe("getWordKey", () => {
-  const isSame = (one: string, other: string, strict = false) => getWordKey(one, strict) === getWordKey(other, strict);
+describe("getLenientKey and getStrictKey", () => {
+  const isSame = (one: string, other: string, getKey = getLenientKey) => getKey(one) === getKey(other);
 
   it("leaves case and the punctuation around a word out of the default comparison", () => {
     expect(isSame("Hello,", "hello")).toBe(true);
@@ -130,19 +131,19 @@ describe("getWordKey", () => {
     const word = `1${"!".repeat(100_000)}a`;
     const started = performance.now();
 
-    expect(getWordKey(`(${word}).`, false)).toBe(word);
+    expect(getLenientKey(`(${word}).`)).toBe(word);
     expect(performance.now() - started).toBeLessThan(1000);
   });
 
   it("leaves punctuation alone out of the default comparison", () => {
-    expect(getWordKey("—", false)).toBeUndefined();
-    expect(getWordKey("—", true)).toBe("—");
+    expect(getLenientKey("—")).toBeUndefined();
+    expect(getStrictKey("—")).toBe("—");
   });
 
   it("compares every character strictly, but a ligature as the letters it joins", () => {
-    expect(isSame("Hello,", "hello,", true)).toBe(false);
-    expect(isSame("ﬁle", "file", true)).toBe(true);
-    expect(isSame("co\u00adoperate", "cooperate", true)).toBe(true);
+    expect(isSame("Hello,", "hello,", getStrictKey)).toBe(false);
+    expect(isSame("ﬁle", "file", getStrictKey)).toBe(true);
+    expect(isSame("co\u00adoperate", "cooperate", getStrictKey)).toBe(true);
   });
 });
 

@@ -155,16 +155,24 @@ function trimEnds(text: string, start: RegExp, end: RegExp): string {
   return chars.slice(from, to).join("");
 }
 
-// The key two words are compared by, or undefined if the word has none. The strict key is the word as
-// written. The lenient key ignores case, the punctuation around the word, and the hyphens inside it, which a
-// line break may add or drop. It keeps apostrophes, so "patient's" and "patients" differ. A word with a digit
-// keeps its separators, hyphens and sign: "1,000" and "1.000" differ, as do "IL-6" and "IL6". Punctuation on
-// its own has no lenient key. Both keys read a ligature as the letters it joins, and drop soft hyphens.
-export function getWordKey(text: string, strict: boolean): string | undefined {
-  const plain = text.normalize("NFKC").replaceAll("\u00ad", "").replaceAll("−", "-");
-  if (strict) {
-    return plain === "" ? undefined : plain;
-  }
+// A word with a ligature read as the letters it joins, without soft hyphens, and with a minus as a hyphen.
+// Both keys start from it.
+function getPlainWord(text: string): string {
+  return text.normalize("NFKC").replaceAll("\u00ad", "").replaceAll("−", "-");
+}
+
+// The key two words are compared by strictly: the word as written, or undefined for no word.
+export function getStrictKey(text: string): string | undefined {
+  const plain = getPlainWord(text);
+  return plain === "" ? undefined : plain;
+}
+
+// The key two words are compared by by default, or undefined if the word has none. It ignores case, the
+// punctuation around the word, and the hyphens inside it, which a line break may add or drop. It keeps
+// apostrophes, so "patient's" and "patients" differ. A word with a digit keeps its separators, hyphens and
+// sign: "1,000" and "1.000" differ, as do "IL-6" and "IL6". Punctuation on its own has no key.
+export function getLenientKey(text: string): string | undefined {
+  const plain = getPlainWord(text);
   const key = /\p{N}/u.test(plain)
     ? trimEnds(plain, NUMBER_START, NUMBER_END).replace(/\p{Pd}/gu, "-")
     : trimEnds(plain, WORD_EDGE, WORD_EDGE).replace(/\p{Pd}/gu, "");
@@ -261,7 +269,7 @@ export function countMinorChanges(changes: RevisionChange[]): number {
 }
 
 interface KeyedWord extends Word {
-  // The word's keys from getWordKey, and `key`, the one the diff compares: the lenient key, or the strict one
+  // The word's keys from getStrictKey and getLenientKey, and `key`, the one the diff compares: the lenient key, or the strict one
   // for punctuation on its own.
   lenientKey: string | undefined;
   key: string;
@@ -274,8 +282,8 @@ function getKeyedWords(pages: PageText[]): KeyedWord[] {
   const keys = new Map<string, Pick<KeyedWord, "lenientKey" | "key" | "strictKey"> | undefined>();
   return getWords(pages).flatMap(word => {
     if (!keys.has(word.text)) {
-      const strictKey = getWordKey(word.text, true);
-      const lenientKey = getWordKey(word.text, false);
+      const strictKey = getStrictKey(word.text);
+      const lenientKey = getLenientKey(word.text);
       const keyed = strictKey === undefined ? undefined : { lenientKey, key: lenientKey ?? strictKey, strictKey };
       keys.set(word.text, keyed);
     }
@@ -565,7 +573,7 @@ function isMovedStart(older: KeyedWord, newer: KeyedWord, change: OpenChange): b
 }
 
 // Compares two versions of a document from their pages' text. Words are matched ignoring case and the
-// punctuation around them, as getWordKey says. A change of case or punctuation alone is minor, and a viewer
+// punctuation around them, as getLenientKey says. A change of case or punctuation alone is minor, and a viewer
 // may leave it out. The changes are numbered in document order, from `<idPrefix>-1`. A version with no text
 // cannot be compared, and two that differ past the limits are not. An unexpected error rejects the promise
 // rather than throwing.
