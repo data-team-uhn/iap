@@ -16,7 +16,14 @@
  * limitations under the License.
  */
 
-import { listed } from "@iap/frontend-commons/words";
+import { capitalize, listed } from "@iap/frontend-commons/words";
+
+describe("capitalize", () => {
+  it("puts the first letter in upper case, and leaves the rest and an empty word alone", () => {
+    expect(capitalize("passage of text")).toBe("Passage of text");
+    expect(capitalize("")).toBe("");
+  });
+});
 
 describe("listed", () => {
   it("joins the last word with \"and\" and the others with commas", () => {

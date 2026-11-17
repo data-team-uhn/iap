@@ -19,6 +19,8 @@
 // Suggests a name for new content before it is created, made from its text by the rule the server
 // names content by.
 
+import { capitalize } from "../words";
+
 import type { CreatableType } from "./fieldsModel";
 
 // How many words of a text make a name
@@ -32,7 +34,7 @@ function camelCase(text: string): string {
     .slice(0, NAME_WORDS)
     .map((word, at) => {
       const lower = word.toLowerCase();
-      return at === 0 ? lower : lower.charAt(0).toUpperCase() + lower.slice(1);
+      return at === 0 ? lower : capitalize(lower);
     })
     .join("");
 }

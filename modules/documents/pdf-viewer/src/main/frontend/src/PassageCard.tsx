@@ -27,9 +27,10 @@ import { visuallyHidden } from "@mui/utils";
 import { TEXT_ENTRY } from "@iap/frontend-commons/textEntry";
 import { usePhone } from "@iap/frontend-commons/usePhone";
 import { useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
+import { capitalize } from "@iap/frontend-commons/words";
 
 import { getCutShortStyle, getFailedColour, getPassageCardStyle, getPassageDetailsStyle, getPassageLayerStyle } from "./passageStyles";
-import { capitalize, describePages, type MarkName, type PassageNote } from "./pdfViewerModel";
+import { describePages, type MarkName, type PassageNote } from "./pdfViewerModel";
 
 import type { MarkKind } from "./marksModel";
 import type { SxProps, Theme } from "@mui/material/styles";
