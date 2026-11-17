@@ -30,7 +30,7 @@ import {
   POINT_WIDTH_RATIO,
   START_CLASS,
 } from "./markLayer";
-import { isChangeKind, MARK_KINDS } from "./marksModel";
+import { MARK_KINDS } from "./marksModel";
 
 import type { Theme } from "@mui/material/styles";
 
@@ -47,7 +47,7 @@ const MARK_FILL = "--iap-mark-fill";
 function getMarkColours(theme: Theme, outlineSelected: boolean): Record<string, object> {
   const { palette } = theme.vars ?? theme;
   return Object.fromEntries(MARK_KINDS.flatMap((kind): [ string, object ][] => {
-    const colour = isChangeKind(kind) ? palette.highlight[`${kind}Marker`] : palette[kind].main;
+    const colour = palette.highlight[`${kind}Marker`];
     return [
       [ `& .${MARK_CLASS}-${kind}`, {
         bgcolor: `var(${MARK_FILL})`,

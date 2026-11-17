@@ -935,6 +935,19 @@ describe("PdfViewer", () => {
       return onSelectMark;
     }
 
+    it("outlines the selected mark in the dark scheme as in the light one, since the page stays light", async () => {
+      render(
+        <ThemeProvider theme={appTheme} defaultMode="dark">
+          <PdfViewer url={URL} marks={MARKS} onClose={vi.fn()} />
+        </ThemeProvider>,
+      );
+
+      await waitFor(() => expect(getFrame().querySelector(".iap-mark-assistant.selected")).not.toBeNull());
+      const selected = getFrame().querySelector(".iap-mark-assistant.selected");
+      // #8A6184, the shade the light scheme writes the assistant's colour in
+      expect(selected === null ? "" : getComputedStyle(selected).outlineColor).toBe("rgb(138, 97, 132)");
+    });
+
     // A point on every mark the fake layout draws, whatever its page.
     const AT_MARK = { clientX: 50, clientY: MATCH_TOP + 10 };
 
