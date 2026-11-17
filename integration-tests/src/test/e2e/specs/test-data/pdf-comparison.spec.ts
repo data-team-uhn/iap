@@ -65,9 +65,12 @@ async function openComparison(page: Page): Promise<{ older: Locator; newer: Loca
   await expect(viewer.getByRole('status')).toHaveText(/^Change 1 of \d+\./);
   await viewer.getByRole('button', { name: /^Show \d+ changes/ }).click();
   await page.getByRole('menuitemradio', { name: 'Side by side' }).click();
-  const panes = viewer.getByRole('region', { name: 'Document' });
-  await expect(panes).toHaveCount(2);
-  return { older: panes.first(), newer: panes.last() };
+  const panes = {
+    older: viewer.getByRole('region', { name: 'Older version' }),
+    newer: viewer.getByRole('region', { name: 'Newer version' }),
+  };
+  await expect(panes.older).toBeVisible();
+  return panes;
 }
 
 /**

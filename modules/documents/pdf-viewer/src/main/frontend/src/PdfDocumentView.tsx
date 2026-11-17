@@ -120,8 +120,9 @@ const CHANGE_MARKS = {
 // The frame PDF.js shows the document in. PDF.js needs its scrolling container absolutely positioned, so
 // the box around it gives it its room. It is drawn again only when its props change. Its styles are the
 // costliest part of the viewer to draw, and the viewer draws often while it reads or searches the document.
-const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlineSelected }: {
+const DocumentFrame = memo(function DocumentFrame({ setFrame, name, edgeToEdge, outlineSelected }: {
   setFrame: (frame: HTMLDivElement | null) => void;
+  name: string;
   edgeToEdge: boolean;
   outlineSelected: boolean;
 }) {
@@ -129,7 +130,7 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
     <Box
       ref={setFrame}
       role="region"
-      aria-label="Document"
+      aria-label={name}
       tabIndex={0}
       sx={theme => ({
         position: "absolute",
@@ -164,8 +165,10 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
 // The document, filling the room left to it, with a spinner while it opens and a bar along its top while
 // marks are looked for in it. `children` are shown over the frame, placed in its coordinates. With
 // `edgeToEdge`, the document spans the full width of a phone screen.
-export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected, opening, looking, children }: {
+export default function PdfDocumentView({ setFrame, name, edgeToEdge, outlineSelected, opening, looking, children }: {
   setFrame: (frame: HTMLDivElement | null) => void;
+  // What the frame is called to a screen reader, as "Document", or a version's label beside another.
+  name: string;
   edgeToEdge: boolean;
   // Whether the selected mark is also outlined.
   outlineSelected: boolean;
@@ -184,7 +187,7 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected,
         mx: edgeToEdge ? { xs: -2, sm: 0 } : 0,
       }}
     >
-      <DocumentFrame setFrame={setFrame} edgeToEdge={edgeToEdge} outlineSelected={outlineSelected} />
+      <DocumentFrame setFrame={setFrame} name={name} edgeToEdge={edgeToEdge} outlineSelected={outlineSelected} />
       {opening
         ? (
           <CircularProgress
