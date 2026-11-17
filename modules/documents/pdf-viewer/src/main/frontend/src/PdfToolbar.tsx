@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The row of controls above the document: the page buttons, the search and the zoom buttons.
 import type { ReactNode } from "react";
 
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -24,8 +25,8 @@ import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { Box, IconButton, Typography } from "@mui/material";
 
-// The previous and next page buttons, with "Page 3 of 10" between them. In a narrow row only the label
-// gives way. Disabled until the document has opened.
+// The Previous page and Next page buttons, with "Page 3 of 10" between them. In a narrow row, the label is
+// cut short. Both buttons are disabled until the document has opened.
 export function PageControls({ page, pageCount, onShowPage }: {
   page?: number;
   pageCount?: number;
@@ -55,8 +56,8 @@ export function PageControls({ page, pageCount, onShowPage }: {
   );
 }
 
-// Searching and zooming, after the page controls when given. One line even on a narrow phone. Every
-// control is disabled until the document has opened.
+// The toolbar's one row: the page controls if given, then the search and the zoom buttons. It stays on one
+// line, even on a phone. The zoom buttons are disabled until the document has opened.
 export default function PdfToolbar({ pages, opened, search, onZoomIn, onZoomOut, onFitWidth }: {
   pages?: ReactNode;
   opened: boolean;

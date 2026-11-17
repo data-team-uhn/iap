@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The list of marks shown beside a document.
+
 import { memo, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { Box, ButtonBase, Typography } from "@mui/material";
@@ -44,14 +46,14 @@ import type { MarkPlaces } from "./useMarkPlaces";
 
 const LIST_WIDTH = 320;
 
-// How many lines of a passage, and of what the caller shows under it, an entry shows unless it is the one
-// selected. The focus inside what is cut shows all of it, so nothing is typed out of sight.
+// How many lines of its passage, and of the caller's details under it, a card shows unless it is selected.
+// Moving the focus into the details shows all of them, so nothing is typed out of sight.
 const MAX_LINES = 2;
 const MAX_DETAILS_LINES = 2;
 
-// The passages beside the document, each on a card in its mark's colour, with the caller's details for
-// it underneath. Clicking a card selects its passage. The selected passage is shown whole and kept in
-// view. Above them, a heading says which is selected of how many, with buttons stepping through them.
+// The marks beside the document, each on a card in its mark's colour with the caller's details for it
+// underneath. Clicking a card selects its mark. The selected mark's card is shown whole and kept in view.
+// Above the cards, a heading says which mark is selected of how many, with buttons stepping through them.
 function MarkList(props: {
   marks: Mark[];
   // What each mark is called and its place among those of its sort.
@@ -59,10 +61,11 @@ function MarkList(props: {
   places: MarkPlaces;
   status: ViewerStatus;
   selectedId: string | undefined;
-  // What shows a mark in place of its quote, such as a change's diff, if anything, and what that says to a
-  // screen reader, which does not read inside the entry's button.
+  // What shows a mark in place of its quote, such as a change's diff, if anything.
   renderBody?: (mark: Mark) => ReactNode;
+  // What that body says, for a screen reader, given as the description of the card's button.
   describeBody?: (mark: Mark) => string | undefined;
+  // What the caller shows under a mark's card, such as its comments, given whether the mark is selected.
   renderDetails?: (mark: Mark, selected: boolean) => ReactNode;
   onSelect: (id: string) => void;
 }) {
@@ -71,6 +74,7 @@ function MarkList(props: {
   const entries = useRef(new Map<string, HTMLElement>());
   const edges = useScrollEdges(list);
 
+  // Keeps the selected card in view.
   useEffect(() => {
     const entry = selectedId === undefined ? undefined : entries.current.get(selectedId);
     if (list !== null && entry !== undefined) {
@@ -80,7 +84,7 @@ function MarkList(props: {
 
   const position = marks.findIndex(mark => mark.id === selectedId) + 1;
   const selected = naming.get(selectedId ?? "");
-  // With none of them selected, as while a change is side by side, it says how many there are.
+  // With no mark selected, the heading says how many there are.
   const heading = selected === undefined ? countMarks(naming.values()) : describeAmong(selected.name, selected);
 
   return (
@@ -164,13 +168,14 @@ function MarkList(props: {
   );
 }
 
+// The caller's details under a card, cut short while `cut`, and shown whole while the focus is inside them.
 function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
   const [box, setBox] = useState<HTMLDivElement | null>(null);
   const edges = useScrollEdges(box);
   return (
     <Box
       ref={setBox}
-      // Back to its top once the focus leaves, wherever the focus scrolled it while it was cut
+      // Scrolls back to the top once the focus leaves
       onBlur={event => {
         if (!event.currentTarget.contains(event.relatedTarget)) {
           event.currentTarget.scrollTop = 0;
@@ -186,6 +191,7 @@ function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
   );
 }
 
+// The button showing a mark's passage, or what stands in for it, and its note. Clicking it selects the mark.
 function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSelect }: {
   mark: Mark;
   body: ReactNode;

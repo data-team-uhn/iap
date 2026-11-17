@@ -15,6 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Tests opening a PDF, against the fake PDF.js in pdfjs.fixture and a fetch that answers with the URL
+// asked for.
+
 import { renderHook, waitFor } from "@testing-library/react";
 
 import { usePdfDocument } from "@iap/documents-pdf-viewer/usePdfDocument";
@@ -61,7 +65,7 @@ describe("usePdfDocument", () => {
     expect(result.current.pdf).not.toBe(dropped);
   });
 
-  // The worker is shared for good, so this one is started from fresh modules, apart from the other tests'
+  // The worker lives as long as its module, so this test fails a worker of its own, from fresh modules.
   it("asks for a reload when PDF.js's worker never started, rather than opening for ever", async () => {
     vi.resetModules();
     const { loadPdfjs } = await import("@iap/frontend-commons/pdfjsClient");

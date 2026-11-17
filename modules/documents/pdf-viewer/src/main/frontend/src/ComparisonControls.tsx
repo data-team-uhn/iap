@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The controls above a document compared with an older version: how its changes are shown, and stepping
+// through them.
 import { useId, useState } from "react";
 
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
@@ -39,6 +41,7 @@ import StepControls from "./StepControls";
 import type { RevisionChange } from "./revisionDiffModel";
 import type { ComparisonView } from "./useComparison";
 
+// The ways to show changes, as the menu lists them.
 const VIEWS: { view: ComparisonView; label: string }[] = [
   { view: "off", label: "Off" },
   { view: "unified", label: "On the newer version" },
@@ -46,25 +49,26 @@ const VIEWS: { view: ComparisonView; label: string }[] = [
 ];
 
 interface ChangesMenuProps {
-  // The view chosen, and the one shown, which a narrow viewer keeps from being side by side.
+  // The view chosen, and the one shown, which differs when side by side is chosen with no room for it.
   view: ComparisonView;
   shownView: ComparisonView;
   onViewChange: (view: ComparisonView) => void;
+  // Whether minor changes are included.
   strict: boolean;
   onStrictChange: (strict: boolean) => void;
-  // How many minor changes there are, and how many changes are shown, once known.
+  // How many minor changes there are, once compared, and how many changes are shown, once there are any.
   minor: number | undefined;
   count: number | undefined;
-  // A narrow viewer has no room side by side.
+  // Whether the viewer is too narrow to show the versions side by side.
   narrow: boolean;
 }
 
-// A menu item's lines wrap on a narrow screen, rather than running out of it.
+// Lets a menu item's lines wrap on a narrow screen rather than run off it.
 const WRAPPING = { whiteSpace: "normal" };
 
-// Whether and how changes are shown, chosen from a menu, which also has minor changes included or not. Its
-// label counts the changes shown, once there are some. The menu stays open as minor changes are included
-// or left out.
+// The menu choosing whether and how changes are shown, and whether minor changes are included. Its label
+// counts the changes shown, once there are some. The menu stays open while minor changes are included or
+// left out.
 function ChangesMenu(props: ChangesMenuProps) {
   const { view, shownView, onViewChange, strict, onStrictChange, minor, count, narrow } = props;
   const [menuAt, setMenuAt] = useState<HTMLElement | null>(null);
@@ -99,7 +103,7 @@ function ChangesMenu(props: ChangesMenuProps) {
         anchorEl={menuAt}
         open={menuAt !== null}
         onClose={() => setMenuAt(null)}
-        // The keyboard reaches a choice there is no room for, to hear why.
+        // The keyboard can reach a choice there is no room for, and hear why it is disabled.
         slotProps={{ list: { disabledItemsFocusable: true, "aria-labelledby": labelId } }}
       >
         {VIEWS.map(({ view: each, label }) => {
@@ -109,7 +113,7 @@ function ChangesMenu(props: ChangesMenuProps) {
               key={each}
               role="menuitemradio"
               aria-checked={shownView === each}
-              // The menu opens on the choice made
+              // The menu opens with the focus on the choice made.
               selected={shownView === each}
               disabled={unavailable}
               sx={WRAPPING}
@@ -139,6 +143,7 @@ function ChangesMenu(props: ChangesMenuProps) {
   );
 }
 
+// The label of the menu item including minor changes, with how many there are once known.
 function describeMinorOption(minor: number | undefined): string {
   if (minor === undefined) {
     return "Include minor changes";
@@ -149,12 +154,11 @@ function describeMinorOption(minor: number | undefined): string {
   return `Include ${minor} minor ${minor === 1 ? "change" : "changes"}`;
 }
 
-// The row above a document compared with an older version: the menu choosing how its changes are shown,
-// side by side the controls stepping through them, and a caption saying how the comparison goes or what it
-// leaves out. The caption follows on the same row where there is room, and goes under the menu where there
-// is not.
+// The row of controls above a document compared with an older version. It has the menu choosing how changes
+// are shown, the controls stepping through the changes given, and a caption about the comparison. Each
+// follows on the same row where there is room, and wraps onto the next row where there is not.
 export default function ComparisonControls(props: ChangesMenuProps & {
-  // The changes to step through side by side, if any, and which is selected, -1 for none.
+  // The changes to step through, if any, and the index of the one selected, -1 for none.
   changes: RevisionChange[] | undefined;
   selectedIndex: number;
   onShowChange: (id: string) => void;

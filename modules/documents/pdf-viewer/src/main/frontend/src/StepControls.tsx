@@ -15,23 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Previous and Next buttons stepping through a list of marks, such as passages or changes.
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { Box, IconButton, Typography } from "@mui/material";
 
 // Steps through a list one item at a time, with Previous and Next buttons around the position, as in
-// "2 of 5". Each button is disabled at its end of the list. Positions count from 1. Given a heading, as
-// above a list, it shows that between the buttons instead of the count. The text between the buttons
-// keeps the width of the widest it can take, the count's at its last position or the `widest` given, laid
-// out unseen under it, so stepping never moves the buttons.
+// "2 of 5". Positions count from 1. Each button is disabled at its end of the list. Given a heading, it
+// shows the heading between the buttons instead of the count. The text between the buttons keeps the
+// width of the widest text it can take, so stepping never moves the buttons. That is the count at the
+// last position, or else the `widest` texts given with the heading.
 export default function StepControls({ position, count, itemName, heading, widest, onStep }: {
   position: number;
   count: number;
-  // The item's name in the button labels, as "passage" in "Next passage", or the names of the items each
-  // button goes to, where the items are of more than one sort.
+  // The item's name in the button labels, as "passage" in "Next passage". Where the items are of more than
+  // one sort, it gives each button the name of the item it goes to.
   itemName: string | { previous: string; next: string };
   heading?: string;
-  // The widest texts the heading takes as the position changes.
+  // The widest texts the heading can take at any position.
   widest?: string[];
   onStep: (position: number) => void;
 }) {
@@ -59,7 +60,7 @@ export default function StepControls({ position, count, itemName, heading, wides
           "& > *": { gridArea: "1 / 1" },
         }}
       >
-        {/* Drawn by CSS rather than as text, so it is no text of the page's */}
+        {/* Hidden copies of the widest texts hold the width. CSS draws them, so they are not in the page's text. */}
         {[ ...new Set(sizes) ].filter(size => size !== text).map(size => (
           <Typography
             key={size}

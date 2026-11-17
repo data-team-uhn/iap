@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests the PDF viewer test widget, against a stand-in viewer that shows what the widget hands it.
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -22,6 +23,7 @@ import type { TextAnchor } from "@iap/documents-pdf-viewer/marksModel";
 import type { PdfViewerProps } from "@iap/documents-pdf-viewer/PdfViewer";
 import PdfViewerTestWidget from "@iap/test-data/PdfViewerTestWidget";
 
+// The anchor of the passage the stand-in's Comment button selects.
 const ANCHOR: TextAnchor = {
   start: { page: 2, char: 47 },
   end: { page: 2, char: 64 },
@@ -63,6 +65,7 @@ function getMarks(): unknown[] {
     .map(output => JSON.parse(output.textContent ?? "") as unknown);
 }
 
+// Fills the form with a PDF URL and the options given, then presses Open.
 async function open({ quotes = "", older = "", commenting = true } = {}) {
   render(<PdfViewerTestWidget />);
   await userEvent.type(screen.getByLabelText("PDF URL"), " /some/file.pdf ");

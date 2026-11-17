@@ -15,6 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests the words the PDF viewer shows for its document, marks and searches, and where it places the
+// Comment button.
+
 import type { MarkPlace } from "@iap/documents-pdf-viewer/marksModel";
 import {
   COMMENT_BUTTON_HEIGHT,

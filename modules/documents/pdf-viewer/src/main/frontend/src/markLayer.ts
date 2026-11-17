@@ -15,8 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Draws marks on the text layers PDF.js draws over a document's pages. It also reads those layers back,
+// for the mark the pointer is on, the text a selection covers, and where a place in the text is drawn.
+
 import type { MarkKind, MarkSpan, TextPoint } from "./marksModel";
 
+// Set on every piece of a mark drawn, along with `iap-mark-<kind>`.
 export const MARK_CLASS = "iap-mark";
 
 // Set on a mark that is a point between two characters, such as where a comparison found text removed.
@@ -43,8 +48,8 @@ interface TextNodeAt {
   start: number;
 }
 
-// The text nodes of a text layer, each with where it starts in the layer's text, which is theirs joined:
-// the page's text as PDF.js reads it.
+// The text nodes of a text layer, each with where it starts in the layer's text. The layer's text is
+// theirs joined, which is the page's text as PDF.js reads it.
 function getTextNodes(textLayer: HTMLElement): TextNodeAt[] {
   const nodes: TextNodeAt[] = [];
   let offset = 0;
@@ -107,9 +112,9 @@ function joinLines(rects: DOMRect[]): DOMRect[] {
   return joined;
 }
 
-// Where a point is drawn: a box with no width, as high as its line. It sits beside the text it belongs to,
-// at the left edge of the character after it when it starts that text, and at the right edge of the
-// character before it otherwise. Without a character on that side, it sits at the other one.
+// Where a point is drawn: a box with no width, as high as its line. A point that starts the text after it
+// sits at the left edge of the next character. Any other point sits at the right edge of the character
+// before it. Without a character on that side, it sits at the other one.
 function getPointRect(nodes: TextNodeAt[], offset: number, starts = false): DOMRect | undefined {
   const after = getTextRects(nodes, offset, offset + 1).at(0);
   const before = offset > 0 ? getTextRects(nodes, offset - 1, offset).at(-1) : undefined;
@@ -139,8 +144,7 @@ export interface MeasuredMarks {
 }
 
 // Where each mark goes on a page's text layer, in percentages of it, so the marks scale with the page as
-// PDF.js zooms it. This only reads the page's layout, so measuring every page before placing on any lays
-// the document out once.
+// PDF.js zooms it. This only reads the page's layout and changes nothing.
 export function measureMarks(textLayer: HTMLElement, marks: PageMark[]): MeasuredMarks {
   const nodes = marks.length === 0 ? [] : getTextNodes(textLayer);
   if (nodes.length === 0) {
@@ -169,7 +173,7 @@ export function measureMarks(textLayer: HTMLElement, marks: PageMark[]): Measure
 
 // Places measured marks on their text layer, replacing any placed before. They go inside the text layer,
 // which PDF.js keeps when zooming. They go under its text, so the matches of a search, drawn on the text,
-// show over them.
+// show over them. They let the pointer through, so text can be selected across them.
 export function placeMarks({ textLayer, pieces }: MeasuredMarks, selectedId: string | undefined): void {
   textLayer.querySelector(`:scope > .${LAYER_CLASS}`)?.remove();
   if (pieces.length === 0) {
@@ -204,7 +208,7 @@ export function selectMarks(frame: HTMLElement, selectedId: string | undefined):
 }
 
 // The text a range selects on the pages drawn in the frame, as one span per page, in order, without the
-// spaces at either end. None when it selects no text.
+// spaces at either end. Empty when it selects no text.
 export function getSelectedSpans(frame: HTMLElement, range: Range): MarkSpan[] {
   const selected = Array.from(frame.querySelectorAll<HTMLElement>("[data-page-number]")).flatMap(pageView => {
     const textLayer = pageView.querySelector<HTMLElement>(".textLayer");
@@ -234,8 +238,8 @@ export function getSelectedSpans(frame: HTMLElement, range: Range): MarkSpan[] {
   return selected.map(({ page, start, end }) => ({ page, start, end }));
 }
 
-// The box of the last piece of text the spans cover in the frame. None when they cover no text, or their
-// last page is not drawn.
+// The box of the last piece of text the spans cover in the frame. `undefined` when they cover no text, or
+// their last page is not drawn.
 export function getTextEnd(frame: HTMLElement, spans: MarkSpan[]): DOMRect | undefined {
   const last = spans.at(-1);
   if (last === undefined) {
@@ -246,8 +250,8 @@ export function getTextEnd(frame: HTMLElement, spans: MarkSpan[]): DOMRect | und
 }
 
 // The place in the frame's text at a height in the window. It is the start of the first piece of text
-// reaching down to that height, on the first page reaching down to it. None while that page's text is not
-// drawn.
+// reaching down to that height, on the first page reaching down to it. `undefined` while that page's text
+// is not drawn, or below every page.
 export function getTextPointAt(frame: HTMLElement, y: number): TextPoint | undefined {
   const pageView = Array.from(frame.querySelectorAll<HTMLElement>("[data-page-number]"))
     .find(view => view.getBoundingClientRect().bottom >= y);
@@ -261,7 +265,7 @@ export function getTextPointAt(frame: HTMLElement, y: number): TextPoint | undef
 }
 
 // Where a point of a page's text is drawn in the frame. It is the box of the character at it, or of the
-// point itself at the end of the text. None while its page's text is not drawn.
+// point itself at the end of the text. `undefined` while its page's text is not drawn.
 export function getTextPointRect(frame: HTMLElement, { page, char }: TextPoint): DOMRect | undefined {
   const textLayer = frame.querySelector<HTMLElement>(`[data-page-number="${page}"] .textLayer`);
   if (textLayer === null) {
@@ -276,20 +280,22 @@ export function findMark(frame: HTMLElement, id: string): HTMLElement | undefine
   return Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).find(mark => mark.dataset.markId === id);
 }
 
-// A point is drawn as a box centred on it, POINT_SIZE_RATIO of the line's height high, but no lower than
-// POINT_MIN_SIZE, and POINT_WIDTH_RATIO as wide as it is high.
+// A point is drawn as a box centred on it. The box is POINT_SIZE_RATIO of the line's height high, but no
+// lower than POINT_MIN_SIZE pixels, and POINT_WIDTH_RATIO as wide as it is high.
 export const POINT_SIZE_RATIO = 1.2;
 export const POINT_MIN_SIZE = 22;
 export const POINT_WIDTH_RATIO = 0.6;
 
-// The same height, as CSS, for drawing a point. The two have to agree, so that a point's target is where it
-// is drawn.
+// The height a point is drawn at, as CSS. It has to agree with the constants above, so that a point's
+// target for the pointer is where it is drawn.
 export const POINT_HEIGHT = `max(${100 * POINT_SIZE_RATIO}%, ${POINT_MIN_SIZE}px)`;
 
-// The least size of a point's target for the pointer, however small it is drawn. On a touch screen it is
-// a fingertip.
+// The least size, in pixels, of a point's target for the pointer, however small it is drawn. On a touch
+// screen it is a fingertip.
 const POINT_HIT_SIZE = { touch: 40, mouse: 16 };
 
+// The box the pointer has to be in to reach a mark. For a point, it is the box the point is drawn in, made
+// at least pointSize wide and high.
 function getHitBox(mark: HTMLElement, pointSize: number): DOMRect {
   const box = mark.getBoundingClientRect();
   if (!mark.classList.contains(POINT_CLASS)) {
@@ -300,10 +306,10 @@ function getHitBox(mark: HTMLElement, pointSize: number): DOMRect {
   return new DOMRect(box.left + (box.width - width) / 2, box.top + (box.height - height) / 2, width, height);
 }
 
-// The mark drawn at a point in the frame, if any. Marks let the pointer through, so text can be
-// selected across them, and a click is matched to a mark here by where it falls, or, for a point, within
-// a fingertip of it on a touch screen. A mark the click falls on comes before a point it is only beside.
-// Where marks overlap, one not selected comes first, so clicking again reaches the other.
+// The mark drawn at a place in the frame, if any. Marks let the pointer through, so a click is matched to
+// a mark here, by where it falls. A point is reached within a fingertip of it on a touch screen. A mark the
+// click falls on comes before a point it is only beside. Where marks overlap, one not selected comes first,
+// so clicking again reaches the other.
 export function findMarkAt(frame: HTMLElement, x: number, y: number, touch = false): string | undefined {
   const pointSize = touch ? POINT_HIT_SIZE.touch : POINT_HIT_SIZE.mouse;
   const hits = Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).flatMap(mark => {
@@ -315,7 +321,7 @@ export function findMarkAt(frame: HTMLElement, x: number, y: number, touch = fal
   return (closest.find(mark => !mark.classList.contains("selected")) ?? closest.at(0))?.dataset.markId;
 }
 
-// How far a place is from where a mark is drawn, none when on it.
+// How far a place in the frame is from where a mark is drawn, zero when on it.
 function getDistance(mark: HTMLElement, x: number, y: number): number {
   const { left, right, top, bottom } = getHitBox(mark, 0);
   return Math.hypot(Math.max(left - x, 0, x - right), Math.max(top - y, 0, y - bottom));
@@ -332,7 +338,8 @@ export function keepInView(container: HTMLElement, element: HTMLElement): void {
   }
 }
 
-// Scrolls the container, and only it, so the element sits in the middle of it.
+// Scrolls the container, and only it, so the element sits in the middle of it. An element larger than
+// the container goes to its top or left edge instead.
 export function centreIn(container: HTMLElement, element: HTMLElement): void {
   const outer = container.getBoundingClientRect();
   const inner = element.getBoundingClientRect();

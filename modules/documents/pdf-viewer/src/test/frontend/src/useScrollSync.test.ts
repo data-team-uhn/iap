@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests scrolling two versions together, on panes built by hand. jsdom lays nothing out, so each test sets
+// where the drawn text is.
 import { fireEvent, renderHook } from "@testing-library/react";
 
 import type { Alignment } from "@iap/documents-pdf-viewer/revisionDiffModel";
@@ -28,7 +30,8 @@ const ALIGNMENT: Alignment = {
   pairs: [ [ 0, 0 ] ],
 };
 
-// A frame with a first page, its text not drawn yet, and the bus PDF.js tells when it is drawn.
+// A pane's frame with a first page whose text is not drawn yet, and the event bus that reports when it is.
+// `drawText` draws the text and tells the bus.
 function createShown() {
   const frame = document.createElement("div");
   const page = document.createElement("div");
@@ -61,7 +64,7 @@ async function scrollByHand(frame: HTMLElement) {
 }
 
 describe("useScrollSync", () => {
-  // Where the drawn text is, as jsdom cannot lay it out: from the top of the window.
+  // Where every line of drawn text starts, from the top of the window.
   let textTop = 0;
 
   beforeEach(() => {
@@ -98,7 +101,7 @@ describe("useScrollSync", () => {
     older.drawText();
     const newer = createShown();
     Object.defineProperty(newer.shown.frame, "clientHeight", { value: 100 });
-    // The middle of the one scrolled, where jsdom puts every page, is 10 into a line
+    // The line of text starts 10 above the middle of the version scrolled.
     textTop = -10;
     const showNewer = vi.fn();
     renderHook(() => useScrollSync({
@@ -146,7 +149,7 @@ describe("useScrollSync", () => {
     };
 
     fireEvent.pointerDown(older.shown.frame);
-    // Held still for longer than a scroll by hand otherwise counts, then dragged on
+    // The pointer stays down for longer than a scroll by hand counts for, then drags on.
     await scrollAt(2000);
     expect(showNewer).toHaveBeenCalledOnce();
     fireEvent.pointerUp(window);

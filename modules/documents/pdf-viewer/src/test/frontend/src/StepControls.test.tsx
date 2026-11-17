@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests of the controls stepping through a list. The hidden texts that hold their width are found by their
+// `data-size` attribute, since they are not in the page's text.
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 

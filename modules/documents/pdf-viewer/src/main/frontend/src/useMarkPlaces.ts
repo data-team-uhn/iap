@@ -15,6 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Finds where each mark's passage is in an opened PDF, reading the pages' text a few at a time between
+// the viewer's frames.
+
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { getMarkKey, getPlacedPages, isLooking, MarkLocator, type Mark, type MarkPlace } from "./marksModel";
@@ -25,11 +29,11 @@ import type { OpenedDocument } from "./usePdfDocument";
 export type MarkPlaces = Record<string, MarkPlace>;
 
 // The least time, in milliseconds, between reports of how many pages have been read, unless a passage's
-// place changes sooner. Each report draws the viewer again.
+// place changes sooner.
 const PROGRESS_INTERVAL = 200;
 
-// The longest time, in milliseconds, spent reading pages before the browser is let draw. A page already
-// read comes back at once, so without a pause the pages could be gone through without the viewer drawing.
+// The longest time, in milliseconds, spent reading pages before letting the browser draw. A page already
+// read comes back at once, so without a pause a run of such pages would keep the viewer from drawing.
 const FRAME_BUDGET = 16;
 
 // The places last found in a document, for the marks they were found for.
@@ -53,10 +57,10 @@ function getUnchangedPlaces(known: KnownPlaces | undefined, pdf: OpenedDocument,
   }));
 }
 
-// Where each mark's passage is in the document, as its pages are read. Pages that marks say they are on
-// are read first, then the rest in order. Reading stops once no passage is still being looked for, as
-// reading takes PDF.js from drawing the pages in view. A mark that has not changed keeps the place already
-// found for it. Also how many pages have been read so far.
+// Where each mark's passage is in the document, as its pages are read, and how many pages have been read
+// so far. The pages marks say they are on are read first, then the rest in order. Reading stops once no
+// passage is still being looked for, since reading takes PDF.js away from drawing the pages in view. A
+// mark that has not changed keeps the place already found for it.
 export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): { places: MarkPlaces; read: number } {
   const [found, setFound] = useState<KnownPlaces & { read: number } | undefined>(undefined);
   // The places last found, for the next marks to keep what has not changed.
@@ -103,7 +107,7 @@ export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): {
         read++;
         const latest = { ...kept, ...locator.getPlaces() };
         const serialized = JSON.stringify(latest);
-        // Most pages change nothing, and each change draws the marks again.
+        // Most pages change no place, and each new set of places draws the marks again.
         const changedPlaces = serialized !== last;
         if (changedPlaces) {
           last = serialized;
@@ -118,6 +122,8 @@ export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): {
     return () => stop.abort();
   }, [pdf, marks]);
 
+  // Until the reading reports for these marks in this document, the marks that have not changed keep their
+  // places. The others have the places they have before any page is read.
   return useMemo(() => {
     if (found?.marks === marks && found.pdf === pdf) {
       return { places: found.places, read: found.read };

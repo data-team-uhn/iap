@@ -15,32 +15,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The styles of the cards that show marks, in the colour of each kind of mark, and of the text on them.
+
 import { fadeEdges, type ScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 
 import { isChangeKind, type MarkKind } from "./marksModel";
 
 import type { Theme } from "@mui/material/styles";
 
-// Styles that cut text short past the given number of lines.
+// Styles that cut text short after `lines` lines.
 export function getCutShortStyle(lines: number) {
   return { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden" } as const;
 }
 
-// The colour of a kind of mark. A passage's is its palette colour, in the shade asked for. A change, whatever
-// it added or removed, is neutral: its lines carry the colour.
+// The colour of a kind of mark. A passage's is its palette colour, in the shade asked for. A change's is
+// neutral whatever its kind, since the removed and added text it shows carries the colour.
 export function getMarkColour(theme: Theme, kind: MarkKind, shade: "main" | "light" = "main"): string {
   const { palette } = theme.vars ?? theme;
   return isChangeKind(kind) ? palette.divider : palette[kind][shade];
 }
 
-// The outline of a selected card in the list. A passage's is its mark's colour. A change's is a grey dark
-// enough to show against the paper, since its neutral colour is too light for that.
+// The outline of a selected card. A passage's is its mark's colour. A change's is the secondary text
+// colour, since the change's own neutral colour is too light to show against the paper.
 export function getSelectedOutline(theme: Theme, kind: MarkKind): string {
   return isChangeKind(kind) ? (theme.vars ?? theme).palette.text.secondary : getMarkColour(theme, kind);
 }
 
-// The background of a passage's card, a tint of its mark's colour. A stronger tint shows the card
-// selected or under the pointer. A change's card is untinted, and greys as a list item does.
+// The tint of a card's background: its mark's light colour at the opacity `strength`. A change's card has
+// no tint up to a strength of 0.25, and the hover grey above it.
 export function getPassageTint(theme: Theme, kind: MarkKind, strength: number): string {
   if (isChangeKind(kind)) {
     return strength > 0.25 ? (theme.vars ?? theme).palette.action.hover : "transparent";
@@ -48,9 +50,9 @@ export function getPassageTint(theme: Theme, kind: MarkKind, strength: number): 
   return theme.alpha(getMarkColour(theme, kind, "light"), strength);
 }
 
-// The card a passage is on: a stripe of its mark's colour at its start, over a tint of it on the paper, so
-// it reads the same on the grey of the list and on the dialog. A change's card is also outlined, as it
-// has no tint to set it apart from the dialog.
+// The card a mark is shown on: a stripe of the mark's colour along its start edge, and a tint of that
+// colour over the paper. The paper under the tint makes the card look the same on any background. A
+// change's card is also outlined, since it has no tint to set it apart.
 export function getPassageCardStyle(theme: Theme, kind: MarkKind, strength = 0.25) {
   const tint = getPassageTint(theme, kind, strength);
   return {
@@ -63,15 +65,15 @@ export function getPassageCardStyle(theme: Theme, kind: MarkKind, strength = 0.2
   };
 }
 
-// The background of a passage's own text, a shade deeper in its mark's colour than its card, setting it
-// apart from what the caller shows under it.
+// The background of the part of a card that shows the passage: a second tint over the card's, setting the
+// passage apart from the details under it.
 export function getPassageLayerStyle(theme: Theme, kind: MarkKind) {
   return { bgcolor: getPassageTint(theme, kind, 0.25) };
 }
 
-// What the caller shows under a passage, such as comments, cut short past `lines` lines when given, and
-// faded out where it is cut. The room above keeps a field's label, which reaches up out of the field, from
-// being cut off. Hidden when empty.
+// The style of the details a card shows under the passage, such as comments. With `lines`, they are cut
+// short after that many lines. They fade out at each edge `edges` says has more. The padding on top keeps
+// a field's label, which reaches up out of the field, from being cut off. Hidden when empty.
 export function getPassageDetailsStyle(edges: ScrollEdges, lines?: number) {
   return {
     pt: 1,
@@ -82,8 +84,7 @@ export function getPassageDetailsStyle(edges: ScrollEdges, lines?: number) {
   };
 }
 
-// The error colour, in the shade that stays readable as small text in each scheme, on a passage's card or
-// beside a search
+// The error colour, in a shade that stays readable as small text in both the light and the dark scheme.
 export function getFailedColour(theme: Theme) {
   const { error } = (theme.vars ?? theme).palette;
   return { color: error.dark, ...theme.applyStyles("dark", { color: `color-mix(in srgb, ${error.main}, white)` }) };

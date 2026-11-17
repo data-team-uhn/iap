@@ -20,15 +20,10 @@ import { expect, test, type Browser, type Locator, type Page } from '@playwright
 
 import { ADMIN, signInAs } from '../../support/auth';
 
-/**
- * Two versions of a PDF compared side by side, in a real browser, since only a browser lays the pages out.
- * The PDFs are printed by Chromium and served by the test itself, so nothing is stored on the instance.
- */
-
 const OLDER = '/e2e/pdf-comparison/older.pdf';
 const NEWER = '/e2e/pdf-comparison/newer.pdf';
 
-/** A paragraph of one line, which says its number, the same in both versions. */
+/** A paragraph of one line naming its number, the same in both versions. */
 const paragraph = (number: number): string => `Paragraph ${number} reads the same in both versions.`;
 
 /** The older version: 150 numbered paragraphs, over several pages. */
@@ -64,6 +59,7 @@ async function getMiddleParagraph(pane: Locator): Promise<number> {
   });
 }
 
+/** Signs in, opens the versions compared in a dialog, and shows them side by side. */
 async function openComparison(page: Page): Promise<{ older: Locator; newer: Locator }> {
   await signInAs(page, ADMIN);
   await page.goto('/');
@@ -82,6 +78,10 @@ async function openComparison(page: Page): Promise<{ older: Locator; newer: Loca
   return { older: panes.first(), newer: panes.last() };
 }
 
+/**
+ * Two versions of a PDF compared side by side, in a real browser, which lays the pages out. Chromium prints
+ * the PDFs and the test serves them itself, so nothing is stored on the instance.
+ */
 test.describe('comparing two versions of a PDF', () => {
   test.skip(({ browserName }) => browserName !== 'chromium', 'Only Chromium prints a page to PDF');
 
@@ -122,7 +122,8 @@ test.describe('comparing two versions of a PDF', () => {
 
     await expect(status).toHaveText(/^Change 2 of \d+\. Text removed on page/);
     await expect(older.locator('.iap-mark-removed.selected').first()).toBeInViewport();
-    // The removed paragraphs are the 60th to the 80th: the older version shows them, the newer what is around.
+    // The removed paragraphs are the 60th to the 80th. The older version shows them, and the newer the
+    // paragraphs around where they were.
     await expect.poll(() => getMiddleParagraph(older)).toBeGreaterThanOrEqual(58);
     expect(await getMiddleParagraph(older)).toBeLessThanOrEqual(82);
     await expect.poll(() => getMiddleParagraph(newer)).toBeGreaterThanOrEqual(55);

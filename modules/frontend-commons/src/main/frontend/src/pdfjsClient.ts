@@ -15,6 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Loads PDF.js on demand, with one worker that every document opened in the page shares.
+
 import type { PDFWorker } from "pdfjs-dist";
 
 /** The PDF.js worker's script never ran, so nothing sent to the worker gets an answer. */
@@ -33,20 +36,22 @@ function watchStart(port: Worker): Promise<never> {
       }
     });
   });
-  // Keeps a failure that nobody is waiting for from being reported as an unhandled rejection
+  // Keeps a failure that nobody is waiting for from being reported as an unhandled rejection.
   failed.catch(() => undefined);
   return failed;
 }
 
 const importPdfjs = () => import("pdfjs-dist");
 
-// PDF.js, imported once for all the documents opened together, and again after failing.
+// The import of PDF.js, shared by every document. It is dropped if it fails, and the next load imports
+// again.
 let imported: ReturnType<typeof importPdfjs> | undefined;
 
+// The worker every document shares, and the promise that rejects if it never started.
 let shared: { worker: PDFWorker; failed: Promise<never> } | undefined;
 
-// Loads PDF.js and the one worker every document shares. `failed` rejects if that worker never
-// started. Such a worker is not replaced, since a new one would load the same missing script.
+// Loads PDF.js and the worker every document shares. `failed` rejects if that worker never started.
+// Such a worker is not replaced, since a new one would load the same missing script.
 export async function loadPdfjs() {
   imported ??= importPdfjs().catch((error: unknown) => {
     imported = undefined;
