@@ -212,6 +212,9 @@ function PdfViewerSession(props: PdfViewerProps) {
     if (selectedMarkId !== undefined && selectedMarkId !== reportedId.current) {
       showMark(selectedMarkId);
     }
+    // Whether echoed or overtaken, the report is used up, so the caller selecting that mark again later
+    // moves the reader to it.
+    reportedId.current = undefined;
   }, [selectedMarkId, marks, showMark]);
   // The older version, shown again beside this one, takes the zoom this one was given meanwhile.
   const { shown: olderShown, zoomTo: zoomOlderTo } = olderView;
