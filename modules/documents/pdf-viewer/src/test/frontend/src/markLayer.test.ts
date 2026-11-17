@@ -504,8 +504,8 @@ describe("findMarkAt on a point", () => {
   it("finds a point within a fingertip of it, tapped", () => {
     const frame = createPoint();
 
-    expect(findMarkAt(frame, 118, 28, true)).toBe("p");
-    expect(findMarkAt(frame, 122, 10, true)).toBeUndefined();
+    expect(findMarkAt(frame, 118, 28, "touch")).toBe("p");
+    expect(findMarkAt(frame, 122, 10, "touch")).toBeUndefined();
   });
 
   it("finds a mark tapped on before a point it is only beside, selected or not", () => {
@@ -513,8 +513,8 @@ describe("findMarkAt on a point", () => {
     frame.insertAdjacentHTML("beforeend", '<div class="iap-mark selected" data-mark-id="word"></div>');
     (frame.lastElementChild as HTMLElement).getBoundingClientRect = () => new DOMRect(102, 0, 30, 20);
 
-    expect(findMarkAt(frame, 110, 10, true)).toBe("word");
-    expect(findMarkAt(frame, 100, 10, true)).toBe("p");
+    expect(findMarkAt(frame, 110, 10, "touch")).toBe("word");
+    expect(findMarkAt(frame, 100, 10, "touch")).toBe("p");
   });
 
   it("finds a point on its box inside another mark, the one not selected first", () => {

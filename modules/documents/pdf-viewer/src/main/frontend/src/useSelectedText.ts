@@ -65,7 +65,7 @@ export function useSelectedText(shown: ShownDocument | undefined, enabled: boole
     let settling = 0;
     let pressed = false;
     // Whether the last press in the document was by touch, which puts the Comment button further down.
-    let byTouch = false;
+    let pointerType = "mouse";
     const read = () => {
       const range = getSelectedRange(document.getSelection());
       const spans = range === undefined ? [] : getSelectedSpans(frame, range);
@@ -77,7 +77,7 @@ export function useSelectedText(shown: ShownDocument | undefined, enabled: boole
       const place = getCommentButtonPlace(
         { x: end.right - box.left, bottom: end.bottom - box.top },
         { width: box.width, height: box.height },
-        byTouch,
+        pointerType,
       );
       setSelected({ spans, place });
     };
@@ -100,7 +100,7 @@ export function useSelectedText(shown: ShownDocument | undefined, enabled: boole
     }, { signal, capture: true });
     frame.addEventListener("pointerdown", event => {
       pressed = true;
-      byTouch = event.pointerType === "touch";
+      pointerType = event.pointerType;
       settle();
     }, { signal });
     // A phone cancels the pointer when a long press starts selecting text, so a cancel ends the press too.
