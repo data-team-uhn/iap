@@ -60,7 +60,7 @@ const ROW_GAP = { xs: 0.5, sm: 1 };
 // them. A narrower one shows the marks one at a time above the versions.
 const SPLIT_WITH_LIST_WIDTH = 1440;
 
-export interface ViewerBodyProps {
+interface ViewerBodyProps {
   titleId: string;
   title: string;
   marks: Mark[];

@@ -30,7 +30,7 @@ export function getCutShortStyle(lines: number) {
 
 // The colour of a kind of mark. A passage's is its palette colour, in the shade asked for. A change's is
 // neutral whatever its kind, since the removed and added text it shows carries the colour.
-export function getMarkColour(theme: Theme, kind: MarkKind, shade: "main" | "light" = "main"): string {
+function getMarkColour(theme: Theme, kind: MarkKind, shade: "main" | "light" = "main"): string {
   const { palette } = theme.vars ?? theme;
   return isChangeKind(kind) ? palette.divider : palette[kind][shade];
 }
