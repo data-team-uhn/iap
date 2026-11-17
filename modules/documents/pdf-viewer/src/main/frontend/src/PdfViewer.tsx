@@ -152,17 +152,20 @@ function PdfViewerSession(props: PdfViewerProps) {
       document.getSelection()?.removeAllRanges();
     };
   // Another page the caller asks for takes the reader there once the document is shown. The page asked
-  // for first is where the document opens. A mark the caller selects at the same time wins, its effect
-  // running after this one.
+  // for first is where the document opens. Asking for no page moves nothing, and the same page asked for
+  // after it moves the reader again. A mark the caller selects at the same time wins, its effect running
+  // after this one.
   const askedPage = useRef(page);
   const { shown: newerShown, showPage: showNewerPage } = view;
   useEffect(() => {
-    if (newerShown === undefined || page === undefined || page === askedPage.current) {
+    if (newerShown === undefined || page === askedPage.current) {
       return;
     }
     askedPage.current = page;
-    showNewerPage(page);
-    lead("newer");
+    if (page !== undefined) {
+      showNewerPage(page);
+      lead("newer");
+    }
   }, [newerShown, page, showNewerPage, lead]);
   // Takes the reader to each mark the caller selects, unless it is the one the person just chose.
   useEffect(() => {

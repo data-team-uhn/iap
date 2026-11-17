@@ -425,6 +425,18 @@ describe("PdfViewer", () => {
       expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
     });
 
+    it("goes to a page asked for again once no page was asked for", async () => {
+      fakePdf.pages = [ "Cover.", "Contents.", QUOTE ];
+      const { rerender } = show({ page: 3, quote: "Yes" });
+      await screen.findByText("Page 3 of 3");
+      await userEvent.click(screen.getByRole("button", { name: "Previous page" }));
+
+      rerender({ page: undefined });
+      rerender({ page: 3 });
+
+      expect(await screen.findByText("Page 3 of 3")).toBeInTheDocument();
+    });
+
     it("takes the reader to a mark the caller selects together with its page", async () => {
       fakePdf.pages = [ "Cover.", "Contents.", "Foreword.", QUOTE ];
       fakePdf.holdTextFrom = 4;
