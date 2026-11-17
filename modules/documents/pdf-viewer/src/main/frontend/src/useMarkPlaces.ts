@@ -28,10 +28,9 @@ export type MarkPlaces = Record<string, MarkPlace>;
 // place changes sooner. Each report draws the viewer again.
 const PROGRESS_INTERVAL = 200;
 
-// Where each mark's passage is in the document, as its pages are read. Pages with marks placed by their
-// spans or kept as anchors are read first, then the rest in order. Reading stops once no passage is still
-// being looked for, as reading takes PDF.js from drawing the pages in view. Also how many pages have been
-// read so far.
+// Where each mark's passage is in the document, as its pages are read. Pages that marks say they are on
+// are read first, then the rest in order. Reading stops once no passage is still being looked for, as
+// reading takes PDF.js from drawing the pages in view. Also how many pages have been read so far.
 export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): { places: MarkPlaces; read: number } {
   const [found, setFound] = useState<{ marks: Mark[]; places: MarkPlaces; read: number } | undefined>(undefined);
 
