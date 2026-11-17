@@ -23,7 +23,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 
 import { usePdfDocument } from "@iap/documents-pdf-viewer/usePdfDocument";
 
-import { fakePdf, FakeWorker, stubFetch } from "./pdfjs.fixture";
+import { FONT_NAME, fakePdf, FakeWorker, stubFetch } from "./pdfjs.fixture";
 
 vi.mock("pdfjs-dist", async () => (await import("./pdfjs.fixture")).createPdfjsModule());
 vi.mock("pdfjs-dist/web/pdf_viewer.mjs", async () => (await import("./pdfjs.fixture")).createViewerModule());
@@ -42,6 +42,14 @@ describe("usePdfDocument", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     fakePdf.reset();
+  });
+
+  it("gives the font of each piece of a page's text that is drawn, leaving out the empty ones", async () => {
+    fakePdf.pages = [ "One line,\n\nthen another." ];
+    const { result } = renderHook(() => usePdfDocument(URL));
+    await waitFor(() => expect(result.current.pdf).toBeDefined());
+
+    expect(await result.current.pdf?.getPageFonts(1)).toEqual([ FONT_NAME, FONT_NAME ]);
   });
 
   it("opens nothing without a URL", () => {

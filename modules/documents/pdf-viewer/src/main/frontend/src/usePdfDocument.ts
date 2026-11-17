@@ -59,7 +59,10 @@ async function readPage(doc: PDFDocumentProxy, pageNumber: number): Promise<Read
     for (const item of content.items) {
       if ("str" in item) {
         page.text.text += item.str;
-        page.fonts.push(item.fontName);
+        // PDF.js draws a span only for a piece with text, and ends many lines with an empty one.
+        if (item.str !== "") {
+          page.fonts.push(item.fontName);
+        }
         if (item.hasEOL) {
           page.text.lineEnds.push(page.text.text.length);
         }

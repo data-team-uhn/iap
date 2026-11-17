@@ -366,12 +366,16 @@ class FakePDFViewer {
     const div = document.createElement("div");
     div.className = "textLayer";
     for (const line of (this.doc?.pages[pageNumber - 1] ?? "").split("\n")) {
-      const span = document.createElement("span");
-      span.textContent = line;
-      span.setAttribute("role", "presentation");
-      // PDF.js sets a piece of text in a generic font.
-      span.style.fontFamily = "sans-serif";
-      div.append(span, document.createElement("br"));
+      // As PDF.js does, only a piece with text is drawn, in a generic font, and only its line break is kept
+      // for an empty one.
+      if (line !== "") {
+        const span = document.createElement("span");
+        span.textContent = line;
+        span.setAttribute("role", "presentation");
+        span.style.fontFamily = "sans-serif";
+        div.append(span);
+      }
+      div.append(document.createElement("br"));
     }
     div.getBoundingClientRect = () => new DOMRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
     pageView.div.append(div);
