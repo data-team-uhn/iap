@@ -211,9 +211,8 @@ deployment supplies. Branding a deployment needs no script change.
 
 More can be written when a script genuinely needs something these do not cover.
 A `Use` object is either a Sling Model adapted from the resource, a class implementing
-`org.apache.sling.scripting.sightly.pojo.Use`, or a JavaScript file beside the script,
-such as `ext/PointFinder/extensionQuery.js`. The
-[HTL Use API](https://sling.apache.org/documentation/bundles/scripting/scripting-htl.html)
+`org.apache.sling.scripting.sightly.pojo.Use`, or a JavaScript file beside the script.
+The [HTL Use API](https://sling.apache.org/documentation/bundles/scripting/scripting-htl.html)
 documents all three; prefer a Sling Model, since it is testable and reusable outside
 scripting.
 
