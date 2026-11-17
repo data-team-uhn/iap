@@ -39,6 +39,7 @@ import {
   getStepNames,
   getWidestHeadings,
   type MarkName,
+  type StepDirection,
 } from "./pdfViewerModel";
 import StepControls from "./StepControls";
 import { useComparisonDisplay, type ComparisonPanes, type Progress } from "./useComparisonDisplay";
@@ -97,6 +98,9 @@ export default function ViewerBody(props: ViewerBodyProps) {
   const opened = pageCount !== undefined;
   const { search, find, findNext, findPrevious } = view;
   const [body, setBody] = useState<HTMLElement | null>(null);
+  // Where the card's step buttons last stepped to, and which of them was pressed. The card drawn for that
+  // passage gives the same button the focus.
+  const [steppedTo, setSteppedTo] = useState<{ at: number; direction: StepDirection } | undefined>(undefined);
   const narrow = useNarrowViewer(body);
   const noRoomForList = useNarrowerThan(body, SPLIT_WITH_LIST_WIDTH);
   const compared = useComparisonDisplay(comparison, { narrow, selectedId, openError });
@@ -163,7 +167,11 @@ export default function ViewerBody(props: ViewerBodyProps) {
               itemName={getStepNames(listed, naming, cardAt + 1, markName)}
               heading={sorts > 1 && cardNaming !== undefined ? describeAmong(cardNaming.name, cardNaming) : undefined}
               widest={getWidestHeadings(naming.values())}
-              onStep={next => passages.stepTo(next - 1)}
+              focused={steppedTo?.at === cardAt ? steppedTo.direction : undefined}
+              onStep={(next, direction) => {
+                setSteppedTo({ at: next - 1, direction });
+                passages.stepTo(next - 1);
+              }}
             />
           )
           : undefined}
