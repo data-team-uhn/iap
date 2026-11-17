@@ -51,6 +51,7 @@ const DEEP_SUBMISSION = {
   "jcr:created": "2026-07-01T10:00:00.000-04:00",
   "jcr:createdBy": "admin",
   "jcr:lastModified": "2026-07-02T10:00:00.000-04:00",
+  "schema": { "@path": "/Schemas/ClinicalTrial", "title": "Clinical trial" },
   "schemaVersion": {
     "@path": "/Schemas/ClinicalTrial/1.0",
     "@name": "1.0",
@@ -310,7 +311,7 @@ describe("SubmissionView", () => {
     // Header: title, the lifecycle tag chip, schema, creator
     expect(await screen.findByText("Test my drug")).toBeInTheDocument();
     expect(await screen.findByText("In review")).toBeInTheDocument();
-    expect(screen.getByText(/ClinicalTrial 1.0/)).toBeInTheDocument();
+    expect(screen.getByText(/Clinical trial 1.0/)).toBeInTheDocument();
     expect(screen.getByText(/by admin/)).toBeInTheDocument();
 
     // The submission was read with the deep serialization. It need not be the first request: the header

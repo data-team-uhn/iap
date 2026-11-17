@@ -37,6 +37,7 @@ const ROW = {
   "@name": "0a1b2c3d-0000-0000-0000-000000000000",
   "title": "Test my drug",
   "tags": ["in-review"],
+  "schema": { "@path": "/Schemas/ClinicalTrial", "title": "Clinical trial" },
   "schemaVersion": { "@path": "/Schemas/ClinicalTrial/1.0", "@name": "1.0", "version": "1.0" },
   "jcr:created": "2026-07-01T10:00:00.000-04:00",
   "jcr:lastModified": "2026-07-02T10:00:00.000-04:00",
@@ -115,7 +116,7 @@ describe("MySubmissionsWidget", () => {
     render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
 
     expect(await screen.findByText("Test my drug")).toBeInTheDocument();
-    expect(screen.getByText("ClinicalTrial 1.0")).toBeInTheDocument();
+    expect(screen.getByText("Clinical trial 1.0")).toBeInTheDocument();
     // The lifecycle tag, displayed per its /Tags definition
     expect(await screen.findByText("In review")).toBeInTheDocument();
 

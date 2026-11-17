@@ -18,24 +18,28 @@
 
 import { dateValue, dayOf } from "@iap/frontend-commons/entityGrid/columns";
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
+import { type SerializedNode, isNode, textOf } from "@iap/frontend-commons/serializedNode";
 import TagChip from "@iap/tags/TagChip";
 import { tagValueOptions } from "@iap/tags/tagDefinitions";
 
 // The resource type of a submission, under which the submission grid is registered
 export const SUBMISSION_TYPE = "sub/Submission";
 
-// The text of the "Schema" cell, such as "timeOffRequest 1.0": the schema's node name, read from the
-// version's path (/Schemas/<schema>/<version>), then the version's label. Empty when the
-// `schemaVersion` reference is not dereferenced.
-// TODO: display the schema's title, which the submission's dereferenced `schema` reference carries.
-export function schemaLabel(schemaVersion: unknown): string {
-  if (!schemaVersion || typeof schemaVersion !== "object") {
+// The text of the "Schema" cell, such as "Time off request v1": the title of the submission's `schema`,
+// then the version's label. A schema served without a title is named by its node name instead. Empty
+// when the `schemaVersion` reference is not dereferenced.
+export function schemaLabel(schemaVersion: unknown, schema: unknown): string {
+  if (!isNode(schemaVersion)) {
     return "";
   }
-  const version = schemaVersion as Record<string, unknown>;
+  const title = isNode(schema) ? textOf(schema, "title") : undefined;
+  return [title ?? schemaName(schemaVersion), schemaVersion.version].filter(Boolean).join(" ");
+}
+
+// The schema's node name, read from its version's path (/Schemas/<schema>/<version>)
+function schemaName(version: SerializedNode): string {
   const pathSegments = ((version["@path"] as string | undefined) ?? "").split("/");
-  const schemaName = pathSegments.length > 2 ? pathSegments[pathSegments.length - 2] : "";
-  return [schemaName, version.version].filter(Boolean).join(" ");
+  return pathSegments.length > 2 ? pathSegments[pathSegments.length - 2] : "";
 }
 
 // The columns of every grid of submissions. The server sorts a column by the entity property it is
@@ -59,7 +63,7 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     // Computed from the referenced schema version, which the server can neither sort nor filter by
     sortable: false,
     filterable: false,
-    valueGetter: value => schemaLabel(value),
+    valueGetter: (version, row) => schemaLabel(version, row.schema),
     cardSlot: "caption",
   },
   {

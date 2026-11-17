@@ -24,7 +24,6 @@ import javax.jcr.Property;
 import javax.jcr.RepositoryException;
 
 import jakarta.json.Json;
-import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 import org.apache.sling.api.resource.Resource;
@@ -45,6 +44,8 @@ class SubmissionSchemaProcessorTest
 {
     private static final String SCHEMA_PATH = "/Schemas/timeOffRequest";
 
+    private static final String SCHEMA_TITLE = "Time off request";
+
     /** Stands in for the schema as `dereference` inlined it, every version included. */
     private static final JsonValue INLINED_SCHEMA = Json.createObjectBuilder()
         .add("jcr:primaryType", "sch:Schema")
@@ -58,18 +59,27 @@ class SubmissionSchemaProcessorTest
     @Test
     void isOnForEverySerializationAfterDereference()
     {
-        assertEquals("schemaPath", this.processor.getName());
+        assertEquals("schemaSummary", this.processor.getName());
         assertEquals(50, this.processor.getPriority());
         assertTrue(this.processor.isEnabledByDefault(Mockito.mock(Resource.class)));
     }
 
     @Test
-    void printsTheSchemaOfASubmissionAsItsPath() throws RepositoryException
+    void printsTheSchemaOfASubmissionAsItsPathAndTitle() throws RepositoryException
     {
-        final JsonValue result = this.processor.processProperty(node(true), schemaProperty(SCHEMA_PATH),
+        final JsonValue result = this.processor.processProperty(node(true), schemaProperty(titledSchema()),
             INLINED_SCHEMA, this.serializeNode);
 
-        assertEquals(SCHEMA_PATH, ((JsonString) result).getString());
+        assertEquals(Json.createObjectBuilder().add("@path", SCHEMA_PATH).add("title", SCHEMA_TITLE).build(), result);
+    }
+
+    @Test
+    void leavesOutATitleTheReaderCannotSee() throws RepositoryException
+    {
+        final JsonValue result = this.processor.processProperty(node(true), schemaProperty(untitledSchema()),
+            INLINED_SCHEMA, this.serializeNode);
+
+        assertEquals(Json.createObjectBuilder().add("@path", SCHEMA_PATH).build(), result);
     }
 
     @Test
@@ -86,8 +96,8 @@ class SubmissionSchemaProcessorTest
     @Test
     void leavesASchemaPropertyOnAnotherTypeAlone() throws RepositoryException
     {
-        assertSame(INLINED_SCHEMA, this.processor.processProperty(node(false), schemaProperty(SCHEMA_PATH),
-            INLINED_SCHEMA, this.serializeNode));
+        assertSame(INLINED_SCHEMA, this.processor.processProperty(node(false),
+            schemaProperty(titledSchema()), INLINED_SCHEMA, this.serializeNode));
     }
 
     @Test
@@ -108,10 +118,25 @@ class SubmissionSchemaProcessorTest
         return node;
     }
 
-    private Property schemaProperty(final String targetPath) throws RepositoryException
+    private Node titledSchema() throws RepositoryException
     {
-        final Node target = Mockito.mock(Node.class);
-        Mockito.when(target.getPath()).thenReturn(targetPath);
+        final Node schema = untitledSchema();
+        final Property title = Mockito.mock(Property.class);
+        Mockito.when(title.getString()).thenReturn(SCHEMA_TITLE);
+        Mockito.when(schema.hasProperty("title")).thenReturn(true);
+        Mockito.when(schema.getProperty("title")).thenReturn(title);
+        return schema;
+    }
+
+    private Node untitledSchema() throws RepositoryException
+    {
+        final Node schema = Mockito.mock(Node.class);
+        Mockito.when(schema.getPath()).thenReturn(SCHEMA_PATH);
+        return schema;
+    }
+
+    private Property schemaProperty(final Node target) throws RepositoryException
+    {
         final Property property = Mockito.mock(Property.class);
         Mockito.when(property.getName()).thenReturn("schema");
         Mockito.when(property.getNode()).thenReturn(target);
