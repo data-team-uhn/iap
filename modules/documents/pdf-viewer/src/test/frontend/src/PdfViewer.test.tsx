@@ -1278,6 +1278,37 @@ describe("PdfViewer", () => {
         expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2.");
         expect(getFrame().scrollTop).toBe(0);
       });
+
+      it("takes the reader back to a mark they clicked once the caller selects it again", async () => {
+        // A caller that echoes what the viewer reports, and has buttons of its own to select with.
+        function Choosing() {
+          const [selected, setSelected] = useState("schedule");
+          return (
+            <>
+              <button type="button" onClick={() => setSelected("schedule")}>Choose the schedule</button>
+              <button type="button" onClick={() => setSelected("volunteers")}>Choose the volunteers</button>
+              <PdfViewer
+                url={URL}
+                marks={MARKS}
+                selectedMarkId={selected}
+                onSelectMark={setSelected}
+                onClose={vi.fn()}
+              />
+            </>
+          );
+        }
+        render(withTheme(<Choosing />));
+        await waitFor(() => expect(getFrame().scrollTop).toBe(MATCH_TOP));
+        await userEvent.pointer({ keys: "[MouseLeft]", target: getFrame(), coords: AT_MARK });
+        // Behind the viewer's dialog, as a panel of the caller's would be
+        fireEvent.click(screen.getByRole("button", { name: "Choose the schedule", hidden: true }));
+        expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Choose the volunteers", hidden: true }));
+
+        expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2.");
+        expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
+      });
     });
 
     describe("in the document", () => {
