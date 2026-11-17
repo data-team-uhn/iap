@@ -129,10 +129,15 @@ export function useComparedVersions(
         view.find(query);
         olderView.find(query);
       },
-      findAgain: previous => {
+      findNext: () => {
         release();
-        view.findAgain(previous);
-        olderView.findAgain(previous);
+        view.findNext();
+        olderView.findNext();
+      },
+      findPrevious: () => {
+        release();
+        view.findPrevious();
+        olderView.findPrevious();
       },
       zoomIn: () => zoomBoth(each => each.zoomIn()),
       zoomOut: () => zoomBoth(each => each.zoomOut()),

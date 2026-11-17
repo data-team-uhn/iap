@@ -33,19 +33,20 @@ import type { DocumentSearch } from "./pdfViewerModel";
 // pages are still being searched. Enter in the field goes to the next match, and Shift+Enter to the
 // previous one. Escape anywhere in it closes the search where it can be closed, or else clears it. Only an
 // Escape with nothing to close or clear goes on to the elements around it.
-export default function SearchField({ search, inputRef, disabled, onFind, onFindAgain, onClose }: {
+export default function SearchField({ search, inputRef, disabled, onFind, onFindNext, onFindPrevious, onClose }: {
   search: DocumentSearch;
   inputRef?: Ref<HTMLInputElement>;
   disabled?: boolean;
   onFind: (query: string) => void;
-  onFindAgain: (previous: boolean) => void;
+  onFindNext: () => void;
+  onFindPrevious: () => void;
   // Closes the search. When it is given, the search fills the width it has and ends with a Close button.
   onClose?: () => void;
 }) {
   const onEnter = (event: KeyboardEvent) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      onFindAgain(event.shiftKey);
+      (event.shiftKey ? onFindPrevious : onFindNext)();
     }
   };
   const onEscape = (event: KeyboardEvent) => {
@@ -114,10 +115,10 @@ export default function SearchField({ search, inputRef, disabled, onFind, onFind
           },
         }}
       />
-      <IconButton aria-label="Previous match" disabled={cannotStep} onClick={() => onFindAgain(true)}>
+      <IconButton aria-label="Previous match" disabled={cannotStep} onClick={onFindPrevious}>
         <KeyboardArrowUpIcon />
       </IconButton>
-      <IconButton aria-label="Next match" disabled={cannotStep} onClick={() => onFindAgain(false)}>
+      <IconButton aria-label="Next match" disabled={cannotStep} onClick={onFindNext}>
         <KeyboardArrowDownIcon />
       </IconButton>
       {onClose === undefined

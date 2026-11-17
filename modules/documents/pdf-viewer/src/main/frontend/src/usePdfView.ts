@@ -35,7 +35,7 @@ import {
   type PageMark,
 } from "./markLayer";
 import { createFindController } from "./pdfjsViewer";
-import { getSearchStatus, IDLE_SEARCH, type DocumentSearch } from "./pdfViewerModel";
+import { getSearchStatus, IDLE_SEARCH, type DocumentSearch, type StepDirection } from "./pdfViewerModel";
 import { isScrollByHand, SCROLL_INPUTS } from "./scrollByHand";
 import { alignTextLayer, readPageFonts } from "./textLayerFonts";
 
@@ -66,7 +66,7 @@ const COUNT_INTERVAL = 250;
 
 // Asks PDF.js's search to look for the query, or for its next or previous match, ignoring case and
 // accents, and highlighting every match. An empty query clears the highlights.
-function dispatchFind(eventBus: EventBus, query: string, again?: { previous: boolean }): void {
+function dispatchFind(eventBus: EventBus, query: string, again?: StepDirection): void {
   eventBus.dispatch("find", {
     source: null,
     type: again === undefined ? "" : "again",
@@ -74,7 +74,7 @@ function dispatchFind(eventBus: EventBus, query: string, again?: { previous: boo
     caseSensitive: false,
     entireWord: false,
     highlightAll: true,
-    findPrevious: again?.previous ?? false,
+    findPrevious: again === "previous",
     matchDiacritics: false,
   });
 }
@@ -501,11 +501,13 @@ export function usePdfView(
   }, []);
 
   // Goes to the next match of the search, or to the previous one.
-  const findAgain = useCallback((previous: boolean) => {
+  const findAgain = useCallback((direction: StepDirection) => {
     if (eventBusRef.current !== undefined && queryRef.current.trim() !== "") {
-      dispatchFind(eventBusRef.current, queryRef.current, { previous });
+      dispatchFind(eventBusRef.current, queryRef.current, direction);
     }
   }, []);
+  const findNext = useCallback(() => findAgain("next"), [findAgain]);
+  const findPrevious = useCallback(() => findAgain("previous"), [findAgain]);
 
   // Takes the reader to a mark once it is found and its page drawn, instead of to a place in the text.
   const showMark = useCallback((id: string) => {
@@ -553,7 +555,8 @@ export function usePdfView(
     zoomTo,
     search,
     find,
-    findAgain,
+    findNext,
+    findPrevious,
   };
 }
 
