@@ -368,6 +368,7 @@ class FakePDFViewer {
     for (const line of (this.doc?.pages[pageNumber - 1] ?? "").split("\n")) {
       const span = document.createElement("span");
       span.textContent = line;
+      span.setAttribute("role", "presentation");
       // PDF.js sets a piece of text in a generic font.
       span.style.fontFamily = "sans-serif";
       div.append(span, document.createElement("br"));
