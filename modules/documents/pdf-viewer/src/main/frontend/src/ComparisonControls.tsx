@@ -158,9 +158,9 @@ function describeMinorOption(minor: number | undefined): string {
 // are shown, the controls stepping through the changes given, and a caption about the comparison. Each
 // follows on the same row where there is room, and wraps onto the next row where there is not.
 export default function ComparisonControls(props: ChangesMenuProps & {
-  // The changes to step through, if any, and the index of the one selected, -1 for none.
+  // The changes to step through, if any, and the index of the one selected, if one is.
   changes: RevisionChange[] | undefined;
-  selectedIndex: number;
+  selectedIndex: number | undefined;
   onShowChange: (id: string) => void;
   caption: string;
 }) {
@@ -173,10 +173,10 @@ export default function ComparisonControls(props: ChangesMenuProps & {
         ? null
         : (
           <StepControls
-            position={selectedIndex + 1}
+            position={selectedIndex === undefined ? 0 : selectedIndex + 1}
             count={count}
             itemName="change"
-            heading={selectedIndex < 0
+            heading={selectedIndex === undefined
               ? countChanges(count)
               : describeAmong(CHANGES, { index: selectedIndex + 1, count })}
             widest={[ countChanges(count), describeAmong(CHANGES, { index: count, count }) ]}
