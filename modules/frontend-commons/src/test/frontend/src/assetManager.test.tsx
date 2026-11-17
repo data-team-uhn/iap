@@ -255,4 +255,26 @@ describe("assetManager", () => {
     const dependencyFetches = fetchMock.mock.calls.filter(([url]) => String(url).endsWith("assetDependencies.json"));
     expect(dependencyFetches).toHaveLength(1);
   });
+
+  it("asks for the asset dependencies manifest again after a failed read", async () => {
+    delete (globalThis as { __remoteDependencyLoaded?: boolean }).__remoteDependencyLoaded;
+    const serve = stubManifests({}, { [FIXTURE_URL]: [DEPENDENCY_URL] });
+    // The connection drops on the first read of the dependency manifest, as while the server restarts
+    let dropped = false;
+    vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL) => {
+      if (!dropped && String(url).endsWith("assetDependencies.json")) {
+        dropped = true;
+        return Promise.reject(new TypeError("Failed to fetch"));
+      }
+      return serve(url);
+    }));
+    const { loadAsset } = await freshAssetManager();
+
+    await loadAsset("asset:iap-test.First.js");
+    expect(errorSpy).toHaveBeenCalledWith("Failed to resolve asset dependencies", expect.any(TypeError));
+    await loadAsset(FIXTURE_URL);
+
+    // Set by evaluating the dependency's module
+    expect((globalThis as { __remoteDependencyLoaded?: boolean }).__remoteDependencyLoaded).toBe(true);
+  });
 });

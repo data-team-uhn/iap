@@ -18,7 +18,7 @@
 
 import { useEffect, useState, type ComponentType } from "react";
 
-import { readJson } from "./requestFailure";
+import { readJson, RequestError } from "./requestFailure";
 
 const ASSET_PREFIX = "asset:";
 
@@ -55,18 +55,23 @@ const getAssetsJson = async function(): Promise<Record<string, string> | undefin
   return assetsJson;
 };
 
-// The dependency map, fetched once and kept.
+// The dependency map, fetched once and kept. A missing map means no asset declares dependencies, and
+// is kept as an empty map. After any other failure, which is logged, the next call fetches it again.
 //
 // @return the dependency map; undefined if it could not be loaded
 const getAssetDependenciesJson = async function(): Promise<Record<string, string[]> | undefined> {
   if (!assetDependenciesJson) {
     assetDependenciesJsonRequest ??= fetch("/libs/iap/resources/assetDependencies.json")
-      .then(response => response.ok ? readJson<Record<string, string[]>>(response) : Promise.reject(new Error(`Failed to load assetDependencies.json: ${response.status}`)))
+      .then(response => response.ok
+        ? readJson<Record<string, string[]>>(response)
+        : Promise.reject(new RequestError(response.status)))
       .then(json => assetDependenciesJson = json)
-      .catch((_e: unknown) => {
-        // A missing map means no asset declares dependencies. It is kept as an empty map, so that
-        // it is not fetched again for every asset.
-        assetDependenciesJson = {};
+      .catch((e: unknown) => {
+        if (e instanceof RequestError && e.status === 404) {
+          assetDependenciesJson = {};
+        } else {
+          console.error("Failed to resolve asset dependencies", e);
+        }
         return undefined;
       })
       .finally(() => assetDependenciesJsonRequest = null);
