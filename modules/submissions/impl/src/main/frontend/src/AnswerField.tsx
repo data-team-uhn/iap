@@ -22,8 +22,11 @@ import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
 import { Box, CircularProgress, Tooltip, Typography } from "@mui/material";
 
 import { getAnswerComponent } from "./answerComponents";
+import AnswerProvenance, { ConfirmAnswer } from "./AnswerProvenance";
 import { useAnswerComponents } from "./answers";
 import QuestionText from "./answers/QuestionText";
+import NewerReadingSwitch from "./NewerReadingSwitch";
+import { getNewerOffer, getStatus, isPrefilled, isSameValues } from "./provenance";
 
 import type { FormQuestion } from "./submissionForm";
 
@@ -36,6 +39,8 @@ interface AnswerFieldProps {
   disabled?: boolean;
   // Called when the answer is finished, not on each keystroke
   onAnswered: (values: string[]) => void;
+  // Called when the submitter says the quotes behind a suggestion do not support it, or takes that back
+  onRejectEvidence?: (rejected: boolean) => void;
 }
 
 // What the field's save is doing. A save can be refused, such as when the request was submitted in
@@ -65,9 +70,13 @@ function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
 // One question and its answer. The input is drawn by the registered answer component that fits the
 // question best. This keeps what every kind of answer shares: following the saved answer, noticing a
 // change, and reporting what the save does.
-function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFieldProps) {
+function AnswerField({ question, state, error, disabled, onAnswered, onRejectEvidence }: AnswerFieldProps) {
   const ready = useAnswerComponents();
-  const [ draft, setDraft ] = useState(question.value);
+  const { provenance } = question;
+  // With nothing answered yet, the field starts out showing the suggestion. It stays a suggestion until
+  // the submitter confirms or edits it: a reading never writes the answer itself.
+  const shownFirst = provenance && isPrefilled(provenance, question.value) ? provenance.offered : question.value;
+  const [ draft, setDraft ] = useState(shownFirst);
   const [ focused, setFocused ] = useState(false);
   // Follows the saved answer, which changes each time the editor reads the form again. It is adjusted
   // during render, which is how React follows a prop without an effect.
@@ -75,18 +84,20 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
   // Compared by content, since each read returns fresh arrays. Compared by identity, every save would
   // reset every field, including one somebody is typing in.
   // Joined on a character an answer cannot contain, so that ["a", "b"] and ["a b"] stay distinct.
-  const answered = question.value.join("\u0000");
+  const answered = shownFirst.join("\u0000");
   const [ seen, setSeen ] = useState(answered);
   // Held back while the field has focus. Otherwise a submitter who empties a field and types again
   // would lose the new text when the read after the clearing lands. `seen` is left alone too, so the
   // new value is applied on the first render after they leave.
   if (seen !== answered && !focused) {
     setSeen(answered);
-    setDraft(question.value);
+    setDraft(shownFirst);
   }
 
+  // Leaving a field that still shows the suggestion saves nothing, so a suggestion is never taken
+  // without the submitter acting on it
   const changed = (values: string[]) =>
-    values.length !== question.value.length || values.some((value, index) => value !== question.value[index]);
+    !isSameValues(values, shownFirst) && !(values.length === 0 && question.value.length === 0);
   const submit = (values: string[]) => {
     setDraft(values);
     if (changed(values)) {
@@ -118,24 +129,57 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
     );
   }
 
+  const status = provenance ? getStatus(provenance, draft, question.value) : undefined;
+  const newer = getNewerOffer(provenance, question.value);
+  const take = (values: string[]) => {
+    setDraft(values);
+    onAnswered(values);
+  };
+
   return (
     <Box
-      sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}
+      sx={{
+        // The answer, then where its suggestion came from; one column on a phone
+        display: "grid",
+        gridTemplateColumns: provenance
+          ? { xs: "minmax(0, 1fr)", md: "minmax(0, 3fr) minmax(0, 2fr)" }
+          : "minmax(0, 1fr)",
+        columnGap: 2,
+        rowGap: 1,
+        alignItems: "start",
+      }}
       onFocusCapture={() => setFocused(true)}
       onBlurCapture={() => setFocused(false)}
     >
-      {/* react-hooks/static-components refuses <Answer/> for a component chosen during render */}
-      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-        {createElement(Answer, {
-          question,
-          values: draft,
-          disabled: Boolean(disabled),
-          onChange: setDraft,
-          onAnswered: submit,
-        })}
+      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, minWidth: 0 }}>
+        {/* react-hooks/static-components refuses <Answer/> for a component chosen during render */}
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          {createElement(Answer, {
+            question,
+            values: draft,
+            disabled: Boolean(disabled),
+            onChange: setDraft,
+            onAnswered: submit,
+            suggested: status === "suggested",
+            corner: newer
+              ? <NewerReadingSwitch question={question} values={newer} disabled={disabled} onAccept={take} />
+              : undefined,
+            aside: status
+              ? <ConfirmAnswer status={status} disabled={disabled} onConfirm={() => take(draft)} />
+              : undefined,
+          })}
+        </Box>
+        {/* Lined up with the input, under the question text */}
+        <Box sx={{ pt: 4, minWidth: 16 }}><SaveStatus state={state} error={error} /></Box>
       </Box>
-      {/* Lined up with the input, under the question text */}
-      <Box sx={{ pt: 4 }}><SaveStatus state={state} error={error} /></Box>
+      {provenance && status && (
+        <AnswerProvenance
+          provenance={provenance}
+          status={status}
+          disabled={disabled}
+          onRejectEvidence={rejected => onRejectEvidence?.(rejected)}
+        />
+      )}
     </Box>
   );
 }

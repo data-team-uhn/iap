@@ -36,6 +36,11 @@ export interface AnswerComponentProps {
   onAnswered: (values: string[]) => void;
   // Shown beside the answer control, laid out by AnswerRow
   aside?: ReactNode;
+  // Whether the answer shown is a suggestion nobody has taken yet. The component frames it.
+  suggested?: boolean;
+  // Shown in the top right corner of the answer's input box, such as the offer of a newer reading.
+  // A component with no box shows it beside the answer instead.
+  corner?: ReactNode;
 }
 
 export type AnswerComponent = (props: AnswerComponentProps) => ReactElement | null;

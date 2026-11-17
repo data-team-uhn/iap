@@ -20,13 +20,17 @@ import { Box, TextField } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
 import { isRequired } from "../submissionForm";
+import { getInputFrame } from "./answerFrame";
 import AnswerRow from "./AnswerRow";
+import { getCornerAdornment } from "./cornerAdornment";
 import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // A number.
-function NumberAnswer({ question, values, disabled, onChange, onAnswered, aside }: AnswerComponentProps) {
+function NumberAnswer(
+  { question, values, disabled, onChange, onAnswered, suggested, aside, corner }: AnswerComponentProps,
+) {
   const whole = question.dataType === "long";
 
   return (
@@ -38,8 +42,10 @@ function NumberAnswer({ question, values, disabled, onChange, onAnswered, aside 
           required={isRequired(question)}
           disabled={disabled}
           fullWidth
+          sx={getInputFrame(suggested === true)}
           value={values[0] ?? ""}
           slotProps={{
+            input: { endAdornment: getCornerAdornment(corner) },
             // A step of 1 makes the browser refuse decimals, and `any` allows them. A long's bounds are
             // rounded inwards, since `min` is also where the steps start counting from.
             htmlInput: {
