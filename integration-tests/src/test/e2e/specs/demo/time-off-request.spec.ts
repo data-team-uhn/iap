@@ -131,11 +131,11 @@ test.describe('the time off request demo', () => {
   });
 
   test('fills a request form in from the answers, with the template it ships', async ({ request }) => {
-    const response = await request.get('/Schemas/timeOffRequest/v1/requestForm.json', { headers: asAdmin });
+    const response = await request.get('/Schemas/timeOffRequest/v1/requestForm.json', { headers: adminAuth });
 
     expect(response.ok()).toBeTruthy();
     expect(((await response.json()) as { generated?: boolean }).generated).toBe(true);
-    const template = await request.get('/Schemas/timeOffRequest/v1/requestForm/template.json', { headers: asAdmin });
+    const template = await request.get('/Schemas/timeOffRequest/v1/requestForm/template.json', { headers: adminAuth });
     expect(template.ok()).toBeTruthy();
     expect(((await template.json()) as { 'jcr:primaryType'?: string })['jcr:primaryType']).toBe('nt:file');
   });

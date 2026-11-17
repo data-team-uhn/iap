@@ -432,6 +432,12 @@ class GenerateDocumentHandlerTest
             {
                 throw new IllegalStateException("No check-in was expected to be deferred here");
             }
+
+            @Override
+            public void afterCommit(final Runnable work)
+            {
+                throw new IllegalStateException("No work was expected to be left for after the commit");
+            }
         };
     }
 
