@@ -715,6 +715,16 @@ describe("PdfViewer compared with an older version", () => {
       await waitForStatus("Change 1 of 1. Text added on page 2. It says “A page added.”.");
     });
 
+    it("shows none of the comparison done while the older version opens", async () => {
+      vi.stubGlobal("fetch", vi.fn((url: string) => (url === OLDER
+        ? new Promise<Response>(() => undefined)
+        : Promise.resolve(new Response(new TextEncoder().encode(url))))));
+      show([ "The fee is due." ], [ "The fee is now due." ]);
+
+      expect(await screen.findByRole("progressbar", { name: "Looking for the changes" }))
+        .toHaveAttribute("aria-valuenow", "0");
+    });
+
     it("says how far it has read the versions", async () => {
       fakePdf.holdTextFrom = 2;
       show([ "The fee is due.", "Page two." ], [ "The fee is now due.", "Page two." ]);
