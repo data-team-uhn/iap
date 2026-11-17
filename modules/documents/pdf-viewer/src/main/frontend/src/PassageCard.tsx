@@ -19,17 +19,18 @@ import { useId, useLayoutEffect, useRef, useState, type ReactNode, type Ref } fr
 
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { Box, ButtonBase, IconButton, Typography, useMediaQuery } from "@mui/material";
-import { useTheme, type SxProps, type Theme } from "@mui/material/styles";
+import { Box, ButtonBase, IconButton, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 
 import { TEXT_ENTRY } from "@iap/frontend-commons/textEntry";
+import { usePhone } from "@iap/frontend-commons/usePhone";
 import { useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 
 import { cutShort, failedColour, passageCard, passageDetails, passageLayer } from "./passageStyles";
 import { capitalize, describePages, type MarkName, type PassageNote } from "./pdfViewerModel";
 
 import type { MarkKind } from "./marksModel";
+import type { SxProps, Theme } from "@mui/material/styles";
 
 // Past this many lines, the passage is cut short until the person asks for all of it. On a phone it is
 // cut to one line, sharing its row with the note and the button showing all of it.
@@ -72,7 +73,7 @@ export default function PassageCard(props: {
   onShowPassage: () => void;
 }) {
   const { ref, name, quote, body, bodySaid, what = "passage", note, markedBy, stepper, details, onShowPassage } = props;
-  const phone = useMediaQuery(useTheme().breakpoints.down("sm"));
+  const phone = usePhone();
   const limit = phone ? MAX_PASSAGE_LINES_ON_PHONE : MAX_PASSAGE_LINES;
   const detailsLimit = phone ? MAX_DETAILS_LINES_ON_PHONE : MAX_DETAILS_LINES;
   const quoteId = useId();
