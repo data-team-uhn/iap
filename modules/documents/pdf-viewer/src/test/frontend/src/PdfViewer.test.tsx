@@ -1130,6 +1130,16 @@ describe("PdfViewer", () => {
         expect(getStatus()).toHaveTextContent("Passage 3 of 3 is not in this document.");
       });
 
+      it("tells a screen reader which passages are not in the document", async () => {
+        showMarks();
+        await waitFor(() => expect(getStatus()).toHaveTextContent("Passage 1 of 3 is marked on page 2."));
+
+        expect(screen.getByRole("button", { name: "Select passage 3" }))
+          .toHaveAccessibleDescription(/not found in this document/);
+        expect(screen.getByRole("button", { name: "Show passage 1 on page 2" }))
+          .not.toHaveAccessibleDescription(/found on page/);
+      });
+
       it("names both pages of a passage broken across them", async () => {
         fakePdf.pages = [ "The memo. Volunteers who, on a casual basis,", "assist from time to time.", TEXTS[2] ];
         showMarks();

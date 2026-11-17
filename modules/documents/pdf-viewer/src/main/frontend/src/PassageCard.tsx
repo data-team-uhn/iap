@@ -152,6 +152,8 @@ export default function PassageCard(props: {
   const cut = long && !open;
   const oneRow = phone && cut;
   const text = quote === undefined || quote === "" ? "" : `“${quote}”`;
+  // A passage found is a button whose label says its page, so its note would only repeat it.
+  const noteInLabel = note !== undefined && "foundOnPage" in note;
   const content = (
     <>
       {body === undefined
@@ -182,7 +184,7 @@ export default function PassageCard(props: {
       >
         {text}
         {long || note === undefined ? null : (
-          <Typography component="span" variant="caption" aria-hidden>
+          <Typography component="span" variant="caption" aria-hidden={noteInLabel}>
             {text === "" ? "" : " — "}
             <NoteText note={note} />
           </Typography>
@@ -193,7 +195,7 @@ export default function PassageCard(props: {
           <Typography
             component="span"
             variant="caption"
-            aria-hidden
+            aria-hidden={noteInLabel}
             sx={{ display: "block", flexShrink: 0, pl: oneRow ? 1 : 0 }}
           >
             <NoteText note={note} short={oneRow} />
