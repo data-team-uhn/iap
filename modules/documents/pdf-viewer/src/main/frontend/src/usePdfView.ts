@@ -160,7 +160,16 @@ export function usePdfView(
     // Aborting it removes the listeners on the frame, and stops the viewer watching the frame's size and
     // scrolling.
     const stop = new AbortController();
-    const options = { container: frame, eventBus, linkService, removePageBorders: true, abortSignal: stop.signal };
+    // PDF.js reads `abortSignal` although its types leave it out, so the options are not a literal.
+    const options = {
+      container: frame,
+      eventBus,
+      linkService,
+      removePageBorders: true,
+      abortSignal: stop.signal,
+      // The viewer edits nothing. PDF.js's editor would listen for files dropped anywhere on the page.
+      annotationEditorMode: components.AnnotationEditorType.DISABLE,
+    };
     const viewer = new components.PDFViewer(options);
     viewerRef.current = viewer;
     eventBusRef.current = eventBus;
