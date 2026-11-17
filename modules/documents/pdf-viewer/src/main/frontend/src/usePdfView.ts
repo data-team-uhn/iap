@@ -21,8 +21,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { centreIn } from "@iap/frontend-commons/scrollWithin";
+
 import {
-  centreIn,
   drawMarks,
   findMark,
   findMarkAt,

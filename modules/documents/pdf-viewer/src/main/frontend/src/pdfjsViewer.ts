@@ -21,8 +21,8 @@
 
 import { getAssetURL } from "@iap/frontend-commons/assetManager";
 import { loadPdfjs } from "@iap/frontend-commons/pdfjsClient";
+import { centreIn } from "@iap/frontend-commons/scrollWithin";
 
-import { centreIn } from "./markLayer";
 
 import type { EventBus, PDFLinkService } from "pdfjs-dist/web/pdf_viewer.mjs";
 

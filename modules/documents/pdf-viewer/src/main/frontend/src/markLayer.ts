@@ -336,23 +336,3 @@ function getDistance(mark: HTMLElement, x: number, y: number): number {
   const { left, right, top, bottom } = getHitBox(mark, 0);
   return Math.hypot(Math.max(left - x, 0, x - right), Math.max(top - y, 0, y - bottom));
 }
-
-// Scrolls the container, and only it, as little as brings the element into view.
-export function keepInView(container: HTMLElement, element: HTMLElement): void {
-  const outer = container.getBoundingClientRect();
-  const inner = element.getBoundingClientRect();
-  if (inner.top < outer.top) {
-    container.scrollTop -= outer.top - inner.top;
-  } else if (inner.bottom > outer.bottom) {
-    container.scrollTop += Math.min(inner.bottom - outer.bottom, inner.top - outer.top);
-  }
-}
-
-// Scrolls the container, and only it, so the element sits in the middle of it. An element larger than
-// the container goes to its top or left edge instead.
-export function centreIn(container: HTMLElement, element: HTMLElement): void {
-  const outer = container.getBoundingClientRect();
-  const inner = element.getBoundingClientRect();
-  container.scrollTop += inner.top - outer.top - Math.max(0, (container.clientHeight - inner.height) / 2);
-  container.scrollLeft += inner.left - outer.left - Math.max(0, (container.clientWidth - inner.width) / 2);
-}
