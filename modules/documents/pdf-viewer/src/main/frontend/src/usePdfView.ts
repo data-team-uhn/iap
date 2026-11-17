@@ -156,7 +156,9 @@ export function usePdfView(
     }
     const { components, doc } = pdf;
     const eventBus = new components.EventBus();
-    const linkService = new components.PDFLinkService({ eventBus });
+    // A link out of the document opens in a new tab, so the page around the viewer, and whatever is being
+    // typed on it, stays.
+    const linkService = new components.PDFLinkService({ eventBus, externalLinkTarget: components.LinkTarget.BLANK });
     // Aborting it removes the listeners on the frame, and stops the viewer watching the frame's size and
     // scrolling.
     const stop = new AbortController();

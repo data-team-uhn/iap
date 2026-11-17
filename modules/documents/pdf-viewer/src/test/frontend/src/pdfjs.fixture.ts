@@ -251,21 +251,25 @@ class FakePDFViewer {
   readonly removePageBorders: boolean;
   readonly abortSignal: AbortSignal | undefined;
   doc: FakeDocument | null = null;
+  readonly linkService: FakePDFLinkService;
   readonly annotationEditorMode: number | undefined;
   findController: FakePDFFindController | null = null;
   #pageViews: FakePageView[] = [];
   #page = 1;
   #scale: string | number = "auto";
 
-  constructor({ container, eventBus, removePageBorders = false, abortSignal, annotationEditorMode }: {
+  constructor({ container, eventBus, linkService, removePageBorders = false, abortSignal,
+    annotationEditorMode }: {
     container: HTMLElement;
     eventBus: FakeEventBus;
+    linkService: FakePDFLinkService;
     removePageBorders?: boolean;
     abortSignal?: AbortSignal;
     annotationEditorMode?: number;
   }) {
     this.container = container;
     this.eventBus = eventBus;
+    this.linkService = linkService;
     this.removePageBorders = removePageBorders;
     this.abortSignal = abortSignal;
     this.annotationEditorMode = annotationEditorMode;
@@ -397,8 +401,13 @@ class FakePDFViewer {
 }
 
 class FakePDFLinkService {
+  readonly externalLinkTarget: number | null;
   pdfViewer: FakePDFViewer | null = null;
   pdfDocument: FakeDocument | null = null;
+
+  constructor({ externalLinkTarget = null }: { eventBus: FakeEventBus; externalLinkTarget?: number | null }) {
+    this.externalLinkTarget = externalLinkTarget;
+  }
 
   get page(): number {
     return this.pdfViewer?.currentPageNumber ?? 1;
@@ -590,6 +599,7 @@ export function createViewerModule() {
   return {
     EventBus: FakeEventBus,
     FindState,
+    LinkTarget: LINK_TARGET,
     PDFFindController: FakePDFFindController,
     PDFLinkService: FakePDFLinkService,
     PDFViewer: FakePDFViewer,
