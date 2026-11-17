@@ -174,6 +174,10 @@ describe("MarkLocator, for a mark placed by its spans", () => {
     });
   });
 
+  it("does not find it on a page that is not a whole number", () => {
+    expect(placeAfter(PAGES, 3, placed({ page: 1.5, start: 0, end: 3 }))).toMatchObject({ status: "notFound" });
+  });
+
   it("takes a point as a span", () => {
     const spans: MarkSpan[] = [ { page: 2, start: 4, end: 4 }, { page: 2, start: 4, end: 9 } ];
 

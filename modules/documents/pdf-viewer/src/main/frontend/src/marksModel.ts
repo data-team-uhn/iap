@@ -327,7 +327,8 @@ export class MarkLocator {
   // spans, or a span is on a page the document lacks. The same goes for a span that runs backwards, runs
   // past its page's text, or has an offset that is not a whole number.
   #getPlaceOf(spans: MarkSpan[]): MarkPlace {
-    const outside = this.#pageCount > 0 && spans.some(({ page }) => page < 1 || page > this.#pageCount);
+    const outside = this.#pageCount > 0
+      && spans.some(({ page }) => !Number.isInteger(page) || page < 1 || page > this.#pageCount);
     if (spans.length === 0 || outside) {
       return { status: "notFound" };
     }
