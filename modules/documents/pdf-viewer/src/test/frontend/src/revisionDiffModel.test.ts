@@ -455,10 +455,6 @@ describe("getChangeInContext", () => {
 
   it("keeps the words around a change short of the changes shown with it", async () => {
     const { changes } = await compareAll(pages("The Fee 100 is due."), pages("The fee 120 is due."));
-    const inContext = (change: RevisionChange) => {
-      const { before, removed, added, after } = getChangeInContext(change);
-      return [ before, removed, added, after ];
-    };
 
     // The minor change's words stop at the change after it. The other change's words run past the minor
     // change, which is not shown with it.
