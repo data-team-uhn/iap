@@ -34,6 +34,7 @@ import { appTheme } from "@iap/frontend-commons/appTheme";
 import {
   ANNOTATION_EDITOR_TYPE,
   createPdfjsError,
+  FindState,
   FONT_NAME,
   fakePdf,
   FakeWorker,
@@ -2046,6 +2047,37 @@ describe("PdfViewer", () => {
 
         fakePdf.pagesSearched = undefined;
         await waitFor(() => expect(screen.queryByRole("progressbar", { name: "Searching the pages" })).not.toBeInTheDocument());
+      });
+
+      it("keeps the match stepped to while PDF.js is still counting", async () => {
+        fakePdf.pagesSearched = 0;
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.type(getSearchField(), QUERY);
+        act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 1, total: 5 } }));
+        expect(await screen.findByText("1 of 5")).toBeInTheDocument();
+
+        // As PDF.js reports a step to the next match
+        act(() => getViewer().eventBus.dispatch("updatefindcontrolstate", {
+          state: FindState.FOUND,
+          matchesCount: { current: 2, total: 5 },
+        }));
+        await act(() => new Promise(resolve => setTimeout(resolve, 600)));
+
+        expect(screen.getByText("2 of 5")).toBeInTheDocument();
+      });
+
+      it("follows the count again after a step, as PDF.js counts afresh from the page in view", async () => {
+        show();
+        await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+        await userEvent.type(getSearchField(), QUERY);
+        await waitFor(() => expect(screen.queryByRole("progressbar", { name: "Searching the pages" })).not.toBeInTheDocument());
+
+        fakePdf.pagesSearched = 1;
+        await userEvent.keyboard("{Enter}");
+        act(() => getViewer().eventBus.dispatch("updatefindmatchescount", { matchesCount: { current: 6, total: 9 } }));
+
+        expect(await screen.findByText("6 of 9")).toBeInTheDocument();
       });
 
       it("shows a spinner while the pages are searched, before any match is found", async () => {

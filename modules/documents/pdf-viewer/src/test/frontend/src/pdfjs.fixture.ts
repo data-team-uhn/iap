@@ -36,7 +36,7 @@ const PAGE_WIDTH = 600;
 const PAGE_HEIGHT = 800;
 
 // The search states PDF.js's viewer exports.
-const FindState = { FOUND: 0, NOT_FOUND: 1, WRAPPED: 2, PENDING: 3 };
+export const FindState = { FOUND: 0, NOT_FOUND: 1, WRAPPED: 2, PENDING: 3 };
 
 type Listener = (event: never) => void;
 
