@@ -311,7 +311,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
               .filter(column => column.sortable !== false)
               .map(column => ({ field: column.field, headerName: column.headerName })),
             sortModel,
-            onSortModelChange: setSortModel,
+            onSortModelChange: changeSort,
             searchLabel,
           },
         }}
