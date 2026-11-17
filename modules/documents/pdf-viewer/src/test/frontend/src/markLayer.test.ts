@@ -25,6 +25,7 @@ import {
   findMarkAt,
   getSelectedSpans,
   getTextEnd,
+  getTextLinesAround,
   getTextPointAt,
   getTextPointRect,
 } from "@iap/documents-pdf-viewer/markLayer";
@@ -372,7 +373,7 @@ describe("getTextEnd", () => {
   });
 });
 
-describe("getTextPointAt and getTextPointRect", () => {
+describe("finding the text at a height", () => {
   beforeEach(() => {
     Range.prototype.getClientRects = function (this: Range) {
       return rectsOf(this) as unknown as DOMRectList;
@@ -406,6 +407,24 @@ describe("getTextPointAt and getTextPointRect", () => {
     return frame;
   }
 
+  // Draws text on a page of a frame from createFrame, in place of any it has. Each piece is given with the
+  // line it is drawn on, counting lines from the top of the first page.
+  function drawPieces(page: HTMLElement, pieces: [ string, number ][]) {
+    const textLayer = page.querySelector(".textLayer") ?? document.createElement("div");
+    textLayer.className = "textLayer";
+    textLayer.replaceChildren(...pieces.map(([ text, line ]) => {
+      const span = document.createElement("span");
+      span.textContent = text;
+      span.dataset.line = String(line);
+      return span;
+    }));
+    page.append(textLayer);
+  }
+
+  const getPage = (frame: HTMLElement, page: number) => (
+    frame.querySelector<HTMLElement>(`[data-page-number="${page}"]`)!
+  );
+
   it("finds the start of the first piece of text reaching down to a height", () => {
     const frame = createFrame();
 
@@ -416,13 +435,7 @@ describe("getTextPointAt and getTextPointRect", () => {
   it("takes the pieces of text by where they are drawn, not by their order in the page's text", () => {
     const frame = createFrame();
     // A footer listed first, drawn below the two lines after it
-    frame.querySelector(".textLayer")?.replaceChildren(...[ [ "Footer", 5 ], [ "First", 0 ], [ "Second", 1 ] ]
-      .map(([ text, line ]) => {
-        const span = document.createElement("span");
-        span.textContent = String(text);
-        span.dataset.line = String(line);
-        return span;
-      }));
+    drawPieces(getPage(frame, 1), [ [ "Footer", 5 ], [ "First", 0 ], [ "Second", 1 ] ]);
 
     expect(getTextPointAt(frame, 10)).toEqual({ page: 1, char: 6 });
     expect(getTextPointAt(frame, 50)).toEqual({ page: 1, char: 11 });
@@ -445,6 +458,40 @@ describe("getTextPointAt and getTextPointRect", () => {
     expect(getTextPointRect(frame, { page: 1, char: 10 })).toEqual(new DOMRect(100, 0, 10, 20));
     expect(getTextPointRect(frame, { page: 1, char: LINES.join("").length })).toEqual(new DOMRect(250, 100, 0, 20));
     expect(getTextPointRect(frame, { page: 2, char: 0 })).toBeUndefined();
+  });
+
+  it("finds the lines starting either side of a height", () => {
+    expect(getTextLinesAround(createFrame(), 50)).toEqual({
+      above: { point: { page: 1, char: 0 }, top: 0 },
+      below: { point: { page: 1, char: 34 }, top: 100 },
+    });
+  });
+
+  it("counts pieces of text drawn less than half a line apart in height as one line, starting at the first", () => {
+    const frame = createFrame();
+    // The second piece is lowered 5 below the first.
+    drawPieces(getPage(frame, 1), [ [ "Volunteers who, ", 0 ], [ "on a casual basis,", 0.05 ], [ "assist", 1 ] ]);
+
+    expect(getTextLinesAround(frame, 50)?.above).toEqual({ point: { page: 1, char: 0 }, top: 0 });
+  });
+
+  it("finds the lines on the pages either side of the one reaching down to a height", () => {
+    const frame = createFrame();
+    drawPieces(getPage(frame, 2), [ [ "Third", 11 ] ]);
+    const third = { point: { page: 2, char: 0 }, top: 1100 };
+    const second = { point: { page: 1, char: 34 }, top: 100 };
+
+    // Below the text of the first page, and above the text of the second
+    expect(getTextLinesAround(frame, 500)).toEqual({ above: second, below: third });
+    expect(getTextLinesAround(frame, 1050)).toEqual({ above: second, below: third });
+  });
+
+  it("finds no lines unless one is drawn on each side of a height", () => {
+    const frame = createFrame();
+
+    // The second page's text is not drawn yet.
+    expect(getTextLinesAround(frame, 500)).toBeUndefined();
+    expect(getTextLinesAround(frame, -10)).toBeUndefined();
   });
 });
 
