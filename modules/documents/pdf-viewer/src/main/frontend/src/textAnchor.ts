@@ -81,9 +81,10 @@ export function encodeAnchor({ start, end, quote, before, after }: TextAnchor): 
 // offset a whole number from 0.
 function decodePoint(stored: string): TextPoint | undefined {
   const params = new URLSearchParams(stored);
-  const page = Number(params.get("page") ?? Number.NaN);
-  const char = Number(params.get("char") ?? Number.NaN);
-  return Number.isInteger(page) && Number.isInteger(char) && page >= 1 && char >= 0 ? { page, char } : undefined;
+  const [ page, char ] = [ params.get("page"), params.get("char") ].map(value => (
+    value !== null && /^\d+$/.test(value) ? Number(value) : Number.NaN
+  ));
+  return page >= 1 && char >= 0 ? { page, char } : undefined;
 }
 
 // The quote and the text around it, read back from a text fragment directive. Undefined unless it holds

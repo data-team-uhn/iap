@@ -108,6 +108,8 @@ describe("encodeAnchor and decodeAnchor", () => {
     expect(decodeAnchor({ ...stored, start: "page=3&char=-1" })).toBeUndefined();
     expect(decodeAnchor({ ...stored, start: "page=3" })).toBeUndefined();
     expect(decodeAnchor({ ...stored, start: "char=1" })).toBeUndefined();
+    expect(decodeAnchor({ ...stored, start: "page=3&char=" })).toBeUndefined();
+    expect(decodeAnchor({ ...stored, start: "page=1e0&char=0x10" })).toBeUndefined();
     expect(decodeAnchor({ ...stored, end: "page=2.5&char=1" })).toBeUndefined();
     expect(decodeAnchor({ ...stored, text: "" })).toBeUndefined();
     expect(decodeAnchor({ ...stored, text: "a,b,c" })).toBeUndefined();
