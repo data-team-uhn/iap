@@ -253,16 +253,17 @@ class FakePDFViewer {
   doc: FakeDocument | null = null;
   readonly linkService: FakePDFLinkService;
   readonly annotationEditorMode: number | undefined;
-  findController: FakePDFFindController | null = null;
+  findController: FakePDFFindController | null;
   #pageViews: FakePageView[] = [];
   #page = 1;
   #scale: string | number = "auto";
 
-  constructor({ container, eventBus, linkService, removePageBorders = false, abortSignal,
+  constructor({ container, eventBus, linkService, findController = null, removePageBorders = false, abortSignal,
     annotationEditorMode }: {
     container: HTMLElement;
     eventBus: FakeEventBus;
     linkService: FakePDFLinkService;
+    findController?: FakePDFFindController | null;
     removePageBorders?: boolean;
     abortSignal?: AbortSignal;
     annotationEditorMode?: number;
@@ -273,6 +274,11 @@ class FakePDFViewer {
     this.removePageBorders = removePageBorders;
     this.abortSignal = abortSignal;
     this.annotationEditorMode = annotationEditorMode;
+    // As PDF.js does, only for a find controller given as the viewer is built.
+    this.findController = findController;
+    if (findController !== null) {
+      findController.onIsPageVisible = (pageNumber: number) => pageNumber === this.#page;
+    }
     fakePdf.viewers.push(this);
   }
 
@@ -454,6 +460,7 @@ class FakePDFFindController {
   _selected = { pageIdx: -1, matchIdx: -1 };
   _scrollMatches = false;
   _dirtyMatch = false;
+  onIsPageVisible: ((pageNumber: number) => boolean) | undefined = undefined;
   #matches: { pageIdx: number; matchIdx: number }[] = [];
   #position = -1;
 

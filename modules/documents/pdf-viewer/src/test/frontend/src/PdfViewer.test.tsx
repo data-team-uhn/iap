@@ -233,12 +233,13 @@ describe("PdfViewer", () => {
       await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
     });
 
-    it("has PDF.js edit nothing, and open links in a new tab", async () => {
+    it("has PDF.js edit nothing, open links in a new tab, and search on from the pages in view", async () => {
       show();
       await screen.findByText("Page 2 of 3");
 
       expect(getViewer().annotationEditorMode).toBe(ANNOTATION_EDITOR_TYPE.DISABLE);
       expect(getViewer().linkService.externalLinkTarget).toBe(LINK_TARGET.BLANK);
+      expect(getViewer().findController?.onIsPageVisible).toBeDefined();
     });
 
     it("fits the page to the frame, with no borders around it", async () => {
