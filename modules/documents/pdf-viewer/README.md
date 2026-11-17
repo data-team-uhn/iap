@@ -212,8 +212,8 @@ it gives `onAnnotate` the selected passage as a `TextAnchor` and clears the sele
 so the caller's mark of it shows. What follows is the caller's: typically adding the
 passage as a mark and opening a comment box for it.
 
-Text in a PDF can only be selected with a pointer, so commenting needs one too. A view
-built from the viewer's parts can follow the selection with `useSelectedText`.
+On a phone, a long press selects text, as on any page. A view built from the viewer's
+parts can follow the selection with `useSelectedText`.
 
 ## Searching
 
