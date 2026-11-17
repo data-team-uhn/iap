@@ -155,7 +155,7 @@ describe("useSwipe", () => {
     expect(animate).toHaveBeenCalledTimes(1);
   });
 
-  it("slides the next item in from where the finger went", () => {
+  it("slides the next item in the way the finger went", () => {
     render(<Cards />);
 
     touch([ 200, 100 ], [ 100, 100 ]);
