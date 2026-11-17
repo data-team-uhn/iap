@@ -18,10 +18,10 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { loadPdfViewer, type ViewerComponents } from "./pdfjsViewer";
-import { describeOpenFailure } from "./pdfViewerModel";
+import { describePdfFailure } from "./pdfViewerModel";
 
 import type { PageText } from "./marksModel";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
@@ -100,7 +100,7 @@ export function usePdfDocument(url: string | undefined) {
         setOpened({ url, pdf: openedDocument(components, doc) });
       } catch (error: unknown) {
         if (!stop.signal.aborted) {
-          setOpened({ url, openError: describeOpenFailure(error) });
+          setOpened({ url, openError: describePdfFailure(error) ?? describeRequestFailure(error) });
         }
       }
     })();
