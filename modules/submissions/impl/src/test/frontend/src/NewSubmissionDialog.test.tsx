@@ -21,9 +21,9 @@ import userEvent from "@testing-library/user-event";
 
 import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import NewSubmissionDialog from "@iap/submissions/NewSubmissionDialog";
-import { SCHEMAS_URL } from "@iap/submissions/schemaModel";
+import { CATEGORIES_URL, SCHEMAS_URL } from "@iap/submissions/schemaModel";
 
-import { SCHEMAS } from "./schemas.fixture";
+import { CATEGORIES, SCHEMAS } from "./schemas.fixture";
 
 const CREATE_URL = "/Submissions.create.json";
 
@@ -47,6 +47,28 @@ describe("NewSubmissionDialog", () => {
     expect(screen.getByText("Asking for a day off")).toBeInTheDocument();
     // The URL alone: the authenticated fetch always passes an `init` argument on, even an undefined one
     expect(fetchMock.mock.calls.map(call => call[0])).toContain(SCHEMAS_URL);
+  });
+
+  it("offers the top categories that name an open schema, and raises against that schema", async () => {
+    const fetchMock = stubFetch(({ url }) => url === CREATE_URL
+      ? jsonResponse({ status: "created", path: "/Submissions/aLongWeekend" }, 201)
+      : jsonResponse(url === CATEGORIES_URL ? CATEGORIES : SCHEMAS));
+
+    render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
+
+    expect(await screen.findByText("Time away")).toBeInTheDocument();
+    expect(screen.getByText("Any request to be away from work")).toBeInTheDocument();
+    expect(screen.queryByText("Time off request 1.0")).toBeNull();
+    expect(screen.getAllByRole("radio")).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("radio"));
+    await userEvent.type(screen.getByLabelText(/Title/), "A long weekend");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([ url ]) => url === CREATE_URL)).toBe(true));
+    const [ , options ] = fetchMock.mock.calls.find(([ url ]) => url === CREATE_URL) as unknown as
+      [ string, { method: string; body: URLSearchParams } ];
+    expect(options.body.get("schemaVersion")).toBe("/Schemas/timeOffRequest/v1");
   });
 
   it("says when nothing is open for submissions, rather than showing an empty dialog", async () => {
@@ -77,7 +99,8 @@ describe("NewSubmissionDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(created).toHaveBeenCalledWith("/Submissions/aLongWeekend"));
-    const [ , options ] = fetchMock.mock.calls[1] as unknown as [ string, { method: string; body: URLSearchParams } ];
+    const [ , options ] = fetchMock.mock.calls.find(([ url ]) => url === CREATE_URL) as unknown as
+      [ string, { method: string; body: URLSearchParams } ];
     expect(options.method).toBe("POST");
     // The two parameters the create workflow requires
     expect(options.body.get("title")).toBe("A long weekend");
