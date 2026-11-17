@@ -251,21 +251,24 @@ class FakePDFViewer {
   readonly removePageBorders: boolean;
   readonly abortSignal: AbortSignal | undefined;
   doc: FakeDocument | null = null;
+  readonly annotationEditorMode: number | undefined;
   findController: FakePDFFindController | null = null;
   #pageViews: FakePageView[] = [];
   #page = 1;
   #scale: string | number = "auto";
 
-  constructor({ container, eventBus, removePageBorders = false, abortSignal }: {
+  constructor({ container, eventBus, removePageBorders = false, abortSignal, annotationEditorMode }: {
     container: HTMLElement;
     eventBus: FakeEventBus;
     removePageBorders?: boolean;
     abortSignal?: AbortSignal;
+    annotationEditorMode?: number;
   }) {
     this.container = container;
     this.eventBus = eventBus;
     this.removePageBorders = removePageBorders;
     this.abortSignal = abortSignal;
+    this.annotationEditorMode = annotationEditorMode;
     fakePdf.viewers.push(this);
   }
 
@@ -558,8 +561,13 @@ function openDocument(url: string, worker: unknown): Promise<FakeDocument> {
 }
 
 // What vi.mock("pdfjs-dist", ...) hands the viewer in place of the real module.
+// PDF.js's own values for the editor modes and link targets the viewer names.
+export const ANNOTATION_EDITOR_TYPE = { DISABLE: -1, NONE: 0 } as const;
+export const LINK_TARGET = { NONE: 0, SELF: 1, BLANK: 2 } as const;
+
 export function createPdfjsModule() {
   return {
+    AnnotationEditorType: ANNOTATION_EDITOR_TYPE,
     GlobalWorkerOptions: { workerSrc: "" },
     PDFWorker: FakePDFWorker,
     getDocument: (options: { data: ArrayBuffer; worker?: unknown }) => {

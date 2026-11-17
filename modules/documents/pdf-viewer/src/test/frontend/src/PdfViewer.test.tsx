@@ -32,6 +32,7 @@ import { SETTLE_TIME } from "@iap/documents-pdf-viewer/useSelectedText";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 
 import {
+  ANNOTATION_EDITOR_TYPE,
   createPdfjsError,
   FONT_NAME,
   fakePdf,
@@ -229,6 +230,13 @@ describe("PdfViewer", () => {
       show({ quote: `“${QUOTE}”` });
       expect(getPassage(`“${QUOTE}”`)).toBeInTheDocument();
       await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
+    });
+
+    it("has PDF.js edit nothing", async () => {
+      show();
+      await screen.findByText("Page 2 of 3");
+
+      expect(getViewer().annotationEditorMode).toBe(ANNOTATION_EDITOR_TYPE.DISABLE);
     });
 
     it("fits the page to the frame, with no borders around it", async () => {

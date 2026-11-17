@@ -47,7 +47,8 @@ async function getDataUrls(): Promise<DataUrls> {
 
 type Pdfjs = Awaited<ReturnType<typeof loadPdfjs>>["pdfjs"];
 
-// Imports PDF.js's viewer and its stylesheet.
+// Imports PDF.js's viewer and its stylesheet. The viewer comes with the library's editor modes, which its
+// options name.
 async function importViewer(pdfjs: Pdfjs) {
   // The viewer reads the library from here rather than importing it.
   (globalThis as { pdfjsLib?: unknown }).pdfjsLib = pdfjs;
@@ -55,7 +56,7 @@ async function importViewer(pdfjs: Pdfjs) {
     import("pdfjs-dist/web/pdf_viewer.mjs"),
     import("./pdfViewer.css"),
   ]);
-  return components;
+  return { ...components, AnnotationEditorType: pdfjs.AnnotationEditorType };
 }
 
 // The viewer's import, shared by every document. A failed import is forgotten, so the next load tries
