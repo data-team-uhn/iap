@@ -17,6 +17,7 @@
  */
 
 import { describeRequestFailure } from "@iap/frontend-commons/requestFailure";
+import { lastSegmentOf } from "@iap/frontend-commons/serializedNode";
 
 import type { MarkPlace } from "./marksModel";
 
@@ -42,7 +43,7 @@ export function describeOpenFailure(error: unknown): string {
 // The last segment of the URL's path, decoded, or the URL itself when it has none.
 export function getFileName(url: string): string {
   const path = url.replace(/[?#].*$/, "").replace(/\/+$/, "");
-  const name = path.slice(path.lastIndexOf("/") + 1);
+  const name = lastSegmentOf(path);
   if (name.length === 0) {
     return url;
   }
