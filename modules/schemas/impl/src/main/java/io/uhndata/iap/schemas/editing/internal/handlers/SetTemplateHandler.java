@@ -41,6 +41,7 @@ import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.utils.VersioningUtils;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
+import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.Payloads;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
@@ -105,7 +106,8 @@ public class SetTemplateHandler implements ServiceTaskHandler
         // The model registers as a Requirement, which picks the subtype by resource type
         if (!target.isResourceType(DocumentRequirement.RESOURCE_TYPE)
             || !(target.adaptTo(Requirement.class) instanceof final DocumentRequirement requirement)) {
-            throw SchemaContent.unsupportedTarget(HANDLER_NAME, target);
+            throw new WorkflowDefinitionException("The " + HANDLER_NAME + " handler does not serve "
+                + target.getResourceType());
         }
         final EventAttachment file = Payloads.attachment(context.getEvent(), FILE_PARAMETER);
         if (file == null) {
