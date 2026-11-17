@@ -25,7 +25,7 @@ import { Box, IconButton, Typography } from "@mui/material";
 // shows the heading between the buttons instead of the count. The text between the buttons keeps the
 // width of the widest text it can take, so stepping never moves the buttons. That is the count at the
 // last position, or else the `widest` texts given with the heading.
-export default function StepControls({ position, count, itemName, heading, widest, onStep }: {
+export default function StepControls(props: {
   position: number;
   count: number;
   // The item's name in the button labels, as "passage" in "Next passage". Where the items are of more than
@@ -34,14 +34,30 @@ export default function StepControls({ position, count, itemName, heading, wides
   heading?: string;
   // The widest texts the heading can take at any position.
   widest?: string[];
+  // The text's style. A heading stands out, and a bare count is a caption, unless one is given.
+  variant?: "caption" | "subtitle2";
+  // Lets the text between the buttons be cut short where the row has no room for it, as in a toolbar.
+  shrinks?: boolean;
   onStep: (position: number) => void;
 }) {
+  const { position, count, itemName, heading, widest, variant, shrinks, onStep } = props;
   const names = typeof itemName === "string" ? { previous: itemName, next: itemName } : itemName;
-  const [ text, sizes, variant ] = heading === undefined
-    ? [ `${position} of ${count}`, [ `${count} of ${count}` ], "caption" as const ]
-    : [ heading, widest ?? [], "subtitle2" as const ];
+  const [ text, sizes, style ] = heading === undefined
+    ? [ `${position} of ${count}`, [ `${count} of ${count}` ], variant ?? "caption" ]
+    : [ heading, widest ?? [], variant ?? "subtitle2" ];
+  // Hidden copies of the widest texts hold the width. CSS draws them, so they are not in the page's text.
+  const widthHolders = [ ...new Set(sizes) ].filter(size => size !== text).map(size => (
+    <Typography
+      key={size}
+      variant={style}
+      component="span"
+      noWrap
+      data-size={size}
+      sx={{ visibility: "hidden", "&::before": { content: "attr(data-size)" } }}
+    />
+  ));
   return (
-    <Box sx={{ display: "flex", alignItems: "center", flexShrink: 0, justifyContent: "space-between" }}>
+    <Box sx={{ display: "flex", alignItems: "center", minWidth: 0, flexShrink: shrinks ? 1 : 0, justifyContent: "space-between" }}>
       <IconButton
         aria-label={`Previous ${names.previous}`}
         disabled={position <= 1}
@@ -60,18 +76,8 @@ export default function StepControls({ position, count, itemName, heading, wides
           "& > *": { gridArea: "1 / 1" },
         }}
       >
-        {/* Hidden copies of the widest texts hold the width. CSS draws them, so they are not in the page's text. */}
-        {[ ...new Set(sizes) ].filter(size => size !== text).map(size => (
-          <Typography
-            key={size}
-            variant={variant}
-            component="span"
-            noWrap
-            data-size={size}
-            sx={{ visibility: "hidden", "&::before": { content: "attr(data-size)" } }}
-          />
-        ))}
-        <Typography variant={variant} component="span" noWrap sx={{ maxWidth: "100%" }}>{text}</Typography>
+        {widthHolders}
+        <Typography variant={style} component="span" noWrap sx={{ maxWidth: "100%" }}>{text}</Typography>
       </Box>
       <IconButton aria-label={`Next ${names.next}`} disabled={position >= count} onClick={() => onStep(position + 1)}>
         <ChevronRightIcon />

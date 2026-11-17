@@ -16,12 +16,11 @@
  * limitations under the License.
  */
 // The page buttons: Previous page and Next page, with which page is shown between them.
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import { IconButton, Typography } from "@mui/material";
+import StepControls from "./StepControls";
 
-// The Previous page and Next page buttons, with "Page 3 of 10" between them. In a narrow row, the label is
-// cut short. Both buttons are disabled until the document has opened.
+// The Previous page and Next page buttons, with "Page 3 of 10" between them. The buttons stay put as the
+// page changes. In a narrow row, the text is cut short. Both buttons are disabled until the document has
+// opened.
 export default function PageControls({ page, pageCount, onShowPage }: {
   page?: number;
   pageCount?: number;
@@ -32,21 +31,15 @@ export default function PageControls({ page, pageCount, onShowPage }: {
   const lastPage = pageCount ?? 0;
 
   return (
-    <>
-      <IconButton
-        aria-label="Previous page"
-        edge="start"
-        disabled={shownPage <= 1}
-        onClick={() => onShowPage(shownPage - 1)}
-      >
-        <ChevronLeftIcon />
-      </IconButton>
-      <Typography variant="caption" noWrap sx={{ minWidth: 0, mx: 0.5 }}>
-        {pageCount === undefined ? "Page" : `Page ${shownPage} of ${lastPage}`}
-      </Typography>
-      <IconButton aria-label="Next page" disabled={shownPage >= lastPage} onClick={() => onShowPage(shownPage + 1)}>
-        <ChevronRightIcon />
-      </IconButton>
-    </>
+    <StepControls
+      position={shownPage}
+      count={lastPage}
+      itemName="page"
+      heading={pageCount === undefined ? "Page" : `Page ${shownPage} of ${lastPage}`}
+      widest={[ `Page ${lastPage} of ${lastPage}` ]}
+      variant="caption"
+      shrinks
+      onStep={onShowPage}
+    />
   );
 }
