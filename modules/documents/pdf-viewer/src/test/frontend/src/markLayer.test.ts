@@ -415,6 +415,21 @@ describe("getTextPointAt and getTextPointRect", () => {
     expect(getTextPointAt(frame, 50)).toEqual({ page: 1, char: 34 });
   });
 
+  it("takes the pieces of text by where they are drawn, not by their order in the page's text", () => {
+    const frame = createFrame();
+    // A footer listed first, drawn below the two lines after it
+    frame.querySelector(".textLayer")?.replaceChildren(...[ [ "Footer", 5 ], [ "First", 0 ], [ "Second", 1 ] ]
+      .map(([ text, line ]) => {
+        const span = document.createElement("span");
+        span.textContent = String(text);
+        span.dataset.line = String(line);
+        return span;
+      }));
+
+    expect(getTextPointAt(frame, 10)).toEqual({ page: 1, char: 6 });
+    expect(getTextPointAt(frame, 50)).toEqual({ page: 1, char: 11 });
+  });
+
   it("finds the last piece of text of a page reaching down to a height below its text", () => {
     expect(getTextPointAt(createFrame(), 500)).toEqual({ page: 1, char: 34 });
   });

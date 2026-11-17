@@ -249,9 +249,10 @@ export function getTextEnd(frame: HTMLElement, spans: MarkSpan[]): DOMRect | und
   return textLayer === null ? undefined : getTextRects(getTextNodes(textLayer), last.start, last.end).at(-1);
 }
 
-// The place in the frame's text at a height in the window. It is the start of the first piece of text
-// reaching down to that height, on the first page reaching down to it. `undefined` while that page's text
-// is not drawn, or below every page.
+// The place in the frame's text at a height in the window, on the first page reaching down to it. It is the
+// start of the piece of text drawn across that height, or else of the nearest one below. Below every piece, it
+// is the start of the last one. Pieces are taken by where they are drawn, since a page's text can list a
+// footer first. `undefined` while that page's text is not drawn, or below every page.
 export function getTextPointAt(frame: HTMLElement, y: number): TextPoint | undefined {
   const pageView = Array.from(frame.querySelectorAll<HTMLElement>("[data-page-number]"))
     .find(view => view.getBoundingClientRect().bottom >= y);
@@ -260,7 +261,16 @@ export function getTextPointAt(frame: HTMLElement, y: number): TextPoint | undef
     return undefined;
   }
   const nodes = getTextNodes(textLayer);
-  const at = nodes.find(({ node }) => (node.parentElement?.getBoundingClientRect().bottom ?? y) >= y) ?? nodes.at(-1);
+  const below = nodes.flatMap(node => {
+    const box = node.node.parentElement?.getBoundingClientRect();
+    return box === undefined || box.bottom < y ? [] : [ { node, box } ];
+  });
+  const across = below.find(({ box }) => box.top <= y);
+  const nearest = below.reduce<(typeof below)[number] | undefined>(
+    (best, piece) => (best === undefined || piece.box.bottom < best.box.bottom ? piece : best),
+    undefined,
+  );
+  const at = (across ?? nearest)?.node ?? nodes.at(-1);
   return at === undefined ? undefined : { page: Number(pageView.dataset.pageNumber), char: at.start };
 }
 
