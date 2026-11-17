@@ -28,9 +28,9 @@ import CommentButton from "./CommentButton";
 import ComparisonControls from "./ComparisonControls";
 import MarkList from "./MarkList";
 import { getMarkText, isLooking } from "./marksModel";
+import PageControls from "./PageControls";
 import PassageCard from "./PassageCard";
 import PdfDocumentView from "./PdfDocumentView";
-import { PageControls } from "./PdfToolbar";
 import {
   describeAmong,
   getPassageNote,
@@ -45,6 +45,7 @@ import { useNarrowerThan, useNarrowViewer } from "./useNarrowViewer";
 import { usePassages } from "./usePassages";
 import { ViewerTitle } from "./ViewerPlacement";
 import ViewerToolbar, { type ViewerToolbarHandle } from "./ViewerToolbar";
+import ZoomControls from "./ZoomControls";
 
 import type { Mark, MarkSpan } from "./marksModel";
 import type { MarkPlaces } from "./useMarkPlaces";
@@ -91,6 +92,8 @@ export default function ViewerBody(props: ViewerBodyProps) {
   const { renderMarkDetails, selectedText, onAnnotate, comparison, placeButton, edgeToEdge, onClose } = props;
   const { changeIds } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
+  // The document has opened once its pages are counted.
+  const opened = pageCount !== undefined;
   const { search, find, findAgain } = view;
   const [body, setBody] = useState<HTMLElement | null>(null);
   const narrow = useNarrowViewer(body);
@@ -110,7 +113,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
       selectedText.dismiss();
       return;
     }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f" && pageCount !== undefined) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f" && opened) {
       event.preventDefault();
       toolbarRef.current?.openSearch();
     }
@@ -170,7 +173,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
   // A bar along each version shows the progress while the versions are read and compared, or while the
   // passages are looked for.
   const looked = marks.length - changeIds.size;
-  const looking: Progress | undefined = compared.progress ?? (pageCount !== undefined && isLooking(places)
+  const looking: Progress | undefined = compared.progress ?? (opened && isLooking(places)
     ? { share: pagesRead / pageCount, what: `the ${looked > 1 ? markName.many : markName.one}` }
     : undefined);
 
@@ -179,8 +182,8 @@ export default function ViewerBody(props: ViewerBodyProps) {
       setFrame={setFrame}
       edgeToEdge={edgeToEdge && !split}
       outlineSelected={ordered.length > 1}
-      opening={pageCount === undefined && openError === undefined}
-      looking={pageCount === undefined ? undefined : looking}
+      opening={!opened && openError === undefined}
+      looking={opened ? looking : undefined}
     >
       {selectedText.selected === undefined || onAnnotate === undefined
         ? null
@@ -218,14 +221,14 @@ export default function ViewerBody(props: ViewerBodyProps) {
         <Box sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minWidth: 0 }}>
           <ViewerToolbar
             ref={toolbarRef}
-            pages={split ? undefined : <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}
-            opened={pageCount !== undefined}
+            start={split ? undefined : <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}
+            tools={
+              <ZoomControls disabled={!opened} onZoomIn={zoomIn} onZoomOut={zoomOut} onFitWidth={fitWidth} />
+            }
+            opened={opened}
             search={search}
             onFind={find}
             onFindAgain={findAgain}
-            onZoomIn={zoomIn}
-            onZoomOut={zoomOut}
-            onFitWidth={fitWidth}
           />
           {older?.error === undefined
             ? null

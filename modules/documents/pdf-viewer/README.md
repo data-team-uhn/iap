@@ -235,6 +235,8 @@ Escape closes it. Ctrl+F, or Cmd+F, searches while the focus is in the viewer.
 where marks are as those pages are read, and `usePdfView` shows the document in a frame,
 with the marks drawn, moves the reader, and searches it. `ViewerPlacement` puts a viewer
 in place or in a dialog, `ViewerTitle` is its top row, and `ViewerToolbar` its toolbar.
+The toolbar lays out what it is given at its start and end around the search: the viewer
+gives it `PageControls` and `ZoomControls`.
 
 ## Comparing two versions
 

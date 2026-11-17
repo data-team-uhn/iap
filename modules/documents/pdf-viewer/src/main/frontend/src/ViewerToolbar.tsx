@@ -36,20 +36,18 @@ export interface ViewerToolbarHandle {
   openSearch: () => void;
 }
 
-// The viewer's toolbar: the page controls given, the search field and the zoom buttons. Where there is no
-// room for the search field, a Search button opens it in place of the toolbar. The field stays there while
-// it is open or holds a query. It takes the focus when it opens, and closing it gives the focus back to the
-// Search button.
-export default function ViewerToolbar({ ref, pages, opened, search, onFind, onFindAgain, ...zoom }: {
+// The viewer's toolbar: the controls given for its start, the search field, and the tools given for its end.
+// Where there is no room for the search field, a Search button opens it in place of the toolbar. The field
+// stays there while it is open or holds a query. It takes the focus when it opens, and closing it gives the
+// focus back to the Search button.
+export default function ViewerToolbar({ ref, start, tools, opened, search, onFind, onFindAgain }: {
   ref?: Ref<ViewerToolbarHandle>;
-  pages?: ReactNode;
+  start?: ReactNode;
+  tools?: ReactNode;
   opened: boolean;
   search: DocumentSearch;
   onFind: (query: string) => void;
   onFindAgain: (previous: boolean) => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onFitWidth: () => void;
 }) {
   const [row, setRow] = useState<HTMLElement | null>(null);
   const compact = useNarrowerThan(row, SEARCH_FIELD_ROOM);
@@ -97,8 +95,8 @@ export default function ViewerToolbar({ ref, pages, opened, search, onFind, onFi
         )
         : (
           <PdfToolbar
-            pages={pages}
-            opened={opened}
+            start={start}
+            tools={tools}
             search={compact
               ? (
                 <IconButton
@@ -119,7 +117,6 @@ export default function ViewerToolbar({ ref, pages, opened, search, onFind, onFi
                   onFindAgain={onFindAgain}
                 />
               )}
-            {...zoom}
           />
         )}
     </Box>
