@@ -82,8 +82,9 @@ export function useComparisonDisplay(comparison: ComparisonPanes | undefined, { 
   const described = state === undefined || comparison === undefined
     ? undefined
     : describeComparison(state, comparison.strict);
-  const changeIndex = changes?.findIndex(change => change.id === selectedId) ?? -1;
-  const selectedChange = changeIndex < 0 ? undefined : changes?.[changeIndex];
+  const foundAt = changes?.findIndex(change => change.id === selectedId) ?? -1;
+  const changeIndex = foundAt < 0 ? undefined : foundAt;
+  const selectedChange = changeIndex === undefined ? undefined : changes?.[changeIndex];
   // A change is shown in place of the text it marks, as what it removed and added among the words around it.
   const renderBody = useMemo(() => {
     const byId = new Map(changes?.map(change => [ change.id, change ]));
@@ -125,7 +126,7 @@ export function useComparisonDisplay(comparison: ComparisonPanes | undefined, { 
     renderBody,
     describeBody,
     // What a screen reader hears of the selected change, numbered among the changes.
-    selectedChangeSaid: selectedChange === undefined || changes === undefined
+    selectedChangeSaid: selectedChange === undefined || changeIndex === undefined || changes === undefined
       ? undefined
       : describeChange(selectedChange, { index: changeIndex + 1, count: changes.length }),
     // What the comparison found, once it is done.
