@@ -151,6 +151,19 @@ function PdfViewerSession(props: PdfViewerProps) {
       dismiss();
       document.getSelection()?.removeAllRanges();
     };
+  // Another page the caller asks for takes the reader there once the document is shown. The page asked
+  // for first is where the document opens. A mark the caller selects at the same time wins, its effect
+  // running after this one.
+  const askedPage = useRef(page);
+  const { shown: newerShown, showPage: showNewerPage } = view;
+  useEffect(() => {
+    if (newerShown === undefined || page === undefined || page === askedPage.current) {
+      return;
+    }
+    askedPage.current = page;
+    showNewerPage(page);
+    lead("newer");
+  }, [newerShown, page, showNewerPage, lead]);
   // Takes the reader to each mark the caller selects, unless it is the one the person just chose.
   useEffect(() => {
     if (selectedMarkId === followedId.current || !marks.some(mark => mark.id === selectedMarkId)) {
@@ -164,18 +177,6 @@ function PdfViewerSession(props: PdfViewerProps) {
     // that mark again later moves the reader to it.
     reportedId.current = undefined;
   }, [selectedMarkId, marks, showMark]);
-  // Another page the caller asks for takes the reader there once the document is shown. The page asked
-  // for first is where the document opens.
-  const askedPage = useRef(page);
-  const { shown: newerShown, showPage: showNewerPage } = view;
-  useEffect(() => {
-    if (newerShown === undefined || page === undefined || page === askedPage.current) {
-      return;
-    }
-    askedPage.current = page;
-    showNewerPage(page);
-    lead("newer");
-  }, [newerShown, page, showNewerPage, lead]);
   // The caller's details go under its own marks, not under the changes, which it does not know of.
   const details = useMemo(() => {
     if (changeIds.size === 0 || renderMarkDetails === undefined) {
