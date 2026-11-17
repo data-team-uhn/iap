@@ -162,8 +162,8 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, name, edgeToEdge, 
   );
 });
 
-// The document, filling the room left to it, with a spinner while it opens and a bar along its top while
-// marks are looked for in it. `children` are shown over the frame, placed in its coordinates. With
+// The document, filling the room left to it, with a spinner while it opens and a bar along its top while it
+// is read, as for its marks or for the changes. `children` are shown over the frame, placed in its coordinates. With
 // `edgeToEdge`, the document spans the full width of a phone screen.
 export default function PdfDocumentView({ setFrame, name, edgeToEdge, outlineSelected, opening, looking, children }: {
   setFrame: (frame: HTMLDivElement | null) => void;
@@ -173,8 +173,8 @@ export default function PdfDocumentView({ setFrame, name, edgeToEdge, outlineSel
   // Whether the selected mark is also outlined.
   outlineSelected: boolean;
   opening: boolean;
-  // While marks are being looked for, how far that has got, from 0 to 1, and what is looked for, as in
-  // "the passages".
+  // While the document is read, how far that has got, from 0 to 1, and what is looked for, as in "the
+  // passages" or "the changes".
   looking?: { share: number; what: string };
   children?: ReactNode;
 }) {

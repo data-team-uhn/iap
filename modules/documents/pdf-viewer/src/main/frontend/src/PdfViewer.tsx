@@ -16,7 +16,8 @@
  * limitations under the License.
  */
 // The PDF viewer: it opens a document, marks passages in it, and can compare it with an older version.
-// The work is done by hooks; this file joins them and lays out what they show.
+// The work is done by hooks. This file holds the session's state, joins the hooks, and hands what they give
+// to ViewerBody, which lays it out.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { getMarkPage, getMarksKey, isUnmarkable, NO_MARKS } from "./marksModel";
@@ -41,9 +42,9 @@ export interface PdfViewerProps {
   // it has one, or else at the first page. A different page given later takes the reader there.
   page?: number;
   // The passages to mark, in the order to list them. Those that cannot be marked are listed last. A quote
-  // is looked for from its own page onwards, and spans are placed where they say. New marks equal to the
-  // last ones given are not looked for again. An id names the same mark from one render to the next, and the
-  // person's choice of a mark is kept by its id.
+  // is looked for from its own page to the end, then from the first page, and spans are placed where they
+  // say. New marks equal to the last ones given are not looked for again. An id names the same mark from
+  // one render to the next, and the person's choice of a mark is kept by its id.
   marks: Mark[];
   // The id of the selected mark. The viewer takes the reader to it once it is found, and again each time
   // the caller selects another. When it is absent or not among the marks, the mark the person last chose
@@ -80,9 +81,8 @@ export interface PdfViewerProps {
 }
 
 // Opens a PDF, finds the passages given in it, and marks them. A passage that cannot be found does not
-// stop the document opening. A single passage is shown on a card above the document. Several are listed
-// beside the document, or shown one at a time on the card in a viewer too narrow for the list. Compared
-// with an older version, the viewer also marks what changed, beside the older version or in this one alone.
+// stop the document opening. Compared with an older version, the viewer also marks what changed, beside the
+// older version or in this one alone.
 export default function PdfViewer(props: PdfViewerProps) {
   // Keyed by URL, so another document starts with nothing left from the last one. Another page of the same
   // document only moves the reader, who keeps the zoom and the search.

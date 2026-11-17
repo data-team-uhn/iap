@@ -206,11 +206,11 @@ the selection has settled: the pointer let go, and nothing changing for `SETTLE_
 room, and stays inside the document. After a selection by touch, it sits lower, clear of
 the phone's handles and of the menu the phone shows.
 
-Scrolling hides the button until the document is still. Zooming clears the selection,
-and the button with it. Escape hides the button until the selection changes, without
-closing the viewer. Pressing it gives `onAnnotate` the selected passage as a
-`TextAnchor` and clears the selection, so the caller's mark of it shows. What follows is
-the caller's: typically adding the passage as a mark and opening a comment box for it.
+Scrolling or zooming hides the button until the document is still again. Escape hides it
+until the selection changes or the document moves, without closing the viewer. Pressing
+it gives `onAnnotate` the selected passage as a `TextAnchor` and clears the selection,
+so the caller's mark of it shows. What follows is the caller's: typically adding the
+passage as a mark and opening a comment box for it.
 
 Text in a PDF can only be selected with a pointer, so commenting needs one too. A view
 built from the viewer's parts can follow the selection with `useSelectedText`.
@@ -241,7 +241,7 @@ in the toolbar's place.
 | `SETTLE_TIME` | 300ms | `useSelectedText.ts` | How long a selection is still before the Comment button shows |
 | `CONTEXT_LENGTH` | 32 | `textAnchor.ts` | The characters an anchor keeps either side of its quote |
 | `POINT_MIN_SIZE` | 22px | `markLayer.ts` | The least height of the box marking removed text |
-| `POINT_HIT_SIZE` | 40px touch, 16px mouse | `markLayer.ts` | How near a tap or click must be to a point mark |
+| `POINT_HIT_SIZE` | 40px touch, 16px mouse | `markLayer.ts` | The least size of the target centred on a point mark |
 | `DIFF_LIMITS` | 1s, 20,000 words | `revisionDiffModel.ts` | Versions more different than this are not compared |
 
 ## Using the parts on their own
@@ -250,7 +250,8 @@ in the toolbar's place.
 |---|---|
 | `usePdfDocument` | Opens the file, and reads each page's text once |
 | `useMarkPlaces` | Finds where the marks are as the pages are read |
-| `usePdfView` | Shows the document in a frame with the marks drawn, moves the reader, searches |
+| `usePdfView` | Shows the document in `PdfDocumentView`'s frame with the marks drawn, moves the reader, searches |
+| `PdfDocumentView` | The frame PDF.js draws in, with the marks' colours, a spinner while it opens and a bar while it is read |
 | `ViewerPlacement` | Puts a viewer in place or in a dialog |
 | `ViewerTitle` | The viewer's top row |
 | `ViewerToolbar` | The toolbar: what it is given at its start and end, around the search |
@@ -307,8 +308,9 @@ into pages differently still compare.
 | `useScrollSync.ts` | Scrolls the versions together |
 
 Including or leaving out minor changes only shows or hides them. Nothing is compared
-again, and every change keeps its number. If a minor change is selected when they are
-left out, the next change shown is selected instead.
+again, and every change keeps its id, while the number shown counts the changes shown.
+If a minor change is selected when they are left out, the next change shown is selected
+instead.
 
 Another `compareWith` compares in place: the newer version stays where the reader is,
 and the older one opens at the matching place once compared. Each comparison numbers its
@@ -321,9 +323,10 @@ mark as it does on opening.
 Each change is a mark of its own kind: `added` text is marked in the newer version, and
 `removed` text in the older. Where text was removed, the newer version shows a
 translucent box around a text cursor, a little taller than the line and at least
-`POINT_MIN_SIZE` high. A finger can tap it from 40px away, but a tap on a mark beside it
-still goes to that mark. Text that replaced removed text starts with a bar in the colour
-of removed text, so it reads differently from text simply added.
+`POINT_MIN_SIZE` high. A finger can tap it from up to 20px away (8px with a mouse), but
+a tap on a mark beside it still goes to that mark. Text that replaced removed text
+starts with a bar in the colour of removed text, so it reads differently from text
+simply added.
 
 Selecting a change, by stepping, from the list or in either version, takes every version
 shown to it. A screen reader hears what changed and where ("Change 3 of 17. Text removed
@@ -332,13 +335,13 @@ on page 4. It said “…”.").
 With the newer version alone, the changes are listed and stepped through with the
 caller's marks: after the marks found, and before any that cannot be. Each is named and
 numbered as what it is ("Change 2 of 7", "Comment 3 of 5"). The step buttons are named
-after the mark they go to (`nameMarks`). A change's card shows the removed text struck
-through and the added text, among a few words around them (`getChangeInContext`, drawn
-by `ValueChange`). It stops short of the changes either side. A screen reader hears it
-as a sentence instead, since it does not read inside the card's button. A change's card
-is plain paper with a grey (`divider`) stripe and outline. Above the document, it is
-always two lines high, so stepping does not move the document. A longer change fades out
-where it is cut, and the card's button shows all of it.
+after the mark they go to (`getStepNames`). A change's card shows the removed text
+struck through and the added text, among a few words around them (`getChangeInContext`,
+drawn by `ValueChange`). It stops short of the changes either side. A screen reader
+hears it as a sentence instead, since it does not read inside the card's button. A
+change's card is plain paper with a grey (`divider`) stripe and outline. Above the
+document, it is always two lines high, so stepping does not move the document. A longer
+change fades out where it is cut, and the card's button shows all of it.
 
 Side by side, where each version shows its own side of every change, changes have no
 cards. They are stepped through with their own controls above the versions, and only the
@@ -378,9 +381,9 @@ Side by side, the versions scroll together, matched by their text (`useScrollSyn
 Whatever is in the middle of the version scrolled by hand goes to the middle of the
 other, through the words the comparison paired (`mapPoint`). A word only one version has
 goes to where its change is in the other, so the versions move at different speeds
-through added or removed text. The matching text is put as far along its line too, so
-the other version moves as smoothly. After a zoom, or a page picked from either page
-bar, the other version follows.
+through added or removed text. The matching text is also put as far down its line as in
+the version scrolled, so the other version moves smoothly rather than a line at a time.
+After a zoom, or a page picked from either page bar, the other version follows.
 
 | Going to | The older version |
 |---|---|
