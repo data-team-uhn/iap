@@ -36,5 +36,6 @@
   -->
   <modules>
     <module>time-off-request</module>
+    <module>research-proposal</module>
   </modules>
 </project>
