@@ -453,12 +453,16 @@ export function usePdfView(
     }
   }, []);
 
-  // Goes to a page, and stops taking the reader to a mark or a place in the text.
+  // Goes to a page, and stops taking the reader to a mark or a place in the text. A page that is not in the
+  // document is ignored.
   const showPage = useCallback((pageNumber: number) => {
-    goToRef.current = undefined;
-    pointRef.current = undefined;
-    followSelectedRef.current = false;
     withViewer(viewer => {
+      if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > viewer.pagesCount) {
+        return;
+      }
+      goToRef.current = undefined;
+      pointRef.current = undefined;
+      followSelectedRef.current = false;
       viewer.currentPageNumber = pageNumber;
     });
   }, [withViewer]);
