@@ -123,8 +123,8 @@ export function usePdfView(
   // The page given when the view starts. A page given later does not move the reader.
   const [openAt] = useState(page);
   const [shown, setShown] = useState<ShownDocument | undefined>(undefined);
-  // The page count and the page shown, with the document they belong to.
-  const [pages, setPages] = useState<{ of?: object; count?: number; shown?: number }>({});
+  // The page shown, with the document it is a page of.
+  const [pages, setPages] = useState<{ of?: object; shown?: number }>({});
   const viewerRef = useRef<PDFViewer | undefined>(undefined);
   // Where the reader is, as PDF.js's open parameters, with the document. A new frame opens there.
   const locationRef = useRef<{ of: object; params: string } | undefined>(undefined);
@@ -265,10 +265,10 @@ export function usePdfView(
           ? openAt
           : 1;
         viewer.currentPageNumber = first;
-        setPages({ of: doc, count: doc.numPages, shown: first });
+        setPages({ of: doc, shown: first });
       } else {
         linkService.setHash(locationRef.current.params);
-        setPages({ of: doc, count: doc.numPages, shown: viewer.currentPageNumber });
+        setPages({ of: doc, shown: viewer.currentPageNumber });
       }
       if (queryRef.current.trim() !== "") {
         countRef.current?.start();
@@ -303,7 +303,7 @@ export function usePdfView(
       locationRef.current = { of: doc, params: location.pdfOpenParams.replace(/^#/, "") };
     });
     eventBus.on("pagechanging", ({ pageNumber }: { pageNumber: number }) => {
-      setPages({ of: doc, count: doc.numPages, shown: pageNumber });
+      setPages({ of: doc, shown: pageNumber });
     });
 
     // PDF.js fits the page to the frame's width only when told to. When the frame's width changes, the
@@ -547,7 +547,7 @@ export function usePdfView(
 
   return {
     shown,
-    pageCount: pages.of === pdf?.doc ? pages.count : undefined,
+    pageCount: pdf !== undefined && pages.of === pdf.doc ? pdf.doc.numPages : undefined,
     page: pages.of === pdf?.doc ? pages.shown : undefined,
     setFrame,
     showPage,
