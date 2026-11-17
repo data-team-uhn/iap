@@ -329,15 +329,15 @@ export function usePdfView(
       }, { signal: stop.signal, passive: true });
     }
 
-    let pressedAt = { x: 0, y: 0, touch: false };
+    let pressedAt = { x: 0, y: 0, pointerType: "mouse" };
     frame.addEventListener("pointerdown", event => {
-      pressedAt = { x: event.clientX, y: event.clientY, touch: event.pointerType === "touch" };
+      pressedAt = { x: event.clientX, y: event.clientY, pointerType: event.pointerType };
     }, { signal: stop.signal });
     frame.addEventListener("click", event => {
       const moved = Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) > DRAG_DISTANCE;
       const id = moved || window.getSelection()?.isCollapsed === false
         ? undefined
-        : findMarkAt(frame, event.clientX, event.clientY, pressedAt.touch);
+        : findMarkAt(frame, event.clientX, event.clientY, pressedAt.pointerType);
       if (id !== undefined) {
         onSelectMarkRef.current(id);
       }

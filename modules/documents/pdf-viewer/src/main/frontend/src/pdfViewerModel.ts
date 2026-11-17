@@ -280,9 +280,10 @@ export interface CommentButtonPlace {
 export function getCommentButtonPlace(
   end: { x: number; bottom: number },
   frame: { width: number; height: number },
-  byTouch: boolean,
+  // The pointer the selection was made with, as a PointerEvent gives it.
+  pointerType: string,
 ): CommentButtonPlace {
-  const below = end.bottom + (byTouch ? UNDER_HANDLES : GAP);
+  const below = end.bottom + (pointerType === "touch" ? UNDER_HANDLES : GAP);
   const top = Math.max(EDGE, Math.min(below, frame.height - COMMENT_BUTTON_HEIGHT - EDGE));
   return end.x <= frame.width / 2
     ? { top, left: Math.max(EDGE, end.x) }

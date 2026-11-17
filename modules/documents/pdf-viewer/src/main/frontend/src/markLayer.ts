@@ -319,9 +319,9 @@ function getHitBox(mark: HTMLElement, pointSize: number): DOMRect {
 // The mark drawn at a place in the frame, if any. Marks let the pointer through, so a click is matched to
 // a mark here, by where it falls. A point is reached within a fingertip of it on a touch screen. A mark the
 // click falls on comes before a point it is only beside. Where marks overlap, one not selected comes first,
-// so clicking again reaches the other.
-export function findMarkAt(frame: HTMLElement, x: number, y: number, touch = false): string | undefined {
-  const pointSize = touch ? POINT_HIT_SIZE.touch : POINT_HIT_SIZE.mouse;
+// so clicking again reaches the other. `pointerType` is the pointer's, as a PointerEvent gives it.
+export function findMarkAt(frame: HTMLElement, x: number, y: number, pointerType = "mouse"): string | undefined {
+  const pointSize = pointerType === "touch" ? POINT_HIT_SIZE.touch : POINT_HIT_SIZE.mouse;
   const hits = Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).flatMap(mark => {
     const { left, right, top, bottom } = getHitBox(mark, pointSize);
     return x >= left && x <= right && y >= top && y <= bottom ? [ { mark, away: getDistance(mark, x, y) } ] : [];
