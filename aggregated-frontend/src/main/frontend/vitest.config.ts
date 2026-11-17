@@ -63,6 +63,25 @@ export default defineConfig({
           exclude: mockingFiles,
           isolate: false,
           setupFiles: ["./vitest.shared.setup.ts"],
+          // jsdom runs animation frames and focus fix-ups from one interval, started when first needed. Under
+          // fake timers that interval is a fake one. Once the test ends, it never fires again, and every later
+          // animation frame in the shared window waits forever. jsdom needs a focus fix-up whenever a style
+          // sheet changes, as on every MUI render. So fake timers here leave intervals real.
+          fakeTimers: {
+            toFake: [
+              "setTimeout",
+              "clearTimeout",
+              "setImmediate",
+              "clearImmediate",
+              "Date",
+              "requestAnimationFrame",
+              "cancelAnimationFrame",
+              "requestIdleCallback",
+              "cancelIdleCallback",
+              "performance",
+              "hrtime",
+            ],
+          },
         },
       },
     ],
