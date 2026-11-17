@@ -234,6 +234,17 @@ describe("PdfViewer", () => {
       await waitFor(() => expect(getStatus()).toHaveTextContent(FOUND));
     });
 
+    it("does nothing with a file dropped on the document, and leaves other drags alone", async () => {
+      show();
+      await screen.findByText("Page 2 of 3");
+      const files = { types: [ "Files" ] };
+
+      // fireEvent gives false for an event whose default was prevented
+      expect(fireEvent.dragOver(getFrame(), { dataTransfer: files })).toBe(false);
+      expect(fireEvent.drop(getFrame(), { dataTransfer: files })).toBe(false);
+      expect(fireEvent.drop(getFrame(), { dataTransfer: { types: [ "text/plain" ] } })).toBe(true);
+    });
+
     it("has PDF.js edit nothing, open links in a new tab, and search on from the pages in view", async () => {
       show();
       await screen.findByText("Page 2 of 3");

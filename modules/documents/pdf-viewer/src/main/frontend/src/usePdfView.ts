@@ -361,6 +361,15 @@ export function usePdfView(
     frame.addEventListener("pointermove", event => {
       frame.classList.toggle(OVER_MARK_CLASS, findMarkAt(frame, event.clientX, event.clientY) !== undefined);
     }, { signal: stop.signal });
+    // A file dropped on the document does nothing. The browser would open it in place of the page, losing
+    // whatever was being typed on it.
+    for (const type of [ "dragover", "drop" ] as const) {
+      frame.addEventListener(type, event => {
+        if (event.dataTransfer?.types.includes("Files") === true) {
+          event.preventDefault();
+        }
+      }, { signal: stop.signal });
+    }
 
     viewer.setDocument(doc);
     linkService.setDocument(doc);
