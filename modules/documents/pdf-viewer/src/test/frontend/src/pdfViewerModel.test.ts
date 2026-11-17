@@ -32,6 +32,7 @@ import {
   nameMarks,
   IDLE_SEARCH,
 } from "@iap/documents-pdf-viewer/pdfViewerModel";
+import { PdfWorkerFailure } from "@iap/frontend-commons/pdfjsClient";
 import { RequestError } from "@iap/frontend-commons/requestFailure";
 
 describe("describePdfFailure", () => {
@@ -40,6 +41,12 @@ describe("describePdfFailure", () => {
     error.name = name;
     return error;
   }
+
+  it("asks for a reload when PDF.js's worker never started", () => {
+    expect(describePdfFailure(new PdfWorkerFailure("The PDF.js worker did not start"))).toBe(
+      "The document viewer could not start. Reload the page to try again.",
+    );
+  });
 
   it("says when the file is not a PDF that can be read", () => {
     expect(describePdfFailure(pdfjsError("InvalidPDFException", "Invalid PDF structure."))).toBe(
