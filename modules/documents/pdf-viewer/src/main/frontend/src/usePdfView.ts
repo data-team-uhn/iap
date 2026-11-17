@@ -159,6 +159,9 @@ export function usePdfView(
     // A link out of the document opens in a new tab, so the page around the viewer, and whatever is being
     // typed on it, stays.
     const linkService = new components.PDFLinkService({ eventBus, externalLinkTarget: components.LinkTarget.BLANK });
+    // Given to the viewer as it is built, the only time PDF.js tells it which pages are in view. The next
+    // match is then looked for from where the reader is.
+    const findController = createFindController(components, { container: frame, linkService, eventBus });
     // Aborting it removes the listeners on the frame, and stops the viewer watching the frame's size and
     // scrolling.
     const stop = new AbortController();
@@ -167,6 +170,7 @@ export function usePdfView(
       container: frame,
       eventBus,
       linkService,
+      findController,
       removePageBorders: true,
       abortSignal: stop.signal,
       // The viewer edits nothing. PDF.js's editor would listen for files dropped anywhere on the page.
@@ -176,8 +180,6 @@ export function usePdfView(
     viewerRef.current = viewer;
     eventBusRef.current = eventBus;
     linkService.setViewer(viewer);
-    const findController = createFindController(components, { container: frame, linkService, eventBus });
-    viewer.findController = findController;
 
     const { FOUND, NOT_FOUND, PENDING, WRAPPED } = components.FindState;
     // A document without text has no matches either. The search says it has no text instead.
