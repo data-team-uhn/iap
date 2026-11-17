@@ -62,7 +62,8 @@ import type { Mark, MarkSpan, TextAnchor } from "./marksModel";
 export interface PdfViewerProps {
   // The PDF to open.
   url: string;
-  // The page to open it at: the selected mark's own page when absent, or else the first.
+  // The page to open it at: the selected mark's own page when absent, or else the first. Another page given
+  // later takes the reader there.
   page?: number;
   // The passages to mark, in the order to list them. A quote is looked for from its own page onwards,
   // and spans are placed where they say. New marks equal to the last ones are not looked for again.
@@ -105,8 +106,9 @@ export interface PdfViewerProps {
 // viewer too narrow for that, shown one at a time above it. Compared with an older version, it also marks
 // what changed, beside the older version or in this one alone.
 export default function PdfViewer(props: PdfViewerProps) {
-  // Keyed so another document, or another page to open at, starts over with nothing left from the last.
-  return <PdfViewerSession key={`${props.url}\n${props.page}`} {...props} />;
+  // Keyed so another document starts over with nothing left from the last. Another page of the same one
+  // only moves the reader, keeping the zoom and the search.
+  return <PdfViewerSession key={props.url} {...props} />;
 }
 
 const NO_MARKS: Mark[] = [];
@@ -216,6 +218,18 @@ function PdfViewerSession(props: PdfViewerProps) {
     // moves the reader to it.
     reportedId.current = undefined;
   }, [selectedMarkId, marks, showMark]);
+  // Another page the caller asks for takes the reader there once the document is shown. The page asked
+  // for first is where the document opens.
+  const askedPage = useRef(page);
+  const { shown: newerShown, showPage: showNewerPage } = view;
+  useEffect(() => {
+    if (newerShown === undefined || page === undefined || page === askedPage.current) {
+      return;
+    }
+    askedPage.current = page;
+    showNewerPage(page);
+    lead("newer");
+  }, [newerShown, page, showNewerPage, lead]);
   // The older version, shown again beside this one, takes the zoom this one was given meanwhile.
   const { shown: olderShown, zoomTo: zoomOlderTo } = olderView;
   const { getScaleValue } = view;

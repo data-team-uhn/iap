@@ -354,6 +354,17 @@ describe("PdfViewer", () => {
   });
 
   describe("moving around", () => {
+    it("goes to another page given for the same document, without opening it again", async () => {
+      fakePdf.pages = [ "Cover.", "Contents.", QUOTE ];
+      const { rerender } = show({ page: 1, quote: "Yes" });
+      await screen.findByText("Page 1 of 3");
+
+      rerender({ page: 3 });
+
+      expect(await screen.findByText("Page 3 of 3")).toBeInTheDocument();
+      expect(fakePdf.opened).toBe(1);
+    });
+
     it("goes from page to page, and not past either end", async () => {
       show();
       await screen.findByText("Page 2 of 3");
