@@ -51,6 +51,15 @@ describe("getTextAnchor", () => {
     expect(anchor.after).toBe("s for a Police Records Check fro");
   });
 
+  it("keeps whole characters around the passage, so that it can be kept as text", () => {
+    const page: PageText = { text: `\u{1D465}${"a".repeat(31)}Quote`, lineEnds: [] };
+
+    const anchor = getTextAnchor([ { page: 1, start: 33, end: 38 } ], () => page);
+
+    expect(anchor.before).toBe(`\u{1D465}${"a".repeat(31)}`);
+    expect(() => encodeAnchor(anchor)).not.toThrow();
+  });
+
   it("runs from the first span's start to the last span's end, saying what every span covers", () => {
     const anchor = getTextAnchor([ { page: 1, start: 74, end: 99 }, { page: 2, start: 0, end: 15 } ], getPage);
 
