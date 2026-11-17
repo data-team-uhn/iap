@@ -57,6 +57,17 @@ describe("TextInput", () => {
     expect(onCommit.mock.calls).toEqual([ [ [ "Anne" ] ] ]);
   });
 
+  it("commits a value changed back to the last one committed, after a change from outside", () => {
+    const { onCommit, input, retype } = renderInput();
+
+    retype([ "Bo" ]);
+    fireEvent.focus(input!);
+    retype([ "Ann" ]);
+    fireEvent.blur(input!);
+
+    expect(onCommit.mock.calls).toEqual([ [ [ "Ann" ] ] ]);
+  });
+
   it("commits a multiline value only when left", () => {
     const { onCommit, input, retype } = renderInput({ multiline: true });
 

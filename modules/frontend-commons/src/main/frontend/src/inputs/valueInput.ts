@@ -113,6 +113,11 @@ export function useFieldProps(props: ValueInputProps, onceLeft: string[] = []) {
       error: currentProblems.length > 0,
       helperText: currentProblems.length > 0 ? currentProblems.join(" ") : description,
       fullWidth: true,
+      // A commit compares with the value the field holds on entry. The caller may have changed it since the
+      // last commit, by an undo for example.
+      onFocus: () => {
+        committed.current = values;
+      },
     },
   };
 }
