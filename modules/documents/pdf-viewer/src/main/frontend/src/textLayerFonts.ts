@@ -33,8 +33,10 @@
 // so the worst case is PDF.js's own. A real-browser test checks a known PDF, so a PDF.js upgrade that changes
 // these internals fails it.
 
-// The pieces of text PDF.js draws in a text layer, one per piece of the page's text content.
-const TEXT_SPANS = "span:not(.markedContent)";
+// The pieces of text PDF.js draws in a text layer, one per piece of the page's text content that has text.
+// The role sets them apart from the spans PDF.js also puts there: marked content around them, and search
+// highlights inside them.
+const TEXT_SPANS = "span[role=\"presentation\"]";
 
 // What setting the text in the page's fonts needs of the browser, kept apart to be tested without one.
 export interface PageFonts {

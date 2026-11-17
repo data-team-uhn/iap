@@ -33,6 +33,7 @@ function createTextLayer(...texts: string[]): HTMLElement {
   texts.forEach((text, index) => {
     const span = document.createElement("span");
     span.textContent = text;
+    span.setAttribute("role", "presentation");
     span.style.fontFamily = "sans-serif";
     span.style.setProperty("--scale-x", "0.8");
     (index === 0 ? marked : textLayer).append(span);
@@ -40,7 +41,7 @@ function createTextLayer(...texts: string[]): HTMLElement {
   return textLayer;
 }
 
-const getSpans = (textLayer: HTMLElement) => Array.from(textLayer.querySelectorAll<HTMLElement>("span:not(.markedContent)"));
+const getSpans = (textLayer: HTMLElement) => Array.from(textLayer.querySelectorAll<HTMLElement>("span[role=\"presentation\"]"));
 
 // Each span's font family without quotes, which the browser may drop.
 const getFamilies = (textLayer: HTMLElement) => getSpans(textLayer).map(span => span.style.fontFamily.replaceAll("\"", ""));
@@ -56,6 +57,15 @@ describe("alignTextLayer", () => {
     // Twice as wide in its own font, so stretched half as much
     expect(first.style.getPropertyValue("--scale-x")).toBe("0.4");
     expect(first.style.textRendering.toLowerCase()).toBe("geometricprecision");
+  });
+
+  it("counts the pieces of text, not the search highlights PDF.js draws inside them", () => {
+    const textLayer = createTextLayer("Total");
+    const highlight = document.createElement("span");
+    highlight.className = "highlight appended";
+    getSpans(textLayer)[0].append(highlight);
+
+    expect(alignTextLayer(textLayer, [ "g_d0_f1" ], FONTS)).toBe(true);
   });
 
   it("leaves a piece whose font is not loaded as it is", () => {
