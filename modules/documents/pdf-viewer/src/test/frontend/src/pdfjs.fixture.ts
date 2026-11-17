@@ -444,7 +444,7 @@ class FakePDFFindController {
     return this._linkService.pdfDocument?.pages ?? fakePdf.pages;
   }
 
-  // Overridden by PdfViewer's search.
+  // Overridden by FrameFindController.
   scrollMatchIntoView(_params: { element: HTMLElement; pageIndex: number; matchIndex: number }): void {
     // Nothing to scroll in the stand-in
   }
