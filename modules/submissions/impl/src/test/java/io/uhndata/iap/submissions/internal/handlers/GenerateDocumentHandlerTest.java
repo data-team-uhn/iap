@@ -104,6 +104,9 @@ class GenerateDocumentHandlerTest
 
     private static final byte[] PDF = { 0x25, 0x50, 0x44, 0x46 };
 
+    // An edited copy the submitter uploaded in place of what was generated
+    private static final byte[] EDITED = { 0x25, 0x50, 0x44, 0x46, 0x2D };
+
     private static final Map<String, String> RESOURCE_TYPES = Map.of("sub:Document", Document.RESOURCE_TYPE,
         "sub:DocumentVersion", DocumentVersion.RESOURCE_TYPE, "sub:File", File.RESOURCE_TYPE);
 
@@ -213,6 +216,30 @@ class GenerateDocumentHandlerTest
     }
 
     @Test
+    void leavesAVersionTheSubmitterUploadedToGoOnInsteadOfTheGeneratedOne() throws Exception
+    {
+        uploadOwnVersion();
+
+        this.handler.execute(context(LETTER));
+
+        assertEquals(1, onlyDocument().adaptTo(Document.class).getVersions().size());
+        assertArrayEquals(EDITED, bytes(currentFile().getChild("uploadedFile")));
+        Mockito.verifyNoInteractions(this.generator);
+    }
+
+    @Test
+    void generatesOverAPreviewOnceTheRequestIsSent() throws Exception
+    {
+        this.handler.execute(asked(LETTER, REQUESTER));
+        onlyDocument();
+
+        this.handler.execute(context(LETTER));
+
+        assertEquals(2, onlyDocument().adaptTo(Document.class).getVersions().size(),
+            "A preview may predate the final answers, so sending fills the document in again");
+    }
+
+    @Test
     void namesTheRequirementByPathAsWellAsByName() throws Exception
     {
         this.handler.execute(context(LETTER_PATH));
@@ -272,11 +299,21 @@ class GenerateDocumentHandlerTest
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(context(Boolean.TRUE)));
     }
 
-    // Until submitting is a workflow step (IAP-88): the submitter asks for the document from the form
+    // A preview the submitter asks for from the form, while the request is a draft
 
     @Test
-    void generatesTheDocumentTheSubmitterAsksFor() throws Exception
+    void generatesThePreviewTheSubmitterAsksFor() throws Exception
     {
+        this.handler.execute(asked(LETTER, REQUESTER));
+
+        assertArrayEquals(PDF, bytes(currentFile().getChild("uploadedFile")));
+    }
+
+    @Test
+    void generatesAPreviewEvenOverAVersionTheSubmitterUploaded() throws Exception
+    {
+        uploadOwnVersion();
+
         this.handler.execute(asked(LETTER, REQUESTER));
 
         assertArrayEquals(PDF, bytes(currentFile().getChild("uploadedFile")));
@@ -321,6 +358,19 @@ class GenerateDocumentHandlerTest
             () -> this.handler.execute(context("consent")));
 
         assertTrue(failure.getMessage().contains("Consent form, which is not generated"), failure.getMessage());
+    }
+
+    // Stored as attaching stores it: an upload with no filled .docx beside it
+    private void uploadOwnVersion() throws PersistenceException
+    {
+        final ResourceResolver resolver = this.context.resourceResolver();
+        final Resource document = StoredDocuments.findOrCreateDocument(this.target,
+            this.target.adaptTo(Submission.class),
+            resolver.getResource(LETTER_PATH).adaptTo(DocumentRequirement.class), "Edited letter.pdf", resolver);
+        StoredDocuments.write(StoredDocuments.addVersion(document, resolver), StoredDocuments.UPLOADED_FILE_NODE,
+            new ByteArrayInputStream(EDITED), GeneratedDocument.PDF_MIME_TYPE);
+        resolver.commit();
+        onlyDocument();
     }
 
     private void generatorAnswers(final GenerationResult result)

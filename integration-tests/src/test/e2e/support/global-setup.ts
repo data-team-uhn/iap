@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import { startGenerationStub } from './generation-stub';
 import { activeInstances, type ActiveInstance } from './instances';
 
 /**
@@ -135,13 +136,16 @@ const waitFor = async (instance: ActiveInstance): Promise<void> => {
   );
 };
 
-export default async function globalSetup(): Promise<void> {
+// Returns the teardown, which Playwright runs once every suite is done
+export default async function globalSetup(): Promise<() => Promise<void>> {
   const instances = activeInstances();
   if (instances.length === 0) {
     throw new Error(
       'No instances to test. Maven passes their URLs in; to run by hand, set e.g. IAP_TESTDATA_URL.',
     );
   }
+  // Before the instances are waited for: nothing asks it for a document until a request is sent
+  const stub = await startGenerationStub();
   // Concurrently, since the instances boot independently and waiting for them in turn would add up
   await Promise.all(
     instances.map(async instance => {
@@ -149,4 +153,7 @@ export default async function globalSetup(): Promise<void> {
       console.log(`ready: ${instance.description} at ${instance.baseURL}`);
     }),
   );
+  return async () => {
+    await new Promise(resolve => stub ? stub.close(resolve) : resolve(undefined));
+  };
 }

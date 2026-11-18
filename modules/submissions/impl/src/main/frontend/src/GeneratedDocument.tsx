@@ -63,8 +63,8 @@ function Version({ document }: { document: AttachedDocument }) {
   );
 }
 
-// A document the platform fills in from the answers. The submitter may also replace it with a version of their
-// own, (e.g. an edited copy), which becomes the newest version.
+// A document the platform fills in from the answers when the request is sent. Until then the submitter can
+// preview it, or upload a version of their own (e.g. an edited copy of a preview), which is sent instead.
 function GeneratedDocument({ path, requirement, disabled, onGenerated }: GeneratedDocumentProps) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
@@ -92,9 +92,6 @@ function GeneratedDocument({ path, requirement, disabled, onGenerated }: Generat
   return (
     <Stack spacing={1} sx={{ alignItems: "flex-start" }}>
       {failure ? <Alert severity="error" onClose={() => setFailure(undefined)}>{failure}</Alert> : null}
-      {requirement.outdated
-        ? <Alert severity="warning">Your answers changed after this was generated.</Alert>
-        : null}
       {versions.length > 0
         ? (
           <Typography variant="body2">
@@ -106,18 +103,17 @@ function GeneratedDocument({ path, requirement, disabled, onGenerated }: Generat
             ))}
           </Typography>
         )
-        : <Typography variant="placeholder">Generated from your answers once you ask for it</Typography>}
+        : <Typography variant="placeholder">Filled in from your answers when you send this request</Typography>}
       <Stack direction="row" spacing={1}>
-        {/* Until submitting is a workflow step (IAP-88): the submitter asks for it here, from the answers so far */}
         <Button
           size="small"
           variant="outlined"
           startIcon={<GenerateIcon />}
           disabled={disabled || busy}
-          aria-label={`${versions.length > 0 ? "Generate again" : "Generate"} "${name}"`}
+          aria-label={`Preview "${name}"`}
           onClick={() => send(sendEvent(doFetch, path, "generateDocument", { requirement: requirement.name }))}
         >
-          {versions.length > 0 ? "Generate again" : "Generate from my answers"}
+          {versions.length > 0 ? "Preview again" : "Preview from my answers"}
         </Button>
         <FileButton
           label="Upload your own version"

@@ -99,6 +99,7 @@
                 <portName>platform.http.port</portName>
                 <portName>testdata.http.port</portName>
                 <portName>demo.http.port</portName>
+                <portName>generation.stub.port</portName>
               </portNames>
             </configuration>
           </execution>
@@ -215,6 +216,10 @@
                   <org.osgi.service.http.port>${demo.http.port}</org.osgi.service.http.port>
                   <iap.startup.gate.retireWhenQuiet>true</iap.startup.gate.retireWhenQuiet>
                 </frameworkProperties>
+                <!-- Sending a request fills its form in, here through the stub rather than a real worker -->
+                <variables>
+                  <generation.url>http://localhost:${generation.stub.port}</generation.url>
+                </variables>
               </launcherArguments>
               <environmentVariables>
                 <SLING_COMMONS_CRYPTO_PASSWORD>password</SLING_COMMONS_CRYPTO_PASSWORD>
@@ -310,6 +315,7 @@
                 <IAP_TESTDATA_SKIP>${it.testdata.skip}</IAP_TESTDATA_SKIP>
                 <IAP_DEMO_URL>http://localhost:${demo.http.port}</IAP_DEMO_URL>
                 <IAP_DEMO_SKIP>${it.demo.skip}</IAP_DEMO_SKIP>
+                <IAP_GENERATION_STUB_PORT>${generation.stub.port}</IAP_GENERATION_STUB_PORT>
                 <!-- The same list the browsers were installed from, so what runs and what was downloaded
                      cannot drift apart -->
                 <PLAYWRIGHT_BROWSERS>${playwright.browsers}</PLAYWRIGHT_BROWSERS>

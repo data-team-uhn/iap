@@ -45,6 +45,9 @@ import io.uhndata.iap.submissions.spi.CompletenessEvaluator;
  * Judges a submission's documents. A document requirement that applies and is required is incomplete until a file
  * is attached for it. Its document is reported, or the submission when the requirement has no document.
  *
+ * <p>A {@link DocumentRequirement#isGenerated() generated} document never counts, as an approval does not: the
+ * platform fills it in when the request is sent, and sending is what an incomplete request is held back from.</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -74,7 +77,8 @@ public class DocumentCompletenessEvaluator implements CompletenessEvaluator
                         .about(submission.getPath())
                         .with("requirement", requirement.getPath()));
             }
-            if (requirement.isRequired() && (existing == null || existing.stream().noneMatch(Document::isAttached))) {
+            if (requirement.isRequired() && !requirement.isGenerated()
+                && (existing == null || existing.stream().noneMatch(Document::isAttached))) {
                 incomplete.addAll(existing == null ? List.of(submission)
                     : toResources(existing, submission.getResourceResolver()));
             }
