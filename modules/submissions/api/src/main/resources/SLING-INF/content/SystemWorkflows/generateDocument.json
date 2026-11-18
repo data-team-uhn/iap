@@ -6,7 +6,7 @@
     "version": "1.0",
     "tags": ["active"],
     "targetResourceType": "sub/Submission",
-    "description": "Fills in a document the schema generates from the submitter's answers, at the submitter's request, and attaches it for the requirement it fulfills.",
+    "description": "Fills in a preview of a document the schema generates from the submitter's answers, at the submitter's request, and attaches it for the requirement it fulfills.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

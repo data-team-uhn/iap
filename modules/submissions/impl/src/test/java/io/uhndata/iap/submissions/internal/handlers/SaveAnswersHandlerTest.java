@@ -259,18 +259,6 @@ class SaveAnswersHandlerTest
     }
 
     @Test
-    void leavesAnAnswerSavedAgainUnchangedUnwritten() throws Exception
-    {
-        // A write would get it stamped, and a generated document would read as out of date when nothing it was
-        // filled in from moved
-        this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
-        stampAnswers();
-        this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
-
-        assertFalse(this.context.resourceResolver().hasChanges());
-    }
-
-    @Test
     void clearsAnAnswerAlreadyGiven() throws Exception
     {
         // Emptying a field clears its answer, so the question stops counting as answered

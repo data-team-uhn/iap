@@ -17,10 +17,8 @@
   limitations under the License.
 -->
 <!--
-  Until submitting is a workflow step (IAP-88): the submitter asks for the document from the form. Once a schema's
-  own workflow can run generateDocument (with iap:requirement) after its submit step, this workflow goes.
-
-  The parts come first: an answer they create after the document would make it look outdated.
+  A preview the submitter asks for from the form while the request is a draft. The document that is sent is filled
+  in by the schema's own workflow, which runs generateDocument with iap:requirement once the request is sent.
 -->
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"

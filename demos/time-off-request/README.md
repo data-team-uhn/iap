@@ -48,8 +48,9 @@ The whole process, end to end, and the stories in `specs/demo/stories/` walk thr
    would ask for more days than the lookup in step 2 found. A span whose last day comes before its first is
    saved but keeps the request incomplete, so that moving a span one day at a time never meets a refusal.
 4. **`demo-requester` sends it** — `POST` to the `fillIn` task, with no outcome, because there is nothing to
-   decide: it is finished or it is not. That is the whole of what a submit button does. The walk tags the
-   request `submitted`, which retires `draft`, and carries on to `approveRequest`, the approver's task. From
+   decide: it is finished or it is not. That is the whole of what a submit button does. The walk fills the
+   request form in (see below), tags the request `submitted`, which retires `draft`, and carries on to
+   `approveRequest`, the approver's task. From
    then on the save workflow refuses further answers, without being told anything new.
    Somebody else POSTing to `fillIn` is refused with a 403, the approver included.
 5. **Reading follows from the same declarations**: starting the instance granted read to the requester and
@@ -74,9 +75,15 @@ The schema version points at its workflow version, so the two halves are joined.
 ## The generated request form
 
 `requestForm` is a generated document: the platform fills its `.docx` template in from the answers and
-attaches the PDF, which the requester asks for from the request's page. They can download the filled `.docx`,
-edit it, and upload it back in its place; the requirement takes only a `.docx` (its `acceptedFileTypes`). It needs the generation worker
-running (`generate_compose.py --generation`, or the worker on `localhost:18766` beside `start.py`).
+attaches the PDF. The workflow's `generateRequestForm` step does this when the request is sent, from the
+answers as they were sent, so it never holds the request back as incomplete. Before sending, the requester can
+preview it from the request's page, download the filled `.docx`, edit it, and upload it back; a version of
+their own is what goes to the approver, and nothing is generated over it. The requirement takes only a `.docx`
+(its `acceptedFileTypes`).
+
+Sending needs the generation worker running (`generate_compose.py --generation`, or the worker on
+`localhost:18766` beside `start.py`). Without it, sending is refused and the request stays a draft. The e2e
+suites use a stub instead, `integration-tests/src/test/e2e/support/generation-stub.ts`.
 
 The template is `SLING-INF/content/Schemas/timeOffRequest/v1/requestForm/template`, a plain `.docx` with no
 extension, because the node it becomes has to be called `template`. Replace it with any `.docx` of your own,

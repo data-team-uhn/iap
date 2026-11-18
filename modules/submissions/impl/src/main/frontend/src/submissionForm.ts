@@ -99,9 +99,6 @@ export interface DocumentRequirement extends Requirement {
   // Whether the platform fills it in from the answers. The submitter may still upload a version of their
   // own. No template is offered: its template is what the platform fills in.
   generated: boolean;
-  // Until submitting is a workflow step (IAP-88): whether an answer changed after the newest document
-  // was generated. Only stated for a generated requirement.
-  outdated?: boolean;
   // The MIME types a file may have, such as `application/pdf`; empty when any type is accepted
   acceptedFileTypes: string[];
   // The path of a document to start from, when the requirement offers one

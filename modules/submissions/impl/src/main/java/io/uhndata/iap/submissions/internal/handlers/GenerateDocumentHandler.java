@@ -31,6 +31,8 @@ import io.uhndata.iap.documents.generation.api.GeneratedDocument;
 import io.uhndata.iap.documents.generation.api.GenerationResult;
 import io.uhndata.iap.documents.generation.api.GenerationResult.Status;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.VersioningUtils;
@@ -47,9 +49,13 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * and attaches it as the requirement's document. The activity names the requirement in its {@code requirement}
  * property, by name or by path.
  *
- * <p>Until submitting is a workflow step (IAP-88), the submitter asks for the document from the form instead: an
- * activity naming no requirement takes it from the event, and only from somebody who may still change the request.
- * </p>
+ * <p>A request's workflow runs this once it is sent, naming the requirement. Then a newest version that the
+ * submitter uploaded themselves, such as an edited copy of a preview, is what goes on, and nothing is generated over
+ * it.</p>
+ *
+ * <p>The submitter can also ask for a preview from the form while the request is a draft. That activity names no
+ * requirement, so it is taken from the event, and only from somebody who may still change the request. A preview is
+ * always generated.</p>
  *
  * <p>The result is stored as an upload is, so every reader of a submission's documents treats it alike: the PDF is
  * the file's {@code uploadedFile}, and the filled {@code .docx} sits beside it as {@link File#getGeneratedDocx()}.
@@ -100,8 +106,9 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
         final Resource target = context.getTarget();
         final Submission submission = Objects.requireNonNull(target.adaptTo(Submission.class),
             "The generate step only applies to submissions");
+        final boolean preview = context.getActivity().get(REQUIREMENT_PARAMETER) == null;
         final DocumentRequirement requirement = requirement(submission, context);
-        if (!submission.isApplicable(requirement)) {
+        if (!submission.isApplicable(requirement) || !preview && isUploadedBySubmitter(submission, requirement)) {
             return;
         }
 
@@ -169,7 +176,25 @@ public class GenerateDocumentHandler implements ServiceTaskHandler
     }
 
     /**
-     * The generated requirement the submitter asked for. Until submitting is a workflow step (IAP-88).
+     * Whether the newest version of the requirement's document is one the submitter uploaded, rather than one
+     * generated here.
+     *
+     * @param submission the submission being generated for
+     * @param requirement the generated requirement
+     * @return {@code true} when the current version has no filled {@code .docx} beside it
+     */
+    private static boolean isUploadedBySubmitter(final Submission submission, final DocumentRequirement requirement)
+    {
+        return submission.getDocuments().stream()
+            .filter(document -> document.isFulfilling(requirement))
+            .map(Document::getCurrentVersion)
+            .filter(Objects::nonNull)
+            .map(DocumentVersion::getFile)
+            .anyMatch(file -> file != null && file.getGeneratedDocx() == null);
+    }
+
+    /**
+     * The generated requirement the submitter asked to preview.
      *
      * @param submission the submission being generated for
      * @param context the executing task's context

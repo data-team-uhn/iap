@@ -565,7 +565,6 @@ describe("SubmissionEditor", () => {
       label: "Decision letter",
       required: true,
       generated: true,
-      outdated: false,
       acceptedFileTypes: [ DOCX ],
       attached: [],
     };
@@ -580,13 +579,14 @@ describe("SubmissionEditor", () => {
       return form({ requirements: [ { ...LETTER, ...letter } ], ...overrides });
     }
 
-    it("offers to generate it from the answers, or to upload a version of one's own", async () => {
+    it("says it is filled in on sending, and offers a preview or a version of one's own meanwhile", async () => {
       vi.stubGlobal("fetch", serving(asked()));
 
       render(<SubmissionEditor path={PATH} />);
 
-      expect(await screen.findByRole("button", { name: /Generate "Decision letter"/ })).toBeEnabled();
-      expect(screen.getByText(/once you ask for it/)).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: /Preview "Decision letter"/ }))
+        .toHaveTextContent("Preview from my answers");
+      expect(screen.getByText(/when you send this request/)).toBeInTheDocument();
       // Only a hint for the file dialog: the server checks the requirement's types
       expect(screen.getByLabelText(/Upload your own version of "Decision letter"/)).toHaveAttribute("accept", DOCX);
     });
@@ -603,8 +603,7 @@ describe("SubmissionEditor", () => {
       const editable = screen.getByRole("link", { name: "Download to edit (.docx)" });
       expect(editable).toHaveAttribute("href", LETTER_FILE.docx);
       expect(editable).toHaveAttribute("download", "Decision letter.docx");
-      expect(screen.getByRole("button", { name: /Generate again/ })).toBeInTheDocument();
-      expect(screen.queryByText(/answers changed/)).toBeNull();
+      expect(screen.getByRole("button", { name: /Preview "Decision letter"/ })).toHaveTextContent("Preview again");
     });
 
     it("names a document with no file yet without linking it, and an unlabelled one by its name", async () => {
@@ -614,7 +613,7 @@ describe("SubmissionEditor", () => {
 
       expect(await screen.findByText(/; Draft\.pdf/)).toBeInTheDocument();
       expect(screen.getAllByRole("link")).toHaveLength(2);
-      expect(screen.getByRole("button", { name: /Generate again "decisionLetter"/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Preview "decisionLetter"/ })).toBeInTheDocument();
     });
 
     it("takes a version of the submitter's own in place of what was generated", async () => {
@@ -638,20 +637,12 @@ describe("SubmissionEditor", () => {
       expect(screen.queryByRole("link", { name: /Download to edit/ })).toBeNull();
     });
 
-    it("says when the answers changed after it was generated", async () => {
-      vi.stubGlobal("fetch", serving(asked({ attached: [ LETTER_FILE ], outdated: true })));
-
-      render(<SubmissionEditor path={PATH} />);
-
-      expect(await screen.findByText("Your answers changed after this was generated.")).toBeInTheDocument();
-    });
-
-    it("asks for it as an event on the submission, then reads the form again", async () => {
+    it("asks for a preview as an event on the submission, then reads the form again", async () => {
       const fetchMock = serving(asked(), asked({ attached: [ LETTER_FILE ] }));
       vi.stubGlobal("fetch", fetchMock);
 
       render(<SubmissionEditor path={PATH} />);
-      await userEvent.click(await screen.findByRole("button", { name: /Generate "Decision letter"/ }));
+      await userEvent.click(await screen.findByRole("button", { name: /Preview "Decision letter"/ }));
 
       const request = fetchMock.mock.calls.find(call => call[0] === `${PATH}.generateDocument.json`);
       expect(request).toBeDefined();
@@ -673,7 +664,7 @@ describe("SubmissionEditor", () => {
       }));
 
       render(<SubmissionEditor path={PATH} />);
-      await userEvent.click(await screen.findByRole("button", { name: /Generate "Decision letter"/ }));
+      await userEvent.click(await screen.findByRole("button", { name: /Preview "Decision letter"/ }));
 
       expect(await screen.findByText(/'decision' is undefined/)).toBeInTheDocument();
       await userEvent.click(screen.getByRole("button", { name: /Close/ }));
@@ -689,17 +680,17 @@ describe("SubmissionEditor", () => {
           : json(asked())));
 
       render(<SubmissionEditor path={PATH} />);
-      await userEvent.click(await screen.findByRole("button", { name: /Generate "Decision letter"/ }));
+      await userEvent.click(await screen.findByRole("button", { name: /Preview "Decision letter"/ }));
 
       expect(await screen.findByText(/HTTP 502/)).toBeInTheDocument();
     });
 
-    it("can be neither generated nor replaced once the request is no longer the submitter's to change", async () => {
+    it("can be neither previewed nor replaced once the request is no longer the submitter's to change", async () => {
       vi.stubGlobal("fetch", serving(asked({ attached: [ LETTER_FILE ] }, { editable: false })));
 
       render(<SubmissionEditor path={PATH} />);
 
-      expect(await screen.findByRole("button", { name: /Generate again/ })).toBeDisabled();
+      expect(await screen.findByRole("button", { name: /Preview "Decision letter"/ })).toBeDisabled();
       expect(screen.getByLabelText(/Upload your own version/)).toBeDisabled();
     });
   });
