@@ -637,6 +637,9 @@ def keycloak_service():
         # In .env with the rest of the credentials; that is where to read it from when signing
         # in to the admin console.
         'KC_BOOTSTRAP_ADMIN_PASSWORD': '${KC_BOOTSTRAP_ADMIN_PASSWORD}',
+        # Deal with the Java4Shell exploit by using the mitigation listed here:
+        # https://calif.io/java4shell#recommendations
+        'JAVA_OPTS_APPEND': '-XX:-UseBASE64Intrinsics',
     }
     service['restart'] = 'unless-stopped'
     return service
