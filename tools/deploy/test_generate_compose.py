@@ -271,6 +271,11 @@ class Companions(unittest.TestCase):
         env = environment(document('--keycloak'))
         self.assertTrue(env['KEYCLOAK_CLIENT_SECRET'].startswith('${'))
 
+    def test_keycloak_runs_with_the_java4shell_mitigation(self):
+        # Nothing fails without it: Keycloak starts and is silently exploitable
+        keycloak = service(document('--keycloak'), 'keycloak')
+        self.assertIn('-XX:-UseBASE64Intrinsics', keycloak['environment']['JAVA_OPTS_APPEND'])
+
     def test_mail_adds_the_catcher_and_trusts_its_certificate(self):
         doc = document('--mail')
         self.assertIn(gc.MAIL_SERVICE, doc['services'])
