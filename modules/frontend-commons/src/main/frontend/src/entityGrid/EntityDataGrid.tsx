@@ -163,7 +163,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
   const local = givenRows !== undefined;
   const sortedColumn = columns.find(column => column.field === sortModel[0]?.field);
   const page = useEntityPage({
-    config: local ? undefined : config, homepage, paginationModel,
+    config: local ? undefined : config, homepage, paginationModel, setPaginationModel,
     sortBy: sortedColumn && serverProperty(sortedColumn), descending: sortModel[0]?.sort === "desc",
     filters, childFilter, columnFilters, fullText, refreshToken,
   });
@@ -173,6 +173,9 @@ function EntityDataGrid(props: EntityDataGridProps) {
   const gridColumns = useMemo(() => withElementCellsCentred(withCompactDates(withServerFilterOperators(
     tree ? columns.filter(column => column.field !== tree.treeField) : columns))), [columns, tree]);
   const gridRows = useMemo(() => treeRows(rows, tree), [rows, tree]);
+  // The grid compares sort models by identity, and goes back to the first page on every new one
+  const gridSortModel = useMemo(() => sortModel.map(item => ({ ...item, field: toTreeField(item.field, tree) })),
+    [sortModel, tree]);
 
   if (!config) {
     return <Alert severity="error">Unknown entity type: {entityType}</Alert>;
@@ -277,7 +280,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
         onPaginationModelChange={setPaginationModel}
         pageSizeOptions={pageSizeOptions}
         sortingMode={local ? "client" : "server"}
-        sortModel={sortModel.map(item => ({ ...item, field: toTreeField(item.field, tree) }))}
+        sortModel={gridSortModel}
         onSortModelChange={model =>
           changeSort(model.map(item => ({ ...item, field: fromTreeField(item.field, tree) })))}
         filterMode={local ? "client" : "server"}
@@ -311,7 +314,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
               .filter(column => column.sortable !== false)
               .map(column => ({ field: column.field, headerName: column.headerName })),
             sortModel,
-            onSortModelChange: setSortModel,
+            onSortModelChange: changeSort,
             searchLabel,
           },
         }}

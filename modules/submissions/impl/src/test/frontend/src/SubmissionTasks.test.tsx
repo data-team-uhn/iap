@@ -36,7 +36,7 @@ const TASK = PATH + "/wf:instances/timeOffRequest/fillIn";
 // redirect to the login page.
 function repository(container: unknown, completion: Partial<Response> = { ok: true, status: 200 }) {
   return vi.fn<FetchStub>((url, init) => Promise.resolve((init?.method === "POST"
-    ? { url, redirected: false, json: () => Promise.resolve({}), ...completion }
+    ? { url, json: () => Promise.resolve({}), ...completion }
     : { url, ok: true, status: 200, json: () => Promise.resolve(container) }) as unknown as Response));
 }
 
@@ -46,7 +46,7 @@ function repositoryFailingRereads(container: unknown) {
   return vi.fn<FetchStub>((url, init) => {
     if (init?.method === "POST") {
       return Promise.resolve(
-        { url, redirected: false, ok: true, status: 200, json: () => Promise.resolve({}) } as unknown as Response);
+        { url, ok: true, status: 200, json: () => Promise.resolve({}) } as unknown as Response);
     }
     reads += 1;
     return Promise.resolve((reads === 1

@@ -57,7 +57,7 @@ test.describe('a new schema can start as a copy of a version of another', () => 
       form: { title: `Copy story ${Date.now()}`, version: 'Revised', source: SOURCE },
       maxRedirects: 0,
     });
-    expect(created.status(), await created.text()).toBe(302);
+    expect(created.status(), await created.text()).toBe(201);
     const schema = (await created.json() as { path: string }).path;
 
     // A draft is listed only to a reader asking for -active

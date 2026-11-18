@@ -33,7 +33,7 @@ export const TIME_OFF_SCHEMA_VERSION = '/Schemas/timeOffRequest/v1';
 // characters of that name. The back-reference checks that the buckets come from the name.
 const FILED_PATH = '/Submissions/([0-9a-f]{2})/([0-9a-f]{2})/([0-9a-f]{2})/\\1\\2\\3[0-9a-f-]+';
 
-/** Matches the path a submission is filed under, as a redirect's `Location` header reports it. */
+/** Matches the path a submission is filed under, as the engine's answer to raising it reports it. */
 export const FILED = new RegExp(`^${FILED_PATH}$`);
 
 /**
@@ -59,8 +59,8 @@ export async function raiseRequest(request: APIRequestContext, user: Credentials
     form: { title, schemaVersion: TIME_OFF_SCHEMA_VERSION },
     maxRedirects: 0,
   });
-  expect(response.status(), `${user.username} could not raise "${title}"`).toBe(302);
-  const path = response.headers().location;
+  expect(response.status(), `${user.username} could not raise "${title}"`).toBe(201);
+  const { path } = await response.json() as { path: string };
   expect(path).toMatch(FILED);
   return path;
 }

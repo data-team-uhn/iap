@@ -28,7 +28,6 @@ function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {
   return {
     ok: init.ok ?? true,
     status: init.status ?? 200,
-    redirected: false,
     url: "",
     json: () => Promise.resolve(body),
   };
@@ -78,7 +77,7 @@ describe("NewSubmissionDialog", () => {
   it("raises the submission through the /Submissions endpoint and reports where it went", async () => {
     const created = vi.fn();
     const fetchMock = vi.fn((url: string) => Promise.resolve(url === "/Submissions"
-      ? { ...jsonResponse({}), redirected: true, url: "http://localhost/Submissions/aLongWeekend" }
+      ? jsonResponse({ status: "created", path: "/Submissions/aLongWeekend" }, { status: 201 })
       : jsonResponse(SCHEMAS)));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -110,25 +109,6 @@ describe("NewSubmissionDialog", () => {
     expect(create).toBeDisabled();
     await userEvent.type(screen.getByLabelText(/Title/), "Named");
     expect(create).toBeEnabled();
-  });
-
-  // fetch has followed the redirect, so the 403 is the read of the created submission, not a refusal
-  // to create it
-  it("reports where the submission went even when reading that page failed", async () => {
-    const created = vi.fn();
-    const fetchMock = vi.fn((url: string) => Promise.resolve(url === "/Submissions"
-      ? { ...jsonResponse({}, { ok: false, status: 403 }), redirected: true,
-        url: "http://localhost/Submissions/aLongWeekend" }
-      : jsonResponse(SCHEMAS)));
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<NewSubmissionDialog onClose={() => {}} onCreated={created} />);
-    await userEvent.click(await screen.findByRole("radio"));
-    await userEvent.type(screen.getByLabelText(/Title/), "A long weekend");
-    await userEvent.click(screen.getByRole("button", { name: "Create" }));
-
-    await waitFor(() => expect(created).toHaveBeenCalledWith("/Submissions/aLongWeekend"));
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   // A body that parses to null is well-formed JSON and still not a node

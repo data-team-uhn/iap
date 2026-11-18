@@ -1,8 +1,8 @@
 # UI extension points
 
 **Module:** `modules/ui-extension` · **Package:** `@iap/ui-extension`
-(`extensionManager`, `extensionLoader`, `ExtensionList`, `ExtensionPoint`,
-`personas`) · **Tools:** `tools/dev/extension-manager/`
+(`extensionManager`, `extensionLoader`, `ExtensionList`, `personas`) · **Tools:**
+`tools/dev/extension-manager/`
 
 The interface is made of **extensions** plugged into **extension points**. A module
 adds to the interface by shipping a React component and a JCR node that registers it

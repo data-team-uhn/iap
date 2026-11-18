@@ -57,7 +57,7 @@ import io.uhndata.iap.workflows.models.TaskInstance;
  *
  * <p>The outcome mapping follows the three layers of event acceptance: nothing waiting for the event is 409, a
  * firing user the repository refuses is 403, unusable data is 400, and a broken definition or failed machinery is
- * 500. When the workflow reports a created entity, the answer is a redirect to it.</p>
+ * 500. When the workflow reports a created entity, the answer is a {@code 201 Created} naming it.</p>
  *
  * <p>The event a POST means is the target's, unless a selector names one:
  * {@code POST <path>.attachDocument.json} sends that message instead of the default. Nothing is registered per
@@ -138,7 +138,7 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
                 this.engine.receiveEvent(request.getResource(), new WorkflowEvent(name, payload(request)));
             final Object createdPath = result.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
             if (createdPath instanceof String) {
-                redirect(response, (String) createdPath);
+                answerCreated(response, (String) createdPath);
             } else {
                 JsonResponses.write(response, HttpServletResponse.SC_OK, "completed");
             }
@@ -276,16 +276,17 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Answers with a redirect to a created entity.
+     * Answers that an entity was created, naming it both in the {@code Location} header and in the body. The status is
+     * not a redirect, since a browser would follow one and fetch the entity's page, which the caller does not want.
      *
      * @param response the HTTP response to write into
      * @param path the created entity's path
      * @throws IOException when the response cannot be written
      */
-    private void redirect(final SlingJakartaHttpServletResponse response, final String path) throws IOException
+    private void answerCreated(final SlingJakartaHttpServletResponse response, final String path) throws IOException
     {
         response.setHeader("Location", path);
-        JsonResponses.write(response, HttpServletResponse.SC_MOVED_TEMPORARILY, "created",
+        JsonResponses.write(response, HttpServletResponse.SC_CREATED, "created",
             Json.createObjectBuilder().add("path", path));
     }
 

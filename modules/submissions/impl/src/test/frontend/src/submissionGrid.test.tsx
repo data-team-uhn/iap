@@ -23,27 +23,36 @@ import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 // Importing the module registered the configuration as a side effect
 const config = getEntityTypeConfig(SUBMISSION_TYPE);
 
-// The column value getters only use the cell value, so they can be probed directly
-function valueGetterOf(field: string): (value: unknown) => unknown {
+// The column value getters, probed directly with a cell value and its row
+function valueGetterOf(field: string): (value: unknown, row: Record<string, unknown>) => unknown {
   const getter = config?.columns.find(column => column.field === field)?.valueGetter;
   expect(getter).toBeDefined();
-  return getter as unknown as (value: unknown) => unknown;
+  return getter as unknown as (value: unknown, row: Record<string, unknown>) => unknown;
 }
 
+const VERSION = { "@path": "/Schemas/ClinicalTrial/1.0", "version": "1.0" };
+
+const SCHEMA = { "@path": "/Schemas/ClinicalTrial", "title": "Clinical trial" };
+
 describe("schemaLabel", () => {
-  it("combines the schema's name from the version's path with the version label", () => {
-    expect(schemaLabel({ "@path": "/Schemas/ClinicalTrial/1.0", "version": "1.0" })).toBe("ClinicalTrial 1.0");
+  it("combines the schema's title with the version label", () => {
+    expect(schemaLabel(VERSION, SCHEMA)).toBe("Clinical trial 1.0");
+  });
+
+  it("names a schema served without a title by its node name, from the version's path", () => {
+    expect(schemaLabel(VERSION, { "@path": "/Schemas/ClinicalTrial" })).toBe("ClinicalTrial 1.0");
+    // A reference that is not dereferenced is serialized as its `jcr:uuid`
+    expect(schemaLabel(VERSION, "0d2b3c4e-0000-0000-0000-000000000000")).toBe("ClinicalTrial 1.0");
   });
 
   it("uses whichever of the two parts is available", () => {
-    expect(schemaLabel({ "@path": "/Schemas/ClinicalTrial/1.0" })).toBe("ClinicalTrial");
-    expect(schemaLabel({ version: "2.0" })).toBe("2.0");
+    expect(schemaLabel({ "@path": "/Schemas/ClinicalTrial/1.0" }, SCHEMA)).toBe("Clinical trial");
+    expect(schemaLabel({ version: "2.0" }, undefined)).toBe("2.0");
   });
 
-  it("is empty for anything that is not a dereferenced node", () => {
-    // A reference that is not dereferenced is serialized as its `jcr:uuid`
-    expect(schemaLabel("f8cfa08e-b315-4eed-9d38-af6473fcd48f")).toBe("");
-    expect(schemaLabel(undefined)).toBe("");
+  it("is empty for a schema version that is not a dereferenced node", () => {
+    expect(schemaLabel("f8cfa08e-b315-4eed-9d38-af6473fcd48f", SCHEMA)).toBe("");
+    expect(schemaLabel(undefined, SCHEMA)).toBe("");
   });
 });
 
@@ -90,14 +99,14 @@ describe("the registered submission grid configuration", () => {
 
   it("parses date cells into Date objects, tolerating missing values", () => {
     const dates = valueGetterOf("jcr:created");
-    expect(dates("2026-07-01T10:00:00.000-04:00")).toEqual(new Date("2026-07-01T10:00:00.000-04:00"));
-    expect(dates(undefined)).toBeNull();
+    expect(dates("2026-07-01T10:00:00.000-04:00", {})).toEqual(new Date("2026-07-01T10:00:00.000-04:00"));
+    expect(dates(undefined, {})).toBeNull();
   });
 
-  it("renders the schema column through schemaLabel", () => {
+  it("labels the schema column by the title of the row's schema", () => {
     const schema = valueGetterOf("schemaVersion");
-    expect(schema({ "@path": "/Schemas/DemoStudy/1.0", "version": "1.0" })).toBe("DemoStudy 1.0");
-    expect(schema(undefined)).toBe("");
+    expect(schema(VERSION, { schemaVersion: VERSION, schema: SCHEMA })).toBe("Clinical trial 1.0");
+    expect(schema(undefined, {})).toBe("");
   });
 
   it("describes the narrow-screen card through the columns' card slots", () => {

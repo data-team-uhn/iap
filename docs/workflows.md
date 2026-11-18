@@ -311,7 +311,7 @@ the execution has created, once it has created something, and on the target othe
 
 | `handler` | Configuration | Does |
 | --- | --- | --- |
-| `createEntity` | `entityType` | Creates an entity of that type under the target, named by camel-casing the event's `title` with a numeric suffix on collision, and reports its path in `createdPath`, which the servlet turns into a redirect |
+| `createEntity` | `entityType` | Creates an entity of that type under the target, named by camel-casing the event's `title` with a numeric suffix on collision, and reports its path in `createdPath`, which the servlet answers with a `201` naming it |
 | `callActivity` | `message` | Runs the system workflow waiting for that event on the host, before carrying on |
 | `startWorkflow` | `workflowFrom`, `replaceActive` | Starts the content workflow a chain of references leads to, and runs it to its first wait; with `replaceActive`, after cancelling any instance of it still active on the host |
 | `addTag` | `tag`, `replaceExisting` | Places the tag; with `replaceExisting`, in place of the host's own tags sharing any of its categories |
@@ -651,8 +651,14 @@ HTTP POST /Workflows ──▶ WorkflowEventServlet ──▶ WorkflowEngine.rec
                            translator: builds the     │  start event catches this event on this target
                            event a selector names,    │  walk it: start ─ service tasks ─ end
                            or the target's default)   ▼  one commit at the end
-                                              302 Location: /Workflows/<created>
+                                     201 Location: /Workflows/<created>
+                                     {"status": "created", "path": "/Workflows/<created>"}
 ```
+
+An event that created an entity is answered with `201 Created`, naming the entity both in
+the `Location` header and in the body's `path`, and any other event with `200` and
+`{"status": "completed"}`. The answer is not a redirect, since a browser's `fetch` would
+follow one and download the new entity's page only to learn its address.
 
 Everything goes through the engine's single entry point, whatever channel the event
 arrived on:

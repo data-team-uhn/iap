@@ -110,16 +110,15 @@ const renderAction = (
   { wrapper: NoticeProvider },
 );
 
-// An engine that runs every event it is given. One that created something answers with a redirect to
-// it, which fetch follows on its own, so the final URL is where the caller reads the new path from.
+// An engine that runs every event it is given. One that created something answers with its path.
 const stubFetch = (created?: string) => {
   const fetchMock = vi.fn<FetchStub>((url) => Promise.resolve({
     ok: true,
-    status: 200,
-    redirected: created !== undefined,
-    url: `http://localhost${created ?? url}`,
+    status: created === undefined ? 200 : 201,
+    url: `http://localhost${url}`,
     headers: new Headers(),
-    json: () => Promise.resolve({}),
+    json: () => Promise.resolve(created === undefined
+      ? { status: "completed" } : { status: "created", path: created }),
   } as unknown as Response));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;

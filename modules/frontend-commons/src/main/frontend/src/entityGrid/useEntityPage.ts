@@ -32,6 +32,8 @@ export interface EntityPageRequest {
   // The path of the homepage to list from, when it is not the config's own
   homepage?: string;
   paginationModel: GridPaginationModel;
+  // Moves to another page, when the page asked for lies past the end of the list
+  setPaginationModel: (model: GridPaginationModel) => void;
   // The entity property to order by; the server's own order if undefined
   sortBy?: string;
   descending: boolean;
@@ -63,11 +65,16 @@ export interface EntityPage {
 const scopedTo = (scope: string, filters: PropertyFilter[]): PropertyFilter[] =>
   filters.map(filter => (filter.group === undefined ? filter : { ...filter, group: `${scope}:${filter.group}` }));
 
+// The index of the last page of a list of `total` entities; -1 for an empty list
+const lastPageOf = (total: number, pageSize: number): number => Math.ceil(total / pageSize) - 1;
+
 // One page of entities from the pagination servlet, read again whenever the request changes. A
-// response that arrives after a newer request was made is dropped.
+// response that arrives after a newer request was made is dropped. A page past the end of the list,
+// as after deleting the only row of the last page, moves to the last page. The rows on screen stay,
+// still loading, until that page arrives.
 export default function useEntityPage(request: EntityPageRequest): EntityPage {
-  const { config, homepage, paginationModel, sortBy, descending, filters, childFilter, columnFilters, fullText,
-    refreshToken } = request;
+  const { config, homepage, paginationModel, setPaginationModel, sortBy, descending, filters, childFilter,
+    columnFilters, fullText, refreshToken } = request;
   const [rows, setRows] = useState<EntityRow[]>([]);
   const [rowCount, setRowCount] = useState(0);
   const [approximate, setApproximate] = useState(false);
@@ -99,28 +106,33 @@ export default function useEntityPage(request: EntityPageRequest): EntityPage {
       fullText: fullText || undefined,
       resourceSelectors: config.children?.selectors,
     }).then(page => {
-      if (!cancelled) {
-        setRows(page.rows);
-        setRowCount(page.totalrows);
-        setApproximate(page.totalIsApproximate);
-        setError(undefined);
+      if (cancelled) {
+        return;
       }
+      const lastPage = lastPageOf(page.totalrows, paginationModel.pageSize);
+      if (page.rows.length === 0 && lastPage >= 0 && paginationModel.page > lastPage) {
+        setPaginationModel({ ...paginationModel, page: lastPage });
+        return;
+      }
+      setRows(page.rows);
+      setRowCount(page.totalrows);
+      setApproximate(page.totalIsApproximate);
+      setError(undefined);
+      setLoading(false);
     }).catch((e: unknown) => {
       if (!cancelled) {
         setRows([]);
         setRowCount(0);
         setApproximate(false);
         setError(describeRequestFailure(e));
-      }
-    }).finally(() => {
-      if (!cancelled) {
         setLoading(false);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [config, fetchUtil, paginationModel, sortBy, descending, filterKey, fullText, retryCount, refreshToken]);
+  }, [config, fetchUtil, paginationModel, setPaginationModel, sortBy, descending, filterKey, fullText, retryCount,
+    refreshToken]);
 
   return { rows, rowCount, approximate, loading, error, retry: () => setRetryCount(count => count + 1) };
 }

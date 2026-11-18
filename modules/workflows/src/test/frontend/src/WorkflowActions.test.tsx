@@ -63,16 +63,14 @@ const workflow = (events: string[] = [ "createVersion", "save" ]): WorkflowSumma
   versions: [ version("1.0"), version("2.0"), version("3.0") ],
 });
 
-// An engine that runs every event it is given. One that created something answers with a redirect to
-// it, which fetch follows on its own, so the final URL is where the caller reads the new path from.
+// An engine that runs every event it is given, and answers each with the path of what it created.
 const stubFetch = () => {
-  const fetchMock = vi.fn<FetchStub>((url, options) => Promise.resolve({
+  const fetchMock = vi.fn<FetchStub>(url => Promise.resolve({
     ok: true,
-    status: 200,
-    redirected: options?.method === "POST",
-    url: `http://localhost${url.split(".")[0]}/created`,
+    status: 201,
+    url: `http://localhost${url}`,
     headers: new Headers(),
-    json: () => Promise.resolve({}),
+    json: () => Promise.resolve({ status: "created", path: `${url.split(".")[0]}/created` }),
   } as unknown as Response));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;

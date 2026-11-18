@@ -122,16 +122,16 @@ public abstract class Link extends Content
     }
 
     /**
-     * Deletes this link, in the session it was read with. The caller commits the deletion.
+     * Deletes this link and its reverse, in the session it was read with. The caller commits the deletion. A reverse
+     * this session may not read or remove is left to the {@code iap-links} service user, which removes it after the
+     * commit.
      *
-     * @param removeBacklink whether to delete the reverse link too, in this session, when it can read and remove it.
-     *            After the commit, the {@code iap-links} service user removes any reverse left behind.
      * @return {@code true} if the link was deleted; {@code false} if the deletion failed, or the links service is
      *         not available
      */
-    public boolean remove(final boolean removeBacklink)
+    public boolean remove()
     {
-        return this.operations != null && this.operations.remove(this.resource, removeBacklink);
+        return this.operations != null && this.operations.remove(this.resource);
     }
 
     /**

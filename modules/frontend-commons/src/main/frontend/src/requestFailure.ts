@@ -40,7 +40,8 @@ export class RequestError extends Error {
 export const isRefusal = (error: unknown): boolean =>
   error instanceof RequestError && error.reason !== undefined && error.status < 500;
 
-const UNREADABLE_RESPONSE = "The server's response could not be read. Reload and try again.";
+// What a screen says when a response carried a page where data was expected
+export const UNREADABLE_RESPONSE = "The server's response could not be read. Reload and try again.";
 
 const SESSION_EXPIRED = "Your session has expired. Sign in again, then retry.";
 
@@ -52,6 +53,12 @@ export class UnreadableResponseError extends Error {
     this.name = "UnreadableResponseError";
   }
 }
+
+// Logs a response that carried a page where data was expected, with its status. The page itself is
+// in the browser's network panel.
+export const logUnreadable = (response: Response): void => {
+  console.warn(`Expected data, got a page (HTTP ${response.status})`, response.url);
+};
 
 // The JSON body of a response that should carry data. Sling's login page, after the session has
 // gone, fails as an expired session; any other page fails as UnreadableResponseError instead of the
@@ -66,10 +73,27 @@ export async function readJson<T>(response: Response): Promise<T> {
     if (!(error instanceof SyntaxError)) {
       throw error;
     }
-    // The page itself is in the browser's network panel
-    console.warn(`Expected data, got a page (HTTP ${response.status})`, response.url);
+    logUnreadable(response);
     throw new UnreadableResponseError();
   }
+}
+
+// The body of an endpoint that states its outcome in a `status` string, whatever the HTTP status: a
+// 409 can carry `{"status": "conflict"}`. Null when something else answered, such as an HTML error
+// page or a login redirect, which is logged with its status for the caller to word. readJson suits
+// an endpoint whose failures are the HTTP status alone.
+export async function readOutcome<T extends { status: string }>(response: Response): Promise<T | null> {
+  try {
+    // `null` is valid JSON, so the parse can succeed and still yield nothing
+    const body = await response.json() as T | null;
+    if (typeof body?.status === "string") {
+      return body;
+    }
+  } catch {
+    // An unreadable body is logged below, as one that parses to something else is
+  }
+  logUnreadable(response);
+  return null;
 }
 
 // The message of a rejection, which need not be an Error.

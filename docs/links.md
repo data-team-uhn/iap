@@ -95,7 +95,7 @@ resolver.commit();
 
 A link has its own operations: `getDefinition()`, typed by kind
 (`InternalLinkDefinition` on an `InternalLink`), `getLabel()`, `getSource()`,
-`getTargetLabel()`, `remove(removeBacklink)`, plus
+`getTargetLabel()`, `remove()`, plus
 `getDestination()`/`isWeak()`/`getBacklink()`/`addBacklink()`/`isReverseOf()`/`isSymmetric()`
 on `InternalLink` and `getValue()`/`getTargetUrl()` on `ExternalLink`.
 
@@ -156,8 +156,8 @@ also sees the reverse being created, finds the pair complete, and adds nothing.
 
 Removing a link removes its reverse the same way:
 
-- `remove(true)` deletes the reverse in the same session, when that session may
-  remove it.
+- `remove()` and `removeLinks` delete the reverse in the same session, when that
+  session may remove it.
 - Otherwise `BacklinkRemovalObserver` removes it after the commit, as the `iap-links`
   service user. It is an Oak observer: it reads each removed link as it was before
   the commit, and removes the link under its destination that points back at its
@@ -170,8 +170,7 @@ with its links is left to the definitions' `onDelete` ([deletion](deletion.md)).
 
 Giving a type a `backlink` is an administrator's decision that its links come in
 pairs, so **the service user ignores the access rights of the user who changed one
-half**, both ways. The observer also removes a reverse that `remove(false)` or
-`removeLinks` left behind.
+half**, both ways.
 
 `getBacklinks()` asks Oak for the references to the content's node. It returns
 `InternalLink`s only, since external links point at nothing in the repository.

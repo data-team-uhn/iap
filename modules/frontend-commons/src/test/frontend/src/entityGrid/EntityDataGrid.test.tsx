@@ -229,6 +229,39 @@ function stubPage(total: { totalrows: number; totalIsApproximate: boolean }) {
   return fetchMock;
 }
 
+// The offset and sort of every page the grid asked the server for, in order, as "offset/sortBy"
+function pagesRequested(fetchMock: { mock: { calls: [string][] } }) {
+  return fetchMock.mock.calls
+    .map(call => new URL(call[0], "http://localhost"))
+    .filter(url => url.pathname.endsWith(".paginate.json"))
+    .map(url => `${url.searchParams.get("offset")}/${url.searchParams.get("sortBy")}`);
+}
+
+// Lets the grid run what it put off with a timeout of its own, such as a change of page
+const flushGridTimers = () => act(() => new Promise(resolve => { setTimeout(resolve, 50); }));
+
+// Watches the page for a text from now on. The function returned stops watching, and says whether
+// the text appeared, however briefly.
+function watchForText(text: RegExp): () => boolean {
+  let seen = false;
+  const observer = new MutationObserver(() => {
+    seen ||= text.test(document.body.textContent);
+  });
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  return () => {
+    observer.disconnect();
+    return seen;
+  };
+}
+
+// Waits for the first of four pages, moves to the second, and waits until the grid has settled there
+async function moveToSecondPage(user: ReturnType<typeof userEvent.setup>) {
+  await screen.findByText("Entity 0");
+  await user.click(screen.getByRole("button", { name: /next page/i }));
+  await screen.findByText(/6–10 of 20/);
+  await flushGridTimers();
+}
+
 describe("EntityDataGrid", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -961,69 +994,86 @@ describe("EntityDataGrid", () => {
     expect(screen.getByRole("button", { name: /next page/i })).toBeEnabled();
   });
 
-  // Left to itself, the grid also ends on the first page, after reading and showing page 2 in the
-  // new order. The test therefore counts the requests.
-  it("returns to the first page when the sort order changes, in one request", async () => {
-    const rows = Array.from({ length: 5 }, (unused, index) => (
-      { "@path": `/GridEntities/e${index}`, "title": `Entity ${index}` }));
-    const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve({
-      ok: true,
-      url: "",
-      json: () => Promise.resolve({ rows, offset: 0, limit: 5, returnedrows: 5, totalrows: 20,
-        totalIsApproximate: false }),
-    } as unknown as Response));
-    vi.stubGlobal("fetch", fetchMock);
+  it("stays on the page it moved to", async () => {
+    const fetchMock = stubPage({ totalrows: 20, totalIsApproximate: false });
     const user = userEvent.setup();
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+    await moveToSecondPage(user);
+
+    expect(screen.getByText(/6–10 of 20/)).toBeInTheDocument();
+    expect(pagesRequested(fetchMock)).toEqual(["0/title", "5/title"]);
+  });
+
+  it("goes back a page when the last one empties, without showing an empty list", async () => {
+    let total = 6;
+    let answerFirstPage = () => { /* replaced while the first page is held back */ };
+    const fetchMock = vi.fn<(url: string) => Promise<Response>>(url => {
+      const offset = Number(new URL(url, "http://localhost").searchParams.get("offset"));
+      const rows = Array.from({ length: Math.max(0, Math.min(5, total - offset)) }, (unused, index) => (
+        { "@path": `/GridEntities/e${offset + index}`, "title": `Entity ${offset + index}` }));
+      const response = {
+        ok: true,
+        url: "",
+        json: () => Promise.resolve({ rows, offset, limit: 5, returnedrows: rows.length, totalrows: total,
+          totalIsApproximate: false }),
+      } as unknown as Response;
+      return total === 5 && offset === 0
+        ? new Promise(resolve => { answerFirstPage = () => resolve(response); })
+        : Promise.resolve(response);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const { rerender } = render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />,
+      { wrapper: MemoryRouter });
     await screen.findByText("Entity 0");
-
     await user.click(screen.getByRole("button", { name: /next page/i }));
-    await waitFor(() => {
-      const url = new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0], "http://localhost");
-      expect(url.searchParams.get("offset")).toBe("5");
-    });
+    await screen.findByText("Entity 5");
+    const before = pagesRequested(fetchMock).length;
 
-    const before = fetchMock.mock.calls.length;
+    // An action column deletes the only entity on the second page
+    total = 5;
+    // Either message the grid shows over no rows
+    const sawEmptyList = watchForText(/No results found|Nothing to show/);
+    rerender(<EntityDataGrid entityType={TEST_TYPE} refreshToken={1} disableVirtualization />);
+    await waitFor(() => { expect(pagesRequested(fetchMock).length).toBe(before + 2); });
+    answerFirstPage();
+    expect(await screen.findByText("Entity 0")).toBeInTheDocument();
+    await flushGridTimers();
+
+    expect(sawEmptyList()).toBe(false);
+    expect(screen.getByText(/1–5 of 5/)).toBeInTheDocument();
+    expect(pagesRequested(fetchMock).slice(before)).toEqual(["5/title", "0/title"]);
+  });
+
+  // Left to itself, the grid also ends on the first page, after reading and showing page 2 in the
+  // new order. The test therefore counts the requests.
+  it("returns to the first page when the sort order changes, in one request", async () => {
+    const fetchMock = stubPage({ totalrows: 20, totalIsApproximate: false });
+    const user = userEvent.setup();
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+    await moveToSecondPage(user);
+    const before = pagesRequested(fetchMock).length;
+
     await user.click(screen.getByText("Status"));
+    await flushGridTimers();
 
-    await waitFor(() => {
-      const url = new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0], "http://localhost");
-      expect(url.searchParams.get("sortBy")).toBe("status");
-    });
-    const sorted = fetchMock.mock.calls.slice(before).map(call => {
-      const url = new URL(call[0], "http://localhost");
-      return `${url.searchParams.get("offset")}/${url.searchParams.get("sortBy")}`;
-    });
-    expect(sorted).toEqual(["0/status"]);
+    expect(pagesRequested(fetchMock).slice(before)).toEqual(["0/status"]);
   });
 
   it("returns to the first page when the sort menu changes the order, in one request", async () => {
     fakeNarrowScreen();
     const fetchMock = stubPage({ totalrows: 20, totalIsApproximate: false });
     const user = userEvent.setup();
-
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
-    await screen.findByText("Entity 0");
-    await user.click(screen.getByRole("button", { name: /next page/i }));
-    await waitFor(() => {
-      const url = new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0], "http://localhost");
-      expect(url.searchParams.get("offset")).toBe("5");
-    });
+    await moveToSecondPage(user);
+    const before = pagesRequested(fetchMock).length;
 
-    const before = fetchMock.mock.calls.length;
     await user.click(within(screen.getByRole("toolbar")).getByRole("button", { name: "Sort" }));
     await user.click(await screen.findByRole("menuitem", { name: /Modified/ }));
+    await flushGridTimers();
 
-    await waitFor(() => {
-      const url = new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0], "http://localhost");
-      expect(url.searchParams.get("sortBy")).toBe("jcr:lastModified");
-    });
-    const sorted = fetchMock.mock.calls.slice(before).map(call => {
-      const url = new URL(call[0], "http://localhost");
-      return `${url.searchParams.get("offset")}/${url.searchParams.get("sortBy")}`;
-    });
-    expect(sorted).toEqual(["0/jcr:lastModified"]);
+    expect(pagesRequested(fetchMock).slice(before)).toEqual(["0/jcr:lastModified"]);
   });
 
   it("reads the page once when a caller adds a column of its own", async () => {

@@ -27,7 +27,7 @@ afterEach(() => vi.unstubAllGlobals());
 // Answers every event as completed, or as refused with the given reason
 const serve = (refusal?: string) => {
   const fetch = vi.fn((url: string) => Promise.resolve({
-    ok: !refusal, status: refusal ? 409 : 200, url, redirected: false,
+    ok: !refusal, status: refusal ? 409 : 200, url,
     json: () => Promise.resolve(refusal ? { error: refusal } : { status: "completed" }),
   } as unknown as Response));
   vi.stubGlobal("fetch", fetch);

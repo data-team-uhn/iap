@@ -293,7 +293,7 @@ final class ArchiveOperations
                 linkNode.remove();
             } else {
                 // Removes its backlink too
-                link.remove(true);
+                link.remove();
             }
         }
     }

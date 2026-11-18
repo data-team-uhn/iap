@@ -639,7 +639,7 @@ class LinkManagerImplTest
         final InternalLink backlink = link.getBacklink();
         assertNotNull(backlink);
 
-        assertTrue(link.remove(true));
+        assertTrue(link.remove());
 
         assertEquals(0, this.children(thing.getChild(CONTAINER)).size());
         assertEquals(0, this.children(this.context.resourceResolver()
@@ -666,6 +666,21 @@ class LinkManagerImplTest
         // External links can only match without a destination filter
         assertEquals(0, this.linkable(thing).removeLinks(this.asContent(destination), "ehrChart", null));
         assertEquals(1, this.linkable(thing).removeLinks(null, "ehrChart", null));
+    }
+
+    @Test
+    void removesTheReversesOfTheLinksItRemoves()
+        throws RepositoryException
+    {
+        this.createDefinitions();
+        this.mockSession();
+        final Resource thing = this.createThings();
+        final Resource destination = this.context.resourceResolver().getResource(THING_B_PATH);
+        this.manager.addLink(thing, this.asContent(destination), "references", null);
+
+        assertEquals(1, this.linkable(thing).removeLinks(this.asContent(destination), "references", null));
+
+        assertEquals(0, this.children(destination.getChild(CONTAINER)).size());
     }
 
     @Test
@@ -872,30 +887,27 @@ class LinkManagerImplTest
     }
 
     @Test
-    void removesPlainLinksWithoutBacklinkHandling()
+    void removesLinksThatHaveNoBacklink()
         throws RepositoryException
     {
         this.createDefinitions();
         this.mockSession();
         final Resource thing = this.createThings();
         final Resource destination = this.context.resourceResolver().getResource(THING_B_PATH);
-        final InternalLink first = this.manager.addLink(thing, this.asContent(destination), SIMPLE, null);
-        final InternalLink second = this.manager.addLink(thing, this.asContent(destination), SIMPLE, "labeled");
-
-        // No backlink exists, so asking to remove it is a quiet no-op
-        assertTrue(first.remove(true));
-        // And not asking about backlinks at all
-        assertTrue(second.remove(false));
-        // External links never have a backlink to chase
+        final InternalLink plain = this.manager.addLink(thing, this.asContent(destination), SIMPLE, null);
         final ExternalLink external = this.manager.addExternalLink(thing, "ehrChart", "42", null);
-        assertTrue(external.remove(true));
+
+        // A type without a backlink leaves no reverse to remove
+        assertTrue(plain.remove());
+        // External links never have a backlink to chase
+        assertTrue(external.remove());
         assertEquals(0, this.children(thing.getChild(CONTAINER)).size());
     }
 
     @Test
     void removingANonLinkResourceIsRefused()
     {
-        assertFalse(this.manager.remove(this.context.create().resource("/Things/junk"), true));
+        assertFalse(this.manager.remove(this.context.create().resource("/Things/junk")));
     }
 
     @Test
@@ -940,7 +952,7 @@ class LinkManagerImplTest
         final Resource wrapped = Mockito.mock(Resource.class, AdditionalAnswers.delegatesTo(linkResource));
         Mockito.doReturn(blind).when(wrapped).getResourceResolver();
 
-        assertTrue(this.manager.remove(wrapped, true));
+        assertTrue(this.manager.remove(wrapped));
 
         // The invisible reverse was quietly skipped
         assertEquals(1, this.children(this.context.resourceResolver()

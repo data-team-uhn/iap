@@ -504,7 +504,7 @@ function SubmissionView() {
           <TagChip tags={submission.tags} category="lifecycle" />
         </Stack>
         <Typography variant="description">
-          {schemaLabel(schemaVersion)}
+          {schemaLabel(schemaVersion, submission.schema)}
           {submission["jcr:created"]
             ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(createdBy(submission))}`
             : ""}

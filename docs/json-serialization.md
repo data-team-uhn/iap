@@ -91,7 +91,7 @@ children, so Sling-style URLs such as `.1.json` work without naming it.
 | `active` | **on** | 20 | Leaves retired schemas and inactive schema versions out of a schema listing (contributed by `schemas`) |
 | `simple` | off | 25 | Drops the properties that say how content is *stored* rather than what it holds. `schemas` adds a second `simple`, at 50, for a schema version |
 | `frozen` | on when the resource requested is a past state | 30 | Writes a past state from version storage with the original's type and `jcr:uuid`, not the copy's (see [history](history.md#a-past-state-does-not-describe-itself)) |
-| `schemaPath` | **on** | 50 | Writes a submission's `schema` as the schema's path rather than the whole schema (contributed by `submissions`) |
+| `schemaSummary` | **on** | 50 | Writes a submission's `schema` as the schema's `@path` and `title` rather than the whole schema (contributed by `submissions`) |
 | `events` | off | 50 | Adds `@events`, the workflow events the requesting user could send to the node (contributed by `workflows`, see [asking without sending](workflows.md#asking-without-sending)) |
 | `fields` | off | 50 | Adds `@fields`, the fields the requesting user's `update` event could change on the node (contributed by `workflows`, see `updateContent` in [built-in service tasks](workflows.md#built-in-service-tasks)) |
 | `creatable` | off | 50 | Adds `@creatable`, the types of content the requesting user's `create` event could add inside the node, each with the fields it starts with (contributed by `workflows`, see `createContent` in [built-in service tasks](workflows.md#built-in-service-tasks)) |

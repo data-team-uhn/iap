@@ -38,13 +38,11 @@ type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
 const stubFetch = () => {
   const fetchMock = vi.fn<FetchStub>(url => Promise.resolve({
     ok: true,
-    status: 200,
-    // The engine answers a creation with a redirect to what it created, which fetch follows on its
-    // own, so the final URL is where the caller reads the new path from
-    redirected: true,
-    url: `http://localhost${url.split(".")[0]}/created`,
+    status: 201,
+    url: `http://localhost${url}`,
     headers: new Headers(),
-    json: () => Promise.resolve({}),
+    // The engine answers a creation with the path of what it created
+    json: () => Promise.resolve({ status: "created", path: `${url.split(".")[0]}/created` }),
   } as unknown as Response));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;

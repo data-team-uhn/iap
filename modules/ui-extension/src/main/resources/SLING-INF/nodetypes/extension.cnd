@@ -65,13 +65,8 @@
   // Where the extension leads, such as a view's path or a link's target
   - ext:targetURL (STRING)
 
-  - ext:exactURLMatch (BOOLEAN)
-
   // The extension's name, which a point may show, such as a widget's title
   - ext:name (STRING) mandatory
-
-  // An icon for the extension
-  - ext:icon (STRING)
 
   // The extension's position in its point, lowest first
   - defaultOrder (LONG) = "0" mandatory autocreated
@@ -102,15 +97,3 @@
   // And any other properties
   - * (undefined) multiple
   - * (undefined)
-
-//-----------------------------------------------------------------------------
-//
-// The extension point finder, at /uixp. Asked for an ext:pointId in its uixp
-// parameter, it answers with the path of that point.
-//
-//-----------------------------------------------------------------------------
-[ext:PointFinder] > sling:Resource
-  query
-
-  - sling:resourceType (STRING) = "ext/PointFinder" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected

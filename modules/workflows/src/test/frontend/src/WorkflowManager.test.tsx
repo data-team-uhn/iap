@@ -65,17 +65,22 @@ const definition = {
   },
 };
 
+// What the server answers: an event with the path of what it created, a read with what it asked for.
+const answerTo = (url: string, options: RequestInit | undefined, body: unknown) => {
+  if (options?.method === "POST") {
+    return { status: "created", path: `${url.split(".")[0]}/created` };
+  }
+  return isTagSearch(url) ? LIFECYCLE_TAGS : body;
+};
+
 // A server answering the workflow's own listing, and nothing else of consequence.
 const stubFetch = (body: unknown = definition) => {
   const fetchMock = vi.fn<FetchStub>((url, options) => Promise.resolve({
     ok: true,
-    status: 200,
-    // An event that created something answers with a redirect to it, which fetch follows on its own,
-    // so the final URL is where the caller reads the new path from
-    redirected: options?.method === "POST",
-    url: `http://localhost${url.split(".")[0]}/created`,
+    status: options?.method === "POST" ? 201 : 200,
+    url: `http://localhost${url}`,
     headers: new Headers(),
-    json: () => Promise.resolve(isTagSearch(url) ? LIFECYCLE_TAGS : body),
+    json: () => Promise.resolve(answerTo(url, options, body)),
   } as unknown as Response));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
