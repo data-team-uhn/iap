@@ -26,7 +26,8 @@ categories. Delete `.iap-data` before the first demo run.
 | `/Workflows/researchProposal`  | The process, as BPMN: wait for the check of the upload → stop if it is surely not a proposal → check and complete → review → approved or refused |
 | `/Workflows/pfq`               | The same for a questionnaire |
 | `/Categories/Proposal`, `/Categories/PFQ` | The top categories a submission is raised under, each naming its schema, with the study types (and PROM/PREM) below |
-| `/Schemas/ethicsReviewDemo`, `/Categories/EthicsReview` | A study document checked against TCPS2, with TCPS2 as the form's reference text. It shares the proposal's workflow and its validation, but asks no kind of study |
+| `/Schemas/ethicsReviewDemo`, `/Categories/EthicsReview` | A study document checked against TCPS2, with TCPS2 as the form's reference text. It uses the proposal's validation, but asks no kind of study |
+| `/Workflows/ethicsReview`      | Its process: wait for the check of the upload → stop if it is surely not a proposal → check and complete → review → approved or refused |
 | `demo-researcher`              | Raises proposals. Member of `proposal-researchers`                     |
 | `demo-reviewer`                | Decides. Member of `proposal-reviewers`, which the schema routes review to |
 

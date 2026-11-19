@@ -5,9 +5,9 @@
     "jcr:primaryType": "sch:SchemaVersion",
     "version": "1.0",
     "tags": ["active"],
-    "jcr:reference:workflow": "/Workflows/researchProposal/v1",
-    // Shares the workflow of the proposal, whose intake waits for is_proposal, so the upload is checked the
-    // same way. No category: the TCPS2 form is read as soon as the submitter goes on.
+    "jcr:reference:workflow": "/Workflows/ethicsReview/v1",
+    // Its intake waits for is_proposal, so the upload is checked as a proposal with a protocol is. No category:
+    // the TCPS2 form is read as soon as the submitter goes on.
     "description": "Demo: upload a study document and see it checked against TCPS2, the national research ethics policy, with nothing else read first.",
     "proposal": {
       "jcr:primaryType": "sch:DocumentRequirement",
