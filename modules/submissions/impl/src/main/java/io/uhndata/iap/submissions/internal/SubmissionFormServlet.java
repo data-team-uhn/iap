@@ -151,7 +151,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add(FormKeys.TITLE_KEY, Objects.toString(submission.getTitle(), ""))
             // The two rules the save workflow enforces, so an editor offers editing only where a save is accepted
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
-            .add("readsDocuments", ReadingProjection.isReadingDocuments(version))
+            .add("readsDocuments",
+                ReadingProjection.isReadingDocuments(version, requirement -> this.applies(requirement, submission)))
             .add("requirements", requirements);
         ReadingProjection.describe(submission).ifPresent(reading -> json.add("extraction", reading));
         return json.build();

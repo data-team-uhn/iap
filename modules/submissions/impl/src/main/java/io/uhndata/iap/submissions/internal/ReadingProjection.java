@@ -18,12 +18,14 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import jakarta.json.Json;
 import jakarta.json.JsonObjectBuilder;
 
 import io.uhndata.iap.schemas.models.DecisionRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
+import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.ValidationRequirement;
 import io.uhndata.iap.submissions.models.Submission;
@@ -51,16 +53,19 @@ final class ReadingProjection
     }
 
     /**
-     * Whether a model reads the uploads: the schema version checks them with a validation or a classification, or
-     * has a form that names the documents it is read from.
+     * Whether a model reads this submission's uploads: a requirement that applies checks them with a validation or
+     * a classification, or is a form that names the documents it is read from. Asked per submission, since a
+     * schema may read documents on one route and not on another.
      *
-     * @param version the schema version
+     * @param version the submission's schema version
+     * @param applies whether a requirement applies to the submission
      * @return {@code true} when uploads are read for answers
      */
-    static boolean isReadingDocuments(final SchemaVersion version)
+    static boolean isReadingDocuments(final SchemaVersion version, final Predicate<Requirement> applies)
     {
-        return version.getRequirements().stream().anyMatch(requirement -> requirement instanceof DecisionRequirement
-            || requirement instanceof final FormRequirement form && !form.getReadDocumentNames().isEmpty());
+        return version.getRequirements().stream().filter(applies).anyMatch(requirement ->
+            requirement instanceof DecisionRequirement
+                || requirement instanceof final FormRequirement form && !form.getReadDocumentNames().isEmpty());
     }
 
     /**

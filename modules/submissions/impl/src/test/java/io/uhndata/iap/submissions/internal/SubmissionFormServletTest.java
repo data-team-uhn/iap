@@ -823,6 +823,20 @@ class SubmissionFormServletTest
         assertFalse(names(form.getJsonArray(REQUIREMENTS)).contains("isNote"));
     }
 
+    // A schema can read the documents on one route and not on another
+    @Test
+    void saysNothingIsReadWhenWhatReadsTheDocumentsDoesNotApply() throws IOException
+    {
+        modify(VERSION_PATH + "/" + DETAILS, "documents", new String[] {DOCTORS_NOTE});
+        this.context.create().resource(VERSION_PATH + "/isNote", Map.of(
+            TYPE, ValidationRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, LABEL, "Is it a note?",
+            "prompt", "Is this a doctor's note?", "document", DOCTORS_NOTE));
+        this.hidden.add(DETAILS);
+        this.hidden.add("isNote");
+
+        assertFalse(form(REQUESTER).getBoolean("readsDocuments"));
+    }
+
     @Test
     void saysNothingAboutAReadingNobodyAskedFor() throws IOException
     {
