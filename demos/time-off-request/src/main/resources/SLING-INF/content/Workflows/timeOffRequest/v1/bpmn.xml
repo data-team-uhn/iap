@@ -39,9 +39,16 @@
     <bpmn:sequenceFlow id="toFillIn" sourceRef="checkBudget" targetRef="fillIn" />
     <bpmn:userTask id="fillIn" iap:performers="@creator" name="Say when you want to be away">
       <bpmn:incoming>toFillIn</bpmn:incoming>
-      <bpmn:outgoing>toApproval</bpmn:outgoing>
+      <bpmn:outgoing>toGenerate</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:sequenceFlow id="toApproval" sourceRef="fillIn" targetRef="markSubmitted" />
+    <bpmn:sequenceFlow id="toGenerate" sourceRef="fillIn" targetRef="generateRequestForm" />
+    <!-- From the answers as they were sent, unless the requester uploaded their own version -->
+    <bpmn:serviceTask id="generateRequestForm" name="Fill the request form in" iap:handler="generateDocument"
+        iap:requirement="requestForm">
+      <bpmn:incoming>toGenerate</bpmn:incoming>
+      <bpmn:outgoing>toApproval</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toApproval" sourceRef="generateRequestForm" targetRef="markSubmitted" />
     <bpmn:serviceTask id="markSubmitted" iap:handler="addTag" iap:replaceExisting="true" iap:tag="submitted"
         name="Mark it as submitted">
       <bpmn:incoming>toApproval</bpmn:incoming>
@@ -160,6 +167,9 @@
       <bpmndi:BPMNShape id="fillInShape" bpmnElement="fillIn">
         <dc:Bounds x="400" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="generateRequestFormShape" bpmnElement="generateRequestForm">
+        <dc:Bounds x="475" y="290" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="markSubmittedShape" bpmnElement="markSubmitted">
         <dc:Bounds x="550" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
@@ -222,9 +232,15 @@
         <di:waypoint x="350" y="198" />
         <di:waypoint x="400" y="198" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toGenerateEdge" bpmnElement="toGenerate">
+        <di:waypoint x="450" y="238" />
+        <di:waypoint x="450" y="330" />
+        <di:waypoint x="475" y="330" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toApprovalEdge" bpmnElement="toApproval">
-        <di:waypoint x="500" y="198" />
-        <di:waypoint x="550" y="198" />
+        <di:waypoint x="575" y="330" />
+        <di:waypoint x="600" y="330" />
+        <di:waypoint x="600" y="238" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toUrgencyEdge" bpmnElement="toUrgency">
         <di:waypoint x="650" y="198" />

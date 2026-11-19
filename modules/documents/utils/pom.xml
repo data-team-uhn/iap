@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Copyright 2026 DATA @ UHN. See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.uhndata.iap</groupId>
+    <artifactId>iap-documents</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>iap-documents-utils</artifactId>
+  <packaging>pom</packaging>
+  <name>IAP - Document Python utilities</name>
+  <description>Python shared by the Docling daemon and the generation worker: the HTTP guards, the shared-docs allowlist and size limits, the LibreOffice conversion, and run_check.py.</description>
+
+  <properties>
+    <!-- python3, not python: `python` is absent on a machine without python-is-python3, and
+         the build then dies with "Cannot run program python". -->
+    <python.executable>python3</python.executable>
+  </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.rat</groupId>
+        <artifactId>apache-rat-plugin</artifactId>
+        <configuration>
+          <inputExcludes combine.children="append">
+            <exclude>**/__pycache__/**</exclude>
+            <exclude>pytest.ini</exclude>
+            <exclude>ruff.toml</exclude>
+          </inputExcludes>
+        </configuration>
+      </plugin>
+
+      <!-- Ruff, then pytest, through run_check.py, honouring the shared skipTests flag. The other
+           Python modules under modules/documents run the same script from here. -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>lint-utils-python</id>
+            <phase>test</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <skip>${skipTests}</skip>
+              <executable>${python.executable}</executable>
+              <workingDirectory>${project.basedir}</workingDirectory>
+              <arguments>
+                <argument>-B</argument>
+                <argument>run_check.py</argument>
+                <argument>ruff</argument>
+                <argument>check</argument>
+                <argument>src</argument>
+              </arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>run-utils-python-tests</id>
+            <phase>test</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <skip>${skipTests}</skip>
+              <executable>${python.executable}</executable>
+              <workingDirectory>${project.basedir}</workingDirectory>
+              <arguments>
+                <argument>-B</argument>
+                <argument>run_check.py</argument>
+                <argument>pytest</argument>
+                <argument>src/test/python</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

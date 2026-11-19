@@ -32,7 +32,7 @@ import io.uhndata.iap.utils.Referenceable;
 
 /**
  * A Sling Model wrapping a {@code sub:File} node: one uploaded file, and the renditions parsing made of it, such as
- * the Markdown.
+ * the Markdown. A generated file also keeps the {@code .docx} it was converted from.
  *
  * @version $Id$
  * @since 0.1.0
@@ -43,6 +43,9 @@ public class File extends EntityPart implements Referenceable
 {
     /** The {@code sling:resourceType} of a {@code sub:File} node. */
     public static final String RESOURCE_TYPE = "sub/File";
+
+    /** The name of the child holding the filled {@code .docx} a generated PDF was converted from. */
+    public static final String GENERATED_DOCX_CHILD = "generated.docx";
 
     /** The name of the child node holding the upload as it was received. */
     private static final String UPLOADED_FILE_CHILD = "uploadedFile";
@@ -104,7 +107,19 @@ public class File extends EntityPart implements Referenceable
     }
 
     /**
-     * The renditions parsing produced, such as the Markdown. The upload itself is not one of them.
+     * The filled {@code .docx} the platform converted this file from, if this is from a generated file.
+     *
+     * @return the {@code .docx}, or {@code null} for an upload
+     */
+    @Nullable
+    public Resource getGeneratedDocx()
+    {
+        return this.resource.getChild(GENERATED_DOCX_CHILD);
+    }
+
+    /**
+     * The renditions parsing produced, such as the Markdown. Neither the upload nor the {@code .docx} it was generated
+     * from is one of them.
      *
      * @return the {@code nt:file} resources; empty if nothing has been rendered yet
      */
@@ -113,7 +128,8 @@ public class File extends EntityPart implements Referenceable
     {
         final List<Resource> result = new ArrayList<>();
         for (final Resource child : this.resource.getChildren()) {
-            if (child.isResourceType(FILE_RESOURCE_TYPE) && !UPLOADED_FILE_CHILD.equals(child.getName())) {
+            if (child.isResourceType(FILE_RESOURCE_TYPE) && !UPLOADED_FILE_CHILD.equals(child.getName())
+                && !GENERATED_DOCX_CHILD.equals(child.getName())) {
                 result.add(child);
             }
         }

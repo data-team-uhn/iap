@@ -114,7 +114,7 @@ class UpdateFieldsTest
             }
         }
         // The update workflows' fields, then those of the requirement and the part create workflows
-        assertEquals(36 + 6 + 15, checked);
+        assertEquals(37 + 7 + 15, checked);
     }
 
     @Test

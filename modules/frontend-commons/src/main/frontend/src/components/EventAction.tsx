@@ -40,6 +40,8 @@ interface EventActionProps {
   workingLabel?: string;
   // The name of the workflow event, such as "retire"
   event: string;
+  // What the event carries, when it needs anything beyond its name
+  params?: Record<string, string>;
   // The confirmation dialog's title
   title: string;
   // What the event does, shown in the confirmation dialog
@@ -54,7 +56,7 @@ interface EventActionProps {
 // A workflow event sent to a node from an icon button, after a confirmation. A refusal leaves the
 // confirm button disabled.
 export function EventAction(props: EventActionProps) {
-  const { path, reload, label, workingLabel, event, title, explanation, done, color } = props;
+  const { path, reload, label, workingLabel, event, params, title, explanation, done, color } = props;
   const [ confirming, setConfirming ] = useState(false);
   const doFetch = useAuthenticatedFetch();
   const notify = useNotice();
@@ -68,7 +70,7 @@ export function EventAction(props: EventActionProps) {
           workingLabel={workingLabel}
           confirmColor={color}
           onConfirm={async () => {
-            await sendEvent(doFetch, path, event);
+            await sendEvent(doFetch, path, event, params);
             if (done) {
               notify({ title: done, severity: "success" });
             }

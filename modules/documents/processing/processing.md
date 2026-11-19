@@ -4,7 +4,8 @@ A file (PDF / DOCX / DOC) is turned into one `<stem>.md`. The whole document goe
 nothing here splits it. Everything runs in Python: LibreOffice prep, Docling conversion, and
 all derived-file writes.
 
-- **Source**: `modules/documents/processing/src/main/python/`
+- **Source**: `modules/documents/processing/src/main/python/`, plus the helpers it shares with the
+  generation worker in `modules/documents/utils/src/main/python/` (marked *utils* below)
 
 The file to parse must already be on the shared volume (`IAP_SHARED_DOCS`, `/shared-docs` in
 the image). The caller stages it there and passes its **path**; the daemon never receives
@@ -128,17 +129,18 @@ failed to the caller — so no job is left waiting on a callback that will never
 | `docling_daemon.py` | **`POST /parse?path=...`** under `IAP_SHARED_DOCS`, `GET /health`, `POST /shutdown` |
 | `parse_callbacks.py` | Authenticated, retried delivery of async parse outcomes to the configured callback URL |
 | `parse_document.py` | Shared orchestrator: LibreOffice prep → Docling → bookmark heading levels → write `{stem}.md` |
-| `libreoffice_convert.py` | DOC→DOCX+PDF, DOCX→PDF; saves beside source immediately |
+| `libreoffice_convert.py` (*utils*) | DOC→DOCX+PDF, DOCX→PDF; saves beside source immediately |
+| `daemon_utils.py` (*utils*) | The `Origin` and bearer-token guards, request-body limits, JSON replies |
 | `docling_parser.py` | CLI entry via `parse_document` |
 | `docling_pdf_parser.py` | `convert_pdf_to_markdown` — page-sharded parallel Docling |
 | `docling_docx_parser.py` | DOCX → Markdown (Docling; no page markers) |
 | `docling_batch_sizing.py` | Worker-count / page-batch sizing from RAM + cores |
 | `docling_config.py` / `docling_error_detection.py` | Shared Docling pipeline options; parse-failure detection |
 | `markdown_cleanup.py` | `clean_markdown` — strip garbage lines, collapse blanks (idempotent). Called **once per document**, by the converter only |
-| `markdown_markers.py` | The `<!-- page: N -->` format, the ATX heading rules, the accepted suffixes, and the `len//4` token estimate |
+| `markdown_markers.py` | The `<!-- page: N -->` format, the ATX heading rules, and the `len//4` token estimate |
 | `heading_levels.py` | `correct_heading_levels` — set the assembled Markdown's heading levels from the PDF's bookmarks |
 | `pdf_bookmarks.py` | PDF bookmark extraction (pypdf) |
-| `shared_docs.py` | The shared-docs allowlist, the input size ceilings, and every write to disk |
+| `shared_docs.py` (*utils*) | The shared-docs allowlist, the accepted suffixes, the input size ceilings, and every write to disk |
 
 ---
 

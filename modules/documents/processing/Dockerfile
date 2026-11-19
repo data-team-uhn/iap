@@ -19,10 +19,14 @@
 # Serves POST /parse with a path under the shared /shared-docs volume. LibreOffice prep
 # and Docling both run in this container and write the Markdown beside the staged file.
 #
+# The build context is modules/documents, not this directory: the helpers this daemon shares with
+# the generation worker are in utils/src/main/python, and the COPYs below take that tree as well
+# as this module's own. modules/documents/.dockerignore keeps the rest of the tree out.
+#
 # Build, from the repo root:
 #   mvn install -Pdocker -pl modules/documents/processing
 # or, without Maven:
-#   docker build -t iap/docling modules/documents/processing
+#   docker build -t iap/docling -f modules/documents/processing/Dockerfile modules/documents
 #
 # Run (shared docs mounted; publish only to loopback). On Linux, --user has to name whoever
 # owns the host directory behind /shared-docs ("id -u:id -g"): the image's own user is 10001,
@@ -86,7 +90,7 @@ WORKDIR /app
 # Pinned in requirements.txt rather than inline: the layer below bakes model weights whose
 # contents depend on the docling version, and CI never builds this image, so an unbounded
 # range let the same commit produce materially different images with nothing to catch it.
-COPY requirements.txt /app/requirements.txt
+COPY processing/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # The user comes before the weights, and the weights are downloaded as that user. A later
@@ -125,7 +129,8 @@ ENV TRANSFORMERS_OFFLINE=1 \
     HF_HUB_OFFLINE=1 \
     HF_HOME=/tmp/hf
 
-COPY --chown=docling:docling src/main/python/ /app/
+COPY --chown=docling:docling utils/src/main/python/ /app/
+COPY --chown=docling:docling processing/src/main/python/ /app/
 
 EXPOSE 18765
 

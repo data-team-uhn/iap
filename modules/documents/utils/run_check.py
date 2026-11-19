@@ -22,8 +22,8 @@ only "No module named ruff". Instead of relying on the system to come with prein
 globally, rely on `venv` to build the right environment, when `venv` is available, or gently decline to build and
 simply warn that dependencies are missing.
 
-So the first invocation builds a Python virtual environment (`.venv`) beside this file and installs
-requirements-test.txt into it. The checks then run against the versions this module declares rather than whatever
+So the first invocation builds a Python virtual environment (`.venv`) in the module and installs
+its requirements-test.txt into it. The checks then run against the versions this module declares rather than whatever
 the machine happens to have, which is the reason to prefer the virtualenv even where ruff is already installed.
 
 Provisioning needs two things that a Python 3 install can genuinely lack: `venv`, and some way to
@@ -31,7 +31,10 @@ get `pip` into it. Where either is missing, or the machine is offline, the check
 line naming what to install, rather than failing the build. Under CI (`$CI` set) that same case is
 a hard failure instead: a gate that quietly stops running there is worse than a red build.
 
-    python3 -B run_check.py ruff check src
+One script serves every Python module under modules/documents. The module is the working
+directory, which each pom sets to its own basedir, so from a module's directory:
+
+    python3 -B ../utils/run_check.py ruff check src
 """
 
 import hashlib
@@ -41,7 +44,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
+HERE = Path.cwd().resolve()
 VENV = HERE / ".venv"
 REQUIREMENTS = HERE / "requirements-test.txt"
 # Which requirements the virtualenv was built from, so that adding one rebuilds it rather than
@@ -65,7 +68,16 @@ def run(*command, **kwargs):
 
 
 def wanted():
-    return hashlib.sha256(REQUIREMENTS.read_bytes()).hexdigest()
+    """A fingerprint of requirements-test.txt and every file it includes with ``-r``.
+
+    The generation worker's includes its runtime requirements.txt, and a bumped runtime pin has to
+    rebuild the virtualenv as surely as a bumped test one.
+    """
+    digest = hashlib.sha256(REQUIREMENTS.read_bytes())
+    for line in REQUIREMENTS.read_text().splitlines():
+        if line.startswith("-r "):
+            digest.update((HERE / line[3:].strip()).read_bytes())
+    return digest.hexdigest()
 
 
 def usable():
