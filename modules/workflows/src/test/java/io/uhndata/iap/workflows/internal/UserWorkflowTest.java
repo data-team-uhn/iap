@@ -975,6 +975,34 @@ class UserWorkflowTest
     }
 
     @Test
+    void recordsWhomADelegateCompletedTheTaskFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.ADMIN), APPROVED, EngineFixture.REQUESTER);
+
+        assertEquals("completed", read(TASK).get("status"));
+        assertEquals(EngineFixture.REQUESTER, read(TASK).get("assignee"));
+        final RecordedAction decision = this.history.described().get(this.history.described().size() - 1);
+        assertEquals(EngineFixture.ADMIN, decision.getRequestedBy());
+        assertEquals(EngineFixture.REQUESTER, decision.getOnBehalfOf());
+    }
+
+    @Test
+    void grantsReadToWhomADelegateStartedTheProcessFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        createBootstrap();
+        reference(HOST, "workflow", PROCESS);
+
+        engine().receiveEvent(host(EngineFixture.ADMIN), START, EngineFixture.REQUESTER);
+
+        assertTrue(EngineFixture.GRANTED.contains(EngineFixture.REQUESTER));
+        assertFalse(EngineFixture.GRANTED.contains(EngineFixture.ADMIN));
+    }
+
+    @Test
     void takesTheDefaultArcWhenNoConditionMatches() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
@@ -1205,6 +1233,18 @@ class UserWorkflowTest
         engine.receiveEvent(host(EngineFixture.REQUESTER), ASSESSMENT_SENT_TO_HOST);
 
         assertEquals("created", read(WAIT).get(STATUS));
+        assertEquals("completed", read(SECOND_WAIT).get(STATUS));
+    }
+
+    @Test
+    void deliversADelegatesMessageToTheTaskWaitingForWhomTheyActFor() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        waitTwiceForAssessment(EngineFixture.ADMIN, EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(host(EngineFixture.ADMIN), ASSESSMENT_SENT_TO_HOST, EngineFixture.REQUESTER);
+
         assertEquals("completed", read(SECOND_WAIT).get(STATUS));
     }
 

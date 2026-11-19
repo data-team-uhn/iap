@@ -74,14 +74,14 @@ final class SystemWorkflowRunner
      * @param target the resource the event is aimed at, backed by the engine's own session
      * @param event the incoming event
      * @param start the entry point to run from
-     * @param actor the user who fired the event
+     * @param actor who sent the event, and whom for
      * @param depth how many sent events deep this run is, 0 for the event that came in
      * @return the variables the run left behind
      * @throws WorkflowException when the run cannot complete, typed by whose fault that is
      * @throws PersistenceException when a write fails
      */
     Map<String, Object> run(final Resource target, final WorkflowEvent event, final StartEvent start,
-        final String actor, final int depth) throws WorkflowException, PersistenceException
+        final Actor actor, final int depth) throws WorkflowException, PersistenceException
     {
         final ResourceResolver resolver = target.getResourceResolver();
         final Map<String, Object> variables = new LinkedHashMap<>();
@@ -96,7 +96,7 @@ final class SystemWorkflowRunner
                     variables, actor, this.dispatcher, depth));
                 // After each activity rather than at the end: a later activity may start a workflow on what this one
                 // created, and @creator there reads createdBy
-                recordActor(resolver, variables, actor);
+                recordActor(resolver, variables, actor.effectiveUser());
             } else if (node instanceof IntermediateThrowingEvent) {
                 this.dispatcher.throwMessage((Event) node, target, event, actor, variables);
             } else if (!(node instanceof StartEvent) || step > 0) {
@@ -118,7 +118,7 @@ final class SystemWorkflowRunner
      *
      * @param resolver the engine's session, still uncommitted
      * @param variables the execution's variables, consulted for what was created
-     * @param actor the user who fired the event
+     * @param actor the user the execution counts as
      * @throws PersistenceException when the created node cannot be written to
      */
     private static void recordActor(final ResourceResolver resolver, final Map<String, Object> variables,

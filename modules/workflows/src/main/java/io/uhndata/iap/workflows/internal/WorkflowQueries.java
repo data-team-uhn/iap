@@ -113,7 +113,7 @@ public class WorkflowQueries
      * @param serviceResolver the engine's own session
      * @param host the resource the event is aimed at, backed by the engine's own session
      * @param event the incoming event
-     * @param actor the user who sent it
+     * @param actor the user the message counts as: its sender, or whom they sent it for
      * @return the task, backed by the engine's own session, or empty when the event is not a message
      * @throws NoApplicableWorkflowException when nothing on the host waits for the message
      * @throws InvalidStateException when several waiting tasks admit the sender, so the message must go to one of them
