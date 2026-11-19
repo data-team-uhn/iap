@@ -41,9 +41,9 @@ export const QuestionSet: RequirementComponent = ({ requirement, disabled, state
   <Items items={(requirement as FormRequirement).items} disabled={disabled} states={states} onAnswered={onAnswered} />
 );
 
-export const DocumentSection: RequirementComponent = ({ path, requirement, disabled, onChanged }) => (
+export const DocumentSection: RequirementComponent = ({ path, requirement, disabled, queueSave, onChanged }) => (
   <DocumentUpload path={path} requirement={requirement as DocumentRequirement} disabled={disabled}
-    onAttached={onChanged} />
+    queueSave={queueSave} onAttached={onChanged} />
 );
 
 export const ApprovalSection: RequirementComponent = ({ requirement }) => (

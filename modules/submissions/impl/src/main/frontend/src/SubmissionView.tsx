@@ -41,7 +41,7 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
 import { type SerializedNode, childrenOfType, isNode } from "@iap/frontend-commons/serializedNode";
 import { useNode } from "@iap/frontend-commons/useNode";
-import { usePendingWork } from "@iap/frontend-commons/usePendingWork";
+import { useWorkQueue } from "@iap/frontend-commons/useWorkQueue";
 import { carriesTag } from "@iap/tags/carriesTag";
 import TagChip from "@iap/tags/TagChip";
 
@@ -349,8 +349,9 @@ function SubmissionView() {
   const [loadedPath, setLoadedPath] = useState<string>();
   const loading = loadedPath !== path;
   const fetchUtil = useAuthenticatedFetch();
-  // The editor's saves still on their way, which completing a step must not overtake
-  const { track: trackSave, allDone: savesDone } = usePendingWork();
+  // The saves of the submission and the steps that complete it. Each is sent once the ones before it
+  // have settled, so a step never overtakes the save of the answer just given.
+  const queue = useWorkQueue();
   // The path of the submission on screen; undefined once the page is gone. A step completed after the
   // reader moved on must not bring them back.
   const shownPath = useRef<string | undefined>(path);
@@ -365,10 +366,9 @@ function SubmissionView() {
   const [reloads, setReloads] = useState(0);
   const readAgain = useCallback(() => setReloads(current => current + 1), []);
 
-  // Waits for the answers still being saved, then reads the submission again, since they may change
-  // what it still lacks. Rejects with the reason when the submission is not ready for its next step.
-  const readyForNextStep = useCallback(() => savesDone()
-    .then(() => fetchUtil(`${path}.json`))
+  // Reads the submission again, since the saves before the step may change what it still lacks.
+  // Rejects with the reason when the submission is not ready for its next step.
+  const checkReady = useCallback(() => fetchUtil(`${path}.json`)
     .then(response => {
       if (!response.ok) {
         throw new RequestError(response.status);
@@ -380,7 +380,7 @@ function SubmissionView() {
       if (reason !== undefined) {
         throw new Error(reason);
       }
-    }), [ savesDone, fetchUtil, path ]);
+    }), [ fetchUtil, path ]);
 
   // Read in both modes. Whether the waiting step can be taken depends on what the request still lacks,
   // which changes while it is filled in.
@@ -423,7 +423,8 @@ function SubmissionView() {
         <SubmissionTasks
           path={path}
           readinessNote={whyNotReady(submission)}
-          beforeComplete={readyForNextStep}
+          queue={queue}
+          checkReady={checkReady}
           onCompleted={() => {
             if (shownPath.current !== path) {
               return;
@@ -468,7 +469,7 @@ function SubmissionView() {
         {header}
         {/* Keyed by path, so that another submission gets a new editor rather than showing the
             previous one's answers until its form arrives */}
-        <SubmissionEditor key={path} path={path} onSaving={trackSave} onChanged={readAgain} />
+        <SubmissionEditor key={path} path={path} queueSave={queue} onChanged={readAgain} />
       </Stack>
     );
   }
