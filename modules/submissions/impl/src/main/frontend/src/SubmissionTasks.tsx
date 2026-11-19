@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { useEffect, useRef } from "react";
+
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
 import { Button, Stack, Typography } from "@mui/material";
 
@@ -32,22 +34,32 @@ import { useSubmissionTasks } from "./useSubmissionTasks";
 // The tasks a submission is waiting for, as buttons labelled with each task's label.
 //
 // Only a task whose `@events` offers the reader `complete` is shown. Another person's task is absent,
-// not disabled. A task with outcome options is left out, since the button sends no outcome.
+// not disabled. A task with outcome options is left out, since the button sends no outcome, and so is a
+// task naming a requirement, which the editor shows as a step of its own.
 //
 // Completing a task is one piece of work on `queue`, the queue that also holds the saves of the
 // submission. It starts once the saves before it have settled, and a save asked for meanwhile waits
 // for it. It first calls `checkReady`. When that rejects, nothing is completed, and the reader is told
 // why. `readinessNote`, when given, says what still stands between the submission and its next step.
 // `blocked` turns the step buttons off while something is still running, such as a document being read.
-function SubmissionTasks({ path, readinessNote, blocked = false, queue, checkReady, onCompleted }: {
+// The tasks are read again whenever `reloads` changes, which is when the page reads the submission again.
+function SubmissionTasks({ path, readinessNote, blocked = false, reloads = 0, queue, checkReady, onCompleted }: {
   path: string;
   readinessNote?: string;
   blocked?: boolean;
+  reloads?: number;
   queue: Enqueue;
   checkReady?: () => Promise<void>;
   onCompleted?: () => void;
 }) {
   const { tasks, reload } = useSubmissionTasks(path);
+  const readFor = useRef(reloads);
+  useEffect(() => {
+    if (readFor.current !== reloads) {
+      readFor.current = reloads;
+      void reload();
+    }
+  }, [ reloads, reload ]);
   const doFetch = useAuthenticatedFetch();
   const notify = useNotice();
   // Each completion reports its own failure, since only it knows which task's label to name
@@ -64,7 +76,8 @@ function SubmissionTasks({ path, readinessNote, blocked = false, queue, checkRea
     // Says why: the engine's reason when it refused, or else why the step was not sent
     .catch((error: unknown) => notify({ title: `${task.label} did not go through`, message: messageOf(error) })));
 
-  const offered = tasks.filter(task => offers(task, COMPLETE_EVENT) && task.outcomeOptions.length === 0);
+  const offered = tasks.filter(task => offers(task, COMPLETE_EVENT) && task.outcomeOptions.length === 0
+    && task.requirement === undefined);
   if (offered.length === 0) {
     return null;
   }

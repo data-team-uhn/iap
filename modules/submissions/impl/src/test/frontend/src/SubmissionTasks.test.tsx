@@ -233,6 +233,31 @@ describe("SubmissionTasks", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
+  it("leaves a step that names a requirement to the editor, which shows it as a step of its own", async () => {
+    vi.stubGlobal("fetch", repository(waitingOn(PATH, {
+      fillIn: SEND,
+      chooseRoute: { ...SEND, label: "Say whether there is a protocol", requirement: "protocol" },
+    })));
+
+    renderTasks();
+
+    expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Say whether there is a protocol" })).toBeNull();
+  });
+
+  it("reads what the request is waiting for again when the page reads the submission again", async () => {
+    const fetchMock = repository(waitingOn(PATH, { fillIn: SEND }));
+    const queue = aQueue();
+
+    const { rerender } = render(<SubmissionTasks path={PATH} queue={queue} reloads={0} />,
+      { wrapper: NoticeProvider });
+    await screen.findByRole("button", { name: SEND_LABEL });
+    rerender(<SubmissionTasks path={PATH} queue={queue} reloads={0} />);
+    rerender(<SubmissionTasks path={PATH} queue={queue} reloads={1} />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  });
+
   it("stays quiet when what a request is waiting for cannot be read", async () => {
     const fetchMock = stubFetch(() => Promise.reject(new Error("offline")));
 

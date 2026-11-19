@@ -26,13 +26,15 @@ import { COMPLETE_STEP, UPLOAD_STEP, describeWhyNotNext } from "./intake";
 import { type SubmissionForm, runMainExtraction, sendDocuments } from "./submissionForm";
 
 // The steps of a request whose documents a model reads, around the requirements of the step shown.
-// Next on the uploads sends them to be read; Next on the confirmation reads the rest out of them.
-// Back only moves between the steps.
-function IntakeSteps({ path, form, step, reading, onStep, onChanged, children }: {
+// Next on the uploads sends them to be read, or runs `sendUploads` when given, such as completing the
+// workflow step that waits for them. Next on the confirmation reads the rest out of them. Back only
+// moves between the steps.
+function IntakeSteps({ path, form, step, reading, sendUploads, onStep, onChanged, children }: {
   path: string;
   form: SubmissionForm;
   step: number;
   reading: boolean;
+  sendUploads?: () => Promise<void>;
   onStep: (step: number) => void;
   onChanged: () => void;
   children: ReactNode;
@@ -45,7 +47,8 @@ function IntakeSteps({ path, form, step, reading, onStep, onChanged, children }:
   const goOn = () => {
     setBusy(true);
     setError(undefined);
-    const action = step === UPLOAD_STEP ? sendDocuments(doFetch, path) : runMainExtraction(doFetch, path);
+    const send = sendUploads ?? (() => sendDocuments(doFetch, path));
+    const action = step === UPLOAD_STEP ? send() : runMainExtraction(doFetch, path);
     action
       .then(() => {
         onStep(step + 1);

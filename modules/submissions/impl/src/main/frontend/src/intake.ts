@@ -20,6 +20,7 @@ import {
   type DocumentRequirement,
   type FormItem,
   type FormQuestion,
+  type FormRequirement,
   type Requirement,
   type SubmissionForm,
   describeBlock,
@@ -53,12 +54,16 @@ function getQuestions(items: FormItem[]): FormQuestion[] {
   return items.flatMap(item => isQuestion(item) ? [ item ] : getQuestions(item.items));
 }
 
+// Whether every question the form requires has an answer
+export function isAnswered(requirement: FormRequirement): boolean {
+  return getQuestions(requirement.items).every(question => !isRequired(question) || question.value.length > 0);
+}
+
 // Whether the submitter answered the category the model suggested, in each form that holds one
 export function isCategoryConfirmed(form: SubmissionForm): boolean {
   return form.requirements.filter(isFormRequirement)
     .filter(requirement => requirement.confirmsCategory === true)
-    .flatMap(requirement => getQuestions(requirement.items))
-    .every(question => !isRequired(question) || question.value.length > 0);
+    .every(isAnswered);
 }
 
 // Whether the uploads were sent to be read, so a new one would not be read: the intake reads each

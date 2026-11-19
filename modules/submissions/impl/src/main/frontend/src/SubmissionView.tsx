@@ -64,6 +64,7 @@ import {
 } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 import SubmissionTasks from "./SubmissionTasks";
+import { useSubmissionTasks } from "./useSubmissionTasks";
 
 // The extension that asks for the editor rather than the read-only page
 const EDIT = ".edit";
@@ -390,6 +391,16 @@ function SubmissionView() {
   // the same path
   const [reloads, setReloads] = useState(0);
   const readAgain = useCallback(() => setReloads(current => current + 1), []);
+  // What the workflow waits for, which the editor shows as steps. Read again with the submission, since a
+  // step or the end of a reading moves the workflow on.
+  const { reload: reloadSteps, ...steps } = useSubmissionTasks(path);
+  const stepsReadFor = useRef(reloads);
+  useEffect(() => {
+    if (stepsReadFor.current !== reloads) {
+      stepsReadFor.current = reloads;
+      void reloadSteps();
+    }
+  }, [reloads, reloadSteps]);
 
   // Reads the submission again, since the saves before the step may change what it still lacks.
   // Rejects with the reason when the submission is not ready for its next step.
@@ -485,6 +496,25 @@ function SubmissionView() {
       .then(readAgain, (e: unknown) => setStopFailure(describeRequestFailure(e)));
   }, [fetchUtil, path, readAgain]);
 
+  const taskButtons = (
+    <SubmissionTasks
+      path={path}
+      readinessNote={whyNotReady(submission)}
+      blocked={reading}
+      reloads={reloads}
+      queue={queue}
+      checkReady={checkReady}
+      onCompleted={() => {
+        if (shownPath.current !== path) {
+          return;
+        }
+        // Back to the read-only page, read again
+        readAgain();
+        void navigate(path);
+      }}
+    />
+  );
+
   // The way back, Stop, the steps the request is waiting for, and the switch between the two modes. It is
   // shown in every state of the page. Loading and failure are where somebody most needs a way out. While a
   // document is read, Stop is the only control left on: the rest waits for the reading to end.
@@ -495,21 +525,7 @@ function SubmissionView() {
         <Button variant="outlined" color="error" startIcon={<StopIcon />} disabled={!reading} onClick={stopReading}>
           Stop reading
         </Button>
-        <SubmissionTasks
-          path={path}
-          readinessNote={whyNotReady(submission)}
-          queue={queue}
-          checkReady={checkReady}
-          blocked={reading}
-          onCompleted={() => {
-            if (shownPath.current !== path) {
-              return;
-            }
-            // Back to the read-only page, read again
-            readAgain();
-            void navigate(path);
-          }}
-        />
+        {taskButtons}
         <ToggleButtonGroup
           exclusive
           disabled={reading}
@@ -553,7 +569,8 @@ function SubmissionView() {
         {isReadingAsked(submission) && <ReadingBanner path={path} reloads={reloads} onChanged={readAgain} />}
         {/* Keyed by path, so that another submission gets a new editor rather than showing the
             previous one's answers until its form arrives */}
-        <SubmissionEditor key={path} path={path} queueSave={queue} reading={reading} onChanged={readAgain} />
+        <SubmissionEditor key={path} path={path} queueSave={queue} reading={reading} steps={steps}
+          sendControls={taskButtons} onChanged={readAgain} />
       </Stack>
     );
   }

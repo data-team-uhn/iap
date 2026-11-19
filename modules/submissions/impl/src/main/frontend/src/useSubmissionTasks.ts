@@ -16,18 +16,30 @@
  * limitations under the License.
  */
 
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { useNode } from "@iap/frontend-commons/useNode";
 
-import { type SubmissionTask, tasksFrom } from "./taskModel";
+import { type SubmissionTask, getOpeningRequirement, tasksFrom } from "./taskModel";
 
 // The selectors for reading the workflow container, with the events the reader may send each task. Not
 // `simple`, which drops the `sling:resourceType` that tasks are found by. `-dereference` keeps each
 // instance's `workflowVersion` as its `jcr:uuid` rather than the whole workflow version.
 const CONTAINER_SELECTORS = "deep.-dereference.events";
 
+// What the workflows of a submission wait for: their open tasks, and the requirement their first task
+// asked for, if it named one
+export interface SubmissionSteps {
+  tasks: SubmissionTask[];
+  opening?: string;
+}
+
+function readSteps(container: SerializedNode): SubmissionSteps {
+  return { tasks: tasksFrom(container), opening: getOpeningRequirement(container) };
+}
+
 // The open tasks of a submission's workflows, and a way to read them again. A failed read gives no
 // tasks, a failed re-read included, since what was read before may include a task already done.
-export function useSubmissionTasks(path: string): { tasks: SubmissionTask[]; reload: () => Promise<void> } {
-  const { value, loadError, reload } = useNode(`${path}/wf:instances`, CONTAINER_SELECTORS, tasksFrom);
-  return { tasks: loadError === undefined ? value ?? [] : [], reload };
+export function useSubmissionTasks(path: string): SubmissionSteps & { reload: () => Promise<void> } {
+  const { value, loadError, reload } = useNode(`${path}/wf:instances`, CONTAINER_SELECTORS, readSteps);
+  return loadError === undefined && value !== undefined ? { ...value, reload } : { tasks: [], reload };
 }

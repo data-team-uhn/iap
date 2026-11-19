@@ -39,6 +39,9 @@ export interface SubmissionTask {
   // The events the reader may send the task, as the server listed them: `complete` when the task
   // is theirs to do
   "@events": string[];
+  // The requirement the task asks the submitter to fill in, when it names one. The editor shows that
+  // requirement as the task's step.
+  requirement?: string;
 }
 
 function asTask(node: SerializedNode): SubmissionTask | null {
@@ -51,7 +54,29 @@ function asTask(node: SerializedNode): SubmissionTask | null {
     label: typeof node.label === "string" ? node.label : lastSegmentOf(path),
     outcomeOptions: stringsOf(node.outcomeOptions),
     "@events": stringsOf(node["@events"]),
+    ...(typeof node.requirement === "string" ? { requirement: node.requirement } : {}),
   };
+}
+
+// When a task was created. A task with no readable time sorts last.
+function getCreatedTime(task: SerializedNode): number {
+  const created = typeof task["jcr:created"] === "string" ? Date.parse(task["jcr:created"]) : NaN;
+  return Number.isNaN(created) ? Infinity : created;
+}
+
+// The task a workflow created first. The server lists a workflow's tasks in no set order.
+function getFirstTask(instance: SerializedNode): SerializedNode | undefined {
+  return childrenOfType(instance, TASK_INSTANCE_TYPE).reduce<SerializedNode | undefined>(
+    (first, task) => first === undefined || getCreatedTime(task) < getCreatedTime(first) ? task : first,
+    undefined);
+}
+
+// The requirement the first task of a workflow asked for, done or not. A workflow that opens by asking
+// for a requirement takes its way from the answer, so the editor keeps that requirement on show.
+export function getOpeningRequirement(container: SerializedNode): string | undefined {
+  return childrenOfType(container, WORKFLOW_INSTANCE_TYPE)
+    .map(instance => getFirstTask(instance)?.requirement)
+    .find((requirement): requirement is string => typeof requirement === "string");
 }
 
 // The open tasks in a submission's serialized workflow container.

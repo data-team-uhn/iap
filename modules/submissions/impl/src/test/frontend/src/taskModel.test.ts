@@ -21,6 +21,7 @@ import {
   OPEN_STATUS,
   TASK_INSTANCE_TYPE,
   WORKFLOW_INSTANCE_TYPE,
+  getOpeningRequirement,
   tasksFrom
 } from "@iap/submissions/taskModel";
 
@@ -110,5 +111,44 @@ describe("tasksFrom", () => {
 
   it("reads nothing from an empty container", () => {
     expect(tasksFrom({})).toEqual([]);
+  });
+
+  it("reads the requirement a task asks for, when it names one", () => {
+    const [ task ] = tasksFrom(holding({ "@path": INSTANCES + "/i/t", "status": OPEN_STATUS, "requirement": "protocol" }));
+
+    expect(task.requirement).toBe("protocol");
+  });
+});
+
+describe("getOpeningRequirement", () => {
+  // A container holding one instance, which holds the given tasks in order
+  function opening(...tasks: Record<string, unknown>[]) {
+    const children = Object.fromEntries(tasks.map((task, index) =>
+      [ `t${index}`, { "sling:resourceType": TASK_INSTANCE_TYPE, ...task } ]));
+    return getOpeningRequirement({ i: { "sling:resourceType": WORKFLOW_INSTANCE_TYPE, ...children } });
+  }
+
+  const FIRST = "2026-11-25T23:38:17.876-05:00";
+  const LATER = "2026-11-25T23:38:18.109-05:00";
+
+  it("reads the requirement the first task asked for, done or not", () => {
+    expect(opening({ status: "completed", requirement: "protocol", "jcr:created": FIRST },
+      { status: OPEN_STATUS, requirement: "proposal", "jcr:created": LATER })).toBe("protocol");
+  });
+
+  it("takes the task created first, whatever order the server lists the tasks in", () => {
+    expect(opening({ status: "completed", requirement: "questionnaire", "jcr:created": LATER },
+      { status: "completed", requirement: "protocol", "jcr:created": FIRST })).toBe("protocol");
+  });
+
+  it("puts a task with no creation time after the others", () => {
+    expect(opening({ status: OPEN_STATUS, requirement: "questionnaire" },
+      { status: "completed", requirement: "protocol", "jcr:created": FIRST })).toBe("protocol");
+  });
+
+  it("reads nothing when the first task names no requirement, whatever later tasks name", () => {
+    expect(opening({ status: OPEN_STATUS, "jcr:created": FIRST },
+      { status: OPEN_STATUS, requirement: "proposal", "jcr:created": LATER })).toBeUndefined();
+    expect(getOpeningRequirement({})).toBeUndefined();
   });
 });
