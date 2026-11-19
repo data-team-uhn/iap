@@ -23,6 +23,7 @@ import { Alert, CircularProgress, Stack, Typography } from "@mui/material";
 import ErrorBoundary from "@iap/frontend-commons/components/ErrorBoundary";
 import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { messageOf } from "@iap/frontend-commons/requestFailure";
 import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 
 import {
@@ -39,10 +40,6 @@ import {
 } from "./submissionForm";
 
 registerBuiltinRequirementComponents();
-
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 const CANNOT_COMPLETE_HERE = (
   <Typography variant="placeholder">This part of the request cannot be completed here yet.</Typography>
@@ -97,7 +94,7 @@ function SubmissionEditor({ path, queueSave, onChanged }: {
 
   useEffect(() => {
     const token = latestFormRead.current;
-    reload(token).catch((e: unknown) => setError(message(e)));
+    reload(token).catch((e: unknown) => setError(messageOf(e)));
   }, [ reload ]);
 
   const answered = useCallback((question: FormQuestion, values: string[]) => {
@@ -113,13 +110,13 @@ function SubmissionEditor({ path, queueSave, onChanged }: {
           onChanged?.();
         },
         (e: unknown) => setStates(current => (
-          { ...current, [question.path]: { state: "failed", error: message(e) } })),
+          { ...current, [question.path]: { state: "failed", error: messageOf(e) } })),
       )
       // Read again whichever way the save went. This save holds the newest token, so no other read
       // would be applied.
       .then(() => reload(token))
       // A failed read is reported for the form, not for the field
-      .catch((e: unknown) => setError(message(e)));
+      .catch((e: unknown) => setError(messageOf(e)));
   }, [ doFetch, path, reload, queueSave, onChanged ]);
 
   // Reads the form again after a requirement's component changed the submission, such as by
@@ -128,7 +125,7 @@ function SubmissionEditor({ path, queueSave, onChanged }: {
     const token = latestFormRead.current + 1;
     latestFormRead.current = token;
     onChanged?.();
-    reload(token).catch((e: unknown) => setError(message(e)));
+    reload(token).catch((e: unknown) => setError(messageOf(e)));
   }, [ reload, onChanged ]);
 
   if (error) {

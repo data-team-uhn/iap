@@ -24,6 +24,8 @@ import { SCHEMAS_URL } from "@iap/submissions/schemaModel";
 
 import { SCHEMAS } from "./schemas.fixture";
 
+const CREATE_URL = "/Submissions.create.json";
+
 function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {}) {
   return {
     ok: init.ok ?? true,
@@ -74,9 +76,9 @@ describe("NewSubmissionDialog", () => {
     expect(await screen.findByText(/ran into a problem.*\(HTTP 503\)/)).toBeInTheDocument();
   });
 
-  it("raises the submission through the /Submissions endpoint and reports where it went", async () => {
+  it("raises the submission as a create event on /Submissions and reports where it went", async () => {
     const created = vi.fn();
-    const fetchMock = vi.fn((url: string) => Promise.resolve(url === "/Submissions"
+    const fetchMock = vi.fn((url: string) => Promise.resolve(url === CREATE_URL
       ? jsonResponse({ status: "created", path: "/Submissions/aLongWeekend" }, { status: 201 })
       : jsonResponse(SCHEMAS)));
     vi.stubGlobal("fetch", fetchMock);
@@ -122,7 +124,7 @@ describe("NewSubmissionDialog", () => {
 
   it("cannot be dismissed while the submission is being raised", async () => {
     let release: (value: unknown) => void = () => {};
-    const fetchMock = vi.fn((url: string) => url === "/Submissions"
+    const fetchMock = vi.fn((url: string) => url === CREATE_URL
       ? new Promise(resolve => {
         release = resolve;
       })
@@ -139,7 +141,7 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("shows the engine's own reason for refusing", async () => {
-    const fetchMock = vi.fn((url: string) => Promise.resolve(url === "/Submissions"
+    const fetchMock = vi.fn((url: string) => Promise.resolve(url === CREATE_URL
       ? jsonResponse({ error: "The user is not allowed to perform this action" }, { ok: false, status: 403 })
       : jsonResponse(SCHEMAS)));
     vi.stubGlobal("fetch", fetchMock);
@@ -153,7 +155,7 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("falls back to the status when a refusal carries no reason", async () => {
-    const fetchMock = vi.fn((url: string) => Promise.resolve(url === "/Submissions"
+    const fetchMock = vi.fn((url: string) => Promise.resolve(url === CREATE_URL
       ? { ...jsonResponse({}, { ok: false, status: 409 }), json: () => Promise.reject(new Error("no body")) }
       : jsonResponse(SCHEMAS)));
     vi.stubGlobal("fetch", fetchMock);
@@ -169,7 +171,7 @@ describe("NewSubmissionDialog", () => {
   it("reports an empty path when the engine created nothing to open", async () => {
     const created = vi.fn();
     const fetchMock = vi.fn((url: string) => Promise.resolve(
-      url === "/Submissions" ? jsonResponse({}) : jsonResponse(SCHEMAS)));
+      url === CREATE_URL ? jsonResponse({}) : jsonResponse(SCHEMAS)));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={created} />);
@@ -189,7 +191,7 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("reports a refusal that failed with something that is not an Error", async () => {
-    const fetchMock = vi.fn((url: string) => url === "/Submissions"
+    const fetchMock = vi.fn((url: string) => url === CREATE_URL
       ? Promise.reject("the network went away")
       : Promise.resolve(jsonResponse(SCHEMAS)));
     vi.stubGlobal("fetch", fetchMock);

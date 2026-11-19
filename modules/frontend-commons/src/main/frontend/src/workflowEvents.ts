@@ -22,7 +22,8 @@ import type { PatchValue } from "./fields/fieldsModel";
 import type { AuthenticatedFetch } from "./reLogin";
 
 // Sends a workflow event to a node, as a POST to `<path>.<event>.json`. The engine decides what it
-// does. The parameters go as a form, or as the FormData given, for an event that brings a file.
+// does. The parameters go as a form, or as the FormData given, for an event that brings a file. A
+// parameter with several values comes as URLSearchParams, which repeat it.
 //
 // It resolves with the path of the node the event created, as the engine's answer names it; undefined
 // if the event created nothing. The path is the repository's, so it compares with the `@path` of a
@@ -35,7 +36,7 @@ export async function sendEvent(
   doFetch: AuthenticatedFetch,
   path: string,
   event: string,
-  params: Record<string, string> | FormData = {},
+  params: Record<string, string> | URLSearchParams | FormData = {},
 ): Promise<string | undefined> {
   let response: Response;
   try {

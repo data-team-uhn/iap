@@ -18,6 +18,7 @@
 
 import { type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { readJson } from "@iap/frontend-commons/requestFailure";
+import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 // The form a submitter fills in, as the server serves it at `<submission>.form.json`, and the
 // events that change the submission. The server resolves the conditions, so a question absent from
@@ -199,34 +200,24 @@ export async function fetchForm(doFetch: AuthenticatedFetch, path: string): Prom
 // Saves one answer, as a `save` event on the submission. A refusal rejects with the engine's reason.
 export async function saveAnswer(
   doFetch: AuthenticatedFetch, path: string, question: string, values: string[]): Promise<void> {
-  const body = new URLSearchParams();
+  const answer = new URLSearchParams();
   // Several values repeat the question's parameter
-  values.forEach(value => body.append(question, value));
+  values.forEach(value => answer.append(question, value));
   if (values.length === 0) {
     // A cleared answer names the question with one empty value. The handler changes only the
     // questions the payload names, and drops the blank values.
-    body.append(question, "");
+    answer.append(question, "");
   }
-  const response = await doFetch(`${path}.save.json`, { method: "POST", body });
-  if (!response.ok) {
-    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(refusal.error ?? `This answer could not be saved (${response.status})`);
-  }
+  await sendEvent(doFetch, path, "save", answer);
 }
 
 // Attaches a file for a requirement, named by its node name or its path, as an `attachDocument`
 // event on the submission. A file for a requirement that already has one becomes a new version of
 // its document. A refusal rejects with the engine's reason.
-//
-// The request sets no `Content-Type`. The browser sets it, with the multipart boundary it generated.
 export async function attachDocument(
   doFetch: AuthenticatedFetch, path: string, requirement: string, file: File): Promise<void> {
-  const body = new FormData();
-  body.append("requirement", requirement);
-  body.append("file", file);
-  const response = await doFetch(`${path}.attachDocument.json`, { method: "POST", body });
-  if (!response.ok) {
-    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(refusal.error ?? `This file could not be attached (${response.status})`);
-  }
+  const upload = new FormData();
+  upload.append("requirement", requirement);
+  upload.append("file", file);
+  await sendEvent(doFetch, path, "attachDocument", upload);
 }

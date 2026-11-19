@@ -130,7 +130,7 @@ describe("saveAnswer", () => {
       .rejects.toThrow("This request has been submitted and can no longer be changed");
   });
 
-  it("falls back to the status when a refusal carries no reason", async () => {
+  it("describes a failure that carries no reason by its status", async () => {
     const fetchMock = vi.fn(() => Promise.resolve({
       ok: false,
       status: 409,
@@ -138,6 +138,6 @@ describe("saveAnswer", () => {
     } as unknown as Response));
 
     await expect(saveAnswer(fetchMock, PATH, "details/startDate", [ "x" ]))
-      .rejects.toThrow(/could not be saved \(409\)/);
+      .rejects.toThrow(/conflicts with a more recent change.*\(HTTP 409\)/);
   });
 });

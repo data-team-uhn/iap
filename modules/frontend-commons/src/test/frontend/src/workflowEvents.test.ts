@@ -45,6 +45,16 @@ describe("sendEvent", () => {
     expect(doFetch).toHaveBeenCalledWith("/Workflows/review/v2.save.json", { method: "POST", body: upload });
   });
 
+  it("repeats a parameter given several values", async () => {
+    const doFetch = answer(200, { status: "completed" });
+    const answers = new URLSearchParams([ [ "days", "Monday" ], [ "days", "Tuesday" ] ]);
+
+    await sendEvent(doFetch, "/Submissions/request", "save", answers);
+
+    const [ , options ] = doFetch.mock.calls[0] as unknown as [ string, { body: URLSearchParams } ];
+    expect(options.body.getAll("days")).toEqual([ "Monday", "Tuesday" ]);
+  });
+
   it("resolves with the path of what the event created, as the repository names it", async () => {
     const doFetch = answer(201, { status: "created", path: "/Schemas/study/v1/q/à la carte" });
 

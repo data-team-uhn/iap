@@ -94,7 +94,7 @@ function widgetFetch(options: { rows?: unknown[]; creates?: boolean } = {}) {
         ? { "status.code": 200, "status": "dryRun", "executable": true, "items": [ SUBMISSION_PATH ] }
         : { "status.code": 200, "status": "archived", "archiveEntry": "/Archive/ab/cd/ef/entry" });
     }
-    if (url === "/Submissions" && init?.method === "POST") {
+    if (url === "/Submissions.create.json" && init?.method === "POST") {
       return creates ? json({ status: "created", path: SUBMISSION_PATH }, 201) : json({ status: "completed" });
     }
     if (url.startsWith("/Schemas")) {
