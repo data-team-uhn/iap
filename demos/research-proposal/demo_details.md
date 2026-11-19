@@ -184,20 +184,29 @@ The servlet then redirects the browser to that created path.
 The *New submission* dialog lists the top categories (`/Categories/Proposal`, `/Categories/PFQ`). Each
 names the schema version its submissions answer, and that path is what the dialog POSTs.
 
-`researchProposal` is a **user** workflow (it has an instance). It opens with the intake:
+`researchProposal` is a **user** workflow (it has an instance). It opens by asking for the route:
 
 ```
 demos/research-proposal/src/main/resources/SLING-INF/content/Workflows/researchProposal.json
-    "created"     → "is_proposal" // user task, performer iap-extraction: wait for the check
-    "is_proposal" → "isProposal"  // gateway on the validation operand
-    "isProposal"    → "notAProposal"  // validation is_proposal equals no: the request ends
-                    → "complete"      // default: user task, @creator, send for review
-    "complete"      → "review"
+    "created"        → "chooseRoute"    // user task, @creator: is there a protocol?
+    "route"          → "uploadProposal" // answer protocol/hasProtocol equals true
+                     → "fillQuestionnaire" // equals false; no answer goes back to chooseRoute
+    "uploadProposal" → "stillWithProtocol" → "parseProposal" // parseDocuments
+    "parseProposal"  → "is_proposal"    // user task, performer iap-extraction: wait for the check
+    "is_proposal"    → "isProposal"     // gateway on the validation operand
+    "isProposal"     → "notAProposal"   // validation is_proposal equals no: the request ends
+                     → "sendWithProtocol" // default: user task, @creator, send for review
+    "fillQuestionnaire" → "stillWithoutProtocol" → "generateProposal" // generateDocument
+    "generateProposal"  → "sendWithoutProtocol" → "finalProposal"     // user task, then write it again
+    both "send" tasks   → "markSubmitted" → "review"
 ```
 
-`InstanceRunner.start` walks from `created` and **stops at `is_proposal`**. Only the extraction
-job can complete that task: its performer is the `iap-extraction` service user. It waits at a task
-because the engine cannot yet deliver a message to a catching event.
+`InstanceRunner.start` walks from `created` and **stops at `chooseRoute`**. Once the route is yes and
+the upload is in, it **stops at `is_proposal`**. Only the extraction job can complete that task: its
+performer is the `iap-extraction` service user. It waits at a task because the engine cannot yet
+deliver a message to a catching event. Each `still…`/`sent…` gateway reads the answer again, so a
+changed answer moves the request to the other route; `stillWithProtocol` skips to `isProposal` when
+`is_proposal` already has a verdict.
 
 ---
 
@@ -447,10 +456,11 @@ then. *Try again* (`retryParse`) sends a failed parse back.
 | Any POST | Browser | `WorkflowEventServlet.doPost` | `WorkflowEventServlet.java` |
 | Dispatch | servlet | `WorkflowEngineImpl.receiveEvent` | `WorkflowEngineImpl.java` |
 | Create | `execute` | `CreateSubmissionHandler`, `MarkCompletenessHandler` | `createSubmission.json` |
-| Start process | `startWorkflow` | `WorkflowStarter` → `InstanceRunner.start`, parks on `is_proposal` | `researchProposal.json` |
+| Start process | `startWorkflow` | `WorkflowStarter` → `InstanceRunner.start`, parks on `chooseRoute` | `researchProposal.json` |
+| Pick the route | `completeTask` | `complete` on `chooseRoute`, then the `route` gateway via `AnswerOperandResolver` | `researchProposal.json` |
 | Upload file | UI `attachDocument` | `AttachDocumentHandler` | `submissionForm.ts`, `attachDocument.json` |
 | Save answers | UI `POST path` | `SaveAnswersHandler` | `SaveAnswersHandler.java` |
-| Next, step one | UI `sendDocuments` | `retryParse` → `ParseDocumentsHandler` → `ParseService.queue` | `IntakeSteps.tsx`, `ParseDocumentsHandler.java` |
+| Next, step one | `completeTask` | `complete` on `uploadProposal` → `parseProposal` → `ParseDocumentsHandler` → `ParseService.queue` | `researchProposal.json`, `ParseDocumentsHandler.java` |
 | Daemon | `ParseJobConsumer` | Docling `POST /parse` | `ParseJobConsumer.java` |
 | Callback | daemon | `ParseCallbackServlet` → `ParseCompletionHandler` | `ParseCompletionHandler.java` |
 | Ingest | engine `documentParsed` | `IngestParseHandler`, then `QueueDecisionsHandler` | `documentParsed.json` |
@@ -462,9 +472,11 @@ then. *Try again* (`retryParse`) sends a failed parse back.
 | Next, step two | UI `runMainExtraction` | `QueueMainExtractionHandler` | `runMainExtraction.json` |
 | Read the forms | Sling job | `MainExtractionJobConsumer` → `FormReader` | `MainExtractionJobConsumer.java` |
 | Save the answers | engine `extracted` | `RecordExtractionHandler` | `extracted.json` |
+| No protocol: Next | `completeTask` | `complete` on `fillQuestionnaire` → `generateProposal` → `GenerateDocumentHandler` → the generation worker | `GenerateDocumentHandler.java` |
+| No protocol: send | `completeTask` | `complete` on `sendWithoutProtocol` → `finalProposal`, then `markSubmitted` | `researchProposal.json` |
 | Review | `completeTask` | `recordReview`, then the `decision` gateway | `researchProposal.json` |
 
 One instance lives on the submission: **`researchProposal`**. The model's work runs in background jobs
 outside any walk, and each result is saved by a short system workflow that commits on its own. The
-instance only waits at `is_proposal` for the verdict; the category, and everything read after it,
+instance waits at `chooseRoute` for the route and at `is_proposal` for the verdict; the category, and everything read after it,
 reach it through the answers.
