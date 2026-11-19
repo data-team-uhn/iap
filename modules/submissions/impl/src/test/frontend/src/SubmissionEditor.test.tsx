@@ -446,7 +446,7 @@ describe("SubmissionEditor", () => {
       expect(await screen.findByText("A image/gif is not accepted here")).toBeInTheDocument();
     });
 
-    it("falls back on its own words when the refusal carries none", async () => {
+    it("describes a failure that carries no reason by its status", async () => {
       vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
         options?.method === "POST"
           ? Promise.resolve({
@@ -460,7 +460,7 @@ describe("SubmissionEditor", () => {
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
-      expect(await screen.findByText(/This file could not be attached \(502\)/)).toBeInTheDocument();
+      expect(await screen.findByText(/ran into a problem.*\(HTTP 502\)/)).toBeInTheDocument();
     });
 
     it("reports an upload that never reached the server", async () => {
@@ -472,7 +472,7 @@ describe("SubmissionEditor", () => {
       render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
-      expect(await screen.findByText("the network went away")).toBeInTheDocument();
+      expect(await screen.findByText("Something went wrong: the network went away")).toBeInTheDocument();
     });
 
     it("lets a refusal be dismissed and the same file tried again", async () => {

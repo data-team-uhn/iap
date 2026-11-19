@@ -16,6 +16,13 @@
  * limitations under the License.
  */
 
+import {
+  childrenOfPrimaryType,
+  isTagged,
+  type SerializedNode,
+  textOf,
+} from "@iap/frontend-commons/serializedNode";
+
 // Reading the schemas a submitter may choose from out of a `/Schemas` listing. No React, no fetch.
 
 /**
@@ -24,12 +31,6 @@
  * would inline.
  */
 export const SCHEMAS_URL = "/Schemas.2.simple.json";
-
-/**
- * One serialized node: its own properties, plus its children under their node names. A child node
- * carries the `@path` and `@name` keys, which tell it apart from a property value.
- */
-export type JsonNode = Record<string, unknown>;
 
 /**
  * What the submitter picks: a schema open for submissions, with the version a submission against it
@@ -53,28 +54,9 @@ const SCHEMA_PRIMARY_TYPE = "sch:Schema";
 
 const SCHEMA_VERSION_PRIMARY_TYPE = "sch:SchemaVersion";
 
-// The child nodes of the given primary type. The homepage and a schema both accept any child node,
-// so not every child is a schema or a version.
-function childNodes(node: JsonNode, primaryType: string): JsonNode[] {
-  return Object.values(node)
-    .filter((value): value is JsonNode =>
-      typeof value === "object" && value !== null
-        && typeof (value as JsonNode)["@path"] === "string"
-        && (value as JsonNode)["jcr:primaryType"] === primaryType);
-}
+const ACTIVE_TAG = "active";
 
-// Whether a tag, such as a lifecycle state, is placed on the node itself
-function hasTag(node: JsonNode, tag: string): boolean {
-  const tags = node.tags;
-  return Array.isArray(tags) && tags.includes(tag);
-}
-
-// A string property; undefined when it is missing or empty. Oak accepts an empty value for a
-// mandatory property such as `title`.
-function text(node: JsonNode, key: string): string | undefined {
-  const value = node[key];
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
+const RETIRED_TAG = "retired";
 
 /**
  * The schemas a submission may be raised against: each schema not retired, paired with its active
@@ -86,20 +68,20 @@ function text(node: JsonNode, key: string): string | undefined {
  * @param tree a `/Schemas` listing, serialized to the depth `SCHEMAS_URL` asks for
  * @returns what may be picked, in the order the schemas were served
  */
-export function schemaChoices(tree: JsonNode): SchemaChoice[] {
-  return childNodes(tree, SCHEMA_PRIMARY_TYPE)
-    .filter(schema => !hasTag(schema, "retired"))
+export function schemaChoices(tree: SerializedNode): SchemaChoice[] {
+  return childrenOfPrimaryType(tree, SCHEMA_PRIMARY_TYPE)
+    .filter(schema => !isTagged(schema, RETIRED_TAG))
     .flatMap(schema => {
-      const version = childNodes(schema, SCHEMA_VERSION_PRIMARY_TYPE)
-        .find(candidate => hasTag(candidate, "active"));
+      const version = childrenOfPrimaryType(schema, SCHEMA_VERSION_PRIMARY_TYPE)
+        .find(candidate => isTagged(candidate, ACTIVE_TAG));
       if (!version) {
         return [];
       }
       return [ {
         path: version["@path"] as string,
-        title: text(schema, "title") ?? text(schema, "@name") ?? "",
-        version: text(version, "version") ?? "",
-        description: text(version, "description"),
+        title: textOf(schema, "title") ?? textOf(schema, "@name") ?? "",
+        version: textOf(version, "version") ?? "",
+        description: textOf(version, "description"),
       } ];
     });
 }

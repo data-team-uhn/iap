@@ -17,7 +17,8 @@
  */
 
 import {
-  childrenOf, childrenOfType, isNode, lastSegmentOf, stringsOf, textOf, textValuesOf,
+  childrenOf, childrenOfPrimaryType, childrenOfType, isNode, isTagged, lastSegmentOf, stringsOf, textOf,
+  textValuesOf,
 } from "@iap/frontend-commons/serializedNode";
 
 describe("isNode", () => {
@@ -57,12 +58,36 @@ describe("childrenOfType", () => {
   });
 });
 
+describe("childrenOfPrimaryType", () => {
+  it("keeps the children of one primary type, in the node's order", () => {
+    const node = { "@order": [ "b", "a", "c" ], "jcr:primaryType": "sch:Schema",
+      "a": { "@name": "a", "jcr:primaryType": "sch:SchemaVersion" },
+      "b": { "@name": "b", "jcr:primaryType": "sch:SchemaVersion" },
+      "c": { "@name": "c", "jcr:primaryType": "nt:unstructured" } };
+
+    expect(childrenOfPrimaryType(node, "sch:SchemaVersion").map(child => child["@name"])).toEqual([ "b", "a" ]);
+  });
+});
+
 describe("stringsOf", () => {
   it("reads a list, a bare single value, and nothing else", () => {
     expect(stringsOf([ "a", 3, "b" ])).toEqual([ "a", "b" ]);
     expect(stringsOf("a")).toEqual([ "a" ]);
     expect(stringsOf(undefined)).toEqual([]);
     expect(stringsOf(3)).toEqual([]);
+  });
+});
+
+describe("isTagged", () => {
+  it("finds a tag its own tags list, whether they hold several or one", () => {
+    expect(isTagged({ tags: [ "draft", "active" ] }, "active")).toBe(true);
+    expect(isTagged({ tags: "active" }, "active")).toBe(true);
+  });
+
+  it("finds no tag the node does not carry itself", () => {
+    expect(isTagged({ tags: [ "draft" ] }, "active")).toBe(false);
+    expect(isTagged({ inheritedTags: [ "active" ] }, "active")).toBe(false);
+    expect(isTagged({}, "active")).toBe(false);
   });
 });
 

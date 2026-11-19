@@ -37,6 +37,11 @@ export function childrenOf(node: SerializedNode): SerializedNode[] {
 export const childrenOfType = (node: SerializedNode, resourceType: string): SerializedNode[] =>
   childrenOf(node).filter(child => child["sling:resourceType"] === resourceType);
 
+// A node's children of one primary type, in the order childrenOf gives. A `simple` serialization
+// leaves out the resource type, but keeps the primary type.
+export const childrenOfPrimaryType = (node: SerializedNode, primaryType: string): SerializedNode[] =>
+  childrenOf(node).filter(child => child["jcr:primaryType"] === primaryType);
+
 // A property's values as an array; a single value becomes an array of one
 const valuesOf = (value: unknown): unknown[] => (Array.isArray(value) ? value : [ value ]);
 
@@ -45,6 +50,9 @@ const valuesOf = (value: unknown): unknown[] => (Array.isArray(value) ? value : 
 export function stringsOf(value: unknown): string[] {
   return valuesOf(value).filter((entry): entry is string => typeof entry === "string");
 }
+
+// Whether a node carries a tag of its own, such as a lifecycle state: one its `tags` property lists
+export const isTagged = (node: SerializedNode, tag: string): boolean => stringsOf(node.tags).includes(tag);
 
 // A property's string and number values, as strings: the number 3 becomes "3". Other values are left out.
 export const textValuesOf = (value: unknown): string[] => valuesOf(value)

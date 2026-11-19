@@ -37,10 +37,14 @@ import {
 } from "@mui/material";
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
-import { isNotAuthenticated, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { messageOf } from "@iap/frontend-commons/requestFailure";
+import { sendEvent } from "@iap/frontend-commons/workflowEvents";
 
 import { useSchemas } from "./useSchemas";
+
+// Where submissions live. A `create` event on it raises one.
+const SUBMISSIONS_HOMEPAGE = "/Submissions";
 
 interface NewSubmissionDialogProps {
   onClose: () => void;
@@ -62,27 +66,12 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
   const submit = useCallback(() => {
     setSubmitting(true);
     setSubmitError(undefined);
-    doFetch("/Submissions", {
-      method: "POST",
-      body: new URLSearchParams({ title: title.trim(), schemaVersion: selected }),
-    })
-      .then(async response => {
-        const answer = (await response.json().catch(() => ({}))) as { error?: string; path?: string };
-        if (!response.ok) {
-          // A refusal carries the engine's reason, such as "A title is required", shown as it stands
-          if (answer.error) {
-            setSubmitError(answer.error);
-            return;
-          }
-          throw new RequestError(response.status);
-        }
-        // The engine answers with the path of the submission it created. Without one, it was accepted
-        // without creating anything, so there is nowhere to send the submitter.
-        onCreated(answer.path ?? "");
-      })
-      .catch((error: unknown) => setSubmitError(isNotAuthenticated(error)
-        ? "You are no longer signed in, so the submission was not raised. Sign in and try again."
-        : describeRequestFailure(error)))
+    sendEvent(doFetch, SUBMISSIONS_HOMEPAGE, "create", { title: title.trim(), schemaVersion: selected })
+      // Without a path, the engine accepted the event without creating anything, so there is nowhere
+      // to send the submitter
+      .then(created => onCreated(created ?? ""))
+      // A refusal carries the engine's reason, such as "A title is required", shown as it stands
+      .catch((error: unknown) => setSubmitError(messageOf(error)))
       .finally(() => setSubmitting(false));
   }, [ doFetch, onCreated, selected, title ]);
 
