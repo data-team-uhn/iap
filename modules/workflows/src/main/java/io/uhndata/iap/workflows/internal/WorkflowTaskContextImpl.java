@@ -155,14 +155,14 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     }
 
     @Override
-    public void checkInAfterCommit(final String path)
-    {
-        this.consequences.checkInAfterCommit(path);
-    }
-
-    @Override
     public void afterCommit(final Runnable work)
     {
         this.consequences.afterCommit(work, this.activity);
+    }
+
+    @Override
+    public void onRollback(final Runnable action)
+    {
+        this.consequences.onRollback(action, this.activity);
     }
 }

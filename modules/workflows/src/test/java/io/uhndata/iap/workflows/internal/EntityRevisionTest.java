@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.util.List;
 import java.util.Map;
 
 import javax.jcr.Node;
@@ -49,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link EntityRevision}: which node is marked, and that the mark differs every time. Oak-backed, so
+ * Unit tests for {@link EntityRevision}: which nodes are marked, and that the mark differs every time. Oak-backed, so
  * that the entity node type is the one the module declares. {@link EntityRevisionRaceTest} shows the refusal.
  *
  * @version $Id$
@@ -62,6 +63,8 @@ class EntityRevisionTest
 
     private static final String ENTITY = "/Things/one";
 
+    private static final String OTHER = "/Things/two";
+
     private static final String DEFINITION = "/Definitions/one";
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
@@ -71,8 +74,9 @@ class EntityRevisionTest
     {
         create("/Things/outer", Entity.RESOURCE_TYPE);
         create("/Things/outer/inner", Entity.RESOURCE_TYPE);
+        create("/Things/outer/inner/part", "sub/Answer");
 
-        EntityRevision.stamp(create("/Things/outer/inner/part", "sub/Answer"));
+        stamp("/Things/outer/inner/part");
 
         assertNotNull(revisionOf("/Things/outer/inner"));
         assertNull(revisionOf("/Things/outer"));
@@ -80,9 +84,37 @@ class EntityRevisionTest
     }
 
     @Test
+    void marksEveryEntityTheDeliveryChanged() throws WorkflowFailedException
+    {
+        create(ENTITY, Entity.RESOURCE_TYPE);
+        create(OTHER, Entity.RESOURCE_TYPE);
+        create(OTHER + "/part", "sub/Answer");
+
+        stamp(ENTITY, OTHER + "/part");
+
+        assertNotNull(revisionOf(ENTITY));
+        assertNotNull(revisionOf(OTHER));
+    }
+
+    @Test
+    void marksTheEntityThatHeldAPartThisSessionRemoved() throws PersistenceException, WorkflowFailedException
+    {
+        create(ENTITY, Entity.RESOURCE_TYPE);
+        final Resource part = create(ENTITY + "/part", "sub/Answer");
+        resolver().commit();
+        resolver().delete(part);
+
+        stamp(ENTITY + "/part");
+
+        assertNotNull(revisionOf(ENTITY));
+    }
+
+    @Test
     void leavesAChangeThatIsNotAboutAnEntityAlone() throws WorkflowFailedException
     {
-        EntityRevision.stamp(create("/Config/thing", "app/Configuration"));
+        create("/Config/thing", "app/Configuration");
+
+        stamp("/Config/thing");
 
         assertNull(revisionOf("/Config/thing"));
     }
@@ -90,11 +122,11 @@ class EntityRevisionTest
     @Test
     void marksItDifferentlyEveryTime() throws WorkflowFailedException
     {
-        final Resource entity = create(ENTITY, Entity.RESOURCE_TYPE);
+        create(ENTITY, Entity.RESOURCE_TYPE);
 
-        EntityRevision.stamp(entity);
+        stamp(ENTITY);
         final String first = revisionOf(ENTITY);
-        EntityRevision.stamp(entity);
+        stamp(ENTITY);
 
         assertNotNull(first);
         assertNotEquals(first, revisionOf(ENTITY));
@@ -106,7 +138,7 @@ class EntityRevisionTest
         final Node definition = createDefinition();
         session().getWorkspace().getVersionManager().checkin(DEFINITION);
 
-        EntityRevision.stamp(resolver().getResource(DEFINITION));
+        stamp(DEFINITION);
         resolver().commit();
 
         assertNotNull(revisionOf(DEFINITION));
@@ -118,7 +150,7 @@ class EntityRevisionTest
     {
         final Node definition = createDefinition();
 
-        EntityRevision.stamp(resolver().getResource(DEFINITION));
+        stamp(DEFINITION);
 
         final PropertyDefinition declared = definition.getProperty(Entity.REVISION_PROPERTY).getDefinition();
         assertEquals("data:Entity", declared.getDeclaringNodeType().getName());
@@ -132,7 +164,7 @@ class EntityRevisionTest
         resolver().commit();
         resolver().delete(entity);
 
-        assertDoesNotThrow(() -> EntityRevision.stamp(entity));
+        assertDoesNotThrow(() -> stamp(ENTITY));
     }
 
     @Test
@@ -142,13 +174,17 @@ class EntityRevisionTest
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         Mockito.when(unwritable.isResourceType(Entity.RESOURCE_TYPE)).thenReturn(true);
         Mockito.when(unwritable.getPath()).thenReturn(ENTITY);
-        Mockito.when(unwritable.getResourceResolver()).thenReturn(resolver);
         Mockito.when(resolver.getResource(ENTITY)).thenReturn(unwritable);
 
         final WorkflowFailedException refusal =
-            assertThrows(WorkflowFailedException.class, () -> EntityRevision.stamp(unwritable));
+            assertThrows(WorkflowFailedException.class, () -> EntityRevision.stamp(resolver, List.of(ENTITY)));
         assertTrue(refusal.getMessage().contains(ENTITY));
         Mockito.verify(unwritable).adaptTo(ModifiableValueMap.class);
+    }
+
+    private void stamp(final String... changed) throws WorkflowFailedException
+    {
+        EntityRevision.stamp(resolver(), List.of(changed));
     }
 
     private Resource create(final String path, final String resourceType)

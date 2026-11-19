@@ -127,6 +127,9 @@ class WorkflowEngineImplTest
 
     private static final String TASK = ENTITY + "/wf:instances/process/approve";
 
+    /** Another entity, which a step changes or sends an event to. */
+    private static final String OTHER_ENTITY = "/Things/other";
+
     /** The revision token the entity carries before any event. */
     private static final String FIRST_REVISION = "first";
 
@@ -689,6 +692,58 @@ class WorkflowEngineImplTest
         engine(new NoopHandler()).receiveEvent(entity, CREATE);
 
         assertNotEquals(FIRST_REVISION, revisionOf(ENTITY));
+    }
+
+    @Test
+    void marksAnotherEntityAStepSaysItChanged() throws Exception
+    {
+        final Resource entity = createEntity();
+        createOtherEntity();
+        EngineFixture.createSystemWorkflow(this.context, Entity.RESOURCE_TYPE);
+        createNoopGraph();
+
+        engine(new StepHandler("noop", step -> step.recordRole(otherEntity(step), "retired")))
+            .receiveEvent(entity, CREATE);
+
+        assertNotEquals(FIRST_REVISION, revisionOf(OTHER_ENTITY));
+    }
+
+    @Test
+    void marksTheEntityAStepSentAnEventTo() throws Exception
+    {
+        final Resource entity = createEntity();
+        createOtherEntity();
+        EngineFixture.createSystemWorkflow(this.context, Entity.RESOURCE_TYPE);
+        createNoopGraph();
+        createWorkflow("/SystemWorkflows/touching/v1", Entity.RESOURCE_TYPE, "touch", EngineFixture.ADMIN,
+            Map.of("handler", "nothing"));
+
+        final WorkflowEvent touch = new WorkflowEvent("touch", Map.of());
+
+        engine(new StepHandler("noop", step -> step.sendEvent(otherEntity(step), touch)),
+            new StepHandler("nothing", step -> { })).receiveEvent(entity, CREATE);
+
+        assertNotEquals(FIRST_REVISION, revisionOf(OTHER_ENTITY));
+    }
+
+    @Test
+    void undoesWhatTheWorkflowOfASentEventRegisteredWhenTheDeliveryFails() throws Exception
+    {
+        final Resource entity = createEntity();
+        createOtherEntity();
+        EngineFixture.createSystemWorkflow(this.context, Entity.RESOURCE_TYPE);
+        createNoopGraph();
+        createWorkflow("/SystemWorkflows/touching/v1", Entity.RESOURCE_TYPE, "touch", EngineFixture.ADMIN,
+            Map.of("handler", "undoable"));
+        final WorkflowEvent touch = new WorkflowEvent("touch", Map.of());
+        final List<String> undone = new ArrayList<>();
+        final WorkflowEngine engine = engine(new PersistenceException("the disk is on fire"),
+            new StepHandler("noop", step -> step.sendEvent(otherEntity(step), touch)),
+            new StepHandler("undoable", step -> step.onRollback(() -> undone.add("touch"))));
+
+        assertThrows(WorkflowFailedException.class, () -> engine.receiveEvent(entity, CREATE));
+
+        assertEquals(List.of("touch"), undone);
     }
 
     @Test
@@ -1325,6 +1380,26 @@ class WorkflowEngineImplTest
     }
 
     /**
+     * Creates another entity, carrying its first revision token.
+     */
+    private void createOtherEntity()
+    {
+        this.context.create().resource(OTHER_ENTITY,
+            Map.of(TYPE, Entity.RESOURCE_TYPE, Entity.REVISION_PROPERTY, FIRST_REVISION));
+    }
+
+    /**
+     * The other entity, as a step's session sees it.
+     *
+     * @param step the step
+     * @return the entity
+     */
+    private static Resource otherEntity(final WorkflowTaskContext step)
+    {
+        return step.getResourceResolver().getResource(OTHER_ENTITY);
+    }
+
+    /**
      * Creates the entity and a task of a workflow instance running on it.
      *
      * @return the task, as the session of the administrator completing it sees it
@@ -1471,6 +1546,36 @@ class WorkflowEngineImplTest
         {
             taskContext.recordRole(taskContext.getTarget(), "touched");
         }
+    }
+
+    /**
+     * A handler doing what a test gives it.
+     *
+     * @param name the name activities point at it by
+     * @param step what it does
+     */
+    private record StepHandler(String name, Step step) implements ServiceTaskHandler
+    {
+        @Override
+        public String getName()
+        {
+            return this.name;
+        }
+
+        @Override
+        public void execute(final WorkflowTaskContext taskContext) throws WorkflowException, PersistenceException
+        {
+            this.step.take(taskContext);
+        }
+    }
+
+    /**
+     * The work of a {@link StepHandler}.
+     */
+    @FunctionalInterface
+    private interface Step
+    {
+        void take(WorkflowTaskContext taskContext) throws WorkflowException, PersistenceException;
     }
 
     /**

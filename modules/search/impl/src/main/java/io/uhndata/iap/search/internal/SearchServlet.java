@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
 import javax.jcr.RepositoryException;
@@ -31,15 +32,12 @@ import javax.jcr.query.QueryResult;
 import javax.jcr.query.Row;
 import javax.jcr.query.RowIterator;
 
-import jakarta.json.Json;
 import jakarta.json.JsonObject;
-import jakarta.json.stream.JsonGenerator;
 import jakarta.servlet.Servlet;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
@@ -114,6 +112,9 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     private static final long serialVersionUID = -6002540580101127991L;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SearchServlet.class);
+
+    /** Writes the page of results and the pagination summary. */
+    private static final ResultsResponse RESULTS_WRITER = new ResultsResponse("a search");
 
     /** The selector the generated queries use for the node being matched. */
     private static final String NODE_SELECTOR = "n";
@@ -204,50 +205,39 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      * Runs the requested search and writes the results. The query is executed before anything is written, so a query
      * that cannot run is answered with an error status.
      *
-     * <p>
-     * Oak returns a lazy result set, so reading the rows can still fail after part of the response has gone out. Such
-     * a failure ends the results and is reported in the summary, and the response stays a well-formed document.
-     * </p>
-     *
      * @param request the current request
      * @param response the HTTP response to write into
      * @throws IOException if writing the response fails
      * @throws RepositoryException if the query is invalid or cannot be executed
      */
-    // A page of results is content, streamed as it is read
-    @SuppressWarnings("checkstyle:directResponseWriter")
     private void writeResponse(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException, RepositoryException
     {
         final Found found = this.runRequestedQuery(request);
+        RESULTS_WRITER.write(request, response, page -> writeResults(page, request, found));
+    }
+
+    /**
+     * Writes what the search found: the query results, or the matches of the quick search engines.
+     *
+     * @param page the paginator for the requested page
+     * @param request the current request
+     * @param found what the query the request names found
+     * @throws RepositoryException if reading the query results fails
+     */
+    private void writeResults(final PaginatedJsonResponse page, final SlingJakartaHttpServletRequest request,
+        final Found found) throws RepositoryException
+    {
         final String quick = request.getParameter("quick");
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        // Closing the generator closes the writer too
-        try (JsonGenerator json = Json.createGenerator(response.getWriter())) {
-            json.writeStartObject();
-            json.writeStartArray("rows");
-            final PaginatedJsonResponse page = PaginatedJsonResponse.forRequest(json, request);
-            String error = null;
-            try {
-                if (found.results() != null) {
-                    // The rows of a reporting query describe the query, and hold no node to serialize
-                    if (found.reporting() || "true".equals(request.getParameter("rawResults"))) {
-                        writeRawResults(page, found.results());
-                    } else {
-                        writeNodeResults(page, request, found.results());
-                    }
-                } else if (StringUtils.isNotBlank(quick)) {
-                    writeQuickResults(page, request, quick);
-                }
-            } catch (final RepositoryException | RuntimeException e) {
-                // Unchecked too: Oak reports a read or memory limit reached with an unchecked exception
-                LOGGER.warn("Failed to read the results of a search: {}", e.getMessage(), e);
-                error = "Failed to read all the results";
+        if (found.results() != null) {
+            // The rows of a reporting query describe the query, and hold no node to serialize
+            if (found.reporting() || "true".equals(request.getParameter("rawResults"))) {
+                writeRawResults(page, found.results());
+            } else {
+                writeNodeResults(page, request, found.results());
             }
-            json.writeEnd();
-            page.writeSummary(request.getParameter("req"), error);
-            json.writeEnd().flush();
+        } else if (StringUtils.isNotBlank(quick)) {
+            writeQuickResults(page, request, quick);
         }
     }
 
@@ -361,8 +351,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     private void writeNodeResults(final PaginatedJsonResponse page, final SlingJakartaHttpServletRequest request,
         final QueryResult results) throws RepositoryException
     {
-        final String selectors = PaginatedJsonResponse.getResourceSelectors(request);
-        final ResourceResolver resolver = request.getResourceResolver();
+        final Function<String, JsonObject> serializer = RESULTS_WRITER.nodeSerializer(request);
         // Asking a row for a path without naming a selector throws when the query has more than one, as every join
         // has. The first selector is the node the query is about.
         final String[] selectorNames = results.getSelectorNames();
@@ -376,7 +365,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
             if (path == null) {
                 continue;
             }
-            more = page.offer(path, () -> serializeNode(resolver, path, selectors));
+            more = page.offer(path, () -> serializer.apply(path));
         }
     }
 
@@ -513,25 +502,6 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
         } catch (final RuntimeException e) {
             LOGGER.warn("The quick search engine {} failed to release its results: {}", engine.getClass().getName(),
                 e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Serializes one matched node.
-     *
-     * @param resolver the current resource resolver
-     * @param path the path of the node to serialize
-     * @param selectors the extra serialization selectors the client asked for, such as {@code .deep}; empty for none
-     * @return the serialized node; {@code null} if it cannot be serialized, and then it is left out of the page but
-     *         still counted
-     */
-    private JsonObject serializeNode(final ResourceResolver resolver, final String path, final String selectors)
-    {
-        try {
-            return resolver.resolve(path + selectors).adaptTo(JsonObject.class);
-        } catch (final RuntimeException e) {
-            LOGGER.warn("Failed to serialize {} for a search: {}", path, e.getMessage(), e);
-            return null;
         }
     }
 

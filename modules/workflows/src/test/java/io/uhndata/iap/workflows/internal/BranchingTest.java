@@ -33,6 +33,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -104,6 +105,7 @@ class BranchingTest
         WorkflowFixture.setUp(this.context);
         WorkflowFixture.enableTagging(this.context, WorkflowFixture.LIFECYCLE_TAGS);
         this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
+        this.context.create().resource("/libs/sub/Submission", Map.of("sling:resourceSuperType", Entity.RESOURCE_TYPE));
         this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"},
             "createdBy", EngineFixture.REQUESTER));
         this.context.create().resource(HOST + "/wf:instances", TYPE, "wf/WorkflowInstances");
@@ -365,16 +367,16 @@ class BranchingTest
     }
 
     @Test
-    void stampsTheInstanceAnewOnEveryEventAimedAtATask() throws Exception
+    void marksTheHostAnewOnEveryEventAimedAtATask() throws Exception
     {
         final WorkflowEngine engine = branching();
         engine.receiveEvent(as(INSTANCE + "/approve", EngineFixture.REQUESTER), DONE);
-        final String approved = walkId();
+        final String approved = hostRevision();
 
         engine.receiveEvent(as(INSTANCE + "/cover", EngineFixture.REQUESTER), DONE);
 
         assertNotNull(approved);
-        assertNotEquals(approved, walkId());
+        assertNotEquals(approved, hostRevision());
     }
 
     @Test
@@ -459,14 +461,15 @@ class BranchingTest
     }
 
     /**
-     * The identifier the instance's latest walk stamped it with, through a refreshed session.
+     * The revision token the host's latest event gave it, through a refreshed session.
      *
-     * @return the walk identifier
+     * @return the token
      */
-    private String walkId()
+    private String hostRevision()
     {
         this.context.resourceResolver().refresh();
-        return this.context.resourceResolver().getResource(INSTANCE).getValueMap().get("walkId", String.class);
+        return this.context.resourceResolver().getResource(HOST).getValueMap()
+            .get(Entity.REVISION_PROPERTY, String.class);
     }
 
     /**

@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -39,6 +40,7 @@ import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.Event;
 import io.uhndata.iap.workflows.models.TaskInstance;
@@ -54,8 +56,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for what the engine does once a delivery has committed: send the notifications its message events
- * announced, and do the work its steps left. A stand-in task completion announces the messages and performs the
- * activities a test names: the mock repository cannot undo a lost attempt, so a real walk cannot be retried here.
+ * announced, and do the work its steps left. And for what it does when an attempt does not commit: run the actions
+ * its steps registered for a rollback. A stand-in task completion announces the messages and performs the activities
+ * a test names: the mock repository cannot undo a lost attempt, so a real walk cannot be retried here.
  *
  * @version $Id$
  * @since 0.1.0
@@ -75,12 +78,23 @@ class AfterCommitTest
 
     private static final String BROKEN = "broken";
 
+    private static final String UNDOABLE = "undoable";
+
+    private static final String CHECK_OUT = "checkOut";
+
+    private static final String CHECK_IN = "checkIn";
+
     /** Lets every commit through. */
     private static final EngineFixture.RepositoryAction NO_RACE = () -> { };
 
     /** Refuses every commit as one that lost a race. */
     private static final EngineFixture.RepositoryAction LOSING_EVERY_RACE = () -> {
         throw EngineFixture.conflict();
+    };
+
+    /** Refuses every commit for a reason a retry cannot help. */
+    private static final EngineFixture.RepositoryAction FAILING_EVERY_COMMIT = () -> {
+        throw new PersistenceException("The disk is full");
     };
 
     private final SlingContext context = new SlingContext();
@@ -91,6 +105,57 @@ class AfterCommitTest
 
     /** The work done after the commit, named by the activity that left it. */
     private final List<String> done = new ArrayList<>();
+
+    /** What the steps did and undid, in order, named by their activity. */
+    private final List<String> log = new ArrayList<>();
+
+    /**
+     * A handler checking a node out, and registering its check-in for the commit and for a rollback. The log stands
+     * for the node's checkouts and check-ins.
+     */
+    private final ServiceTaskHandler checkingOut = new ServiceTaskHandler()
+    {
+        @Override
+        public String getName()
+        {
+            return CHECK_OUT;
+        }
+
+        @Override
+        public void execute(final WorkflowTaskContext step)
+        {
+            AfterCommitTest.this.log.add(CHECK_OUT);
+            final Runnable checkIn = () -> AfterCommitTest.this.log.add(CHECK_IN);
+            step.afterCommit(checkIn);
+            step.onRollback(checkIn);
+        }
+    };
+
+    /**
+     * A handler noting its activity's name as done, and registering an action that notes it undone, or fails for the
+     * broken one.
+     */
+    private final ServiceTaskHandler undoable = new ServiceTaskHandler()
+    {
+        @Override
+        public String getName()
+        {
+            return UNDOABLE;
+        }
+
+        @Override
+        public void execute(final WorkflowTaskContext step)
+        {
+            final String name = step.getActivity().getName();
+            AfterCommitTest.this.log.add("did " + name);
+            step.onRollback(() -> {
+                if (BROKEN.equals(name)) {
+                    throw new IllegalStateException("The undo failed");
+                }
+                AfterCommitTest.this.log.add("undid " + name);
+            });
+        }
+    };
 
     /**
      * A handler leaving work for after the commit: recording its activity's name as done, or failing for the broken
@@ -233,6 +298,64 @@ class AfterCommitTest
     }
 
     @Test
+    void checksBackInWhatAnAttemptRetriedAfterAConflictCheckedOut() throws Exception
+    {
+        engine(new EngineFixture.OneLostRace(EngineFixture.OneLostRace.UNRELATED_CHANGE),
+            performing(checkOutStep()), this.told).receiveEvent(task(), DECIDED);
+
+        assertEquals(List.of(CHECK_OUT, CHECK_IN, CHECK_OUT, CHECK_IN), this.log);
+    }
+
+    @Test
+    void checksBackInWhatADeliveryThatFailedCheckedOut()
+    {
+        assertThrows(WorkflowFailedException.class, () -> engine(FAILING_EVERY_COMMIT, performing(checkOutStep()),
+            this.told).receiveEvent(task(), DECIDED));
+
+        assertEquals(List.of(CHECK_OUT, CHECK_IN), this.log);
+    }
+
+    @Test
+    void undoesALostAttemptBeforeRetryingIt() throws Exception
+    {
+        engine(new EngineFixture.OneLostRace(EngineFixture.OneLostRace.UNRELATED_CHANGE),
+            performing(undoableStep("count")), this.told).receiveEvent(task(), DECIDED);
+
+        assertEquals(List.of("did count", "undid count", "did count"), this.log);
+    }
+
+    @Test
+    void undoesNothingOnceTheDeliveryCommits() throws Exception
+    {
+        engine(NO_RACE, performing(undoableStep("count")), this.told).receiveEvent(task(), DECIDED);
+
+        assertEquals(List.of("did count"), this.log);
+    }
+
+    @Test
+    void undoesTheLastStepFirst()
+    {
+        assertThrows(WorkflowFailedException.class, () -> engine(FAILING_EVERY_COMMIT,
+            performing(undoableStep("first"), undoableStep("second")), this.told).receiveEvent(task(), DECIDED));
+
+        assertEquals(List.of("did first", "did second", "undid second", "undid first"), this.log);
+    }
+
+    @Test
+    void recordsAnUndoThatFailsAgainstItsStepAndStillUndoesTheRest()
+    {
+        assertThrows(WorkflowFailedException.class, () -> engine(FAILING_EVERY_COMMIT,
+            performing(undoableStep("first"), undoableStep(BROKEN)), this.told).receiveEvent(task(), DECIDED));
+
+        assertEquals(List.of("did first", "did " + BROKEN, "undid first"), this.log);
+        final ArgumentCaptor<ErrorContext> recorded = ArgumentCaptor.forClass(ErrorContext.class);
+        Mockito.verify(this.recorder).logError(Mockito.any(IllegalStateException.class), recorded.capture());
+        assertEquals(UNDOABLE, recorded.getValue().getComponent());
+        assertEquals("rollback", recorded.getValue().getOperation());
+        assertEquals("/Workflows/process/v1/" + BROKEN, recorded.getValue().getSubject());
+    }
+
+    @Test
     void recordsAMessageEventThatTellsNobody() throws Exception
     {
         engine(NO_RACE, announcing(messageEvent(DECISION)), this.told).receiveEvent(task(), DECIDED);
@@ -315,8 +438,34 @@ class AfterCommitTest
      */
     private static Activity activity(final String name)
     {
+        return step(LEAVE_WORK, name);
+    }
+
+    /**
+     * An activity of a definition checking a node out.
+     *
+     * @return the activity
+     */
+    private static Activity checkOutStep()
+    {
+        return step(CHECK_OUT, CHECK_OUT);
+    }
+
+    /**
+     * An activity of a definition registering an undo, failing when it is the broken one.
+     *
+     * @param name the activity's name, which the step notes as done and undone
+     * @return the activity
+     */
+    private static Activity undoableStep(final String name)
+    {
+        return step(UNDOABLE, name);
+    }
+
+    private static Activity step(final String handler, final String name)
+    {
         final Activity activity = Mockito.mock(Activity.class);
-        Mockito.when(activity.getHandler()).thenReturn(LEAVE_WORK);
+        Mockito.when(activity.getHandler()).thenReturn(handler);
         Mockito.when(activity.getName()).thenReturn(name);
         Mockito.when(activity.getPath()).thenReturn("/Workflows/process/v1/" + name);
         return activity;
@@ -365,7 +514,8 @@ class AfterCommitTest
     {
         this.context.resourceResolver().commit();
         final WorkflowEngineImpl engine = EngineFixture.engine(
-            EngineFixture.serviceUsersRunning(this.context, beforeCommit), List.of(this.leavingWork), notifications);
+            EngineFixture.serviceUsersRunning(this.context, beforeCommit),
+            List.of(this.leavingWork, this.checkingOut, this.undoable), notifications);
         EngineFixture.inject(engine, "taskCompletion", completion);
         return engine;
     }

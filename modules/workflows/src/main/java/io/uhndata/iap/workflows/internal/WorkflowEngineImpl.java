@@ -23,7 +23,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -57,9 +56,9 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * admits. What a user may do is what the workflows say, not what an access control list on the data happens to
  * allow.</p>
  *
- * <p>Everything a run changes lands in a single commit at quiescence. An event either fully happened, or did not
- * happen at all. The commit records the delivery in the history, and the notifications its message events announced
- * are sent only after it.</p>
+ * <p>Everything a run changes lands in a single commit at quiescence, which {@link EventDelivery} makes. An event
+ * either fully happened, or did not happen at all. The commit records the delivery in the history, and the
+ * notifications its message events announced are sent only after it.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -134,8 +133,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
             if (waiting.isPresent()) {
                 return resume(waiting.get(), event, actor);
             }
-            return RepositoryFailures.retryingConflicts(SYSTEM_WORKFLOW_CONFLICT_RETRIES,
-                () -> execute(privilegedTarget, event, actor));
+            return execute(privilegedTarget, event, actor);
         }
     }
 
@@ -172,10 +170,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
      * system workflow: the decision, the task's new state and what follows from it all happen, or none of them
      * do.
      *
-     * <p>Two events on one entity at once conflict when the second commits. The loser is reverted, which also
-     * brings its session up to date, and run again on top of what the winner did. Each attempt has its own
-     * dispatcher, so the notifications a lost attempt announced are dropped with its writes.</p>
-     *
      * @param task the task the event resumes, resolved through the engine's session
      * @param event the incoming event
      * @param actor the user who sent the event
@@ -185,28 +179,11 @@ public class WorkflowEngineImpl implements WorkflowEngine
     private WorkflowResult resume(final Resource task, final WorkflowEvent event, final String actor)
         throws WorkflowException
     {
-        final ResourceResolver resolver = task.getResourceResolver();
-        final ServiceTaskDispatcher committed = RepositoryFailures.retryingConflicts(TASK_CONFLICT_RETRIES, () -> {
-            final ServiceTaskDispatcher attempt = dispatcher();
-            try {
-                final Resource current = resolver.getResource(task.getPath());
-                if (current == null) {
-                    throw RepositoryFailures.deletedMeanwhile(task.getPath());
-                }
-                this.taskCompletion.apply(resolver, current, event, actor, attempt.performer(event, actor));
-                EntityRevision.stamp(current);
-                this.recorder.commit(resolver, attempt.recordedAsTask(actor, event, current));
-                return attempt;
-            } catch (final PersistenceException e) {
-                revert(resolver);
-                throw RepositoryFailures.translate(e);
-            } catch (final WorkflowException | RuntimeException e) {
-                revert(resolver);
-                throw e;
-            }
+        return delivery().deliver(task, TASK_CONFLICT_RETRIES, (current, dispatcher) -> {
+            this.taskCompletion.apply(current.getResourceResolver(), current, event, actor,
+                dispatcher.performer(event, actor));
+            return new EventDelivery.Outcome(Map.of(), dispatcher.recordedAsTask(actor, event, current));
         });
-        committed.completeAfterCommit(resolver);
-        return new WorkflowResult(Map.of());
     }
 
     /**
@@ -225,27 +202,11 @@ public class WorkflowEngineImpl implements WorkflowEngine
     private WorkflowResult execute(final Resource target, final WorkflowEvent event, final String actor)
         throws WorkflowException
     {
-        final ResourceResolver resolver = target.getResourceResolver();
-        final ServiceTaskDispatcher dispatcher = dispatcher();
-        final Map<String, Object> variables;
-        try {
-            final Resource current = resolver.getResource(target.getPath());
-            if (current == null) {
-                throw RepositoryFailures.deletedMeanwhile(target.getPath());
-            }
+        return delivery().deliver(target, SYSTEM_WORKFLOW_CONFLICT_RETRIES, (current, dispatcher) -> {
             final StartEvent start = admit(current, event, actor, 0);
-            variables = dispatcher.runSystemWorkflow(current, event, start, actor, 0);
-            EntityRevision.stamp(current);
-            this.recorder.commit(resolver, dispatcher.recordedAsSystemWorkflow(actor, event, start));
-        } catch (final PersistenceException e) {
-            revert(resolver);
-            throw RepositoryFailures.translate(e);
-        } catch (final WorkflowException | RuntimeException e) {
-            revert(resolver);
-            throw e;
-        }
-        dispatcher.completeAfterCommit(resolver);
-        return new WorkflowResult(variables);
+            final Map<String, Object> variables = dispatcher.runSystemWorkflow(current, event, start, actor, 0);
+            return new EventDelivery.Outcome(variables, dispatcher.recordedAsSystemWorkflow(actor, event, start));
+        });
     }
 
     /**
@@ -275,26 +236,12 @@ public class WorkflowEngineImpl implements WorkflowEngine
     }
 
     /**
-     * How a delivery performs its service tasks and holds its notifications, with this engine to admit an event one
-     * of them sends.
+     * How the engine delivers an event, with a fresh dispatcher for each attempt.
      *
-     * @return a dispatcher for one delivery
+     * @return the delivery
      */
-    private ServiceTaskDispatcher dispatcher()
+    private EventDelivery delivery()
     {
-        return this.dispatchers.create(this::admit);
-    }
-
-    /**
-     * Discards whatever an aborted execution had already changed. A failing event leaves no trace in the firing
-     * user's session.
-     *
-     * @param resolver the firing user's resource resolver
-     */
-    private void revert(final ResourceResolver resolver)
-    {
-        if (resolver.hasChanges()) {
-            resolver.revert();
-        }
+        return new EventDelivery(() -> this.dispatchers.create(this::admit), this.recorder);
     }
 }

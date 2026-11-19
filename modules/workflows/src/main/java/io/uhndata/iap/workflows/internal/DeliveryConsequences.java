@@ -20,11 +20,7 @@ package io.uhndata.iap.workflows.internal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
-
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
-import javax.jcr.version.VersionManager;
+import java.util.stream.Stream;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -45,7 +41,11 @@ import io.uhndata.iap.workflows.spi.Execution;
 /**
  * What one delivery leaves behind besides its writes. What its steps said they did, and the instance it started, are
  * recorded by its commit. Once it commits, the notifications its message events announced are sent, and the work its
- * steps left for after the commit is done, such as checking back in the nodes they checked out.
+ * steps left for after the commit is done. If it does not commit, the actions its steps registered for a rollback
+ * run instead.
+ *
+ * <p>What the delivery's events were aimed at, and what its steps said they did, are what it changed. Each entity
+ * among them gets a new revision token before the commit.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -58,7 +58,11 @@ final class DeliveryConsequences
 
     private final List<RecordedEffect> effects = new ArrayList<>();
 
-    private final List<CommittedWork> afterCommit = new ArrayList<>();
+    private final List<StepAction> afterCommit = new ArrayList<>();
+
+    private final List<StepAction> onRollback = new ArrayList<>();
+
+    private final List<String> targets = new ArrayList<>();
 
     private String startedInstance;
 
@@ -90,6 +94,26 @@ final class DeliveryConsequences
     }
 
     /**
+     * Notes a resource an event of this delivery is aimed at: the event that came in, or one a step sent.
+     *
+     * @param path the path of the resource
+     */
+    void noteTarget(final String path)
+    {
+        this.targets.add(path);
+    }
+
+    /**
+     * The resources this delivery changed: what its events were aimed at, and what its steps said they did.
+     *
+     * @return the paths of the resources, possibly repeated; some may since have been removed
+     */
+    List<String> changedPaths()
+    {
+        return Stream.concat(this.targets.stream(), this.effects.stream().map(RecordedEffect::path)).toList();
+    }
+
+    /**
      * Notes what a step did to a resource.
      *
      * @param path the path of the resource
@@ -113,17 +137,6 @@ final class DeliveryConsequences
     }
 
     /**
-     * Notes a node to check back in once the delivery has committed.
-     *
-     * @param path the path of the versionable node
-     */
-    void checkInAfterCommit(final String path)
-    {
-        this.afterCommit.add(new CommittedWork(resolver -> checkIn(resolver, path),
-            ErrorContext.of(DeliveryConsequences.class, "checkIn").about(path)));
-    }
-
-    /**
      * Notes work to do once the delivery has committed.
      *
      * @param work what to do
@@ -131,8 +144,18 @@ final class DeliveryConsequences
      */
     void afterCommit(final Runnable work, final Activity step)
     {
-        this.afterCommit.add(new CommittedWork(resolver -> work.run(),
-            ErrorContext.of(step.getHandler(), "afterCommit").about(step.getPath())));
+        this.afterCommit.add(StepAction.of(work, step, "afterCommit"));
+    }
+
+    /**
+     * Notes an action that undoes a side effect of a step, should the delivery not commit.
+     *
+     * @param action what undoes the side effect
+     * @param step the activity whose step registered it, which a failure is recorded against
+     */
+    void onRollback(final Runnable action, final Activity step)
+    {
+        this.onRollback.add(StepAction.of(action, step, "rollback"));
     }
 
     /**
@@ -171,51 +194,44 @@ final class DeliveryConsequences
      * Finishes what waited for the commit: sends the notifications, then does the work the steps left, in the order
      * they left it. The delivery has committed by then, so a piece of work that fails is reported rather than thrown,
      * and the rest still runs.
-     *
-     * @param resolver the engine's resolver, which committed the delivery
      */
-    void completeAfterCommit(final ResourceResolver resolver)
+    void completeAfterCommit()
     {
         this.notifications.send();
-        this.afterCommit.forEach(work -> work.perform(resolver));
-    }
-
-    private static void checkIn(final ResourceResolver resolver, final String path)
-    {
-        final Session session = resolver.adaptTo(Session.class);
-        if (session == null) {
-            return;
-        }
-        try {
-            if (!session.nodeExists(path)) {
-                return;
-            }
-            final VersionManager versions = session.getWorkspace().getVersionManager();
-            if (versions.isCheckedOut(path)) {
-                versions.checkin(path);
-            }
-        } catch (final RepositoryException e) {
-            LOGGER.error("Could not check {} back in after its delivery committed: {}", path, e.getMessage(), e);
-            ErrorLogger.logError(e, ErrorContext.of(DeliveryConsequences.class, "checkIn").about(path));
-        }
+        this.afterCommit.forEach(StepAction::perform);
     }
 
     /**
-     * A piece of work waiting for the delivery's commit, and what to record if it fails.
+     * Cleans up after a delivery that did not commit, once its writes are reverted: runs the actions its steps
+     * registered for a rollback, the last one registered first. An action that fails is reported rather than thrown,
+     * and the rest still run. The notifications and the work left for after the commit are dropped.
+     */
+    void abandon()
+    {
+        this.onRollback.reversed().forEach(StepAction::perform);
+    }
+
+    /**
+     * An action a step left for after the delivery, and what to record if it fails.
      *
-     * @param work what to do, given the engine's resolver
+     * @param action what to do
      * @param failure what to record if it fails
      * @version $Id$
      * @since 0.1.0
      */
-    private record CommittedWork(Consumer<ResourceResolver> work, ErrorContext failure)
+    private record StepAction(Runnable action, ErrorContext failure)
     {
-        void perform(final ResourceResolver resolver)
+        static StepAction of(final Runnable action, final Activity step, final String operation)
+        {
+            return new StepAction(action, ErrorContext.of(step.getHandler(), operation).about(step.getPath()));
+        }
+
+        void perform()
         {
             try {
-                this.work.accept(resolver);
+                this.action.run();
             } catch (final RuntimeException e) {
-                LOGGER.error("Work left for after a delivery's commit failed, {}: {}", this.failure, e.getMessage(), e);
+                LOGGER.error("An action a step left failed, {}: {}", this.failure, e.getMessage(), e);
                 ErrorLogger.logError(e, this.failure);
             }
         }

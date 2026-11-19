@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -43,7 +44,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Two saves of one submission at once, on a real repository. Each saver adds its own answer and records a
- * verdict about the whole submission, judged from a view that does not hold the other's answer.
+ * verdict about the whole submission, judged from a view that does not hold the other's answer. And two
+ * activations of different versions at once, each retiring the version both saw active.
  *
  * @version $Id$
  * @since 0.1.0
@@ -56,6 +58,14 @@ class EntityRevisionRaceTest
     private static final String VERDICT = "tags";
 
     private static final String[] INCOMPLETE = { "incomplete" };
+
+    /** A sibling version both activations retire. */
+    private static final String OTHER = "/Requests/two";
+
+    /** The version the second activation promotes, while the first promotes {@link #ENTITY}. */
+    private static final String THIRD = "/Requests/three";
+
+    private static final String[] RETIRED = { "retired" };
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
@@ -101,13 +111,40 @@ class EntityRevisionRaceTest
     void withTheTokenTheSecondSaveIsRefused() throws Exception
     {
         save(this.first, "days");
-        EntityRevision.stamp(entity(this.first));
+        EntityRevision.stamp(this.first, List.of(ENTITY));
         save(this.second, "reason");
-        EntityRevision.stamp(entity(this.second));
+        EntityRevision.stamp(this.second, List.of(ENTITY));
         this.first.commit();
 
         final PersistenceException refusal = assertThrows(PersistenceException.class, this.second::commit);
         assertTrue(RepositoryFailures.isConflict(refusal));
+    }
+
+    @Test
+    void twoActivationsRetiringTheSameVersionConflict() throws Exception
+    {
+        this.context.create().resource(OTHER, Map.of("sling:resourceType", Entity.RESOURCE_TYPE));
+        this.context.create().resource(THIRD, Map.of("sling:resourceType", Entity.RESOURCE_TYPE));
+        this.context.resourceResolver().commit();
+        retire(this.first);
+        EntityRevision.stamp(this.first, List.of(ENTITY, OTHER));
+        retire(this.second);
+        EntityRevision.stamp(this.second, List.of(THIRD, OTHER));
+        this.first.commit();
+
+        final PersistenceException refusal = assertThrows(PersistenceException.class, this.second::commit);
+        assertTrue(RepositoryFailures.isConflict(refusal));
+    }
+
+    /**
+     * One activation's change to the version both retire: the same tags, whoever writes them.
+     *
+     * @param activator the activating session
+     */
+    private static void retire(final ResourceResolver activator)
+    {
+        Objects.requireNonNull(Objects.requireNonNull(activator.getResource(OTHER)).adaptTo(ModifiableValueMap.class))
+            .put(VERDICT, RETIRED);
     }
 
     /**

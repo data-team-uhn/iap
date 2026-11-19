@@ -756,8 +756,8 @@ void             sendEvent(Resource target, WorkflowEvent event);
 void             startWorkflow(Resource host, WorkflowVersion version);
 void             replaceWorkflow(Resource host, WorkflowVersion version);
 void             recordRole(Resource resource, String role);
-void             checkInAfterCommit(String path);
 void             afterCommit(Runnable work);
+void             onRollback(Runnable action);
 
 // ExecutionHost, Payloads — reading a task's input the way the built-in handlers do
 static Resource        ExecutionHost.of(WorkflowTaskContext context);
@@ -775,8 +775,8 @@ also how they reach the channel that fired the event. `sendEvent` and `startWork
 ask the engine for more within the same execution and commit; the built-in
 `callActivity` and `startWorkflow` handlers are thin over them. `recordRole` names, for
 the [history](history.md), the part a resource played in the step, such as `retired`;
-what changed is recorded without it. A step that checked a node out cannot check it back
-in, since a check-in refuses pending changes, so it asks with `checkInAfterCommit`.
+what changed is recorded without it. It also gives the resource's entity a new
+`revision`, so a step that changes an entity other than its target names it there.
 `afterCommit` leaves other work for once the delivery has committed. It is for work that
 is low-risk, not critical and not expected to fail, and that either needs the commit to
 have happened or cannot be undone. For example:
@@ -791,6 +791,21 @@ have happened or cannot be undone. For example:
 Work left by a delivery that fails, or by an attempt retried after a conflict, never
 runs. Work that fails is recorded against the step that left it, nothing retries it, and
 the rest still runs. Work the workflow cannot do without belongs in the delivery itself.
+
+`onRollback` is its twin. It registers an action that undoes a side effect of the step
+when the delivery does not commit: after a delivery that fails, and after an attempt
+lost to a conflict, before the retry. A delivery that commits never runs it. The action
+runs after the delivery's writes are reverted, so it cannot rely on them. Only an effect
+that persists without the commit needs one; Oak drops plain repository writes with the
+rest. The actions run last registered first, including those of the workflows a sent
+event ran. One that fails is recorded against its step, and the rest still run.
+
+A checkout is such an effect. It takes effect at once and survives a revert, and a step
+cannot check the node back in itself, since a check-in refuses pending changes.
+The step registers one action calling `VersioningUtils.checkIn` with both `afterCommit`
+and `onRollback`, so the node is checked back in whether the delivery commits or not.
+It does so only for a node it checked out itself: `VersioningUtils.checkOut` returns
+`null` for one that was writable already.
 
 Two helpers keep a module's handlers consistent with the built-in ones in
 `internal.handlers`. `ExecutionHost.of` is what a task acts on, as its activity answers
@@ -1032,14 +1047,16 @@ instance resumed days later.
 default. One with a single unconditioned way out is a merge, and passes a token straight
 through.
 
-**Two events on one instance cannot both commit.** Every event aimed at a task stamps
-its instance with a new `walkId`, so two requests moving branches of one instance at
-once conflict, and the loser is reverted and run again on top of the winner. Without
-this, two branches reaching a join in two requests would each see only itself arrive.
+**Two events on one instance cannot both commit.** An instance is a part of the entity
+it runs over, and every event aimed at a task gives that entity a new `revision`, as
+below. Two requests moving branches of one instance at once therefore conflict, and the
+loser is reverted and run again on top of the winner. Without this, two branches
+reaching a join in two requests would each see only itself arrive.
 
 **Two events on one entity cannot both commit either.** Every event the engine commits
-writes a fresh `revision` on the entity it is aimed at, or on the entity enclosing the
-part it is aimed at. Two events changing one submission at once therefore conflict, and
+writes a fresh `revision` on each entity it changed: the one it is aimed at, any a step
+sent an event to, and any a step names in `recordRole`. A part stands for the entity
+enclosing it. Two events changing one submission at once therefore conflict, and
 the loser is reverted, matched and admitted again on the winner's state, and run again.
 It may then no longer apply, as a save does not once the request was submitted. Two
 saves of the same answer keep the later one: the editor sends its saves one at a time,

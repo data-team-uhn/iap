@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -67,8 +66,6 @@ final class InstanceRecords
     static final String OUTCOME_VARIABLE = "outcome";
 
     private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
-
-    private static final String WALK_ID_PROPERTY = "walkId";
 
     private final ResourceResolver resolver;
 
@@ -346,19 +343,6 @@ final class InstanceRecords
         final ModifiableValueMap properties = getModifiableProperties(instance);
         properties.put(WorkflowInstance.STATUS_PROPERTY, status);
         properties.put(WorkflowInstance.END_TIME_PROPERTY, Calendar.getInstance());
-    }
-
-    /**
-     * Stamps an instance with a new identifier, as a walk carries it on from one of its tasks. Two events carrying
-     * one instance on at once then both change the same property, and the second to commit is refused rather than
-     * merged. Otherwise two branches arriving at a join in two requests would each see only themselves arrive, and
-     * both would wait for good.
-     *
-     * @param instance the instance being carried on
-     */
-    void stampWalk(final Resource instance)
-    {
-        getModifiableProperties(instance).put(WALK_ID_PROPERTY, UUID.randomUUID().toString());
     }
 
     /**

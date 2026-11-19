@@ -185,7 +185,7 @@ final class InstanceRunner
     void completeTask(final TaskInstance task, final FlowNode definition, final String outcome)
         throws WorkflowException, PersistenceException
     {
-        final Resource instance = beginWalkFrom(task);
+        final Resource instance = instanceOf(task);
         this.records.recordDecision(instance, this.records.getResource(task.getPath()), outcome);
         carryOn(instance, task, definition);
     }
@@ -201,7 +201,7 @@ final class InstanceRunner
     void completeTask(final TaskInstance task, final FlowNode definition)
         throws WorkflowException, PersistenceException
     {
-        carryOn(beginWalkFrom(task), task, definition);
+        carryOn(instanceOf(task), task, definition);
     }
 
     private void carryOn(final Resource instance, final TaskInstance task, final FlowNode definition)
@@ -216,18 +216,16 @@ final class InstanceRunner
     }
 
     /**
-     * Starts a walk carrying an instance on from one of its tasks, by stamping the instance.
+     * Finds the instance a task belongs to, to write to it.
      *
-     * @param task the task the walk starts from
-     * @return the task's instance
+     * @param task the task
+     * @return the task's instance, through the engine's session
      */
-    private Resource beginWalkFrom(final TaskInstance task)
+    private Resource instanceOf(final TaskInstance task)
     {
         final WorkflowInstance instance = Objects.requireNonNull(task.getWorkflowInstance(),
             "A task always lives inside its instance");
-        final Resource instanceResource = this.records.getResource(instance.getPath());
-        this.records.stampWalk(instanceResource);
-        return instanceResource;
+        return this.records.getResource(instance.getPath());
     }
 
     /**
@@ -245,7 +243,7 @@ final class InstanceRunner
     void fireDeadline(final TaskInstance task, final Activity definition, final IntermediateCatchingEvent timer)
         throws WorkflowException, PersistenceException
     {
-        final Resource instanceResource = beginWalkFrom(task);
+        final Resource instanceResource = instanceOf(task);
         if (timer.isInterrupting()) {
             // Gateways downstream see the last recorded outcome, if there is one
             this.records.cancelTask(this.records.getResource(task.getPath()));

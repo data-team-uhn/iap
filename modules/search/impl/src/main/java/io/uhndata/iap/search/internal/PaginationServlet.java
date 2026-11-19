@@ -24,6 +24,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,15 +33,12 @@ import javax.jcr.Session;
 import javax.jcr.query.Query;
 import javax.jcr.query.RowIterator;
 
-import jakarta.json.Json;
 import jakarta.json.JsonObject;
-import jakarta.json.stream.JsonGenerator;
 import jakarta.servlet.Servlet;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.servlets.SlingJakartaSafeMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
@@ -121,6 +119,9 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PaginationServlet.class);
 
+    /** Writes the page of entities and the pagination summary. */
+    private static final ResultsResponse RESULTS_WRITER = new ResultsResponse("a pagination query");
+
     /** Matches the parameter names of the descendant condition families, and captures the family's number. */
     private static final Pattern CHILD_PARAMETER =
         Pattern.compile("childType(\\d*+)|childField(\\d*+)(?:Name|Comparator|Value|Group)");
@@ -135,7 +136,7 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     {
         try {
             final RowIterator rows = prepareQuery(request).execute().getRows();
-            writeResponse(request, response, rows);
+            RESULTS_WRITER.write(request, response, page -> writeRows(page, rows, request));
         } catch (final MisalignedParameterException e) {
             JsonResponses.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST,
                 "`" + e.getParameter() + "` must be sent once per filter name");
@@ -308,46 +309,6 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * Writes the requested page of serialized entities, then the pagination summary.
-     *
-     * <p>
-     * The query has already run, but its result set is lazy, so reading the rows can fail after part of the response
-     * has gone out. Such a failure is reported in the summary, and the response stays a well-formed document.
-     * </p>
-     *
-     * @param request the current request
-     * @param response the HTTP response to write into
-     * @param rows the query results to paginate over
-     * @throws IOException if writing the response fails
-     */
-    // A page of results is content, streamed as it is read
-    @SuppressWarnings("checkstyle:directResponseWriter")
-    private void writeResponse(final SlingJakartaHttpServletRequest request,
-        final SlingJakartaHttpServletResponse response, final RowIterator rows)
-        throws IOException
-    {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        // Closing the generator closes the writer too
-        try (JsonGenerator json = Json.createGenerator(response.getWriter())) {
-            json.writeStartObject();
-            json.writeStartArray("rows");
-            final PaginatedJsonResponse page = PaginatedJsonResponse.forRequest(json, request);
-            String error = null;
-            try {
-                writeRows(page, rows, request);
-            } catch (final RepositoryException | RuntimeException e) {
-                // Unchecked too: Oak reports a read or memory limit reached with an unchecked exception
-                LOGGER.warn("Failed to read the results of a pagination query: {}", e.getMessage(), e);
-                error = "Failed to read all the results";
-            }
-            json.writeEnd();
-            page.writeSummary(request.getParameter("req"), error);
-            json.writeEnd().flush();
-        }
-    }
-
-    /**
      * Offers the query results to the paginator, which writes the requested page and counts the matches. A
      * descendant join returns the same entity once per matching descendant, and the paginator drops the duplicates
      * by path.
@@ -360,31 +321,11 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     private void writeRows(final PaginatedJsonResponse page, final RowIterator rows,
         final SlingJakartaHttpServletRequest request) throws RepositoryException
     {
-        final String selectors = PaginatedJsonResponse.getResourceSelectors(request);
-        final ResourceResolver resolver = request.getResourceResolver();
+        final Function<String, JsonObject> serializer = RESULTS_WRITER.nodeSerializer(request);
         boolean more = true;
         while (rows.hasNext() && more) {
             final String path = rows.nextRow().getPath("n");
-            more = page.offer(path, () -> serializeRow(resolver, path, selectors));
-        }
-    }
-
-    /**
-     * Serializes one entity for the response.
-     *
-     * @param resolver the current resource resolver
-     * @param path the path of the entity to serialize
-     * @param selectors the extra serialization selectors the client asked for, such as {@code .deep}; empty for none
-     * @return the serialized entity; {@code null} if it cannot be serialized, and then it is left out of the page but
-     *         still counted
-     */
-    private JsonObject serializeRow(final ResourceResolver resolver, final String path, final String selectors)
-    {
-        try {
-            return resolver.resolve(path + selectors).adaptTo(JsonObject.class);
-        } catch (final RuntimeException e) {
-            LOGGER.warn("Failed to serialize {} for pagination: {}", path, e.getMessage(), e);
-            return null;
+            more = page.offer(path, () -> serializer.apply(path));
         }
     }
 

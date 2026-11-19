@@ -120,20 +120,14 @@ public interface WorkflowTaskContext extends Execution
      * Says what this step did to a resource, for the history: the part the resource played, named by its purpose.
      * The history records what changed on its own; only the meaning of the change has to be said.
      *
+     * <p>The delivery also gives the entity the resource belongs to a new revision token, so that another event
+     * changing it at the same time conflicts. A step that changes an entity other than its target names it here.</p>
+     *
      * @param resource the resource; a part of an entity stands for the entity it belongs to
      * @param role a word for the part it played, in the vocabulary of the workflow rather than of the storage, such
      *            as {@code submitted}, {@code retired} or {@code activated}
      */
     void recordRole(@NotNull Resource resource, @NotNull String role);
-
-    /**
-     * Asks for a versionable node to be checked back in once this delivery has committed. A step that had to check
-     * a node out cannot check it back in itself. A check-in refuses pending changes, and the delivery's changes stay
-     * pending until the engine commits them all at once.
-     *
-     * @param path the absolute path of the versionable node
-     */
-    void checkInAfterCommit(@NotNull String path);
 
     /**
      * Leaves work to do once this delivery has committed. It is for what must happen only if the delivery does, but
@@ -144,4 +138,21 @@ public interface WorkflowTaskContext extends Execution
      * @param work what to do, run once, in the order the steps left it
      */
     void afterCommit(@NotNull Runnable work);
+
+    /**
+     * Registers an action that undoes a side effect of this step when the delivery does not commit. A delivery that
+     * fails runs it, and so does an attempt the engine retries after a conflict, before the retry. A delivery that
+     * commits never runs it.
+     *
+     * <p>The action runs after the delivery's writes are reverted, so it cannot rely on them. Register one only for an
+     * effect that persists without the commit, such as a checkout. A plain repository write needs nothing, since Oak
+     * drops it with the rest.</p>
+     *
+     * <p>The actions run in the reverse of the order the steps registered them. A failing action is recorded against
+     * this step, and the rest still run. The delivery's own failure is what its caller sees.</p>
+     *
+     * @param action what undoes the side effect, run at most once
+     * @since 0.1.0
+     */
+    void onRollback(@NotNull Runnable action);
 }

@@ -192,14 +192,14 @@ final class TaskContext implements WorkflowTaskContext
     }
 
     @Override
-    public void checkInAfterCommit(final String path)
-    {
-        // No handler tested here checks anything out
-    }
-
-    @Override
     public void afterCommit(final Runnable work)
     {
         // No handler tested here leaves work for after the commit
+    }
+
+    @Override
+    public void onRollback(final Runnable action)
+    {
+        // No handler tested here leaves anything to undo
     }
 }

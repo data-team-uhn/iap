@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.startup.internal;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
@@ -41,16 +42,43 @@ class StartupPlaceholderServletTest
     @Test
     void servesTheStartupPageForEveryRequest() throws Exception
     {
-        final StartupPlaceholderServlet servlet = new StartupPlaceholderServlet();
-        final HttpServletRequest request = mock(HttpServletRequest.class);
-        final HttpServletResponse response = mock(HttpServletResponse.class);
+        final StartupPlaceholderServlet servlet = new StartupPlaceholderServlet(new StartupPage("<p>Starting up</p>"));
         final StringWriter body = new StringWriter();
-        when(response.getWriter()).thenReturn(new PrintWriter(body));
+        final HttpServletResponse response = responseWritingTo(body);
 
-        servlet.service(request, response);
+        servlet.service(mock(HttpServletRequest.class), response);
 
         verify(response).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
         verify(response).setHeader("Cache-Control", "no-store");
-        assertEquals(StartupPageFixture.stubPage(), body.toString());
+        assertEquals("<p>Starting up</p>", body.toString());
+    }
+
+    @Test
+    void servesTheBundledPageWhenActivatedByOsgi() throws Exception
+    {
+        final StartupPlaceholderServlet servlet = new StartupPlaceholderServlet();
+
+        assertEquals(bodyOf(StartupPage.bundled()), bodyServedBy(servlet));
+    }
+
+    private static String bodyOf(final StartupPage page) throws IOException
+    {
+        final StringWriter body = new StringWriter();
+        page.serve(responseWritingTo(body));
+        return body.toString();
+    }
+
+    private static String bodyServedBy(final StartupPlaceholderServlet servlet) throws Exception
+    {
+        final StringWriter body = new StringWriter();
+        servlet.service(mock(HttpServletRequest.class), responseWritingTo(body));
+        return body.toString();
+    }
+
+    private static HttpServletResponse responseWritingTo(final StringWriter body) throws IOException
+    {
+        final HttpServletResponse response = mock(HttpServletResponse.class);
+        when(response.getWriter()).thenReturn(new PrintWriter(body));
+        return response;
     }
 }
