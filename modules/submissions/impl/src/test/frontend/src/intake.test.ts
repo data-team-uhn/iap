@@ -42,7 +42,8 @@ import {
 
 function document(name: string, label: string, required: boolean, attached = 0): DocumentRequirement {
   return {
-    name, label, path: `/s/v1/${name}`, type: DOCUMENT_REQUIREMENT_TYPE, required, acceptedFileTypes: [],
+    name, label, path: `/s/v1/${name}`, type: DOCUMENT_REQUIREMENT_TYPE, required, generated: false,
+    acceptedFileTypes: [],
     attached: Array.from({ length: attached }, (_, i) => ({ title: `${name}-${i}` })),
   };
 }

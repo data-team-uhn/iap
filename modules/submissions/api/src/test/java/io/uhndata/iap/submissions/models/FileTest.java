@@ -131,10 +131,15 @@ class FileTest
     void namesTheUploadAndWhatTheParseProduced()
     {
         final File file = createParsedFile();
+        // Made by the generator, not the pipeline
+        this.context.create().resource(FILE_PATH + "/generated.docx", SLING_RESOURCE_TYPE, NT_FILE);
 
         assertEquals("uploadedFile", file.getUploadedFile().getName());
         assertEquals("markdownFile", file.getMarkdownFile().getName());
         assertEquals("pdfFile", file.getPdfFile().getName());
+        assertEquals("generated.docx", file.getGeneratedDocx().getName());
+        assertEquals(List.of("markdownFile", "pdfFile"),
+            file.getRenditions().stream().map(Resource::getName).toList());
     }
 
     @Test
@@ -211,5 +216,6 @@ class FileTest
         assertNull(file.getParseStatus());
         assertNull(file.getParseError());
         assertNull(file.getTokens());
+        assertNull(file.getGeneratedDocx());
     }
 }

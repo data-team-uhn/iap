@@ -343,10 +343,12 @@ test.describe('a story: being off sick, and having to prove it', () => {
         expect(response.ok()).toBeTruthy();
         const documents = childNodes(await response.json())
           .filter(child => child['sling:resourceType'] === 'sub/Document');
-        expect(documents).toHaveLength(1);
-        expect(documents[0].title).toBe('sick-note.pdf');
-        expect(documents[0].fulfills).toBeTruthy();
-        const versions = childNodes(documents[0]).filter(child => child['jcr:primaryType'] === 'sub:DocumentVersion');
+        // Beside it, the request form that sending filled in
+        expect(documents.map(document => document.title).sort())
+          .toEqual([ 'Time off request form.pdf', 'sick-note.pdf' ]);
+        const note = documents.find(document => document.title === 'sick-note.pdf');
+        expect(note?.fulfills).toBeTruthy();
+        const versions = childNodes(note ?? {}).filter(child => child['jcr:primaryType'] === 'sub:DocumentVersion');
         expect(versions).toHaveLength(1);
         // The `files` processor flattens an nt:file into a download descriptor: the type and size move up
         // onto the file node, and the path streams the bytes

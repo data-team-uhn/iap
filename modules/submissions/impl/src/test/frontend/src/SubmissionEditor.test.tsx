@@ -76,6 +76,8 @@ beforeEach(async () => {
 
 const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
 
+const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 function duration(value: string[] = []) {
   return {
     name: "duration", type: QUESTION, path: "details/duration", text: "Is this several days?",
@@ -293,6 +295,7 @@ describe("SubmissionEditor", () => {
       label: "Doctor's note",
       description: "A note covering the days you were unwell.",
       required: true,
+      generated: false,
       acceptedFileTypes: [ "application/pdf", "image/png" ],
       template: "/Schemas/timeOffRequest/v1/doctorsNote/template",
       templateName: "Doctor's note.docx",
@@ -613,6 +616,144 @@ describe("SubmissionEditor", () => {
     });
   });
 
+  describe("a document the platform generates", () => {
+    const LETTER: DocumentRequirement = {
+      name: "decisionLetter",
+      path: "/Schemas/timeOffRequest/v1/decisionLetter",
+      type: DOCUMENT_REQUIREMENT_TYPE,
+      label: "Decision letter",
+      required: true,
+      generated: true,
+      acceptedFileTypes: [ DOCX ],
+      attached: [],
+    };
+
+    const LETTER_FILE = {
+      title: "Decision letter.pdf",
+      path: "/Submissions/x/d1/v1/file/uploadedFile",
+      docx: "/Submissions/x/d1/v1/file/generated.docx",
+    };
+
+    function asked(letter: Partial<DocumentRequirement> = {}, overrides: Partial<SubmissionForm> = {}) {
+      return form({ requirements: [ { ...LETTER, ...letter } ], ...overrides });
+    }
+
+    it("says it is filled in on sending, and offers a preview or a version of one's own meanwhile", async () => {
+      vi.stubGlobal("fetch", serving(asked()));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+
+      expect(await screen.findByRole("button", { name: /Preview "Decision letter"/ }))
+        .toHaveTextContent("Preview from my answers");
+      expect(screen.getByText(/when you send this request/)).toBeInTheDocument();
+      // Only a hint for the file dialog: the server checks the requirement's types
+      expect(screen.getByLabelText(/Upload your own version of "Decision letter"/)).toHaveAttribute("accept", DOCX);
+    });
+
+    it("opens what was generated to be read, and offers its .docx to be edited", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ LETTER_FILE ] })));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+
+      const link = await screen.findByRole("link", { name: "Decision letter.pdf" });
+      expect(link).toHaveAttribute("href", LETTER_FILE.path);
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).not.toHaveAttribute("download");
+      const editable = screen.getByRole("link", { name: "Download to edit (.docx)" });
+      expect(editable).toHaveAttribute("href", LETTER_FILE.docx);
+      expect(editable).toHaveAttribute("download", "Decision letter.docx");
+      expect(screen.getByRole("button", { name: /Preview "Decision letter"/ })).toHaveTextContent("Preview again");
+    });
+
+    it("names a document with no file yet without linking it, and an unlabelled one by its name", async () => {
+      vi.stubGlobal("fetch", serving(asked({ label: "", attached: [ LETTER_FILE, { title: "Draft.pdf" } ] })));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+
+      expect(await screen.findByText(/; Draft\.pdf/)).toBeInTheDocument();
+      expect(screen.getAllByRole("link")).toHaveLength(2);
+      expect(screen.getByRole("button", { name: /Preview "decisionLetter"/ })).toBeInTheDocument();
+    });
+
+    it("takes a version of the submitter's own in place of what was generated", async () => {
+      const own = { title: "letter-edited.docx", path: "/Submissions/x/d1/v2/file/uploadedFile" };
+      const fetchMock = serving(asked({ attached: [ LETTER_FILE ] }), asked({ attached: [ own ] }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+      await userEvent.upload(await screen.findByLabelText(/Upload your own version/),
+        new File([ "PK" ], "letter-edited.docx", { type: DOCX }));
+
+      const upload = fetchMock.mock.calls.find(call => call[0] === `${PATH}.attachDocument.json`);
+      expect(upload).toBeDefined();
+      const body = upload?.[1]?.body as FormData;
+      expect(body.get("requirement")).toBe("decisionLetter");
+      expect((body.get("file") as File).name).toBe("letter-edited.docx");
+      // What the server now says is attached: theirs, downloaded as it came, with nothing generated beside it
+      const link = await screen.findByRole("link", { name: "letter-edited.docx" });
+      expect(link).toHaveAttribute("download", "letter-edited.docx");
+      expect(screen.getByText(/Your own version/)).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Download to edit/ })).toBeNull();
+    });
+
+    it("asks for a preview as an event on the submission, then reads the form again", async () => {
+      const fetchMock = serving(asked(), asked({ attached: [ LETTER_FILE ] }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+      await userEvent.click(await screen.findByRole("button", { name: /Preview "Decision letter"/ }));
+
+      const request = fetchMock.mock.calls.find(call => call[0] === `${PATH}.generateDocument.json`);
+      expect(request).toBeDefined();
+      const init = request?.[1];
+      expect(init?.method).toBe("POST");
+      expect((init?.body as URLSearchParams).get("requirement")).toBe("decisionLetter");
+      // What the server now says was generated, rather than what this page hoped
+      expect(await screen.findByRole("link", { name: "Decision letter.pdf" })).toBeInTheDocument();
+    });
+
+    it("says why it could not be generated, in the engine's own words, and lets that be dismissed", async () => {
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) => {
+        if (options?.method === "POST") {
+          // A failed step is a 500, which only passes through once the session is known to be live
+          return Promise.resolve(jsonResponse(
+            { error: "Decision letter could not be generated: 'decision' is undefined" }, 500));
+        }
+        return Promise.resolve(jsonResponse(url.includes("sessionInfo") ? { userID: "demo-requester" } : asked()));
+      }));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+      await userEvent.click(await screen.findByRole("button", { name: /Preview "Decision letter"/ }));
+
+      expect(await screen.findByText(/'decision' is undefined/)).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /Close/ }));
+      expect(screen.queryByText(/'decision' is undefined/)).toBeNull();
+    });
+
+    it("falls back to the status when a refusal carries no reason", async () => {
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
+        options?.method === "POST"
+          ? Promise.resolve({
+            ok: false, status: 502, url: "", json: () => Promise.reject(new Error("no body")),
+          } as unknown as Response)
+          : Promise.resolve(jsonResponse(asked()))));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+      await userEvent.click(await screen.findByRole("button", { name: /Preview "Decision letter"/ }));
+
+      expect(await screen.findByText(/HTTP 502/)).toBeInTheDocument();
+    });
+
+    it("can be neither previewed nor replaced once the request is no longer the submitter's to change", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ LETTER_FILE ] }, { editable: false })));
+
+      render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
+
+      expect(await screen.findByRole("button", { name: /Preview "Decision letter"/ })).toBeDisabled();
+      expect(screen.getByLabelText(/Upload your own version/)).toBeDisabled();
+    });
+  });
+
   it("draws a section as its own block, with its questions inside", async () => {
     serving(form({
       requirements: [ details([ { name: "when", type: SECTION, label: "Dates",
@@ -777,7 +918,7 @@ describe("SubmissionEditor in steps", () => {
   function proposal(attached: number): DocumentRequirement {
     return {
       name: "proposal", path: "/Schemas/study/v1/proposal", type: DOCUMENT_REQUIREMENT_TYPE,
-      label: "research proposal", required: true, acceptedFileTypes: [],
+      label: "research proposal", required: true, generated: false, acceptedFileTypes: [],
       attached: Array.from({ length: attached }, () => ({ title: "protocol.pdf" })),
     };
   }

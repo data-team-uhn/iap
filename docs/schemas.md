@@ -198,6 +198,8 @@ alone. An event no guard admits is refused with a 409, and `@events` (see
 | a requirement, section or question | `move` (optional `parent`, `before`) | its version `draft` | move it, with what it holds, elsewhere in its version |
 | a requirement, section or question | `rename` (`name`) | its version `draft` | give it another identifier, keeping its place |
 | a requirement, section or question | `condition` (`content`) | its version `draft` | set when it applies, or make it always apply with `null` |
+| a document requirement | `setTemplate` (`file`) | its version `draft` | store the upload as its `template`, replacing any it had; a generated requirement takes only a `.docx` |
+| a document requirement | `removeTemplate` (`content`, always `null`) | its version `draft` | remove its `template` |
 | an answer option | `update` (`patch`) | its version `draft` | edit its `value`, `label` or `description` |
 | an answer option | `discard` | its version `draft` | delete it |
 | an answer option | `move` (optional `parent`, `before`) | its version `draft` | move it before another option of its question, or to the end of its question's options |

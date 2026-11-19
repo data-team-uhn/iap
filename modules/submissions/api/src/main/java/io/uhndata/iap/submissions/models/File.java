@@ -33,7 +33,7 @@ import io.uhndata.iap.utils.Referenceable;
 
 /**
  * A Sling Model wrapping a {@code sub:File} node: a single uploaded file, plus everything the parsing pipeline
- * derived from it: the Markdown and the PDF.
+ * derived from it: the Markdown and the PDF. A generated file also keeps the {@code .docx} it was converted from.
  *
  * @version $Id$
  * @since 0.1.0
@@ -53,6 +53,8 @@ public class File extends EntityPart implements Referenceable
      * upload is already a PDF, since one copy is enough.
      */
     public static final String PDF_CHILD = "pdfFile";
+    /** The name of the child holding the filled {@code .docx} a generated PDF was converted from. */
+    public static final String GENERATED_DOCX_CHILD = "generated.docx";
 
     /** The name of the child node holding the upload as it was received. */
     private static final String UPLOADED_FILE_CHILD = "uploadedFile";
@@ -169,8 +171,19 @@ public class File extends EntityPart implements Referenceable
     }
 
     /**
-     * Every rendition stored on this file: the Markdown, the PDF, and any other file child. The upload itself is
-     * not a rendition.
+     * The filled {@code .docx} the platform converted this file from, if this is from a generated file.
+     *
+     * @return the {@code .docx}, or {@code null} for an upload
+     */
+    @Nullable
+    public Resource getGeneratedDocx()
+    {
+        return this.resource.getChild(GENERATED_DOCX_CHILD);
+    }
+
+    /**
+     * Every rendition stored on this file: the Markdown, the PDF, and any other file child. Neither the upload nor
+     * the {@code .docx} a generated file was converted from is one of them.
      *
      * @return the {@code nt:file} resources; empty if nothing has been rendered yet
      */
@@ -179,7 +192,8 @@ public class File extends EntityPart implements Referenceable
     {
         final List<Resource> result = new ArrayList<>();
         for (final Resource child : this.resource.getChildren()) {
-            if (child.isResourceType(FILE_RESOURCE_TYPE) && !UPLOADED_FILE_CHILD.equals(child.getName())) {
+            if (child.isResourceType(FILE_RESOURCE_TYPE) && !UPLOADED_FILE_CHILD.equals(child.getName())
+                && !GENERATED_DOCX_CHILD.equals(child.getName())) {
                 result.add(child);
             }
         }

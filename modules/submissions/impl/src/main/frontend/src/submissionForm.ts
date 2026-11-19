@@ -105,6 +105,9 @@ export interface FormRequirement extends Requirement {
 export interface DocumentRequirement extends Requirement {
   // Whether the submission is incomplete without a file for it
   required: boolean;
+  // Whether the platform fills it in from the answers. The submitter may still upload a version of their
+  // own. No template is offered: its template is what the platform fills in.
+  generated: boolean;
   // The MIME types a file may have, such as `application/pdf`; empty when any type is accepted
   acceptedFileTypes: string[];
   // The path of a document to start from, when the requirement offers one
@@ -137,6 +140,7 @@ export interface ApprovalDecision {
 export interface AttachedDocument {
   title: string;
   path?: string;
+  docx?: string;
 }
 
 // A repository path as a URL. Each segment is percent-encoded, so names with #, ? or % survive.
