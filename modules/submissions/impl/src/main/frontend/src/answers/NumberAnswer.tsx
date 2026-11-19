@@ -20,6 +20,7 @@ import { TextField } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
 import { isRequired } from "../submissionForm";
+import { answerWhenLeft } from "./answerWhenLeft";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -49,13 +50,7 @@ function NumberAnswer({ question, values, disabled, onChange, onAnswered }: Answ
       }}
       helperText={question.description}
       onChange={event => onChange([ event.target.value ])}
-      // A value the browser cannot parse reads as "", like a cleared field, and would clear the stored
-      // answer. `badInput` tells the two apart.
-      onBlur={event => {
-        if (!event.target.validity.badInput) {
-          onAnswered([ event.target.value ].filter(Boolean));
-        }
-      }}
+      onBlur={answerWhenLeft(onAnswered)}
     />
   );
 }

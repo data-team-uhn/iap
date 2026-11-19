@@ -20,6 +20,7 @@ import { TextField } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
 import { isRequired } from "../submissionForm";
+import { answerWhenLeft } from "./answerWhenLeft";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -38,13 +39,7 @@ function DateAnswer({ question, values, disabled, onChange, onAnswered }: Answer
       slotProps={{ inputLabel: { shrink: true } }}
       helperText={question.description}
       onChange={event => onChange([ event.target.value ])}
-      // A half-typed day reads as "", like a cleared field, and would clear the stored answer.
-      // `badInput` tells the two apart.
-      onBlur={event => {
-        if (!event.target.validity.badInput) {
-          onAnswered([ event.target.value ].filter(Boolean));
-        }
-      }}
+      onBlur={answerWhenLeft(onAnswered)}
     />
   );
 }

@@ -20,8 +20,9 @@ import { useEffect, useState } from "react";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, readJson, RequestError } from "@iap/frontend-commons/requestFailure";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 
-import { type JsonNode, type SchemaChoice, SCHEMAS_URL, schemaChoices } from "./schemaModel";
+import { type SchemaChoice, SCHEMAS_URL, schemaChoices } from "./schemaModel";
 
 export interface SchemasOnOffer {
   /** What may be picked; empty until the read has settled, and when it failed. */
@@ -55,7 +56,7 @@ export function useSchemas(): SchemasOnOffer {
           if (typeof body !== "object" || body === null) {
             throw new SyntaxError("The list of schemas is not a node");
           }
-          return body as JsonNode;
+          return body as SerializedNode;
         });
       })
       .then(tree => {
