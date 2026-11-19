@@ -183,9 +183,9 @@ The `Content` model is all you need to walk the repository (`get`, `getParent`,
 record is this about?" walk, used by both `tags` and `property`.
 
 A source whose value names something picked from a list, such as a question, also needs
-a `CandidateProvider` for its name. The module that knows those things provides it,
-which need not be the one evaluating the source: the schemas module lists a version's
-questions for `answer`.
+a `CandidateProvider` with the same source name. Any module can provide it: the
+submissions module lists a version's questions for `answer`, beside the resolver that
+reads their answers.
 
 ## The catalogue
 
