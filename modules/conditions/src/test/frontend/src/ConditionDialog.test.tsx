@@ -30,9 +30,11 @@ import { stubPhone } from "@iap/frontend-commons/phone.fixture";
 
 const FIELDS: Record<string, ReturnType<OperandSource["shape"]>> = {
   age: { type: "long", multiple: false },
+  weight: { type: "double", multiple: false },
   colours: {
     type: "text", multiple: true, choices: [ { value: "red", label: "Red" }, { value: "blue", label: "Blue" } ],
   },
+  size: { type: "text", multiple: false, choices: [ { value: "s", label: "Small" }, { value: "l", label: "Large" } ] },
   due: { type: "date", multiple: false },
   consent: { type: "boolean", multiple: false },
   notes: { type: "text", multiple: true },
@@ -120,7 +122,7 @@ describe("ConditionDialog", () => {
     const value = within(condition).getByRole("textbox", { name: "Value" });
     expect(value).toBeRequired();
     expect(value).toHaveAttribute("inputmode", "numeric");
-    fireEvent.change(value, { target: { value: "adult" } });
+    fireEvent.change(value, { target: { value: "-" } });
     expect(within(condition).getByText("Enter a whole number.")).toBeInTheDocument();
     expect(summary(dialog)).toBeUndefined();
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
@@ -202,6 +204,9 @@ describe("ConditionDialog", () => {
     fireEvent.change(within(condition).getByRole("textbox", { name: "Value" }), { target: { value: "1" } });
     expect(summary(dialog)).toBe("Only when the number of values in the field colours is more than 1");
     await pick(condition, "Using", "The values");
+    // Comparing the values themselves is a choice, not a missing one
+    fireEvent.blur(within(condition).getByRole("combobox", { name: "Using" }));
+    expect(within(condition).queryByText("A value is required")).not.toBeInTheDocument();
     expect(within(condition).getByRole("combobox", { name: "Comparison" })).toHaveTextContent("is");
     fireEvent.click(within(dialog).getByRole("button", { name: "Add a condition" }));
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
@@ -234,6 +239,10 @@ describe("ConditionDialog", () => {
     fireEvent.click(await screen.findByRole("option", { name: "No" }));
     expect(summary(dialog)).toBe("Only when the field consent is “No”");
 
+    await pick(condition, "Field", "size");
+    fireEvent.click(await screen.findByRole("option", { name: "Large" }));
+    expect(summary(dialog)).toBe("Only when the field size is “Large”");
+
     await pick(condition, "Field", "due");
     const date = within(condition).getByLabelText(/Value/);
     expect(date).toHaveAttribute("type", "date");
@@ -242,8 +251,11 @@ describe("ConditionDialog", () => {
     fireEvent.change(date, { target: { value: "" } });
     expect(summary(dialog)).toBeUndefined();
 
+    await pick(condition, "Field", "weight");
+    expect(within(condition).getByRole("textbox", { name: "Value" })).toHaveAttribute("inputmode", "decimal");
+
     await pick(condition, "Field", "free");
-    expect(within(condition).getByRole("textbox", { name: "Value" })).toHaveAttribute("inputmode", "text");
+    expect(within(condition).getByRole("textbox", { name: "Value" })).not.toHaveAttribute("inputmode");
 
     await pick(condition, "Comparison", "is empty");
     expect(within(condition).queryByRole("combobox", { name: "Compared with" })).not.toBeInTheDocument();

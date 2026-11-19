@@ -16,17 +16,13 @@
  * limitations under the License.
  */
 
-import { escapeJQL } from "../escape";
+import { type Choice } from "../inputs/choices";
+import { isBlank } from "../inputs/valueInput";
 import { isDecimalNumber, isWholeNumber } from "../numberText";
 import { isNode, type SerializedNode } from "../serializedNode";
 
 // What a field holds: text, a whole number, a number, a boolean, or a reference to another node.
 export type FieldKind = "text" | "long" | "double" | "boolean" | "reference";
-
-export interface FieldChoice {
-  value: string;
-  label: string;
-}
 
 // A field that an update event may change, as the `fields` serialization lists it in `@fields`
 // (see updateContent in docs/workflows.md). The server checks a patch against the same rules, and
@@ -48,7 +44,7 @@ export interface ContentField {
   // For a reference, the path the nodes it may point at are under; anywhere if absent
   referenceRoot?: string;
   // The values the field may take; any value of its kind if absent
-  choices?: FieldChoice[];
+  choices?: Choice[];
   // Applies only while that property holds one of these values; an empty property name applies nowhere
   appliesWhen?: { property: string; values: string[] };
   // What content of its type starts with, which is what it holds when it is not set
@@ -152,7 +148,7 @@ const entered = (value: FieldValue): string[] => {
   if (typeof value === "boolean") {
     return [ String(value) ];
   }
-  return (Array.isArray(value) ? value : [ value ]).map(text => text.trim()).filter(text => text !== "");
+  return (Array.isArray(value) ? value : [ value ]).filter(text => !isBlank(text)).map(text => text.trim());
 };
 
 // Whether a field applies. The property it depends on is read from the values being entered when it
@@ -225,36 +221,3 @@ export const blockingFields = (fields: ContentField[], values: FieldValues, node
     const value = patchValueOf(field, values[field.name]);
     return value === undefined || field.mandatory && value === null;
   });
-
-// The JCR-SQL2 query for the nodes a reference field may point at: the nodes of its type, under its
-// root. Undefined when it names no type, since any path may then be entered.
-export function referenceQuery(field: Pick<ContentField, "referenceType" | "referenceRoot">): string | undefined {
-  if (!field.referenceType) {
-    return undefined;
-  }
-  const root = field.referenceRoot?.replace(/(.)\/+$/, "$1");
-  return `select * from [nt:base] as n where n.[sling:resourceType] = '${escapeJQL(field.referenceType)}'`
-    + (root ? ` and isdescendantnode(n, '${escapeJQL(root)}')` : "");
-}
-
-export interface ReferenceCandidate {
-  path: string;
-  label: string;
-  // The node's `jcr:uuid`, if it has one, which a reference may store instead of the path
-  identifier?: string;
-}
-
-// A node a reference may point at, labelled by its title or label, or else by its path under the
-// root; undefined for a node without a path
-export function candidateOf(node: SerializedNode, referenceRoot?: string): ReferenceCandidate | undefined {
-  const path = node["@path"];
-  if (typeof path !== "string") {
-    return undefined;
-  }
-  const named = [ node.title, node.label ].find(name => typeof name === "string" && name.trim() !== "");
-  const root = referenceRoot?.replace(/\/*$/, "/");
-  const relative = root && path.startsWith(root) ? path.substring(root.length) : path;
-  const identifier = node["jcr:uuid"];
-  return { path, label: typeof named === "string" ? named : relative,
-    ...typeof identifier === "string" ? { identifier } : {} };
-}
