@@ -27,18 +27,167 @@
                   targetNamespace="https://iap.uhndata.io/demos/researchProposal">
   <bpmn:process id="researchProposal" name="Research proposal" isExecutable="true">
     <bpmn:startEvent id="created" name="Proposal started">
-      <bpmn:outgoing>toCheckProposal</bpmn:outgoing>
+      <bpmn:outgoing>toChooseRoute</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="toCheckProposal" sourceRef="created" targetRef="is_proposal" />
+    <bpmn:sequenceFlow id="toChooseRoute" sourceRef="created" targetRef="chooseRoute" />
+    <bpmn:userTask id="chooseRoute" iap:performers="@creator" iap:requirement="protocol" name="Say whether there is a protocol">
+      <bpmn:incoming>toChooseRoute</bpmn:incoming>
+      <bpmn:incoming>toChooseRouteAgain</bpmn:incoming>
+      <bpmn:outgoing>toRoute</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toRoute" sourceRef="chooseRoute" targetRef="route" />
+    <bpmn:exclusiveGateway id="route" default="toChooseRouteAgain" name="Is there a protocol?">
+      <bpmn:incoming>toRoute</bpmn:incoming>
+      <bpmn:outgoing>toUploadProposal</bpmn:outgoing>
+      <bpmn:outgoing>toFillQuestionnaire</bpmn:outgoing>
+      <bpmn:outgoing>toChooseRouteAgain</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toUploadProposal" name="Yes" sourceRef="route" targetRef="uploadProposal">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>answer</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>protocol/hasProtocol</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>true</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toFillQuestionnaire" name="No" sourceRef="route" targetRef="fillQuestionnaire">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>answer</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>protocol/hasProtocol</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>false</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toChooseRouteAgain" name="Not answered" sourceRef="route" targetRef="chooseRoute" />
+    <bpmn:userTask id="uploadProposal" iap:performers="@creator" iap:requirement="proposal" name="Upload the protocol">
+      <bpmn:incoming>toUploadProposal</bpmn:incoming>
+      <bpmn:incoming>toUploadInstead</bpmn:incoming>
+      <bpmn:incoming>toUploadOnSend</bpmn:incoming>
+      <bpmn:outgoing>toStillWithProtocol</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toStillWithProtocol" sourceRef="uploadProposal" targetRef="stillWithProtocol" />
+    <bpmn:exclusiveGateway id="stillWithProtocol" default="toParseProposal" name="Still with a protocol?">
+      <bpmn:incoming>toStillWithProtocol</bpmn:incoming>
+      <bpmn:outgoing>toQuestionnaireInstead</bpmn:outgoing>
+      <bpmn:outgoing>toCheckedBefore</bpmn:outgoing>
+      <bpmn:outgoing>toParseProposal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toQuestionnaireInstead" name="Changed to no" sourceRef="stillWithProtocol" targetRef="fillQuestionnaire">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>answer</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>protocol/hasProtocol</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>false</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toCheckedBefore" name="Already checked" sourceRef="stillWithProtocol" targetRef="isProposal">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>is not empty</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>validation</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>is_proposal</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toParseProposal" sourceRef="stillWithProtocol" targetRef="parseProposal" />
+    <bpmn:serviceTask id="parseProposal" iap:handler="parseDocuments" name="Read the protocol">
+      <bpmn:incoming>toParseProposal</bpmn:incoming>
+      <bpmn:outgoing>toCheckProposal</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toCheckProposal" sourceRef="parseProposal" targetRef="is_proposal" />
     <bpmn:userTask id="is_proposal" iap:performers="iap-extraction" name="Check the upload is a research proposal">
       <bpmn:incoming>toCheckProposal</bpmn:incoming>
       <bpmn:outgoing>toIsProposal</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:sequenceFlow id="toIsProposal" sourceRef="is_proposal" targetRef="isProposal" />
-    <bpmn:exclusiveGateway id="isProposal" default="toComplete" name="Is it a research proposal?">
+    <bpmn:exclusiveGateway id="isProposal" default="toSendWithProtocol" name="Is it a research proposal?">
+      <bpmn:incoming>toCheckedBefore</bpmn:incoming>
       <bpmn:incoming>toIsProposal</bpmn:incoming>
       <bpmn:outgoing>toNotAProposal</bpmn:outgoing>
-      <bpmn:outgoing>toComplete</bpmn:outgoing>
+      <bpmn:outgoing>toSendWithProtocol</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:sequenceFlow id="toNotAProposal" name="Surely not" sourceRef="isProposal" targetRef="notAProposal">
       <bpmn:extensionElements>
@@ -71,22 +220,59 @@
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toSendWithProtocol" sourceRef="isProposal" targetRef="sendWithProtocol" />
     <bpmn:endEvent id="notAProposal" name="Not a research proposal">
       <bpmn:incoming>toNotAProposal</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:sequenceFlow id="toComplete" sourceRef="isProposal" targetRef="complete" />
-    <bpmn:userTask id="complete" iap:performers="@creator" name="Send for review">
-      <bpmn:incoming>toComplete</bpmn:incoming>
-      <bpmn:incoming>toCompleteAgain</bpmn:incoming>
-      <bpmn:outgoing>toCanSend</bpmn:outgoing>
+    <bpmn:userTask id="sendWithProtocol" iap:performers="@creator" name="Send for review">
+      <bpmn:incoming>toSendWithProtocol</bpmn:incoming>
+      <bpmn:incoming>toSendWithProtocolAgain</bpmn:incoming>
+      <bpmn:outgoing>toSentWithProtocol</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:sequenceFlow id="toCanSend" sourceRef="complete" targetRef="canSend" />
-    <bpmn:exclusiveGateway id="canSend" default="toMarkSubmitted" name="Can it be sent?">
-      <bpmn:incoming>toCanSend</bpmn:incoming>
-      <bpmn:outgoing>toCompleteAgain</bpmn:outgoing>
+    <bpmn:sequenceFlow id="toSentWithProtocol" sourceRef="sendWithProtocol" targetRef="sentWithProtocol" />
+    <bpmn:exclusiveGateway id="sentWithProtocol" default="toCanSendWithProtocol" name="Still with a protocol?">
+      <bpmn:incoming>toSentWithProtocol</bpmn:incoming>
+      <bpmn:outgoing>toQuestionnaireOnSend</bpmn:outgoing>
+      <bpmn:outgoing>toCanSendWithProtocol</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toQuestionnaireOnSend" name="Changed to no" sourceRef="sentWithProtocol" targetRef="fillQuestionnaire">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>answer</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>protocol/hasProtocol</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>false</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toCanSendWithProtocol" sourceRef="sentWithProtocol" targetRef="canSendWithProtocol" />
+    <bpmn:exclusiveGateway id="canSendWithProtocol" default="toMarkSubmitted" name="Can it be sent?">
+      <bpmn:incoming>toCanSendWithProtocol</bpmn:incoming>
+      <bpmn:outgoing>toSendWithProtocolAgain</bpmn:outgoing>
       <bpmn:outgoing>toMarkSubmitted</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="toCompleteAgain" name="A document was rejected, or something is missing" sourceRef="canSend" targetRef="complete">
+    <bpmn:sequenceFlow id="toSendWithProtocolAgain" name="A document was rejected, or something is missing" sourceRef="canSendWithProtocol" targetRef="sendWithProtocol">
       <bpmn:extensionElements>
         <sv:node sv:name="cond:condition">
           <sv:property sv:name="jcr:primaryType" sv:type="Name">
@@ -95,90 +281,222 @@
           <sv:property sv:name="requireAll" sv:type="Boolean">
             <sv:value>false</sv:value>
           </sv:property>
-            <sv:node sv:name="proposalRejected">
+          <sv:node sv:name="proposalRejected">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:SingleCondition</sv:value>
+            </sv:property>
+            <sv:property sv:name="comparator" sv:type="String">
+              <sv:value>equals</sv:value>
+            </sv:property>
+            <sv:node sv:name="operandA">
               <sv:property sv:name="jcr:primaryType" sv:type="Name">
-                <sv:value>cond:SingleCondition</sv:value>
+                <sv:value>cond:ConditionOperand</sv:value>
               </sv:property>
-              <sv:property sv:name="comparator" sv:type="String">
-                <sv:value>equals</sv:value>
+              <sv:property sv:name="source" sv:type="String">
+                <sv:value>validation</sv:value>
               </sv:property>
-              <sv:node sv:name="operandA">
-                <sv:property sv:name="jcr:primaryType" sv:type="Name">
-                  <sv:value>cond:ConditionOperand</sv:value>
-                </sv:property>
-                <sv:property sv:name="source" sv:type="String">
-                  <sv:value>validation</sv:value>
-                </sv:property>
-                <sv:property sv:name="value" sv:type="String" sv:multiple="true">
-                  <sv:value>is_proposal</sv:value>
-                </sv:property>
-              </sv:node>
-              <sv:node sv:name="operandB">
-                <sv:property sv:name="jcr:primaryType" sv:type="Name">
-                  <sv:value>cond:ConditionOperand</sv:value>
-                </sv:property>
-                <sv:property sv:name="value" sv:type="String" sv:multiple="true">
-                  <sv:value>no</sv:value>
-                </sv:property>
-              </sv:node>
+              <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+                <sv:value>is_proposal</sv:value>
+              </sv:property>
             </sv:node>
-            <sv:node sv:name="questionnaireRejected">
+            <sv:node sv:name="operandB">
               <sv:property sv:name="jcr:primaryType" sv:type="Name">
-                <sv:value>cond:SingleCondition</sv:value>
+                <sv:value>cond:ConditionOperand</sv:value>
               </sv:property>
-              <sv:property sv:name="comparator" sv:type="String">
-                <sv:value>equals</sv:value>
+              <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+                <sv:value>no</sv:value>
               </sv:property>
-              <sv:node sv:name="operandA">
-                <sv:property sv:name="jcr:primaryType" sv:type="Name">
-                  <sv:value>cond:ConditionOperand</sv:value>
-                </sv:property>
-                <sv:property sv:name="source" sv:type="String">
-                  <sv:value>validation</sv:value>
-                </sv:property>
-                <sv:property sv:name="value" sv:type="String" sv:multiple="true">
-                  <sv:value>is_questionnaire</sv:value>
-                </sv:property>
-              </sv:node>
-              <sv:node sv:name="operandB">
-                <sv:property sv:name="jcr:primaryType" sv:type="Name">
-                  <sv:value>cond:ConditionOperand</sv:value>
-                </sv:property>
-                <sv:property sv:name="value" sv:type="String" sv:multiple="true">
-                  <sv:value>no</sv:value>
-                </sv:property>
-              </sv:node>
             </sv:node>
-            <sv:node sv:name="incomplete">
+          </sv:node>
+          <sv:node sv:name="questionnaireRejected">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:SingleCondition</sv:value>
+            </sv:property>
+            <sv:property sv:name="comparator" sv:type="String">
+              <sv:value>equals</sv:value>
+            </sv:property>
+            <sv:node sv:name="operandA">
               <sv:property sv:name="jcr:primaryType" sv:type="Name">
-                <sv:value>cond:SingleCondition</sv:value>
+                <sv:value>cond:ConditionOperand</sv:value>
               </sv:property>
-              <sv:property sv:name="comparator" sv:type="String">
-                <sv:value>includes</sv:value>
+              <sv:property sv:name="source" sv:type="String">
+                <sv:value>validation</sv:value>
               </sv:property>
-              <sv:node sv:name="operandA">
-                <sv:property sv:name="jcr:primaryType" sv:type="Name">
-                  <sv:value>cond:ConditionOperand</sv:value>
-                </sv:property>
-                <sv:property sv:name="source" sv:type="String">
-                  <sv:value>tags</sv:value>
-                </sv:property>
-              </sv:node>
-              <sv:node sv:name="operandB">
-                <sv:property sv:name="jcr:primaryType" sv:type="Name">
-                  <sv:value>cond:ConditionOperand</sv:value>
-                </sv:property>
-                <sv:property sv:name="value" sv:type="String" sv:multiple="true">
-                  <sv:value>incomplete</sv:value>
-                </sv:property>
-              </sv:node>
+              <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+                <sv:value>is_questionnaire</sv:value>
+              </sv:property>
             </sv:node>
+            <sv:node sv:name="operandB">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name">
+                <sv:value>cond:ConditionOperand</sv:value>
+              </sv:property>
+              <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+                <sv:value>no</sv:value>
+              </sv:property>
+            </sv:node>
+          </sv:node>
+          <sv:node sv:name="incomplete">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:SingleCondition</sv:value>
+            </sv:property>
+            <sv:property sv:name="comparator" sv:type="String">
+              <sv:value>includes</sv:value>
+            </sv:property>
+            <sv:node sv:name="operandA">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name">
+                <sv:value>cond:ConditionOperand</sv:value>
+              </sv:property>
+              <sv:property sv:name="source" sv:type="String">
+                <sv:value>tags</sv:value>
+              </sv:property>
+            </sv:node>
+            <sv:node sv:name="operandB">
+              <sv:property sv:name="jcr:primaryType" sv:type="Name">
+                <sv:value>cond:ConditionOperand</sv:value>
+              </sv:property>
+              <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+                <sv:value>incomplete</sv:value>
+              </sv:property>
+            </sv:node>
+          </sv:node>
         </sv:node>
       </bpmn:extensionElements>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="toMarkSubmitted" sourceRef="canSend" targetRef="markSubmitted" />
-    <bpmn:serviceTask id="markSubmitted" iap:handler="addTag" iap:replaceExisting="true" iap:tag="submitted" name="Mark it submitted">
+    <bpmn:sequenceFlow id="toMarkSubmitted" sourceRef="canSendWithProtocol" targetRef="markSubmitted" />
+    <bpmn:userTask id="fillQuestionnaire" iap:performers="@creator" iap:requirement="questionnaire" name="Answer the questionnaire">
+      <bpmn:incoming>toFillQuestionnaire</bpmn:incoming>
+      <bpmn:incoming>toQuestionnaireInstead</bpmn:incoming>
+      <bpmn:incoming>toQuestionnaireOnSend</bpmn:incoming>
+      <bpmn:outgoing>toStillWithoutProtocol</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toStillWithoutProtocol" sourceRef="fillQuestionnaire" targetRef="stillWithoutProtocol" />
+    <bpmn:exclusiveGateway id="stillWithoutProtocol" default="toGenerateProposal" name="Still without a protocol?">
+      <bpmn:incoming>toStillWithoutProtocol</bpmn:incoming>
+      <bpmn:outgoing>toUploadInstead</bpmn:outgoing>
+      <bpmn:outgoing>toGenerateProposal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toUploadInstead" name="Changed to yes" sourceRef="stillWithoutProtocol" targetRef="uploadProposal">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>answer</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>protocol/hasProtocol</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>true</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toGenerateProposal" sourceRef="stillWithoutProtocol" targetRef="generateProposal" />
+    <bpmn:serviceTask id="generateProposal" iap:handler="generateDocument" iap:requirement="generatedProposal" name="Write the proposal from the answers">
+      <bpmn:incoming>toGenerateProposal</bpmn:incoming>
+      <bpmn:outgoing>toSendWithoutProtocol</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toSendWithoutProtocol" sourceRef="generateProposal" targetRef="sendWithoutProtocol" />
+    <bpmn:userTask id="sendWithoutProtocol" iap:performers="@creator" name="Send for review">
+      <bpmn:incoming>toSendWithoutProtocol</bpmn:incoming>
+      <bpmn:incoming>toSendWithoutProtocolAgain</bpmn:incoming>
+      <bpmn:outgoing>toSentWithoutProtocol</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toSentWithoutProtocol" sourceRef="sendWithoutProtocol" targetRef="sentWithoutProtocol" />
+    <bpmn:exclusiveGateway id="sentWithoutProtocol" default="toFinalProposal" name="Still without a protocol?">
+      <bpmn:incoming>toSentWithoutProtocol</bpmn:incoming>
+      <bpmn:outgoing>toUploadOnSend</bpmn:outgoing>
+      <bpmn:outgoing>toFinalProposal</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toUploadOnSend" name="Changed to yes" sourceRef="sentWithoutProtocol" targetRef="uploadProposal">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>answer</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>protocol/hasProtocol</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>true</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toFinalProposal" sourceRef="sentWithoutProtocol" targetRef="finalProposal" />
+    <bpmn:serviceTask id="finalProposal" iap:handler="generateDocument" iap:requirement="generatedProposal" name="Write the proposal from the final answers">
+      <bpmn:incoming>toFinalProposal</bpmn:incoming>
+      <bpmn:outgoing>toCanSendWithoutProtocol</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toCanSendWithoutProtocol" sourceRef="finalProposal" targetRef="canSendWithoutProtocol" />
+    <bpmn:exclusiveGateway id="canSendWithoutProtocol" default="toMarkSubmittedWithoutProtocol" name="Can it be sent?">
+      <bpmn:incoming>toCanSendWithoutProtocol</bpmn:incoming>
+      <bpmn:outgoing>toSendWithoutProtocolAgain</bpmn:outgoing>
+      <bpmn:outgoing>toMarkSubmittedWithoutProtocol</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toSendWithoutProtocolAgain" name="Something is missing" sourceRef="canSendWithoutProtocol" targetRef="sendWithoutProtocol">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>includes</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>tags</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>incomplete</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toMarkSubmittedWithoutProtocol" sourceRef="canSendWithoutProtocol" targetRef="markSubmitted" />
+    <bpmn:serviceTask id="markSubmitted" iap:handler="addTag" iap:tag="submitted" iap:replaceExisting="true" name="Mark it submitted">
       <bpmn:incoming>toMarkSubmitted</bpmn:incoming>
+      <bpmn:incoming>toMarkSubmittedWithoutProtocol</bpmn:incoming>
       <bpmn:outgoing>toReview</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toReview" sourceRef="markSubmitted" targetRef="review" />
@@ -187,12 +505,12 @@
       <bpmn:outgoing>toRecord</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:sequenceFlow id="toRecord" sourceRef="review" targetRef="record" />
-    <bpmn:serviceTask id="record" name="Write the decision down" iap:handler="recordReview" iap:requirement="review">
+    <bpmn:serviceTask id="record" iap:handler="recordReview" iap:requirement="review" name="Write the decision down">
       <bpmn:incoming>toRecord</bpmn:incoming>
       <bpmn:outgoing>toDecision</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toDecision" sourceRef="record" targetRef="decision" />
-    <bpmn:exclusiveGateway id="decision" name="Approved?" default="toRejected">
+    <bpmn:exclusiveGateway id="decision" default="toRejected" name="Approved?">
       <bpmn:incoming>toDecision</bpmn:incoming>
       <bpmn:outgoing>toApproved</bpmn:outgoing>
       <bpmn:outgoing>toRejected</bpmn:outgoing>
@@ -239,119 +557,270 @@
   <bpmndi:BPMNDiagram id="researchProposalDiagram">
     <bpmndi:BPMNPlane id="researchProposalPlane" bpmnElement="researchProposal">
       <bpmndi:BPMNShape id="createdShape" bpmnElement="created">
-        <dc:Bounds x="160" y="180" width="36" height="36" />
+        <dc:Bounds x="100" y="262" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="139" y="223" width="79" height="14" />
+          <dc:Bounds x="70" y="304" width="96" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="completeShape" bpmnElement="complete">
-        <dc:Bounds x="550" y="158" width="100" height="80" />
+      <bpmndi:BPMNShape id="chooseRouteShape" bpmnElement="chooseRoute">
+        <dc:Bounds x="180" y="240" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="canSendShape" bpmnElement="canSend" isMarkerVisible="true">
-        <dc:Bounds x="695" y="173" width="50" height="50" />
+      <bpmndi:BPMNShape id="routeShape" bpmnElement="route" isMarkerVisible="true">
+        <dc:Bounds x="330" y="255" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="680" y="143" width="80" height="14" />
+          <dc:Bounds x="295" y="311" width="120" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="markSubmittedShape" bpmnElement="markSubmitted">
-        <dc:Bounds x="800" y="158" width="100" height="80" />
+      <bpmndi:BPMNShape id="uploadProposalShape" bpmnElement="uploadProposal">
+        <dc:Bounds x="430" y="60" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="reviewShape" bpmnElement="review">
-        <dc:Bounds x="950" y="158" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="recordShape" bpmnElement="record">
-        <dc:Bounds x="1100" y="158" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision" isMarkerVisible="true">
-        <dc:Bounds x="1260" y="173" width="50" height="50" />
+      <bpmndi:BPMNShape id="stillWithProtocolShape" bpmnElement="stillWithProtocol" isMarkerVisible="true">
+        <dc:Bounds x="580" y="75" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1259" y="143" width="53" height="14" />
+          <dc:Bounds x="539" y="131" width="132" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="approvedShape" bpmnElement="approved">
-        <dc:Bounds x="1370" y="100" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1344" y="143" width="88" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="rejectedShape" bpmnElement="rejected">
-        <dc:Bounds x="1370" y="260" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1348" y="303" width="80" height="14" />
-        </bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="parseProposalShape" bpmnElement="parseProposal">
+        <dc:Bounds x="680" y="60" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="is_proposalShape" bpmnElement="is_proposal">
-        <dc:Bounds x="250" y="158" width="100" height="80" />
+        <dc:Bounds x="830" y="60" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="isProposalShape" bpmnElement="isProposal" isMarkerVisible="true">
-        <dc:Bounds x="410" y="173" width="50" height="50" />
+        <dc:Bounds x="980" y="75" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="370" y="143" width="130" height="14" />
+          <dc:Bounds x="927" y="131" width="156" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="notAProposalShape" bpmnElement="notAProposal">
-        <dc:Bounds x="417" y="280" width="36" height="36" />
+        <dc:Bounds x="987" y="-8" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="375" y="323" width="120" height="14" />
+          <dc:Bounds x="936" y="34" width="138" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="sendWithProtocolShape" bpmnElement="sendWithProtocol">
+        <dc:Bounds x="1080" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="sentWithProtocolShape" bpmnElement="sentWithProtocol" isMarkerVisible="true">
+        <dc:Bounds x="1230" y="75" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1189" y="131" width="132" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="canSendWithProtocolShape" bpmnElement="canSendWithProtocol" isMarkerVisible="true">
+        <dc:Bounds x="1330" y="75" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1310" y="131" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="fillQuestionnaireShape" bpmnElement="fillQuestionnaire">
+        <dc:Bounds x="430" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="stillWithoutProtocolShape" bpmnElement="stillWithoutProtocol" isMarkerVisible="true">
+        <dc:Bounds x="580" y="435" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="530" y="491" width="150" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="generateProposalShape" bpmnElement="generateProposal">
+        <dc:Bounds x="680" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="sendWithoutProtocolShape" bpmnElement="sendWithoutProtocol">
+        <dc:Bounds x="830" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="sentWithoutProtocolShape" bpmnElement="sentWithoutProtocol" isMarkerVisible="true">
+        <dc:Bounds x="980" y="435" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="930" y="491" width="150" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="finalProposalShape" bpmnElement="finalProposal">
+        <dc:Bounds x="1080" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="canSendWithoutProtocolShape" bpmnElement="canSendWithoutProtocol" isMarkerVisible="true">
+        <dc:Bounds x="1230" y="435" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1210" y="491" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markSubmittedShape" bpmnElement="markSubmitted">
+        <dc:Bounds x="1450" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="reviewShape" bpmnElement="review">
+        <dc:Bounds x="1600" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="recordShape" bpmnElement="record">
+        <dc:Bounds x="1750" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision" isMarkerVisible="true">
+        <dc:Bounds x="1900" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1895" y="311" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approvedShape" bpmnElement="approved">
+        <dc:Bounds x="2000" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1967" y="224" width="102" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="rejectedShape" bpmnElement="rejected">
+        <dc:Bounds x="2000" y="342" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1970" y="384" width="96" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toChooseRouteEdge" bpmnElement="toChooseRoute">
+        <di:waypoint x="136" y="280" />
+        <di:waypoint x="180" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRouteEdge" bpmnElement="toRoute">
+        <di:waypoint x="280" y="280" />
+        <di:waypoint x="330" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toUploadProposalEdge" bpmnElement="toUploadProposal">
+        <di:waypoint x="355" y="255" />
+        <di:waypoint x="355" y="100" />
+        <di:waypoint x="430" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toFillQuestionnaireEdge" bpmnElement="toFillQuestionnaire">
+        <di:waypoint x="355" y="305" />
+        <di:waypoint x="355" y="460" />
+        <di:waypoint x="430" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toChooseRouteAgainEdge" bpmnElement="toChooseRouteAgain">
+        <di:waypoint x="355" y="305" />
+        <di:waypoint x="355" y="360" />
+        <di:waypoint x="230" y="360" />
+        <di:waypoint x="230" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toStillWithProtocolEdge" bpmnElement="toStillWithProtocol">
+        <di:waypoint x="530" y="100" />
+        <di:waypoint x="580" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toQuestionnaireInsteadEdge" bpmnElement="toQuestionnaireInstead">
+        <di:waypoint x="605" y="125" />
+        <di:waypoint x="605" y="390" />
+        <di:waypoint x="480" y="390" />
+        <di:waypoint x="480" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toCheckedBeforeEdge" bpmnElement="toCheckedBefore">
+        <di:waypoint x="630" y="100" />
+        <di:waypoint x="980" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toParseProposalEdge" bpmnElement="toParseProposal">
+        <di:waypoint x="630" y="100" />
+        <di:waypoint x="680" y="100" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toCheckProposalEdge" bpmnElement="toCheckProposal">
-        <di:waypoint x="196" y="198" />
-        <di:waypoint x="250" y="198" />
+        <di:waypoint x="780" y="100" />
+        <di:waypoint x="830" y="100" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toIsProposalEdge" bpmnElement="toIsProposal">
-        <di:waypoint x="350" y="198" />
-        <di:waypoint x="410" y="198" />
+        <di:waypoint x="930" y="100" />
+        <di:waypoint x="980" y="100" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toNotAProposalEdge" bpmnElement="toNotAProposal">
-        <di:waypoint x="435" y="223" />
-        <di:waypoint x="435" y="280" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="442" y="245" width="55" height="14" />
-        </bpmndi:BPMNLabel>
+        <di:waypoint x="1005" y="75" />
+        <di:waypoint x="1005" y="28" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toCompleteEdge" bpmnElement="toComplete">
-        <di:waypoint x="460" y="198" />
-        <di:waypoint x="550" y="198" />
+      <bpmndi:BPMNEdge id="toSendWithProtocolEdge" bpmnElement="toSendWithProtocol">
+        <di:waypoint x="1030" y="100" />
+        <di:waypoint x="1080" y="100" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toCanSendEdge" bpmnElement="toCanSend">
-        <di:waypoint x="650" y="198" />
-        <di:waypoint x="695" y="198" />
+      <bpmndi:BPMNEdge id="toSentWithProtocolEdge" bpmnElement="toSentWithProtocol">
+        <di:waypoint x="1180" y="100" />
+        <di:waypoint x="1230" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toQuestionnaireOnSendEdge" bpmnElement="toQuestionnaireOnSend">
+        <di:waypoint x="1255" y="125" />
+        <di:waypoint x="1255" y="390" />
+        <di:waypoint x="480" y="390" />
+        <di:waypoint x="480" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toCanSendWithProtocolEdge" bpmnElement="toCanSendWithProtocol">
+        <di:waypoint x="1280" y="100" />
+        <di:waypoint x="1330" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toSendWithProtocolAgainEdge" bpmnElement="toSendWithProtocolAgain">
+        <di:waypoint x="1355" y="125" />
+        <di:waypoint x="1355" y="180" />
+        <di:waypoint x="1130" y="180" />
+        <di:waypoint x="1130" y="140" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toMarkSubmittedEdge" bpmnElement="toMarkSubmitted">
-        <di:waypoint x="745" y="198" />
-        <di:waypoint x="800" y="198" />
+        <di:waypoint x="1355" y="125" />
+        <di:waypoint x="1355" y="280" />
+        <di:waypoint x="1450" y="280" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toCompleteAgainEdge" bpmnElement="toCompleteAgain">
-        <di:waypoint x="720" y="223" />
-        <di:waypoint x="720" y="290" />
-        <di:waypoint x="600" y="290" />
-        <di:waypoint x="600" y="238" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="585" y="296" width="170" height="14" />
-        </bpmndi:BPMNLabel>
+      <bpmndi:BPMNEdge id="toStillWithoutProtocolEdge" bpmnElement="toStillWithoutProtocol">
+        <di:waypoint x="530" y="460" />
+        <di:waypoint x="580" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toUploadInsteadEdge" bpmnElement="toUploadInstead">
+        <di:waypoint x="605" y="435" />
+        <di:waypoint x="605" y="170" />
+        <di:waypoint x="480" y="170" />
+        <di:waypoint x="480" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toGenerateProposalEdge" bpmnElement="toGenerateProposal">
+        <di:waypoint x="630" y="460" />
+        <di:waypoint x="680" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toSendWithoutProtocolEdge" bpmnElement="toSendWithoutProtocol">
+        <di:waypoint x="780" y="460" />
+        <di:waypoint x="830" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toSentWithoutProtocolEdge" bpmnElement="toSentWithoutProtocol">
+        <di:waypoint x="930" y="460" />
+        <di:waypoint x="980" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toUploadOnSendEdge" bpmnElement="toUploadOnSend">
+        <di:waypoint x="1005" y="435" />
+        <di:waypoint x="1005" y="170" />
+        <di:waypoint x="480" y="170" />
+        <di:waypoint x="480" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toFinalProposalEdge" bpmnElement="toFinalProposal">
+        <di:waypoint x="1030" y="460" />
+        <di:waypoint x="1080" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toCanSendWithoutProtocolEdge" bpmnElement="toCanSendWithoutProtocol">
+        <di:waypoint x="1180" y="460" />
+        <di:waypoint x="1230" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toSendWithoutProtocolAgainEdge" bpmnElement="toSendWithoutProtocolAgain">
+        <di:waypoint x="1255" y="485" />
+        <di:waypoint x="1255" y="540" />
+        <di:waypoint x="880" y="540" />
+        <di:waypoint x="880" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toMarkSubmittedWithoutProtocolEdge" bpmnElement="toMarkSubmittedWithoutProtocol">
+        <di:waypoint x="1255" y="435" />
+        <di:waypoint x="1255" y="280" />
+        <di:waypoint x="1450" y="280" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toReviewEdge" bpmnElement="toReview">
-        <di:waypoint x="900" y="198" />
-        <di:waypoint x="950" y="198" />
+        <di:waypoint x="1550" y="280" />
+        <di:waypoint x="1600" y="280" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toRecordEdge" bpmnElement="toRecord">
-        <di:waypoint x="1050" y="198" />
-        <di:waypoint x="1100" y="198" />
+        <di:waypoint x="1700" y="280" />
+        <di:waypoint x="1750" y="280" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
-        <di:waypoint x="1200" y="198" />
-        <di:waypoint x="1260" y="198" />
+        <di:waypoint x="1850" y="280" />
+        <di:waypoint x="1900" y="280" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toApprovedEdge" bpmnElement="toApproved">
-        <di:waypoint x="1285" y="173" />
-        <di:waypoint x="1285" y="118" />
-        <di:waypoint x="1370" y="118" />
+        <di:waypoint x="1925" y="255" />
+        <di:waypoint x="1925" y="200" />
+        <di:waypoint x="2000" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toRejectedEdge" bpmnElement="toRejected">
-        <di:waypoint x="1285" y="223" />
-        <di:waypoint x="1285" y="278" />
-        <di:waypoint x="1370" y="278" />
+        <di:waypoint x="1925" y="305" />
+        <di:waypoint x="1925" y="360" />
+        <di:waypoint x="2000" y="360" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

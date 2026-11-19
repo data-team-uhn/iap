@@ -6,7 +6,21 @@
     "version": "1.0",
     "tags": ["active"],
     "jcr:reference:workflow": "/Workflows/researchProposal/v1",
-    "description": "Submit a research proposal for review. Upload the proposal document first: what it says about the study is read out of it and filled in below for you to check and complete, then a reviewer decides.",
+    "description": "Submit a research proposal for review. With a protocol, upload it: what it says about the study is read out of it and filled in for you to check and complete. Without one, answer a questionnaire and the proposal is written from your answers. Then a reviewer decides.",
+    // Asked first: the answer picks the route. Every requirement of one route has a condition on it, so the
+    // answers of the other route stay stored but hidden, and switching back finds them again.
+    "protocol": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Study protocol",
+      "description": "With a protocol, upload it and the form is filled in from it. Without one, answer a few questions and the proposal is written for you.",
+      "hasProtocol": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Do you have a study protocol?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "maxAnswers": 1
+      }
+    },
     "proposal": {
       "jcr:primaryType": "sch:DocumentRequirement",
       "label": "research proposal",
@@ -16,7 +30,13 @@
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/msword"
       ],
-      "required": true
+      "required": true,
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "protocol/hasProtocol" ] },
+        "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "true" ] }
+      }
     },
     // Checked by the model as soon as the proposal is parsed, with the protocol structure (template.md)
     // as reference. A sure no stops the request: the intake in /Workflows/researchProposal ends there.
@@ -25,6 +45,12 @@
       "jcr:primaryType": "sch:ValidationRequirement",
       "label": "Is this a research proposal?",
       "description": "Checked from the uploaded document.",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "protocol/hasProtocol" ] },
+        "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "true" ] }
+      },
       "document": "proposal",
       "confidenceThreshold": 0.7,
       "prompt": "Decide whether this document is a research study protocol or research proposal. Use the protocol structure reference given above these instructions as domain knowledge. A protocol describes a study that is planned or underway; its structure covers a substantial part of that reference: background or rationale, objectives, design or methods, participants or data sources, and usually safety, statistics, ethics or consent, references. Order and naming vary; a document does not need every section to qualify, and abbreviated protocols and protocol synopses count. Judge the outline - the table of contents, or else the headings in the text - by how well it maps onto the reference, and the text as evidence of what the document actually contains. Not protocols: informed-consent forms, blank questionnaires or surveys, budgets, contracts and agreements, CVs, ethics-board letters or approvals, administrative letters, operating manuals, and published papers (Results or Findings, journal headers, past-tense reporting of completed work). Judge what the document IS, not what it mentions: a consent form that refers to the study protocol is still a consent form. Do not guess: if you cannot tell safely, report that the answer was not found."
@@ -35,6 +61,12 @@
       "jcr:primaryType": "sch:FormRequirement",
       "label": "Kind of study",
       "description": "Picked from your proposal where it could be. Confirm it, or pick another: it decides which questions come next.",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "protocol/hasProtocol" ] },
+        "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "true" ] }
+      },
       "kind": {
         "jcr:primaryType": "sch:Question",
         "text": "What kind of study is this?",
@@ -48,6 +80,12 @@
     "proposal_category": {
       "jcr:primaryType": "sch:ClassificationRequirement",
       "label": "What kind of study is this?",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "protocol/hasProtocol" ] },
+        "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "true" ] }
+      },
       "document": "proposal",
       "jcr:reference:question": "/Schemas/researchProposal/v1/category/kind",
       "confidenceThreshold": 0.7,
@@ -58,6 +96,12 @@
       "label": "The study",
       "documents": [ "proposal" ],
       "description": "What every proposal is asked, whatever kind of study it turns out to be. Filled in from the document where it could be; check and complete it.",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "protocol/hasProtocol" ] },
+        "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "true" ] }
+      },
       "title": {
         "jcr:primaryType": "sch:Question",
         "text": "What is the title of the study?",
@@ -170,15 +214,25 @@
       "description": "Asked only of prospective studies: those that meet participants or collect something new from them.",
       // Read from the proposal, and shown, only for the kind of study the submitter confirmed. Both
       // conditions name every category path that should trigger them: the condition vocabulary compares
-      // against a list of values, and has no way to test a path prefix.
+      // against a list of values, and has no way to test a path prefix. The route is checked too: a
+      // category confirmed before switching to no protocol is still stored.
       "cond:condition": {
-        "jcr:primaryType": "cond:SingleCondition",
-        "comparator": "includes any",
-        "operandA": {
-          "jcr:primaryType": "cond:ConditionOperand",
-          "source": "answer",
-          "value": [ "category/kind" ]
+        "jcr:primaryType": "cond:ConditionGroup",
+        "requireAll": true,
+        "withProtocol": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "protocol/hasProtocol" ] },
+          "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "true" ] }
         },
+        "prospective": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "includes any",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [ "category/kind" ]
+          },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
             "value": [
@@ -192,6 +246,7 @@
               "/Categories/Proposal/Prospective/Interventional/ClinicalTrials"
             ]
           }
+        }
       },
       "consent": {
         "jcr:primaryType": "sch:Question",
@@ -207,13 +262,22 @@
       "documents": [ "proposal" ],
       "description": "Asked only of retrospective studies: those that work from records or specimens collected before the study began.",
       "cond:condition": {
-        "jcr:primaryType": "cond:SingleCondition",
-        "comparator": "includes any",
-        "operandA": {
-          "jcr:primaryType": "cond:ConditionOperand",
-          "source": "answer",
-          "value": [ "category/kind" ]
+        "jcr:primaryType": "cond:ConditionGroup",
+        "requireAll": true,
+        "withProtocol": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "protocol/hasProtocol" ] },
+          "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "true" ] }
         },
+        "retrospective": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "includes any",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [ "category/kind" ]
+          },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
             "value": [
@@ -222,6 +286,7 @@
               "/Categories/Proposal/Retrospective/RetrospectiveBiospecimen"
             ]
           }
+        }
       },
       "dataSources": {
         "jcr:primaryType": "sch:Question",
@@ -229,6 +294,205 @@
         "dataType": "text",
         "purpose": "Whether the study stays within data that already exists, and which custodians have to release it",
         "extractionPrompt": "Name the existing data sources or specimen collections the study uses: patient charts, registries, databases, banked specimens, earlier research datasets. Give the date range of the records or specimens as the proposal states it."
+      }
+    },
+    // Without a protocol, these answers fill the proposal template (generatedProposal/template). Its tags
+    // name the questions by path, e.g. submission.answers.questionnaire.study.studyTitle, so renaming a node here
+    // means changing the template too.
+    "questionnaire": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Your study",
+      "description": "Your answers are written into a research proposal, which you can download and check before sending it.",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "protocol/hasProtocol" ] },
+        "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "false" ] }
+      },
+      "study": {
+        "jcr:primaryType": "sch:Section",
+        "title": "The study",
+        "studyTitle": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What is the title of the study?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "maxAnswers": 1
+        },
+        "versionDate": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What date should this version of the proposal carry?",
+          "dataType": "date",
+          "maxAnswers": 1
+        },
+        "population": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who is the study population?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "maxAnswers": 1
+        },
+        "dataStart": {
+          "jcr:primaryType": "sch:Question",
+          "text": "From which date do you need data?",
+          "dataType": "date",
+          "minAnswers": 1,
+          "maxAnswers": 1
+        },
+        "dataEnd": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Up to which date do you need data?",
+          "dataType": "date",
+          "minAnswers": 1,
+          "maxAnswers": 1
+        }
+      },
+      "investigators": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Investigators",
+        "piName": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who is the principal investigator?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "maxAnswers": 1
+        },
+        "piTitle": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What is the principal investigator's title or position?",
+          "dataType": "text",
+          "maxAnswers": 1
+        },
+        "piContact": {
+          "jcr:primaryType": "sch:Question",
+          "text": "How can the principal investigator be reached?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "maxAnswers": 1
+        },
+        "coInvestigators": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who are the co-investigators?",
+          "dataType": "text",
+          "maxAnswers": 0
+        }
+      },
+      "objectives": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Background and objectives",
+        "background": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What is the background of the study, and what are its objectives?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "maxAnswers": 1
+        }
+      },
+      "requestedData": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Requested data",
+        "summary": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Describe the data you are requesting.",
+          "dataType": "text",
+          "maxAnswers": 1
+        },
+        "internalData": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which internal DHP data do you need?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "demographics": { "jcr:primaryType": "sch:AnswerOption", "value": "demographics", "label": "Patient cohort and demographics" },
+          "imaging": { "jcr:primaryType": "sch:AnswerOption", "value": "imaging", "label": "Imaging reports" },
+          "transplant": { "jcr:primaryType": "sch:AnswerOption", "value": "transplant", "label": "Transplant" },
+          "procedures": { "jcr:primaryType": "sch:AnswerOption", "value": "procedures", "label": "Procedures (treatments and tests)" },
+          "labs": { "jcr:primaryType": "sch:AnswerOption", "value": "labs", "label": "Labs, assessments or bloodwork results" },
+          "diagnoses": { "jcr:primaryType": "sch:AnswerOption", "value": "diagnoses", "label": "Diagnoses" },
+          "medications": { "jcr:primaryType": "sch:AnswerOption", "value": "medications", "label": "Medications" },
+          "clinicNotes": { "jcr:primaryType": "sch:AnswerOption", "value": "clinicNotes", "label": "Clinic notes" },
+          "cardiology": { "jcr:primaryType": "sch:AnswerOption", "value": "cardiology", "label": "Cardiology" }
+        }
+      },
+      "subjects": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Selection of subjects",
+        "inclusion": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who is included in the study?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "maxAnswers": 1
+        },
+        "exclusion": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who is excluded from the study?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "maxAnswers": 1
+        }
+      },
+      "analysis": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Statistical analysis",
+        "methods": {
+          "jcr:primaryType": "sch:Question",
+          "text": "How will the data be analysed?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "maxAnswers": 1
+        }
+      },
+      "consent": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Waiver of consent",
+        "waiverJustification": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Why should the need for consent be waived?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "maxAnswers": 1
+        }
+      },
+      "dataHandling": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Data handling and record keeping",
+        "attestations": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Confirm each of these.",
+          "dataType": "text",
+          "minAnswers": 4,
+          "maxAnswers": 0,
+          "processing": { "jcr:primaryType": "sch:AnswerOption", "value": "processing", "label": "All data processing (including AI analysis) will be done within UHN managed environments (HPC4Health, UHN-managed cloud environments, or internally networked computers with no data submitted to external software)." },
+          "storage": { "jcr:primaryType": "sch:AnswerOption", "value": "storage", "label": "Storage of study records will follow the Management, Retention & Destruction of UHN Records Policy." },
+          "transport": { "jcr:primaryType": "sch:AnswerOption", "value": "transport", "label": "Transport of study records will follow the Management, Retention & Destruction of UHN Records Policy." },
+          "destruction": { "jcr:primaryType": "sch:AnswerOption", "value": "destruction", "label": "Destruction of study records will follow the Management, Retention & Destruction of UHN Records Policy." }
+        }
+      },
+      "references": {
+        "jcr:primaryType": "sch:Section",
+        "title": "References",
+        "sources": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which references does the proposal cite?",
+          "dataType": "text",
+          "maxAnswers": 1
+        }
+      }
+    },
+    // Written from the questionnaire by the workflow (generateProposal, then again on sending). The
+    // submitter may upload an edited .docx instead, which is sent as it is.
+    "generatedProposal": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "research proposal",
+      "description": "Written from your answers. Download it to check it, or upload your own edited version as a .docx.",
+      "generated": true,
+      "skipParsing": true,
+      "acceptedFileTypes": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "protocol/hasProtocol" ] },
+        "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "false" ] }
       }
     },
     "administrative": {

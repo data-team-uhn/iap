@@ -6,25 +6,182 @@
     "version": "1.0",
     "bpmnAuthoritative": true,
     "tags": ["active"],
-    "description": "A researcher uploads a proposal, which is first checked to be one, checks what was read into the form, and sends it for review. A reviewer then accepts or refuses it.",
+    "description": "A researcher says whether they have a protocol. With one, it is uploaded, checked to be one, and read into the form; without one, a questionnaire is answered and the proposal is written from it. The researcher then sends it for review, and a reviewer accepts or refuses it.",
     "created": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "created",
       "label": "Proposal started",
       "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toChooseRoute": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toChooseRoute",
+        "targetRef": "chooseRoute"
+      }
+    },
+    // The submitter first says whether they have a protocol. Every later submitter task looks at that
+    // answer again, so changing it moves the request to the other route.
+    "chooseRoute": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "chooseRoute",
+      "label": "Say whether there is a protocol",
+      "performers": [
+        "@creator"
+      ],
+      "requirement": "protocol",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toRoute": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRoute",
+        "targetRef": "route"
+      }
+    },
+    "route": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "route",
+      "label": "Is there a protocol?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toUploadProposal": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUploadProposal",
+        "label": "Yes",
+        "targetRef": "uploadProposal",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "protocol/hasProtocol"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "true"
+            ]
+          }
+        }
+      },
+      "toFillQuestionnaire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFillQuestionnaire",
+        "label": "No",
+        "targetRef": "fillQuestionnaire",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "protocol/hasProtocol"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "false"
+            ]
+          }
+        }
+      },
+      "toChooseRouteAgain": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toChooseRouteAgain",
+        "label": "Not answered",
+        "targetRef": "chooseRoute",
+        "isDefault": true
+      }
+    },
+    "uploadProposal": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "uploadProposal",
+      "label": "Upload the protocol",
+      "performers": [
+        "@creator"
+      ],
+      "requirement": "proposal",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toStillWithProtocol": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toStillWithProtocol",
+        "targetRef": "stillWithProtocol"
+      }
+    },
+    "stillWithProtocol": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "stillWithProtocol",
+      "label": "Still with a protocol?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toQuestionnaireInstead": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toQuestionnaireInstead",
+        "label": "Changed to no",
+        "targetRef": "fillQuestionnaire",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "protocol/hasProtocol"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "false"
+            ]
+          }
+        }
+      },
+      "toCheckedBefore": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCheckedBefore",
+        "label": "Already checked",
+        "targetRef": "isProposal",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "is not empty",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "validation",
+            "value": [
+              "is_proposal"
+            ]
+          }
+        }
+      },
+      "toParseProposal": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toParseProposal",
+        "targetRef": "parseProposal",
+        "isDefault": true
+      }
+    },
+    "parseProposal": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "parseProposal",
+      "label": "Read the protocol",
+      "handler": "parseDocuments",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toCheckProposal": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toCheckProposal",
         "targetRef": "is_proposal"
       }
     },
-    // The intake: waits here until the extraction job has checked the upload (only iap-extraction
-    // performs it), then goes on unless the model is sure the upload is not what was asked for.
+    // Waits until the extraction job has checked the upload (only iap-extraction performs it), then goes
+    // on unless the model is sure the upload is not what was asked for.
     "is_proposal": {
       "jcr:primaryType": "wf:Activity",
       "elementId": "is_proposal",
       "label": "Check the upload is a research proposal",
-      "performers": [ "iap-extraction" ],
+      "performers": [
+        "iap-extraction"
+      ],
       "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
       "toIsProposal": {
         "jcr:primaryType": "wf:SequenceFlow",
@@ -48,18 +205,22 @@
           "operandA": {
             "jcr:primaryType": "cond:ConditionOperand",
             "source": "validation",
-            "value": [ "is_proposal" ]
+            "value": [
+              "is_proposal"
+            ]
           },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
-            "value": [ "no" ]
+            "value": [
+              "no"
+            ]
           }
         }
       },
-      "toComplete": {
+      "toSendWithProtocol": {
         "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toComplete",
-        "targetRef": "complete",
+        "elementId": "toSendWithProtocol",
+        "targetRef": "sendWithProtocol",
         "isDefault": true
       }
     },
@@ -69,32 +230,67 @@
       "label": "Not a research proposal",
       "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
     },
-    // The researcher confirms the kind of study, checks what was read from the proposal, answers the
-    // rest, and sends it.
-    "complete": {
+    // The researcher confirms the kind of study, checks what was read from the protocol, answers the rest,
+    // and sends it.
+    "sendWithProtocol": {
       "jcr:primaryType": "wf:Activity",
-      "elementId": "complete",
+      "elementId": "sendWithProtocol",
       "label": "Send for review",
       "performers": [
         "@creator"
       ],
       "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
-      "toCanSend": {
+      "toSentWithProtocol": {
         "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toCanSend",
-        "targetRef": "canSend"
+        "elementId": "toSentWithProtocol",
+        "targetRef": "sentWithProtocol"
       }
     },
-    "canSend": {
+    "sentWithProtocol": {
       "jcr:primaryType": "wf:ExclusiveGateway",
-      "elementId": "canSend",
+      "elementId": "sentWithProtocol",
+      "label": "Still with a protocol?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toQuestionnaireOnSend": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toQuestionnaireOnSend",
+        "label": "Changed to no",
+        "targetRef": "fillQuestionnaire",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "protocol/hasProtocol"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "false"
+            ]
+          }
+        }
+      },
+      "toCanSendWithProtocol": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCanSendWithProtocol",
+        "targetRef": "canSendWithProtocol",
+        "isDefault": true
+      }
+    },
+    "canSendWithProtocol": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "canSendWithProtocol",
       "label": "Can it be sent?",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
-      "toCompleteAgain": {
+      "toSendWithProtocolAgain": {
         "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toCompleteAgain",
+        "elementId": "toSendWithProtocolAgain",
         "label": "A document was rejected, or something is missing",
-        "targetRef": "complete",
+        "targetRef": "sendWithProtocol",
         "cond:condition": {
           "jcr:primaryType": "cond:ConditionGroup",
           "requireAll": false,
@@ -151,6 +347,166 @@
       "toMarkSubmitted": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toMarkSubmitted",
+        "targetRef": "markSubmitted",
+        "isDefault": true
+      }
+    },
+    // Without a protocol, the answers to the questionnaire are written into the proposal template instead.
+    "fillQuestionnaire": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "fillQuestionnaire",
+      "label": "Answer the questionnaire",
+      "performers": [
+        "@creator"
+      ],
+      "requirement": "questionnaire",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toStillWithoutProtocol": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toStillWithoutProtocol",
+        "targetRef": "stillWithoutProtocol"
+      }
+    },
+    "stillWithoutProtocol": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "stillWithoutProtocol",
+      "label": "Still without a protocol?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toUploadInstead": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUploadInstead",
+        "label": "Changed to yes",
+        "targetRef": "uploadProposal",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "protocol/hasProtocol"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "true"
+            ]
+          }
+        }
+      },
+      "toGenerateProposal": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toGenerateProposal",
+        "targetRef": "generateProposal",
+        "isDefault": true
+      }
+    },
+    "generateProposal": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "generateProposal",
+      "label": "Write the proposal from the answers",
+      "handler": "generateDocument",
+      "requirement": "generatedProposal",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toSendWithoutProtocol": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toSendWithoutProtocol",
+        "targetRef": "sendWithoutProtocol"
+      }
+    },
+    "sendWithoutProtocol": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "sendWithoutProtocol",
+      "label": "Send for review",
+      "performers": [
+        "@creator"
+      ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toSentWithoutProtocol": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toSentWithoutProtocol",
+        "targetRef": "sentWithoutProtocol"
+      }
+    },
+    "sentWithoutProtocol": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "sentWithoutProtocol",
+      "label": "Still without a protocol?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toUploadOnSend": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUploadOnSend",
+        "label": "Changed to yes",
+        "targetRef": "uploadProposal",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "protocol/hasProtocol"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "true"
+            ]
+          }
+        }
+      },
+      "toFinalProposal": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFinalProposal",
+        "targetRef": "finalProposal",
+        "isDefault": true
+      }
+    },
+    // Answers may have changed since the proposal was written. Skipped when the submitter uploaded their
+    // own version.
+    "finalProposal": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "finalProposal",
+      "label": "Write the proposal from the final answers",
+      "handler": "generateDocument",
+      "requirement": "generatedProposal",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toCanSendWithoutProtocol": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCanSendWithoutProtocol",
+        "targetRef": "canSendWithoutProtocol"
+      }
+    },
+    "canSendWithoutProtocol": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "canSendWithoutProtocol",
+      "label": "Can it be sent?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toSendWithoutProtocolAgain": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toSendWithoutProtocolAgain",
+        "label": "Something is missing",
+        "targetRef": "sendWithoutProtocol",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "includes",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "tags"
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "incomplete"
+            ]
+          }
+        }
+      },
+      "toMarkSubmittedWithoutProtocol": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMarkSubmittedWithoutProtocol",
         "targetRef": "markSubmitted",
         "isDefault": true
       }
@@ -215,11 +571,15 @@
           "operandA": {
             "jcr:primaryType": "cond:ConditionOperand",
             "source": "variable",
-            "value": [ "outcome" ]
+            "value": [
+              "outcome"
+            ]
           },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
-            "value": [ "approved" ]
+            "value": [
+              "approved"
+            ]
           }
         }
       },
