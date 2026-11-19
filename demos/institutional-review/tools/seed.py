@@ -21,6 +21,8 @@ attaching documents, sending it. What the platform has no way to make yet (the A
 open reviews, the review clock running for days) is written as admin, with the Sling POST servlet.
 
     python3 demos/institutional-review/tools/seed.py --url http://localhost:8083
+
+Needs Python 3 with `requests`. `--clear` deletes every submission first, to start over.
 """
 
 import argparse
@@ -190,12 +192,13 @@ def file_study(researcher, admin, content, study):
     with open(protocol_file(content, study["nct"]), "rb") as protocol:
         researcher.post(f"{path}.attachDocument.json", {"requirement": "protocol"},
                         files={"file": (f"{study['nct']} protocol.pdf", protocol, "application/pdf")})
-    with tempfile.TemporaryDirectory() as scratch:
-        variables = pathlib.Path(scratch) / "Variable list.pdf"
+    # Made once and kept with the seed, so seeding needs no browser; made afresh only when missing
+    variables = content / "variables" / f"{study['nct']}.pdf"
+    if not variables.exists():
         variable_list_pdf(study, variables)
-        with open(variables, "rb") as listing:
-            researcher.post(f"{path}.attachDocument.json", {"requirement": "variables"},
-                            files={"file": ("Variable list.pdf", listing, "application/pdf")})
+    with open(variables, "rb") as listing:
+        researcher.post(f"{path}.attachDocument.json", {"requirement": "variables"},
+                        files={"file": ("Variable list.pdf", listing, "application/pdf")})
     return path
 
 
@@ -390,7 +393,11 @@ def main():
     parser.add_argument("--url", default="http://localhost:8083")
     parser.add_argument("--content", default=str(pathlib.Path(__file__).resolve().parent.parent / "seed"))
     parser.add_argument("--only", nargs="*")
+    parser.add_argument("--clear", action="store_true", help="delete every submission first, to start over")
     args = parser.parse_args()
+    if args.clear:
+        subprocess.run([sys.executable, str(pathlib.Path(__file__).resolve().parent / "clear_submissions.py"),
+                        args.url], check=True)
     content = pathlib.Path(args.content)
     admin = Instance(args.url, "admin")
     researcher = Instance(args.url, "researcher")
