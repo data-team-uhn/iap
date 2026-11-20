@@ -20,16 +20,12 @@ package io.uhndata.iap.workflows.models;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
-import org.apache.sling.api.resource.ModifiableValueMap;
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -42,7 +38,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityHomepage;
 import io.uhndata.iap.entities.models.EntityPart;
-import io.uhndata.iap.tags.models.Taggable;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 
 /**
@@ -54,12 +50,6 @@ import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
  */
 public final class WorkflowFixture
 {
-    /** The lifecycle tags the engine tests place, with the categories their shipped definitions give them. */
-    public static final Map<String, List<String>> LIFECYCLE_TAGS = Map.of(
-        "draft", List.of("lifecycle"),
-        "approved", List.of("lifecycle", "review"),
-        "rejected", List.of("lifecycle", "review"));
-
     /** The {@code sling:resourceType} property name, spelled out often enough to be worth a constant. */
     public static final String TYPE = "sling:resourceType";
 
@@ -74,6 +64,10 @@ public final class WorkflowFixture
      * to compile instead of quietly leaving them building versions the engine will skip.
      */
     public static final String ACTIVE = WorkflowVersion.ACTIVE_TAG;
+
+    private static final String LIFECYCLE = "lifecycle";
+
+    private static final String REVIEW = "review";
 
     private WorkflowFixture()
     {
@@ -188,24 +182,18 @@ public final class WorkflowFixture
      * installed. The engine replaces a host's lifecycle tag when a workflow finishes, so without this every run
      * that reaches an end event carrying a {@code hostTag} fails on the absent tags service.
      *
-     * <p>Records into the resource's own {@code tags} property, which is where the service writes for real, so
-     * a test can read back what a workflow placed and what it retired.</p>
+     * <p>The lifecycle tags the engine tests place get the categories their shipped definitions give them, so a
+     * test can read back what a workflow placed and what it retired.</p>
      *
      * @param context the mock context whose resources become taggable
-     * @param categories each tag's categories, by tag name; a tag left out belongs to none
      */
-    public static void enableTagging(final SlingContext context, final Map<String, List<String>> categories)
+    public static void enableTagging(final SlingContext context)
     {
-        context.registerAdapter(Resource.class, Taggable.class, (Function<Resource, Taggable>) resource -> {
-            final Taggable taggable = Mockito.mock(Taggable.class);
-            try {
-                stubTagging(taggable, resource, categories);
-            } catch (final PersistenceException e) {
-                // Stubbing never reaches the real method, so this cannot happen; the signature says otherwise
-                throw new IllegalStateException(e);
-            }
-            return taggable;
-        });
+        PropertyTagging.builder()
+            .inCategories("draft", LIFECYCLE)
+            .inCategories("approved", LIFECYCLE, REVIEW)
+            .inCategories("rejected", LIFECYCLE, REVIEW)
+            .installIn(context);
     }
 
     /**
@@ -217,58 +205,5 @@ public final class WorkflowFixture
     public static Set<String> tags(final Resource resource)
     {
         return new LinkedHashSet<>(List.of(resource.getValueMap().get("tags", new String[0])));
-    }
-
-    /**
-     * Replaces the tags placed on a resource.
-     *
-     * @param resource a resource
-     * @param names its tags from now on
-     */
-    public static void writeTags(final Resource resource, final Set<String> names)
-    {
-        Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class)).put("tags", names.toArray(new String[0]));
-    }
-
-    /**
-     * Teaches a mocked {@code Taggable} to replace and report tags on the resource's own property. Only replacing
-     * with system tags allowed is stubbed, since that is how the engine moves a host between lifecycle tags.
-     *
-     * @param taggable the mock to stub
-     * @param resource the resource it stands for
-     * @param categories each tag's categories, by tag name
-     * @throws PersistenceException never; the stubbed method declares it
-     */
-    private static void stubTagging(final Taggable taggable, final Resource resource,
-        final Map<String, List<String>> categories) throws PersistenceException
-    {
-        Mockito.when(taggable.tagReplacing(Mockito.anyString(), Mockito.eq(true))).thenAnswer(invocation -> {
-            final Set<String> before = tags(resource);
-            final Set<String> after = afterReplacing(before, invocation.getArgument(0), categories);
-            writeTags(resource, after);
-            return !after.equals(before);
-        });
-        Mockito.when(taggable.hasOwnTag(Mockito.anyString())).thenAnswer(invocation ->
-            tags(resource).contains(invocation.getArgument(0)));
-    }
-
-    /**
-     * What a resource's tags become when a tag replaces those sharing any of its categories. A tag belonging to
-     * no category retires nothing.
-     *
-     * @param tags the tags placed now
-     * @param tag the tag being placed
-     * @param categories each tag's categories, by tag name
-     * @return the tags afterwards, in order
-     */
-    private static Set<String> afterReplacing(final Set<String> tags, final String tag,
-        final Map<String, List<String>> categories)
-    {
-        final List<String> claimed = categories.getOrDefault(tag, List.of());
-        final Set<String> result = new LinkedHashSet<>(tags);
-        result.removeIf(existing -> !existing.equals(tag)
-            && categories.getOrDefault(existing, List.of()).stream().anyMatch(claimed::contains));
-        result.add(tag);
-        return result;
     }
 }

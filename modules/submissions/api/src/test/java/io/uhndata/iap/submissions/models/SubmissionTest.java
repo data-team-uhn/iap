@@ -50,6 +50,7 @@ import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstances;
 
@@ -269,7 +270,7 @@ class SubmissionTest
     @Test
     void reportsApprovedWhenTaggedApproved()
     {
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "approved" });
         final Submission submission = resource.adaptTo(Submission.class);
@@ -281,7 +282,7 @@ class SubmissionTest
     void reportsApprovedWhenApprovedIsAmongOtherTags()
     {
         // The lifecycle tag shares the multivalued property with unrelated markers
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags",
             new String[] { "sensitive", "approved", "external" });
@@ -305,7 +306,7 @@ class SubmissionTest
     @Test
     void reportsNotApprovedForOtherTags()
     {
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "in-review" });
         final Submission submission = resource.adaptTo(Submission.class);
@@ -316,7 +317,7 @@ class SubmissionTest
     @Test
     void reportsDraftWhenTaggedDraft()
     {
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "draft" });
         final Submission submission = resource.adaptTo(Submission.class);
@@ -327,7 +328,7 @@ class SubmissionTest
     @Test
     void reportsNotDraftForOtherTags()
     {
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "in-review" });
         final Submission submission = resource.adaptTo(Submission.class);
@@ -451,7 +452,7 @@ class SubmissionTest
     void reportsABlankAnswerAsStored()
         throws RepositoryException
     {
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         this.createSchemaVersionWithRequirements();
         final Submission submission = this.createFulfilledExceptQ2(new String[]{ "   " });
 
@@ -609,7 +610,7 @@ class SubmissionTest
         throws RepositoryException
     {
         this.createSchemaVersionWithRequirements();
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         return this.context.create().resource(SUBMISSION_PATH, SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE)
             .adaptTo(Submission.class);
     }

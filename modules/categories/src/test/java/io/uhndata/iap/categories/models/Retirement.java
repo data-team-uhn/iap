@@ -17,19 +17,18 @@
  */
 package io.uhndata.iap.categories.models;
 
-import java.util.Set;
-import java.util.function.Function;
+import java.util.Arrays;
+import java.util.Objects;
 
-import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
-import org.mockito.Mockito;
 
-import io.uhndata.iap.tags.models.Taggable;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 
 /**
- * Retires categories in a mock repository. The tags service that the {@code Taggable} model reads through does not
- * run under sling-mock. In Oak, an inheritable tag placed on one node is copied onto its whole subtree at commit
- * time. This class reproduces that from the paths the tag is placed on.
+ * Retires categories in a mock repository. In Oak, an inheritable tag placed on one node is copied onto its whole
+ * subtree at commit time. Here the {@code retired} tag is placed on the given categories and declared inheritable, so
+ * the categories under them carry it too.
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,19 +43,15 @@ final class Retirement
     /**
      * Retires the given categories and everything under them.
      *
-     * @param context the mock context to register the {@code Taggable} adapter in
-     * @param paths the paths of the categories that carry the {@code retired} tag themselves
+     * @param context the mock context to install the tags in
+     * @param paths the paths of existing categories that carry the {@code retired} tag themselves
      */
     static void retire(final SlingContext context, final String... paths)
     {
-        final Set<String> tagged = Set.of(paths);
-        context.registerAdapter(Resource.class, Taggable.class, (Function<Resource, Taggable>) resource -> {
-            final String path = resource.getPath();
-            final Taggable taggable = Mockito.mock(Taggable.class);
-            Mockito.when(taggable.hasOwnTag(Category.RETIRED_TAG)).thenReturn(tagged.contains(path));
-            Mockito.when(taggable.hasTag(Category.RETIRED_TAG)).thenReturn(
-                tagged.stream().anyMatch(marked -> path.equals(marked) || path.startsWith(marked + "/")));
-            return taggable;
-        });
+        PropertyTagging.builder().inheritable(Category.RETIRED_TAG).installIn(context);
+        Arrays.stream(paths)
+            .map(path -> Objects.requireNonNull(context.resourceResolver().getResource(path)))
+            .forEach(category -> Objects.requireNonNull(category.adaptTo(ModifiableValueMap.class))
+                .put("tags", new String[] {Category.RETIRED_TAG}));
     }
 }

@@ -156,7 +156,7 @@ class UserWorkflowTest
     void setUp()
     {
         WorkflowFixture.setUp(this.context);
-        WorkflowFixture.enableTagging(this.context, WorkflowFixture.LIFECYCLE_TAGS);
+        WorkflowFixture.enableTagging(this.context);
         this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
         // The engine records the person it acted for as createdBy, which @creator reads
         this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"},

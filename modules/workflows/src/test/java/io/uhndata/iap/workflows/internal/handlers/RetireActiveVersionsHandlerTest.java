@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
@@ -63,7 +64,7 @@ class RetireActiveVersionsHandlerTest
     void setUp()
     {
         AuthoringFixture.setUp(this.context);
-        TaggingFixture.enable(this.context);
+        PropertyTagging.installIn(this.context);
         this.activity = AuthoringFixture.activity(this.context, "retire",
             Map.of("handler", RetireActiveVersionsHandler.HANDLER_NAME));
     }

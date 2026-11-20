@@ -35,6 +35,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -73,7 +74,7 @@ class DataRequirementTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Requirement.class,
             DataRequirement.class, Catalogue.class, CatalogueVersion.class, Selection.class);
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
     }
 
     /** Makes the references to the catalogue and to its first version resolve, as a real repository would. */

@@ -33,6 +33,7 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.models.Taggable;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -55,7 +56,7 @@ class TimeOffUrgencyTest
     @BeforeEach
     void setUp()
     {
-        PropertyTags.installIn(this.context);
+        PropertyTagging.installIn(this.context);
         this.requests = TimeOffRequests.installIn(this.context);
     }
 

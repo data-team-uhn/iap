@@ -252,4 +252,21 @@
       <artifactId>javax.annotation-api</artifactId>
     </dependency>
   </dependencies>
+
+  <profiles>
+    <!-- Other modules' test jars, which only a build that runs the tests produces -->
+    <profile>
+      <id>tests</id>
+      <dependencies>
+        <!-- PropertyTagging, which keeps tags in a mock repository -->
+        <dependency>
+          <groupId>${project.groupId}</groupId>
+          <artifactId>iap-tags-api</artifactId>
+          <version>${project.version}</version>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
 </project>

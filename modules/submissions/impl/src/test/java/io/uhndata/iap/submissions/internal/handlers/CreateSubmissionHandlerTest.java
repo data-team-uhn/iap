@@ -41,7 +41,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.submissions.internal.Tagging;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.utils.PrefixTree;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -83,7 +83,7 @@ class CreateSubmissionHandlerTest
         this.context.addModelsForClasses(Content.class, Entity.class, Schema.class, SchemaVersion.class,
             Activity.class);
         // The handler places the submission's draft tag, which needs the view the tags bundle provides
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         this.target = this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));

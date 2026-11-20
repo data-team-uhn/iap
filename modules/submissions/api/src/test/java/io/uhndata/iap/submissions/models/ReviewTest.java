@@ -37,6 +37,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -171,7 +172,7 @@ class ReviewTest
     void toleratesMissingTags()
     {
         // A freshly created review may not be tagged yet; it counts as open, not approved
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         final Resource resource = this.context.create().resource(REVIEW_PATH,
             SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
         final Review review = resource.adaptTo(Review.class);
@@ -182,7 +183,7 @@ class ReviewTest
     @Test
     void reportsApprovedWhenTaggedApproved()
     {
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         final Resource resource = this.context.create().resource(REVIEW_PATH,
             SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "tags", new String[] { "approved" });
         final Review review = resource.adaptTo(Review.class);
@@ -194,7 +195,7 @@ class ReviewTest
     void reportsApprovedWhenApprovedIsAmongOtherTags()
     {
         // The review state tag shares the multivalued property with unrelated markers
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         final Resource resource = this.context.create().resource(REVIEW_PATH,
             SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "tags", new String[] { "flagged", "approved" });
         final Review review = resource.adaptTo(Review.class);
@@ -217,7 +218,7 @@ class ReviewTest
     @Test
     void reportsNotApprovedForOtherTags()
     {
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         final Resource resource = this.context.create().resource(REVIEW_PATH,
             SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "tags", new String[] { "changes-requested" });
         final Review review = resource.adaptTo(Review.class);
@@ -228,7 +229,7 @@ class ReviewTest
     @Test
     void countsAnApprovalAsADecision()
     {
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
 
         assertTrue(this.taggedReview("approved").isDecided());
     }
@@ -236,7 +237,7 @@ class ReviewTest
     @Test
     void countsARejectionAsADecision()
     {
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
 
         assertTrue(this.taggedReview(Review.REJECTED_TAG).isDecided());
     }
@@ -244,7 +245,7 @@ class ReviewTest
     @Test
     void leavesAnOpenReviewUndecided()
     {
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
 
         assertFalse(this.taggedReview("in-progress", "changes-requested").isDecided());
     }

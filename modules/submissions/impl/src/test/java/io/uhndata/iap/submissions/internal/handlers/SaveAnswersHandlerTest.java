@@ -52,9 +52,9 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.submissions.internal.Tagging;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -130,7 +130,7 @@ class SaveAnswersHandlerTest
         this.handler = this.context.registerInjectActivateService(new SaveAnswersHandler());
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
         this.context.create().resource(VERSION_PATH, Map.of(

@@ -54,11 +54,11 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.internal.Referenceables;
-import io.uhndata.iap.submissions.internal.Tagging;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
 import io.uhndata.iap.submissions.models.File;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
@@ -128,7 +128,7 @@ class AttachDocumentHandlerTest
             SchemaVersion.class, Question.class, FormRequirement.class, DocumentRequirement.class, Document.class,
             DocumentVersion.class, File.class, Submission.class, Activity.class);
         // Whether a request may still be changed is read from its lifecycle tag
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
         this.context.create().resource(VERSION_PATH, Map.of(

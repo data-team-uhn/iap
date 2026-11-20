@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowResult;
@@ -63,13 +64,16 @@ class AddTagHandlerTest
 
     private Resource target;
 
-    private TaggingFixture tagging;
+    private PropertyTagging tagging;
 
     @BeforeEach
     void setUp()
     {
         WorkflowFixture.setUp(this.context);
-        this.tagging = TaggingFixture.enable(this.context);
+        this.tagging = PropertyTagging.builder()
+            .inCategories("draft", "lifecycle")
+            .inCategories("active", "lifecycle")
+            .installIn(this.context);
         this.target = EngineFixture.createTarget(this.context);
         EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
     }
@@ -111,7 +115,7 @@ class AddTagHandlerTest
         this.handler.execute(context(Map.of("tag", "active", "replaceExisting", true), new HashMap<>()));
 
         assertEquals(List.of("active"), this.tagging.getReplacements());
-        assertEquals(Set.of("draft", "sensitive"), WorkflowFixture.tags(this.target));
+        assertEquals(Set.of("sensitive", "active"), WorkflowFixture.tags(this.target));
     }
 
     @Test
@@ -153,7 +157,7 @@ class AddTagHandlerTest
     void refusesATagThatCannotBePlaced()
     {
         assertThrows(WorkflowDefinitionException.class,
-            () -> this.handler.execute(context(Map.of("tag", TaggingFixture.UNDEFINED), new HashMap<>())));
+            () -> this.handler.execute(context(Map.of("tag", PropertyTagging.UNDEFINED), new HashMap<>())));
     }
 
     private void tag(final Resource resource, final String... tags)

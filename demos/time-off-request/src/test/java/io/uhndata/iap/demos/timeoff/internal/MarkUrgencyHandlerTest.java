@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,7 +60,7 @@ class MarkUrgencyHandlerTest
     @Test
     void flagsTheRequestTheEventArrivedOn() throws PersistenceException
     {
-        PropertyTags.installIn(this.context);
+        PropertyTagging.installIn(this.context);
         final TimeOffRequests requests = TimeOffRequests.installIn(this.context);
         final Resource request = requests.request(REQUEST_PATH,
             Map.of("tags", new String[] {TimeOffUrgency.SUBMITTED_TAG}));

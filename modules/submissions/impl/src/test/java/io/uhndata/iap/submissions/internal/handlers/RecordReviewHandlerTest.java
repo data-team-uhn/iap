@@ -45,10 +45,10 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.internal.Referenceables;
-import io.uhndata.iap.submissions.internal.Tagging;
 import io.uhndata.iap.submissions.models.Comment;
 import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -112,7 +112,7 @@ class RecordReviewHandlerTest
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, ApprovalRequirement.class, Review.class, Comment.class,
             Submission.class);
-        Tagging.enable(this.context);
+        PropertyTagging.installIn(this.context);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
         this.context.create().resource(VERSION_PATH, Map.of(
@@ -236,7 +236,7 @@ class RecordReviewHandlerTest
     void refusesAnOutcomeThatNamesNoStateAReviewCanBeIn()
     {
         final WorkflowDefinitionException failure = assertThrows(WorkflowDefinitionException.class,
-            () -> this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, Tagging.UNDEFINED))));
+            () -> this.handler.execute(approverCompleting(APPROVAL, Map.of(OUTCOME, PropertyTagging.UNDEFINED))));
 
         assertTrue(failure.getMessage().contains("names no state a review can be in"));
     }

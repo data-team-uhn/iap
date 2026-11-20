@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.internal.EngineFixture;
 import io.uhndata.iap.workflows.models.Activity;
@@ -62,7 +63,7 @@ class RemoveTagHandlerTest
     void setUp()
     {
         WorkflowFixture.setUp(this.context);
-        TaggingFixture.enable(this.context);
+        PropertyTagging.installIn(this.context);
         this.target = EngineFixture.createTarget(this.context);
         EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
     }
