@@ -24,7 +24,6 @@ import java.util.Calendar;
 import java.util.Dictionary;
 import java.util.Hashtable;
 import java.util.List;
-import java.util.Map;
 
 import jakarta.mail.Header;
 import jakarta.mail.MessagingException;
@@ -32,10 +31,8 @@ import jakarta.mail.Part;
 import jakarta.mail.internet.MimeMessage;
 
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
-import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.commons.messaging.mail.MailService;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -51,6 +48,7 @@ import org.osgi.framework.ServiceRegistration;
 import io.uhndata.iap.metrics.api.Metric;
 import io.uhndata.iap.metrics.api.MetricsException;
 import io.uhndata.iap.metrics.api.MetricsManager;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -92,7 +90,7 @@ class CaughtMailServiceTest
             "sling:resourceType", "mail/CaughtMailHomepage");
         Mockito.when(this.metrics.createMetric(Mockito.anyString())).thenReturn(this.builder);
         Mockito.when(this.builder.create()).thenReturn(this.metric);
-        inject(this.service, factory(this.context.resourceResolver()));
+        inject(this.service, TestResolverFactory.serving(this.context.resourceResolver()));
     }
 
     /** A builder with a sender and a recipient already set. */
@@ -417,58 +415,5 @@ class CaughtMailServiceTest
         final Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         field.set(target, value);
-    }
-
-    /**
-     * A factory that hands out the test's own resolver. A mock service resolver does not see the content the
-     * test creates.
-     *
-     * @param resolver the resolver the test wrote its content through
-     * @return a factory serving it, ignoring close so the test context keeps ownership
-     */
-    private static ResourceResolverFactory factory(final ResourceResolver resolver)
-    {
-        final ResourceResolver shared = new ResourceResolverWrapper(resolver)
-        {
-            @Override
-            public void close()
-            {
-                // The test context owns this resolver
-            }
-        };
-        return new ResourceResolverFactory()
-        {
-            @Override
-            public ResourceResolver getResourceResolver(final Map<String, Object> authenticationInfo)
-            {
-                return shared;
-            }
-
-            @Deprecated
-            @Override
-            public ResourceResolver getAdministrativeResourceResolver(final Map<String, Object> authenticationInfo)
-            {
-                return shared;
-            }
-
-            @Override
-            public ResourceResolver getServiceResourceResolver(final Map<String, Object> authenticationInfo)
-            {
-                return shared;
-            }
-
-            @Override
-            public ResourceResolver getThreadResourceResolver()
-            {
-                return shared;
-            }
-
-            @Deprecated
-            @Override
-            public List<String> getSearchPath()
-            {
-                return List.of();
-            }
-        };
     }
 }

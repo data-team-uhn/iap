@@ -48,6 +48,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -82,7 +83,7 @@ class ErrorLoggerImplTest
     {
         this.context.create().resource(ErrorLoggerService.LOGGED_ERRORS_PATH,
             "sling:resourceType", "err/LoggedErrorsHomepage");
-        this.logger = build(this.context.resourceResolver());
+        this.logger = build(TestResolverFactory.serving(this.context.resourceResolver()));
     }
 
     @AfterEach
@@ -319,7 +320,7 @@ class ErrorLoggerImplTest
     void writesEverythingTalliedInOneCommit() throws ReflectiveOperationException
     {
         final CountingResolver counting = new CountingResolver(this.context.resourceResolver());
-        final ErrorLoggerImpl batching = build(counting);
+        final ErrorLoggerImpl batching = build(TestResolverFactory.serving(counting));
 
         batching.logError(new IllegalStateException("first"));
         batching.logError(new IllegalArgumentException("second"));
@@ -332,7 +333,7 @@ class ErrorLoggerImplTest
     void queuesOneWritePerBurstRatherThanOnePerOccurrence() throws ReflectiveOperationException
     {
         final List<Runnable> pending = new ArrayList<>();
-        final ErrorLoggerImpl deferred = build(this.context.resourceResolver());
+        final ErrorLoggerImpl deferred = build(TestResolverFactory.serving(this.context.resourceResolver()));
         TestResolvers.set(deferred, "writer", (Executor) pending::add);
         final Throwable error = new IllegalStateException(BOOM);
 
@@ -361,7 +362,7 @@ class ErrorLoggerImplTest
                 super.printStackTrace(writer);
             }
         };
-        final ErrorLoggerImpl deferred = build(this.context.resourceResolver());
+        final ErrorLoggerImpl deferred = build(TestResolverFactory.serving(this.context.resourceResolver()));
         TestResolvers.set(deferred, "writer", (Executor) runnable -> {
             // Nothing runs the writer until the test flushes, so the whole burst is one tally
         });
@@ -383,7 +384,7 @@ class ErrorLoggerImplTest
         final AtomicInteger commits = new AtomicInteger();
         final CountDownLatch written = new CountDownLatch(2);
         final ErrorLoggerImpl running = new ErrorLoggerImpl();
-        TestResolvers.inject(running, new ResourceResolverWrapper(this.context.resourceResolver())
+        final ResourceResolver committing = new ResourceResolverWrapper(this.context.resourceResolver())
         {
             @Override
             public void commit() throws PersistenceException
@@ -398,7 +399,8 @@ class ErrorLoggerImplTest
             {
                 // The test context owns this resolver
             }
-        });
+        };
+        TestResolvers.inject(running, TestResolverFactory.serving(committing));
         TestResolvers.set(running, "clock", (LongSupplier) () -> this.now);
         TestResolvers.set(running, "writeInterval", 20L);
         running.activate();
@@ -429,7 +431,7 @@ class ErrorLoggerImplTest
     void stoppingWritesOutEvenWhatWasNotDueYet() throws ReflectiveOperationException
     {
         final ErrorLoggerImpl running = new ErrorLoggerImpl();
-        TestResolvers.inject(running, this.context.resourceResolver());
+        TestResolvers.inject(running, TestResolverFactory.serving(this.context.resourceResolver()));
         running.activate();
         final Throwable error = new IllegalStateException(BOOM);
         running.logError(error);
@@ -476,7 +478,7 @@ class ErrorLoggerImplTest
         // Two threads: the second occurrence arrives after the batch is taken out and before it is put back
         final CountDownLatch writing = new CountDownLatch(1);
         final CountDownLatch tallied = new CountDownLatch(1);
-        final ErrorLoggerImpl racing = build(new ResourceResolverWrapper(this.context.resourceResolver())
+        final ResourceResolver refusing = new ResourceResolverWrapper(this.context.resourceResolver())
         {
             @Override
             public void commit() throws PersistenceException
@@ -495,7 +497,8 @@ class ErrorLoggerImplTest
             {
                 // The test context owns this resolver
             }
-        });
+        };
+        final ErrorLoggerImpl racing = build(TestResolverFactory.serving(refusing));
         // A write the other thread asks for waits for the test to run it, as on the real writer's one thread. Run on
         // the other thread, it would block in the commit above
         final Thread testThread = Thread.currentThread();
@@ -526,7 +529,7 @@ class ErrorLoggerImplTest
 
         // The repository can be written to again
         TestResolvers.set(racing, "records",
-            new RecordWriter(TestResolvers.factory(this.context.resourceResolver())));
+            new RecordWriter(TestResolverFactory.serving(this.context.resourceResolver())));
         passTheWriteWindow();
         racing.flush();
 
@@ -539,15 +542,15 @@ class ErrorLoggerImplTest
     @Test
     void nothingIsLostWhenAWriteFails() throws ReflectiveOperationException
     {
-        final ErrorLoggerImpl failing = build(this.context.resourceResolver());
-        TestResolvers.set(failing, "records", new RecordWriter(TestResolvers.factory(null)));
+        final ErrorLoggerImpl failing = build(TestResolverFactory.serving(this.context.resourceResolver()));
+        TestResolvers.set(failing, "records", new RecordWriter(TestResolverFactory.withoutServiceUser()));
 
         failing.logError(new IllegalStateException(BOOM));
         assertTrue(errors().isEmpty());
 
         // The repository can be written to again
         TestResolvers.set(failing, "records",
-            new RecordWriter(TestResolvers.factory(this.context.resourceResolver())));
+            new RecordWriter(TestResolverFactory.serving(this.context.resourceResolver())));
         passTheWriteWindow();
         failing.flush();
 
@@ -559,7 +562,7 @@ class ErrorLoggerImplTest
     {
         final CountingResolver counting = new CountingResolver(this.context.resourceResolver());
         counting.failCommits = true;
-        final ErrorLoggerImpl failing = build(counting);
+        final ErrorLoggerImpl failing = build(TestResolverFactory.serving(counting));
 
         // Four faults, but the writer pauses after the third failed write
         for (int i = 0; i < 4; i++) {
@@ -580,7 +583,7 @@ class ErrorLoggerImplTest
     void aWriteThatFailsOutrightLeavesTheWriterRunning() throws ReflectiveOperationException
     {
         // Not a failed commit, but the writing itself throwing
-        final ErrorLoggerImpl brokenOnce = build(this.context.resourceResolver());
+        final ErrorLoggerImpl brokenOnce = build(TestResolverFactory.serving(this.context.resourceResolver()));
         final AtomicInteger ticks = new AtomicInteger();
         TestResolvers.set(brokenOnce, "clock", (LongSupplier) () -> {
             // The second reading is the one the writing takes; the first is the tally's
@@ -602,7 +605,7 @@ class ErrorLoggerImplTest
     void stoppingSurvivesAWriteThatFailsOutright() throws ReflectiveOperationException
     {
         final ErrorLoggerImpl running = new ErrorLoggerImpl();
-        TestResolvers.inject(running, this.context.resourceResolver());
+        TestResolvers.inject(running, TestResolverFactory.serving(this.context.resourceResolver()));
         running.activate();
         TestResolvers.set(running, "clock", (LongSupplier) () -> {
             throw new IllegalStateException("no clock");
@@ -626,7 +629,8 @@ class ErrorLoggerImplTest
     {
         final Throwable error = new IllegalStateException(BOOM);
         this.logger.logError(error);
-        final ErrorLoggerImpl readOnly = build(readOnlyErrors(this.context.resourceResolver()));
+        final ErrorLoggerImpl readOnly =
+            build(TestResolverFactory.serving(readOnlyErrors(this.context.resourceResolver())));
 
         passTheWriteWindow();
         assertDoesNotThrow(() -> readOnly.logError(error));
@@ -637,7 +641,7 @@ class ErrorLoggerImplTest
     @Test
     void survivesAnUnreachableRepository() throws ReflectiveOperationException
     {
-        final ErrorLoggerImpl unreachable = build(null);
+        final ErrorLoggerImpl unreachable = build(TestResolverFactory.withoutServiceUser());
 
         assertDoesNotThrow(() -> unreachable.logError(new IllegalStateException(BOOM)));
     }
@@ -645,7 +649,7 @@ class ErrorLoggerImplTest
     @Test
     void keepsOnlySoManyFaultsWaitingToBeWritten() throws ReflectiveOperationException
     {
-        final ErrorLoggerImpl unreachable = build(null);
+        final ErrorLoggerImpl unreachable = build(TestResolverFactory.withoutServiceUser());
 
         for (int i = 0; i < ErrorLoggerImpl.MAX_PENDING + 50; i++) {
             unreachable.logError(new IllegalStateException(BOOM), ErrorContext.of("some.Thing", "operation" + i));
@@ -659,7 +663,7 @@ class ErrorLoggerImplTest
     @Test
     void doesNotRecordAFailureRaisedWhileRecording() throws ReflectiveOperationException
     {
-        final ErrorLoggerImpl recursive = build(this.context.resourceResolver());
+        final ErrorLoggerImpl recursive = build(TestResolverFactory.serving(this.context.resourceResolver()));
         final ResourceResolver reentrant = new ResourceResolverWrapper(this.context.resourceResolver())
         {
             @Override
@@ -674,7 +678,7 @@ class ErrorLoggerImplTest
                 // The test context owns this resolver
             }
         };
-        TestResolvers.set(recursive, "records", new RecordWriter(TestResolvers.factory(reentrant)));
+        TestResolvers.set(recursive, "records", new RecordWriter(TestResolverFactory.serving(reentrant)));
 
         assertDoesNotThrow(() -> recursive.logError(new IllegalStateException(BOOM)));
     }
@@ -703,7 +707,7 @@ class ErrorLoggerImplTest
     void publishesItselfToTheFacadeWhileItRuns() throws ReflectiveOperationException
     {
         final ErrorLoggerImpl running = new ErrorLoggerImpl();
-        TestResolvers.inject(running, this.context.resourceResolver());
+        TestResolvers.inject(running, TestResolverFactory.serving(this.context.resourceResolver()));
         running.activate();
         try {
             ErrorLogger.logError(new IllegalStateException(BOOM));
@@ -739,7 +743,7 @@ class ErrorLoggerImplTest
     void givesUpWaitingForTheLastTalliesRatherThanHangingTheShutdown() throws Exception
     {
         final ErrorLoggerImpl running = new ErrorLoggerImpl();
-        TestResolvers.inject(running, this.context.resourceResolver());
+        TestResolvers.inject(running, TestResolverFactory.serving(this.context.resourceResolver()));
         running.activate();
         TestResolvers.set(running, "shutdownWait", 0L);
         // Hold the writer's thread, so that stopping has to give up waiting for it
@@ -768,7 +772,7 @@ class ErrorLoggerImplTest
     void stoppingWhileInterruptedLeavesTheThreadInterrupted() throws Exception
     {
         final ErrorLoggerImpl running = new ErrorLoggerImpl();
-        TestResolvers.inject(running, this.context.resourceResolver());
+        TestResolvers.inject(running, TestResolverFactory.serving(this.context.resourceResolver()));
         running.activate();
         TestResolvers.set(running, "shutdownWait", 2_000L);
         // Hold the writer's thread, so that stopping has to wait for it. The task must be running before the
@@ -809,14 +813,13 @@ class ErrorLoggerImplTest
     /**
      * A logger writing on the calling thread, against a clock the test controls.
      *
-     * @param resolver the repository to record into, {@code null} for one that cannot be reached
+     * @param factory logs the logger's service user in
      * @return a configured component
      * @throws ReflectiveOperationException if a field the test sets does not exist
      */
-    private ErrorLoggerImpl build(final ResourceResolver resolver) throws ReflectiveOperationException
+    private ErrorLoggerImpl build(final ResourceResolverFactory factory) throws ReflectiveOperationException
     {
         final ErrorLoggerImpl built = new ErrorLoggerImpl();
-        final ResourceResolverFactory factory = TestResolvers.factory(resolver);
         TestResolvers.set(built, "resolverFactory", factory);
         TestResolvers.set(built, "records", new RecordWriter(factory));
         TestResolvers.set(built, "writer", (Executor) Runnable::run);

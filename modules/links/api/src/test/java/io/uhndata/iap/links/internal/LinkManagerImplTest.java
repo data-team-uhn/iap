@@ -58,6 +58,7 @@ import io.uhndata.iap.links.models.InternalLinkDefinition;
 import io.uhndata.iap.links.models.Link;
 import io.uhndata.iap.links.models.LinkTypesFixture;
 import io.uhndata.iap.links.models.Linkable;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -120,25 +121,34 @@ class LinkManagerImplTest
             ExternalLink.class, Linkable.class);
         LinkTypesFixture.registerDefinitionTypes(this.context);
         this.repositoryFactory = this.context.getService(ResourceResolverFactory.class);
-        this.activateManager(this.context.resourceResolver(), this.repositoryFactory);
+        this.activateManager(this.repositoryLogins()
+            .withSubservice(LinkManagerImpl.DEFINITIONS_SUBSERVICE, this.context.resourceResolver()));
     }
 
     /**
-     * Activates a manager whose service users are served as {@link TestResolverFactory} describes. Each activation
-     * outranks the previous one, both as the factory the new manager binds and as the {@link LinkOperations} the
-     * models find, so a test can replace the manager {@link #setUp()} activated.
+     * Activates a manager whose service users log in through the given factory. Each activation outranks the
+     * previous one, both as the factory the new manager binds and as the {@link LinkOperations} the models find, so
+     * a test can replace the manager {@link #setUp()} activated.
      *
-     * @param definitionsResolver the resolver serving the definitions, or {@code null} for a missing service user
-     * @param writesDelegate the factory serving every other service user, or {@code null} for a missing one
+     * @param factory logs the manager's service users in
      */
-    private void activateManager(final ResourceResolver definitionsResolver,
-        final ResourceResolverFactory writesDelegate)
+    private void activateManager(final ResourceResolverFactory factory)
     {
         final int ranking = ++this.activations;
-        this.context.registerService(ResourceResolverFactory.class,
-            new TestResolverFactory(definitionsResolver, writesDelegate), Constants.SERVICE_RANKING, ranking);
+        this.context.registerService(ResourceResolverFactory.class, factory, Constants.SERVICE_RANKING, ranking);
         this.manager = this.context.registerInjectActivateService(new LinkManagerImpl(),
             Constants.SERVICE_RANKING, ranking);
+    }
+
+    /**
+     * Logs every service user in through the mock repository's own factory, whose resolvers see only committed
+     * content, as service resolvers do at runtime.
+     *
+     * @return a factory a test can set the definitions' service user apart in
+     */
+    private TestResolverFactory repositoryLogins()
+    {
+        return TestResolverFactory.answeredBy(this.repositoryFactory::getServiceResourceResolver);
     }
 
     private void createDefinitions()
@@ -252,7 +262,7 @@ class LinkManagerImplTest
     void treatsDefinitionsAsUnknownWithoutTheirServiceUser()
     {
         this.createDefinitions();
-        this.activateManager(null, this.repositoryFactory);
+        this.activateManager(this.repositoryLogins().withoutSubservice(LinkManagerImpl.DEFINITIONS_SUBSERVICE));
         final Resource thing = this.createThings();
         final Resource destination = this.context.resourceResolver().getResource(THING_B_PATH);
 
@@ -501,7 +511,8 @@ class LinkManagerImplTest
     {
         this.createDefinitions();
         // Definitions remain readable, only the container-creating writer user is gone
-        this.activateManager(this.context.resourceResolver(), null);
+        this.activateManager(TestResolverFactory.withoutServiceUser()
+            .withSubservice(LinkManagerImpl.DEFINITIONS_SUBSERVICE, this.context.resourceResolver()));
         final Resource owner = this.context.create().resource("/Things/fresh", Map.of(UUID_PROPERTY, THING_A_ID));
         final Resource destination = this.context.create().resource(THING_B_PATH,
             Map.of(UUID_PROPERTY, THING_B_ID));
@@ -781,7 +792,7 @@ class LinkManagerImplTest
     void recordsAVocabularyItCouldNotRead()
     {
         this.createDefinitions();
-        this.activateManager(null, this.repositoryFactory);
+        this.activateManager(this.repositoryLogins().withoutSubservice(LinkManagerImpl.DEFINITIONS_SUBSERVICE));
         final ErrorLoggerService recorder = this.recordInto();
 
         try {

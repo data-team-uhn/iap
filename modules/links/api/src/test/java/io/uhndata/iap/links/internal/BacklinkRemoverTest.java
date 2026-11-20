@@ -57,6 +57,7 @@ import io.uhndata.iap.links.models.ExternalLinkDefinition;
 import io.uhndata.iap.links.models.InternalLink;
 import io.uhndata.iap.links.models.InternalLinkDefinition;
 import io.uhndata.iap.links.models.LinkTypesFixture;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -104,8 +105,8 @@ class BacklinkRemoverTest
 
     private LinkManagerImpl manager;
 
-    /** The factory users log in through, which serves the service users too. */
-    private ResourceResolverFactory factory;
+    /** The mock repository's own factory, which users log in through. */
+    private ResourceResolverFactory repository;
 
     private BacklinkRemover remover;
 
@@ -122,11 +123,13 @@ class BacklinkRemoverTest
         this.context.addModelsForClasses(Content.class, InternalLinkDefinition.class, ExternalLinkDefinition.class,
             InternalLink.class, ExternalLink.class);
         LinkTypesFixture.registerDefinitionTypes(this.context);
-        this.factory = new TestResolverFactory(
-            this.context.resourceResolver(), this.context.getService(ResourceResolverFactory.class));
-        this.context.registerService(ResourceResolverFactory.class, this.factory);
+        this.repository = this.context.getService(ResourceResolverFactory.class);
+        final ResourceResolverFactory factory = TestResolverFactory
+            .answeredBy(this.repository::getServiceResourceResolver)
+            .withSubservice(LinkManagerImpl.DEFINITIONS_SUBSERVICE, this.context.resourceResolver());
+        this.context.registerService(ResourceResolverFactory.class, factory);
         this.manager = this.context.registerInjectActivateService(new LinkManagerImpl());
-        this.remover = new BacklinkRemover(new LinksServiceUser(this.factory, BacklinkRemoverTest.class),
+        this.remover = new BacklinkRemover(new LinksServiceUser(factory, BacklinkRemoverTest.class),
             this.manager);
         this.adminSession = this.context.resourceResolver().adaptTo(Session.class);
         this.createDefinitions();
@@ -289,8 +292,8 @@ class BacklinkRemoverTest
     @Test
     void ignoresRemovedNodesThatAreNotLinks()
     {
-        final BacklinkRemover withoutServiceUser = new BacklinkRemover(new LinksServiceUser(
-            new TestResolverFactory(this.context.resourceResolver(), null), BacklinkRemoverTest.class), this.manager);
+        final BacklinkRemover withoutServiceUser = new BacklinkRemover(
+            new LinksServiceUser(this.definitionsOnly(), BacklinkRemoverTest.class), this.manager);
         final NodeBuilder root = EmptyNodeState.EMPTY_NODE.builder();
         builderAt(root, A + "/" + LinkManager.CONTAINER_NAME + "/external")
             .setProperty("jcr:primaryType", "link:ExternalLink", Type.NAME);
@@ -429,11 +432,18 @@ class BacklinkRemoverTest
         }
     }
 
+    /** A factory serving the link type definitions, and without an {@code iap-links} service user. */
+    private ResourceResolverFactory definitionsOnly()
+    {
+        return TestResolverFactory.withoutServiceUser()
+            .withSubservice(LinkManagerImpl.DEFINITIONS_SUBSERVICE, this.context.resourceResolver());
+    }
+
     /** Runs the backlinks listener on a link with a factory that has no {@code iap-links} service user. */
     private void addBacklinkWithoutAServiceUser(final String path)
     {
-        this.context.registerService(ResourceResolverFactory.class,
-            new TestResolverFactory(this.context.resourceResolver(), null), Constants.SERVICE_RANKING, 1);
+        this.context.registerService(ResourceResolverFactory.class, this.definitionsOnly(),
+            Constants.SERVICE_RANKING, 1);
         this.context.registerInjectActivateService(new AutocreateBacklinksListener())
             .onChange(List.of(new ResourceChange(ResourceChange.ChangeType.ADDED, path, false)));
     }
@@ -458,7 +468,7 @@ class BacklinkRemoverTest
 
     private ResourceResolver login(final String name) throws LoginException
     {
-        return this.factory.getResourceResolver(Map.of(
+        return this.repository.getResourceResolver(Map.of(
             ResourceResolverFactory.USER, name,
             ResourceResolverFactory.PASSWORD, name.toCharArray()));
     }

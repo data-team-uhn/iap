@@ -45,6 +45,7 @@ import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.api.TagRepairException;
 import io.uhndata.iap.tags.api.TagRepairService.RepairReport;
 import io.uhndata.iap.tags.spi.TagProcessor.Phase;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -87,7 +88,7 @@ class TagRepairServiceImplTest
     @BeforeEach
     void setUp()
     {
-        this.service = activateServiceServedBy(serviceUserResolver());
+        this.service = activateServiceWith(TestResolverFactory.serving(serviceUserResolver()));
     }
 
     @Test
@@ -231,7 +232,7 @@ class TagRepairServiceImplTest
     void refusesWhenTheServiceUserIsMissing() throws Exception
     {
         tagged("/content/a", TagManager.TAGS_PROPERTY, RETIRED);
-        final TagRepairServiceImpl withoutServiceUser = activateServiceServedBy(null);
+        final TagRepairServiceImpl withoutServiceUser = activateServiceWith(TestResolverFactory.withoutServiceUser());
 
         assertThrows(TagRepairException.class, () -> withoutServiceUser.repair(RETIRED));
         assertNull(state("/content/a"));
@@ -240,22 +241,23 @@ class TagRepairServiceImplTest
     @Test
     void refusesWhenTheQueryCannotRun() throws Exception
     {
-        final TagRepairServiceImpl withoutQueries = activateServiceServedBy(resolverWithoutQueries());
+        final TagRepairServiceImpl withoutQueries =
+            activateServiceWith(TestResolverFactory.serving(resolverWithoutQueries()));
 
         assertThrows(TagRepairException.class, withoutQueries::repairFailed);
     }
 
     /**
-     * Activates a repair service whose service user logs in as {@link TestResolverFactory} describes. Each activation
-     * registers its factory above every earlier one, the mock repository's own included, so the new service binds it.
+     * Activates a repair service whose service user logs in through the given factory. Each activation registers its
+     * factory above every earlier one, the mock repository's own included, so the new service binds it.
      *
-     * @param resolver the resolver the service user is served, or {@code null} for a missing service user
+     * @param factory logs the service user in
      * @return the activated service
      */
-    private TagRepairServiceImpl activateServiceServedBy(final ResourceResolver resolver)
+    private TagRepairServiceImpl activateServiceWith(final ResourceResolverFactory factory)
     {
-        this.context.registerService(ResourceResolverFactory.class, new TestResolverFactory(resolver),
-            Constants.SERVICE_RANKING, ++this.activations);
+        this.context.registerService(ResourceResolverFactory.class, factory, Constants.SERVICE_RANKING,
+            ++this.activations);
         return this.context.registerInjectActivateService(new TagRepairServiceImpl());
     }
 

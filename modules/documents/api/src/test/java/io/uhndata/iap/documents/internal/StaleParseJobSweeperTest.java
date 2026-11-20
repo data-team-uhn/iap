@@ -26,12 +26,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -42,6 +40,7 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.documents.api.ParseOutcome;
 import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -225,7 +224,8 @@ class StaleParseJobSweeperTest
         final Resource job = job(OLD_JOB, ParseJob.STATUS_COMPLETED, minutesAgo(90), null);
         edit(job).put(ParseJob.PN_FINISHED, minutesAgo(45));
         this.context.resourceResolver().commit();
-        set(this.sweeper, "resolverFactory", factoryFor(refusingCommit(this.context.resourceResolver())));
+        set(this.sweeper, "resolverFactory",
+            TestResolverFactory.serving(refusingCommit(this.context.resourceResolver())));
 
         this.sweeper.run();
 
@@ -257,10 +257,7 @@ class StaleParseJobSweeperTest
     @Test
     void survivesAStorageItCannotOpen() throws Exception
     {
-        final ResourceResolverFactory refusing = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(refusing.getServiceResourceResolver(Mockito.anyMap()))
-            .thenThrow(new LoginException("no such subservice"));
-        set(this.sweeper, "resolverFactory", refusing);
+        set(this.sweeper, "resolverFactory", TestResolverFactory.withoutServiceUser());
 
         this.sweeper.run();
 
@@ -271,7 +268,8 @@ class StaleParseJobSweeperTest
     void survivesAJobNodeItCannotWrite() throws Exception
     {
         job(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(45), TARGET);
-        set(this.sweeper, "resolverFactory", factoryFor(unmodifiable(this.context.resourceResolver())));
+        set(this.sweeper, "resolverFactory",
+            TestResolverFactory.serving(unmodifiable(this.context.resourceResolver())));
 
         this.sweeper.run();
 
@@ -283,7 +281,8 @@ class StaleParseJobSweeperTest
     void survivesACommitThatIsRefused() throws Exception
     {
         job(OLD_JOB, ParseJob.STATUS_ACTIVE, minutesAgo(45), TARGET);
-        set(this.sweeper, "resolverFactory", factoryFor(refusingCommit(this.context.resourceResolver())));
+        set(this.sweeper, "resolverFactory",
+            TestResolverFactory.serving(refusingCommit(this.context.resourceResolver())));
 
         this.sweeper.run();
 
@@ -358,26 +357,10 @@ class StaleParseJobSweeperTest
     private StaleParseJobSweeper sweeperFor(final ResourceResolver resolver) throws Exception
     {
         final StaleParseJobSweeper built = new StaleParseJobSweeper();
-        set(built, "resolverFactory", factoryFor(resolver));
+        set(built, "resolverFactory", TestResolverFactory.serving(resolver));
         set(built, "outcomes", this.dispatcher);
         set(built, "parseService", new RecordingParseService(this.discarded));
         return built;
-    }
-
-    private static ResourceResolverFactory factoryFor(final ResourceResolver resolver) throws LoginException
-    {
-        final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
-        // Never closed by the test, so the shared session survives the sweep
-        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(new ResourceResolverWrapper(
-            resolver)
-        {
-            @Override
-            public void close()
-            {
-                // The context owns this session
-            }
-        });
-        return factory;
     }
 
     /** A session whose job nodes refuse to be changed. */

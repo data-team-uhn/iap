@@ -51,6 +51,7 @@ import io.uhndata.iap.links.internal.LinkOperations;
 import io.uhndata.iap.links.models.ExternalLink;
 import io.uhndata.iap.links.models.InternalLink;
 import io.uhndata.iap.links.models.LinkDefinition;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 
 import static io.uhndata.iap.deletion.api.DeletionOptions.MOVE_TO_ARCHIVE;
 import static io.uhndata.iap.deletion.api.DeletionOptions.REFUSE_IF_REFERENCED;
@@ -108,11 +109,11 @@ class DeletionServiceImplTest
         this.session.save();
 
         final LinkManagerImpl linkManager = new LinkManagerImpl();
-        inject(linkManager, "resolverFactory", new TestResolverFactory(this.context.resourceResolver()));
+        inject(linkManager, "resolverFactory", TestResolverFactory.serving(this.context.resourceResolver()));
         // Link removal is behavior on the Link models, delegating to this service
         this.context.registerService(LinkOperations.class, linkManager);
         this.service = new DeletionServiceImpl();
-        inject(this.service, "resolverFactory", new TestResolverFactory(this.context.resourceResolver()));
+        inject(this.service, "resolverFactory", TestResolverFactory.serving(this.context.resourceResolver()));
         inject(this.service, "linkManager", linkManager);
         inject(this.service, "vetoes", List.of(new UndeletableVeto()));
     }
@@ -574,7 +575,7 @@ class DeletionServiceImplTest
     void missingServiceUserFailsCleanly() throws Exception
     {
         this.target(VICTIM);
-        inject(this.service, "resolverFactory", new TestResolverFactory(null));
+        inject(this.service, "resolverFactory", TestResolverFactory.withoutServiceUser());
         assertThrows(DeletionException.class,
             () -> this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.recoverable()));
     }
@@ -942,7 +943,7 @@ class DeletionServiceImplTest
                 return null;
             }
         };
-        inject(this.service, "resolverFactory", new TestResolverFactory(sessionless));
+        inject(this.service, "resolverFactory", TestResolverFactory.serving(sessionless));
         assertThrows(DeletionException.class,
             () -> this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.recoverable()));
     }

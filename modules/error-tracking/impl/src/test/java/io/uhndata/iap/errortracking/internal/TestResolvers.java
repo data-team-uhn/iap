@@ -18,18 +18,12 @@
 package io.uhndata.iap.errortracking.internal;
 
 import java.lang.reflect.Field;
-import java.util.List;
-import java.util.Map;
 
-import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 
 /**
- * Wires the components under test to the test's own repository, by hand. Sling-mock's service resolvers do not see
- * the repository the test fills. The SCR metadata that would let osgi-mock inject the factory exists only once the
- * bundle is packaged.
+ * Wires the components under test by hand. The SCR metadata that would let osgi-mock inject their references exists
+ * only once the bundle is packaged.
  *
  * @version $Id$
  * @since 0.1.0
@@ -43,17 +37,16 @@ public final class TestResolvers
     }
 
     /**
-     * Injects a resolver factory handing out the given resolver into a component's {@code resolverFactory} field.
+     * Injects a resolver factory into a component's {@code resolverFactory} field.
      *
      * @param component the component under test
-     * @param resolver the resolver every request should be served with, {@code null} to make every request fail as
-     *            it would with a missing service user
+     * @param factory logs the component's service user in
      * @throws ReflectiveOperationException if the component has no such field
      */
-    public static void inject(final Object component, final ResourceResolver resolver)
+    public static void inject(final Object component, final ResourceResolverFactory factory)
         throws ReflectiveOperationException
     {
-        set(component, "resolverFactory", factory(resolver));
+        set(component, "resolverFactory", factory);
     }
 
     /**
@@ -86,63 +79,5 @@ public final class TestResolvers
         final Field field = component.getClass().getDeclaredField(name);
         field.setAccessible(true);
         return field.get(component);
-    }
-
-    /**
-     * A resolver factory handing out the given resolver, for a collaborator that has to be built by hand rather than
-     * injected.
-     *
-     * @param resolver the resolver every request should be served with, {@code null} to make every request fail as
-     *            it would with a missing service user
-     * @return a factory serving that resolver
-     */
-    public static ResourceResolverFactory factory(final ResourceResolver resolver)
-    {
-        // Not closed: the components close every resolver they open, and the test context owns this one
-        final ResourceResolver shared = resolver == null ? null : new ResourceResolverWrapper(resolver)
-        {
-            @Override
-            public void close()
-            {
-                // The test context owns this resolver
-            }
-        };
-        return new ResourceResolverFactory()
-        {
-            @Override
-            public ResourceResolver getResourceResolver(final Map<String, Object> authenticationInfo)
-            {
-                return shared;
-            }
-
-            @Deprecated
-            @Override
-            public ResourceResolver getAdministrativeResourceResolver(final Map<String, Object> authenticationInfo)
-            {
-                return shared;
-            }
-
-            @Override
-            public ResourceResolver getServiceResourceResolver(final Map<String, Object> authenticationInfo)
-                throws LoginException
-            {
-                if (shared == null) {
-                    throw new LoginException("No such service user");
-                }
-                return shared;
-            }
-
-            @Override
-            public ResourceResolver getThreadResourceResolver()
-            {
-                return shared;
-            }
-
-            @Override
-            public List<String> getSearchPath()
-            {
-                return List.of("/apps", "/libs");
-            }
-        };
     }
 }

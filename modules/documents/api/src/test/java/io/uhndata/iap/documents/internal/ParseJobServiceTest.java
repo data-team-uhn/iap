@@ -41,6 +41,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.utils.testing.TestResolverFactory;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -157,7 +159,7 @@ class ParseJobServiceTest
     @Test
     void refusesWithoutTheServiceUser() throws Exception
     {
-        inject("resolverFactory", new TestResolverFactory(null));
+        inject("resolverFactory", TestResolverFactory.withoutServiceUser());
 
         final IOException failure = assertThrows(IOException.class, () -> this.service.queue(DOCUMENT, null));
 
@@ -168,7 +170,7 @@ class ParseJobServiceTest
     @Test
     void refusesWhenTheJobCannotBeRecorded() throws Exception
     {
-        inject("resolverFactory", new TestResolverFactory(failingCommits(0)));
+        inject("resolverFactory", TestResolverFactory.serving(failingCommits(0)));
 
         final IOException failure = assertThrows(IOException.class, () -> this.service.queue(DOCUMENT, null));
 
@@ -193,7 +195,7 @@ class ParseJobServiceTest
     void aQueueRefusalSurvivesACommitFailure() throws Exception
     {
         // The job node is committed, the unstubbed JobManager refuses the job, and marking the failure fails too
-        inject("resolverFactory", new TestResolverFactory(failingCommits(1)));
+        inject("resolverFactory", TestResolverFactory.serving(failingCommits(1)));
 
         final IOException failure = assertThrows(IOException.class, () -> this.service.queue(DOCUMENT, null));
 
@@ -203,7 +205,7 @@ class ParseJobServiceTest
     @Test
     void aQueueRefusalOnAnUnmodifiableNodeStillFails() throws Exception
     {
-        inject("resolverFactory", new TestResolverFactory(unmodifiableCreations()));
+        inject("resolverFactory", TestResolverFactory.serving(unmodifiableCreations()));
 
         final IOException failure = assertThrows(IOException.class, () -> this.service.queue(DOCUMENT, null));
 
@@ -247,7 +249,7 @@ class ParseJobServiceTest
                 return ParseJobService.SHARED_DOCS_VARIABLE.equals(name) ? volumeVariable : null;
             }
         };
-        inject(built, "resolverFactory", new TestResolverFactory(this.context.resourceResolver()));
+        inject(built, "resolverFactory", TestResolverFactory.serving(this.context.resourceResolver()));
         inject(built, "jobManager", this.jobManager);
         return built;
     }
