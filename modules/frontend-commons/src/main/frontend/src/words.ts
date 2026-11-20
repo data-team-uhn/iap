@@ -16,6 +16,16 @@
  * limitations under the License.
  */
 
+// The first letters of a name's first and last words, in upper case: what an avatar shows for a
+// person. Empty for a blank name.
+export const initialsOf = (name: string): string => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) {
+    return "";
+  }
+  return (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : "")).toUpperCase();
+};
+
 // Joins words into a list for a sentence: "a, b and c"
 export const listed = (words: string[]): string => (words.length < 2 ? words.join("")
   : `${words.slice(0, -1).join(", ")} and ${words.slice(-1).join("")}`);

@@ -16,7 +16,18 @@
  * limitations under the License.
  */
 
-import { listed } from "@iap/frontend-commons/words";
+import { initialsOf, listed } from "@iap/frontend-commons/words";
+
+describe("initialsOf", () => {
+  it("takes the first letters of the first and last words, in upper case", () => {
+    expect(initialsOf("jane q. doe")).toBe("JD");
+    expect(initialsOf("  Jane  ")).toBe("J");
+  });
+
+  it("gives nothing for a blank name", () => {
+    expect(initialsOf("   ")).toBe("");
+  });
+});
 
 describe("listed", () => {
   it("joins the last word with \"and\" and the others with commas", () => {

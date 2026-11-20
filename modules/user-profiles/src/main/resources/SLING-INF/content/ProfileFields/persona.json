@@ -1,0 +1,12 @@
+{
+  "jcr:primaryType": "profile:FieldDefinition",
+  "label": "Default persona",
+  "description": "Which hat you start the session wearing. You can still switch at any time from the app bar, and a persona you do not hold is ignored.",
+  "kind": "preference",
+  "dataType": "text",
+  "allowedValues": ["submitter", "reviewer", "administrator"],
+  "readableBy": "self",
+  "writableBy": "owner",
+  "category": ["Appearance"],
+  "order": 110
+}

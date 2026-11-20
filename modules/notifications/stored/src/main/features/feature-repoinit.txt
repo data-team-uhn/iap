@@ -17,10 +17,12 @@
 create path (notif:Homepage) /Notifications
 
 # The delivery's service user. It files the notifications, and grants each recipient their own folder. It cannot
-# delete: removing old notifications is left to the deployment.
+# delete: removing old notifications is left to the deployment. It reads the accounts to find the recipient a folder
+# is granted to.
 create service user iap-stored-notifications
 set ACL for iap-stored-notifications
     allow   jcr:read,jcr:addChildNodes,jcr:modifyProperties,jcr:nodeTypeManagement,jcr:readAccessControl,jcr:modifyAccessControl    on /Notifications
+    allow   jcr:read    on /home/users
 end
 
 # Lets everybody read /Notifications itself, and nothing below it. The delivery grants each recipient's folder to
