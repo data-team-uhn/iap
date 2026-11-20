@@ -19,15 +19,11 @@
 import { renderHook, waitFor } from "@testing-library/react";
 
 import useEntityPage from "@iap/frontend-commons/entityGrid/useEntityPage";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 const EMPTY_PAGE = { rows: [], offset: 0, limit: 10, returnedrows: 0, totalrows: 0, totalIsApproximate: false };
 
-const servingEmptyPages = () => {
-  const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-    { ok: true, url: "", json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-};
+const servingEmptyPages = () => stubFetch(() => jsonResponse(EMPTY_PAGE));
 
 describe("useEntityPage", () => {
   afterEach(() => {

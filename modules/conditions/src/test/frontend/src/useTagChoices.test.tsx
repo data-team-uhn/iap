@@ -19,7 +19,8 @@
 import { renderHook, waitFor } from "@testing-library/react";
 
 import type { useTagChoices as UseTagChoices } from "@iap/conditions/useTagChoices";
-import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
+import { tagAware } from "@iap/tags/tagDefinitions.fixture";
 
 let useTagChoices: typeof UseTagChoices;
 
@@ -28,7 +29,7 @@ describe("useTagChoices", () => {
   beforeEach(async () => {
     vi.resetModules();
     ({ useTagChoices } = await import("@iap/conditions/useTagChoices"));
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+    stubFetch(tagAware({}));
   });
 
   afterEach(() => vi.unstubAllGlobals());
@@ -41,8 +42,7 @@ describe("useTagChoices", () => {
   });
 
   it("uses a tag's name when it has no label, and stops listening once gone", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: true, url: "",
-      json: () => Promise.resolve({ tags: [ { name: "plain" } ] }) } as unknown as Response)));
+    stubFetch(() => jsonResponse({ tags: [ { name: "plain" } ] }));
     const { result } = renderHook(() => useTagChoices());
     await waitFor(() => expect(result.current).toEqual([ { value: "plain", label: "plain" } ]));
 

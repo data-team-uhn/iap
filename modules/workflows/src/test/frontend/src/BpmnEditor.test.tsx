@@ -20,7 +20,7 @@ import { ThemeProvider } from "@mui/material/styles";
 import { act, render, screen, waitFor } from "@testing-library/react";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
-import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import BpmnEditor from "@iap/workflows/BpmnEditor";
 import { EMPTY_BPMN } from "@iap/workflows/workflowModel";
 
@@ -83,32 +83,15 @@ const VERSION_PATH = "/Workflows/review/1-0";
 const DIAGRAM = "<bpmn:definitions/>";
 
 // A server answering the version's diagram with the given status and body.
-const stubFetch = (status = 200, body: string = DIAGRAM) => {
-  const fetchMock = vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
-    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-    : {
-      ok: status < 400,
-      status,
-      statusText: "Refused",
-      url,
-      text: () => Promise.resolve(body),
-    }) as unknown as Response));
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-};
+const stubDiagram = (status = 200, body: string = DIAGRAM) => stubFetch(() => new Response(body, { status }));
 
 // A server that answers the session but holds the diagram back, so that a test can decide when — and
 // whether — the request settles, and what the canvas is doing when it does.
 const deferredFetch = () => {
   let settle: (ok: boolean) => void = () => undefined;
-  vi.stubGlobal("fetch", vi.fn((url: string) => url === SESSION_INFO_URL
-    ? Promise.resolve({ ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) } as
-      unknown as Response)
-    : new Promise<Response>((resolve, reject) => {
-      settle = (ok: boolean) => ok
-        ? resolve({ ok: true, status: 200, url, text: () => Promise.resolve(DIAGRAM) } as unknown as Response)
-        : reject(new TypeError("Failed to fetch"));
-    })));
+  stubFetch(() => new Promise<Response>((resolve, reject) => {
+    settle = (ok: boolean) => ok ? resolve(new Response(DIAGRAM)) : reject(new TypeError("Failed to fetch"));
+  }));
   return { settle: (ok: boolean) => settle(ok) };
 };
 
@@ -138,7 +121,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("BpmnEditor", () => {
   it("displays a diagram through a viewer that cannot edit it", async () => {
-    const fetchMock = stubFetch();
+    const fetchMock = stubDiagram();
 
     renderEditor();
 
@@ -151,7 +134,7 @@ describe("BpmnEditor", () => {
   });
 
   it("uses the modeler when the diagram is to be edited", async () => {
-    stubFetch();
+    stubDiagram();
 
     renderEditor({ editable: true });
 
@@ -160,7 +143,7 @@ describe("BpmnEditor", () => {
   });
 
   it("hands over the means to serialize what is drawn, but only when editing", async () => {
-    stubFetch();
+    stubDiagram();
     const onReady: SerializerHandler = vi.fn();
 
     const { unmount } = renderEditor({ editable: true, onReady });
@@ -175,7 +158,7 @@ describe("BpmnEditor", () => {
   });
 
   it("hands over nothing to serialize in view mode", async () => {
-    stubFetch();
+    stubDiagram();
     const onReady: SerializerHandler = vi.fn();
 
     renderEditor({ onReady });
@@ -185,7 +168,7 @@ describe("BpmnEditor", () => {
   });
 
   it("reports a diagram that could not be serialized rather than saving nothing", async () => {
-    stubFetch();
+    stubDiagram();
     const onReady: SerializerHandler = vi.fn();
     renderEditor({ editable: true, onReady });
     await waitFor(() => expect(onReady).toHaveBeenCalledWith(expect.any(Function)));
@@ -196,7 +179,7 @@ describe("BpmnEditor", () => {
   });
 
   it("says the diagram has unsaved changes as soon as one is made", async () => {
-    stubFetch();
+    stubDiagram();
     const onDirtyChange = vi.fn();
     renderEditor({ editable: true, onDirtyChange });
 
@@ -209,7 +192,7 @@ describe("BpmnEditor", () => {
   });
 
   it("does not watch for changes it could not make", async () => {
-    stubFetch();
+    stubDiagram();
     const onDirtyChange = vi.fn();
 
     renderEditor({ onDirtyChange });
@@ -221,7 +204,7 @@ describe("BpmnEditor", () => {
   it("opens an empty canvas for a version with no diagram saved yet", async () => {
     // A brand new version has nothing stored under bpmn.xml; that is a canvas to start drawing on,
     // not a failure to report
-    stubFetch(404);
+    stubDiagram(404);
 
     renderEditor({ editable: true });
 
@@ -233,11 +216,11 @@ describe("BpmnEditor", () => {
   it("shows the version it was moved to rather than the one before it", async () => {
     // The canvas is reused when only the path changes, so a version with nothing saved would otherwise go
     // on showing the previous version's diagram — and in edit mode a save would then write it there
-    stubFetch();
+    stubDiagram();
     const { rerender } = renderEditor();
     await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledWith(DIAGRAM));
 
-    stubFetch(404);
+    stubDiagram(404);
     rerender(
       <ThemeProvider theme={appTheme} defaultMode="light">
         <BpmnEditor versionPath="/Workflows/timeOff/2-0" />
@@ -266,7 +249,7 @@ describe("BpmnEditor", () => {
   });
 
   it("reports a diagram the server refused to hand over", async () => {
-    stubFetch(500);
+    stubDiagram(500);
 
     renderEditor();
 
@@ -277,7 +260,7 @@ describe("BpmnEditor", () => {
   it("reports a diagram bpmn-js could not import", async () => {
     // An unreadable response and an unparseable diagram are both "this cannot be displayed", and
     // bpmn-js has already worded this one
-    stubFetch();
+    stubDiagram();
     refuseImports(new Error("unparsable XML"));
 
     renderEditor();
@@ -289,7 +272,7 @@ describe("BpmnEditor", () => {
   });
 
   it("destroys the canvas it created when it goes away", async () => {
-    stubFetch();
+    stubDiagram();
     const { unmount } = renderEditor();
     await waitFor(() => expect(instances).toHaveLength(1));
 

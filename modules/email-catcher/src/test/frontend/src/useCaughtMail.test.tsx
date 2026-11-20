@@ -19,37 +19,27 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 
 import { useCatcherStatus, useCaughtMessage } from "@iap/email-catcher/useCaughtMail";
+import { jsonResponse, sentRequests, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
-let urls: string[] = [];
+// Answers every request with the given body and status
+const answering = (body: unknown, status = 200) => stubFetch(() => jsonResponse(body, status));
 
-// Answers every request with the given body and status. Each Response carries its `url`, which
-// useAuthenticatedFetch reads to tell an answer from Sling's login page.
-const stubFetch = (body: unknown, status = 200) =>
-  vi.stubGlobal("fetch", vi.fn((url: string) => {
-    urls.push(url);
-    return Promise.resolve({
-      ok: status < 400,
-      status,
-      url,
-      json: () => Promise.resolve(body),
-    } as unknown as Response);
-  }));
+const urls = () => sentRequests().map(request => request.url);
 
-beforeEach(() => { urls = []; });
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("useCatcherStatus", () => {
   it("reads whether mail is being caught, and how much has been", async () => {
-    stubFetch({ enabled: { label: "Catching mail", value: true }, total: { label: "Caught so far", value: 3 } });
+    answering({ enabled: { label: "Catching mail", value: true }, total: { label: "Caught so far", value: 3 } });
     const { result } = renderHook(() => useCatcherStatus());
 
     await waitFor(() => { expect(result.current.settled).toBe(true); });
-    expect(urls).toEqual([ "/CaughtMail.adminSummary.json" ]);
+    expect(urls()).toEqual([ "/CaughtMail.adminSummary.json" ]);
     expect(result.current.status).toEqual({ enabled: true, total: 3 });
   });
 
   it("reports a refusal as no status at all, having settled", async () => {
-    stubFetch(null, 403);
+    answering(null, 403);
     const { result } = renderHook(() => useCatcherStatus());
 
     await waitFor(() => { expect(result.current.settled).toBe(true); });
@@ -57,7 +47,7 @@ describe("useCatcherStatus", () => {
   });
 
   it("reports an empty answer the same way", async () => {
-    stubFetch(null);
+    answering(null);
     const { result } = renderHook(() => useCatcherStatus());
 
     await waitFor(() => { expect(result.current.settled).toBe(true); });
@@ -83,11 +73,11 @@ describe("useCatcherStatus", () => {
 
 describe("useCaughtMessage", () => {
   it("reads the message the route names", async () => {
-    stubFetch({ subject: "Approved", to: "someone@uhn.ca" });
+    answering({ subject: "Approved", to: "someone@uhn.ca" });
     const { result } = renderHook(() => useCaughtMessage("abc"));
 
     await waitFor(() => { expect(result.current.settled).toBe(true); });
-    expect(urls).toEqual([ "/CaughtMail/abc.json" ]);
+    expect(urls()).toEqual([ "/CaughtMail/abc.json" ]);
     expect(result.current.message?.subject).toBe("Approved");
     expect(result.current.message?.to).toEqual([ "someone@uhn.ca" ]);
     expect(result.current.loadError).toBeNull();
@@ -95,7 +85,7 @@ describe("useCaughtMessage", () => {
 
   // The sentence says the cause, not the attempt, which the page's LoadError title already says
   it("describes a refusal in the reader's terms, keeping the status to relay", async () => {
-    stubFetch(null, 404);
+    answering(null, 404);
     const { result } = renderHook(() => useCaughtMessage("abc"));
 
     await waitFor(() => { expect(result.current.settled).toBe(true); });
@@ -106,7 +96,7 @@ describe("useCaughtMessage", () => {
   });
 
   it("describes an answer that was not a node as an unreadable response", async () => {
-    stubFetch(null);
+    answering(null);
     const { result } = renderHook(() => useCaughtMessage("abc"));
 
     await waitFor(() => { expect(result.current.settled).toBe(true); });
@@ -114,33 +104,33 @@ describe("useCaughtMessage", () => {
   });
 
   it("reads nothing, and reports nothing, when the route names no message", async () => {
-    stubFetch({});
+    answering({});
     const { result } = renderHook(() => useCaughtMessage(null));
 
     await act(async () => { await Promise.resolve(); });
-    expect(urls).toEqual([]);
+    expect(urls()).toEqual([]);
     expect(result.current.message).toBeNull();
     expect(result.current.loadError).toBeNull();
   });
 
   it("re-reads on retry, through the same path as the first read", async () => {
-    stubFetch({ subject: "Approved" });
+    answering({ subject: "Approved" });
     const { result } = renderHook(() => useCaughtMessage("abc"));
     await waitFor(() => { expect(result.current.settled).toBe(true); });
 
     await act(async () => { await result.current.reload(); });
-    expect(urls).toEqual([ "/CaughtMail/abc.json", "/CaughtMail/abc.json" ]);
+    expect(urls()).toEqual([ "/CaughtMail/abc.json", "/CaughtMail/abc.json" ]);
   });
 
   it("drops the message it was showing when the route names a different one", async () => {
-    stubFetch({ subject: "Approved" });
+    answering({ subject: "Approved" });
     const { result, rerender } = renderHook(({ name }) => useCaughtMessage(name),
       { initialProps: { name: "abc" } });
     await waitFor(() => { expect(result.current.message?.subject).toBe("Approved"); });
 
-    stubFetch({ subject: "Rejected" });
+    answering({ subject: "Rejected" });
     rerender({ name: "def" });
     await waitFor(() => { expect(result.current.message?.subject).toBe("Rejected"); });
-    expect(urls).toContain("/CaughtMail/def.json");
+    expect(urls()).toContain("/CaughtMail/def.json");
   });
 });

@@ -43,11 +43,11 @@ function Caller({ label, onResult }: { label: string; onResult: (outcome: string
   );
 }
 
-const expired = () => ({ ok: false, status: 401, url: "/data.json" }) as unknown as Response;
-const ok = (body: string) => ({ ok: true, status: 200, url: "/data.json", text: () => Promise.resolve(body) }) as unknown as Response;
+const expired = () => new Response(null, { status: 401 });
+const ok = (body: string) => new Response(body);
 
 // Answers the sign-in form's POST to Sling's authentication endpoint
-const signInResponse = (success: boolean) => ({ ok: success, status: success ? 200 : 403, statusText: success ? "OK" : "Forbidden" }) as Response;
+const signInResponse = (success: boolean) => new Response(null, { status: success ? 200 : 403 });
 
 describe("ReLoginDialog", () => {
   it("says what happened and offers the sign-in form", () => {

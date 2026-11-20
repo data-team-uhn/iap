@@ -42,7 +42,7 @@ import {
   LINK_TARGET,
   MATCH_TOP,
   QUOTE,
-  stubFetch,
+  stubDocumentFetch,
   stubLayout,
 } from "./pdfjs.fixture";
 
@@ -132,7 +132,7 @@ function createPlace(): HTMLDivElement {
 
 describe("PdfViewer", () => {
   beforeEach(() => {
-    stubFetch();
+    stubDocumentFetch();
     stubLayout();
     vi.stubGlobal("Worker", FakeWorker);
   });
@@ -634,14 +634,14 @@ describe("PdfViewer", () => {
 
   describe("when the document cannot be opened", () => {
     it("says why the file could not be fetched, and opens it on retry", async () => {
-      stubFetch(404);
+      stubDocumentFetch(404);
       show();
 
       expect(await screen.findByText("The document could not be opened")).toBeInTheDocument();
       expect(screen.getByText(/could not be found on the server/)).toBeInTheDocument();
       expect(getStatus()).toBeEmptyDOMElement();
 
-      stubFetch();
+      stubDocumentFetch();
       await userEvent.click(screen.getByRole("button", { name: "Retry" }));
 
       expect(await screen.findByText("Page 2 of 3")).toBeInTheDocument();
@@ -649,14 +649,14 @@ describe("PdfViewer", () => {
     });
 
     it("asks the person to sign in again when the session has ended", async () => {
-      stubFetch(401);
+      stubDocumentFetch(401);
       show();
 
       expect(await screen.findByText("Your session has expired. Sign in again, then retry.")).toBeInTheDocument();
     });
 
     it("shows no spinner once the document could not be opened", async () => {
-      stubFetch(404);
+      stubDocumentFetch(404);
       show();
 
       expect(await screen.findByText("The document could not be opened")).toBeInTheDocument();
@@ -1160,7 +1160,7 @@ describe("PdfViewer", () => {
       });
 
       it("still lists the passages when the document cannot be opened", async () => {
-        stubFetch(404);
+        stubDocumentFetch(404);
         showMarks();
 
         expect(await screen.findByText("The document could not be opened")).toBeInTheDocument();

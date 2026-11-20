@@ -19,7 +19,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import CategoriesWidget from "@iap/categories/CategoriesWidget";
-import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { jsonResponse, stubFailingFetch, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 const treeJson = {
   "jcr:primaryType": "cat:CategoriesHomepage",
@@ -39,24 +39,13 @@ const treeJson = {
   },
 };
 
-// Every answer carries its `url`, which useAuthenticatedFetch reads to recognise the login page.
-const stubFetch = () =>
-  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
-    ok: true, status: 200, statusText: "OK", url,
-    json: () => Promise.resolve(treeJson),
-  } as unknown as Response)));
-
-// A server that answers everything with the same failure, and reports a live session.
-const stubFailingFetch = (status: number, statusText: string) =>
-  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
-    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-    : { ok: false, status, statusText, url }) as unknown as Response)));
+const stubTree = () => stubFetch(() => jsonResponse(treeJson));
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("CategoriesWidget", () => {
   it("lists the top-level categories collapsed, condensed to labels only", async () => {
-    stubFetch();
+    stubTree();
     render(<CategoriesWidget />);
 
     expect(await screen.findByText("Retrospective studies")).toBeInTheDocument();
@@ -69,7 +58,7 @@ describe("CategoriesWidget", () => {
   });
 
   it("expands and re-collapses a branch through its chevron", async () => {
-    stubFetch();
+    stubTree();
     render(<CategoriesWidget />);
     await screen.findByText("Retrospective studies");
 
@@ -83,7 +72,7 @@ describe("CategoriesWidget", () => {
   });
 
   it("reports a loading failure without crashing the console", async () => {
-    stubFailingFetch(500, "Server Error");
+    stubFailingFetch(500);
     render(<CategoriesWidget />);
 
     const report = await screen.findByRole("alert");
@@ -92,12 +81,12 @@ describe("CategoriesWidget", () => {
   });
 
   it("reloads the tree when the load failure's Retry is used", async () => {
-    stubFailingFetch(500, "Server Error");
+    stubFailingFetch(500);
     render(<CategoriesWidget />);
     await screen.findByRole("alert");
 
     // The next attempt succeeds
-    stubFetch();
+    stubTree();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByText("Retrospective studies")).toBeInTheDocument();
@@ -105,10 +94,7 @@ describe("CategoriesWidget", () => {
   });
 
   it("reports an empty tree", async () => {
-    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
-      ok: true, status: 200, statusText: "OK", url,
-      json: () => Promise.resolve({ "jcr:primaryType": "cat:CategoriesHomepage" }),
-    } as unknown as Response)));
+    stubFetch(() => jsonResponse({ "jcr:primaryType": "cat:CategoriesHomepage" }));
     render(<CategoriesWidget />);
 
     expect(await screen.findByText("No categories are defined yet.")).toBeInTheDocument();

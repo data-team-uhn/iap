@@ -23,13 +23,7 @@ import {
   fetchLoggedError,
   resolutionLabel,
 } from "@iap/error-tracking/errorTrackingApi";
-
-// A real Response, not an object literal. readJson reads `response.url` to tell an answer from
-// Sling's redirect to the login page, and throws on a stand-in without one.
-const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
-  status,
-  headers: { "Content-Type": "application/json" },
-});
+import { jsonResponse } from "@iap/frontend-commons/fetch.fixture";
 
 describe("errorNameFromRoute", () => {
   it("names the error a console route addresses", () => {
@@ -93,7 +87,7 @@ describe("fetchLoggedError", () => {
   };
 
   it("reads a thrown failure", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, failure)));
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(failure)));
     const error = await fetchLoggedError(fetchMock, "abc");
 
     expect(error.kind).toBe("failure");
@@ -105,13 +99,13 @@ describe("fetchLoggedError", () => {
   });
 
   it("asks for one level of children, which is where the decisions are", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, failure)));
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(failure)));
     await fetchLoggedError(fetchMock, "abc");
     expect(fetchMock.mock.calls[0][0]).toBe("/LoggedErrors/abc.1.json");
   });
 
   it("reads a problem, which carries a phrase instead of a stack trace", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({
       "@name": "def",
       "sling:resourceType": "err/LoggedProblem",
       problem: "unknown comparator",
@@ -127,7 +121,7 @@ describe("fetchLoggedError", () => {
 
   it("accepts a single-valued sample as the bare string the serializer sends", async () => {
     // A multi-valued property holding one value round-trips as a string, not a one-element array
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({
       ...failure, messages: "only one", computedTags: "acknowledged",
     })));
     const error = await fetchLoggedError(fetchMock, "abc");
@@ -137,7 +131,7 @@ describe("fetchLoggedError", () => {
   });
 
   it("orders the decisions newest first, by how much had happened when each was taken", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({
       ...failure,
       decision: {
         "@name": "decision",
@@ -162,7 +156,7 @@ describe("fetchLoggedError", () => {
   });
 
   it("ignores children that are not decisions", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({
       ...failure,
       somethingElse: { "@name": "somethingElse", "sling:resourceType": "data/Content" },
     })));
@@ -170,7 +164,7 @@ describe("fetchLoggedError", () => {
   });
 
   it("tolerates an error missing the properties its node type says are mandatory", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({
       "sling:resourceType": "err/LoggedFailure",
     })));
     const error = await fetchLoggedError(fetchMock, "abc");
@@ -183,7 +177,7 @@ describe("fetchLoggedError", () => {
   });
 
   it("tolerates a decision missing what it should carry", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({
       ...failure,
       broken: { "sling:resourceType": "err/Acknowledgement" },
     })));
@@ -202,7 +196,7 @@ describe("fetchLoggedError", () => {
       "acknowledgedOccurrences": 4,
       "jcr:created": created,
     });
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({
       ...failure,
       earlier: at("earlier", "2026-08-02T10:00:00.000+00:00"),
       later: at("later", "2026-08-09T10:00:00.000+00:00"),
@@ -214,7 +208,7 @@ describe("fetchLoggedError", () => {
 
   it("orders decisions that carry neither a count nor a date without falling over", async () => {
     const bare = (name: string) => ({ "@name": name, "sling:resourceType": "err/Acknowledgement", resolution: "x" });
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({
       ...failure, one: bare("one"), two: bare("two"),
     })));
     expect((await fetchLoggedError(fetchMock, "abc")).decisions).toHaveLength(2);
@@ -226,7 +220,7 @@ describe("fetchLoggedError", () => {
   });
 
   it("fails rather than inventing an error out of an empty answer", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, null)));
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(null)));
     await expect(fetchLoggedError(fetchMock, "abc")).rejects.toThrow();
   });
 });
@@ -234,12 +228,12 @@ describe("fetchLoggedError", () => {
 describe("acknowledgeError", () => {
   it("records a decision", async () => {
     const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(
-      jsonResponse(200, { status: "ok", acknowledgement: "/LoggedErrors/abc/decision" })));
+      jsonResponse({ status: "ok", acknowledgement: "/LoggedErrors/abc/decision" })));
     expect(await acknowledgeError(fetchMock, "abc", "known-issue")).toEqual({ status: "ok" });
   });
 
   it("names the selector AND an extension, or the request would not reach the servlet", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, { status: "ok" })));
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({ status: "ok" })));
     await acknowledgeError(fetchMock, "abc", "known-issue");
 
     expect(fetchMock.mock.calls[0][0]).toBe("/LoggedErrors/abc.acknowledge.json");
@@ -247,7 +241,7 @@ describe("acknowledgeError", () => {
   });
 
   it("sends the note when there is one, and omits it when there is not", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, { status: "ok" })));
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({ status: "ok" })));
 
     await acknowledgeError(fetchMock, "abc", "wont-fix", "  by design  ");
     expect(fetchMock.mock.calls[0][1]?.body).toBe("resolution=wont-fix&note=by+design");
@@ -257,8 +251,7 @@ describe("acknowledgeError", () => {
   });
 
   it("reports a refused resolution in the server's own words", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(400,
-      { status: "error", error: "resolution must name one of the error-triage tags" })));
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({ status: "error", error: "resolution must name one of the error-triage tags" }, 400)));
     const outcome = await acknowledgeError(fetchMock, "abc", "nonsense");
 
     expect(outcome.status).toBe("invalid");
@@ -266,14 +259,12 @@ describe("acknowledgeError", () => {
   });
 
   it("reports an error that is no longer there", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(404,
-      { status: "error", error: "This is not a recorded error" })));
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({ status: "error", error: "This is not a recorded error" }, 404)));
     expect((await acknowledgeError(fetchMock, "gone", "acknowledged")).status).toBe("missing");
   });
 
   it("reports a server that could not record it", async () => {
-    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(500,
-      { status: "error", error: "Could not record the decision" })));
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse({ status: "error", error: "Could not record the decision" }, 500)));
     const outcome = await acknowledgeError(fetchMock, "abc", "acknowledged");
 
     expect(outcome.status).toBe("failed");

@@ -16,14 +16,12 @@
  * limitations under the License.
  */
 
+import { jsonResponse } from "@iap/frontend-commons/fetch.fixture";
 import { forgetWorkflowHomepages, loadWorkflowHomepages } from "@iap/workflows/useWorkflowHomepages";
 
 type FetchStub = (url: string) => Promise<Response>;
 
-const okResponse = (body: unknown) =>
-  ({ ok: true, status: 200, url: "", json: () => Promise.resolve(body) } as unknown as Response);
-
-const answering = (body: unknown) => vi.fn<FetchStub>(() => Promise.resolve(okResponse(body)));
+const answering = (body: unknown) => vi.fn<FetchStub>(() => Promise.resolve(jsonResponse(body)));
 
 describe("loadWorkflowHomepages", () => {
   // What was discovered is kept, so each test starts from an unasked one
@@ -78,7 +76,7 @@ describe("loadWorkflowHomepages", () => {
     // beats listing none at all
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const fetchUtil = vi.fn<FetchStub>(() =>
-      Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) } as unknown as Response));
+      Promise.resolve(jsonResponse({}, 404)));
 
     await expect(loadWorkflowHomepages(fetchUtil)).resolves.toEqual([ { path: "/Workflows", title: "Workflows" } ]);
 
@@ -89,8 +87,8 @@ describe("loadWorkflowHomepages", () => {
     // A failure is often passing, the startup gate or a lapsed session, so the next ask goes to the server
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const fetchUtil = vi.fn<FetchStub>()
-      .mockResolvedValueOnce({ ok: false, status: 503, json: () => Promise.resolve({}) } as unknown as Response)
-      .mockResolvedValue(okResponse({ homepages: [
+      .mockResolvedValueOnce(jsonResponse({}, 503))
+      .mockResolvedValue(jsonResponse({ homepages: [
         { path: "/Workflows", title: "Workflows" },
         { path: "/SystemWorkflows", title: "System workflows" },
       ] }));

@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import { jsonResponse } from "@iap/frontend-commons/fetch.fixture";
 import { createVersion, createWorkflow, draftFromVersion, saveDiagram, updateWorkflow } from "@iap/workflows/workflowWrites";
 
 // A stubbed fetch: the URL, and the request options an event carries.
@@ -23,29 +24,15 @@ type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
 
 // An engine that runs every event it's given. One that created something answers with its path.
 const acceptingFetch = (created = (url: string) => `${url.split(".")[0]}/created`) =>
-  vi.fn<FetchStub>(url => Promise.resolve({
-    ok: true,
-    status: 201,
-    url: `http://localhost:8080${url}`,
-    json: () => Promise.resolve({ status: "created", path: created(url) }),
-  } as unknown as Response));
+  vi.fn<FetchStub>(url => Promise.resolve(jsonResponse({ status: "created", path: created(url) }, 201)));
 
 // An engine that ran the event but created nothing, which is every event but the two that do.
-const completingFetch = () => vi.fn<FetchStub>(() => Promise.resolve({
-  ok: true,
-  status: 200,
-  url: "http://localhost:8080/Workflows",
-  json: () => Promise.resolve({ status: "completed" }),
-} as unknown as Response));
+const completingFetch = () => vi.fn<FetchStub>(() => Promise.resolve(jsonResponse({ status: "completed" })));
 
 // An engine that refused the event, explaining what it would not do.
-const refusingFetch = (status: number, error?: string) => vi.fn<FetchStub>(() => Promise.resolve({
-  ok: false,
-  status,
-  json: () => (error === undefined
-    ? Promise.reject(new SyntaxError("Unexpected token '<'"))
-    : Promise.resolve({ error })),
-} as unknown as Response));
+const refusingFetch = (status: number, error?: string) => vi.fn<FetchStub>(() => Promise.resolve(error === undefined
+  ? new Response("<html>Refused</html>", { status })
+  : jsonResponse({ error }, status)));
 
 // The parameters one call was made with, as a plain object.
 const paramsOf = (fetchUtil: ReturnType<typeof acceptingFetch>, call: number): Record<string, string> =>

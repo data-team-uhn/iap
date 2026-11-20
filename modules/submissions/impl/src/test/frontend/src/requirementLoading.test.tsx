@@ -18,6 +18,7 @@
 
 import { act, render, screen } from "@testing-library/react";
 
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import {
   registerRequirementComponent,
   type RequirementComponent,
@@ -50,15 +51,6 @@ function contribute(): void {
   registerRequirementComponent(requirement => (requirement.type === "test/Thing" ? [ Thing, 50 ] : null));
 }
 
-function servingTheForm() {
-  return vi.fn(() => Promise.resolve({
-    ok: true,
-    status: 200,
-    url: "",
-    json: () => Promise.resolve(FORM),
-  } as unknown as Response));
-}
-
 // The loader keeps its result for the life of the module, so this file holds one case.
 describe("drawing a requirement whose component another module contributes", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -71,8 +63,7 @@ describe("drawing a requirement whose component another module contributes", () 
         resolve([]);
       };
     }));
-    const fetchMock = servingTheForm();
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(() => jsonResponse(FORM));
 
     render(<SubmissionEditor path={PATH} queueSave={aQueue()} />);
     // Every pending read settles, leaving only the components on their way

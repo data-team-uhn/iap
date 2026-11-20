@@ -20,9 +20,10 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import { LocationProbe, probedPath } from "@iap/frontend-commons/location.fixture";
 import MySubmissionsWidget from "@iap/submissions/MySubmissionsWidget";
-import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
+import { tagAware } from "@iap/tags/tagDefinitions.fixture";
 
 // The extension the dashboard hands the widget, which is where its title and subtitle come from
 const EXTENSION = {
@@ -72,36 +73,23 @@ function page(rows: unknown[]) {
   return { rows, offset: 0, limit: 5, returnedrows: rows.length, totalrows: rows.length, totalIsApproximate: false };
 }
 
-function json(body: unknown, status = 200) {
-  // A real Response rather than an object literal. The deletion controls fetch through
-  // useAuthenticatedFetch, which reads `response.url` to tell an expired session from an answer,
-  // and throws on a literal without one.
-  return Promise.resolve(new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  }));
-}
-
 // A fetch covering everything the widget and the controls inside it ask for. The listing, the
 // schemas on offer, the POST that raises a submission, and the two DELETEs: the dry run the
 // confirmation is built from, then the deletion itself.
-function widgetFetch(options: { rows?: unknown[]; creates?: boolean } = {}) {
+function stubWidgetServer(options: { rows?: unknown[]; creates?: boolean } = {}) {
   const { rows = [], creates = true } = options;
-  return vi.fn((input: string | URL, init?: { method?: string }) => {
-    const url = String(input);
-    if (init?.method === "DELETE") {
-      return json(url.includes("dryRun=true")
+  return stubFetch(request => {
+    if (request.method === "DELETE") {
+      return jsonResponse(request.url.includes("dryRun=true")
         ? { "status.code": 200, "status": "dryRun", "executable": true, "items": [ SUBMISSION_PATH ] }
         : { "status.code": 200, "status": "archived", "archiveEntry": "/Archive/ab/cd/ef/entry" });
     }
-    if (url === "/Submissions.create.json" && init?.method === "POST") {
-      return creates ? json({ status: "created", path: SUBMISSION_PATH }, 201) : json({ status: "completed" });
-    }
-    if (url.startsWith("/Schemas")) {
-      return json(SCHEMAS);
-    }
-    return tagAwareFetch(page(rows))(url);
-  });
+    return request.url.startsWith("/Schemas") ? jsonResponse(SCHEMAS) : undefined;
+  }, {
+    "POST /Submissions.create.json": creates
+      ? jsonResponse({ status: "created", path: SUBMISSION_PATH }, 201)
+      : jsonResponse({ status: "completed" }),
+  }, tagAware(page(rows)));
 }
 
 describe("MySubmissionsWidget", () => {
@@ -110,8 +98,7 @@ describe("MySubmissionsWidget", () => {
   });
 
   it("lists the current user's submissions with the schema and status columns", async () => {
-    const fetchMock = widgetFetch({ rows: [ ROW ] });
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubWidgetServer({ rows: [ ROW ] });
 
     render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
 
@@ -120,7 +107,7 @@ describe("MySubmissionsWidget", () => {
     // The lifecycle tag, displayed per its /Tags definition
     expect(await screen.findByText("In review")).toBeInTheDocument();
 
-    const url = new URL(String(fetchMock.mock.calls[0][0]), "http://localhost");
+    const url = new URL(fetchMock.mock.calls[0][0], "http://localhost");
     expect(url.pathname).toBe("/Submissions.paginate.json");
     expect(url.searchParams.getAll("fieldName")).toEqual(["createdBy"]);
     expect(url.searchParams.getAll("fieldValue")).toEqual(["@me"]);
@@ -130,7 +117,7 @@ describe("MySubmissionsWidget", () => {
   });
 
   it("draws its own header, so the action sits on the title's line", async () => {
-    vi.stubGlobal("fetch", widgetFetch());
+    stubWidgetServer();
 
     render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
 
@@ -140,10 +127,9 @@ describe("MySubmissionsWidget", () => {
   });
 
   it("offers the actions on each row, and re-reads the listing once one is deleted", async () => {
-    const fetchMock = widgetFetch({ rows: [ ROW ] });
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubWidgetServer({ rows: [ ROW ] });
     const listings = () =>
-      fetchMock.mock.calls.filter(([ url ]) => String(url).includes(".paginate.json")).length;
+      fetchMock.mock.calls.filter(([ url ]) => url.includes(".paginate.json")).length;
 
     render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
     await screen.findByText("Test my drug");
@@ -161,13 +147,12 @@ describe("MySubmissionsWidget", () => {
   });
 
   it("offers raising a new submission, and opens the one that was raised", async () => {
-    const fetchMock = widgetFetch();
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubWidgetServer();
 
     render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
 
     // The schemas are read only once the dialog opens
-    expect(fetchMock.mock.calls.some(([ url ]) => String(url).startsWith("/Schemas"))).toBe(false);
+    expect(fetchMock.mock.calls.some(([ url ]) => url.startsWith("/Schemas"))).toBe(false);
 
     await raiseOne();
 
@@ -176,12 +161,11 @@ describe("MySubmissionsWidget", () => {
   });
 
   it("stays on the dashboard when the engine created nothing to open, and re-reads the listing", async () => {
-    const fetchMock = widgetFetch({ creates: false });
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubWidgetServer({ creates: false });
 
     render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
     const listings = () => fetchMock.mock.calls
-      .filter(call => String(call[0]).startsWith("/Submissions.paginate.json")).length;
+      .filter(call => call[0].startsWith("/Submissions.paginate.json")).length;
     await waitFor(() => expect(listings()).toBe(1));
 
     await raiseOne();
@@ -192,7 +176,7 @@ describe("MySubmissionsWidget", () => {
   });
 
   it("renders without a title when the dashboard passes no extension", async () => {
-    vi.stubGlobal("fetch", widgetFetch());
+    stubWidgetServer();
 
     render(<MySubmissionsWidget />, { wrapper: MemoryRouter });
 

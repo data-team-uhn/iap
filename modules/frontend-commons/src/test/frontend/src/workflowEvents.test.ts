@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import { jsonResponse } from "@iap/frontend-commons/fetch.fixture";
 import { isRefusal } from "@iap/frontend-commons/requestFailure";
 import { offers, patch, sendEvent } from "@iap/frontend-commons/workflowEvents";
 
@@ -23,7 +24,7 @@ const failure = (sending: Promise<unknown>) => sending.then(() => undefined, (er
 
 // The engine answers in JSON: what an event created, or why it was refused
 const answer = (status: number, body: unknown) =>
-  vi.fn(() => Promise.resolve(new Response(JSON.stringify(body), { status })));
+  vi.fn(() => Promise.resolve(jsonResponse(body, status)));
 
 describe("sendEvent", () => {
   it("posts the event to the node, named by its selector", async () => {

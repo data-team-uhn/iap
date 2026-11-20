@@ -22,6 +22,7 @@ import { ThemeProvider } from "@mui/material/styles";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import FieldsDialog from "@iap/frontend-commons/fields/FieldsDialog";
 import type { ContentField, SerializedNode } from "@iap/frontend-commons/fields/fieldsModel";
 
@@ -50,15 +51,6 @@ const QUESTION_NODE: SerializedNode = {
 const WORKFLOW = field("workflow", "Workflow", {
   kind: "reference", referenceType: "wf/WorkflowVersion", referenceRoot: "/Workflows",
 });
-
-const response = (body: unknown, status = 200) =>
-  Promise.resolve({ ok: status < 400, status, url: "/search.json", json: () => Promise.resolve(body) } as unknown as Response);
-
-const serve = (answer: () => Promise<Response>) => {
-  const fetch = vi.fn<(url: string) => Promise<Response>>(answer);
-  vi.stubGlobal("fetch", fetch);
-  return fetch;
-};
 
 const renderDialog = (node: SerializedNode, onSave = vi.fn().mockResolvedValue(undefined), extra?: string,
   props: Partial<ComponentProps<typeof FieldsDialog>> = {}) => {
@@ -189,7 +181,7 @@ describe("FieldsDialog", () => {
   });
 
   it("points a reference at one of the nodes it may", async () => {
-    const fetch = serve(() => response({ rows: [
+    const fetch = stubFetch(() => jsonResponse({ rows: [
       { "@path": "/Workflows/review/v1" }, { "@path": "/Workflows/fast/v2", "title": "Fast track" }, { "title": "?" },
     ] }));
     const { dialog, onSave } = renderDialog({
@@ -210,7 +202,7 @@ describe("FieldsDialog", () => {
   });
 
   it("points a reference naming several nodes, or none", async () => {
-    serve(() => response({ rows: [ { "@path": "/Workflows/review/v1" } ] }));
+    stubFetch(() => jsonResponse({ rows: [ { "@path": "/Workflows/review/v1" } ] }));
     const { dialog, onSave } = renderDialog({ "@fields": [ { ...WORKFLOW, multiple: true } ] });
 
     await pick(dialog, "Workflow", "review/v1");
@@ -220,7 +212,7 @@ describe("FieldsDialog", () => {
   });
 
   it("takes any path for a reference naming no type", async () => {
-    const fetch = serve(() => response({}));
+    const fetch = stubFetch(() => jsonResponse({}));
     const { dialog, onSave } = renderDialog({ "@fields": [ field("link", "Link", { kind: "reference" }) ] });
 
     const link = within(dialog).getByRole("combobox", { name: "Link" });
@@ -233,7 +225,7 @@ describe("FieldsDialog", () => {
   });
 
   it("clears a reference", async () => {
-    serve(() => response({ rows: [ { "@path": "/Workflows/review/v1" } ] }));
+    stubFetch(() => jsonResponse({ rows: [ { "@path": "/Workflows/review/v1" } ] }));
     const { dialog, onSave } = renderDialog({ "@fields": [ WORKFLOW ], "workflow": "/Workflows/review/v1" });
 
     fireEvent.change(within(dialog).getByRole("combobox", { name: "Workflow" }), { target: { value: "" } });
@@ -243,7 +235,7 @@ describe("FieldsDialog", () => {
   });
 
   it("offers nothing when no node may be pointed at", async () => {
-    serve(() => response({}));
+    stubFetch(() => jsonResponse({}));
     const { dialog } = renderDialog({ "@fields": [ WORKFLOW ] });
 
     fireEvent.mouseDown(within(dialog).getByRole("combobox", { name: "Workflow" }));
@@ -252,7 +244,7 @@ describe("FieldsDialog", () => {
   });
 
   it("says when the nodes a reference may point at cannot be read", async () => {
-    serve(() => response({}, 403));
+    stubFetch(() => jsonResponse({}, 403));
     const { dialog } = renderDialog({ "@fields": [ WORKFLOW ] });
 
     expect(await within(dialog).findByText(/permission/)).toBeInTheDocument();
@@ -261,11 +253,11 @@ describe("FieldsDialog", () => {
   it("stops listening for the nodes once it is gone", async () => {
     let answer: (value: Response) => void = () => undefined;
     let fail: (error: Error) => void = () => undefined;
-    serve(() => new Promise<Response>(resolve => { answer = resolve; }));
+    stubFetch(() => new Promise<Response>(resolve => { answer = resolve; }));
     renderDialog({ "@fields": [ WORKFLOW ] }).unmount();
-    answer({ ok: true, status: 200, url: "/search.json", json: () => Promise.resolve({ rows: [] }) } as unknown as Response);
+    answer(jsonResponse({ rows: [] }));
 
-    serve(() => new Promise<Response>((_resolve, reject) => { fail = reject; }));
+    stubFetch(() => new Promise<Response>((_resolve, reject) => { fail = reject; }));
     renderDialog({ "@fields": [ WORKFLOW ] }).unmount();
     fail(new Error("gone"));
 

@@ -18,18 +18,15 @@
 
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import { jsonResponse, sessionInfo, stubFetch } from "@iap/frontend-commons/fetch.fixture";
+import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import UserMenu from "@iap/homepage/UserMenu";
 import { STORE_KEY, getActivePersona } from "@iap/ui-extension/personas";
 
 // Answers the two Sling endpoints the menu reads: the session info, with the username, and the
 // user's properties, with the full name
 const stubUserEndpoints = (userId: string, userProperties: Record<string, unknown> = {}) =>
-  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
-    ok: true,
-    url,
-    json: () => Promise.resolve(
-      url.endsWith("sessionInfo.json") ? { userID: userId } : userProperties),
-  } as unknown as Response)));
+  stubFetch(sessionInfo(userId), () => jsonResponse(userProperties));
 
 // Lets the menu finish with what the session reported, which reaches it through a chain of promises
 const sessionRead = () => act(() => new Promise<void>(resolve => { setTimeout(resolve, 0); }));
@@ -91,11 +88,7 @@ describe("UserMenu", () => {
   });
 
   it("renders nothing when the session reports no user at all", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
-      ok: true,
-      url: "",
-      json: () => Promise.resolve({}),
-    } as unknown as Response)));
+    stubFetch({ [SESSION_INFO_URL]: jsonResponse({}) });
 
     const { container } = render(<UserMenu />);
     await sessionRead();
@@ -113,7 +106,7 @@ describe("UserMenu", () => {
 
   it("reports a failure to identify the user, and renders nothing", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: false, status: 403 } as Response)));
+    stubFetch({ [SESSION_INFO_URL]: new Response(null, { status: 403 }) });
 
     const { container } = render(<UserMenu />);
 
@@ -125,11 +118,7 @@ describe("UserMenu", () => {
   });
 
   it("falls back to the user name when the profile cannot be read", async () => {
-    vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL) => Promise.resolve(
-      String(url).endsWith("sessionInfo.json")
-        ? { ok: true, url: String(url), json: () => Promise.resolve({ userID: "jdoe" }) }
-        : { ok: false, status: 500 }
-    ) as unknown as Promise<Response>));
+    stubFetch(sessionInfo("jdoe"), () => new Response(null, { status: 500 }));
 
     render(<UserMenu />);
 

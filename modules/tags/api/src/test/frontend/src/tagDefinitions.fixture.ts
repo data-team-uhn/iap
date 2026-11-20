@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import { jsonResponse, type FetchRoute } from "@iap/frontend-commons/fetch.fixture";
 import type { TagDefinition } from "@iap/tags/tagDefinitions";
 
 // Tag definitions of the lifecycle and review categories, as /Tags.search.json serves them
@@ -35,23 +36,15 @@ export const TAG_DEFINITIONS: (TagDefinition & { category: string[] })[] = [
     order: 70, category: ["lifecycle", "review"] },
 ];
 
-// A successful response carrying the given JSON body. Build every stand-in response through this.
-// Besides `ok` and `json`, useAuthenticatedFetch reads `url` to tell a real answer from a redirect
-// to the login page. A stub without it makes every request throw, and so give no definitions.
-export function jsonResponse(body: unknown): Promise<Response> {
-  return Promise.resolve({ ok: true, url: "", json: () => Promise.resolve(body) } as unknown as Response);
-}
-
-// A fetch stand-in that answers /Tags.search.json with the definitions of the requested
-// category, in their order, and every other URL with the given payload.
-export function tagAwareFetch(payload: unknown): (url: string) => Promise<Response> {
-  return url => {
-    let body: unknown = payload;
-    if (url.includes("/Tags.search.json")) {
-      const category = new URL(url, "http://localhost").searchParams.get("category");
-      const tags = TAG_DEFINITIONS.filter(tag => category == null || tag.category.includes(category));
-      body = { tags, total: tags.length };
+// A fetch route that answers /Tags.search.json with the definitions of the requested category, in
+// their order, and every other URL with the given payload.
+export function tagAware(payload: unknown): FetchRoute {
+  return request => {
+    if (!request.url.includes("/Tags.search.json")) {
+      return jsonResponse(payload);
     }
-    return jsonResponse(body);
+    const category = new URL(request.url, "http://localhost").searchParams.get("category");
+    const tags = TAG_DEFINITIONS.filter(tag => category == null || tag.category.includes(category));
+    return jsonResponse({ tags, total: tags.length });
   };
 }

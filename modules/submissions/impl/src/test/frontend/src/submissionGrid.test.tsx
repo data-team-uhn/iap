@@ -17,8 +17,9 @@
  */
 
 import { getEntityTypeConfig } from "@iap/frontend-commons/entityGrid/registry";
+import { stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import { SUBMISSION_TYPE, schemaLabel } from "@iap/submissions/submissionGrid";
-import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
+import { tagAware } from "@iap/tags/tagDefinitions.fixture";
 
 // Importing the module registered the configuration as a side effect
 const config = getEntityTypeConfig(SUBMISSION_TYPE);
@@ -63,7 +64,7 @@ describe("the registered submission grid configuration", () => {
   });
 
   it("presents the lifecycle state through the multivalued tags property", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+    stubFetch(tagAware({}));
 
     const status = config?.columns.find(column => column.field === "tags");
     expect(status?.headerName).toBe("Status");

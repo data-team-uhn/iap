@@ -20,16 +20,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
-import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { jsonResponse, sentRequests, stubFailingFetch, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import LlmConfigManager from "@iap/llm/LlmConfigManager";
-
-interface RecordedRequest {
-  url: string;
-  method: string;
-  params: URLSearchParams;
-}
-
-let requests: RecordedRequest[] = [];
 
 const catalogJson = (activeProvider = "example", activeModel = "model-a") => ({
   activeProvider,
@@ -50,31 +42,11 @@ const catalogJson = (activeProvider = "example", activeModel = "model-a") => ({
   ],
 });
 
-const stubFetch = (postStatus = 200) =>
-  vi.stubGlobal("fetch", vi.fn((url: string, options?: RequestInit) => {
-    const method = options?.method ?? "GET";
-    const params = new URLSearchParams(options?.body as URLSearchParams | undefined);
-    requests.push({ url, method, params });
-    if (method === "GET") {
-      return Promise.resolve({
-        ok: true, status: 200, statusText: "OK", url,
-        json: () => Promise.resolve(catalogJson()),
-      } as unknown as Response);
-    }
-    return Promise.resolve({
-      ok: postStatus < 400,
-      status: postStatus,
-      statusText: postStatus === 200 ? "OK" : "Error",
-      url,
-      json: () => Promise.resolve(
-        catalogJson(params.get("activeProvider") ?? "", params.get("activeModel") ?? "")),
-    } as unknown as Response);
-  }));
-
-const stubFailingFetch = (status: number, statusText: string) =>
-  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
-    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-    : { ok: false, status, statusText, url }) as unknown as Response)));
+// Answers the catalog GET, and a POST with the catalog as it would be after the switch
+const stubCatalog = (postStatus = 200) => stubFetch(request => request.method === "GET"
+  ? jsonResponse(catalogJson())
+  : jsonResponse(catalogJson(request.params.get("activeProvider") ?? "", request.params.get("activeModel") ?? ""),
+    postStatus));
 
 // MUI renders a select as a button showing the current value, which opens a listbox when clicked.
 const chooseOption = async (selectName: string, option: string) => {
@@ -92,17 +64,13 @@ const loaded = async () => {
 
 const saveButton = () => screen.getByRole("button", { name: "Save" });
 
-const lastPost = () => requests.filter(request => request.method === "POST").at(-1);
-
-beforeEach(() => {
-  requests = [];
-});
+const lastPost = () => sentRequests().filter(request => request.method === "POST").at(-1);
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("LlmConfigManager", () => {
   it("shows the active selection and its settings", async () => {
-    stubFetch();
+    stubCatalog();
     await loaded();
 
     expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("Example Provider");
@@ -113,7 +81,7 @@ describe("LlmConfigManager", () => {
   });
 
   it("offers nothing to save until something changes", async () => {
-    stubFetch();
+    stubCatalog();
     await loaded();
 
     expect(saveButton()).toBeDisabled();
@@ -124,7 +92,7 @@ describe("LlmConfigManager", () => {
   });
 
   it("moves to the provider's first model when the provider changes", async () => {
-    stubFetch();
+    stubCatalog();
     await loaded();
 
     await chooseOption("Provider", "prompter");
@@ -134,7 +102,7 @@ describe("LlmConfigManager", () => {
   });
 
   it("saves the selection and confirms it", async () => {
-    stubFetch();
+    stubCatalog();
     await loaded();
 
     await chooseOption("Model", "other-model");
@@ -148,7 +116,7 @@ describe("LlmConfigManager", () => {
   });
 
   it("reports a refused save without losing what was chosen", async () => {
-    stubFetch(403);
+    stubCatalog(403);
     await loaded();
 
     await chooseOption("Model", "other-model");
@@ -159,7 +127,7 @@ describe("LlmConfigManager", () => {
   });
 
   it("has nothing to choose from for a provider with no models", async () => {
-    stubFetch();
+    stubCatalog();
     await loaded();
 
     await chooseOption("Provider", "empty");
@@ -170,24 +138,20 @@ describe("LlmConfigManager", () => {
   });
 
   it("reports a failure to load, with a way to try again", async () => {
-    stubFailingFetch(500, "Server Error");
+    stubFailingFetch(500);
     renderManager();
 
     expect(await screen.findByText("The LLM configuration could not be loaded")).toBeInTheDocument();
 
     vi.unstubAllGlobals();
-    stubFetch();
+    stubCatalog();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByRole("combobox", { name: "Provider" })).toHaveTextContent("Example Provider");
   });
 
   it("says so when no provider is configured", async () => {
-    stubFetch();
-    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
-      ok: true, status: 200, statusText: "OK", url,
-      json: () => Promise.resolve({ providers: [] }),
-    } as unknown as Response)));
+    stubFetch(() => jsonResponse({ providers: [] }));
     renderManager();
 
     expect(await screen.findByText("No LLM providers are configured.")).toBeInTheDocument();

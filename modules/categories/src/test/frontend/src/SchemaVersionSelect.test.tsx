@@ -19,7 +19,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import SchemaVersionSelect from "@iap/categories/SchemaVersionSelect";
-import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { jsonResponse, stubFailingFetch, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 // The JSON of /Schemas: a titled schema, and one whose title falls back to its node name. The
 // picker skips the rest: nodes that are not schemas or versions, a version with no `jcr:uuid`, and
@@ -53,14 +53,8 @@ const LIFECYCLE = { tags: [
   { name: "retired", label: "Retired", order: 50, category: ["lifecycle"] },
 ], total: 2 };
 
-// Every answer carries its `url`, which useAuthenticatedFetch reads to recognise the login page.
-const stubSchemas = (body: unknown = schemasJson) =>
-  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
-    ok: true,
-    status: 200,
-    url,
-    json: () => Promise.resolve(url.includes("/Tags.search.json") ? LIFECYCLE : body),
-  } as unknown as Response)));
+const stubSchemas = () =>
+  stubFetch(request => jsonResponse(request.url.includes("/Tags.search.json") ? LIFECYCLE : schemasJson));
 
 const renderSelect = (value = "") => {
   const onChange = vi.fn();
@@ -167,10 +161,7 @@ describe("SchemaVersionSelect", () => {
 
   it("says so when the schemas cannot be loaded", async () => {
     vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
-    // A live session makes the 500 a server failure, not an expired session
-    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
-      ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
-      : { ok: false, status: 500, url }) as unknown as Response)));
+    stubFailingFetch(500);
 
     renderSelect();
 

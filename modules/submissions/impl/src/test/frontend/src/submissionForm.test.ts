@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import { jsonResponse } from "@iap/frontend-commons/fetch.fixture";
 import {
   QUESTION,
   SECTION,
@@ -31,15 +32,6 @@ import {
 } from "@iap/submissions/submissionForm";
 
 const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
-
-function response(body: unknown, init: { ok?: boolean; status?: number } = {}) {
-  return Promise.resolve({
-    ok: init.ok ?? true,
-    status: init.status ?? 200,
-    url: "",
-    json: () => Promise.resolve(body),
-  } as unknown as Response);
-}
 
 describe("isQuestion", () => {
   it("tells a question apart from a section", () => {
@@ -77,14 +69,14 @@ describe("the answer-count pair", () => {
 describe("fetchForm", () => {
   it("reads the form projection of a submission", async () => {
     const form = { path: PATH, title: "A long weekend", editable: true, requirements: [] };
-    const fetchMock = vi.fn(() => response(form));
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(form)));
 
     expect(await fetchForm(fetchMock, PATH)).toEqual(form);
     expect(fetchMock).toHaveBeenCalledWith(`${PATH}.form.json`);
   });
 
   it("reports a form that would not load", async () => {
-    const fetchMock = vi.fn(() => response({}, { ok: false, status: 404 }));
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({}, 404)));
 
     await expect(fetchForm(fetchMock, PATH)).rejects.toThrow(/could not be loaded \(404\)/);
   });
@@ -92,7 +84,7 @@ describe("fetchForm", () => {
 
 describe("saveAnswer", () => {
   it("posts the answer to the submission as its save event", async () => {
-    const fetchMock = vi.fn(() => response({}));
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({})));
 
     await saveAnswer(fetchMock, PATH, "details/startDate", [ "2026-10-06" ]);
 
@@ -104,7 +96,7 @@ describe("saveAnswer", () => {
   });
 
   it("repeats a question that holds several values", async () => {
-    const fetchMock = vi.fn(() => response({}));
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({})));
 
     await saveAnswer(fetchMock, PATH, "details/days", [ "Monday", "Tuesday" ]);
 
@@ -113,7 +105,7 @@ describe("saveAnswer", () => {
   });
 
   it("names the question even when it is being cleared", async () => {
-    const fetchMock = vi.fn(() => response({}));
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({})));
 
     await saveAnswer(fetchMock, PATH, "details/startDate", []);
 
@@ -122,20 +114,15 @@ describe("saveAnswer", () => {
   });
 
   it("reports the engine's own reason for refusing", async () => {
-    const fetchMock = vi.fn(() => response(
-      { error: "This request has been submitted and can no longer be changed" },
-      { ok: false, status: 409 }));
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(
+      { error: "This request has been submitted and can no longer be changed" }, 409)));
 
     await expect(saveAnswer(fetchMock, PATH, "details/startDate", [ "x" ]))
       .rejects.toThrow("This request has been submitted and can no longer be changed");
   });
 
   it("describes a failure that carries no reason by its status", async () => {
-    const fetchMock = vi.fn(() => Promise.resolve({
-      ok: false,
-      status: 409,
-      json: () => Promise.reject(new Error("no body")),
-    } as unknown as Response));
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(null, { status: 409 })));
 
     await expect(saveAnswer(fetchMock, PATH, "details/startDate", [ "x" ]))
       .rejects.toThrow(/conflicts with a more recent change.*\(HTTP 409\)/);

@@ -21,10 +21,9 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 
 import CatchingBanner from "@iap/email-catcher/CatchingBanner";
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
-const answering = (body: unknown, status = 200) =>
-  vi.fn((_url: string) => Promise.resolve(new Response(JSON.stringify(body),
-    { status, headers: { "Content-Type": "application/json" } })));
+const answering = (body: unknown, status = 200) => stubFetch(() => jsonResponse(body, status));
 
 const banner = () => render(
   <ThemeProvider theme={appTheme} defaultMode="light">
@@ -41,7 +40,6 @@ describe("CatchingBanner", () => {
 
   it("warns on every page while mail is being caught", async () => {
     const fetchMock = answering({ catching: true });
-    vi.stubGlobal("fetch", fetchMock);
     banner();
 
     expect(await screen.findByText(WARNING)).toBeInTheDocument();
@@ -49,7 +47,7 @@ describe("CatchingBanner", () => {
   });
 
   it("says nothing at all while mail is being delivered", async () => {
-    vi.stubGlobal("fetch", answering({ catching: false }));
+    answering({ catching: false });
     const { container } = banner();
 
     await waitFor(() => expect(container).toBeEmptyDOMElement());
@@ -57,7 +55,6 @@ describe("CatchingBanner", () => {
 
   it("asks without credentials, because it runs before there is a session", async () => {
     const fetchMock = answering({ catching: true });
-    vi.stubGlobal("fetch", fetchMock);
     banner();
 
     await screen.findByText(WARNING);
@@ -73,14 +70,14 @@ describe("CatchingBanner", () => {
   });
 
   it("stays silent when the endpoint refuses", async () => {
-    vi.stubGlobal("fetch", answering({}, 403));
+    answering({}, 403);
     const { container } = banner();
 
     await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
   it("stays silent when the answer is not the shape it expects", async () => {
-    vi.stubGlobal("fetch", answering({ catching: "yes" }));
+    answering({ catching: "yes" });
     const { container } = banner();
 
     await waitFor(() => expect(container).toBeEmptyDOMElement());
@@ -88,10 +85,7 @@ describe("CatchingBanner", () => {
 
   it("asks again when catching is switched in this tab", async () => {
     let catching = false;
-    const fetchMock = vi.fn((_url: string) =>
-      Promise.resolve(new Response(JSON.stringify({ catching }),
-        { status: 200, headers: { "Content-Type": "application/json" } })));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(() => jsonResponse({ catching }));
     const { container } = banner();
 
     await waitFor(() => expect(container).toBeEmptyDOMElement());
@@ -108,7 +102,6 @@ describe("CatchingBanner", () => {
 
   it("stops listening once it is gone", async () => {
     const fetchMock = answering({ catching: false });
-    vi.stubGlobal("fetch", fetchMock);
     const { unmount } = banner();
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));

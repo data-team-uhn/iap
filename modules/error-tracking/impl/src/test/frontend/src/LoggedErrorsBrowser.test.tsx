@@ -21,6 +21,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 
 import LoggedErrorsBrowser from "@iap/error-tracking/LoggedErrorsBrowser";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 /** The four error-triage definitions this module ships, as /Tags.search.json answers them. */
 const TRIAGE_DEFINITIONS = [
@@ -47,14 +48,9 @@ const page = (rows: unknown[]) => ({
   rows, offset: 0, limit: 25, returnedrows: rows.length, totalrows: rows.length, totalIsApproximate: false,
 });
 
-/** Answers both the tag vocabulary and the listing, each with its own Response. */
-const answering = (rows: unknown[] = [ ERROR_ROW ]) => vi.fn((url: string) => {
-  const body = url.includes("/Tags.search.json")
-    ? { tags: TRIAGE_DEFINITIONS, total: TRIAGE_DEFINITIONS.length }
-    : page(rows);
-  return Promise.resolve(new Response(JSON.stringify(body),
-    { status: 200, headers: { "Content-Type": "application/json" } }));
-});
+/** Answers both the tag vocabulary and the listing. */
+const serve = (rows: unknown[] = [ ERROR_ROW ]) => stubFetch(request => jsonResponse(
+  request.url.includes("/Tags.search.json") ? { tags: TRIAGE_DEFINITIONS, total: TRIAGE_DEFINITIONS.length } : page(rows)));
 
 const browser = () => render(<LoggedErrorsBrowser />, { wrapper: MemoryRouter });
 
@@ -68,8 +64,7 @@ describe("LoggedErrorsBrowser", () => {
   });
 
   it("lists the recorded errors from their own homepage, newest fault first", async () => {
-    const fetchMock = answering();
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = serve();
     browser();
 
     expect(await screen.findByText("IllegalStateException")).toBeInTheDocument();
@@ -84,8 +79,7 @@ describe("LoggedErrorsBrowser", () => {
   });
 
   it("asks for everything until told otherwise", async () => {
-    const fetchMock = answering();
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = serve();
     browser();
 
     await waitFor(() => { expect(listings(fetchMock)).not.toHaveLength(0); });
@@ -94,8 +88,7 @@ describe("LoggedErrorsBrowser", () => {
   });
 
   it("narrows the listing to what needs attention when asked, and puts it back when the switch is turned off", async () => {
-    const fetchMock = answering();
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = serve();
     browser();
     await screen.findByText("IllegalStateException");
     const toggle = screen.getByRole("switch", { name: "Only what needs attention" });
@@ -115,8 +108,7 @@ describe("LoggedErrorsBrowser", () => {
   });
 
   it("says what an empty listing means, which depends on whether it was narrowed", async () => {
-    const fetchMock = answering([]);
-    vi.stubGlobal("fetch", fetchMock);
+    serve([]);
     browser();
 
     expect(await screen.findByText("Nothing has been recorded yet.")).toBeInTheDocument();

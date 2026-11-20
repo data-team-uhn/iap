@@ -20,6 +20,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 
 import CategoryDialog, { SaveStepFailure, type CategorySubmission } from "@iap/categories/CategoryDialog";
 import { parseCategoryTree } from "@iap/categories/categoryModel";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 // A typed onSave mock, so the assertions on its recorded calls stay type-safe.
 const onSaveMock = () => vi.fn<(submission: CategorySubmission) => Promise<void>>()
@@ -47,26 +48,21 @@ const tree = parseCategoryTree({
   },
 });
 
-// Answers the schema listing that the schema version picker fetches. The answer carries its `url`,
-// which useAuthenticatedFetch reads to recognise the login page.
+// Answers the schema listing that the schema version picker fetches
 const stubSchemasEndpoint = () =>
-  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
-    ok: true,
-    url,
-    json: () => Promise.resolve({
-      "jcr:primaryType": "sch:SchemasHomepage",
-      "basic": {
-        "jcr:primaryType": "sch:Schema",
-        "title": "Basic schema",
-        "1.0": {
-          "jcr:primaryType": "sch:SchemaVersion",
-          "jcr:uuid": "uuid-sv1",
-          "version": "1.0",
-          "tags": ["active"],
-        },
+  stubFetch(() => jsonResponse({
+    "jcr:primaryType": "sch:SchemasHomepage",
+    "basic": {
+      "jcr:primaryType": "sch:Schema",
+      "title": "Basic schema",
+      "1.0": {
+        "jcr:primaryType": "sch:SchemaVersion",
+        "jcr:uuid": "uuid-sv1",
+        "version": "1.0",
+        "tags": ["active"],
       },
-    }),
-  } as unknown as Response)));
+    },
+  }));
 
 afterEach(() => vi.unstubAllGlobals());
 

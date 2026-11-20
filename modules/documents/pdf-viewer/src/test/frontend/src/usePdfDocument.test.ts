@@ -23,7 +23,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 
 import { usePdfDocument } from "@iap/documents-pdf-viewer/usePdfDocument";
 
-import { FONT_NAME, fakePdf, FakeWorker, stubFetch } from "./pdfjs.fixture";
+import { FONT_NAME, fakePdf, FakeWorker, stubDocumentFetch } from "./pdfjs.fixture";
 
 vi.mock("pdfjs-dist", async () => (await import("./pdfjs.fixture")).createPdfjsModule());
 vi.mock("pdfjs-dist/web/pdf_viewer.mjs", async () => (await import("./pdfjs.fixture")).createViewerModule());
@@ -35,7 +35,7 @@ const URL = "/content/pdfs/memo.pdf";
 
 describe("usePdfDocument", () => {
   beforeEach(() => {
-    stubFetch();
+    stubDocumentFetch();
     vi.stubGlobal("Worker", FakeWorker);
   });
 

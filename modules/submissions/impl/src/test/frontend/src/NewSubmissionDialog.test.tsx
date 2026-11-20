@@ -19,6 +19,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import NewSubmissionDialog from "@iap/submissions/NewSubmissionDialog";
 import { SCHEMAS_URL } from "@iap/submissions/schemaModel";
 
@@ -26,21 +27,10 @@ import { SCHEMAS } from "./schemas.fixture";
 
 const CREATE_URL = "/Submissions.create.json";
 
-function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {}) {
-  return {
-    ok: init.ok ?? true,
-    status: init.status ?? 200,
-    url: "",
-    json: () => Promise.resolve(body),
-  };
-}
-
 // Answers the listing and nothing else, so that a request the dialog is not expected to make shows
 // up as an empty tree rather than as schemas
-function schemasFetch() {
-  return vi.fn((url: string) => Promise.resolve(url === SCHEMAS_URL
-    ? jsonResponse(SCHEMAS)
-    : jsonResponse({})));
+function stubSchemas() {
+  return stubFetch({ [SCHEMAS_URL]: jsonResponse(SCHEMAS) }, () => jsonResponse({}));
 }
 
 describe("NewSubmissionDialog", () => {
@@ -49,8 +39,7 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("lists what is open for submissions, with the version that will be answered", async () => {
-    const fetchMock = schemasFetch();
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubSchemas();
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
 
@@ -61,7 +50,7 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("says when nothing is open for submissions, rather than showing an empty dialog", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}))));
+    stubFetch(() => jsonResponse({}));
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
 
@@ -69,7 +58,7 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("reports a list that would not load", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse({}, { ok: false, status: 503 }))));
+    stubFetch(() => jsonResponse({}, 503));
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
 
@@ -78,10 +67,9 @@ describe("NewSubmissionDialog", () => {
 
   it("raises the submission as a create event on /Submissions and reports where it went", async () => {
     const created = vi.fn();
-    const fetchMock = vi.fn((url: string) => Promise.resolve(url === CREATE_URL
-      ? jsonResponse({ status: "created", path: "/Submissions/aLongWeekend" }, { status: 201 })
-      : jsonResponse(SCHEMAS)));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(({ url }) => url === CREATE_URL
+      ? jsonResponse({ status: "created", path: "/Submissions/aLongWeekend" }, 201)
+      : jsonResponse(SCHEMAS));
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={created} />);
     await userEvent.click(await screen.findByRole("radio"));
@@ -97,7 +85,7 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("cannot be submitted until both answers the workflow needs are given", async () => {
-    vi.stubGlobal("fetch", schemasFetch());
+    stubSchemas();
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
     await screen.findByText("Time off request 1.0");
@@ -115,7 +103,7 @@ describe("NewSubmissionDialog", () => {
 
   // A body that parses to null is well-formed JSON and still not a node
   it("says the listing could not be read when the body is null", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(null))));
+    stubFetch(() => jsonResponse(null));
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
 
@@ -123,13 +111,12 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("cannot be dismissed while the submission is being raised", async () => {
-    let release: (value: unknown) => void = () => {};
-    const fetchMock = vi.fn((url: string) => url === CREATE_URL
-      ? new Promise(resolve => {
+    let release: (value: Response) => void = () => {};
+    stubFetch(({ url }) => url === CREATE_URL
+      ? new Promise<Response>(resolve => {
         release = resolve;
       })
-      : Promise.resolve(jsonResponse(SCHEMAS)));
-    vi.stubGlobal("fetch", fetchMock);
+      : jsonResponse(SCHEMAS));
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
     await userEvent.click(await screen.findByRole("radio"));
@@ -141,10 +128,9 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("shows the engine's own reason for refusing", async () => {
-    const fetchMock = vi.fn((url: string) => Promise.resolve(url === CREATE_URL
-      ? jsonResponse({ error: "The user is not allowed to perform this action" }, { ok: false, status: 403 })
-      : jsonResponse(SCHEMAS)));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(({ url }) => url === CREATE_URL
+      ? jsonResponse({ error: "The user is not allowed to perform this action" }, 403)
+      : jsonResponse(SCHEMAS));
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
     await userEvent.click(await screen.findByRole("radio"));
@@ -155,10 +141,9 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("falls back to the status when a refusal carries no reason", async () => {
-    const fetchMock = vi.fn((url: string) => Promise.resolve(url === CREATE_URL
-      ? { ...jsonResponse({}, { ok: false, status: 409 }), json: () => Promise.reject(new Error("no body")) }
-      : jsonResponse(SCHEMAS)));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(({ url }) => url === CREATE_URL
+      ? new Response(null, { status: 409 })
+      : jsonResponse(SCHEMAS));
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
     await userEvent.click(await screen.findByRole("radio"));
@@ -170,9 +155,7 @@ describe("NewSubmissionDialog", () => {
 
   it("reports an empty path when the engine created nothing to open", async () => {
     const created = vi.fn();
-    const fetchMock = vi.fn((url: string) => Promise.resolve(
-      url === CREATE_URL ? jsonResponse({}) : jsonResponse(SCHEMAS)));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(({ url }) => url === CREATE_URL ? jsonResponse({}) : jsonResponse(SCHEMAS));
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={created} />);
     await userEvent.click(await screen.findByRole("radio"));
@@ -183,7 +166,7 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("reports a load that failed with something that is not an Error", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.reject("the network went away")));
+    stubFetch(() => Promise.reject("the network went away"));
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
 
@@ -191,10 +174,9 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("reports a refusal that failed with something that is not an Error", async () => {
-    const fetchMock = vi.fn((url: string) => url === CREATE_URL
+    stubFetch(({ url }) => url === CREATE_URL
       ? Promise.reject("the network went away")
-      : Promise.resolve(jsonResponse(SCHEMAS)));
-    vi.stubGlobal("fetch", fetchMock);
+      : jsonResponse(SCHEMAS));
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
     await userEvent.click(await screen.findByRole("radio"));
@@ -206,11 +188,11 @@ describe("NewSubmissionDialog", () => {
 
   it("keeps quiet when it is closed while still loading", async () => {
     // A list that arrives after the dialog is gone must not be set on it
-    let deliver: (value: unknown) => void = () => {};
-    const inFlight = new Promise(resolve => {
+    let deliver: (value: Response) => void = () => {};
+    const inFlight = new Promise<Response>(resolve => {
       deliver = resolve;
     });
-    vi.stubGlobal("fetch", vi.fn(() => inFlight));
+    stubFetch(() => inFlight);
     const warn = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const { unmount } = render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
@@ -224,7 +206,7 @@ describe("NewSubmissionDialog", () => {
 
   it("closes without raising anything when cancelled", async () => {
     const close = vi.fn();
-    vi.stubGlobal("fetch", schemasFetch());
+    stubSchemas();
 
     render(<NewSubmissionDialog onClose={close} onCreated={() => {}} />);
     await screen.findByText("Time off request 1.0");

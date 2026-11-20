@@ -16,11 +16,11 @@
  * limitations under the License.
  */
 
-import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
-// A stand-in server for the schema tool's tests. It serves the schemas, the lifecycle tag
-// definitions and a live session, and records every event posted. It answers each event as a test
-// asks: completed, refused with the engine's reason, or created, with the path of what it created.
+// A stand-in server for the schema tool's tests. It serves the schemas and the lifecycle tag
+// definitions, and records every event posted. It answers each event as a test asks: completed,
+// refused with the engine's reason, or created, with the path of what it created.
 
 export interface EventAnswer {
   status?: number;
@@ -227,10 +227,6 @@ const LIFECYCLE = {
   ],
 };
 
-const json = (url: string, body: unknown, status = 200) => Promise.resolve({
-  ok: status < 400, status, url, json: () => Promise.resolve(body),
-} as unknown as Response);
-
 // A node as the serializer identifies it, with its children identified too
 export function withPaths(path: string, node: Record<string, unknown>): Record<string, unknown> {
   const identified: Record<string, unknown> = { "@path": path, "@name": path.split("/").at(-1) };
@@ -279,68 +275,65 @@ export function serveSchemas(
   } = {},
 ): PostedEvent[] {
   const posted: PostedEvent[] = [];
-  vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
-    if (url === SESSION_INFO_URL) {
-      return json(url, { userID: "admin" });
-    }
+  stubFetch(({ url, method, params }) => {
     if (url.startsWith("/Tags.search.json")) {
-      return json(url, LIFECYCLE);
+      return jsonResponse(LIFECYCLE);
     }
     if (url.startsWith("/search.json")) {
-      return json(url, { rows: WORKFLOWS });
+      return jsonResponse({ rows: WORKFLOWS });
     }
     // Only the app's own requests: the data grid also posts its vendor's telemetry
-    if (init?.method === "POST" && url.startsWith("/")) {
-      posted.push({ url, params: new URLSearchParams(init.body as URLSearchParams) });
+    if (method === "POST" && url.startsWith("/")) {
+      posted.push({ url, params });
       const answer = answers[url] ?? {};
       if (answer.created) {
-        return json(url, { status: "created", path: answer.created }, 201);
+        return jsonResponse({ status: "created", path: answer.created }, 201);
       }
       return answer.status && answer.status >= 400
-        ? json(url, answer.error ? { error: answer.error } : {}, answer.status)
-        : json(url, { status: "completed" });
+        ? jsonResponse(answer.error ? { error: answer.error } : {}, answer.status)
+        : jsonResponse({ status: "completed" });
     }
     if (failReads) {
-      return json(url, {}, failReads);
+      return jsonResponse({}, failReads);
     }
     const links = /^\/Schemas\/([^./]+)\/([^./]+)\/link:links\./.exec(url);
     if (links) {
       const held = ((homepage[links[1]] as Record<string, unknown> | undefined)?.[links[2]] as
         Record<string, unknown> | undefined)?.["link:links"];
-      return held ? json(url, held) : json(url, {}, 404);
+      return held ? jsonResponse(held) : jsonResponse({}, 404);
     }
     const definition = /^\/SystemWorkflows\/([^./]+)\.deep/.exec(url)?.[1];
     if (definition !== undefined) {
-      return definition in FIELD_DEFINITIONS ? json(url, FIELD_DEFINITIONS[definition]) : json(url, {}, 404);
+      return definition in FIELD_DEFINITIONS ? jsonResponse(FIELD_DEFINITIONS[definition]) : jsonResponse({}, 404);
     }
     const version = /^\/Schemas\/([^./]+)\/([^./]+)\.deep/.exec(url);
     if (version) {
       if (failContent) {
-        return json(url, {}, failContent);
+        return jsonResponse({}, failContent);
       }
       const [ , schema, name ] = version;
       const node = (homepage[schema] as Record<string, unknown> | undefined)?.[name];
       return node
-        ? json(url, withPaths(`/Schemas/${schema}/${name}`, { ...node, ...CONTENT[`${schema}/${name}`] }))
-        : json(url, {}, 404);
+        ? jsonResponse(withPaths(`/Schemas/${schema}/${name}`, { ...node, ...CONTENT[`${schema}/${name}`] }))
+        : jsonResponse({}, 404);
     }
     // A listing that does not ask for `-active` would be served without the drafts and the retired
     if (url.startsWith("/Schemas") && !url.includes("-active")) {
-      return json(url, {}, 400);
+      return jsonResponse({}, 400);
     }
     if (url.startsWith("/Schemas.paginate.json")) {
       const rows = Object.entries(homepage)
         .filter(([, value]) => (value as Record<string, unknown>)["jcr:primaryType"] === "sch:Schema")
         .map(([name, value]) => withPaths(`/Schemas/${name}`, value as Record<string, unknown>));
-      return json(url, { rows, offset: 0, limit: 25, returnedrows: rows.length, totalrows: rows.length,
+      return jsonResponse({ rows, offset: 0, limit: 25, returnedrows: rows.length, totalrows: rows.length,
         totalIsApproximate: false });
     }
     if (url.startsWith("/Schemas.")) {
-      return json(url, withPaths("/Schemas", homepage));
+      return jsonResponse(withPaths("/Schemas", homepage));
     }
     const name = /^\/Schemas\/([^./]+)\./.exec(url)?.[1] ?? "";
     return name in homepage
-      ? json(url, withPaths(`/Schemas/${name}`, homepage[name] as Record<string, unknown>)) : json(url, {}, 404);
-  }));
+      ? jsonResponse(withPaths(`/Schemas/${name}`, homepage[name] as Record<string, unknown>)) : jsonResponse({}, 404);
+  });
   return posted;
 }

@@ -21,6 +21,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { jsonResponse, stubFetch, type FetchRoute } from "@iap/frontend-commons/fetch.fixture";
 import { LocationProbe, probedPath } from "@iap/frontend-commons/location.fixture";
 import { loadAnswerComponents } from "@iap/submissions/answers";
 // Registers the text answer component, which a browser would fetch as an asset of its own
@@ -32,7 +33,7 @@ import {
   type SubmissionForm,
 } from "@iap/submissions/submissionForm";
 import SubmissionView from "@iap/submissions/SubmissionView";
-import { jsonResponse, tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
+import { tagAware } from "@iap/tags/tagDefinitions.fixture";
 
 import { NEEDS_APPROVAL, approval } from "./approvals.fixture";
 import { SEND, SEND_LABEL, waitingOn } from "./workflowTasks.fixture";
@@ -265,14 +266,14 @@ const EMPTY_FORM: SubmissionForm = {
   requirements: [],
 };
 
-// Answers the tag definitions, the submission's serializations and the form alike, so that a test can
-// move between the page's two modes as a reader does.
-function bothModes(submission: unknown = DEEP_SUBMISSION, form: SubmissionForm = EMPTY_FORM) {
-  const otherwise = tagAwareFetch(submission);
-  return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
-    ? jsonResponse(form)
-    : otherwise(url));
-}
+// Answers the tag definitions, the submission's serializations and the form alike
+const pageOf = (submission: unknown, form: unknown): FetchRoute => request => request.url.endsWith(".form.json")
+  ? jsonResponse(form)
+  : tagAware(submission)(request);
+
+// Serves the page, so that a test can move between its two modes as a reader does
+const bothModes = (submission: unknown = DEEP_SUBMISSION, form: SubmissionForm = EMPTY_FORM) =>
+  stubFetch(pageOf(submission, form));
 
 function renderAt(path: string) {
   return render(
@@ -295,7 +296,7 @@ describe("SubmissionView", () => {
         "sling:resourceType": "sch/AnswerOption", value: "A wonder drug against everything", label: "The wonder drug",
       },
     });
-    vi.stubGlobal("fetch", bothModes(submission));
+    bothModes(submission);
 
     renderAt("/Submissions/demo-1");
 
@@ -305,7 +306,6 @@ describe("SubmissionView", () => {
 
   it("displays the submission's answers, per the schema's structure, and its reviews", async () => {
     const fetchMock = bothModes(DEEP_SUBMISSION);
-    vi.stubGlobal("fetch", fetchMock);
 
     renderAt("/Submissions/demo-1");
 
@@ -362,8 +362,8 @@ describe("SubmissionView", () => {
   });
 
   it("credits whoever raised the submission, not the engine that wrote it", async () => {
-    vi.stubGlobal("fetch", bothModes({ ...DEEP_SUBMISSION,
-      "jcr:createdBy": "workflows", "createdBy": "demo-requester" }));
+    bothModes({ ...DEEP_SUBMISSION,
+      "jcr:createdBy": "workflows", "createdBy": "demo-requester" });
 
     renderAt("/Submissions/demo-1");
 
@@ -371,8 +371,8 @@ describe("SubmissionView", () => {
   });
 
   it("falls back on who wrote it when nothing recorded who it was for", async () => {
-    vi.stubGlobal("fetch", bothModes({ ...DEEP_SUBMISSION,
-      "jcr:createdBy": "sling-jcr-content-loader" }));
+    bothModes({ ...DEEP_SUBMISSION,
+      "jcr:createdBy": "sling-jcr-content-loader" });
 
     renderAt("/Submissions/demo-1");
 
@@ -380,7 +380,7 @@ describe("SubmissionView", () => {
   });
 
   it("displays attached documents with download links, and minimal submissions without extras", async () => {
-    vi.stubGlobal("fetch", bothModes(BARE_SUBMISSION));
+    bothModes(BARE_SUBMISSION);
 
     renderAt("/Submissions/demo-2");
 
@@ -405,8 +405,7 @@ describe("SubmissionView", () => {
   });
 
   it("reports a fetch failure through its error message", async () => {
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-      () => Promise.reject(new Error("network down"))));
+    stubFetch(() => Promise.reject(new Error("network down")));
 
     renderAt("/Submissions/demo-1");
 
@@ -414,8 +413,7 @@ describe("SubmissionView", () => {
   });
 
   it("stringifies non-Error fetch rejections", async () => {
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-      () => Promise.reject("catastrophe")));
+    stubFetch(() => Promise.reject("catastrophe"));
 
     renderAt("/Submissions/demo-1");
 
@@ -424,14 +422,14 @@ describe("SubmissionView", () => {
 
   it("ignores responses that arrive after the view is gone", async () => {
     const settlers: { resolve: (response: Response) => void; reject: (reason: unknown) => void }[] = [];
-    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve, reject) => {
+    stubFetch(() => new Promise<Response>((resolve, reject) => {
       settlers.push({ resolve, reject });
-    })));
+    }));
 
     // A response landing after unmount must not update state
     const first = renderAt("/Submissions/demo-1");
     first.unmount();
-    settlers[0].resolve({ ok: true, url: "", json: () => Promise.resolve(DEEP_SUBMISSION) } as unknown as Response);
+    settlers[0].resolve(jsonResponse(DEEP_SUBMISSION));
     await act(() => Promise.resolve());
 
     // Same for a failure landing after unmount
@@ -444,8 +442,7 @@ describe("SubmissionView", () => {
   });
 
   it("reports an empty response as an undisplayable submission", async () => {
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, url: "", json: () => Promise.resolve(null) } as unknown as Response)));
+    stubFetch(() => jsonResponse(null));
 
     renderAt("/Submissions/demo-1");
 
@@ -453,9 +450,7 @@ describe("SubmissionView", () => {
   });
 
   it("tolerates a .html suffix in the page URL", async () => {
-    const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, url: "", json: () => Promise.resolve(DEEP_SUBMISSION) } as unknown as Response));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(() => jsonResponse(DEEP_SUBMISSION));
 
     renderAt("/Submissions/demo-1.html");
 
@@ -464,8 +459,7 @@ describe("SubmissionView", () => {
   });
 
   it("reports inaccessible submissions", async () => {
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-      () => Promise.resolve({ ok: false, url: "", status: 404 } as unknown as Response)));
+    stubFetch(() => new Response(null, { status: 404 }));
 
     renderAt("/Submissions/nonexistent");
 
@@ -485,16 +479,7 @@ describe("SubmissionView", () => {
       attached: [],
     };
 
-    function formResponse(form: unknown) {
-      return { ok: true, url: "", json: () => Promise.resolve(form) } as unknown as Response;
-    }
-
-    function serving(form: unknown, submission: unknown = DEEP_SUBMISSION) {
-      const otherwise = tagAwareFetch(submission);
-      return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
-        ? Promise.resolve(formResponse(form))
-        : otherwise(url));
-    }
+    const serving = (form: unknown, submission: unknown = DEEP_SUBMISSION) => stubFetch(pageOf(submission, form));
 
     function projection(requirements: unknown[] = [PROTOCOL]) {
       return { ...EMPTY_FORM, requirements };
@@ -512,7 +497,7 @@ describe("SubmissionView", () => {
     }
 
     it("lists what the request is being asked for, and says nothing answers it yet", async () => {
-      vi.stubGlobal("fetch", serving(projection()));
+      serving(projection());
 
       renderAt("/Submissions/demo-1");
 
@@ -522,7 +507,7 @@ describe("SubmissionView", () => {
     });
 
     it("says when a document nobody has attached was optional", async () => {
-      vi.stubGlobal("fetch", serving(projection([{ ...PROTOCOL, required: false }])));
+      serving(projection([{ ...PROTOCOL, required: false }]));
 
       renderAt("/Submissions/demo-1");
 
@@ -530,7 +515,7 @@ describe("SubmissionView", () => {
     });
 
     it("never offers to attach one, whoever is reading", async () => {
-      vi.stubGlobal("fetch", serving(projection()));
+      serving(projection());
 
       renderAt("/Submissions/demo-1");
 
@@ -539,7 +524,7 @@ describe("SubmissionView", () => {
     });
 
     it("names a requirement by its node name when it carries no label", async () => {
-      vi.stubGlobal("fetch", serving(projection([{ ...PROTOCOL, label: "" }])));
+      serving(projection([{ ...PROTOCOL, label: "" }]));
 
       renderAt("/Submissions/demo-1");
 
@@ -547,7 +532,7 @@ describe("SubmissionView", () => {
     });
 
     it("shows a requirement that says nothing beyond its name", async () => {
-      vi.stubGlobal("fetch", serving(projection([{ ...PROTOCOL, description: undefined }])));
+      serving(projection([{ ...PROTOCOL, description: undefined }]));
 
       renderAt("/Submissions/demo-1");
 
@@ -560,7 +545,7 @@ describe("SubmissionView", () => {
         ...DEEP_SUBMISSION,
         d1: attachment("protocol.pdf", { v1: version("/Submissions/demo-1/d1", "v1") }),
       };
-      vi.stubGlobal("fetch", serving(projection(), answered));
+      serving(projection(), answered);
 
       renderAt("/Submissions/demo-1");
 
@@ -578,7 +563,7 @@ describe("SubmissionView", () => {
       const elsewhere = attachment("old.pdf", {
         fulfills: { "@path": "/Schemas/ClinicalTrial/0.9/Protocol", "@name": "Protocol" },
       });
-      vi.stubGlobal("fetch", serving(projection(), { ...DEEP_SUBMISSION, d1: elsewhere }));
+      serving(projection(), { ...DEEP_SUBMISSION, d1: elsewhere });
 
       renderAt("/Submissions/demo-1");
 
@@ -589,7 +574,7 @@ describe("SubmissionView", () => {
     it("still shows a document whose requirement no longer applies", async () => {
       // A condition held when the file was attached, and no longer does, so the form leaves the
       // requirement out
-      vi.stubGlobal("fetch", serving(projection([]), { ...DEEP_SUBMISSION, d1: attachment("note.pdf") }));
+      serving(projection([]), { ...DEEP_SUBMISSION, d1: attachment("note.pdf") });
 
       renderAt("/Submissions/demo-1");
 
@@ -597,7 +582,7 @@ describe("SubmissionView", () => {
     });
 
     it("says so when a request asks for no documents and holds none", async () => {
-      vi.stubGlobal("fetch", serving(projection([])));
+      serving(projection([]));
 
       renderAt("/Submissions/demo-1");
 
@@ -605,16 +590,15 @@ describe("SubmissionView", () => {
     });
 
     // Answers the submission, and the form however `projectionAnswer` says
-    function withAProjection(projectionAnswer: () => Promise<Response>, submission: unknown = DEEP_SUBMISSION) {
-      const otherwise = tagAwareFetch(submission);
-      return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
-        ? projectionAnswer()
-        : otherwise(url));
+    function withAProjection(
+      projectionAnswer: () => Response | Promise<Response>, submission: unknown = DEEP_SUBMISSION) {
+      return stubFetch(request => request.url.endsWith(".form.json") ? projectionAnswer() : undefined,
+        tagAware(submission));
     }
 
     it("says once that what was asked could not be read, rather than that nothing was", async () => {
-      vi.stubGlobal("fetch", withAProjection(() => Promise.reject(new Error("no projection")),
-        { ...DEEP_SUBMISSION, d1: attachment("note.pdf") }));
+      withAProjection(() => Promise.reject(new Error("no projection")),
+        { ...DEEP_SUBMISSION, d1: attachment("note.pdf") });
 
       renderAt("/Submissions/demo-1");
 
@@ -624,7 +608,7 @@ describe("SubmissionView", () => {
     });
 
     it("leaves the approvals out when what was asked could not be read", async () => {
-      vi.stubGlobal("fetch", withAProjection(() => Promise.reject(new Error("no projection"))));
+      withAProjection(() => Promise.reject(new Error("no projection")));
 
       renderAt("/Submissions/demo-1");
 
@@ -634,10 +618,10 @@ describe("SubmissionView", () => {
 
     it("reads what was asked again when told to retry", async () => {
       let attempts = 0;
-      vi.stubGlobal("fetch", withAProjection(() => {
+      withAProjection(() => {
         attempts += 1;
         return attempts === 1 ? Promise.reject(new Error("no projection")) : jsonResponse(projection([ approval() ]));
-      }));
+      });
 
       renderAt("/Submissions/demo-1");
       await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
@@ -647,7 +631,7 @@ describe("SubmissionView", () => {
     });
 
     it("says nothing about the documents asked for while the projection is on its way", async () => {
-      vi.stubGlobal("fetch", withAProjection(() => new Promise<Response>(() => undefined)));
+      withAProjection(() => new Promise<Response>(() => undefined));
 
       renderAt("/Submissions/demo-1");
 
@@ -656,7 +640,7 @@ describe("SubmissionView", () => {
     });
 
     it("says nothing about the approvals needed while the projection is on its way", async () => {
-      vi.stubGlobal("fetch", withAProjection(() => new Promise<Response>(() => undefined)));
+      withAProjection(() => new Promise<Response>(() => undefined));
 
       renderAt("/Submissions/demo-1");
 
@@ -665,7 +649,7 @@ describe("SubmissionView", () => {
     });
 
     it("says which approvals the request needs, and where each stands", async () => {
-      vi.stubGlobal("fetch", serving(projection([ approval() ])));
+      serving(projection([ approval() ]));
 
       renderAt("/Submissions/demo-1");
 
@@ -674,7 +658,7 @@ describe("SubmissionView", () => {
     });
 
     it("reads a projection that lists no requirements as asking for nothing", async () => {
-      vi.stubGlobal("fetch", serving({ ...EMPTY_FORM, requirements: undefined }));
+      serving({ ...EMPTY_FORM, requirements: undefined });
 
       renderAt("/Submissions/demo-1");
 
@@ -683,7 +667,7 @@ describe("SubmissionView", () => {
     });
 
     it("says so when the request needs no approval at all", async () => {
-      vi.stubGlobal("fetch", serving(projection()));
+      serving(projection());
 
       renderAt("/Submissions/demo-1");
 
@@ -692,7 +676,6 @@ describe("SubmissionView", () => {
 
     it("reads what the request is asked for once, for both sections", async () => {
       const fetchMock = serving(projection([ PROTOCOL, approval() ]));
-      vi.stubGlobal("fetch", fetchMock);
 
       renderAt("/Submissions/demo-1");
 
@@ -731,21 +714,21 @@ describe("SubmissionView", () => {
       form?: SubmissionForm;
     } = {}) {
       let done = false;
-      return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(url => {
-        if (url.endsWith(".complete.json")) {
+      return stubFetch(request => {
+        if (request.url.endsWith(".complete.json")) {
           done = true;
           return completion.then(() => jsonResponse({}));
         }
-        if (url.endsWith(".save.json")) {
+        if (request.url.endsWith(".save.json")) {
           return save.then(() => {
             onSaved?.();
             return jsonResponse({});
           });
         }
-        if (url.includes("wf:instances")) {
+        if (request.url.includes("wf:instances")) {
           return jsonResponse(done ? {} : WAITING);
         }
-        return bothModes(submission?.() ?? DEEP_SUBMISSION, form)(url).then(response => ({ ...response, url }));
+        return pageOf(submission?.() ?? DEEP_SUBMISSION, form ?? EMPTY_FORM)(request);
       });
     }
 
@@ -766,7 +749,7 @@ describe("SubmissionView", () => {
     }
 
     it("says what the request is still missing beside the step", async () => {
-      vi.stubGlobal("fetch", withATaskWaiting({ submission: () => INCOMPLETE }));
+      withATaskWaiting({ submission: () => INCOMPLETE });
 
       renderAt("/Submissions/demo-1");
 
@@ -775,7 +758,6 @@ describe("SubmissionView", () => {
 
     it("refuses the step while the request is still missing something", async () => {
       const fetchMock = withATaskWaiting({ submission: () => INCOMPLETE });
-      vi.stubGlobal("fetch", fetchMock);
 
       renderAt("/Submissions/demo-1");
       await userEvent.click(await screen.findByRole("button", { name: SEND_LABEL }));
@@ -788,7 +770,6 @@ describe("SubmissionView", () => {
       await loadAnswerComponents();
       const save = Promise.withResolvers<undefined>();
       const fetchMock = completedBy(save.promise);
-      vi.stubGlobal("fetch", fetchMock);
 
       renderAt("/Submissions/demo-1.edit");
       await userEvent.type(await screen.findByLabelText(/Why\?/), "because");
@@ -804,7 +785,6 @@ describe("SubmissionView", () => {
       await loadAnswerComponents();
       const completion = Promise.withResolvers<undefined>();
       const fetchMock = withATaskWaiting({ form: ONE_QUESTION, completion: completion.promise });
-      vi.stubGlobal("fetch", fetchMock);
       const saved = () => fetchMock.mock.calls.filter(([ url ]) => url.endsWith(".save.json"));
 
       renderAt("/Submissions/demo-1.edit");
@@ -825,7 +805,7 @@ describe("SubmissionView", () => {
 
     it("stops saying what is missing once the editor completes the request", async () => {
       await loadAnswerComponents();
-      vi.stubGlobal("fetch", completedBy(Promise.resolve()));
+      completedBy(Promise.resolve());
 
       renderAt("/Submissions/demo-1.edit");
       expect(await screen.findByText("Answer everything this request asks for first.")).toBeInTheDocument();
@@ -836,7 +816,7 @@ describe("SubmissionView", () => {
     });
 
     it("offers the waiting step while filling the request in, not only while reading it", async () => {
-      vi.stubGlobal("fetch", withATaskWaiting());
+      withATaskWaiting();
 
       renderAt("/Submissions/demo-1.edit");
 
@@ -845,7 +825,6 @@ describe("SubmissionView", () => {
 
     it("reads what the request is asked for again once the step is done", async () => {
       const fetchMock = withATaskWaiting();
-      vi.stubGlobal("fetch", fetchMock);
       const projections = () => fetchMock.mock.calls.filter(([ url ]) => url.endsWith(".form.json"));
 
       renderAt("/Submissions/demo-1");
@@ -855,7 +834,7 @@ describe("SubmissionView", () => {
     });
 
     it("goes back to reading the request once the step is done, and reads it again", async () => {
-      vi.stubGlobal("fetch", withATaskWaiting());
+      withATaskWaiting();
       const user = userEvent.setup();
       renderAt("/Submissions/demo-1.edit");
 
@@ -869,7 +848,7 @@ describe("SubmissionView", () => {
 
     it("leaves the reader where they went when the step completes after they left", async () => {
       const completion = Promise.withResolvers<undefined>();
-      vi.stubGlobal("fetch", withATaskWaiting({ completion: completion.promise }));
+      withATaskWaiting({ completion: completion.promise });
       const user = userEvent.setup();
       render(
         <MemoryRouter initialEntries={["/Submissions/demo-1.edit"]}>
@@ -895,7 +874,6 @@ describe("SubmissionView", () => {
   describe("switching between reading and filling in", () => {
     it("opens the editor, which asks the server what the form is", async () => {
       const fetchMock = bothModes();
-      vi.stubGlobal("fetch", fetchMock);
       const user = userEvent.setup();
       renderAt("/Submissions/demo-1");
       await screen.findByText("Test my drug");
@@ -908,7 +886,6 @@ describe("SubmissionView", () => {
 
     it("reads the submission while the editor is open", async () => {
       const fetchMock = bothModes();
-      vi.stubGlobal("fetch", fetchMock);
 
       renderAt("/Submissions/demo-1.edit");
 
@@ -917,7 +894,6 @@ describe("SubmissionView", () => {
 
     it("comes back out of the editor, reading the submission afresh", async () => {
       const fetchMock = bothModes();
-      vi.stubGlobal("fetch", fetchMock);
       const user = userEvent.setup();
       renderAt("/Submissions/demo-1.edit");
       await screen.findByText("This request asks nothing yet.");
@@ -929,7 +905,7 @@ describe("SubmissionView", () => {
     });
 
     it("says which of the two is showing", async () => {
-      vi.stubGlobal("fetch", bothModes());
+      bothModes();
       renderAt("/Submissions/demo-1.edit");
 
       expect(await screen.findByRole("button", { name: "Edit", pressed: true })).toBeInTheDocument();
@@ -937,7 +913,7 @@ describe("SubmissionView", () => {
     });
 
     it("stays where it is when the mode already showing is chosen again", async () => {
-      vi.stubGlobal("fetch", bothModes());
+      bothModes();
       const user = userEvent.setup();
       renderAt("/Submissions/demo-1");
       await screen.findByText("Test my drug");
@@ -949,8 +925,7 @@ describe("SubmissionView", () => {
     });
 
     it("keeps the way out of a submission that cannot be loaded", async () => {
-      vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-        () => Promise.resolve({ ok: false, url: "", status: 403 } as unknown as Response)));
+      stubFetch(() => new Response(null, { status: 403 }));
 
       renderAt("/Submissions/secret");
 

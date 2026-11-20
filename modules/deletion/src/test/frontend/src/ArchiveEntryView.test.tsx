@@ -24,6 +24,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { ArchiveEntryView } from "@iap/deletion/ArchiveEntryView";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 // The view is opened the way a reader reaches it: at its page of the administration console.
 const ROUTE = "/admin/archive/one";
@@ -33,11 +34,6 @@ const ENTRY = "/Archive/by-id/one";
 
 /** Where the entry is really stored, which is what the endpoint reports back as its path. */
 const STORED = "/Archive/ab/cd/ef/one";
-
-const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
-  status,
-  headers: { "Content-Type": "application/json" },
-});
 
 const detail = (extra: Record<string, unknown> = {}) => ({
   path: STORED,
@@ -54,19 +50,16 @@ const detail = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-// The session endpoint answers that the session is live, as in ArchiveBrowser.test.tsx.
+// Routes the entry and the actions to different answers, and records every URL asked for but the
+// session endpoint's.
 const server = (options: { entry?: () => Response; action?: () => Response } = {}) => {
   const calls: string[] = [];
-  vi.spyOn(globalThis, "fetch").mockImplementation((url: RequestInfo | URL) => {
-    const asked = String(url);
-    if (asked.includes("sessionInfo")) {
-      return Promise.resolve(jsonResponse(200, { userID: "admin" }));
+  stubFetch(request => {
+    calls.push(request.url);
+    if (request.url.endsWith(".entry.json")) {
+      return options.entry?.() ?? jsonResponse(detail());
     }
-    calls.push(asked);
-    if (asked.endsWith(".entry.json")) {
-      return Promise.resolve(options.entry?.() ?? jsonResponse(200, detail()));
-    }
-    return Promise.resolve(options.action?.() ?? jsonResponse(200, { status: "restored", restored: [ "/content/one" ] }));
+    return options.action?.() ?? jsonResponse({ status: "restored", restored: [ "/content/one" ] });
   });
   return calls;
 };
@@ -88,6 +81,7 @@ const view = (route: string = ROUTE) => render(
 describe("ArchiveEntryView", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("asks the entry at its own path what would happen to it", async () => {
@@ -121,7 +115,7 @@ describe("ArchiveEntryView", () => {
 
   it("explains, per item, why a restore is impossible", async () => {
     server({
-      entry: () => jsonResponse(200, detail({
+      entry: () => jsonResponse(detail({
         restorable: false,
         restoreConflicts: [ { originalPath: "/content/one", reason: "OCCUPIED" } ],
       })),
@@ -135,7 +129,7 @@ describe("ArchiveEntryView", () => {
 
   it("falls back to the bare reason if the server invents a new one", async () => {
     server({
-      entry: () => jsonResponse(200, detail({
+      entry: () => jsonResponse(detail({
         restorable: false,
         restoreConflicts: [ { originalPath: "/content/one", reason: "SOMETHING_NEW" } ],
       })),
@@ -148,7 +142,7 @@ describe("ArchiveEntryView", () => {
 
   it("says which guard refuses a purge, and does not offer it", async () => {
     server({
-      entry: () => jsonResponse(200, detail({
+      entry: () => jsonResponse(detail({
         purgeable: false,
         purgeVetoes: [ { vetoer: "RetentionVeto", path: ENTRY, reason: "Archived less than 30 days ago" } ],
       })),
@@ -185,7 +179,7 @@ describe("ArchiveEntryView", () => {
   });
 
   it("leaves the listing once the entry has been purged", async () => {
-    const calls = server({ action: () => jsonResponse(200, { status: "deleted" }) });
+    const calls = server({ action: () => jsonResponse({ status: "deleted" }) });
     view();
     await screen.findByRole("heading", { name: "/content/one" });
 
@@ -199,9 +193,9 @@ describe("ArchiveEntryView", () => {
 
   it("re-reads the preflight when an action is refused after all", async () => {
     const calls = server({
-      action: () => jsonResponse(409, {
+      action: () => jsonResponse({
         status: "conflict", conflicts: [ { originalPath: "/content/one", reason: "OCCUPIED" } ],
-      }),
+      }, 409),
     });
     view();
     await screen.findByRole("heading", { name: "/content/one" });
@@ -218,7 +212,7 @@ describe("ArchiveEntryView", () => {
   it("reports a request that could not be sent", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((url: RequestInfo | URL) =>
       String(url).endsWith(".entry.json")
-        ? Promise.resolve(jsonResponse(200, detail()))
+        ? Promise.resolve(jsonResponse(detail()))
         : Promise.reject(new Error("offline")));
     view();
     await screen.findByRole("heading", { name: "/content/one" });
@@ -233,12 +227,12 @@ describe("ArchiveEntryView", () => {
     let attempts = 0;
     vi.spyOn(globalThis, "fetch").mockImplementation((url: RequestInfo | URL) => {
       if (String(url).endsWith(".entry.json")) {
-        return Promise.resolve(jsonResponse(200, detail()));
+        return Promise.resolve(jsonResponse(detail()));
       }
       attempts += 1;
       return attempts === 1
         ? Promise.reject(new Error("offline"))
-        : Promise.resolve(jsonResponse(200, { status: "restored", restored: [ "/content/one" ] }));
+        : Promise.resolve(jsonResponse({ status: "restored", restored: [ "/content/one" ] }));
     });
     view();
     await screen.findByRole("heading", { name: "/content/one" });
@@ -252,7 +246,7 @@ describe("ArchiveEntryView", () => {
   });
 
   it("says so when the path is not an archive entry", async () => {
-    server({ entry: () => jsonResponse(200, { "jcr:primaryType": "del:Archive" }) });
+    server({ entry: () => jsonResponse({ "jcr:primaryType": "del:Archive" }) });
     view();
 
     expect(await screen.findByText("That is not an archive entry.")).toBeInTheDocument();
@@ -260,7 +254,7 @@ describe("ArchiveEntryView", () => {
 
   it("lets a message be dismissed", async () => {
     server({
-      action: () => jsonResponse(409, { status: "vetoed", "status.message": "Too recent" }),
+      action: () => jsonResponse({ status: "vetoed", "status.message": "Too recent" }, 409),
     });
     view();
     await screen.findByRole("heading", { name: "/content/one" });
@@ -280,7 +274,7 @@ describe("ArchiveEntryView", () => {
 
     unmount();
     await act(async () => {
-      answer(jsonResponse(200, detail()));
+      answer(jsonResponse(detail()));
       await Promise.resolve();
     });
 

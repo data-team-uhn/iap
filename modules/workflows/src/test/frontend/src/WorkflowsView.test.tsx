@@ -22,14 +22,12 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { jsonResponse, sentRequests, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 import { forgetWorkflowHomepages } from "@iap/workflows/useWorkflowHomepages";
 import WorkflowsView from "@iap/workflows/WorkflowsView";
 
 // The homepage discovery is kept for the life of the session, so each test starts from an unasked one
 beforeEach(forgetWorkflowHomepages);
-
-// A stubbed fetch: the URL, and the request options a write carries.
-type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
 
 // One workflow, as the pagination servlet serializes it.
 const workflowRow = {
@@ -50,27 +48,18 @@ const page = (rows: unknown[]) => ({
 });
 
 // A server answering the discovery endpoint and the listings, and nothing else.
-const stubFetch = (homepages: unknown[], rows: unknown[] = [workflowRow]) => {
-  const fetchMock = vi.fn<FetchStub>((url, options) => {
-    const path = new URL(url, "http://localhost").pathname;
-    const body = path === "/Workflows.homepages.json" ? { homepages } : page(rows);
-    return Promise.resolve({
-      ok: true,
-      status: options?.method === "POST" ? 201 : 200,
-      url: new URL(url, "http://localhost").href,
-      headers: new Headers(),
-      // An event answers with the path of what it created, where a creation opens the editor
-      json: () => Promise.resolve(options?.method === "POST"
-        ? { status: "created", path: `${path.split(".")[0]}/created` } : body),
-    } as unknown as Response);
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-};
+// An event answers with the path of what it created, where a creation opens the editor.
+const stubServer = (homepages: unknown[], rows: unknown[] = [workflowRow]) => stubFetch(request => {
+  const path = new URL(request.url, "http://localhost").pathname;
+  if (request.method === "POST") {
+    return jsonResponse({ status: "created", path: `${path.split(".")[0]}/created` }, 201);
+  }
+  return jsonResponse(path === "/Workflows.homepages.json" ? { homepages } : page(rows));
+});
 
 // The listing requests the view made, as URLs, in the order they were made.
-const listings = (fetchMock: { mock: { calls: [string, ...unknown[]][] } }) => fetchMock.mock.calls
-  .map(call => new URL(call[0], "http://localhost"))
+const listings = () => sentRequests()
+  .map(request => new URL(request.url, "http://localhost"))
   .filter(url => url.pathname.endsWith(".paginate.json"));
 
 // Wherever the router ended up, as text, so a navigation reads as the destination the user arrives at
@@ -104,7 +93,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("WorkflowsView", () => {
   it("offers a tab per homepage it discovered, and lists the first of them", async () => {
-    const fetchMock = stubFetch([
+    stubServer([
       { path: "/Workflows", title: "Workflows" },
       { path: "/SystemWorkflows", title: "System workflows" },
     ]);
@@ -114,29 +103,29 @@ describe("WorkflowsView", () => {
     expect(await screen.findByRole("tab", { name: "System workflows" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Workflows" })).toHaveAttribute("aria-selected", "true");
     // One listing, over the tree being looked at: paging, sorting and the total belong to it
-    await waitFor(() => expect(listings(fetchMock)).toHaveLength(1));
-    expect(listings(fetchMock)[0].pathname).toBe("/Workflows.paginate.json");
-    expect(listings(fetchMock)[0].searchParams.get("sortBy")).toBe("title");
+    await waitFor(() => expect(listings()).toHaveLength(1));
+    expect(listings()[0].pathname).toBe("/Workflows.paginate.json");
+    expect(listings()[0].searchParams.get("sortBy")).toBe("title");
   });
 
   it("lists the homepage whose tab is picked, and nothing until then", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch([
+    stubServer([
       { path: "/Workflows", title: "Workflows" },
       { path: "/SystemWorkflows", title: "System workflows" },
     ]);
     renderView();
-    await waitFor(() => expect(listings(fetchMock)).toHaveLength(1));
+    await waitFor(() => expect(listings()).toHaveLength(1));
 
     await user.click(screen.getByRole("tab", { name: "System workflows" }));
 
-    await waitFor(() => expect(listings(fetchMock)).toHaveLength(2));
-    expect(listings(fetchMock)[1].pathname).toBe("/SystemWorkflows.paginate.json");
+    await waitFor(() => expect(listings()).toHaveLength(2));
+    expect(listings()[1].pathname).toBe("/SystemWorkflows.paginate.json");
     expect(screen.getByRole("tab", { name: "System workflows" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("offers no tab for a lone homepage, which is the page's own subject", async () => {
-    stubFetch([ { path: "/Workflows", title: "Workflows" } ]);
+    stubServer([ { path: "/Workflows", title: "Workflows" } ]);
 
     renderView();
 
@@ -149,34 +138,29 @@ describe("WorkflowsView", () => {
   it("asks for nothing until it knows where to look", async () => {
     // A listing that guessed at /Workflows would show one tree's workflows and rearrange them a
     // moment later, once the real set of homepages arrived
-    const fetchMock = vi.fn<FetchStub>(() => new Promise<Response>(() => undefined));
-    vi.stubGlobal("fetch", fetchMock);
+    const fetchMock = stubFetch(() => new Promise<Response>(() => undefined));
 
     renderView();
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(listings(fetchMock)).toHaveLength(0);
+    expect(listings()).toHaveLength(0);
   });
 
   it("stops caring about the homepages it asked for once it is gone", async () => {
     let answer: (response: Response) => void = () => undefined;
-    vi.stubGlobal("fetch", vi.fn<FetchStub>(() => new Promise<Response>(resolve => {
+    stubFetch(() => new Promise<Response>(resolve => {
       answer = resolve;
-    })));
+    }));
     const { unmount } = renderView();
 
     unmount();
-    answer({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ homepages: [ { path: "/Workflows", title: "Workflows" } ] }),
-    } as unknown as Response);
+    answer(jsonResponse({ homepages: [ { path: "/Workflows", title: "Workflows" } ] }));
 
     await waitFor(() => expect(screen.queryByText("Standard review")).not.toBeInTheDocument());
   });
 
   it("says so when there are no workflows yet", async () => {
-    stubFetch([ { path: "/Workflows", title: "Workflows" } ], []);
+    stubServer([ { path: "/Workflows", title: "Workflows" } ], []);
 
     renderView();
 
@@ -184,7 +168,7 @@ describe("WorkflowsView", () => {
   });
 
   it("says so, and offers nothing to do, when there is nowhere workflows can be read from", async () => {
-    stubFetch([]);
+    stubServer([]);
 
     renderView();
 
@@ -197,7 +181,7 @@ describe("WorkflowsView", () => {
     // The open tab is the tree its author is working in; filing a new workflow under the first
     // homepage instead would put it somewhere they are not looking
     const user = userEvent.setup();
-    stubFetch([
+    stubServer([
       { path: "/Workflows", title: "Workflows" },
       { path: "/SystemWorkflows", title: "System workflows" },
     ]);
@@ -217,7 +201,7 @@ describe("WorkflowsView", () => {
   it("opens the workflow it just created", async () => {
     // Its one draft version is listed there, ready to be edited
     const user = userEvent.setup();
-    stubFetch([ { path: "/Workflows", title: "Workflows" } ]);
+    stubServer([ { path: "/Workflows", title: "Workflows" } ]);
     renderView();
     const create = await screen.findByRole("button", { name: "New workflow" });
     await waitFor(() => expect(create).toBeEnabled());

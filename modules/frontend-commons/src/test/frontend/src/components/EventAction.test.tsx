@@ -21,18 +21,14 @@ import { MemoryRouter } from "react-router";
 
 import { ActionIcon, EventAction } from "@iap/frontend-commons/components/EventAction";
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 afterEach(() => vi.unstubAllGlobals());
 
 // Answers every event as completed, or as refused with the given reason
-const serve = (refusal?: string) => {
-  const fetch = vi.fn((url: string) => Promise.resolve({
-    ok: !refusal, status: refusal ? 409 : 200, url,
-    json: () => Promise.resolve(refusal ? { error: refusal } : { status: "completed" }),
-  } as unknown as Response));
-  vi.stubGlobal("fetch", fetch);
-  return fetch;
-};
+const serve = (refusal?: string) => stubFetch(() => refusal
+  ? jsonResponse({ error: refusal }, 409)
+  : jsonResponse({ status: "completed" }));
 
 const renderAction = () => {
   const reload = vi.fn();
