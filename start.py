@@ -436,7 +436,8 @@ def main(argv):
         # The data study demo needs the optional data requirement module, which the launched
         # distribution leaves out. Without it, the demo's content names node types nobody registered.
         for feature in ('iap-demo-time-off-request', 'iap-data-requirement-impl',
-                        'iap-demo-data-study', 'iap-demo-research-proposal'):
+                        'iap-demo-data-study', 'iap-demo-research-proposal',
+                        'iap-demo-dhp-intake'):
             launcher_args += ['-f', 'mvn:io.uhndata.iap/%s/%s/slingosgifeature' % (feature, platform_version)]
     # The document daemon and the generation worker run beside a local instance, not as the compose
     # services the aggregated feature names by default

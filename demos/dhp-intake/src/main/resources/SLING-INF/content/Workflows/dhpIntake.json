@@ -1,0 +1,13 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Digital Health Platform intake",
+  "systemWorkflow": false,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    // This workflow is automatically derived from the BPMN file
+    "bpmnAuthoritative": true,
+    "tags": ["active"],
+    "description": "A researcher describes the patient data they need and sends the request. Their research plan is filled in from the answers as it is sent."
+  }
+}

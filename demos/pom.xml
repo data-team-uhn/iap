@@ -38,5 +38,6 @@
     <module>data-study</module>
     <module>time-off-request</module>
     <module>research-proposal</module>
+    <module>dhp-intake</module>
   </modules>
 </project>
