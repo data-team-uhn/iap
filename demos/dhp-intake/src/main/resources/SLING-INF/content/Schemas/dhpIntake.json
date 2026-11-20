@@ -1,0 +1,987 @@
+{
+  "jcr:primaryType": "sch:Schema",
+  "title": "Digital Health Platform intake",
+  "v1": {
+    "jcr:primaryType": "sch:SchemaVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "jcr:reference:workflow": "/Workflows/dhpIntake/v1",
+    "description": "Ask the Digital Health Platform for patient data for a research study.",
+    "intake": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Intake questionnaire",
+      "description": "The data your study needs, and how you will look after it.",
+      "study": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Study information",
+        "description": "About the study this request is for. These answers fill in your research plan.",
+        "studyTitle": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What is the title of your study?",
+          "dataType": "text",
+          "minAnswers": 1
+        },
+        "piName": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who is the Principal Investigator?",
+          "dataType": "text",
+          "minAnswers": 1
+        },
+        "piTitle": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What is the Principal Investigator's title?",
+          "description": "For example: Scientist, Toronto General Hospital Research Institute.",
+          "dataType": "text",
+          "minAnswers": 1
+        },
+        "piContact": {
+          "jcr:primaryType": "sch:Question",
+          "text": "How can we reach the Principal Investigator?",
+          "description": "Their department address, email and phone number.",
+          "dataType": "text",
+          "minAnswers": 1
+        },
+        "coInvestigators": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who are the co-investigators?",
+          "description": "The name and role of each. Leave this blank if there are none.",
+          "dataType": "text"
+        },
+        "background": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What are the background and objectives of your study?",
+          "description": "A short summary of why the study is being done and what it aims to find out.",
+          "dataType": "text",
+          "minAnswers": 1
+        },
+        "analysis": {
+          "jcr:primaryType": "sch:Question",
+          "text": "How will you analyze the data?",
+          "description": "Briefly describe your statistical analysis or methodology.",
+          "dataType": "text"
+        },
+        "references": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which references support your study?",
+          "description": "Protocol or literature references, if any.",
+          "dataType": "text"
+        }
+      },
+      "dataSource": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Data source",
+        "sources": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Where will the data for your study come from?",
+          "description": "Choose the main place your data is coming from. If you are using more than one source, select all that apply.",
+          "dataType": "text",
+          "minAnswers": 1,
+          "maxAnswers": 0,
+          "uhn": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "uhn",
+            "label": "UHN internal data (e.g., UHN patient health records accessed through the Digital Health Platform (DHP), JDMI)"
+          },
+          "mayo": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "mayo",
+            "label": "Mayo Data"
+          },
+          "otherStudy": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "other-study",
+            "label": "Data from another UHN study"
+          },
+          "repository": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "repository",
+            "label": "A shared data repository"
+          },
+          "unsure": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "unsure",
+            "label": "I'm not sure"
+          }
+        },
+        "capcrId": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What is the CAPCR ID of the other UHN study?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "includes",
+            "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/dataSource/sources" ] },
+            "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "other-study" ] }
+          }
+        },
+        "repositoryDetails": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which shared data repository? Give its name and a brief description.",
+          "dataType": "text",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "includes",
+            "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/dataSource/sources" ] },
+            "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "repository" ] }
+          }
+        },
+        "unsureDetails": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Describe the data you need.",
+          "dataType": "text",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "includes",
+            "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/dataSource/sources" ] },
+            "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "unsure" ] }
+          }
+        }
+      },
+      "cohort": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Defining your patient group (cohort)",
+        "hasMrnList": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Do you already have a list of specific patients (by Medical Record Number, or MRN) whose data you need?",
+          "description": "An MRN list is a list of the hospital ID numbers for the exact patients you want included — for example, patients already enrolled in your study. Do not upload the list now; we will ask for it in a later step.",
+          "dataType": "text",
+          "minAnswers": 1,
+          "yes": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "yes",
+            "label": "Yes",
+            "description": "You will be asked to securely provide your MRN list later. Do not email it or upload it here."
+          },
+          "no": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "no",
+            "label": "No"
+          }
+        },
+        "criteria": {
+          "jcr:primaryType": "sch:Section",
+          "title": "Your patient group",
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/hasMrnList" ] },
+            "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "no" ] }
+          },
+          "groupTypes": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Which group of patients is your study about?",
+            "description": "Select all that describe your group. Examples: adults with heart failure; patients who received a liver transplant; patients seen in the stroke clinic; patients receiving immunotherapy for lung cancer.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "maxAnswers": 0,
+            "disease": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "disease",
+              "label": "A disease or condition (e.g., heart failure, type 2 diabetes)"
+            },
+            "procedure": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "procedure",
+              "label": "A procedure or surgery (e.g., liver transplant, knee replacement)"
+            },
+            "program": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "program",
+              "label": "A program or clinic (e.g., stroke clinic)"
+            },
+            "treatment": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "treatment",
+              "label": "A treatment or exposure (e.g., chemotherapy, a specific medication)"
+            },
+            "provider": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "provider",
+              "label": "A care provider or service (e.g., patients seen by cardiology)"
+            },
+            "other": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "other",
+              "label": "Other"
+            }
+          },
+          "groupDescription": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Describe your patient group.",
+            "description": "If you chose Other above, this description is your main answer.",
+            "dataType": "text",
+            "minAnswers": 1
+          },
+          "findBy": {
+            "jcr:primaryType": "sch:Question",
+            "text": "How can we find the patients who fit your study?",
+            "description": "Tell us about the specific details in the health record that show a patient belongs in your group. Examples: a diagnosis code (e.g., ICD-10 I50 for heart failure); a medication (e.g., patients who received pembrolizumab); a lab result (e.g., HbA1c above 8%); a type of visit (e.g., emergency department visits). If you don't know the exact codes, describe what you're looking for.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "maxAnswers": 0,
+            "diagnosis": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "diagnosis",
+              "label": "Diagnosis (with code if known)"
+            },
+            "procedure": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "procedure",
+              "label": "Procedure (with code if known)"
+            },
+            "imaging": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "imaging",
+              "label": "Imaging results"
+            },
+            "medication": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "medication",
+              "label": "Medication(s)"
+            },
+            "lab": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "lab",
+              "label": "Lab result(s)"
+            },
+            "visit": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "visit",
+              "label": "Type or location of visit (e.g., inpatient stay, ED visit, specific clinic)"
+            },
+            "other": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "other",
+              "label": "Other"
+            },
+            "unsure": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "unsure",
+              "label": "I'm not sure — I need help defining this",
+              "description": "A data analyst will help you define this. It does not stop you from sending your request."
+            }
+          },
+          "findByDiagnosis": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Which diagnoses? Give the codes if you know them.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/findBy" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "diagnosis" ] }
+            }
+          },
+          "findByProcedure": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Which procedures? Give the codes if you know them.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/findBy" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "procedure" ] }
+            }
+          },
+          "findByImaging": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Which imaging results?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/findBy" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "imaging" ] }
+            }
+          },
+          "findByMedication": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Which medication(s)?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/findBy" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "medication" ] }
+            }
+          },
+          "findByLab": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Which lab result(s)?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/findBy" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "lab" ] }
+            }
+          },
+          "findByVisit": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Which type or location of visit?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/findBy" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "visit" ] }
+            }
+          },
+          "findByOther": {
+            "jcr:primaryType": "sch:Question",
+            "text": "What other details in the health record show a patient belongs in your group?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/findBy" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "other" ] }
+            }
+          },
+          "limitSites": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Should your study include only patients seen at certain UHN hospitals, programs, or departments?",
+            "description": "Answer \"No\" if patients from any UHN location can be included. Example of \"Yes\": only patients treated at a specific location or only patients seen in a specific clinic.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "no": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "no",
+              "label": "No — include patients from all UHN locations"
+            },
+            "yes": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "yes",
+              "label": "Yes — limit to specific locations"
+            }
+          },
+          "sites": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Which UHN hospitals, programs, or departments?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "equals",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/limitSites" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "yes" ] }
+            }
+          },
+          "hasExclusions": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Are there any patients who should be left out of your study?",
+            "description": "These are patients who would otherwise fit your group but should not be included. Examples: patients under 18; patients who are immunocompromised; patients with a previous cancer diagnosis.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "no": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "no",
+              "label": "No"
+            },
+            "yes": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "yes",
+              "label": "Yes"
+            }
+          },
+          "exclusions": {
+            "jcr:primaryType": "sch:Section",
+            "title": "Patients to leave out",
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "equals",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/hasExclusions" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "yes" ] }
+            },
+            "exclusionTypes": {
+              "jcr:primaryType": "sch:Question",
+              "text": "Which patients should be left out?",
+              "description": "Select all that apply, then describe each.",
+              "dataType": "text",
+              "minAnswers": 1,
+              "maxAnswers": 0,
+              "age": {
+                "jcr:primaryType": "sch:AnswerOption",
+                "value": "age",
+                "label": "Age (e.g., under 18 or over 85)"
+              },
+              "priorDiagnosis": {
+                "jcr:primaryType": "sch:AnswerOption",
+                "value": "prior-diagnosis",
+                "label": "Previous diagnosis (e.g., prior stroke)"
+              },
+              "conditions": {
+                "jcr:primaryType": "sch:AnswerOption",
+                "value": "conditions",
+                "label": "Other health conditions (e.g., kidney disease)"
+              },
+              "other": {
+                "jcr:primaryType": "sch:AnswerOption",
+                "value": "other",
+                "label": "Other"
+              }
+            },
+            "excludeAge": {
+              "jcr:primaryType": "sch:Question",
+              "text": "Which ages should be left out?",
+              "dataType": "text",
+              "minAnswers": 1,
+              "cond:condition": {
+                "jcr:primaryType": "cond:SingleCondition",
+                "comparator": "includes",
+                "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/exclusions/exclusionTypes" ] },
+                "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "age" ] }
+              }
+            },
+            "excludePriorDiagnosis": {
+              "jcr:primaryType": "sch:Question",
+              "text": "Which previous diagnoses should leave a patient out?",
+              "dataType": "text",
+              "minAnswers": 1,
+              "cond:condition": {
+                "jcr:primaryType": "cond:SingleCondition",
+                "comparator": "includes",
+                "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/exclusions/exclusionTypes" ] },
+                "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "prior-diagnosis" ] }
+              }
+            },
+            "excludeConditions": {
+              "jcr:primaryType": "sch:Question",
+              "text": "Which other health conditions should leave a patient out?",
+              "dataType": "text",
+              "minAnswers": 1,
+              "cond:condition": {
+                "jcr:primaryType": "cond:SingleCondition",
+                "comparator": "includes",
+                "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/exclusions/exclusionTypes" ] },
+                "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "conditions" ] }
+              }
+            },
+            "excludeOther": {
+              "jcr:primaryType": "sch:Question",
+              "text": "Which other patients should be left out?",
+              "dataType": "text",
+              "minAnswers": 1,
+              "cond:condition": {
+                "jcr:primaryType": "cond:SingleCondition",
+                "comparator": "includes",
+                "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/cohort/criteria/exclusions/exclusionTypes" ] },
+                "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "other" ] }
+              }
+            }
+          }
+        }
+      },
+      "timePeriod": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Time period and frequency",
+        "description": "Only data from within these dates will be included. Example: 2018-01-01 to 2024-12-31 includes visits, tests, and other records dated between those two days.",
+        "startDate": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Start date: what is the earliest date to include?",
+          "description": "This cannot be in the future.",
+          "dataType": "date",
+          "minAnswers": 1
+        },
+        "endDate": {
+          "jcr:primaryType": "sch:Question",
+          "text": "End date: what is the latest date to include?",
+          "description": "This must be on or after the start date.",
+          "dataType": "date",
+          "minAnswers": 1
+        },
+        "frequency": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Do you need this data once, or on a repeating schedule?",
+          "description": "Choose \"one time\" if you need a single copy of the data. Choose \"repeating\" if you need updated data sent to you regularly during your study. Please note: repeating requests take longer to set up.",
+          "dataType": "text",
+          "minAnswers": 1,
+          "once": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "once",
+            "label": "One time"
+          },
+          "repeating": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "repeating",
+            "label": "Repeating (recurring)",
+            "description": "The data must then be saved in a secure UHN-approved location."
+          }
+        },
+        "recurring": {
+          "jcr:primaryType": "sch:Section",
+          "title": "Repeating requests",
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/timePeriod/frequency" ] },
+            "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "repeating" ] }
+          },
+          "interval": {
+            "jcr:primaryType": "sch:Question",
+            "text": "How often do you need updated data?",
+            "description": "Example: monthly updates to track new patients enrolled in your study.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "weekly": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "weekly",
+              "label": "Weekly"
+            },
+            "monthly": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "monthly",
+              "label": "Monthly"
+            },
+            "quarterly": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "quarterly",
+              "label": "Quarterly (every 3 months)"
+            },
+            "other": {
+              "jcr:primaryType": "sch:AnswerOption",
+              "value": "other",
+              "label": "Other"
+            }
+          },
+          "intervalOther": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Describe how often you need updated data.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "equals",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/timePeriod/recurring/interval" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "other" ] }
+            }
+          },
+          "stopMonth": {
+            "jcr:primaryType": "sch:Question",
+            "text": "When do you expect to stop needing recurring data?",
+            "description": "Give the month and year as YYYY-MM, for example 2027-06. An estimate is fine. This is usually when your study's data collection ends. This can be updated later if this date changes.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "pattern": "\\d{4}-(0[1-9]|1[0-2])",
+            "patternMessage": "Give the month and year as YYYY-MM, for example 2027-06."
+          }
+        }
+      },
+      "consent": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Patient consent",
+        "waiver": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Will you use patient data without asking each patient for their consent?",
+          "description": "If your study will use data from patients who have not agreed to take part, you need permission from the Research Ethics Board (REB) to do this. This is called a \"waiver of consent.\"",
+          "dataType": "text",
+          "minAnswers": 1,
+          "yes": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "yes",
+            "label": "Yes — I am requesting a waiver of consent"
+          },
+          "no": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "no",
+            "label": "No — all patients have given, or will give, consent"
+          }
+        },
+        "waiverCriteria": {
+          "jcr:primaryType": "sch:Section",
+          "title": "Requirements for a waiver of consent",
+          "description": "For each requirement, answer Yes or No, then briefly explain why. Example of a strong explanation: \"Contacting 12,000 patients seen over 10 years is not practical, and many are no longer reachable.\" If you answer No to any of them, the waiver may not be granted: contact the Research Ethics Board (REB) before sending your request.",
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/consent/waiver" ] },
+            "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "yes" ] }
+          },
+          "minimalRisk": {
+            "jcr:primaryType": "sch:Question",
+            "text": "The research involves no more than minimal risk to the participants.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "yes": { "jcr:primaryType": "sch:AnswerOption", "value": "yes", "label": "Yes" },
+            "no": { "jcr:primaryType": "sch:AnswerOption", "value": "no", "label": "No" }
+          },
+          "minimalRiskWhy": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Explain your answer about minimal risk.",
+            "dataType": "text",
+            "minAnswers": 1
+          },
+          "welfare": {
+            "jcr:primaryType": "sch:Question",
+            "text": "The waiver of informed consent is unlikely to adversely affect the welfare of participants.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "yes": { "jcr:primaryType": "sch:AnswerOption", "value": "yes", "label": "Yes" },
+            "no": { "jcr:primaryType": "sch:AnswerOption", "value": "no", "label": "No" }
+          },
+          "welfareWhy": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Explain your answer about the welfare of participants.",
+            "dataType": "text",
+            "minAnswers": 1
+          },
+          "impracticable": {
+            "jcr:primaryType": "sch:Question",
+            "text": "It is impossible or impracticable to carry out the research and to address the research question properly, given the research design, if the prior consent of participants is required.",
+            "description": "See the TCPS 2 glossary for what \"impracticable\" means: https://ethics.gc.ca/eng/tcps2-eptc2_2022_glossary-glossaire.html",
+            "dataType": "text",
+            "minAnswers": 1,
+            "yes": { "jcr:primaryType": "sch:AnswerOption", "value": "yes", "label": "Yes" },
+            "no": { "jcr:primaryType": "sch:AnswerOption", "value": "no", "label": "No" }
+          },
+          "impracticableWhy": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Explain your answer about asking for prior consent.",
+            "dataType": "text",
+            "minAnswers": 1
+          },
+          "secondaryUse": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Research relies exclusively on secondary use of non-identifiable data.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "yes": { "jcr:primaryType": "sch:AnswerOption", "value": "yes", "label": "Yes" },
+            "no": { "jcr:primaryType": "sch:AnswerOption", "value": "no", "label": "No" }
+          },
+          "secondaryUseWhy": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Explain your answer about secondary use of non-identifiable data.",
+            "dataType": "text",
+            "minAnswers": 1
+          }
+        }
+      },
+      "identity": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Patient identity",
+        "level": {
+          "jcr:primaryType": "sch:Question",
+          "text": "How much patient-identifying information do you need?",
+          "description": "Choose the option that gives you the least identifying information while still letting you complete your study. Less identifying data usually means a faster review.",
+          "dataType": "text",
+          "minAnswers": 1,
+          "deidentified": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "deidentified",
+            "label": "De-identified",
+            "description": "No names, ID numbers, or other details that could reveal who a patient is."
+          },
+          "coded": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "coded",
+            "label": "Coded",
+            "description": "Names and ID numbers are replaced with a study code. A separate, secured key links each code back to the patient."
+          },
+          "identifiable": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "identifiable",
+            "label": "Identifiable",
+            "description": "Includes names, ID numbers, or other details that show who a patient is."
+          }
+        },
+        "identifying": {
+          "jcr:primaryType": "sch:Section",
+          "title": "Identifying details",
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "includes any",
+            "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/identity/level" ] },
+            "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "coded", "identifiable" ] }
+          },
+          "identifiers": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Which identifying details do you need?",
+            "description": "Select only what your study needs, then say why you need each one. Example: \"Date of birth — needed to calculate exact age at diagnosis.\"",
+            "dataType": "text",
+            "minAnswers": 1,
+            "maxAnswers": 0,
+            "name": { "jcr:primaryType": "sch:AnswerOption", "value": "name", "label": "Name" },
+            "mrn": { "jcr:primaryType": "sch:AnswerOption", "value": "mrn", "label": "Medical Record Number (MRN)" },
+            "healthCard": { "jcr:primaryType": "sch:AnswerOption", "value": "health-card", "label": "Health card number" },
+            "birthDate": { "jcr:primaryType": "sch:AnswerOption", "value": "birth-date", "label": "Date of birth" },
+            "postalCode": { "jcr:primaryType": "sch:AnswerOption", "value": "postal-code", "label": "Postal code" },
+            "visitDates": { "jcr:primaryType": "sch:AnswerOption", "value": "visit-dates", "label": "Dates of visits or procedures" },
+            "other": { "jcr:primaryType": "sch:AnswerOption", "value": "other", "label": "Other" }
+          },
+          "whyName": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Why do you need patient names?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/identity/identifying/identifiers" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "name" ] }
+            }
+          },
+          "whyMrn": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Why do you need Medical Record Numbers?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/identity/identifying/identifiers" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "mrn" ] }
+            }
+          },
+          "whyHealthCard": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Why do you need health card numbers?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/identity/identifying/identifiers" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "health-card" ] }
+            }
+          },
+          "whyBirthDate": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Why do you need dates of birth?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/identity/identifying/identifiers" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "birth-date" ] }
+            }
+          },
+          "whyPostalCode": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Why do you need postal codes?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/identity/identifying/identifiers" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "postal-code" ] }
+            }
+          },
+          "whyVisitDates": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Why do you need the dates of visits or procedures?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/identity/identifying/identifiers" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "visit-dates" ] }
+            }
+          },
+          "otherIdentifiers": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Which other identifying details do you need, and why?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/identity/identifying/identifiers" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "other" ] }
+            }
+          }
+        }
+      },
+      "combining": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Combining data with other sources",
+        "combine": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Will you combine this data with data from somewhere else?",
+          "description": "Examples: a disease registry; data from another hospital; information your study team collected directly from participants (e.g., survey responses).",
+          "dataType": "text",
+          "minAnswers": 1,
+          "yes": { "jcr:primaryType": "sch:AnswerOption", "value": "yes", "label": "Yes" },
+          "no": { "jcr:primaryType": "sch:AnswerOption", "value": "no", "label": "No" }
+        },
+        "linkage": {
+          "jcr:primaryType": "sch:Section",
+          "title": "The other data",
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/combining/combine" ] },
+            "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "yes" ] }
+          },
+          "otherSources": {
+            "jcr:primaryType": "sch:Question",
+            "text": "What is the other data source, and who owns it?",
+            "description": "Example: \"Ontario Cancer Registry, owned by Ontario Health.\" If there is more than one source, put each one on a line of its own.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "maxAnswers": 0
+          },
+          "matchOn": {
+            "jcr:primaryType": "sch:Question",
+            "text": "What information will you use to match the same patient across the data sources?",
+            "description": "Example: health card number, or a combination of date of birth and postal code. Any identifier you pick here should also be among the identifying details you asked for under Patient identity.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "maxAnswers": 0,
+            "healthCard": { "jcr:primaryType": "sch:AnswerOption", "value": "health-card", "label": "Health card number" },
+            "mrn": { "jcr:primaryType": "sch:AnswerOption", "value": "mrn", "label": "MRN" },
+            "birthDate": { "jcr:primaryType": "sch:AnswerOption", "value": "birth-date", "label": "Date of birth" },
+            "postalCode": { "jcr:primaryType": "sch:AnswerOption", "value": "postal-code", "label": "Postal code" },
+            "name": { "jcr:primaryType": "sch:AnswerOption", "value": "name", "label": "Name" },
+            "studyCode": { "jcr:primaryType": "sch:AnswerOption", "value": "study-code", "label": "Study code" },
+            "other": { "jcr:primaryType": "sch:AnswerOption", "value": "other", "label": "Other" }
+          },
+          "matchOnOther": {
+            "jcr:primaryType": "sch:Question",
+            "text": "What other information will you use to match patients?",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "includes",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/combining/linkage/matchOn" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "other" ] }
+            }
+          },
+          "matcher": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Who will match (link) the data?",
+            "description": "This is the person or team who will combine the datasets.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "uhnTeam": { "jcr:primaryType": "sch:AnswerOption", "value": "uhn-team", "label": "A UHN data team" },
+            "studyTeam": { "jcr:primaryType": "sch:AnswerOption", "value": "study-team", "label": "My study team" },
+            "outside": { "jcr:primaryType": "sch:AnswerOption", "value": "outside", "label": "Someone outside UHN" }
+          },
+          "matcherOutside": {
+            "jcr:primaryType": "sch:Question",
+            "text": "Who outside UHN will match the data? Name the person or organization.",
+            "dataType": "text",
+            "minAnswers": 1,
+            "cond:condition": {
+              "jcr:primaryType": "cond:SingleCondition",
+              "comparator": "equals",
+              "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/combining/linkage/matcher" ] },
+              "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "outside" ] }
+            }
+          }
+        }
+      },
+      "security": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Data security and storage",
+        "workLocations": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Where will you open and work with the data?",
+          "description": "Select every place where the data will be viewed or analyzed.",
+          "dataType": "text",
+          "minAnswers": 1,
+          "maxAnswers": 0,
+          "hpc": { "jcr:primaryType": "sch:AnswerOption", "value": "hpc", "label": "HPC for Health (UHN's high-performance computing environment)" },
+          "uhnComputer": { "jcr:primaryType": "sch:AnswerOption", "value": "uhn-computer", "label": "A UHN computer connected to the UHN network" },
+          "uhnServer": { "jcr:primaryType": "sch:AnswerOption", "value": "uhn-server", "label": "A UHN server connected to the UHN network" },
+          "outside": { "jcr:primaryType": "sch:AnswerOption", "value": "outside", "label": "Outside UHN" },
+          "other": { "jcr:primaryType": "sch:AnswerOption", "value": "other", "label": "Other" },
+          "unsure": { "jcr:primaryType": "sch:AnswerOption", "value": "unsure", "label": "I'm not sure" }
+        },
+        "workOutside": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Where outside UHN will you open and work with the data?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "includes",
+            "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/security/workLocations" ] },
+            "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "outside" ] }
+          }
+        },
+        "workOther": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which other place will you open and work with the data in?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "includes",
+            "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/security/workLocations" ] },
+            "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "other" ] }
+          }
+        },
+        "workUnsure": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Describe your setup.",
+          "dataType": "text",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "includes",
+            "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/security/workLocations" ] },
+            "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "unsure" ] }
+          }
+        },
+        "storage": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Where will the data be saved?",
+          "description": "Give the exact system, drive, or folder. Example: \"UHN shared drive: \\\\[server]\\StudyName\\Data.\" Note: if you selected a repeating data request, the data must be saved in a secure UHN-approved location.",
+          "dataType": "text",
+          "minAnswers": 1
+        },
+        "external": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Will anyone outside UHN be able to see or receive this data?",
+          "description": "Examples: sharing data with a study sponsor or collaborator at another institution; accessing the data through a system hosted outside UHN.",
+          "dataType": "text",
+          "minAnswers": 1,
+          "no": { "jcr:primaryType": "sch:AnswerOption", "value": "no", "label": "No" },
+          "yes": { "jcr:primaryType": "sch:AnswerOption", "value": "yes", "label": "Yes" }
+        },
+        "externalDetails": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who outside UHN will receive or access the data, and how?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": { "jcr:primaryType": "cond:ConditionOperand", "source": "answer", "value": [ "intake/security/external" ] },
+            "operandB": { "jcr:primaryType": "cond:ConditionOperand", "value": [ "yes" ] }
+          }
+        },
+        "policyConfirm": {
+          "jcr:primaryType": "sch:Question",
+          "text": "I confirm that I will follow UHN policy for storing, moving, and destroying this data.",
+          "description": "Administrative: Management, Retention & Destruction of UHN Records policy 1.30.007, at https://documents.uhn.ca/sites/uhn/Policies/administrative/legal_affairs/1.30.007-doc.pdf",
+          "dataType": "text",
+          "minAnswers": 1,
+          "confirmed": { "jcr:primaryType": "sch:AnswerOption", "value": "confirmed", "label": "I confirm" }
+        }
+      }
+    },
+    "researchPlan": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Research plan",
+      "description": "Filled in from your answers when you send the request. You can preview it first, or upload your own version as a .docx to be sent instead.",
+      "generated": true,
+      "skipParsing": true,
+      "acceptedFileTypes": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+    }
+  }
+}

@@ -36,5 +36,6 @@
   -->
   <modules>
     <module>time-off-request</module>
+    <module>dhp-intake</module>
   </modules>
 </project>

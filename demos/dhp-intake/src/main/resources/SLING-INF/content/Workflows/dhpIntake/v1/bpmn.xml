@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 DATA @ UHN. See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
+                  id="dhpIntakeDefinitions"
+                  targetNamespace="https://iap.uhndata.io/demos/dhpIntake">
+  <bpmn:process id="dhpIntake" name="Digital Health Platform intake" isExecutable="true">
+    <bpmn:startEvent id="requestRaised" name="Request raised">
+      <bpmn:outgoing>toFillIn</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toFillIn" sourceRef="requestRaised" targetRef="fillIn" />
+    <bpmn:userTask id="fillIn" iap:performers="@creator" name="Describe the data you need">
+      <bpmn:incoming>toFillIn</bpmn:incoming>
+      <bpmn:outgoing>toGenerate</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toGenerate" sourceRef="fillIn" targetRef="generateResearchPlan" />
+    <!-- From the answers as they were sent, unless the researcher uploaded their own version -->
+    <bpmn:serviceTask id="generateResearchPlan" name="Fill the research plan in" iap:handler="generateDocument"
+        iap:requirement="researchPlan">
+      <bpmn:incoming>toGenerate</bpmn:incoming>
+      <bpmn:outgoing>toSubmitted</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toSubmitted" sourceRef="generateResearchPlan" targetRef="markSubmitted" />
+    <bpmn:serviceTask id="markSubmitted" iap:handler="addTag" iap:replaceExisting="true" iap:tag="submitted"
+        name="Mark it as submitted">
+      <bpmn:incoming>toSubmitted</bpmn:incoming>
+      <bpmn:outgoing>toEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toEnd" sourceRef="markSubmitted" targetRef="requestSent" />
+    <bpmn:endEvent id="requestSent" name="Request sent">
+      <bpmn:incoming>toEnd</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="dhpIntakeDiagram">
+    <bpmndi:BPMNPlane id="dhpIntakePlane" bpmnElement="dhpIntake">
+      <bpmndi:BPMNShape id="requestRaisedShape" bpmnElement="requestRaised">
+        <dc:Bounds x="160" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="139" y="223" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="fillInShape" bpmnElement="fillIn">
+        <dc:Bounds x="250" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="generateResearchPlanShape" bpmnElement="generateResearchPlan">
+        <dc:Bounds x="400" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markSubmittedShape" bpmnElement="markSubmitted">
+        <dc:Bounds x="550" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="requestSentShape" bpmnElement="requestSent">
+        <dc:Bounds x="700" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="684" y="223" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toFillInEdge" bpmnElement="toFillIn">
+        <di:waypoint x="196" y="198" />
+        <di:waypoint x="250" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toGenerateEdge" bpmnElement="toGenerate">
+        <di:waypoint x="350" y="198" />
+        <di:waypoint x="400" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toSubmittedEdge" bpmnElement="toSubmitted">
+        <di:waypoint x="500" y="198" />
+        <di:waypoint x="550" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toEndEdge" bpmnElement="toEnd">
+        <di:waypoint x="650" y="198" />
+        <di:waypoint x="700" y="198" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
