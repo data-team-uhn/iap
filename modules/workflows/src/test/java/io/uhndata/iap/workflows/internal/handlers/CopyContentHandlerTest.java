@@ -40,11 +40,11 @@ import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.utils.copy.ContentCopier;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -60,6 +60,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class CopyContentHandlerTest
 {
     private static final String SOURCE = "/Schemas/study/v1";
+
+    private static final String HOST = "/Schemas/study/v2";
 
     private static final String VERSION_TYPE = "sch/SchemaVersion";
 
@@ -92,7 +94,7 @@ class CopyContentHandlerTest
         Mockito.when(source.getPath()).thenReturn(SOURCE);
         Mockito.when(this.resolver.getResource(SOURCE)).thenReturn(source);
         Mockito.when(this.host.adaptTo(Node.class)).thenReturn(this.hostNode);
-        Mockito.when(this.host.getPath()).thenReturn("/Schemas/study/v2");
+        Mockito.when(this.host.getPath()).thenReturn(HOST);
         Mockito.when(this.hostNode.isCheckedOut()).thenReturn(true);
         // Where the host really is, since a mock's depth of 0 would make it the root
         Mockito.when(this.hostNode.getDepth()).thenReturn(3);
@@ -107,22 +109,22 @@ class CopyContentHandlerTest
     @Test
     void copiesNothingWithoutASource() throws WorkflowException, PersistenceException
     {
-        final WorkflowTaskContext unnamed = context(Map.of());
+        final RecordingTaskContext unnamed = context(Map.of());
 
         this.handler.execute(unnamed);
 
         Mockito.verifyNoInteractions(this.copier);
-        Mockito.verify(unnamed, Mockito.never()).recordRole(Mockito.any(), Mockito.any());
+        assertEquals(List.of(), unnamed.getRoles());
     }
 
     @Test
     void namesWhereTheCopyCameFromForTheHistory() throws WorkflowException, PersistenceException
     {
-        final WorkflowTaskContext copying = context(Map.of("source", SOURCE));
+        final RecordingTaskContext copying = context(Map.of("source", SOURCE));
 
         this.handler.execute(copying);
 
-        Mockito.verify(copying).recordRole(this.host, "copied from " + SOURCE);
+        assertEquals(List.of(new RecordedRole(HOST, "copied from " + SOURCE)), copying.getRoles());
     }
 
     @Test
@@ -202,14 +204,13 @@ class CopyContentHandlerTest
         assertThrows(PersistenceException.class, () -> this.handler.execute(context(Map.of("source", SOURCE))));
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> payload)
+    private RecordingTaskContext context(final Map<String, Object> payload)
     {
-        final WorkflowTaskContext context = Mockito.mock(WorkflowTaskContext.class);
-        Mockito.when(context.getEvent()).thenReturn(new WorkflowEvent("create", payload));
-        Mockito.when(context.getActivity()).thenReturn(this.activity);
-        Mockito.when(context.getResourceResolver()).thenReturn(this.resolver);
-        Mockito.when(context.getTarget()).thenReturn(this.host);
-        return context;
+        return RecordingTaskContext.aimedAt(this.host)
+            .forEvent("create", payload)
+            .performing(this.activity)
+            .resolvingThrough(this.resolver)
+            .build();
     }
 
     private void inject(final String name, final Object value) throws ReflectiveOperationException

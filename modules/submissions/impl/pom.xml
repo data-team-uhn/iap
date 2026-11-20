@@ -168,6 +168,14 @@
           <type>test-jar</type>
           <scope>test</scope>
         </dependency>
+        <!-- RecordingTaskContext, for calling a workflow handler without the engine -->
+        <dependency>
+          <groupId>${project.groupId}</groupId>
+          <artifactId>iap-workflows</artifactId>
+          <version>${project.version}</version>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
       </dependencies>
     </profile>
   </profiles>

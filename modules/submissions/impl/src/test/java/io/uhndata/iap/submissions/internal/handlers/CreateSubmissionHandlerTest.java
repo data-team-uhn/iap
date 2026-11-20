@@ -44,11 +44,12 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.utils.PrefixTree;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -124,12 +125,12 @@ class CreateSubmissionHandlerTest
     @Test
     void namesTheSubmissionRaisedForTheHistory() throws WorkflowException, PersistenceException
     {
-        final TaskContext raising = context(Map.of("title", "My day off", "schemaVersion", VERSION_PATH));
+        final RecordingTaskContext raising = context(Map.of("title", "My day off", "schemaVersion", VERSION_PATH));
 
         this.handler.execute(raising);
 
-        assertEquals(Map.of((String) raising.getVariable(WorkflowResult.CREATED_PATH_VARIABLE), "raised"),
-            raising.getRoles());
+        final String raised = (String) raising.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
+        assertEquals(List.of(new RecordedRole(raised, "raised")), raising.getRoles());
     }
 
     @Test
@@ -297,7 +298,7 @@ class CreateSubmissionHandlerTest
      * @param payload the event payload
      * @return the assembled context
      */
-    private TaskContext context(final Map<String, Object> payload)
+    private RecordingTaskContext context(final Map<String, Object> payload)
     {
         return context(payload, this.context.resourceResolver());
     }
@@ -309,10 +310,9 @@ class CreateSubmissionHandlerTest
      * @param resolver the session the handler works through
      * @return the assembled context
      */
-    private TaskContext context(final Map<String, Object> payload, final ResourceResolver resolver)
+    private RecordingTaskContext context(final Map<String, Object> payload, final ResourceResolver resolver)
     {
-        return new TaskContext(this.target, "demo-requester", new WorkflowEvent("create", payload))
-            .performing(Mockito.mock(Activity.class))
-            .throughResolver(resolver);
+        return RecordingTaskContext.aimedAt(this.target).actingFor("demo-requester")
+            .forEvent("create", payload).resolvingThrough(resolver).build();
     }
 }

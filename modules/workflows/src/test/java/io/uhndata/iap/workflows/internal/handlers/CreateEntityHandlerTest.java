@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal.handlers;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.IntStream;
 
@@ -31,13 +30,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.internal.EngineFixture;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -83,11 +82,11 @@ class CreateEntityHandlerTest
     @Test
     void createsTheConfiguredEntityNamedAfterTheTitle() throws WorkflowException, PersistenceException
     {
-        final Map<String, Object> variables = new HashMap<>();
+        final RecordingTaskContext task = context("My cool workflow");
 
-        this.handler.execute(context("My cool workflow", variables));
+        this.handler.execute(task);
 
-        assertEquals("/Workflows/myCoolWorkflow", variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        assertEquals("/Workflows/myCoolWorkflow", task.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
         final Resource created = this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow");
         assertNotNull(created);
         assertEquals("wf:WorkflowDefinition", created.getValueMap().get("jcr:primaryType"));
@@ -99,11 +98,11 @@ class CreateEntityHandlerTest
     {
         this.context.create().resource("/Workflows/myCoolWorkflow", TYPE, "wf/WorkflowDefinition");
         this.context.create().resource("/Workflows/myCoolWorkflow2", TYPE, "wf/WorkflowDefinition");
-        final Map<String, Object> variables = new HashMap<>();
+        final RecordingTaskContext task = context("My cool workflow");
 
-        this.handler.execute(context("My cool workflow", variables));
+        this.handler.execute(task);
 
-        assertEquals("/Workflows/myCoolWorkflow3", variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        assertEquals("/Workflows/myCoolWorkflow3", task.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
     }
 
     // A hundred workflows called the same thing is a naming problem, not a reason to refuse the
@@ -113,11 +112,12 @@ class CreateEntityHandlerTest
     {
         IntStream.rangeClosed(1, 100).forEach(attempt -> this.context.create().resource(
             "/Workflows/" + (attempt == 1 ? "busy" : "busy" + attempt), TYPE, "wf/WorkflowDefinition"));
-        final Map<String, Object> variables = new HashMap<>();
+        final RecordingTaskContext task = context("Busy");
 
-        this.handler.execute(context("Busy", variables));
+        this.handler.execute(task);
 
-        assertTrue(((String) variables.get(WorkflowResult.CREATED_PATH_VARIABLE)).matches("/Workflows/busy[0-9]{9}"));
+        assertTrue(((String) task.getVariable(WorkflowResult.CREATED_PATH_VARIABLE))
+            .matches("/Workflows/busy[0-9]{9}"));
     }
 
     @Test
@@ -126,9 +126,8 @@ class CreateEntityHandlerTest
         // An activity of the graph that carries no entityType configuration
         this.context.create().resource(EngineFixture.VERSION + "/misconfigured", Map.of(
             TYPE, Activity.RESOURCE_TYPE, "elementId", "misconfigured", "handler", CreateEntityHandler.HANDLER_NAME));
-        final WorkflowTaskContext taskContext = EngineFixture.taskContext(this.target,
-            new WorkflowEvent("create", Map.of("title", "Fine")),
-            adaptActivity(EngineFixture.VERSION + "/misconfigured"), new HashMap<>(), ACTOR);
+        final WorkflowTaskContext taskContext =
+            creating(Map.of("title", "Fine"), adaptActivity(EngineFixture.VERSION + "/misconfigured"));
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(taskContext));
     }
@@ -139,9 +138,8 @@ class CreateEntityHandlerTest
         this.context.create().resource(EngineFixture.VERSION + "/blank", Map.of(
             TYPE, Activity.RESOURCE_TYPE, "elementId", "blank", "handler", CreateEntityHandler.HANDLER_NAME,
             "entityType", " "));
-        final WorkflowTaskContext taskContext = EngineFixture.taskContext(this.target,
-            new WorkflowEvent("create", Map.of("title", "Fine")),
-            adaptActivity(EngineFixture.VERSION + "/blank"), new HashMap<>(), ACTOR);
+        final WorkflowTaskContext taskContext =
+            creating(Map.of("title", "Fine"), adaptActivity(EngineFixture.VERSION + "/blank"));
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(taskContext));
     }
@@ -150,21 +148,21 @@ class CreateEntityHandlerTest
     void requiresATitle()
     {
         final InvalidPayloadException rejection = assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(null, new HashMap<>())));
+            () -> this.handler.execute(context(null)));
         assertTrue(rejection.getMessage().contains("title is required"));
     }
 
     @Test
     void refusesABlankTitle()
     {
-        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(context("   ", new HashMap<>())));
+        assertThrows(InvalidPayloadException.class, () -> this.handler.execute(context("   ")));
     }
 
     @Test
     void refusesATitleWithNothingToNameBy()
     {
         final InvalidPayloadException rejection = assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context("!!! ???", new HashMap<>())));
+            () -> this.handler.execute(context("!!! ???")));
         assertTrue(rejection.getMessage().contains("letter or digit"));
     }
 
@@ -172,7 +170,7 @@ class CreateEntityHandlerTest
     void variablesCanBeReadBackThroughTheContext() throws WorkflowException, PersistenceException
     {
         // The get side of the context contract: what one task leaves behind, a later task can read
-        final WorkflowTaskContext taskContext = context("Round trip", new HashMap<>());
+        final WorkflowTaskContext taskContext = context("Round trip");
 
         this.handler.execute(taskContext);
 
@@ -183,37 +181,41 @@ class CreateEntityHandlerTest
     @Test
     void ignoresLeadingAndTrailingPunctuationInTitles() throws WorkflowException, PersistenceException
     {
-        final Map<String, Object> variables = new HashMap<>();
+        final RecordingTaskContext task = context("  (Urgent) reviews!  ");
 
-        this.handler.execute(context("  (Urgent) reviews!  ", variables));
+        this.handler.execute(task);
 
-        assertEquals("/Workflows/urgentReviews", variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        assertEquals("/Workflows/urgentReviews", task.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
     }
 
     @Test
     void handlesSingleWordAndUnicodeTitles() throws WorkflowException, PersistenceException
     {
-        final Map<String, Object> first = new HashMap<>();
-        this.handler.execute(context("REVIEWS", first));
-        assertEquals("/Workflows/reviews", first.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        final RecordingTaskContext first = context("REVIEWS");
+        this.handler.execute(first);
+        assertEquals("/Workflows/reviews", first.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
 
-        final Map<String, Object> second = new HashMap<>();
-        this.handler.execute(context("Évaluation des congés", second));
-        assertEquals("/Workflows/évaluationDesCongés", second.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        final RecordingTaskContext second = context("Évaluation des congés");
+        this.handler.execute(second);
+        assertEquals("/Workflows/évaluationDesCongés", second.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
     }
 
     /**
      * Builds a task context for the bootstrap graph's own create activity, with the given title in the payload.
      *
      * @param title the payload title, or {@code null} to send no title at all
-     * @param variables where the handler reports its results
      * @return the assembled context
      */
-    private WorkflowTaskContext context(final String title, final Map<String, Object> variables)
+    private RecordingTaskContext context(final String title)
     {
         final Map<String, Object> payload = title == null ? Map.of() : Map.of("title", title);
-        return EngineFixture.taskContext(this.target, new WorkflowEvent("create", payload),
-            adaptActivity(EngineFixture.VERSION + "/create"), variables, ACTOR);
+        return creating(payload, adaptActivity(EngineFixture.VERSION + "/create"));
+    }
+
+    private RecordingTaskContext creating(final Map<String, Object> payload, final Activity activity)
+    {
+        return RecordingTaskContext.aimedAt(this.target).forEvent("create", payload).performing(activity)
+            .actingFor(ACTOR).build();
     }
 
     private Activity adaptActivity(final String path)

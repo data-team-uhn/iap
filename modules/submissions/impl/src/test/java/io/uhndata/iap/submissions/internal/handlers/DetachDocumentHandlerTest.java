@@ -56,8 +56,9 @@ import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -158,12 +159,12 @@ class DetachDocumentHandlerTest
     void namesTheRequirementItRemovedTheDocumentFromForTheHistory() throws Exception
     {
         attach(NOTE, "wrong.pdf");
-        final TaskContext detaching = context(payload(NOTE), REQUESTER);
+        final RecordingTaskContext detaching = context(payload(NOTE), REQUESTER);
 
         this.handler.execute(detaching);
 
-        assertEquals(Map.of(documents().get(0).getPath(), "removed the document from Doctor's note"),
-            detaching.getRoles());
+        assertEquals(List.of(new RecordedRole(documents().get(0).getPath(),
+            "removed the document from Doctor's note")), detaching.getRoles());
     }
 
     @Test
@@ -349,7 +350,7 @@ class DetachDocumentHandlerTest
         }
     }
 
-    private TaskContext context(final Map<String, Object> payload, final String actor)
+    private RecordingTaskContext context(final Map<String, Object> payload, final String actor)
     {
         // jcr-mock answers nothing about versioning, so the request reads as checked out
         final Node checkedOut = Mockito.mock(Node.class);
@@ -366,7 +367,7 @@ class DetachDocumentHandlerTest
                 return Node.class.equals(type) ? type.cast(checkedOut) : super.adaptTo(type);
             }
         };
-        return new TaskContext(submission, actor, new WorkflowEvent(DetachDocumentHandler.HANDLER_NAME, payload))
-            .performing(Mockito.mock(Activity.class));
+        return RecordingTaskContext.aimedAt(submission).actingFor(actor)
+            .forEvent(DetachDocumentHandler.HANDLER_NAME, payload).build();
     }
 }

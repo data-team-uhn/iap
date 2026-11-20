@@ -38,7 +38,7 @@ import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -80,11 +80,11 @@ class CreateVersionHandlerTest
     @Test
     void createsAVersionNamedAfterItsNumber() throws WorkflowException, PersistenceException
     {
-        final Map<String, Object> variables = new HashMap<>();
+        final RecordingTaskContext request = this.request(Map.of("version", "1.0"));
 
-        this.handler.execute(this.request(Map.of("version", "1.0"), variables));
+        this.handler.execute(request);
 
-        assertEquals(AuthoringFixture.path("v1"), variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        assertEquals(AuthoringFixture.path("v1"), request.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
         final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("v1"));
         assertNotNull(created);
         assertEquals("wf:WorkflowVersion", created.getValueMap().get("jcr:primaryType"));
@@ -103,13 +103,15 @@ class CreateVersionHandlerTest
         // createWorkflow runs createEntity at the homepage first: the version belongs to the workflow it made,
         // not to the homepage the event was sent to
         this.context.create().resource("/Workflows/fresh", "jcr:primaryType", "wf:WorkflowDefinition");
-        final Map<String, Object> variables = new HashMap<>();
-        variables.put(WorkflowResult.CREATED_PATH_VARIABLE, "/Workflows/fresh");
+        final RecordingTaskContext request = AuthoringFixture
+            .context(this.context.resourceResolver().getResource("/Workflows"), "create", Map.of("version", "1.0"),
+                this.activity)
+            .havingCreated("/Workflows/fresh")
+            .build();
 
-        this.handler.execute(AuthoringFixture.context(this.context.resourceResolver().getResource("/Workflows"),
-            "create", Map.of("version", "1.0"), this.activity, variables));
+        this.handler.execute(request);
 
-        assertEquals("/Workflows/fresh/v1", variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        assertEquals("/Workflows/fresh/v1", request.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
         assertNotNull(this.context.resourceResolver().getResource("/Workflows/fresh/v1"));
     }
 
@@ -118,8 +120,7 @@ class CreateVersionHandlerTest
     {
         AuthoringFixture.createVersion(this.context, "v1", "1.0", "active", Map.of());
 
-        this.handler.execute(this.request(Map.of("version", "2.0", "source", AuthoringFixture.path("v1")),
-            new HashMap<>()));
+        this.handler.execute(this.request(Map.of("version", "2.0", "source", AuthoringFixture.path("v1"))));
 
         final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("v2"));
         assertNotNull(created);
@@ -133,7 +134,7 @@ class CreateVersionHandlerTest
         payload.put("version", "1.0");
         payload.put("bpmn.xml", AuthoringFixture.upload(AuthoringFixture.BPMN, "application/xml"));
 
-        this.handler.execute(this.request(payload, new HashMap<>()));
+        this.handler.execute(this.request(payload));
 
         final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("v1"));
         assertNotNull(created);
@@ -145,8 +146,7 @@ class CreateVersionHandlerTest
     @Test
     void recordsTheDescriptionWhenOneIsGiven() throws WorkflowException, PersistenceException
     {
-        this.handler.execute(this.request(Map.of("version", "1.0", "description", "  The first cut  "),
-            new HashMap<>()));
+        this.handler.execute(this.request(Map.of("version", "1.0", "description", "  The first cut  ")));
 
         final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("v1"));
         assertNotNull(created);
@@ -156,7 +156,7 @@ class CreateVersionHandlerTest
     @Test
     void ignoresABlankDescription() throws WorkflowException, PersistenceException
     {
-        this.handler.execute(this.request(Map.of("version", "1.0", "description", "   "), new HashMap<>()));
+        this.handler.execute(this.request(Map.of("version", "1.0", "description", "   ")));
 
         final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("v1"));
         assertNotNull(created);
@@ -168,18 +168,18 @@ class CreateVersionHandlerTest
     {
         // One version so far, but named as a second would be: the names decide, not how many there are
         AuthoringFixture.createVersion(this.context, "v2", "1.0", "draft", Map.of());
-        final Map<String, Object> variables = new HashMap<>();
+        final RecordingTaskContext request = this.request(Map.of("version", "2.0"));
 
-        this.handler.execute(this.request(Map.of("version", "2.0"), variables));
+        this.handler.execute(request);
 
-        assertEquals(AuthoringFixture.path("v3"), variables.get(WorkflowResult.CREATED_PATH_VARIABLE));
+        assertEquals(AuthoringFixture.path("v3"), request.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
     }
 
     @Test
     void keepsALabelThatCouldNotBeANodeName() throws WorkflowException, PersistenceException
     {
         // The name does not come from the label, so a label may say anything
-        this.handler.execute(this.request(Map.of("version", "2.0 (pilot)"), new HashMap<>()));
+        this.handler.execute(this.request(Map.of("version", "2.0 (pilot)")));
 
         final Resource created = this.context.resourceResolver().getResource(AuthoringFixture.path("v1"));
         assertNotNull(created);
@@ -192,14 +192,14 @@ class CreateVersionHandlerTest
         AuthoringFixture.createVersion(this.context, "1-0", "1.0", "active", Map.of());
 
         final InvalidStateException refusal = assertThrows(InvalidStateException.class,
-            () -> this.handler.execute(this.request(Map.of("version", "1.0"), new HashMap<>())));
+            () -> this.handler.execute(this.request(Map.of("version", "1.0"))));
         assertTrue(refusal.getMessage().contains("already has a version 1.0"));
     }
 
     @Test
     void labelsAFirstVersionOnePointZeroWhenNoLabelIsGiven() throws WorkflowException, PersistenceException
     {
-        this.handler.execute(this.request(Map.of(), new HashMap<>()));
+        this.handler.execute(this.request(Map.of()));
 
         assertEquals("1.0", this.context.resourceResolver().getResource(AuthoringFixture.path("v1"))
             .getValueMap().get("version"));
@@ -214,7 +214,7 @@ class CreateVersionHandlerTest
         AuthoringFixture.createVersion(this.context, "v2", "2027", "active", Map.of());
         AuthoringFixture.createVersion(this.context, "v4", "beta", "draft", Map.of());
 
-        this.handler.execute(this.request(Map.of(), new HashMap<>()));
+        this.handler.execute(this.request(Map.of()));
 
         assertEquals("5.0", this.context.resourceResolver().getResource(AuthoringFixture.path("v5"))
             .getValueMap().get("version"));
@@ -224,7 +224,7 @@ class CreateVersionHandlerTest
     void refusesABlankLabel()
     {
         assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(this.request(Map.of("version", "   "), new HashMap<>())));
+            () -> this.handler.execute(this.request(Map.of("version", "   "))));
     }
 
     @Test
@@ -232,7 +232,7 @@ class CreateVersionHandlerTest
     {
         // A channel other than a form could carry anything at all under that name
         assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(this.request(Map.of("version", new String[] { "1.0" }), new HashMap<>())));
+            () -> this.handler.execute(this.request(Map.of("version", new String[] { "1.0" }))));
     }
 
     @Test
@@ -243,7 +243,7 @@ class CreateVersionHandlerTest
         payload.put("bpmn.xml", AuthoringFixture.brokenUpload());
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
-            () -> this.handler.execute(this.request(payload, new HashMap<>())));
+            () -> this.handler.execute(this.request(payload)));
         // The detail stays in the cause, for the log; the caller is told only what failed
         assertEquals("The diagram could not be read", failure.getMessage());
         assertEquals("The upload broke", failure.getCause().getMessage());
@@ -257,7 +257,7 @@ class CreateVersionHandlerTest
             () -> assertFalse(this.context.resourceResolver().getResource(AuthoringFixture.DEFINITION).hasChildren(),
                 "The version was added before the workflow was checked out"));
 
-        this.handler.execute(this.request(Map.of(), new HashMap<>()));
+        this.handler.execute(this.request(Map.of()));
 
         Mockito.verify(versions).checkout(AuthoringFixture.DEFINITION);
     }
@@ -266,13 +266,11 @@ class CreateVersionHandlerTest
      * A task context aimed at the fixture's definition.
      *
      * @param payload what the event carries
-     * @param variables where the handler reports its results
      * @return the assembled context
      */
-    private WorkflowTaskContext request(final Map<String, Object> payload,
-        final Map<String, Object> variables)
+    private RecordingTaskContext request(final Map<String, Object> payload)
     {
         return AuthoringFixture.context(this.context.resourceResolver().getResource(AuthoringFixture.DEFINITION),
-            "createVersion", payload, this.activity, variables);
+            "createVersion", payload, this.activity).build();
     }
 }

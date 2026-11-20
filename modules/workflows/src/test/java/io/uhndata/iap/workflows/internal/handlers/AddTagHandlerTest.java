@@ -29,16 +29,14 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mockito;
 
 import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
-import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.internal.EngineFixture;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -89,7 +87,7 @@ class AddTagHandlerTest
     {
         tag(this.target, "draft", "sensitive");
 
-        this.handler.execute(context(Map.of("tag", "active"), new HashMap<>()));
+        this.handler.execute(context(Map.of("tag", "active")).build());
 
         assertEquals(Set.of("draft", "sensitive", "active"), WorkflowFixture.tags(this.target));
         assertEquals(List.of(), this.tagging.getReplacements());
@@ -98,13 +96,11 @@ class AddTagHandlerTest
     @Test
     void namesTheChangeByTheTagForTheHistory() throws Exception
     {
-        final WorkflowTaskContext adding = Mockito.spy(context(Map.of("tag", "submitted"), new HashMap<>()));
+        final RecordingTaskContext adding = context(Map.of("tag", "submitted")).build();
 
         this.handler.execute(adding);
 
-        Mockito.verify(adding).recordRole(
-            Mockito.argThat(resource -> this.target.getPath().equals(resource.getPath())),
-            Mockito.eq("tagged as submitted"));
+        assertEquals(List.of(new RecordedRole(this.target.getPath(), "tagged as submitted")), adding.getRoles());
     }
 
     @Test
@@ -112,7 +108,7 @@ class AddTagHandlerTest
     {
         tag(this.target, "draft", "sensitive");
 
-        this.handler.execute(context(Map.of("tag", "active", "replaceExisting", true), new HashMap<>()));
+        this.handler.execute(context(Map.of("tag", "active", "replaceExisting", true)).build());
 
         assertEquals(List.of("active"), this.tagging.getReplacements());
         assertEquals(Set.of("sensitive", "active"), WorkflowFixture.tags(this.target));
@@ -121,7 +117,7 @@ class AddTagHandlerTest
     @Test
     void readsReplaceExistingWrittenAsText() throws Exception
     {
-        this.handler.execute(context(Map.of("tag", "approved", "replaceExisting", "true"), new HashMap<>()));
+        this.handler.execute(context(Map.of("tag", "approved", "replaceExisting", "true")).build());
 
         assertEquals(List.of("approved"), this.tagging.getReplacements());
     }
@@ -130,10 +126,8 @@ class AddTagHandlerTest
     void tagsWhatTheExecutionCreated() throws Exception
     {
         final Resource created = this.context.create().resource("/Workflows/created", TYPE, "wf/WorkflowDefinition");
-        final Map<String, Object> variables = new HashMap<>();
-        variables.put(WorkflowResult.CREATED_PATH_VARIABLE, created.getPath());
 
-        this.handler.execute(context(Map.of("tag", "draft"), variables));
+        this.handler.execute(context(Map.of("tag", "draft")).havingCreated(created.getPath()).build());
 
         assertEquals(Set.of("draft"), WorkflowFixture.tags(created));
         assertEquals(Set.of(), WorkflowFixture.tags(this.target));
@@ -143,21 +137,21 @@ class AddTagHandlerTest
     void refusesActivitiesNotConfiguringATag()
     {
         assertThrows(WorkflowDefinitionException.class,
-            () -> this.handler.execute(context(Map.of(), new HashMap<>())));
+            () -> this.handler.execute(context(Map.of()).build()));
     }
 
     @Test
     void refusesABlankTagConfiguration()
     {
         assertThrows(WorkflowDefinitionException.class,
-            () -> this.handler.execute(context(Map.of("tag", " "), new HashMap<>())));
+            () -> this.handler.execute(context(Map.of("tag", " ")).build()));
     }
 
     @Test
     void refusesATagThatCannotBePlaced()
     {
         assertThrows(WorkflowDefinitionException.class,
-            () -> this.handler.execute(context(Map.of("tag", PropertyTagging.UNDEFINED), new HashMap<>())));
+            () -> this.handler.execute(context(Map.of("tag", PropertyTagging.UNDEFINED)).build()));
     }
 
     private void tag(final Resource resource, final String... tags)
@@ -167,21 +161,19 @@ class AddTagHandlerTest
     }
 
     /**
-     * Builds a task context for an {@code addTag} activity configured with the given properties.
+     * Starts a task context for an {@code addTag} activity configured with the given properties.
      *
      * @param configuration the activity's configuration
-     * @param variables the execution's variables
-     * @return the assembled context
+     * @return a builder for the context, for the test to add to
      */
-    private WorkflowTaskContext context(final Map<String, Object> configuration,
-        final Map<String, Object> variables)
+    private RecordingTaskContext.Builder context(final Map<String, Object> configuration)
     {
         final Map<String, Object> properties = new HashMap<>(configuration);
         properties.put(TYPE, Activity.RESOURCE_TYPE);
         properties.put("elementId", "tag");
         properties.put("handler", AddTagHandler.HANDLER_NAME);
         final Activity activity = this.context.create().resource(ACTIVITY, properties).adaptTo(Activity.class);
-        return EngineFixture.taskContext(this.target, new WorkflowEvent("tag", Map.of()), activity, variables,
-            ACTOR);
+        return RecordingTaskContext.aimedAt(this.target).forEvent("tag", Map.of()).performing(activity)
+            .actingFor(ACTOR);
     }
 }

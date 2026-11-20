@@ -27,10 +27,9 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mockito;
 
 import io.uhndata.iap.tags.testing.PropertyTagging;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -66,10 +65,8 @@ class MarkUrgencyHandlerTest
             Map.of("tags", new String[] {TimeOffUrgency.SUBMITTED_TAG}));
         // Tomorrow by the system clock, which is what the handler judges against
         requests.answer(request, TimeOffQuestions.START_DATE_QUESTION, LocalDate.now().plusDays(1).toString());
-        final WorkflowTaskContext task = Mockito.mock(WorkflowTaskContext.class);
-        Mockito.when(task.getTarget()).thenReturn(request);
 
-        this.handler.execute(task);
+        this.handler.execute(RecordingTaskContext.aimedAt(request).build());
 
         assertTrue(requests.tagsOf(REQUEST_PATH).contains(TimeOffUrgency.URGENT_TAG));
     }

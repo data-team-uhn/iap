@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal.handlers;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -28,14 +29,13 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mockito;
 
 import io.uhndata.iap.tags.testing.PropertyTagging;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.internal.EngineFixture;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -79,7 +79,7 @@ class RemoveTagHandlerTest
     {
         tag(this.target, "retired", "sensitive");
 
-        this.handler.execute(context(Map.of("tag", "retired"), new HashMap<>()));
+        this.handler.execute(context(Map.of("tag", "retired")).build());
 
         assertEquals(Set.of("sensitive"), WorkflowFixture.tags(this.target));
     }
@@ -89,7 +89,7 @@ class RemoveTagHandlerTest
     {
         tag(this.target, "sensitive");
 
-        this.handler.execute(context(Map.of("tag", "retired"), new HashMap<>()));
+        this.handler.execute(context(Map.of("tag", "retired")).build());
 
         assertEquals(Set.of("sensitive"), WorkflowFixture.tags(this.target));
     }
@@ -100,34 +100,30 @@ class RemoveTagHandlerTest
             .adaptTo(ModifiableValueMap.class).put("tags", tags);
     }
 
-    /**
-     * Builds a task context for an {@code addTag} activity configured with the given properties.
-     *
-     * @param configuration the activity's configuration
-     * @param variables the execution's variables
-     * @return the assembled context
-     */
     @Test
     void namesTheChangeByTheTagForTheHistory() throws Exception
     {
-        final WorkflowTaskContext untagging = Mockito.spy(context(Map.of("tag", "draft"), new HashMap<>()));
+        final RecordingTaskContext untagging = context(Map.of("tag", "draft")).build();
 
         this.handler.execute(untagging);
 
-        Mockito.verify(untagging).recordRole(
-            Mockito.argThat(resource -> this.target.getPath().equals(resource.getPath())),
-            Mockito.eq("untagged as draft"));
+        assertEquals(List.of(new RecordedRole(this.target.getPath(), "untagged as draft")), untagging.getRoles());
     }
 
-    private WorkflowTaskContext context(final Map<String, Object> configuration,
-        final Map<String, Object> variables)
+    /**
+     * Starts a task context for an {@code removeTag} activity configured with the given properties.
+     *
+     * @param configuration the activity's configuration
+     * @return a builder for the context, for the test to add to
+     */
+    private RecordingTaskContext.Builder context(final Map<String, Object> configuration)
     {
         final Map<String, Object> properties = new HashMap<>(configuration);
         properties.put(TYPE, Activity.RESOURCE_TYPE);
         properties.put("elementId", "tag");
         properties.put("handler", RemoveTagHandler.HANDLER_NAME);
         final Activity activity = this.context.create().resource(ACTIVITY, properties).adaptTo(Activity.class);
-        return EngineFixture.taskContext(this.target, new WorkflowEvent("tag", Map.of()), activity, variables,
-            ACTOR);
+        return RecordingTaskContext.aimedAt(this.target).forEvent("tag", Map.of()).performing(activity)
+            .actingFor(ACTOR);
     }
 }

@@ -33,6 +33,7 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
@@ -146,9 +147,6 @@ class TimeOffBudgetHandlerTest
 
     private WorkflowTaskContext taskFor(final String actor, final Resource request)
     {
-        final WorkflowTaskContext task = Mockito.mock(WorkflowTaskContext.class);
-        when(task.getActor()).thenReturn(actor);
-        when(task.getTarget()).thenReturn(request);
-        return task;
+        return RecordingTaskContext.aimedAt(request).actingFor(actor).build();
     }
 }

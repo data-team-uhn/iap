@@ -27,16 +27,16 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
 
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.SentEvent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -53,20 +53,19 @@ class CallActivityHandlerTest
 {
     private static final String MESSAGE = "message";
 
-    private final CallActivityHandler handler = new CallActivityHandler();
+    private static final String CREATED = "/Schemas/consent";
 
-    private final WorkflowTaskContext context = Mockito.mock(WorkflowTaskContext.class);
+    private final CallActivityHandler handler = new CallActivityHandler();
 
     private final Activity activity = WorkflowFixture.activity();
 
     private final Resource target = Mockito.mock(Resource.class);
 
+    private final RecordingTaskContext context = creating().build();
+
     @BeforeEach
     void setUp()
     {
-        Mockito.when(this.context.getActivity()).thenReturn(this.activity);
-        Mockito.when(this.context.getTarget()).thenReturn(this.target);
-        Mockito.when(this.context.getEvent()).thenReturn(new WorkflowEvent("create", Map.of("title", "Consent")));
         Mockito.when(this.activity.getPath()).thenReturn("/SystemWorkflows/createSchema/v1/send");
     }
 
@@ -99,24 +98,24 @@ class CallActivityHandlerTest
 
         this.handler.execute(this.context);
 
-        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
-        Mockito.verify(this.context).sendEvent(Mockito.same(this.target), sent.capture());
-        assertEquals("createVersion", sent.getValue().getName());
-        assertEquals(Map.of("title", "Consent"), sent.getValue().getPayload());
+        final SentEvent sent = onlySentEvent(this.context);
+        assertSame(this.target, sent.target());
+        assertEquals("createVersion", sent.event().getName());
+        assertEquals(Map.of("title", "Consent"), sent.event().getPayload());
     }
 
     @Test
     void sendsItToWhatTheExecutionCreated() throws Exception
     {
         final Resource created = Mockito.mock(Resource.class);
+        final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
+        Mockito.when(resolver.getResource(CREATED)).thenReturn(created);
         Mockito.when(this.activity.get(MESSAGE)).thenReturn("createVersion");
-        Mockito.when(this.context.getCreated()).thenReturn(created);
+        final RecordingTaskContext afterCreating = creating().resolvingThrough(resolver).havingCreated(CREATED).build();
 
-        this.handler.execute(this.context);
+        this.handler.execute(afterCreating);
 
-        final ArgumentCaptor<Resource> to = ArgumentCaptor.forClass(Resource.class);
-        Mockito.verify(this.context).sendEvent(to.capture(), Mockito.any());
-        assertSame(created, to.getValue());
+        assertSame(created, onlySentEvent(afterCreating).target());
     }
 
     @Test
@@ -131,5 +130,18 @@ class CallActivityHandlerTest
         Mockito.when(this.activity.get(MESSAGE)).thenReturn(" ");
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(this.context));
+    }
+
+    private RecordingTaskContext.Builder creating()
+    {
+        return RecordingTaskContext.aimedAt(this.target)
+            .forEvent("create", Map.of("title", "Consent"))
+            .performing(this.activity);
+    }
+
+    private static SentEvent onlySentEvent(final RecordingTaskContext task)
+    {
+        assertEquals(1, task.getSentEvents().size());
+        return task.getSentEvents().get(0);
     }
 }

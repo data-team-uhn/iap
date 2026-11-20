@@ -51,9 +51,10 @@ import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.utils.testing.Referenceables;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static io.uhndata.iap.submissions.internal.CompletenessFixture.REQUIREMENT;
 import static io.uhndata.iap.submissions.internal.CompletenessFixture.SUBMISSION_PATH;
@@ -148,11 +149,11 @@ class RecordReviewHandlerTest
     @Test
     void namesTheOutcomeOfTheReviewForTheHistory() throws Exception
     {
-        final TaskContext completing = approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED));
+        final RecordingTaskContext completing = approverCompleting(APPROVAL, Map.of(OUTCOME, APPROVED));
 
         this.handler.execute(completing);
 
-        assertEquals(Map.of(this.target.getPath(), "reviewed as approved"), completing.getRoles());
+        assertEquals(List.of(new RecordedRole(this.target.getPath(), "reviewed as approved")), completing.getRoles());
     }
 
     @Test
@@ -287,8 +288,8 @@ class RecordReviewHandlerTest
     {
         final Resource homepage = this.context.create().resource("/Submissions/elsewhere",
             Map.of(TYPE, "sub/SubmissionsHomepage"));
-        final WorkflowTaskContext completing = new TaskContext(homepage, APPROVER,
-            new WorkflowEvent("complete", Map.of(OUTCOME, APPROVED))).performing(recordingActivity(APPROVAL));
+        final WorkflowTaskContext completing = RecordingTaskContext.aimedAt(homepage).actingFor(APPROVER)
+            .forEvent("complete", Map.of(OUTCOME, APPROVED)).performing(recordingActivity(APPROVAL)).build();
 
         assertThrows(WorkflowDefinitionException.class, () -> this.handler.execute(completing));
     }
@@ -342,7 +343,7 @@ class RecordReviewHandlerTest
      * @param payload what the completion carried
      * @return the context
      */
-    private TaskContext approverCompleting(final String requirement, final Map<String, Object> payload)
+    private RecordingTaskContext approverCompleting(final String requirement, final Map<String, Object> payload)
     {
         final Node asNode = this.node;
         final Resource submission = new ResourceWrapper(this.target)
@@ -353,8 +354,8 @@ class RecordReviewHandlerTest
                 return Node.class.equals(type) ? type.cast(asNode) : super.adaptTo(type);
             }
         };
-        return new TaskContext(submission, APPROVER, new WorkflowEvent("complete", payload))
-            .performing(recordingActivity(requirement));
+        return RecordingTaskContext.aimedAt(submission).actingFor(APPROVER)
+            .forEvent("complete", payload).performing(recordingActivity(requirement)).build();
     }
 
     private static Activity recordingActivity(final String requirement)

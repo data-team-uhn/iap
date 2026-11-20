@@ -170,7 +170,7 @@ class SavePropertiesHandlerTest
         }
         final Activity activity =
             AuthoringFixture.activity(this.context, "save-" + configuration.hashCode(), configuration);
-        return AuthoringFixture.context(this.definition(), "save", payload, activity, new HashMap<>());
+        return AuthoringFixture.context(this.definition(), "save", payload, activity).build();
     }
 
     @Test

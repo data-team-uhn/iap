@@ -59,8 +59,9 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext.RecordedRole;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -170,11 +171,11 @@ class SaveAnswersHandlerTest
     @Test
     void namesTheSubmissionAnsweredForTheHistory() throws Exception
     {
-        final TaskContext answering = context(Map.of(START_DATE, "2026-10-06"));
+        final RecordingTaskContext answering = context(Map.of(START_DATE, "2026-10-06"));
 
         this.handler.execute(answering);
 
-        assertEquals(Map.of(SUBMISSION_PATH, "answered"), answering.getRoles());
+        assertEquals(List.of(new RecordedRole(SUBMISSION_PATH, "answered")), answering.getRoles());
     }
 
     @Test
@@ -500,17 +501,17 @@ class SaveAnswersHandlerTest
             () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06"))));
     }
 
-    private TaskContext context(final Map<String, Object> payload)
+    private RecordingTaskContext context(final Map<String, Object> payload)
     {
         return context(payload, REQUESTER);
     }
 
-    private TaskContext context(final Map<String, Object> payload, final String actor)
+    private RecordingTaskContext context(final Map<String, Object> payload, final String actor)
     {
         return context(payload, actor, this.context.resourceResolver());
     }
 
-    private TaskContext context(final Map<String, Object> payload, final String actor,
+    private RecordingTaskContext context(final Map<String, Object> payload, final String actor,
         final ResourceResolver resolver)
     {
         final Node asNode = this.node;
@@ -528,8 +529,7 @@ class SaveAnswersHandlerTest
                 return Node.class.equals(type) ? type.cast(asNode) : super.adaptTo(type);
             }
         };
-        return new TaskContext(submission, actor, new WorkflowEvent("save", payload))
-            .performing(Mockito.mock(Activity.class));
+        return RecordingTaskContext.aimedAt(submission).actingFor(actor).forEvent("save", payload).build();
     }
 
     /**

@@ -35,12 +35,11 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
-import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
-import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
 
 /**
  * Content for the update tests, in an Oak-backed repository: an item of a type declaring a mandatory title, an
@@ -168,24 +167,21 @@ public final class FieldsFixture
     }
 
     /**
-     * The context of a task running an activity for an event, with the variables it sets recorded.
+     * The context of a task running an activity for an event aimed at a resource, working through the test's session.
      *
+     * @param target the resource the event is aimed at
      * @param event the event's name
      * @param activity the activity
      * @param payload the event's payload
-     * @param variables where the variables the task sets go
-     * @return the context; its target is left for the test to set
+     * @return a builder for the context, for the test to add to
      */
-    WorkflowTaskContext task(final String event, final Activity activity, final Map<String, Object> payload,
-        final Map<String, Object> variables)
+    RecordingTaskContext.Builder task(final Resource target, final String event, final Activity activity,
+        final Map<String, Object> payload)
     {
-        final WorkflowTaskContext task = Mockito.mock(WorkflowTaskContext.class);
-        Mockito.when(task.getEvent()).thenReturn(new WorkflowEvent(event, payload));
-        Mockito.when(task.getActivity()).thenReturn(activity);
-        Mockito.when(task.getResourceResolver()).thenReturn(this.resolver);
-        Mockito.doAnswer(invocation -> variables.put(invocation.getArgument(0), invocation.getArgument(1)))
-            .when(task).setVariable(Mockito.anyString(), Mockito.any());
-        return task;
+        return RecordingTaskContext.aimedAt(target)
+            .forEvent(event, payload)
+            .performing(activity)
+            .resolvingThrough(this.resolver);
     }
 
     /**

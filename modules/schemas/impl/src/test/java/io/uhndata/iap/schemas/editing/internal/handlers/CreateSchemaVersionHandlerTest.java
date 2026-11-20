@@ -33,6 +33,7 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.testing.RecordingTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -68,7 +69,7 @@ class CreateSchemaVersionHandlerTest
     @Test
     void givesTheSchemaAFirstVersion() throws WorkflowException, PersistenceException
     {
-        final TaskContext task = task(this.fixture.schema("study"), Map.of());
+        final RecordingTaskContext task = task(this.fixture.schema("study"), Map.of());
 
         this.handler.execute(task);
 
@@ -139,8 +140,8 @@ class CreateSchemaVersionHandlerTest
             () -> this.handler.execute(task(this.fixture.get("/Schemas"), Map.of())));
     }
 
-    private TaskContext task(final Resource target, final Map<String, Object> payload)
+    private RecordingTaskContext task(final Resource target, final Map<String, Object> payload)
     {
-        return new TaskContext(target, payload, Map.of());
+        return RecordingTaskContext.aimedAt(target).forEvent("createVersion", payload).build();
     }
 }
