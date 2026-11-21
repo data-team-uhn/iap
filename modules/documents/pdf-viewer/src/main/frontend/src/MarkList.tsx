@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { memo, useEffect, useId, useRef, type ReactNode } from "react";
+import { memo, useContext, useEffect, useId, useRef, type ReactNode } from "react";
 
 import { Box, ButtonBase, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
@@ -38,6 +38,7 @@ import {
   type MarkNaming,
   type ViewerStatus,
 } from "./pdfViewerModel";
+import { PlainViewer } from "./plainViewer";
 import StepControls from "./StepControls";
 
 import type { MarkPlaces } from "./useMarkPlaces";
@@ -64,9 +65,13 @@ function MarkList(props: {
   renderBody?: (mark: Mark) => ReactNode;
   describeBody?: (mark: Mark) => string | undefined;
   renderDetails?: (mark: Mark, selected: boolean) => ReactNode;
+  // PRETOTYPE: how many lines an entry not selected keeps of its quote and of its details, for details that matter
+  // more than the passage, such as a comment's own text
+  condensed?: (mark: Mark) => { quote: number; details: number } | undefined;
   onSelect: (id: string) => void;
 }) {
   const { marks, naming, places, status, selectedId, renderBody, describeBody, renderDetails, onSelect } = props;
+
   const list = useRef<HTMLUListElement>(null);
   const entries = useRef(new Map<string, HTMLElement>());
   const edges = useScrollEdges(list);
@@ -83,6 +88,7 @@ function MarkList(props: {
   // With none of them selected, as while a change is side by side, it says how many there are.
   const heading = selected === undefined ? countMarks(naming.values()) : describeAmong(selected.name, selected);
 
+  const plain = useContext(PlainViewer);
   return (
     <Box
       sx={{
@@ -91,7 +97,8 @@ function MarkList(props: {
         display: "flex",
         flexDirection: "column",
         minHeight: 0,
-        bgcolor: "background.default",
+        // A plain viewer's notes sit on the page itself, as its document does
+        bgcolor: plain ? "transparent" : "background.default",
         borderRadius: 1,
       }}
     >
@@ -123,6 +130,7 @@ function MarkList(props: {
         {marks.map((mark, index) => {
           const selected = mark.id === selectedId;
           const details = renderDetails?.(mark, selected);
+          const lines = props.condensed?.(mark);
           return (
             <Box
               component="li"
@@ -151,11 +159,12 @@ function MarkList(props: {
                 place={places[mark.id]}
                 status={status}
                 selected={selected}
+                lines={lines?.quote ?? MAX_LINES}
                 onSelect={() => onSelect(mark.id)}
               />
               {details === undefined || details === null
                 ? null
-                : <MarkDetails cut={!selected}>{details}</MarkDetails>}
+                : <MarkDetails cut={!selected} lines={lines?.details ?? MAX_DETAILS_LINES}>{details}</MarkDetails>}
             </Box>
           );
         })}
@@ -164,7 +173,7 @@ function MarkList(props: {
   );
 }
 
-function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
+function MarkDetails({ cut, lines, children }: { cut: boolean; lines: number; children: ReactNode }) {
   const box = useRef<HTMLDivElement>(null);
   const edges = useScrollEdges(box);
   return (
@@ -177,7 +186,7 @@ function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
         }
       }}
       sx={{
-        ...passageDetails(edges, cut ? MAX_DETAILS_LINES : undefined),
+        ...passageDetails(edges, cut ? lines : undefined),
         "&:focus-within": { maxHeight: "none", maskImage: "none" },
       }}
     >
@@ -186,7 +195,7 @@ function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
   );
 }
 
-function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSelect }: {
+function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, lines = MAX_LINES, onSelect }: {
   mark: Mark;
   body: ReactNode;
   bodySaid: string | undefined;
@@ -194,6 +203,7 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
   place: MarkPlace;
   status: ViewerStatus;
   selected: boolean;
+  lines?: number;
   onSelect: () => void;
 }) {
   const quoteId = useId();
@@ -203,7 +213,7 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
     <>
       {body === undefined || body === null
         ? null
-        : <Box component="span" sx={selected ? { display: "block" } : cutShort(MAX_LINES)}>{body}</Box>}
+        : <Box component="span" sx={selected ? { display: "block" } : cutShort(lines)}>{body}</Box>}
       {bodySaid === undefined
         ? null
         : <Box component="span" id={`${quoteId}-said`} sx={visuallyHidden}>{bodySaid}</Box>}
@@ -211,7 +221,7 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
         id={quoteId}
         variant="body2"
         component="span"
-        sx={selected ? { display: "block" } : cutShort(MAX_LINES)}
+        sx={selected ? { display: "block" } : cutShort(lines)}
       >
         {text === undefined || text === "" ? null : `“${text}”`}
       </Typography>

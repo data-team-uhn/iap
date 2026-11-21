@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { Box, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
@@ -42,8 +42,10 @@ import {
   getWidestHeadings,
   nameMarks,
   PASSAGES,
+  type DocumentSearch,
   type MarkName,
 } from "./pdfViewerModel";
+import { PlainViewer } from "./plainViewer";
 import { countMinorChanges, getChangeInContext, getNearestShown, type RevisionChange } from "./revisionDiffModel";
 import StepControls from "./StepControls";
 import { getTextAnchor } from "./textAnchor";
@@ -76,10 +78,14 @@ export interface PdfViewerProps {
   // Told the passage the person selected in the document, when they press the Comment button the viewer
   // offers under it. Without it, there is no Comment button.
   onAnnotate?: (anchor: TextAnchor) => void;
+  // PRETOTYPE: what the button under a selected passage says; Comment when absent
+  annotateLabel?: string;
   // What to show under a passage, such as the comments on it, given the mark and whether it is selected.
   // Give the same function on every render, such as one from useCallback, or the passages are drawn again
   // each time a search counts its matches.
   renderMarkDetails?: (mark: Mark, selected: boolean) => ReactNode;
+  // PRETOTYPE: how many lines a passage not selected keeps of its quote and of its details beside the document
+  condensedMarks?: (mark: Mark) => { quote: number; details: number } | undefined;
   // What the marks are called where the viewer counts and steps through them, such as comments on a review
   // screen ("Comment 3 of 12"). Passages when absent. Changes are called changes, and counted apart. The
   // text a mark covers is still called a passage.
@@ -93,6 +99,14 @@ export interface PdfViewerProps {
   compareWith?: { url: string; label?: string };
   // What this version is called above it when shown beside the older one, such as "Version 3".
   label?: string;
+  // PRETOTYPE: shown plain, in a page that already names the document: without the title row and its buttons, and
+  // on the page's own surface
+  plain?: boolean;
+  // PRETOTYPE: searched from outside, by a search covering more than this document, instead of its own search
+  // field. A new query is looked for from the page shown; each new step goes to the next match, or the previous
+  // one. What the search finds is told back.
+  search?: { query: string; step: number; previous: boolean };
+  onSearch?: (search: DocumentSearch) => void;
   // An element for the viewer to fill, with a button to pop it out into a dialog. The element needs a
   // height of its own. Without a container, the viewer opens in a dialog. Null, as a ref is before
   // React attaches it, shows nothing until the element is there.
@@ -106,7 +120,11 @@ export interface PdfViewerProps {
 // what changed, beside the older version or in this one alone.
 export default function PdfViewer(props: PdfViewerProps) {
   // Keyed so another document starts over with nothing left from the last one.
-  return <PdfViewerSession key={`${props.url}\n${props.page}`} {...props} />;
+  return (
+    <PlainViewer.Provider value={Boolean(props.plain)}>
+      <PdfViewerSession key={`${props.url}\n${props.page}`} {...props} />
+    </PlainViewer.Provider>
+  );
 }
 
 const NO_MARKS: Mark[] = [];
@@ -167,6 +185,26 @@ function PdfViewerSession(props: PdfViewerProps) {
       }
     },
   });
+  // PRETOTYPE: a search from outside, once the document is open
+  const outside = props.search;
+  const { onSearch } = props;
+  const opened = view.pageCount !== undefined;
+  const { find: findHere, findAgain: findHereAgain, search: foundHere } = view;
+  useEffect(() => {
+    if (opened && outside !== undefined) {
+      findHere(outside.query);
+    }
+  }, [ opened, outside?.query, findHere ]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stepped = useRef(outside?.step ?? 0);
+  useEffect(() => {
+    if (outside !== undefined && outside.step !== stepped.current) {
+      stepped.current = outside.step;
+      findHereAgain(outside.previous);
+    }
+  }, [ outside?.step, outside?.previous, findHereAgain ]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    onSearch?.(foundHere);
+  }, [ foundHere, onSearch ]);
   const olderView = usePdfView(comparing?.older.pdf, {
     page: undefined,
     marks: olderMarks,
@@ -315,6 +353,9 @@ function PdfViewerSession(props: PdfViewerProps) {
             ? undefined
             : { ...comparing, olderView: olderShownView, olderLabel: compareWith?.label, newerLabel: props.label }}
           placeButton={placeButton}
+          searchedOutside={outside !== undefined}
+          annotateLabel={props.annotateLabel}
+          condensedMarks={props.condensedMarks}
           edgeToEdge={inDialog}
           onClose={onClose}
         />
@@ -358,6 +399,10 @@ interface ViewerBodyProps {
   changeIds: Set<string>;
   // Moves the viewer between its container and the dialog, when it has a container.
   placeButton: ReactNode;
+  // PRETOTYPE: searched from outside, so without a search field of its own
+  searchedOutside: boolean;
+  annotateLabel: string | undefined;
+  condensedMarks: PdfViewerProps["condensedMarks"];
   // In the dialog on a phone, the document spans the full screen width, past the dialog's padding.
   edgeToEdge: boolean;
   onClose: () => void;
@@ -366,7 +411,8 @@ interface ViewerBodyProps {
 function ViewerBody(props: ViewerBodyProps) {
   const { titleId, title, marks, markName, places, pagesRead, selectedId, onSelect, openError, onRetry, view } = props;
   const { renderMarkDetails, selectedText, onAnnotate, comparison, placeButton, edgeToEdge, onClose } = props;
-  const { changeIds } = props;
+  const plain = useContext(PlainViewer);
+  const { changeIds, searchedOutside, annotateLabel, condensedMarks } = props;
   const { page, pageCount, setFrame, showPage, showMark, zoomIn, zoomOut, fitWidth } = view;
   const { search, find, findAgain } = view;
   const [body, setBody] = useState<HTMLElement | null>(null);
@@ -527,6 +573,7 @@ function ViewerBody(props: ViewerBodyProps) {
         : (
           <CommentButton
             at={selectedText.selected}
+            label={annotateLabel}
             onPress={selectedText.hold}
             onComment={spans => void onAnnotate(spans)}
           />
@@ -540,12 +587,9 @@ function ViewerBody(props: ViewerBodyProps) {
       onKeyDown={onKeyDown}
       sx={{ display: "flex", flexDirection: "column", gap: ROW_GAP, flex: "1 1 auto", minHeight: 0 }}
     >
-      <ViewerTitle
-        titleId={titleId}
-        title={title}
-        placeButton={placeButton}
-        onClose={onClose}
-      />
+      {plain
+        ? <Typography id={titleId} sx={visuallyHidden}>{title}</Typography>
+        : <ViewerTitle titleId={titleId} title={title} placeButton={placeButton} onClose={onClose} />}
       {comparison === undefined
         ? null
         : (
@@ -576,6 +620,7 @@ function ViewerBody(props: ViewerBodyProps) {
             pages={split ? undefined : <PageControls page={page} pageCount={pageCount} onShowPage={showPage} />}
             opened={pageCount !== undefined}
             search={search}
+            noSearchField={searchedOutside}
             onFind={find}
             onFindAgain={findAgain}
             onZoomIn={zoomIn}
@@ -625,6 +670,7 @@ function ViewerBody(props: ViewerBodyProps) {
               renderBody={renderBody}
               describeBody={describeBody}
               renderDetails={renderMarkDetails}
+              condensed={condensedMarks}
               onSelect={showSelected}
             />
           )

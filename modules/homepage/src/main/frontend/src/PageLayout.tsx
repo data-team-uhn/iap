@@ -42,6 +42,7 @@ import {
   type Theme
 } from "@mui/material/styles";
 
+import { usePageContext } from "@iap/frontend-commons/pageContext";
 import { ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
@@ -398,6 +399,7 @@ function PageLayout({ children }: PageLayoutProps) {
   // The heights of the two frame bars, which the side rails span the screen between. The shell
   // gives them to the rails as CSS variables.
   const frameTopRef = useRef<HTMLDivElement>(null);
+  const pageContext = usePageContext();
   const frameBottomRef = useRef<HTMLDivElement>(null);
   const [ frameInsets, setFrameInsets ] = useState({ top: 0, bottom: 0 });
 
@@ -442,7 +444,8 @@ function PageLayout({ children }: PageLayoutProps) {
           <Box component="main" sx={{ flexGrow: 1, p: "var(--iap-content-gutter)" }}>
             {children}
           </Box>
-          <ExtensionList extensions={region("PageBottom")} />
+          {/* PRETOTYPE: a page working as a workspace has nothing under it */}
+          {!pageContext?.workspace && <ExtensionList extensions={region("PageBottom")} />}
         </Box>
         <SideRail extensions={region("FrameEnd")} edge="end" />
       </Box>

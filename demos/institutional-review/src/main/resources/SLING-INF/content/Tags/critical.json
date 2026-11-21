@@ -1,0 +1,14 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Critical",
+  "description": "Stops the study from going ahead until it is resolved.",
+  "category": [
+    "severity"
+  ],
+  "color": "#8e1b29",
+  "icon": "ReportOutlined",
+  "order": 10,
+  "targetResourceTypes": [
+    "sub/Comment"
+  ]
+}

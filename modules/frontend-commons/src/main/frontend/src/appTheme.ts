@@ -21,6 +21,7 @@ import type { CSSProperties } from 'react';
 import {
   alpha,
   createTheme,
+  darken,
   lighten,
   type Breakpoint,
   type PaletteColor,
@@ -82,6 +83,10 @@ declare module "@mui/material/styles" {
     word: string;
   }
   // `assistant` colours whatever an AI assistant contributed. `annotation` colours what a person marked.
+  // PRETOTYPE: on a review, `evidence` colours what an extracted answer was read from, `issue` what a reviewer
+  // raises with the study team, `otherIssue` what another reviewer raises, and `discussion` what reviewers say to
+  // each other. `draft` is neutral: a passage
+  // a note is being started on, before it is anything.
   // `highlight` holds the marks both make over a document's content, and those a comparison of two
   // versions of a document makes.
   interface TypeHighlight {
@@ -89,6 +94,16 @@ declare module "@mui/material/styles" {
     assistantCurrent: string;
     annotation: string;
     annotationCurrent: string;
+    evidence: string;
+    evidenceCurrent: string;
+    issue: string;
+    issueCurrent: string;
+    otherIssue: string;
+    otherIssueCurrent: string;
+    discussion: string;
+    discussionCurrent: string;
+    draft: string;
+    draftCurrent: string;
     search: string;
     searchCurrent: string;
     added: string;
@@ -105,6 +120,11 @@ declare module "@mui/material/styles" {
     diff: { added: DiffColors; removed: DiffColors; moved: Omit<DiffColors, "word">; hunk: Omit<DiffColors, "word"> };
     assistant: PaletteColor;
     annotation: PaletteColor;
+    evidence: PaletteColor;
+    issue: PaletteColor;
+    otherIssue: PaletteColor;
+    discussion: PaletteColor;
+    draft: PaletteColor;
     highlight: TypeHighlight;
   }
   interface PaletteOptions {
@@ -112,6 +132,11 @@ declare module "@mui/material/styles" {
     diff?: { added: DiffColors; removed: DiffColors; moved: Omit<DiffColors, "word">; hunk: Omit<DiffColors, "word"> };
     assistant?: PaletteColorOptions;
     annotation?: PaletteColorOptions;
+    evidence?: PaletteColorOptions;
+    issue?: PaletteColorOptions;
+    otherIssue?: PaletteColorOptions;
+    discussion?: PaletteColorOptions;
+    draft?: PaletteColorOptions;
     highlight?: TypeHighlight;
   }
   // The custom text roles. `pageTitle` is the main title of a screen, and `subheading` a muted heading
@@ -120,6 +145,7 @@ declare module "@mui/material/styles" {
   interface TypographyVariants {
     pageTitle: CSSProperties;
     subheading: CSSProperties;
+    panelTitle: CSSProperties;
     description: CSSProperties;
     placeholder: CSSProperties;
     code: CSSProperties;
@@ -127,6 +153,7 @@ declare module "@mui/material/styles" {
   interface TypographyVariantsOptions {
     pageTitle?: CSSProperties;
     subheading?: CSSProperties;
+    panelTitle?: CSSProperties;
     description?: CSSProperties;
     placeholder?: CSSProperties;
     code?: CSSProperties;
@@ -137,6 +164,11 @@ declare module "@mui/material/Button" {
   interface ButtonPropsColorOverrides {
     assistant: true;
     annotation: true;
+    evidence: true;
+    issue: true;
+    otherIssue: true;
+    discussion: true;
+    draft: true;
   }
 }
 
@@ -144,6 +176,11 @@ declare module "@mui/material/Chip" {
   interface ChipPropsColorOverrides {
     assistant: true;
     annotation: true;
+    evidence: true;
+    issue: true;
+    otherIssue: true;
+    discussion: true;
+    draft: true;
   }
 }
 
@@ -151,6 +188,11 @@ declare module "@mui/material/IconButton" {
   interface IconButtonPropsColorOverrides {
     assistant: true;
     annotation: true;
+    evidence: true;
+    issue: true;
+    otherIssue: true;
+    discussion: true;
+    draft: true;
   }
 }
 
@@ -158,6 +200,11 @@ declare module "@mui/material/SvgIcon" {
   interface SvgIconPropsColorOverrides {
     assistant: true;
     annotation: true;
+    evidence: true;
+    issue: true;
+    otherIssue: true;
+    discussion: true;
+    draft: true;
   }
 }
 
@@ -165,6 +212,7 @@ declare module "@mui/material/Typography" {
   interface TypographyPropsVariantOverrides {
     pageTitle: true;
     subheading: true;
+    panelTitle: true;
     description: true;
     placeholder: true;
     code: true;
@@ -196,6 +244,11 @@ const LILAC = "#C58BBD";
 const SOFT_YELLOW = "#F6D96B";
 // The matches of a search are no one's mark, and take the brand's cobalt instead.
 const COBALT = "#255CAA";
+// PRETOTYPE: the review's own accents. Extracted answers are the AI's too, so purple like the rest of what it
+// contributes, but a lighter, bluer lavender beside the assistant's pinker lilac, so the two stay apart.
+const LAVENDER = "#AFA0E6";
+const CORAL = "#F08A7E";
+const SKY = "#7FB2E5";
 
 const ASSISTANT_LIGHT: PaletteColorOptions = { main: "#8A6184", light: LILAC, dark: "#6C4C68", contrastText: "#fff" };
 const ASSISTANT_DARK: PaletteColorOptions = {
@@ -217,6 +270,25 @@ const ANNOTATION_DARK: PaletteColorOptions = {
   contrastText: "rgba(0, 0, 0, 0.87)",
 };
 
+function accent(fill: string, text: string): { light: PaletteColorOptions; dark: PaletteColorOptions } {
+  return {
+    light: { main: text, light: fill, dark: darken(text, 0.25), contrastText: "#fff" },
+    dark: { main: fill, light: lighten(fill, 0.3), dark: text, contrastText: "rgba(0, 0, 0, 0.87)" },
+  };
+}
+const EVIDENCE = accent(LAVENDER, "#5A4A9E");
+const ISSUE = accent(CORAL, "#A8402F");
+// Another reviewer's issue: the issue's coral, greyed, so it reads as an issue but not the reviewer's own
+const DUSTY_CORAL = "#D2ADA6";
+const OTHER_ISSUE = accent(DUSTY_CORAL, "#7A524B");
+const DISCUSSION = accent(SKY, "#2F5F96");
+const GREY = "#A3A8B0";
+// A draft's card is tinted as lightly as a muted surface
+const DRAFT = {
+  light: { main: "#5F6670", light: "#D5D8DC", dark: "#474D55", contrastText: "#fff" },
+  dark: { main: "#9AA0A8", light: "#5A5F66", dark: "#5F6670", contrastText: "rgba(0, 0, 0, 0.87)" },
+};
+
 // What a comparison marks as added or removed, in the light scheme.
 const ADDED_LIGHT = { main: "#1a7f37", line: "#e6ffec", word: "#abf2bc" };
 // The added word colour, translucent as the removed one is, so a mark under it shows through. Over white
@@ -231,6 +303,16 @@ const HIGHLIGHT = {
   assistantCurrent: alpha(LILAC, 0.65),
   annotation: alpha(SOFT_YELLOW, 0.55),
   annotationCurrent: alpha(SOFT_YELLOW, 0.85),
+  evidence: alpha(LAVENDER, 0.4),
+  evidenceCurrent: alpha(LAVENDER, 0.65),
+  issue: alpha(CORAL, 0.35),
+  issueCurrent: alpha(CORAL, 0.6),
+  otherIssue: alpha(DUSTY_CORAL, 0.4),
+  otherIssueCurrent: alpha(DUSTY_CORAL, 0.7),
+  discussion: alpha(SKY, 0.35),
+  discussionCurrent: alpha(SKY, 0.6),
+  draft: alpha(GREY, 0.35),
+  draftCurrent: alpha(GREY, 0.6),
   search: alpha(COBALT, 0.2),
   searchCurrent: alpha(COBALT, 0.45),
   added: ADDED_FILL,
@@ -270,6 +352,15 @@ const appTheme = createTheme({
     subheading: {
       ...baseTypography.overline,
       color: mutedColor,
+    },
+    // PRETOTYPE: the title of a panel beside the page, such as a submission's contents: shaped like a subheading,
+    // but in the heading colour and a little larger, since it names what the whole panel is
+    panelTitle: {
+      ...baseTypography.overline,
+      fontSize: "0.875rem",
+      fontWeight: baseTypography.fontWeightBold,
+      lineHeight: 1.5,
+      color: headingColor,
     },
     // Small print, such as field labels and metadata lines, is always muted.
     caption: { color: mutedColor },
@@ -314,6 +405,11 @@ const appTheme = createTheme({
         error: { main: "#C8471E" },
         assistant: ASSISTANT_LIGHT,
         annotation: ANNOTATION_LIGHT,
+        evidence: EVIDENCE.light,
+        issue: ISSUE.light,
+        otherIssue: OTHER_ISSUE.light,
+        discussion: DISCUSSION.light,
+        draft: DRAFT.light,
         highlight: HIGHLIGHT,
         // A gray canvas, against which paper stands out. `muted` is translucent, so it shades
         // whatever it lies on
@@ -342,6 +438,11 @@ const appTheme = createTheme({
         error: { main: "#EE5F55" },
         assistant: ASSISTANT_DARK,
         annotation: ANNOTATION_DARK,
+        evidence: EVIDENCE.dark,
+        issue: ISSUE.dark,
+        otherIssue: OTHER_ISSUE.dark,
+        discussion: DISCUSSION.dark,
+        draft: DRAFT.dark,
         highlight: HIGHLIGHT,
         background: {
           default: "#101010",
@@ -388,6 +489,7 @@ const appTheme = createTheme({
         variantMapping: {
           pageTitle: "h1",
           subheading: "h2",
+          panelTitle: "h2",
           description: "p",
           placeholder: "p",
           code: "code",

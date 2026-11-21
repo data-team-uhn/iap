@@ -87,6 +87,14 @@ const setActivePersona = (persona: Persona): void => {
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
 };
 
+// PRETOTYPE: the persona a user's groups suggest, taken up only while they have not chosen one themselves.
+// Members of a reviewer group start as reviewers.
+const adoptSuggestedPersona = (groups: string[]): void => {
+  if (store().active === undefined && groups.some(group => /(reviewers|heads|professions)$/.test(group))) {
+    setActivePersona("reviewer");
+  }
+};
+
 // Calls `onChange` whenever the active persona changes, until the function returned is called
 const subscribeToPersona = (onChange: () => void): (() => void) => {
   window.addEventListener(CHANGE_EVENT, onChange);
@@ -99,6 +107,7 @@ const usePersona = (): Persona => useSyncExternalStore(subscribeToPersona, getAc
 export {
   PERSONAS,
   STORE_KEY,
+  adoptSuggestedPersona,
   availablePersonas,
   getActivePersona,
   personaLabel,

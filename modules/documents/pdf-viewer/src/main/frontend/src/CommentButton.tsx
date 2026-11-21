@@ -25,8 +25,10 @@ import type { SelectedText } from "./useSelectedText";
 
 // The button offering to comment on the text selected, at the place given. Pressing it keeps the focus
 // and the selection, and holds what is selected, since a tap clears the selection on some phones.
-export default function CommentButton({ at, onPress, onComment }: {
+export default function CommentButton({ at, label = "Comment", onPress, onComment }: {
   at: SelectedText;
+  // PRETOTYPE: what the button says, where writing about a passage is called something else
+  label?: string;
   onPress: () => void;
   onComment: (spans: MarkSpan[]) => void;
 }) {
@@ -43,7 +45,7 @@ export default function CommentButton({ at, onPress, onComment }: {
       style={{ top, left, right }}
       sx={{ position: "absolute", zIndex: 1, height: COMMENT_BUTTON_HEIGHT, boxShadow: 4, whiteSpace: "nowrap" }}
     >
-      Comment
+      {label}
     </Button>
   );
 }

@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/appBar/entry",
+  "ext:name": "Page context",
+  "ext:renderURL": "asset:iap-homepage.PageContextEntry.js",
+  "ext:appBarSection": "start",
+  "defaultOrder": 20
+}

@@ -1,0 +1,14 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Major",
+  "description": "Must be addressed before approval.",
+  "category": [
+    "severity"
+  ],
+  "color": "#b3261e",
+  "icon": "ErrorOutlineOutlined",
+  "order": 20,
+  "targetResourceTypes": [
+    "sub/Comment"
+  ]
+}

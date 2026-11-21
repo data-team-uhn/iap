@@ -1,0 +1,3336 @@
+{
+  "jcr:primaryType": "sch:Schema",
+  "title": "Retrospective data study",
+  "v1": {
+    "jcr:primaryType": "sch:SchemaVersion",
+    "version": "1.0",
+    "tags": [
+      "active"
+    ],
+    "jcr:reference:workflow": "/Workflows/retrospectiveStudy/v1",
+    "description": "Ask for institutional authorization of a study that uses data already collected: chart reviews, registry and administrative data analyses, prediction models built on records.",
+    "protocol": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Study protocol",
+      "description": "The full protocol: background, objectives, methods, analysis plan.",
+      "required": true,
+      "acceptedFileTypes": [
+        "application/pdf"
+      ]
+    },
+    "study": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "About the study",
+      "description": "The study at a glance. Every reviewer reads this part.",
+      "audience": "everyone",
+      "pi": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Who is the principal investigator?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "description": "Name, title and department.",
+        "listing": "pi"
+      },
+      "department": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which department and programs are involved?",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 1
+      },
+      "summary": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Give a brief summary of the study.",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 1,
+        "description": "A few sentences a reviewer outside your field can follow."
+      },
+      "sponsor": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Who sponsors the study?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "none": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "none",
+          "label": "No external sponsor"
+        },
+        "academic": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "academic",
+          "label": "An academic institution"
+        },
+        "industry": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "industry",
+          "label": "Industry"
+        }
+      },
+      "sponsorName": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Name the sponsor.",
+        "dataType": "text",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "not equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "study/sponsor"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "none"
+            ]
+          }
+        }
+      }
+    },
+    "classification": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Study classification",
+      "description": "What kind of study this is decides which rules apply to it.",
+      "purpose": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What is the primary purpose of the work?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "research": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "research",
+          "label": "Research"
+        },
+        "qi": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "qi",
+          "label": "Quality improvement or quality assurance"
+        },
+        "evaluation": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "evaluation",
+          "label": "Program evaluation"
+        },
+        "qiToResearch": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "qiToResearch",
+          "label": "Began as quality improvement, now proposed as research"
+        },
+        "caseStudy": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "caseStudy",
+          "label": "Case study"
+        }
+      },
+      "contact": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Will the study contact anyone, change anyone's care, or collect anything new?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "recordsOnly": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "recordsOnly",
+          "label": "No. Records only."
+        },
+        "laterContact": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "laterContact",
+          "label": "No new collection, but contact may be needed later"
+        },
+        "yes": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "yes",
+          "label": "Yes"
+        }
+      },
+      "design": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What is the study design?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "chartReview": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "chartReview",
+          "label": "Retrospective chart review"
+        },
+        "cohort": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "cohort",
+          "label": "Retrospective cohort"
+        },
+        "caseControl": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "caseControl",
+          "label": "Case-control"
+        },
+        "crossSectional": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "crossSectional",
+          "label": "Cross-sectional"
+        },
+        "registry": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "registry",
+          "label": "Registry or administrative data analysis"
+        },
+        "model": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "model",
+          "label": "Prediction model development or validation"
+        },
+        "mixed": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "mixed",
+          "label": "Mixed methods with a chart review component"
+        },
+        "other": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "other",
+          "label": "Other"
+        }
+      },
+      "designOther": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Describe the design.",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "classification/design"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "other"
+            ]
+          }
+        }
+      },
+      "question": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What question is the study trying to answer?",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 1
+      },
+      "cohort": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Cohort",
+        "population": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who is in the cohort?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1,
+          "description": "The population, and the inclusion and exclusion criteria."
+        },
+        "startDate": {
+          "jcr:primaryType": "sch:Question",
+          "text": "From which date should records be included?",
+          "dataType": "date",
+          "minAnswers": 1
+        },
+        "endDate": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Up to which date should records be included?",
+          "dataType": "date",
+          "minAnswers": 1
+        },
+        "dateRationale": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Why this date range?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1,
+          "description": "An end date in the recent past means some people could still be asked for consent."
+        },
+        "records": {
+          "jcr:primaryType": "sch:Question",
+          "text": "About how many records will the study use?",
+          "dataType": "long",
+          "minValue": 0,
+          "minAnswers": 1
+        },
+        "exclusions": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Are any groups excluded for reasons other than the clinical question?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "minAnswers": 1,
+          "none": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "none",
+            "label": "No exclusions beyond the clinical criteria"
+          },
+          "language": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "language",
+            "label": "Language or interpreter availability"
+          },
+          "age": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "age",
+            "label": "Age"
+          },
+          "capacity": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "capacity",
+            "label": "Capacity to consent"
+          },
+          "completeness": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "completeness",
+            "label": "Completeness of records"
+          },
+          "other": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "other",
+            "label": "Other"
+          }
+        },
+        "exclusionsWhy": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Why are they excluded?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "excludes",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "answer",
+              "value": [
+                "classification/cohort/exclusions"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                "none"
+              ]
+            }
+          }
+        },
+        "minimum": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Are the date range, cohort and variables the minimum that answers the question?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "yes": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "yes",
+            "label": "Yes"
+          },
+          "notAssessed": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "notAssessed",
+            "label": "Not assessed"
+          }
+        }
+      },
+      "sources": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Where the data comes from",
+        "originalPurpose": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Why was the information originally collected?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "minAnswers": 1,
+          "care": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "care",
+            "label": "Clinical care"
+          },
+          "administration": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "administration",
+            "label": "Administration"
+          },
+          "qi": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "qi",
+            "label": "Quality improvement"
+          },
+          "researchConsent": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "researchConsent",
+            "label": "Earlier research, with consent"
+          },
+          "researchNoConsent": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "researchNoConsent",
+            "label": "Earlier research, without consent"
+          },
+          "unclear": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "unclear",
+            "label": "Unclear"
+          }
+        },
+        "dataSources": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What are the data sources?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "minAnswers": 1,
+          "emr": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "emr",
+            "label": "Electronic medical record"
+          },
+          "registry": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "registry",
+            "label": "Registry"
+          },
+          "administrative": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "administrative",
+            "label": "Administrative data"
+          },
+          "imaging": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "imaging",
+            "label": "Imaging"
+          },
+          "priorResearch": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "priorResearch",
+            "label": "A prior research dataset"
+          },
+          "public": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "public",
+            "label": "A public dataset"
+          },
+          "vendor": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "vendor",
+            "label": "A company's product or service"
+          },
+          "specimens": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "specimens",
+            "label": "Specimens"
+          }
+        },
+        "sourceDetails": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Name each source, and give its CAPCR number where it has one.",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1
+        },
+        "external": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Do any of the sources come from outside UHN?",
+          "dataType": "boolean",
+          "minAnswers": 1
+        }
+      }
+    },
+    "identifiability": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Identifiability and linkage",
+      "description": "How identifiable the data is decides whether consent is needed at all.",
+      "arrival": {
+        "jcr:primaryType": "sch:Question",
+        "text": "In what form will the data reach the study team?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "direct": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "direct",
+          "label": "Directly identifying"
+        },
+        "indirect": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "indirect",
+          "label": "Indirectly identifying"
+        },
+        "codedTeamKey": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "codedTeamKey",
+          "label": "Coded, with the key accessible to the team"
+        },
+        "codedOutsideKey": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "codedOutsideKey",
+          "label": "Coded, with the key held outside the team"
+        },
+        "anonymized": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "anonymized",
+          "label": "Anonymized, no key retained"
+        },
+        "never": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "never",
+          "label": "Never identifiable"
+        }
+      },
+      "keyHolder": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Who holds the linking key?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "custodian": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "custodian",
+          "label": "The data custodian"
+        },
+        "thirdParty": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "thirdParty",
+          "label": "An independent third party"
+        },
+        "team": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "team",
+          "label": "The study team"
+        },
+        "none": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "none",
+          "label": "No key exists"
+        }
+      },
+      "fields": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which identifiers and fields are included, and why is each one needed?",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 1,
+        "description": "Attach the full list as the variable list document. Summarize the identifiers here."
+      },
+      "recognizable": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Could someone be recognized from the combination of variables?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "description": "Think of the cohort size, how rare the diagnosis is, and the geographic scope.",
+        "likely": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "likely",
+          "label": "Likely"
+        },
+        "mitigated": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "mitigated",
+          "label": "Possible, and mitigated"
+        },
+        "unlikely": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "unlikely",
+          "label": "Unlikely"
+        }
+      },
+      "lessIdentifiable": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Could the study be done with less identifiable data?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "yesWill": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "yesWill",
+          "label": "Yes, and it will be"
+        },
+        "no": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "no",
+          "label": "No, for the reason given below"
+        },
+        "notAssessed": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "notAssessed",
+          "label": "Not assessed"
+        }
+      },
+      "lessIdentifiableWhy": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Why not?",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "identifiability/lessIdentifiable"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "no"
+            ]
+          }
+        }
+      },
+      "reidentification": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What have you done to keep people from being re-identified?",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 1,
+        "description": "Both for one person and for the dataset as a whole."
+      },
+      "linkage": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Will any datasets be combined?",
+        "dataType": "text",
+        "maxAnswers": 0,
+        "minAnswers": 1,
+        "no": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "no",
+          "label": "No"
+        },
+        "internal": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "internal",
+          "label": "Yes, with another internal dataset"
+        },
+        "external": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "external",
+          "label": "Yes, with an external dataset"
+        },
+        "public": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "public",
+          "label": "Yes, with a public dataset"
+        }
+      },
+      "linkageRisk": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is the combined data more identifying than either source, and how is that handled?",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "excludes",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "identifiability/linkage"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "no"
+            ]
+          }
+        }
+      }
+    },
+    "consent": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Consent",
+      "description": "Using health information without consent needs every condition for a waiver to hold.",
+      "sought": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is consent being sought?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "all": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "all",
+          "label": "Yes, from everyone"
+        },
+        "subset": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "subset",
+          "label": "Yes, from some"
+        },
+        "waiver": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "waiver",
+          "label": "No. A waiver is requested."
+        },
+        "notApplicable": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "notApplicable",
+          "label": "Not applicable, the data is not identifiable"
+        }
+      },
+      "priorConsent": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does consent already obtained cover this use of the data?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "description": "If it does, attach the consent form and give its study's CAPCR number."
+      },
+      "priorConsentCapcr": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which CAPCR numbers does that consent belong to?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "consent/priorConsent"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "waiver": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Waiver of consent",
+        "whyIdentifiable": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Why is identifiable information essential to the question?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1
+        },
+        "welfare": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Could using the data without consent affect anyone's welfare?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "no": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "no",
+            "label": "No foreseeable effect"
+          },
+          "mitigated": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "mitigated",
+            "label": "Possibly, and it is mitigated"
+          },
+          "notAssessed": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "notAssessed",
+            "label": "Not assessed"
+          }
+        },
+        "impracticable": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Why is asking for consent impossible or unreasonably burdensome?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "minAnswers": 1,
+          "description": "Inconvenience alone is not enough.",
+          "cohortSize": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "cohortSize",
+            "label": "The size of the cohort"
+          },
+          "deceased": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "deceased",
+            "label": "Many are deceased"
+          },
+          "lost": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "lost",
+            "label": "Many are lost to follow-up"
+          },
+          "exposure": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "exposure",
+            "label": "Contacting them would itself expose private information"
+          },
+          "law": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "law",
+            "label": "Privacy law bars contacting them"
+          },
+          "bias": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "bias",
+            "label": "Asking would bias the results"
+          }
+        },
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "consent/sought"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "waiver"
+            ]
+          }
+        }
+      }
+    },
+    "access": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Access to the data",
+      "description": "The study can only do what the data custodian allows.",
+      "custodian": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Who is the data custodian?",
+        "dataType": "text",
+        "minAnswers": 1
+      },
+      "custodianApproval": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Has the custodian approved access?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "obtained": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "obtained",
+          "label": "Yes"
+        },
+        "pending": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "pending",
+          "label": "Requested, still pending"
+        },
+        "notRequested": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "notRequested",
+          "label": "Not yet requested"
+        },
+        "self": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "self",
+          "label": "We are the custodian"
+        }
+      },
+      "authority": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What permits access without asking each person?",
+        "dataType": "text",
+        "maxAnswers": 0,
+        "minAnswers": 1,
+        "phipa44": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "phipa44",
+          "label": "A research plan under PHIPA section 44"
+        },
+        "agreement": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "agreement",
+          "label": "A data sharing agreement"
+        },
+        "policy": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "policy",
+          "label": "Institutional policy"
+        },
+        "originalConsent": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "originalConsent",
+          "label": "Consent at the original collection"
+        },
+        "public": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "public",
+          "label": "The data is publicly available"
+        },
+        "unsure": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "unsure",
+          "label": "Unsure"
+        }
+      }
+    },
+    "sensitivity": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Sensitive information and communities",
+      "description": "Some data needs more care, and some needs a community's agreement before it is used.",
+      "categories": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does the dataset include any of these?",
+        "dataType": "text",
+        "maxAnswers": 0,
+        "minAnswers": 1,
+        "mentalHealth": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "mentalHealth",
+          "label": "Mental health or substance use"
+        },
+        "sexualHealth": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "sexualHealth",
+          "label": "Sexual health or sexual violence"
+        },
+        "stigmatized": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "stigmatized",
+          "label": "HIV, hepatitis B or C, or another stigmatized status"
+        },
+        "institutionalization": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "institutionalization",
+          "label": "Institutionalization"
+        },
+        "imprisonment": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "imprisonment",
+          "label": "Current or prior imprisonment"
+        },
+        "militaryPolice": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "militaryPolice",
+          "label": "Military or police employment"
+        },
+        "transgender": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "transgender",
+          "label": "Transgender status"
+        },
+        "undocumented": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "undocumented",
+          "label": "Undocumented status"
+        },
+        "genetic": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "genetic",
+          "label": "Genetic or genomic data"
+        },
+        "ipv": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "ipv",
+          "label": "Intimate partner violence"
+        },
+        "reproductive": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "reproductive",
+          "label": "Reproductive care"
+        },
+        "children": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "children",
+          "label": "Children"
+        },
+        "cognitive": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "cognitive",
+          "label": "Cognitive impairment"
+        },
+        "homelessness": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "homelessness",
+          "label": "Homelessness"
+        },
+        "none": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "none",
+          "label": "None of these"
+        }
+      },
+      "indigenous": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Could the data or results be identified as coming from a First Nations, Inuit or Métis community?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "no": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "no",
+          "label": "No"
+        },
+        "yes": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "yes",
+          "label": "Yes"
+        },
+        "possibly": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "possibly",
+          "label": "Possibly. An identity variable or community-linked geography is included."
+        },
+        "unknown": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "unknown",
+          "label": "Unknown"
+        }
+      },
+      "community": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Community engagement",
+        "covered": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Is the use covered by a research agreement or by consent given at the original collection?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "agreement": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "agreement",
+            "label": "A research agreement"
+          },
+          "consent": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "consent",
+            "label": "The original consent"
+          },
+          "no": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "no",
+            "label": "No"
+          },
+          "unsure": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "unsure",
+            "label": "Unsure"
+          }
+        },
+        "engaged": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Has the community been engaged, and what was agreed?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "completed": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "completed",
+            "label": "Yes. The outcome is described below."
+          },
+          "underway": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "underway",
+            "label": "Underway"
+          },
+          "notBegun": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "notBegun",
+            "label": "Not begun"
+          }
+        },
+        "engagedOutcome": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What was agreed?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "answer",
+              "value": [
+                "sensitivity/community/engaged"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                "completed"
+              ]
+            }
+          }
+        },
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "not equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "sensitivity/indigenous"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "no"
+            ]
+          }
+        }
+      },
+      "input": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Has anyone placed to see the risks been asked for their view, and what came of it?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "completed": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "completed",
+          "label": "Yes. The outcome is described below."
+        },
+        "planned": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "planned",
+          "label": "Planned"
+        },
+        "notSought": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "notSought",
+          "label": "Not sought"
+        },
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "excludes",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "sensitivity/categories"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "none"
+            ]
+          }
+        }
+      },
+      "inputOutcome": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What came of it?",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "sensitivity/input"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "completed"
+            ]
+          }
+        }
+      },
+      "equity": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Have you taken the UHN research IDEA courses and applied the IHP standard?",
+        "dataType": "boolean",
+        "minAnswers": 1
+      }
+    },
+    "handling": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Storing, sharing and reporting the data",
+      "description": "Where the data goes, who sees it, and what is left of it at the end.",
+      "leaving": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Data leaving UHN",
+        "leaves": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Will the data leave UHN systems at any point?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "minAnswers": 1,
+          "description": "Transcription services, statistical consultants and automated document processing count.",
+          "no": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "no",
+            "label": "No"
+          },
+          "institution": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "institution",
+            "label": "Yes, to another participating institution"
+          },
+          "provider": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "provider",
+            "label": "Yes, to an external service provider or processing tool"
+          },
+          "abroad": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "abroad",
+            "label": "Yes, outside Canada"
+          },
+          "undetermined": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "undetermined",
+            "label": "Not determined yet"
+          }
+        },
+        "destination": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Where does it go, how is it protected, and under which agreement?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "excludes",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "answer",
+              "value": [
+                "handling/leaving/leaves"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                "no"
+              ]
+            }
+          }
+        },
+        "anonymizedOut": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Will data shared outside be anonymized, and any linkage log destroyed?",
+          "dataType": "boolean",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "excludes",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "answer",
+              "value": [
+                "handling/leaving/leaves"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                "no"
+              ]
+            }
+          }
+        },
+        "otherUses": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Is any other use of the data anticipated?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "minAnswers": 1,
+          "none": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "none",
+            "label": "None"
+          },
+          "futureResearch": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "futureResearch",
+            "label": "Future research"
+          },
+          "repository": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "repository",
+            "label": "Deposit in a repository"
+          },
+          "teaching": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "teaching",
+            "label": "Teaching"
+          },
+          "software": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "software",
+            "label": "Developing or evaluating software or models"
+          },
+          "sharing": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "sharing",
+            "label": "Sharing outside the listed team"
+          }
+        }
+      },
+      "storage": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Storage and security",
+        "location": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Where will the data be stored and analyzed?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "minAnswers": 1,
+          "server": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "server",
+            "label": "An institutional secure server"
+          },
+          "uhnCloud": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "uhnCloud",
+            "label": "A UHN-managed cloud"
+          },
+          "enclave": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "enclave",
+            "label": "A secure analytics environment with no export"
+          },
+          "externalCloud": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "externalCloud",
+            "label": "An external cloud"
+          },
+          "workstation": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "workstation",
+            "label": "A study team workstation"
+          },
+          "paper": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "paper",
+            "label": "On paper"
+          }
+        },
+        "access": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who has access, and how is it controlled?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1
+        },
+        "policyDeviation": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Do storage, transport or destruction deviate from the UHN records policy (1.30.007)?",
+          "dataType": "boolean",
+          "minAnswers": 1
+        },
+        "retention": {
+          "jcr:primaryType": "sch:Question",
+          "text": "How long will the data be kept, and what happens to it at the end?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "destroyed": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "destroyed",
+            "label": "Securely destroyed"
+          },
+          "deidentified": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "deidentified",
+            "label": "Identifiers destroyed, de-identified data kept"
+          },
+          "archived": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "archived",
+            "label": "Archived"
+          },
+          "returned": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "returned",
+            "label": "Returned to the custodian"
+          },
+          "indefinite": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "indefinite",
+            "label": "Kept indefinitely for future research"
+          }
+        },
+        "retentionPeriod": {
+          "jcr:primaryType": "sch:Question",
+          "text": "For how long?",
+          "dataType": "text",
+          "minAnswers": 1
+        },
+        "breachHarm": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What harm could follow a breach?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "minAnswers": 1,
+          "reidentification": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "reidentification",
+            "label": "Re-identification"
+          },
+          "stigma": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "stigma",
+            "label": "Stigma"
+          },
+          "employment": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "employment",
+            "label": "Employment or insurance consequences"
+          },
+          "legal": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "legal",
+            "label": "Legal or immigration consequences"
+          },
+          "minimal": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "minimal",
+            "label": "Minimal"
+          }
+        },
+        "pia": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Has a privacy impact assessment been done?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "completed": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "completed",
+            "label": "Completed"
+          },
+          "inProgress": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "inProgress",
+            "label": "In progress"
+          },
+          "notRequired": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "notRequired",
+            "label": "Determined not required"
+          },
+          "notAssessed": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "notAssessed",
+            "label": "Not assessed"
+          }
+        },
+        "disclosure": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Is there any foreseeable obligation to disclose data to a third party?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "minAnswers": 1,
+          "none": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "none",
+            "label": "None"
+          },
+          "mandatory": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "mandatory",
+            "label": "Mandatory reporting"
+          },
+          "reportable": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "reportable",
+            "label": "Reportable disease"
+          },
+          "regulatory": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "regulatory",
+            "label": "Regulatory"
+          },
+          "subpoena": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "subpoena",
+            "label": "Subpoena"
+          }
+        }
+      },
+      "results": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Results",
+        "reporting": {
+          "jcr:primaryType": "sch:Question",
+          "text": "How will results be reported so that no person or small group can be identified?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "suppressed": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "suppressed",
+            "label": "Aggregate, with small cells suppressed"
+          },
+          "aggregate": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "aggregate",
+            "label": "Aggregate, no suppression rule yet"
+          },
+          "caseLevel": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "caseLevel",
+            "label": "Case-level detail"
+          },
+          "undetermined": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "undetermined",
+            "label": "Not determined"
+          }
+        },
+        "threshold": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Below how many people is a cell suppressed?",
+          "dataType": "long",
+          "minValue": 0,
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "answer",
+              "value": [
+                "handling/results/reporting"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                "suppressed"
+              ]
+            }
+          }
+        },
+        "actionable": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Could the results reveal something about a person's health they would want to know?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "no": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "no",
+            "label": "No, results are aggregate only"
+          },
+          "possible": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "possible",
+            "label": "Possibly, clinically actionable"
+          },
+          "likely": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "likely",
+            "label": "Likely, such as genetic findings or imaging review"
+          }
+        },
+        "incidental": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What will you do if you come across an incidental finding?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1,
+          "description": "Contacting anyone needs a separate REB approval first."
+        }
+      }
+    },
+    "digital": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Digital tools and services",
+      "description": "The software and services the study uses, and the data that goes into them.",
+      "uhnHosted": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is the study using an application or IT service hosted and maintained by UHN Digital?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "description": "For example Epic, CRR, Medidata, DADOS, UHN's REDCap, UHN Fileshare, SharePoint or Office 365."
+      },
+      "integration": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does it need to integrate with an external tool?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "description": "If it does, the study team will be asked to submit a Digital Demand.",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "digital/uhnHosted"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "external": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is the study using an application or IT service not hosted and maintained by UHN Digital?",
+        "dataType": "boolean",
+        "minAnswers": 1
+      },
+      "externalTool": {
+        "jcr:primaryType": "sch:Section",
+        "title": "The external tool",
+        "patientData": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Does it need any patient data entered into it? It need not be health information.",
+          "dataType": "boolean",
+          "minAnswers": 1
+        },
+        "bigPharma": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Is the sponsor on the large pharmaceutical companies list?",
+          "dataType": "boolean",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "answer",
+              "value": [
+                "study/sponsor"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                "industry"
+              ]
+            }
+          }
+        },
+        "software": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What is the software called?",
+          "dataType": "text",
+          "minAnswers": 1
+        },
+        "url": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What is its web address?",
+          "dataType": "text",
+          "minAnswers": 0
+        },
+        "license": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who holds the license for it?",
+          "dataType": "text",
+          "minAnswers": 1
+        },
+        "sponsorDevice": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Does the study use a device the sponsor provides, which needs internet access only?",
+          "dataType": "boolean",
+          "minAnswers": 1,
+          "description": "If it needs Wi-Fi, a Service Desk ticket has to move it to the internet-only network."
+        },
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "digital/external"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "build": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does the study need UHN Digital to build a website, application or database, or to help transfer data?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "description": "Something beyond a regular catalogue request."
+      },
+      "onNetwork": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does an application or IT service need to be set up on the UHN network?",
+        "dataType": "boolean",
+        "minAnswers": 1
+      },
+      "alreadyOnNetwork": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is it already on the UHN network, built by UHN staff or approved for an earlier use?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "digital/onNetwork"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "input": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Data put into the tools",
+        "kind": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What kind of data will be put in?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "minAnswers": 1,
+          "aggregate": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "aggregate",
+            "label": "Aggregate data"
+          },
+          "patient": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "patient",
+            "label": "Patient data"
+          },
+          "public": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "public",
+            "label": "Public data"
+          },
+          "none": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "none",
+            "label": "No data"
+          }
+        },
+        "who": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who will put it in?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "minAnswers": 1,
+          "team": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "team",
+            "label": "The study team"
+          },
+          "participants": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "participants",
+            "label": "Participants"
+          }
+        },
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "digital/external"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "previouslyApproved": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Was the tool approved by Digital Security or Privacy for another study?",
+        "dataType": "boolean",
+        "minAnswers": 1
+      },
+      "different": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is anything different about how this study uses it?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "description": "New features, workflow, data transfers or access.",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "digital/previouslyApproved"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "usage": {
+        "jcr:primaryType": "sch:Question",
+        "text": "How is it being used?",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "digital/previouslyApproved"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "ai": {
+        "jcr:primaryType": "sch:Section",
+        "title": "Artificial intelligence",
+        "used": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Is artificial intelligence used in any part of the study?",
+          "dataType": "boolean",
+          "minAnswers": 1,
+          "description": "Machine learning, natural language processing, large language models or other AI tools, whether the study builds them or uses them."
+        },
+        "details": {
+          "jcr:primaryType": "sch:Question",
+          "text": "What is it used for?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "answer",
+              "value": [
+                "digital/ai/used"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                true
+              ]
+            }
+          }
+        },
+        "where": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Where does the processing run?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "local": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "local",
+            "label": "Only locally, on HPC4Health or UHN-managed systems"
+          },
+          "external": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "external",
+            "label": "On an external service"
+          },
+          "undetermined": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "undetermined",
+            "label": "Not determined yet"
+          },
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "answer",
+              "value": [
+                "digital/ai/used"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                true
+              ]
+            }
+          }
+        },
+        "training": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Is the study's data used to train or refine a model?",
+          "dataType": "boolean",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "answer",
+              "value": [
+                "digital/ai/used"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                true
+              ]
+            }
+          }
+        },
+        "phase": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which phase is the AI work in?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "development": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "development",
+            "label": "Development"
+          },
+          "silent": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "silent",
+            "label": "Silent trial"
+          },
+          "implementation": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "implementation",
+            "label": "Clinical implementation"
+          },
+          "none": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "none",
+            "label": "Not applicable, AI only helps carry out the research"
+          },
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "answer",
+              "value": [
+                "digital/ai/used"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                true
+              ]
+            }
+          }
+        },
+        "governance": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Have you read the UHN AI governance documents?",
+          "dataType": "boolean",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "answer",
+              "value": [
+                "digital/ai/used"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                true
+              ]
+            }
+          }
+        }
+      }
+    },
+    "team": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Study team",
+      "description": "Who runs the study, and anything that could pull them in another direction.",
+      "gcpDate": {
+        "jcr:primaryType": "sch:Question",
+        "text": "When did the principal investigator complete Good Clinical Practice training?",
+        "dataType": "date",
+        "minAnswers": 1
+      },
+      "healthProfessionals": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Are any health professionals involved as investigators, study team members or participants?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "routing": "involvesHealthProfessionals"
+      },
+      "hpRoles": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What are their roles?",
+        "dataType": "text",
+        "maxAnswers": 0,
+        "minAnswers": 1,
+        "pi": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "pi",
+          "label": "Principal investigator"
+        },
+        "coi": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "coi",
+          "label": "Co-investigator"
+        },
+        "team": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "team",
+          "label": "Study team member"
+        },
+        "participant": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "participant",
+          "label": "Participant"
+        },
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "team/healthProfessionals"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "hpIdentifiable": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does the study use identifiable data about health professionals?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "team/healthProfessionals"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "conflict": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does anyone on the team have a conflict of interest to declare?",
+        "dataType": "boolean",
+        "minAnswers": 1
+      },
+      "conflictDetails": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What is it, is it perceived, potential or actual, and how is it managed?",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "team/conflict"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "rmp": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is a relationship management plan in place?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "team/conflict"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "glossary": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Has the study team checked its terms against the UHN glossary?",
+        "dataType": "boolean",
+        "minAnswers": 1
+      }
+    },
+    "resources": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Resources",
+      "description": "What the study needs from the department.",
+      "funding": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is funding required?",
+        "dataType": "boolean",
+        "minAnswers": 1
+      },
+      "staff": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Are departmental staff required?",
+        "dataType": "boolean",
+        "minAnswers": 1
+      },
+      "extraction": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is help with extracting or collecting data required?",
+        "dataType": "boolean",
+        "minAnswers": 1
+      },
+      "analyst": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is dedicated analyst support required?",
+        "dataType": "boolean",
+        "minAnswers": 1
+      },
+      "other": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Are any other resources requested from the department?",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 0
+      },
+      "similar": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Has a similar study recently been completed or started?",
+        "dataType": "boolean",
+        "minAnswers": 1
+      },
+      "overlap": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Do its datasets or objectives overlap with this one?",
+        "dataType": "text",
+        "displayMode": "multiline",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "resources/similar"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "collaboration": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Have you considered collaborating?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "resources/similar"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    "lab": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Laboratory data",
+      "description": "Data the Laboratory Medicine Program would extract for the study.",
+      "needed": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does the study need the Laboratory Medicine Program to extract data from one or more laboratory divisions?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "routing": "needsLab"
+      },
+      "request": {
+        "jcr:primaryType": "sch:Section",
+        "title": "The extraction request",
+        "divisions": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which laboratory divisions?",
+          "dataType": "text",
+          "maxAnswers": 0,
+          "minAnswers": 1,
+          "core": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "core",
+            "label": "Core lab test results: hematology, biochemistry, coagulation, immunology"
+          },
+          "flow": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "flow",
+            "label": "Flow cytometry"
+          },
+          "hla": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "hla",
+            "label": "Histocompatibility (HLA)"
+          },
+          "genome": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "genome",
+            "label": "Genome diagnostics"
+          },
+          "cytogenetics": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "cytogenetics",
+            "label": "Cancer cytogenetics"
+          },
+          "transfusion": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "transfusion",
+            "label": "Blood transfusion"
+          },
+          "pathology": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "pathology",
+            "label": "Pathology or hematopathology"
+          },
+          "microbiology": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "microbiology",
+            "label": "Microbiology"
+          },
+          "other": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "other",
+            "label": "Other, or not sure which"
+          }
+        },
+        "population": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which diagnosis or patient population?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 0,
+          "description": "For example, patients who underwent a liver biopsy at UHN."
+        },
+        "parameters": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which data or results?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 0,
+          "description": "For example surgical number, biopsy site, tumour grade, test name and test date."
+        },
+        "identifiers": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which patient identifiers should the report include?",
+          "dataType": "text",
+          "minAnswers": 0
+        },
+        "contactPerson": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who should receive the results?",
+          "dataType": "text",
+          "minAnswers": 0,
+          "description": "First name, last name and email address."
+        },
+        "method": {
+          "jcr:primaryType": "sch:Question",
+          "text": "How should the results be sent?",
+          "dataType": "text",
+          "minAnswers": 0,
+          "email": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "email",
+            "label": "Secure email"
+          },
+          "usb": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "usb",
+            "label": "USB transfer"
+          },
+          "other": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "other",
+            "label": "Other"
+          }
+        },
+        "details": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Anything else about the request?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 0
+        },
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "lab/needed"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    "imaging": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Imaging data",
+      "description": "Images the Joint Department of Medical Imaging would provide.",
+      "needed": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does the study need images from the Joint Department of Medical Imaging?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "routing": "needsImaging"
+      },
+      "request": {
+        "jcr:primaryType": "sch:Section",
+        "title": "The imaging request",
+        "parameters": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which images: disease type, modality and so on?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1
+        },
+        "count": {
+          "jcr:primaryType": "sch:Question",
+          "text": "About how many images?",
+          "dataType": "long",
+          "minValue": 0,
+          "minAnswers": 1
+        },
+        "period": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which time period?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "description": "Images older than 2009 do not exist."
+        },
+        "deadline": {
+          "jcr:primaryType": "sch:Question",
+          "text": "By when are they needed?",
+          "dataType": "date",
+          "minAnswers": 1
+        },
+        "anonymization": {
+          "jcr:primaryType": "sch:Question",
+          "text": "How must the images be anonymized?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "full": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "full",
+            "label": "Fully anonymized"
+          },
+          "coded": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "coded",
+            "label": "Coded"
+          },
+          "none": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "none",
+            "label": "Not anonymized"
+          }
+        },
+        "transfer": {
+          "jcr:primaryType": "sch:Question",
+          "text": "How will they be transferred, and where to?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1
+        },
+        "access": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Who will access them?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1
+        },
+        "company": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Is there an existing relationship between the investigator and an outside company?",
+          "dataType": "boolean",
+          "minAnswers": 1
+        },
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "imaging/needed"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    "oncology": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Princess Margaret data",
+      "description": "Oncology data from the Princess Margaret Cancer Centre.",
+      "pmData": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is the study using data from Princess Margaret to look at patient outcomes, treatment patterns or cancer care?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "routing": "usesPmData"
+      },
+      "sites": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which disease sites does it focus on?",
+        "dataType": "text",
+        "maxAnswers": 0,
+        "minAnswers": 1,
+        "breast": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "breast",
+          "label": "Breast"
+        },
+        "gi": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "gi",
+          "label": "Gastrointestinal"
+        },
+        "gu": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "gu",
+          "label": "Genitourinary"
+        },
+        "gyne": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "gyne",
+          "label": "Gynecologic"
+        },
+        "headNeck": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "headNeck",
+          "label": "Head and neck"
+        },
+        "heme": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "heme",
+          "label": "Hematology"
+        },
+        "lung": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "lung",
+          "label": "Lung"
+        },
+        "melanoma": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "melanoma",
+          "label": "Melanoma"
+        },
+        "neuro": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "neuro",
+          "label": "Neuro-oncology"
+        },
+        "sarcoma": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "sarcoma",
+          "label": "Sarcoma"
+        },
+        "other": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "other",
+          "label": "Other"
+        },
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "oncology/pmData"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "pmCoInvestigator": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is there a Princess Margaret co-investigator for those disease sites?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "oncology/pmData"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      },
+      "priorTrial": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does the study use data already collected by an earlier clinical trial or study at UHN?",
+        "dataType": "boolean",
+        "minAnswers": 1
+      }
+    },
+    "agreements": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "External organizations and agreements",
+      "description": "Anyone outside UHN taking part, and the agreements that cover them.",
+      "involved": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is an external organization involved?",
+        "dataType": "boolean",
+        "minAnswers": 1,
+        "routing": "externalInvolved"
+      },
+      "organizations": {
+        "jcr:primaryType": "sch:Section",
+        "title": "The external organizations",
+        "names": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which organizations, and what is each one's role?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 1
+        },
+        "accessUhnData": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Will they access UHN-held data?",
+          "dataType": "boolean",
+          "minAnswers": 1
+        },
+        "flow": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which way does data flow?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "out": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "out",
+            "label": "From UHN to them"
+          },
+          "in": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "in",
+            "label": "From them to UHN"
+          },
+          "both": {
+            "jcr:primaryType": "sch:AnswerOption",
+            "value": "both",
+            "label": "Both ways"
+          }
+        },
+        "patientLevel": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Is patient-level data involved?",
+          "dataType": "boolean",
+          "minAnswers": 1
+        },
+        "stores": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Will an external party store study data?",
+          "dataType": "boolean",
+          "minAnswers": 1
+        },
+        "jurisdiction": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Which organization stores it, and in which country?",
+          "dataType": "text",
+          "minAnswers": 1,
+          "cond:condition": {
+            "jcr:primaryType": "cond:SingleCondition",
+            "comparator": "equals",
+            "operandA": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "source": "answer",
+              "value": [
+                "agreements/organizations/stores"
+              ]
+            },
+            "operandB": {
+              "jcr:primaryType": "cond:ConditionOperand",
+              "value": [
+                true
+              ]
+            }
+          }
+        },
+        "funds": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Are funds transferred between the organizations?",
+          "dataType": "boolean",
+          "minAnswers": 1
+        },
+        "existing": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Does an agreement already exist?",
+          "dataType": "boolean",
+          "minAnswers": 1,
+          "description": "If it does, attach it as the data sharing agreement."
+        },
+        "related": {
+          "jcr:primaryType": "sch:Question",
+          "text": "Are there related agreements, grants or arrangements?",
+          "dataType": "text",
+          "displayMode": "multiline",
+          "minAnswers": 0
+        },
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [
+              "agreements/involved"
+            ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    "variables": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Variable list",
+      "description": "Every field the study will collect, and why each one is needed. A data collection form works too.",
+      "required": true,
+      "acceptedFileTypes": [
+        "application/pdf"
+      ]
+    },
+    "dsa": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Data sharing agreement",
+      "description": "The agreement that covers data leaving UHN.",
+      "required": true,
+      "acceptedFileTypes": [
+        "application/pdf"
+      ],
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "excludes",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "answer",
+          "value": [
+            "handling/leaving/leaves"
+          ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [
+            "no"
+          ]
+        }
+      }
+    },
+    "priorConsentForm": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Original consent form",
+      "description": "The consent form this study relies on.",
+      "required": true,
+      "acceptedFileTypes": [
+        "application/pdf"
+      ],
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "answer",
+          "value": [
+            "consent/priorConsent"
+          ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [
+            true
+          ]
+        }
+      }
+    },
+    "reb": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Research ethics",
+      "description": "The Research Ethics Board reviews every study.",
+      "approverGroup": "reb-reviewers",
+      "classification": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Study misclassification",
+        "description": "Work that is research going ahead as quality improvement, or a \"retrospective\" study that in fact contacts people or collects new data, which changes the consent obligation entirely.\n\nLook at: the stated purpose against the protocol's methods; any contact or new collection.\n\nPolicy: TCPS 2 Art. 2.5 (p. 21); Ch. 5 §D (p. 87); Art. 5.6 (p. 90).\n\nConsult QIRC when the answer is quality improvement, and Data Services to confirm the source systems.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/classification/purpose",
+          "/Schemas/retrospectiveStudy/v1/classification/contact",
+          "/Schemas/retrospectiveStudy/v1/classification/sources/originalPurpose",
+          "/Schemas/retrospectiveStudy/v1/classification/sources/dataSources",
+          "/Schemas/retrospectiveStudy/v1/classification/sources/sourceDetails",
+          "/Schemas/retrospectiveStudy/v1/classification/cohort/startDate",
+          "/Schemas/retrospectiveStudy/v1/classification/cohort/endDate",
+          "/Schemas/retrospectiveStudy/v1/protocol"
+        ]
+      },
+      "design": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Study design",
+        "description": "Some designs are not a straightforward chart review, such as mixed methods with a chart review component, and need more than this form asks.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/classification/design",
+          "/Schemas/retrospectiveStudy/v1/classification/designOther",
+          "/Schemas/retrospectiveStudy/v1/protocol"
+        ]
+      },
+      "identifiability": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Identifiability",
+        "description": "Whether the data is identifiable decides whether consent is required at all. Coded data treated as non-identifiable while the team can reach the key lets a study proceed without consent and without the waiver conditions ever being tested. Small cohorts, rare diagnoses and narrow geography make re-identification easier.\n\nPolicy: TCPS 2 Ch. 5 §A (pp. 79-80) and Glossary (pp. 271-272); Art. 5.5A, 5.5B; PHIPA; UHN Privacy and Access Policy 1.40.007.\n\nConsult Data Services, who build the extract and can state key custody and the field list, and the Privacy Office when data arrives directly identifying.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/identifiability/arrival",
+          "/Schemas/retrospectiveStudy/v1/identifiability/keyHolder",
+          "/Schemas/retrospectiveStudy/v1/identifiability/fields",
+          "/Schemas/retrospectiveStudy/v1/identifiability/recognizable",
+          "/Schemas/retrospectiveStudy/v1/identifiability/lessIdentifiable",
+          "/Schemas/retrospectiveStudy/v1/identifiability/lessIdentifiableWhy",
+          "/Schemas/retrospectiveStudy/v1/variables"
+        ]
+      },
+      "waiver": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Waiver of consent",
+        "description": "Every condition of a waiver is mandatory: a study approved on partial satisfaction is not approved. Use without a lawful basis exposes the institution and costs public trust.\n\nLook at: whether each condition is argued, not just asserted; inconvenience alone is not a reason. Art. 3.7A does not apply to secondary use.\n\nPolicy: TCPS 2 Art. 5.5A (p. 88), six conditions; Art. 5.5B (p. 90); PHIPA s. 44.\n\nOnly the REB can grant a waiver.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/consent/sought",
+          "/Schemas/retrospectiveStudy/v1/consent/priorConsent",
+          "/Schemas/retrospectiveStudy/v1/consent/priorConsentCapcr",
+          "/Schemas/retrospectiveStudy/v1/consent/waiver/whyIdentifiable",
+          "/Schemas/retrospectiveStudy/v1/consent/waiver/welfare",
+          "/Schemas/retrospectiveStudy/v1/consent/waiver/impracticable",
+          "/Schemas/retrospectiveStudy/v1/priorConsentForm"
+        ]
+      },
+      "authority": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Authority for the disclosure",
+        "description": "Data released without the custodian's authorization, or used beyond the conditions the custodian attached. The REB cannot approve what the custodian has forbidden.\n\nPolicy: TCPS 2 Art. 5.5A(f) (pp. 88-89); PHIPA; UHN Privacy and Access Policy 1.40.007; data sharing agreement requirements.\n\nConsult Data Services and the Privacy Office, and Legal when an external agreement is involved.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/access/custodian",
+          "/Schemas/retrospectiveStudy/v1/access/custodianApproval",
+          "/Schemas/retrospectiveStudy/v1/access/authority",
+          "/Schemas/retrospectiveStudy/v1/dsa"
+        ]
+      },
+      "linkage": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Re-identification through linkage",
+        "description": "Linking datasets can make identifiable what was not identifiable in either. Linkage needs approval before it is done: approval after the merge is not a remedy.\n\nLook at: whether the safeguards are proportionate to how likely re-identification is, and how bad it would be, across collection, use, linkage, analysis, storage, sharing and dissemination.\n\nPolicy: TCPS 2 Art. 5.7 (pp. 91-92); Art. 2.4 (p. 19); Art. 5.3; PHIPA.\n\nConsult Data Services, who perform the linkage, and the Privacy Office for an external dataset.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/identifiability/linkage",
+          "/Schemas/retrospectiveStudy/v1/identifiability/linkageRisk",
+          "/Schemas/retrospectiveStudy/v1/identifiability/reidentification",
+          "/Schemas/retrospectiveStudy/v1/protocol"
+        ]
+      },
+      "indigenous": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "First Nations, Inuit and Métis data governance",
+        "description": "Secondary use of data identifiable as coming from an Indigenous community needs engagement before it begins. This is about community authority over data, not individual vulnerability. Geography alone can trigger it.\n\nPolicy: TCPS 2 Ch. 9, Art. 9.20-9.22 (pp. 179-180); OCAP principles; UHN Indigenous Health Policy.\n\nConsult the Indigenous health and community partnership function.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/sensitivity/indigenous",
+          "/Schemas/retrospectiveStudy/v1/sensitivity/community/covered",
+          "/Schemas/retrospectiveStudy/v1/sensitivity/community/engaged",
+          "/Schemas/retrospectiveStudy/v1/sensitivity/community/engagedOutcome"
+        ]
+      },
+      "sensitive": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Sensitive information and vulnerable populations",
+        "description": "Stigma, discrimination, and consequences for employment, insurance, immigration or legal status, which the applicant is often not the right person to recognize.\n\nPolicy: TCPS 2 Art. 5.5A (p. 89); Ch. 4 (p. 67); PHIPA; UHN Privacy and Access Policy 1.40.007.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/sensitivity/categories",
+          "/Schemas/retrospectiveStudy/v1/sensitivity/input",
+          "/Schemas/retrospectiveStudy/v1/sensitivity/inputOutcome",
+          "/Schemas/retrospectiveStudy/v1/protocol"
+        ]
+      },
+      "transfer": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Data leaving institutional control",
+        "description": "Health information going to a partner, a service provider, an automated or AI processing tool, or outside Canada, without that transfer being assessed. Applicants often don't see transcription, statistical consultants or document processing as a transfer at all. Destination and safeguard are what this turns on.\n\nPolicy: TCPS 2 Art. 5.3 (pp. 85-86), 5.4 (p. 87); PHIPA; UHN Information Security Policy 1.40.028; UHN Cloud Security Standard; PIA and TRA requirements.\n\nConsult Digital (demand intake), the AI Hub for automated processing, the Privacy Office for a PIA and Security for a TRA.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/handling/leaving/leaves",
+          "/Schemas/retrospectiveStudy/v1/handling/leaving/destination",
+          "/Schemas/retrospectiveStudy/v1/handling/leaving/anonymizedOut",
+          "/Schemas/retrospectiveStudy/v1/handling/leaving/otherUses",
+          "/Schemas/retrospectiveStudy/v1/digital/ai/used",
+          "/Schemas/retrospectiveStudy/v1/digital/ai/where",
+          "/Schemas/retrospectiveStudy/v1/dsa"
+        ]
+      },
+      "safeguards": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Safeguards over the data's life",
+        "description": "A breach, unauthorized access, or no way to show proper handling on audit. Data kept without limit, or destroyed without a record.\n\nPolicy: TCPS 2 Art. 5.1-5.4; PHIPA; UHN Records Policy 1.30.007; UHN Information Security Policy 1.40.028.\n\nConsult the Privacy Office for a PIA, Security for a TRA, and Records Management for any deviation from 1.30.007.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/handling/storage/location",
+          "/Schemas/retrospectiveStudy/v1/handling/storage/access",
+          "/Schemas/retrospectiveStudy/v1/handling/storage/policyDeviation",
+          "/Schemas/retrospectiveStudy/v1/handling/storage/retention",
+          "/Schemas/retrospectiveStudy/v1/handling/storage/retentionPeriod",
+          "/Schemas/retrospectiveStudy/v1/handling/storage/breachHarm",
+          "/Schemas/retrospectiveStudy/v1/handling/storage/pia",
+          "/Schemas/retrospectiveStudy/v1/handling/storage/disclosure"
+        ]
+      },
+      "rigour": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Scientific rigour",
+        "description": "Research waste and harm at the population level when the question, cohort or variables don't fit.\n\nLook at: whether the inclusion and exclusion criteria suit the question; whether identifiable information is essential.\n\nPolicy: TCPS 2 Art. 4.1 (p. 67); Art. 2.7 (p. 21); Art. 5.5A(a) (p. 88).",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/classification/question",
+          "/Schemas/retrospectiveStudy/v1/classification/cohort/population",
+          "/Schemas/retrospectiveStudy/v1/classification/cohort/records",
+          "/Schemas/retrospectiveStudy/v1/classification/cohort/minimum",
+          "/Schemas/retrospectiveStudy/v1/classification/cohort/exclusions",
+          "/Schemas/retrospectiveStudy/v1/classification/cohort/exclusionsWhy",
+          "/Schemas/retrospectiveStudy/v1/protocol"
+        ]
+      },
+      "equity": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Inclusion, exclusion and equity",
+        "description": "Groups included or left out for reasons unrelated to the question, by language, age, race or ethnicity, sex or gender, which can perpetuate harm and bias the results.\n\nLook at: whether the criteria could reproduce disparities in who takes part in research, and what that means for validity.\n\nPolicy: TCPS 2 Art. 4.1, 4.7.\n\nConsult Research IDEA and IHP.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/classification/cohort/exclusions",
+          "/Schemas/retrospectiveStudy/v1/classification/cohort/exclusionsWhy",
+          "/Schemas/retrospectiveStudy/v1/sensitivity/equity"
+        ]
+      },
+      "reporting": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Identification through results",
+        "description": "People or small groups identifiable in published results, even from an aggregate analysis.\n\nPolicy: TCPS 2 Art. 5.3 (p. 86); Art. 5.2 (p. 84).",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/handling/results/reporting",
+          "/Schemas/retrospectiveStudy/v1/handling/results/threshold"
+        ]
+      },
+      "incidental": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Incidental findings",
+        "description": "A clinically actionable finding with no consent relationship to disclose it through, or a worrying pattern with no plan for what happens next.\n\nPolicy: TCPS 2 Art. 3.4 (p. 41); Art. 5.6 (p. 90).\n\nClinical services need to be involved where actionable findings are foreseeable.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/handling/results/actionable",
+          "/Schemas/retrospectiveStudy/v1/handling/results/incidental"
+        ]
+      },
+      "terminology": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Terminology",
+        "description": "Terms used loosely can describe the methods inaccurately and mislead the review.\n\nPolicy: TCPS 2 Art. 6.11; Art. 2.7.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/team/glossary",
+          "/Schemas/retrospectiveStudy/v1/classification/design",
+          "/Schemas/retrospectiveStudy/v1/protocol"
+        ]
+      },
+      "conflict": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Conflict of interest",
+        "description": "Undue influence, compromised privacy or confidentiality, or bias in decisions that affect participants or the study's integrity.\n\nLook at: whether the conflict is real, potential or perceived, and whether it could affect welfare or integrity.\n\nPolicy: TCPS 2 Art. 7.4; Art. 3.2(e).",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/team/conflict",
+          "/Schemas/retrospectiveStudy/v1/team/conflictDetails",
+          "/Schemas/retrospectiveStudy/v1/team/rmp",
+          "/Schemas/retrospectiveStudy/v1/study/sponsor"
+        ]
+      },
+      "dateRange": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Extending the collection period",
+        "description": "A date range reaching into the recent past may use data beyond what the waiver was granted for: some of those people could still be asked.\n\nLook at: whether the end date is far enough in the past; whether patients are still being seen.\n\nPolicy: TCPS 2 Ch. 1, Ch. 3.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/classification/cohort/startDate",
+          "/Schemas/retrospectiveStudy/v1/classification/cohort/endDate",
+          "/Schemas/retrospectiveStudy/v1/classification/cohort/dateRationale"
+        ]
+      },
+      "ai": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "AI and the risks above",
+        "description": "Studies building AI tools, and studies using AI to carry out research, sharpen every risk above. TCPS 2 has not caught up, and guidance for REBs is thin.\n\nConsult the AI Hub and Digital.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/digital/ai/used",
+          "/Schemas/retrospectiveStudy/v1/digital/ai/details",
+          "/Schemas/retrospectiveStudy/v1/digital/ai/where",
+          "/Schemas/retrospectiveStudy/v1/digital/ai/training",
+          "/Schemas/retrospectiveStudy/v1/digital/ai/phase",
+          "/Schemas/retrospectiveStudy/v1/digital/ai/governance",
+          "/Schemas/retrospectiveStudy/v1/protocol"
+        ]
+      }
+    },
+    "digitalReview": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Digital review",
+      "description": "UHN Digital reviews the software, services and data flows the study relies on.",
+      "approverGroup": "digital-reviewers",
+      "hosted": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "UHN-hosted services and data staying internal",
+        "description": "Data exposure and cyber risk from the services the study runs on, and whether data stays within UHN.\n\nAn integration with an external tool needs a Digital Demand.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/digital/uhnHosted",
+          "/Schemas/retrospectiveStudy/v1/digital/integration",
+          "/Schemas/retrospectiveStudy/v1/handling/leaving/leaves"
+        ]
+      },
+      "externalSoftware": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "External software and sponsors",
+        "description": "Software hosted outside UHN that patient data goes into. Academic sponsors' agreements need security language added; industry sponsors outside the large pharmaceutical companies list need a manual check.\n\nLook at: the software and its license holder, and decide whether to approve.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/digital/external",
+          "/Schemas/retrospectiveStudy/v1/digital/externalTool/patientData",
+          "/Schemas/retrospectiveStudy/v1/study/sponsor",
+          "/Schemas/retrospectiveStudy/v1/study/sponsorName",
+          "/Schemas/retrospectiveStudy/v1/digital/externalTool/bigPharma",
+          "/Schemas/retrospectiveStudy/v1/digital/externalTool/software",
+          "/Schemas/retrospectiveStudy/v1/digital/externalTool/url",
+          "/Schemas/retrospectiveStudy/v1/digital/externalTool/license"
+        ]
+      },
+      "data": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Data put into the tools",
+        "description": "Patient data, or data entered by participants, needs a Digital Demand.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/digital/input/kind",
+          "/Schemas/retrospectiveStudy/v1/digital/input/who"
+        ]
+      },
+      "network": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Devices and the UHN network",
+        "description": "Anything set up on the UHN network, and sponsor devices that need internet access.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/digital/build",
+          "/Schemas/retrospectiveStudy/v1/digital/onNetwork",
+          "/Schemas/retrospectiveStudy/v1/digital/alreadyOnNetwork",
+          "/Schemas/retrospectiveStudy/v1/digital/externalTool/sponsorDevice"
+        ]
+      },
+      "reuse": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Tools approved before",
+        "description": "A tool approved for another study may be used differently here: new features, workflow, transfers or access.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/digital/previouslyApproved",
+          "/Schemas/retrospectiveStudy/v1/digital/different",
+          "/Schemas/retrospectiveStudy/v1/digital/usage"
+        ]
+      },
+      "policy": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Storage, transport and destruction",
+        "description": "Deviations from the policies on storage, transport and destruction need Privacy's view.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/handling/storage/policyDeviation",
+          "/Schemas/retrospectiveStudy/v1/handling/storage/location",
+          "/Schemas/retrospectiveStudy/v1/handling/storage/retention"
+        ]
+      },
+      "ai": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Artificial intelligence",
+        "description": "Generative AI, NLP and other AI tools, and above all the study's data used to train or refine a model, which needs a Digital Demand and the AI Hub intake.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/digital/ai/used",
+          "/Schemas/retrospectiveStudy/v1/digital/ai/details",
+          "/Schemas/retrospectiveStudy/v1/digital/ai/where",
+          "/Schemas/retrospectiveStudy/v1/digital/ai/training"
+        ]
+      }
+    },
+    "deptHead": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Department head",
+      "description": "The head of the department or division confirms the study fits and can be supported.",
+      "approverGroup": "department-heads",
+      "awareness": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Leadership awareness",
+        "description": "What the department is taking on, and with whom.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/study/pi",
+          "/Schemas/retrospectiveStudy/v1/study/summary",
+          "/Schemas/retrospectiveStudy/v1/study/department",
+          "/Schemas/retrospectiveStudy/v1/classification/sources/dataSources"
+        ]
+      },
+      "standing": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Investigator standing and scope",
+        "description": "Look at: the investigator's appointment status, whether they are in good standing, and whether the study falls within their expertise and responsibilities.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/study/pi",
+          "/Schemas/retrospectiveStudy/v1/team/gcpDate"
+        ]
+      },
+      "resources": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Resources and feasibility",
+        "description": "What the study needs from the department.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/resources/funding",
+          "/Schemas/retrospectiveStudy/v1/resources/staff",
+          "/Schemas/retrospectiveStudy/v1/resources/extraction",
+          "/Schemas/retrospectiveStudy/v1/resources/analyst",
+          "/Schemas/retrospectiveStudy/v1/resources/other"
+        ]
+      },
+      "landscape": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Other research and the participants",
+        "description": "Overlapping studies, datasets and objectives, and chances to collaborate.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/resources/similar",
+          "/Schemas/retrospectiveStudy/v1/resources/overlap",
+          "/Schemas/retrospectiveStudy/v1/resources/collaboration"
+        ]
+      },
+      "conflict": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Conflict of interest",
+        "description": "Whether a relationship management plan is in place and mitigations are documented.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/team/conflict",
+          "/Schemas/retrospectiveStudy/v1/team/conflictDetails",
+          "/Schemas/retrospectiveStudy/v1/team/rmp"
+        ]
+      }
+    },
+    "cta": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Agreements",
+      "description": "Clinical Trial Agreements reviews the agreements with any outside organization.",
+      "approverGroup": "cta-reviewers",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "answer",
+          "value": [
+            "agreements/involved"
+          ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [
+            true
+          ]
+        }
+      },
+      "external": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Compliance of external involvement",
+        "description": "Who is involved from outside UHN, what flows where, and what agreements cover it.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/agreements/organizations/names",
+          "/Schemas/retrospectiveStudy/v1/agreements/organizations/accessUhnData",
+          "/Schemas/retrospectiveStudy/v1/agreements/organizations/flow",
+          "/Schemas/retrospectiveStudy/v1/agreements/organizations/patientLevel",
+          "/Schemas/retrospectiveStudy/v1/agreements/organizations/stores",
+          "/Schemas/retrospectiveStudy/v1/agreements/organizations/jurisdiction",
+          "/Schemas/retrospectiveStudy/v1/agreements/organizations/funds",
+          "/Schemas/retrospectiveStudy/v1/agreements/organizations/existing",
+          "/Schemas/retrospectiveStudy/v1/agreements/organizations/related",
+          "/Schemas/retrospectiveStudy/v1/handling/leaving/leaves",
+          "/Schemas/retrospectiveStudy/v1/study/sponsor",
+          "/Schemas/retrospectiveStudy/v1/classification/design",
+          "/Schemas/retrospectiveStudy/v1/dsa"
+        ]
+      }
+    },
+    "lmp": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Laboratory Medicine",
+      "description": "The Laboratory Medicine Program confirms it can extract the data asked for.",
+      "approverGroup": "lmp-reviewers",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "answer",
+          "value": [
+            "lab/needed"
+          ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [
+            true
+          ]
+        }
+      },
+      "extraction": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Data availability and staff to pull it",
+        "description": "Whether the divisions can provide what is asked, and when.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/lab/needed",
+          "/Schemas/retrospectiveStudy/v1/lab/request/divisions",
+          "/Schemas/retrospectiveStudy/v1/lab/request/population",
+          "/Schemas/retrospectiveStudy/v1/lab/request/parameters",
+          "/Schemas/retrospectiveStudy/v1/lab/request/identifiers",
+          "/Schemas/retrospectiveStudy/v1/lab/request/contactPerson",
+          "/Schemas/retrospectiveStudy/v1/lab/request/method",
+          "/Schemas/retrospectiveStudy/v1/lab/request/details"
+        ]
+      }
+    },
+    "jdmi": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Medical Imaging",
+      "description": "The Joint Department of Medical Imaging confirms it can provide the images asked for.",
+      "approverGroup": "jdmi-reviewers",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "answer",
+          "value": [
+            "imaging/needed"
+          ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [
+            true
+          ]
+        }
+      },
+      "effort": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Staff to pull the images",
+        "description": "How many images, which ones, how anonymized and by when.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/imaging/request/parameters",
+          "/Schemas/retrospectiveStudy/v1/imaging/request/count",
+          "/Schemas/retrospectiveStudy/v1/imaging/request/deadline",
+          "/Schemas/retrospectiveStudy/v1/imaging/request/anonymization"
+        ]
+      },
+      "privacy": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Patient privacy",
+        "description": "How images are transferred, where they go and who sees them.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/imaging/request/transfer",
+          "/Schemas/retrospectiveStudy/v1/imaging/request/access",
+          "/Schemas/retrospectiveStudy/v1/imaging/request/anonymization"
+        ]
+      },
+      "commercial": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Research or commercial venture",
+        "description": "Any relationship between the investigator and an outside company.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/imaging/request/company",
+          "/Schemas/retrospectiveStudy/v1/imaging/request/count"
+        ]
+      },
+      "availability": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Data availability",
+        "description": "Nothing older than 2009 exists.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/imaging/request/period"
+        ]
+      }
+    },
+    "crdac": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Princess Margaret data",
+      "description": "The Clinical Research Data Access Committee reviews uses of Princess Margaret oncology data.",
+      "approverGroup": "crdac-reviewers",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "answer",
+          "value": [
+            "oncology/pmData"
+          ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [
+            true
+          ]
+        }
+      },
+      "use": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Use and interpretation of oncology data",
+        "description": "Appropriate use, interpretation and context of clinical oncology data, and collaboration with the disease site.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/oncology/pmData",
+          "/Schemas/retrospectiveStudy/v1/oncology/sites",
+          "/Schemas/retrospectiveStudy/v1/oncology/pmCoInvestigator",
+          "/Schemas/retrospectiveStudy/v1/study/pi"
+        ]
+      },
+      "secondary": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Secondary use of research data",
+        "description": "Data from an earlier trial or study at UHN.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/oncology/priorTrial"
+        ]
+      }
+    },
+    "rqi": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Research quality",
+      "description": "Research Quality and Integrity checks the principal investigator's training.",
+      "approverGroup": "rqi-reviewers",
+      "gcp": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Investigator training",
+        "description": "Good Clinical Practice training, and when it was completed.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/study/pi",
+          "/Schemas/retrospectiveStudy/v1/team/gcpDate"
+        ]
+      }
+    },
+    "healthProfessions": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Health Professions",
+      "description": "Health Professions is made aware of studies involving health professionals. Acknowledging is enough.",
+      "approverGroup": "health-professions",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "answer",
+          "value": [
+            "team/healthProfessionals"
+          ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [
+            true
+          ]
+        }
+      },
+      "reidentification": {
+        "jcr:primaryType": "sch:Topic",
+        "text": "Re-identification of health professionals",
+        "description": "Health professionals taking part, and whether the data identifies them.",
+        "jcr:reference:sources": [
+          "/Schemas/retrospectiveStudy/v1/team/healthProfessionals",
+          "/Schemas/retrospectiveStudy/v1/team/hpRoles",
+          "/Schemas/retrospectiveStudy/v1/team/hpIdentifiable"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Write on a submission under review",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "PRETOTYPE. A reviewer raises an issue for the study team, writes to the other reviewers, or keeps a note to self, or replies to, changes or removes one.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Comment written",
+      "messageName": "reviewComment",
+      "performers": ["reb-reviewers", "digital-reviewers", "department-heads", "cta-reviewers", "lmp-reviewers", "jdmi-reviewers", "crdac-reviewers", "rqi-reviewers", "health-professions"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toWrite": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toWrite",
+        "targetRef": "write"
+      }
+    },
+    "write": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "write",
+      "label": "Write the comment down",
+      "handler": "reviewComment",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Comment written",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

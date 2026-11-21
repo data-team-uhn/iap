@@ -1,0 +1,244 @@
+{
+  "nct": "NCT07162909",
+  "title": "Risk patterns in psychiatric care before a forensic psychiatric evaluation (Tibec)",
+  "answers": {
+    "study/pi": "Dr. Katarina Howner",
+    "study/department": "Centre for Mental Health (general and forensic psychiatry). Emergency psychiatry is involved because ED visits are part of the review.",
+    "study/summary": "Matched case-control chart review. For adults who underwent a forensic psychiatric evaluation (FPE), we review their psychiatric records for the 3 months before the index offence against a fixed list of 26 markers (benzodiazepines, compulsory care, missed appointments without follow-up, no violence risk assessment, substance use, etc.) and compare them with matched controls. The forensic evaluation file gives the offence, diagnoses and the court's assessment.",
+    "study/sponsor": "none",
+    "classification/purpose": "research",
+    "classification/contact": "recordsOnly",
+    "classification/design": "caseControl",
+    "classification/question": "Which patterns in psychiatric care in the three months before an offence are associated with later undergoing a forensic psychiatric evaluation? We want warning signs care teams could act on.",
+    "classification/cohort/population": "Adults 18 and over who underwent a forensic psychiatric evaluation and had contact with UHN psychiatry (inpatient, outpatient or emergency) in the 3 months before the index offence. Controls are matched UHN psychiatric patients who did not undergo an FPE.",
+    "classification/cohort/startDate": "2015-01-01",
+    "classification/cohort/endDate": "2024-12-31",
+    "classification/cohort/dateRationale": "Ten years of evaluations gives enough cases for the matched analysis. Older psychiatric records are less complete.",
+    "classification/cohort/records": 450,
+    "classification/cohort/exclusions": ["none"],
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": ["care", "administration"],
+    "classification/sources/dataSources": ["emr", "administrative"],
+    "classification/sources/sourceDetails": "1. UHN Epic: psychiatric inpatient, outpatient and ED records for the 3-month review period, and the 12 months before the offence for the crisis plan marker.\n2. Forensic psychiatric evaluation case files (examination records, FPE reports, district court and court of appeal rulings), held by the forensic assessment service that did the evaluations.\nNeither is a research database, so no CAPCR numbers.",
+    "classification/sources/external": true,
+    "identifiability/arrival": "anonymized",
+    "identifiability/keyHolder": "none",
+    "identifiability/fields": "No names or health card numbers. Anonymized case number, gender, age at index offence and age group, units reviewed, the 26 markers, offence variables (charges, type of crime, relationship with victim, modus operandi, intoxication), diagnoses and the court's assessment of severe mental disorder. All needed for the matched analysis.",
+    "identifiability/recognizable": "unlikely",
+    "identifiability/lessIdentifiable": "yesWill",
+    "identifiability/reidentification": "A case number replaces the name on every review form. Only age and age group are kept, no dates of birth. Results are reported in aggregate only.",
+    "identifiability/linkage": ["external"],
+    "identifiability/linkageRisk": "The reviewer links the evaluation file to the UHN chart once, while filling in the review form. After that only the case number is kept, so the combined form isn't more identifying than the evaluation file.",
+    "consent/sought": "notApplicable",
+    "consent/priorConsent": false,
+    "access/custodian": "UHN Health Records for the Epic charts; the forensic assessment service for the evaluation files",
+    "access/custodianApproval": "pending",
+    "access/authority": ["phipa44", "agreement"],
+    "sensitivity/categories": ["mentalHealth"],
+    "sensitivity/indigenous": "no",
+    "sensitivity/input": "notSought",
+    "sensitivity/equity": true,
+    "handling/leaving/leaves": ["no"],
+    "handling/leaving/otherUses": ["none"],
+    "handling/storage/location": ["server"],
+    "handling/storage/access": "PI and two research staff from the Centre for Mental Health. Review forms are entered in UHN REDCap; exports sit in a restricted folder on the UHN research share, access by named accounts only.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "destroyed",
+    "handling/storage/retentionPeriod": "10 years after publication",
+    "handling/storage/breachHarm": ["reidentification", "stigma"],
+    "handling/storage/pia": "notRequired",
+    "handling/storage/disclosure": ["none"],
+    "handling/results/reporting": "suppressed",
+    "handling/results/threshold": 5,
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "The records are historical and the evaluations are finished, so we don't expect to act on anything. If a reviewer sees a risk to someone that still seems current, they tell the PI, who passes it to the treating team.",
+    "digital/uhnHosted": true,
+    "digital/integration": false,
+    "digital/external": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/previouslyApproved": false,
+    "digital/ai/used": false,
+    "team/gcpDate": "2024-05-14",
+    "team/healthProfessionals": false,
+    "team/conflict": false,
+    "team/glossary": true,
+    "resources/funding": false,
+    "resources/staff": false,
+    "resources/extraction": true,
+    "resources/analyst": false,
+    "resources/other": "Data Services to pull the list of patients with psychiatric contacts in the review windows.",
+    "resources/similar": false,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": true,
+    "agreements/organizations/names": "The forensic assessment service that conducted the evaluations. It provides the evaluation case files (examination records, FPE reports, court rulings) for the cases.",
+    "agreements/organizations/accessUhnData": false,
+    "agreements/organizations/flow": "in",
+    "agreements/organizations/patientLevel": true,
+    "agreements/organizations/stores": false,
+    "agreements/organizations/funds": false,
+    "agreements/organizations/existing": false
+  },
+  "weaknesses": [
+    "identifiability/arrival says anonymized with no key, but the forensic review template keeps the forensic authority's case number (Prot_001 p. 2) and every case has to be matched by identity to a UHN chart: this is coded data with the key reachable by the team, which is how consent/sought ends up 'not applicable' with no waiver argued.",
+    "sensitivity/categories ticks only mental health: imprisonment (criminal record, convictions, court rulings) and institutionalization (compulsory psychiatric and forensic care, coercive measures) are missing, and breachHarm leaves out legal consequences."
+  ],
+  "extractions": [
+    {
+      "question": "classification/design",
+      "extractedAnswer": "caseControl",
+      "quote": "we will apply conditional logistic regression, a statistical method well-suited for matched case-control designs",
+      "page": 2,
+      "confidence": 0.93,
+      "reasoning": "The statistical analysis plan names a matched case-control design and conditional logistic regression."
+    },
+    {
+      "question": "classification/question",
+      "extractedAnswer": "Which risk factors in psychiatric care are associated with the likelihood of undergoing a forensic psychiatric evaluation?",
+      "quote": "The primary analysis will focus on assessing associations between specific risk factors and the likelihood of undergoing an FPE.",
+      "page": 2,
+      "confidence": 0.88,
+      "reasoning": "The analysis plan states the primary question as associations between risk factors and undergoing an FPE."
+    },
+    {
+      "question": "classification/contact",
+      "extractedAnswer": "recordsOnly",
+      "quote": "Review Template for Medical Record Review",
+      "page": 2,
+      "confidence": 0.85,
+      "reasoning": "Both templates are record review forms; nothing in the protocol involves contacting anyone."
+    },
+    {
+      "question": "classification/cohort/population",
+      "extractedAnswer": "People who underwent a forensic psychiatric evaluation, with their psychiatric records reviewed for the three months before the index offence.",
+      "quote": "This refers to the full year before the offense, not just the 3-month review period.",
+      "page": 9,
+      "confidence": 0.72,
+      "reasoning": "The marker definitions set a 3-month review period before the index offence; the protocol does not describe the control group."
+    },
+    {
+      "question": "identifiability/arrival",
+      "extractedAnswer": "codedTeamKey",
+      "quote": "Case number (Swedish National Board of Forensic Medicine)",
+      "page": 2,
+      "confidence": 0.81,
+      "reasoning": "The forensic review template records the forensic authority's case number, which links each form back to the person, and the team links it to the medical record itself."
+    },
+    {
+      "question": "sensitivity/categories",
+      "extractedAnswer": ["mentalHealth", "imprisonment", "institutionalization"],
+      "quote": "treated under the Compulsory Psychiatric Care Act or the Forensic Psychiatric Care Act at least once during the review period",
+      "page": 5,
+      "confidence": 0.86,
+      "reasoning": "Besides psychiatric and substance use data, the markers record compulsory and forensic psychiatric care, and the forensic template records convictions and court rulings."
+    }
+  ],
+  "screening": {
+    "summary": "A records-only case-control study on a highly sensitive population: people charged with offences who underwent a forensic psychiatric evaluation. The design is clear, but the form treats the data as anonymized when the team links forensic files to UHN charts by identity, and it understates how sensitive the data is.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "identifiability",
+        "summary": "The data is coded, not anonymized: the team does the linkage and keeps the forensic case number. Consent has been skipped on the strength of the anonymized answer.",
+        "comments": [
+          {
+            "text": "The form says the data arrives anonymized with no key, but the forensic template records the forensic authority's case number, and each case has to be found in Epic by name or health card number before the chart can be reviewed. The team holds the link, so the data is coded with the key reachable by the team. That makes consent 'not applicable' unsupported: a waiver has to be requested and argued.",
+            "kind": "conflict",
+            "severity": "major",
+            "suggestion": "Answer arrival as coded with the key held by the team, or have Data Services do the matching and hand over coded charts. Then request a waiver and answer its conditions.",
+            "subjects": ["identifiability/arrival", "identifiability/keyHolder", "consent/sought"],
+            "quote": "Case number (Swedish National Board of Forensic Medicine)",
+            "page": 2
+          },
+          {
+            "text": "Free-text charges, court rulings, modus operandi and the relationship with the victim can point to a specific case, especially offences that were reported in the news. 'Unlikely' to be recognized is optimistic for this combination.",
+            "kind": "concern",
+            "severity": "medium",
+            "suggestion": "Code charges and rulings into categories at abstraction and keep no free text in the analysis file.",
+            "subjects": ["identifiability/recognizable", "variables"],
+            "quote": "Index offense, criminal charge (free text)",
+            "page": 2
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "sensitive",
+        "summary": "Mental health is ticked, but the dataset also records criminal history and compulsory or forensic psychiatric care.",
+        "comments": [
+          {
+            "text": "Imprisonment and institutionalization aren't ticked, though the study records previous convictions, criminal record entries and court rulings, and markers for compulsory psychiatric care, forensic care and coercive measures. A breach could have legal consequences, which breachHarm leaves out.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Tick imprisonment and institutionalization, and add legal consequences to the breach harms.",
+            "subjects": ["sensitivity/categories", "handling/storage/breachHarm"],
+            "quote": "treated under the Compulsory Psychiatric Care Act or the Forensic Psychiatric Care Act",
+            "page": 5
+          },
+          {
+            "text": "No one placed to see the risks for this group has been asked. Findings about 'warning signs' before offences could feed stigma against psychiatric patients if they're framed carelessly.",
+            "kind": "concern",
+            "severity": "minor",
+            "suggestion": "Ask a patient partner with lived experience of forensic services, or the forensic program's patient advocate, to look at the markers and how results will be reported.",
+            "subjects": ["sensitivity/input"]
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "rigour",
+        "summary": "The case definition and markers are precise. The control group isn't defined.",
+        "comments": [
+          {
+            "text": "Neither the protocol nor the form says where controls come from, what they're matched on, or what their index date is. Without a control index date, the 3-month review window can't be applied to controls at all, and the conditional logistic regression depends on the matching.",
+            "kind": "gap",
+            "severity": "medium",
+            "suggestion": "Define the control source, the matching variables and ratio, and how a control's review window is set.",
+            "subjects": ["classification/cohort/population", "protocol"]
+          }
+        ]
+      }
+    ]
+  },
+  "variableList": [
+    {"field": "Case number (forensic evaluation)", "source": "FPE case file", "identifying": true, "why": "Links the forensic review form to the medical record review form."},
+    {"field": "Gender", "source": "Epic", "identifying": false, "why": "Matching and adjustment."},
+    {"field": "Age at index offence", "source": "FPE case file", "identifying": false, "why": "Matching and adjustment."},
+    {"field": "Age group (18-24, 25-39, 40+)", "source": "Derived", "identifying": false, "why": "Reporting in aggregate."},
+    {"field": "Units reviewed (inpatient, outpatient, ED)", "source": "Epic", "identifying": false, "why": "Where each marker was found."},
+    {"field": "Benzodiazepines or benzodiazepine-like medications", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Central stimulant medications", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Lack of treatment or intervention", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Non-adherence to treatment", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Compulsory psychiatric care", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Coercive measures", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Absence of violence risk assessment", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Increased psychiatric care needs", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Parallel psychiatric and addiction care contacts", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Polypharmacy (5 or more psychiatric medications)", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Weapon possession or interest", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Firearm unsuitability report", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Suicide attempt, current and historical", "source": "Epic", "identifying": false, "why": "Risk markers."},
+    {"field": "Aggression or violence, current and historical", "source": "Epic", "identifying": false, "why": "Risk markers."},
+    {"field": "Missed appointments, with and without follow-up", "source": "Epic", "identifying": false, "why": "Risk markers."},
+    {"field": "Multiple psychiatric diagnoses (ICD clusters)", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Safeguarding concern report", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Police transport to care", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Substance use and alcohol use", "source": "Epic", "identifying": false, "why": "Risk markers."},
+    {"field": "Negative life event, social vulnerability", "source": "Epic", "identifying": false, "why": "Risk markers."},
+    {"field": "Absence of crisis plan (12 months before offence)", "source": "Epic", "identifying": false, "why": "Risk marker."},
+    {"field": "Criminal charges and index offence (free text)", "source": "FPE case file", "identifying": true, "why": "Classify the offence."},
+    {"field": "Violent crime, lethal violence, sexual offence", "source": "FPE case file", "identifying": false, "why": "Offence type for subgroup analysis."},
+    {"field": "Previous convictions and number of criminal record entries", "source": "FPE case file", "identifying": false, "why": "Confounder."},
+    {"field": "Relationship with victim, modus operandi", "source": "FPE case file", "identifying": true, "why": "Describe the offence."},
+    {"field": "Intoxication and suicide attempt at the time of the offence", "source": "FPE case file", "identifying": false, "why": "Describe the offence."},
+    {"field": "Contact with psychiatric services before the offence", "source": "FPE case file", "identifying": false, "why": "Cross-check against the chart."},
+    {"field": "Primary and secondary diagnoses", "source": "FPE case file", "identifying": false, "why": "Adjustment."},
+    {"field": "Severe mental disorder at offence and at evaluation", "source": "FPE case file", "identifying": false, "why": "Outcome classification."},
+    {"field": "District court and court of appeal rulings (free text)", "source": "FPE case file", "identifying": true, "why": "Outcome of the case."}
+  ],
+  "dataSharingAgreement": null
+}

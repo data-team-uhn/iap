@@ -1,0 +1,239 @@
+{
+  "nct": "NCT06638242",
+  "title": "Quality-of-care indicators for acute ischemic stroke across hospital types (IndiQ-AVC)",
+  "answers": {
+    "study/pi": "Amélie Bélanger, RN, MSc",
+    "study/department": "Nursing and Neurology, Toronto Western stroke unit. Doctoral project supervised by Julie Houle and Line Beaudet. Two partner hospitals, a secondary regional centre and a remote primary centre.",
+    "study/summary": "Retrospective review of about 130 randomly selected charts of adults admitted with acute ischemic stroke in the 6 months before REB approval, at three hospitals of different designation: UHN as the tertiary centre, a secondary regional centre and a remote primary centre. We measure 29 clinical and organizational quality indicators (time to imaging and treatment, dysphagia screening, rehab assessments, discharge planning, etc.) and look at which patient characteristics are linked to meeting them. A description of each hospital completes the picture.",
+    "study/sponsor": "academic",
+    "study/sponsorName": "Université du Québec à Trois-Rivières (PI's doctoral program); grant from the Fondation régionale de Trois-Rivières research fund",
+    "classification/purpose": "qi",
+    "classification/contact": "recordsOnly",
+    "classification/design": "chartReview",
+    "classification/question": "How do three differently designated hospitals perform on clinical and organizational quality indicators for acute ischemic stroke, and which sociodemographic and clinical characteristics influence whether indicators are met?",
+    "classification/cohort/population": "Adults 18 and over hospitalized with ischemic stroke on an acute care or stroke unit. Hemorrhagic stroke is the only exclusion. Random sample of about 75 records at UHN, 45 at the secondary centre and 8 to 10 at the primary centre.",
+    "classification/cohort/startDate": "2026-05-01",
+    "classification/cohort/endDate": "2026-10-31",
+    "classification/cohort/dateRationale": "The protocol uses the 6 months before REB approval, so the indicators describe current practice.",
+    "classification/cohort/records": 130,
+    "classification/cohort/exclusions": ["none"],
+    "classification/cohort/minimum": "yes",
+    "classification/sources/originalPurpose": ["care"],
+    "classification/sources/dataSources": ["emr"],
+    "classification/sources/sourceDetails": "UHN Epic inpatient records (Toronto Western stroke unit and acute care units) for the tertiary centre. The health records of the two partner hospitals, reviewed on site. Random lists drawn by each hospital's health records staff. No CAPCR numbers.",
+    "classification/sources/external": true,
+    "identifiability/arrival": "direct",
+    "identifiability/keyHolder": "team",
+    "identifiability/fields": "Collection sheet: study code, centre type, age at admission, sex, ethnicity, home region, distance from home to hospital, stroke diagnosis, thrombolysis and thrombectomy, history and risk factors, dates and times from triage to discharge, assessments, complications, discharge destination. Names and MRNs only in the separate key file.",
+    "identifiability/recognizable": "mitigated",
+    "identifiability/lessIdentifiable": "no",
+    "identifiability/lessIdentifiableWhy": "Dates and times are needed to compute the time-based indicators, like time to dysphagia screening or to a rehab assessment.",
+    "identifiability/reidentification": "Records get a numeric code; the key is in a password-protected file kept apart from the data. No photocopies. The analysis file has no names or record numbers.",
+    "identifiability/linkage": ["no"],
+    "consent/sought": "waiver",
+    "consent/priorConsent": false,
+    "consent/waiver/whyIdentifiable": "We work from the full chart to measure the indicators and need the record number to go back to a chart when data is missing or inconsistent.",
+    "consent/waiver/welfare": "no",
+    "consent/waiver/impracticable": ["cohortSize", "deceased"],
+    "access/custodian": "UHN Health Records and the health records departments of the two partner hospitals",
+    "access/custodianApproval": "pending",
+    "access/authority": ["phipa44"],
+    "sensitivity/categories": ["mentalHealth"],
+    "sensitivity/indigenous": "no",
+    "sensitivity/input": "notSought",
+    "sensitivity/equity": true,
+    "handling/leaving/leaves": ["no"],
+    "handling/leaving/otherUses": ["none"],
+    "handling/storage/location": ["workstation", "paper"],
+    "handling/storage/access": "Only the PI and her research assistant. Collection sheets in a locked filing cabinet; the Excel file is password protected on the PI's password-protected research computer.",
+    "handling/storage/policyDeviation": false,
+    "handling/storage/retention": "destroyed",
+    "handling/storage/retentionPeriod": "7 years after the end of the study",
+    "handling/storage/breachHarm": ["minimal"],
+    "handling/storage/pia": "notRequired",
+    "handling/storage/disclosure": ["none"],
+    "handling/results/reporting": "aggregate",
+    "handling/results/actionable": "no",
+    "handling/results/incidental": "Charts are reviewed after discharge. Care gaps show up in the indicator results, which go back to the units in aggregate. Nothing goes back to individual patients.",
+    "digital/uhnHosted": false,
+    "digital/external": false,
+    "digital/build": false,
+    "digital/onNetwork": false,
+    "digital/previouslyApproved": false,
+    "digital/ai/used": false,
+    "team/gcpDate": "2022-03-09",
+    "team/healthProfessionals": true,
+    "team/hpRoles": ["pi", "coi", "participant"],
+    "team/hpIdentifiable": false,
+    "team/conflict": false,
+    "team/glossary": false,
+    "resources/funding": true,
+    "resources/staff": false,
+    "resources/extraction": true,
+    "resources/analyst": false,
+    "resources/other": "Health records staff to draw the random list of stroke admissions, and a quiet room on the unit for chart review.",
+    "resources/similar": false,
+    "lab/needed": false,
+    "imaging/needed": false,
+    "oncology/pmData": false,
+    "oncology/priorTrial": false,
+    "agreements/involved": true,
+    "agreements/organizations/names": "The secondary regional centre and the remote primary centre: participating sites where the PI reviews records on site. Université du Québec à Trois-Rivières: the PI's university, whose ethics committee also reviews the project.",
+    "agreements/organizations/accessUhnData": false,
+    "agreements/organizations/flow": "in",
+    "agreements/organizations/patientLevel": true,
+    "agreements/organizations/stores": false,
+    "agreements/organizations/funds": false,
+    "agreements/organizations/existing": false
+  },
+  "weaknesses": [
+    "classification/purpose is quality improvement (and contact 'records only'), but the protocol is a doctoral research project with hypotheses, regression analyses and publication, and its environmental scan collects new information from clinicians and managers (pp. 12, 15).",
+    "handling/leaving/leaves and otherUses say nothing leaves UHN and there is no other use, and retention says destroyed, but the protocol deposits the raw and treated chart data in UQTR's Borealis repository for long-term access on request (p. 17)."
+  ],
+  "extractions": [
+    {
+      "question": "classification/purpose",
+      "extractedAnswer": "research",
+      "quote": "the feasibility of a retrospective study was considered within the context of a doctoral project with limited resources, time and budget",
+      "page": 12,
+      "confidence": 0.82,
+      "reasoning": "The protocol calls itself a research protocol for a doctoral project, with research hypotheses and planned publication."
+    },
+    {
+      "question": "classification/cohort/records",
+      "extractedAnswer": 130,
+      "quote": "the sample size is estimated to be some 130 health records",
+      "page": 13,
+      "confidence": 0.93,
+      "reasoning": "About 130 records across the three centres: about 75, 45 and 8 to 10."
+    },
+    {
+      "question": "classification/cohort/exclusions",
+      "extractedAnswer": ["none"],
+      "quote": "The only exclusion criterion is a hemorrhagic stroke.",
+      "page": 12,
+      "confidence": 0.9,
+      "reasoning": "Hemorrhagic stroke is a clinical criterion; no other group is excluded."
+    },
+    {
+      "question": "identifiability/keyHolder",
+      "extractedAnswer": "team",
+      "quote": "It will be possible to trace the identity of patients, but only the principal investigator and her research assistant can access the records.",
+      "page": 17,
+      "confidence": 0.89,
+      "reasoning": "Records are coded, and the PI keeps the file linking codes to records."
+    },
+    {
+      "question": "handling/storage/location",
+      "extractedAnswer": ["workstation", "paper"],
+      "quote": "The data will be entered into a database in a password-protected Excel file on the password-protected research computer belonging to the principal investigator.",
+      "page": 17,
+      "confidence": 0.87,
+      "reasoning": "Data is kept in Excel on the PI's research computer, with paper collection sheets in a locked cabinet."
+    },
+    {
+      "question": "handling/leaving/otherUses",
+      "extractedAnswer": ["repository"],
+      "quote": "Electronic data will be deposited in a UQTR institutional data repository server, Borealis (Dataverse)",
+      "page": 17,
+      "confidence": 0.91,
+      "reasoning": "The protocol deposits the raw and treated data in a university repository, accessible on request."
+    }
+  ],
+  "screening": {
+    "summary": "A careful indicator study with a well-defined data collection sheet, but it is research, not quality improvement, and it sends chart data to an external repository the form doesn't mention. The date range sits right up against approval.",
+    "assessments": [
+      {
+        "approval": "reb",
+        "topic": "classification",
+        "summary": "This is research: a doctoral project with hypotheses, inferential analysis and publication. It also collects new information from staff.",
+        "comments": [
+          {
+            "text": "The form classifies the work as quality improvement, but the protocol is a doctoral research project testing hypotheses across three hospitals, with regression analyses, publication and a data deposit. The 'practice assessment' wording in the consent section doesn't change that; it is research under TCPS 2 Art. 2.5.",
+            "kind": "conflict",
+            "severity": "major",
+            "suggestion": "Classify as research. If the units also want the results for their own QI, say so, but the review follows the research path.",
+            "subjects": ["classification/purpose", "team/glossary", "protocol"],
+            "quote": "the feasibility of a retrospective study was considered within the context of a doctoral project with limited resources, time and budget",
+            "page": 12
+          },
+          {
+            "text": "The environmental scan gathers staffing, experience, turnover and process information through meetings with managers and clinicians at each site. That is new collection from people, so the study isn't records-only, and the design is closer to mixed methods with a chart review component.",
+            "kind": "conflict",
+            "severity": "medium",
+            "suggestion": "Answer contact as yes and describe the consultations, or limit the hospital description to existing documents.",
+            "subjects": ["classification/contact", "classification/design"],
+            "quote": "An environmental analysis will be conducted based on observations in the healthcare setting and on consultations with health professionals",
+            "page": 15
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "transfer",
+        "summary": "Chart data goes to an external university repository, which the form doesn't declare.",
+        "comments": [
+          {
+            "text": "The protocol deposits both raw data drawn from the charts and the treated data in UQTR's Borealis repository, accessible on request. The form says nothing leaves UHN, lists no other use and says the data is destroyed. The raw data has age, sex, ethnicity, home region, distance from home and admission dates and times; with 8 to 10 records from a remote primary centre, it isn't anonymous as the protocol claims.",
+            "kind": "conflict",
+            "severity": "major",
+            "suggestion": "Declare the deposit and the repository. Deposit only derived, de-identified data checked for re-identification risk (no dates, no home region or distance), under restricted access, and get the custodians' agreement.",
+            "subjects": ["handling/leaving/leaves", "handling/leaving/otherUses", "handling/storage/retention", "dsa"],
+            "quote": "Electronic data will be deposited in a UQTR institutional data repository server, Borealis (Dataverse)",
+            "page": 17
+          }
+        ]
+      },
+      {
+        "approval": "reb",
+        "topic": "dateRange",
+        "summary": "The range ends at REB approval, so the most recent patients may still be in care.",
+        "comments": [
+          {
+            "text": "Records come from the 6 months right before approval. Some of these patients will still be in inpatient rehab or in stroke follow-up and could be asked for consent, which weakens the cohort-size and deceased arguments for the waiver.",
+            "kind": "concern",
+            "severity": "minor",
+            "suggestion": "End the range a few months before approval, or explain why consent can't be sought from patients still in care.",
+            "subjects": ["classification/cohort/endDate", "classification/cohort/dateRationale", "consent/waiver/impracticable"],
+            "quote": "during the six months prior to the date of approval by the Research Ethics Board (REB)",
+            "page": 12
+          }
+        ]
+      }
+    ]
+  },
+  "variableList": [
+    {"field": "Patient name and MRN", "source": "Epic / partner hospital records", "identifying": true, "why": "Key file only, to go back to a chart."},
+    {"field": "Study code", "source": "Study", "identifying": false, "why": "Labels the collection sheet."},
+    {"field": "Date of collection, collector", "source": "Study", "identifying": false, "why": "Data quality checks."},
+    {"field": "Centre (tertiary, secondary, primary)", "source": "Study", "identifying": false, "why": "Compare hospital types."},
+    {"field": "Age at admission", "source": "Chart", "identifying": false, "why": "Patient characteristic."},
+    {"field": "Sex", "source": "Chart", "identifying": false, "why": "Patient characteristic."},
+    {"field": "Ethnicity", "source": "Chart", "identifying": false, "why": "Equity of access."},
+    {"field": "Home region", "source": "Chart", "identifying": true, "why": "Equity of access."},
+    {"field": "Distance from home to hospital (km)", "source": "Chart", "identifying": true, "why": "Accessibility."},
+    {"field": "Stroke diagnosis (left or right Sylvian, other)", "source": "Chart", "identifying": false, "why": "Clinical profile."},
+    {"field": "IV thrombolysis, thrombectomy", "source": "Chart", "identifying": false, "why": "Treatment received."},
+    {"field": "History of stroke, other diagnoses, pre-stroke medications", "source": "Chart", "identifying": false, "why": "Clinical profile."},
+    {"field": "COVID-positive", "source": "Chart", "identifying": false, "why": "Confounder."},
+    {"field": "Initial NIHSS and mRS", "source": "Chart", "identifying": false, "why": "Severity and pre-stroke function."},
+    {"field": "Risk factors (smoking, inactivity, obesity, alcohol, drug use, hypertension, dyslipidemia, diabetes, carotid stenosis, sleep apnea)", "source": "Chart", "identifying": false, "why": "Clinical profile."},
+    {"field": "Dates and times of triage, admission, stroke unit and ICU", "source": "Chart", "identifying": true, "why": "Time-based indicators."},
+    {"field": "First nursing, physio, OT, speech, nutrition, social work and physician evaluations (date and time)", "source": "Chart", "identifying": true, "why": "Time-based indicators."},
+    {"field": "Dysphagia screening and first oral intake (date and time)", "source": "Chart", "identifying": true, "why": "Safety indicator."},
+    {"field": "Referral and admission to intensive functional rehab", "source": "Chart", "identifying": false, "why": "Continuity indicator."},
+    {"field": "CT carotid angiogram, cardiac arrhythmia evaluation", "source": "Chart", "identifying": false, "why": "Effectiveness indicators."},
+    {"field": "Braden scale, fall risk, Canadian Neurological Scale, Glasgow, NIHSS post treatment", "source": "Chart", "identifying": false, "why": "Safety indicators."},
+    {"field": "Shoulder pain evaluations", "source": "Chart", "identifying": false, "why": "Effectiveness indicator."},
+    {"field": "Complications (hemorrhage, infections, pneumonia, DVT, depression, anxiety, etc.)", "source": "Chart", "identifying": false, "why": "Safety indicators."},
+    {"field": "Death and date of death", "source": "Chart", "identifying": true, "why": "Mortality indicator."},
+    {"field": "Discharge dates, mRS at discharge", "source": "Chart", "identifying": true, "why": "Effectiveness indicators."},
+    {"field": "Medications prescribed at discharge", "source": "Chart", "identifying": false, "why": "Continuity indicator."},
+    {"field": "Care plans, discharge goals, walking program", "source": "Chart", "identifying": false, "why": "Continuity and reactivity indicators."},
+    {"field": "Discharge destination, secondary prevention referral", "source": "Chart", "identifying": false, "why": "Continuity indicators."},
+    {"field": "Readmission within 30 days", "source": "Chart", "identifying": false, "why": "Effectiveness indicator."},
+    {"field": "Discharge education topics and who gave it", "source": "Chart", "identifying": false, "why": "Reactivity indicators."},
+    {"field": "Hospital characteristics (beds, staffing ratios, experience, turnover, protocols, training)", "source": "Environmental scan", "identifying": false, "why": "Describe each centre."}
+  ],
+  "dataSharingAgreement": null
+}

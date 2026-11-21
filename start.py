@@ -410,8 +410,8 @@ def main(argv):
     if options['test']:
         launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-test-data/%s/slingosgifeature' % platform_version]
     if options['demo']:
-        launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-demo-time-off-request/%s/slingosgifeature'
-                          % platform_version]
+        for feature in ('iap-demo-time-off-request', 'iap-demo-institutional-review'):
+            launcher_args += ['-f', 'mvn:io.uhndata.iap/%s/%s/slingosgifeature' % (feature, platform_version)]
     # The document daemon runs beside a local instance, not as the compose service the aggregated
     # feature names by default
     launcher_args += ['-V', 'docling.url=http://localhost:18765']
