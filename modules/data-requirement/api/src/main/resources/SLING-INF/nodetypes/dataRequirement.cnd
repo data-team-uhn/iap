@@ -1,0 +1,184 @@
+//
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<tag = 'https://iap.uhndata.io/tag/'>
+<data = 'https://iap.uhndata.io/data/'>
+<sch = 'https://iap.uhndata.io/sch/'>
+<datareq = 'https://iap.uhndata.io/datareq/'>
+
+// Data requirements: asking a submitter which existing data they need, and recording the fields
+// they choose.
+//
+// A catalogue lists the data that can be asked for, and lives under /Catalogues. Its content is
+// published in versions. Each version is a full copy: databases, the collections in each database,
+// and the fields in each collection. A schema asks for data with a data requirement naming a
+// catalogue. The submitter answers it with a selection, a part of the submission holding the chosen
+// fields.
+//
+// A selection names the version it was chosen from. A new version changes what later submitters
+// are offered, and never what an earlier one chose.
+
+// The homepage of the catalogues, at /Catalogues.
+[datareq:CataloguesHomepage] > data:EntityHomepage
+  - sling:resourceType (STRING) = "datareq/CataloguesHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
+
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  + * (datareq:Catalogue) = datareq:Catalogue
+
+  + * (nt:base) = nt:unstructured
+
+// A list of the data a submitter may be asked to choose from. What it lists lives in its versions.
+[datareq:Catalogue] > data:Entity, tag:Boundary
+  - sling:resourceType (STRING) = "datareq/Catalogue" mandatory autocreated protected
+
+  - title (STRING) mandatory
+
+  - description (STRING)
+
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  + * (datareq:CatalogueVersion)
+
+  + * (nt:base) = nt:unstructured
+
+// One published state of a catalogue, which a selection is made against. A published version is
+// not changed: when a source system gains or loses fields, the catalogue gets a new version. The
+// version a catalogue currently offers carries the `active` lifecycle tag.
+//
+// Named v1, v2 and so on. The `version` property holds the label a reader sees, such as 2026-08.
+[datareq:CatalogueVersion] > data:Entity, tag:Boundary
+  orderable
+
+  - sling:resourceType (STRING) = "datareq/CatalogueVersion" mandatory autocreated protected
+
+  - version (STRING) mandatory
+
+  - description (STRING)
+
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  + * (datareq:Database)
+
+  + * (nt:base) = nt:unstructured
+
+// One source system within a catalogue version.
+//
+// On this type and the two below it, `identifier` is the source system's own name for the item. A
+// chosen field is recorded as the identifiers of its database, collection and field, joined into a
+// key, so renaming any of them changes every key built from it.
+[datareq:Database] > data:EntityPart
+  orderable
+
+  - sling:resourceType (STRING) = "datareq/Database" mandatory autocreated protected
+
+  - identifier (STRING) mandatory
+
+  - label (STRING)
+
+  - description (STRING)
+
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  + * (datareq:Collection)
+
+  + * (nt:base) = nt:unstructured
+
+// A named group of fields within a database, such as a table. The interface calls it a collection,
+// whatever the source system calls it. `label` is what a reader is shown; without one, the reader
+// sees the identifier.
+[datareq:Collection] > data:EntityPart
+  orderable
+
+  - sling:resourceType (STRING) = "datareq/Collection" mandatory autocreated protected
+
+  - identifier (STRING) mandatory
+
+  - label (STRING)
+
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  + * (datareq:Field)
+
+  + * (nt:base) = nt:unstructured
+
+// One field a submitter may ask for.
+[datareq:Field] > data:EntityPart
+  orderable
+
+  - sling:resourceType (STRING) = "datareq/Field" mandatory autocreated protected
+
+  - identifier (STRING) mandatory
+
+  - label (STRING)
+
+  - description (STRING)
+
+  - cardinality (STRING)
+
+  - dataType (STRING)
+
+  // Whether the field holds personal health information. No default: absent means nobody has
+  // assessed the field, while false means it was assessed and holds none.
+  - phi (BOOLEAN)
+
+  - example (STRING)
+
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  + * (nt:base) = nt:unstructured
+
+// A requirement asking the submitter which data they need, answered by choosing fields out of a
+// catalogue.
+//
+// It names the catalogue rather than one of its versions. The version a submitter chose from is
+// recorded on their selection.
+[datareq:DataRequirement] > sch:Requirement
+  - sling:resourceType (STRING) = "datareq/DataRequirement" mandatory autocreated protected
+
+  - catalogue (REFERENCE) mandatory
+
+// The fields chosen in answer to one data requirement, as a part of the submission that holds them.
+//
+// Fields are held by key rather than by reference. A catalogue version is a full copy, so a field
+// that did not change between two versions is still two different nodes, and a reference would have
+// to be rewritten for each new version. A key stays the same. It is also what an export outside
+// this platform carries.
+[datareq:Selection] > data:EntityPart, mix:referenceable, mix:lastModified
+  - sling:resourceType (STRING) = "datareq/Selection" mandatory autocreated protected
+
+  - fulfills (REFERENCE) mandatory
+
+  // The catalogue version the fields were chosen from. Set by the first save and never changed.
+  // Absent before that save: the part is created empty as soon as the requirement applies.
+  - catalogueVersion (REFERENCE)
+
+  - fields (STRING) multiple
+
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  + * (nt:base) = nt:unstructured

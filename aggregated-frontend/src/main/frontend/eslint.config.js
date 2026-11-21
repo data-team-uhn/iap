@@ -257,4 +257,38 @@ export default defineConfig([
       "@typescript-eslint/no-non-null-assertion": "off",
     },
   },
+
+  // The catalogue browser can be shown on any page, so it may import only from itself and from
+  // frontend-commons. The code joining it to a submission lives beside it, outside this folder.
+  {
+    files: [ "src/data-requirement/catalogue/**/*.{ts,tsx}" ],
+    // The tests are exempt: they import the browser through the @iap alias
+    ignores: [ "src/data-requirement/catalogue/**/*.{test,spec}.{ts,tsx}",
+      "src/data-requirement/catalogue/**/*.fixture.{ts,tsx}" ],
+    settings: {
+      "import/resolver": { node: { extensions: [ ".ts", ".tsx", ".js" ] } },
+    },
+
+    rules: {
+      "no-restricted-imports": [ "error", {
+        patterns: [
+          {
+            // One level, not `**`: a pattern cannot re-include a path whose parent it has excluded
+            group: [ "@iap/*", "!@iap/frontend-commons" ],
+            message: "The catalogue may depend on frontend-commons only; put the glue beside it.",
+          },
+        ],
+      } ],
+      "import/no-restricted-paths": [ "error", {
+        zones: [
+          {
+            target: "./src/data-requirement/catalogue",
+            from: "./src",
+            except: [ "./data-requirement/catalogue" ],
+            message: "The catalogue may not depend on anything outside itself; put the glue beside it.",
+          },
+        ],
+      } ],
+    },
+  },
 ]);

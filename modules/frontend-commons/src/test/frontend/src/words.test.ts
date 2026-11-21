@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { listed } from "@iap/frontend-commons/words";
+import { countOf, listed, nounFor } from "@iap/frontend-commons/words";
 
 describe("listed", () => {
   it("joins the last word with \"and\" and the others with commas", () => {
@@ -27,5 +27,20 @@ describe("listed", () => {
   it("gives a single word as it is, and nothing for none", () => {
     expect(listed([ "added" ])).toBe("added");
     expect(listed([])).toBe("");
+  });
+});
+
+describe("countOf", () => {
+  it("puts the noun in the singular for one, and in the plural otherwise", () => {
+    expect(countOf(1, "field")).toBe("1 field");
+    expect(countOf(3, "field")).toBe("3 fields");
+    expect(countOf(0, "field")).toBe("0 fields");
+  });
+});
+
+describe("nounFor", () => {
+  it("gives the noun alone, in the singular for one and the plural otherwise", () => {
+    expect(nounFor(1, "field")).toBe("field");
+    expect(nounFor(2, "field")).toBe("fields");
   });
 });
