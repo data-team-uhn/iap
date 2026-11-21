@@ -28,7 +28,7 @@ import SearchField from "./SearchField";
 
 import type { DocumentSearch } from "./pdfViewerModel";
 
-// The narrowest toolbar, in pixels, with room for the search field beside the controls it is given.
+// The narrowest toolbar, in pixels, that has room for the search field beside its other controls.
 const SEARCH_FIELD_ROOM = 600;
 
 // What the viewer can ask of its toolbar.

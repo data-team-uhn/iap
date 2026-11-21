@@ -63,7 +63,7 @@ function getUnchangedPlaces(known: KnownPlaces | undefined, pdf: OpenedDocument,
 // mark that has not changed keeps the place already found for it.
 export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): { places: MarkPlaces; read: number } {
   const [found, setFound] = useState<KnownPlaces & { read: number } | undefined>(undefined);
-  // The places last found, for the next marks to keep what has not changed.
+  // The places last found. When the marks change, those that did not change keep their places from here.
   const knownRef = useRef<KnownPlaces | undefined>(undefined);
 
   useEffect(() => {
@@ -123,7 +123,7 @@ export function useMarkPlaces(pdf: OpenedDocument | undefined, marks: Mark[]): {
   }, [pdf, marks]);
 
   // Until the reading reports for these marks in this document, the marks that have not changed keep their
-  // places. The others have the places they have before any page is read.
+  // places. The others get the places a locator gives before it has read any page.
   return useMemo(() => {
     if (found?.marks === marks && found.pdf === pdf) {
       return { places: found.places, read: found.read };

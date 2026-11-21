@@ -42,7 +42,7 @@ export function getSelectedOutline(theme: Theme, kind: MarkKind): string {
 }
 
 // The tint of a card's background: its mark's light colour at the opacity `strength`. A change's card has
-// no tint up to a strength of 0.25, and the hover grey above it.
+// no tint at a strength of 0.25 or less, and the hover grey above that.
 export function getPassageTint(theme: Theme, kind: MarkKind, strength: number): string {
   if (isChangeKind(kind)) {
     return strength > 0.25 ? (theme.vars ?? theme).palette.action.hover : "transparent";
@@ -65,14 +65,15 @@ export function getPassageCardStyle(theme: Theme, kind: MarkKind, strength = 0.2
   };
 }
 
-// The background of the part of a card that shows the passage: a second tint over the card's, setting the
-// passage apart from the details under it.
+// The background of the part of a card that shows the passage: a second tint over the card's, which sets
+// the passage apart from the details under it.
 export function getPassageLayerStyle(theme: Theme, kind: MarkKind) {
   return { bgcolor: getPassageTint(theme, kind, 0.25) };
 }
 
 // The style of the details a card shows under the passage, such as comments. With `lines`, they are cut
-// short after that many lines. They fade out at each edge `edges` says has more. The padding on top keeps
+// short after that many lines. They fade out at each edge that `edges` marks as having more to scroll to.
+// The padding on top keeps
 // a field's label, which reaches up out of the field, from being cut off. Hidden when empty.
 export function getPassageDetailsStyle(edges: ScrollEdges, lines?: number) {
   return {

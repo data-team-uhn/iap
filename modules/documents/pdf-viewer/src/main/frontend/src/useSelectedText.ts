@@ -34,7 +34,7 @@ export interface SelectedText {
   place: CommentButtonPlace;
 }
 
-// The whole selection, from the start of its first range to the end of its last, or nothing when it is
+// The whole selection, from the start of its first range to the end of its last, or undefined when it is
 // empty. A browser may give a selection across the document as several ranges.
 function getSelectedRange(selection: Selection | null): Range | undefined {
   if (selection === null || selection.isCollapsed) {
@@ -46,9 +46,9 @@ function getSelectedRange(selection: Selection | null): Range | undefined {
   return range;
 }
 
-// The text selected in the document shown, while enabled, once the selection has settled. It is cleared
-// while the selection changes, while the document scrolls or zooms, and while the pointer is down in the
-// document. It is read again once all is still. `dismiss` clears it until one of those happens again.
+// The text selected in the document shown, while enabled, once the selection has settled. It is cleared while
+// the selection changes, while the document scrolls or zooms, and while the pointer is down in the document.
+// It is read again once all of these have stopped. `dismiss` clears it until one of those happens again.
 // `hold` keeps it until the pointer is pressed anywhere else, even when pressing the Comment button clears
 // the selection, as a tap does on some phones.
 export function useSelectedText(shown: ShownDocument | undefined, enabled: boolean) {
@@ -64,7 +64,8 @@ export function useSelectedText(shown: ShownDocument | undefined, enabled: boole
     const { signal } = stop;
     let settling = 0;
     let pressed = false;
-    // Whether the last press in the document was by touch, which puts the Comment button further down.
+    // The kind of pointer that last pressed in the document. After a touch, the Comment button goes further
+    // down.
     let pointerType = "mouse";
     const read = () => {
       const range = getSelectedRange(document.getSelection());

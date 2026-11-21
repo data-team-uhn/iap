@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// Whether the viewer is narrow, as it is resized.
+// Whether the viewer is narrow, updated as it is resized.
 import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
 
 // The width, in pixels, below which a viewer shows its passages one at a time above the document rather

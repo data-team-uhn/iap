@@ -81,7 +81,7 @@ describe("loadPdfViewer", () => {
   it("imports the viewer once for documents opened together, and again after failing to", async () => {
     vi.resetModules();
     imports.failing = true;
-    // vi.resetModules() keeps what a vi.mock factory returned, so the factory is registered again to run.
+    // vi.resetModules() keeps what a vi.mock factory returned. Registering the factory again makes it run.
     vi.doMock("pdfjs-dist/web/pdf_viewer.mjs", fakeViewer);
     const { loadPdfViewer } = await import("@iap/documents-pdf-viewer/pdfjsViewer");
 

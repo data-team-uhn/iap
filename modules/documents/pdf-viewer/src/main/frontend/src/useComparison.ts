@@ -46,10 +46,10 @@ function useStrictComparison() {
 // One empty list for every render, so the memos depending on it keep their value.
 const NO_CHANGES: RevisionChange[] = [];
 
-// Compares a document with an older version of it, given by its URL. Returns the older version opened, how
-// the comparison goes, the changes shown, and the marks showing them on each version. It also returns the
-// person's choices of view and of strictness, with their setters. Undefined without an older version. While
-// the view is off, the older version is not opened and nothing is compared.
+// Compares a document with an older version of it, given by its URL. Returns the opened older version, the
+// state of the comparison, the changes shown, and the marks that show them on each version. It also returns
+// the person's choices of view and of strictness, with their setters. Returns undefined when there is no
+// older version. While the view is off, the older version is not opened and nothing is compared.
 export function useComparison(olderUrl: string | undefined, newer: OpenedDocument | undefined) {
   const [strict, setStrict] = useStrictComparison();
   const [view, setView] = useComparisonView();

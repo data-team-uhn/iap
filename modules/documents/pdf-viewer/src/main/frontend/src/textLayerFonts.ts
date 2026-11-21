@@ -21,24 +21,24 @@
 // PDF.js sets its text layer in a generic font, `sans-serif`, `serif` or `monospace`, and stretches each piece
 // of text to the width the page draws it. Only the two ends of a piece are then in place. A character inside
 // sits where the generic font puts it, up to tens of pixels from its glyph where narrow and wide letters mix.
-// PDF.js has already loaded the page's own fonts to draw it, named as its text content names each piece's
-// font. This sets each piece in that font instead.
+// PDF.js has already loaded the page's own fonts to draw it, under the names its text content gives each
+// piece's font. This sets each piece in that font instead.
 //
 // The loaded font draws each glyph from a private code, but PDF.js also maps the character the PDF says a glyph
 // stands for to that glyph. The piece's text therefore finds the glyphs the page draws. A character the font
 // lacks, such as either letter of a ligature, falls back to the generic font.
 //
-// This relies on PDF.js internals: that mapping, one span per piece of text in order, and the loaded font's
-// name being the piece's `fontName`. Where a span or a font is missing, the text is left as PDF.js laid it out,
-// so the worst case is PDF.js's own. A real-browser test checks a known PDF, so a PDF.js upgrade that changes
-// these internals fails it.
+// This relies on PDF.js internals: that mapping, one span for each piece of text in order, and a loaded font
+// named by the piece's `fontName`. Where a span or a font is missing, the text is left as PDF.js laid it out,
+// so the worst case is PDF.js's own layout. The integration test `pdf-text-layer.spec.ts` checks a known PDF
+// in a real browser, and fails if a PDF.js upgrade changes these internals.
 
 // The pieces of text PDF.js draws in a text layer, one per piece of the page's text content that has text.
 // The role sets them apart from the spans PDF.js also puts there: marked content around them, and search
 // highlights inside them.
 const TEXT_SPANS = "span[role=\"presentation\"]";
 
-// What setting the text in the page's fonts needs of the browser, kept apart to be tested without one.
+// What setting the text in the page's fonts needs from the browser, kept apart so tests can supply it.
 export interface PageFonts {
   // The names of the fonts loaded into the page.
   loaded: ReadonlySet<string>;
@@ -63,8 +63,8 @@ function isSetIn(span: HTMLElement, fontName: string): boolean {
 }
 
 // Sets each piece of a text layer in its loaded font, given the font of each piece in order, and keeps the
-// piece's width. PDF.js measures a piece in its own font whenever it lays the layer out again, as after a
-// zoom, so this is done once per piece. Returns whether any piece changed.
+// piece's width. A piece already set in its font is left alone: PDF.js measures a piece in its own font
+// whenever it lays the layer out again, such as after a zoom. Returns whether any piece changed.
 export function alignTextLayer(textLayer: HTMLElement, fontNames: string[], fonts: PageFonts): boolean {
   const spans = Array.from(textLayer.querySelectorAll<HTMLElement>(TEXT_SPANS));
   if (spans.length !== fontNames.length) {
@@ -97,7 +97,7 @@ export function alignTextLayer(textLayer: HTMLElement, fontNames: string[], font
 // The size text is measured at. Large, so that rounding does not count.
 const MEASURE_SIZE = 1000;
 
-// The browser's loaded fonts and a canvas to measure text with, or nothing where the browser offers neither,
+// The browser's loaded fonts and a canvas to measure text with, or undefined where the browser lacks either,
 // as in tests.
 export function readPageFonts(): PageFonts | undefined {
   const context = typeof document.fonts === "undefined" ? null : document.createElement("canvas").getContext("2d");

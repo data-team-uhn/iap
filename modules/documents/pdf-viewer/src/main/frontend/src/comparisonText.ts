@@ -50,8 +50,8 @@ export function describeChange(change: RevisionChange, among?: { index: number; 
 
 // What to say about a comparison, given whether minor changes are shown. `count` is how many changes are
 // shown, when there are any. `caption` goes beside the controls: the progress, why there is nothing to show,
-// or the minor changes left out or included. `said` is what a screen reader hears. Once compared, it puts the
-// count before the caption.
+// or the minor changes left out or included. `said` is what a screen reader hears. Once the comparison is
+// done, `said` puts the count before the caption.
 export function describeComparison(
   state: ComparisonState,
   strict: boolean,

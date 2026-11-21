@@ -27,10 +27,10 @@ import { CHANGES, nameMarks, type MarkName } from "./pdfViewerModel";
 import type { Mark } from "./marksModel";
 import type { MarkPlaces } from "./useMarkPlaces";
 
-// The marks in the order they are listed, each named and numbered among the marks of its sort, and the one on
-// the card above the document. Changes are called changes and the caller's marks by `markName`. Without
-// `changesListed`, the changes are left out, as when the versions are side by side and the comparison's own
-// controls step through them.
+// Returns the listed marks in order, each with a name and its number among the marks of its sort. It also
+// returns the mark on the card above the document. Changes are called changes, and the caller's marks are
+// called by `markName`. Without `changesListed`, the changes are left out, as when the versions are side by
+// side and the comparison's own controls step through them.
 export function usePassages({ marks, places, changeIds, changesListed, markName, selectedId, onSelect, showMark }: {
   marks: Mark[];
   places: MarkPlaces;
@@ -54,8 +54,8 @@ export function usePassages({ marks, places, changeIds, changesListed, markName,
   );
   const selectedAt = listed.findIndex(mark => mark.id === selectedId);
   const selected = selectedAt < 0 ? undefined : listed[selectedAt];
-  // A selected mark that is not listed, such as a change while the versions are side by side, leaves the card
-  // on the listed mark selected last.
+  // When the selected mark is not listed, such as a change while the versions are side by side, the card
+  // keeps the last listed mark that was selected.
   const [cardId, setCardId] = useState<string | undefined>(undefined);
   if (selected !== undefined && selected.id !== cardId) {
     setCardId(selected.id);

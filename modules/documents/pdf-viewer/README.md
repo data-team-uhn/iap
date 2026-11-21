@@ -23,8 +23,8 @@ version of the same document, it also shows what changed.
 
 | Prop | What it does |
 |---|---|
-| `url` | The PDF to open. Another `url` opens that document afresh |
-| `page` | The page to open at, from 1. Without it, the selected mark's page, or else the first. Another `page` takes the reader there, keeping the zoom and the search |
+| `url` | The PDF to open. A different `url` opens that document from the start |
+| `page` | The page to open at, counting from 1. Without it, the viewer opens at the selected mark's page, or else at page 1. A different `page` later takes the reader there, and keeps the zoom and the search |
 | `marks` | The passages to mark, in the order to list them ([Marks](#marks)) |
 | `selectedMarkId`, `onSelectMark` | Follow and set the selection ([Listing and selecting](#listing-and-selecting)) |
 | `markName` | What the marks are called, such as `{ one: "comment", many: "comments" }`. Passages by default |
@@ -37,10 +37,10 @@ version of the same document, it also shows what changed.
 
 The viewer opens in a dialog. Given a `container`, it fills that element instead and can
 pop out into a dialog and back, keeping the page, zoom, marks and search. **The element
-needs a height of its own.** A `container` that is `null`, as a ref is before React
-attaches it, shows nothing until the element is there. Unlike PDF.js's own viewer, a
-file dropped on the document does nothing, and scrolling stops at the document's ends
-rather than scrolling the dialog around it.
+needs a height of its own.** While `container` is `null`, as a ref is before React
+attaches it, the viewer shows nothing. Unlike PDF.js's own viewer, a file dropped on the
+document does nothing, and scrolling stops at the document's ends rather than scrolling
+the dialog around it.
 
 ## Marks
 
@@ -49,14 +49,15 @@ Each mark has an `id`, a `kind`, and its place, given in one of three ways:
 | Place | For | How it is placed |
 |---|---|---|
 | `quote`, with an optional `page` | A passage known by its text, such as an assistant's evidence | Looked for from `page` to the end, then from the first page |
-| `spans` | A passage whose place is known, such as a change between two versions | Where it says. Spans that run backwards or past their page's text are not in the document |
-| `anchor` | A passage kept to be shown again, such as one a person commented on | Where it says while the text there still says its quote, otherwise found again ([Anchors](#anchors)) |
+| `spans` | A passage whose place is known, such as a change between two versions | Where it says. Spans that run backwards or past their page's text count as not found |
+| `anchor` | A passage kept to be shown again, such as one a person commented on | Where it says, while the text there still matches its quote. Otherwise it is found again ([Anchors](#anchors)) |
 
 The `kind` sets the colour: `assistant` or `annotation` for whose passage it is, `added`
 or `removed` for what a comparison found.
 
-A quote is matched across page breaks, ignoring spacing, case, accents and typographic
-quotes, and any hyphen or dash not before a digit. Once found, it is kept as spans too.
+A quote is matched across page breaks too. Matching ignores spacing, case, accents,
+typographic quotes, and any hyphen or dash that is not before a digit. Once found, the
+quote is kept as spans too.
 
 A span is a `page` with the `start` and `end` offsets it covers in that page's text, one
 span per page the passage runs over. Equal offsets make a point between two characters,
@@ -64,12 +65,12 @@ drawn after the character before it, or with `starts` before the character after
 the start of the text that follows.
 
 **Offsets are into a page's text as PDF.js reads it for its text layer**: the strings
-`getTextContent` gives with `disableNormalization`, joined — the text of the layer's own
-text nodes, which `usePdfDocument`'s `getPageText` returns. The text layer ends a line
-with an element rather than a character, so lines run on in this text without a space;
-`getPageTextWithLines` says where lines end, and `getPassageText` puts a space there.
-Selected text maps back to the same offsets: `getSelectedSpans` gives a range as one
-span per page, leaving out the spaces at either end.
+that `getTextContent` gives with `disableNormalization`, joined. This is the text of the
+layer's own text nodes, which `usePdfDocument`'s `getPageText` returns. The text layer
+ends a line with an element rather than a character, so lines run on in this text
+without a space; `getPageTextWithLines` says where lines end, and `getPassageText` puts
+a space there. Selected text maps back to the same offsets: `getSelectedSpans` gives a
+range as one span per page, leaving out the spaces at either end.
 
 Marks are drawn on PDF.js's text layer, under the text, so PDF.js's own search matches
 show over them. They let the pointer through, so text can still be selected across them,
@@ -77,7 +78,8 @@ and a click goes to the mark where it falls.
 
 ## Anchors
 
-A `TextAnchor` keeps a passage as the W3C's text position and quote selectors do:
+A `TextAnchor` records a passage in the form of the text position and text quote
+selectors of the W3C's Web Annotation model:
 
 | Field | What it is |
 |---|---|
@@ -90,25 +92,25 @@ A `TextAnchor` keeps a passage as the W3C's text position and quote selectors do
 **The quote is what is trusted**, since a later PDF.js may read the same file into
 different offsets. When the text at the offsets no longer says the quote, the viewer
 looks for the quote everywhere and takes the occurrence whose surrounding text is most
-like `before` and `after`; a tie goes to an occurrence whole on one page, then to the
+like `before` and `after`; a tie goes to an occurrence on a single page, then to the
 one nearest the anchor's page. A quote too short to trust, such as a single word, is
 taken only where some of its surrounding text is unchanged.
 
 An anchor is stored as text with what it anchors, such as a review comment.
-`encodeAnchor` gives an `EncodedAnchor`, and `decodeAnchor` reads one back, or gives
-nothing for one it cannot read. Its `start` and `end` are each written
+`encodeAnchor` gives an `EncodedAnchor`, and `decodeAnchor` reads one back, or returns
+`undefined` for one it cannot read. Its `start` and `end` are each written
 `page=3&char=120`, as in PDF.js's open parameters and RFC 5147's text fragments. Its
 `text` is a text fragment directive without its `text=`: `before-,quote,-after`, each
 part percent-encoded, dashes included.
 
 ## Reading the pages
 
-The viewer reads page text only while some passage is still being looked for, starting
-with the pages marks name — those of their spans or anchors, and the page a quote is
-looked for from — so a passage that is where it says is found without waiting for the
-pages before it. A document opened with no passages is not read at all. A bar along the
-top of the document shows how much has been read; `useMarkPlaces` gives that count with
-where the passages are.
+The viewer reads page text only while some passage is still being looked for. It starts
+with the pages the marks name: those of their spans or anchors, and the page each quote
+is looked for from. A passage that is where it says is then found without waiting for
+the pages before it. A document opened with no passages is not read at all. A bar along
+the top of the document shows how much has been read; `useMarkPlaces` gives that count
+with where the passages are.
 
 `marks` can be a new array on every render: the viewer compares marks by `id`, `kind`
 and place, and an unchanged mark keeps the place found for it, so adding a comment looks
@@ -119,8 +121,8 @@ only for the new one.
 Marks, selections and search matches all sit on PDF.js's text layer, transparent text
 laid over each page. PDF.js sets it in a generic font and stretches each piece to the
 width the page draws it, so a character inside a piece sits where the generic font puts
-it — on a line of narrow and wide letters, tens of pixels from its glyph, and selecting
-it picks up the letter beside it.
+it. On a line of narrow and wide letters, that can be tens of pixels from its glyph, and
+selecting the character picks up the letter beside it.
 
 `textLayerFonts` sets each piece in the font PDF.js loaded to draw the page, at the same
 width, and the viewer redraws a page's marks once it has both its text and its fonts.
@@ -133,10 +135,10 @@ it.
 
 A single passage is shown on a card above the document. Several are listed beside it in
 the order given, those that cannot be found last, each entry ending with its page. A
-heading says which is selected of how many ("Passage 3 of 12"), with buttons to step
-through them. The list scrolls when the passages do not fit, fading out at an end with
-more beyond it; `useScrollEdges` and `fadeEdges`, in `frontend-commons`, do this for any
-scrolling element.
+heading says which passage is selected and how many there are ("Passage 3 of 12"), with
+buttons to step through them. The list scrolls when the passages do not fit, and fades
+out at an end that has more beyond it; `useScrollEdges` and `fadeEdges`, in
+`frontend-commons`, do this for any scrolling element.
 
 A viewer narrower than `NARROW_VIEWER_WIDTH` shows passages one at a time above the
 document instead. **It is the viewer's width that counts, not the screen's**
@@ -146,8 +148,8 @@ can be swiped, left for the next and right for the previous; `useSwipe`, in
 
 Selecting a passage takes the reader to it, and clicking a mark in the document selects
 it. On opening, the viewer selects the first passage not known to be missing and goes to
-it once found — unless the person has meanwhile scrolled by hand, with a wheel, a
-finger, the scrollbar or a key (`isScrollByHand`).
+it once found. It does not go there if the person has scrolled by hand in the meantime,
+with a wheel, a finger, the scrollbar or a key (`isScrollByHand`).
 
 A caller following or setting the selection, such as a review screen showing comments
 beside the document, passes `selectedMarkId` and `onSelectMark`. The viewer reports each
@@ -155,7 +157,7 @@ passage the person selects through `onSelectMark`; setting `selectedMarkId` to a
 mark selects it and takes the reader there. **Echoing back the mark the viewer just
 reported does not move the reader**, but selecting it again later does.
 
-With `markName`, the viewer counts and steps through the marks by that name — in the
+With `markName`, the viewer counts and steps through the marks by that name: in the
 heading, the buttons, the list and what a screen reader hears ("Comment 3 of 12 is
 marked on page 4."). Changes found by a comparison keep their own name, and a control
 about the text a mark covers, such as "Show the passage on page 4", still says passage.
@@ -178,21 +180,21 @@ time a search counts its matches.
 While what is on the card holds a field to type in (`TEXT_ENTRY`, from
 `frontend-commons/textEntry`), such as a comment being written, the card stays open. The
 card takes at most three fifths of the viewer's height and scrolls past that, so a
-caller's field that grows as it is typed in should stop after a few rows, keeping its
-buttons in view.
+caller's field that grows as it is typed in should stop growing after a few rows, so
+that its buttons stay in view.
 
 ## Commenting on a selection
 
 With `onAnnotate`, the viewer offers a Comment button once text is selected and the
-selection has settled: the pointer let go, and nothing changing for `SETTLE_TIME`
-(300ms). The button sits under the end of the selection, inside the document, and lower
-after a touch selection, clear of the phone's handles and menu. Scrolling or zooming
-hides it until the document is still; Escape hides it until the selection changes,
-without closing the viewer.
+selection has settled: the pointer is up, and the selection has not changed for
+`SETTLE_TIME` (300ms). The button sits under the end of the selection, inside the
+document, and lower after a touch selection, clear of the phone's handles and menu.
+Scrolling or zooming hides it until the document is still; Escape hides it until the
+selection changes, without closing the viewer.
 
 Pressing it gives `onAnnotate` the selected passage as a `TextAnchor` and clears the
-selection. What follows is the caller's, typically adding the passage as a mark and
-opening a comment box for it. A view built from the viewer's parts can follow the
+selection. What happens next is up to the caller, typically adding the passage as a mark
+and opening a comment box for it. A view built from the viewer's parts can follow the
 selection with `useSelectedText`.
 
 ## Searching
@@ -234,7 +236,7 @@ toolbar's place.
 | `ViewerPlacement` | Puts a viewer in place or in a dialog |
 | `ViewerTitle` | The viewer's top row |
 | `ViewerToolbar` | The toolbar: what it is given at its start and end, around the search |
-| `PageControls`, `ZoomControls` | What the viewer gives the toolbar |
+| `PageControls`, `ZoomControls` | The controls the viewer puts in the toolbar |
 | `useSelectedText` | Follows the text selected in the document |
 
 ## Comparing two versions
@@ -254,18 +256,18 @@ screen up to its `xl` width:
 
 ### How it compares
 
-Only the text is compared, as PDF.js reads it for the text layer, like a diff of lines
-followed by a diff of words: whole sentences are matched first, then the words inside
-the sentences that changed. A common word therefore counts as the same only inside a
-matching sentence, and a rewritten passage is one change rather than several around it.
-Two changes in a sentence separated by no more than half the size of each are joined
-into one (`joinChanges`).
+Only the text is compared, as PDF.js reads it for the text layer, in two passes: whole
+sentences are matched first, then the words inside the sentences that changed. A common
+word therefore counts as the same only within the changed sentences around it, and a
+rewritten passage is one change rather than several around it. Two changes separated by
+no more shared words than half the size of each change are joined into one
+(`joinChanges`).
 
 `getLenientKey` decides when two words are the same, and `getStrictKey` when they are
 written the same. Spacing, line ends, case, the punctuation around a word and hyphens
 inside it, which a line break may add, are ignored. Apostrophes count, so "patient's"
 and "patients" differ, and a word with a digit keeps its separators, hyphens and sign,
-so "1,000" and "1.000" differ, as do "IL-6" and "IL6". Words matching but differing in
+so "1,000" and "1.000" differ, as do "IL-6" and "IL6". Words that match but differ in
 case or punctuation, or a change of punctuation alone, are a **minor** change; a full
 stop or capital that only moved because of the change beside it is no change at all.
 
@@ -286,10 +288,10 @@ Including or leaving out minor changes only shows or hides them: nothing is comp
 again, and every change keeps its id. If a minor change is selected when they are left
 out, the next change shown is selected instead.
 
-**Each comparison numbers its changes afresh**, as `change-<comparison>-<n>`. Another
-`compareWith` compares in place — the newer version stays where the reader is, and the
-older one opens at the matching place — so a change selected in the last comparison, by
-the viewer or its caller, selects nothing in the next, and the viewer picks a mark as it
+**Each comparison numbers its changes anew**, as `change-<comparison>-<n>`. A different
+`compareWith` compares in place: the newer version stays where the reader is, and the
+older one opens at the matching place. A change selected in the last comparison, by the
+viewer or its caller, selects nothing in the next, and the viewer picks a mark as it
 does on opening.
 
 ### How changes look
@@ -298,23 +300,23 @@ Each change is a mark: `added` text in the newer version, `removed` text in the 
 Where text was removed, the newer version shows a translucent box around a text cursor,
 at least `POINT_MIN_SIZE` high, that a finger can tap from up to 20px away (8px with a
 mouse) without taking a tap meant for a mark beside it. Text that replaced removed text
-starts with a bar in the colour of removed text, so it reads differently from text
-simply added.
+starts with a bar in the colour of removed text, so it can be told apart from text that
+was only added.
 
 Selecting a change, by stepping, from the list or in either version, takes every version
 shown to it.
 
 With the newer version alone, changes are listed and stepped through among the caller's
-marks — after those found, before any that cannot be — each named as what it is ("Change
-2 of 7", "Comment 3 of 5"), with step buttons named after the mark they go to
-(`getStepNames`). A change's card shows the removed text struck through beside the added
-text, among a few words of context that stop short of the changes either side
+marks, after those found and before any that cannot be found. Each is named as what it
+is ("Change 2 of 7", "Comment 3 of 5"), with step buttons named after the mark they go
+to (`getStepNames`). A change's card shows the removed text struck through beside the
+added text, among a few words of context that stop short of the changes either side
 (`getChangeInContext`, drawn by `frontend-commons`' `ValueChange`). Above the document
 the card is always two lines high, so stepping does not move the document.
 
-Side by side, each version shows its own side of every change, so changes have no cards:
-they are stepped through with their own controls above the versions, and only the
-caller's marks are listed.
+With the versions side by side, each shows its own side of every change, so changes have
+no cards: they are stepped through with their own controls above the versions, and only
+the caller's marks are listed.
 
 ### The menu
 
@@ -325,7 +327,7 @@ changes" once there are some:
 |---|---|---|
 | Off | The newer version alone | Nothing. The older version is not opened, and nothing is compared |
 | On the newer version (the default) | The newer version alone | Added text, and a box with a cursor where text was removed |
-| Side by side | Both versions, each under its label and its own page bar, with one search and one zoom | Removed text in the older version, added text in the newer |
+| Side by side | Both versions, each under its label and its own page controls, with one search and one zoom | Removed text in the older version, added text in the newer |
 
 Below a divider, "Include 4 minor changes" adds changes of punctuation and case alone.
 Minor changes are counted among all changes found, included or not, so the numbers add
@@ -333,24 +335,25 @@ up. The choices are kept with `useStoredSetting`. A caption beside the menu says
 many minor changes are left out or included, or that there are none, and how far
 comparing has got while it runs.
 
-A narrow viewer has no room for side by side: the choice is greyed out and the newer
-version shown alone, without overwriting a stored choice of side by side.
+A narrow viewer has no room for side by side: the choice is disabled and the newer
+version is shown alone, without overwriting a stored choice of side by side.
 
 ### Scrolling together
 
-Side by side, the versions scroll together, matched by their text (`useScrollSync`):
-whatever is in the middle of the version scrolled by hand goes to the middle of the
-other, through the words the comparison paired (`mapPoint`). A word only one version has
-goes to where its change is in the other, so the other version holds still through text
-it lacks. The lines either side of the middle are each mapped (`getTextLinesAround`) and
-the middle interpolated between them, so the other version moves smoothly rather than a
-line at a time. A zoom, or a page picked from either page bar, is followed too.
+When shown side by side, the versions scroll together, matched by their text
+(`useScrollSync`): whatever is in the middle of the version scrolled by hand goes to the
+middle of the other, through the words the comparison paired (`mapPoint`). A word only
+one version has goes to where its change is in the other, so the other version holds
+still through text it lacks. The lines either side of the middle are each mapped
+(`getTextLinesAround`) and the middle interpolated between them, so the other version
+moves smoothly rather than a line at a time. A zoom, or a page picked from either
+version's page controls, is followed too.
 
 | Going to | The older version |
 |---|---|
-| A search match | Goes to its own match, so text only it has can be found; the versions part until the next scroll by hand |
+| A search match | Goes to its own match, so text only it has can be found; the versions move apart until the next scroll by hand |
 | One of the caller's marks | Follows the newer version, which alone has the mark |
-| A change | Goes to its own side of the change; the versions part until the next scroll by hand |
+| A change | Goes to its own side of the change; the versions move apart until the next scroll by hand |
 
 ### Waiting and failing
 

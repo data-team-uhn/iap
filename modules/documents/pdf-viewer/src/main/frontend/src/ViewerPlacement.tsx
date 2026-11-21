@@ -39,7 +39,7 @@ const DIALOG_PADDING = { px: { xs: 2, sm: 3 }, pt: { xs: 1, sm: 2.5 }, pb: { xs:
 // anew, so state that must survive the move belongs above this component.
 export default function ViewerPlacement({ container, width = "lg", titleId, onClose, children }: {
   container?: HTMLElement | null;
-  // How wide the dialog may be. Below that width of screen, it fills the screen.
+  // The widest the dialog may be. On a screen narrower than that, it fills the screen.
   width?: Breakpoint;
   // The id of the viewer's title, which names the dialog.
   titleId: string;

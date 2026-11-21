@@ -49,7 +49,7 @@ const VIEWS: { view: ComparisonView; label: string }[] = [
 ];
 
 interface ChangesMenuProps {
-  // The view chosen, and the one shown, which differs when side by side is chosen with no room for it.
+  // The view chosen, and the view shown. They differ when side by side is chosen but there is no room for it.
   view: ComparisonView;
   shownView: ComparisonView;
   onViewChange: (view: ComparisonView) => void;
@@ -67,8 +67,8 @@ interface ChangesMenuProps {
 const WRAPPING = { whiteSpace: "normal" };
 
 // The menu choosing whether and how changes are shown, and whether minor changes are included. Its label
-// counts the changes shown, once there are some. The menu stays open while minor changes are included or
-// left out.
+// counts the changes shown, once there are some. The menu stays open when minor changes are switched on or
+// off.
 function ChangesMenu(props: ChangesMenuProps) {
   const { view, shownView, onViewChange, strict, onStrictChange, minor, count, narrow } = props;
   const [menuAt, setMenuAt] = useState<HTMLElement | null>(null);
@@ -103,7 +103,7 @@ function ChangesMenu(props: ChangesMenuProps) {
         anchorEl={menuAt}
         open={menuAt !== null}
         onClose={() => setMenuAt(null)}
-        // The keyboard can reach a choice there is no room for, and hear why it is disabled.
+        // A keyboard user can reach a choice there is no room for, and hear why it is disabled.
         slotProps={{ list: { disabledItemsFocusable: true, "aria-labelledby": labelId } }}
       >
         {VIEWS.map(({ view: each, label }) => {
@@ -143,7 +143,7 @@ function ChangesMenu(props: ChangesMenuProps) {
   );
 }
 
-// The label of the menu item including minor changes, with how many there are once known.
+// The label of the menu item that includes minor changes, with how many there are once that is known.
 function describeMinorOption(minor: number | undefined): string {
   if (minor === undefined) {
     return "Include minor changes";

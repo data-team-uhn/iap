@@ -28,8 +28,8 @@ import type { StepDirection } from "./pdfViewerModel";
 // "2 of 5". Positions count from 1. Each button is disabled at its end of the list. Given a heading, it
 // shows the heading between the buttons instead of the count. The text between the buttons keeps the
 // width of the widest text it can take, so stepping never moves the buttons. That is the count at the
-// last position, or else the `widest` texts given with the heading. The button pressed keeps the focus, and
-// at its end of the list the other button takes it.
+// last position, or else the `widest` texts given with the heading. The pressed button keeps the focus. When
+// it reaches its end of the list and is disabled, the other button takes the focus.
 export default function StepControls(props: {
   position: number;
   count: number;
@@ -39,12 +39,12 @@ export default function StepControls(props: {
   heading?: string;
   // The widest texts the heading can take at any position.
   widest?: string[];
-  // The text's style. A heading stands out, and a bare count is a caption, unless one is given.
+  // The text's style. By default a heading is a `subtitle2` and a bare count is a `caption`.
   variant?: "caption" | "subtitle2";
   // Lets the text between the buttons be cut short where the row has no room for it, as in a toolbar.
   shrinks?: boolean;
-  // The button with the focus as the controls are drawn, for controls drawn anew by a step, as on a card
-  // drawn for the next item.
+  // The button to focus when the controls first appear. It is for controls that a step draws anew, such as
+  // those on the card drawn for the next item.
   focused?: StepDirection;
   onStep: (position: number, direction: StepDirection) => void;
 }) {

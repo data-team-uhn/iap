@@ -22,7 +22,7 @@ import { diffArrays } from "diff";
 import { getPassageText, type MarkSpan, type PageText, type PlacedMark, type TextPoint } from "./marksModel";
 
 // A word, and where it is in its page's text. A word hyphenated across two lines is one word, without the
-// hyphen. One hyphenated across a page break ends on the next page, at `next`.
+// hyphen. A word hyphenated across a page break ends on the next page, at `next`.
 export interface Word {
   page: number;
   start: number;
@@ -136,7 +136,7 @@ function isBrokenWord(end: string, start: string): boolean {
 const NUMBER_START = /^[\p{L}\p{N}+\-±$€£¥]$/u;
 const NUMBER_END = /^[\p{L}\p{N}%‰]$/u;
 
-// The same for any other word.
+// What any other word starts and ends with once trimmed.
 const WORD_EDGE = /^[\p{L}\p{M}\p{N}]$/u;
 
 // Trims the characters at a word's start that `start` does not match, and those at its end that `end` does
@@ -156,18 +156,18 @@ function trimEnds(text: string, start: RegExp, end: RegExp): string {
 }
 
 // A word with a ligature read as the letters it joins, without soft hyphens, and with a minus as a hyphen.
-// Both keys start from it.
+// Both getStrictKey and getLenientKey start from this form.
 function getPlainWord(text: string): string {
   return text.normalize("NFKC").replaceAll("\u00ad", "").replaceAll("−", "-");
 }
 
-// The key two words are compared by strictly: the word as written, or undefined for no word.
+// The key used to compare two words strictly: the word as written, or undefined for an empty word.
 export function getStrictKey(text: string): string | undefined {
   const plain = getPlainWord(text);
   return plain === "" ? undefined : plain;
 }
 
-// The key two words are compared by by default, or undefined if the word has none. It ignores case, the
+// The key used to compare two words by default, or undefined if the word has none. It ignores case, the
 // punctuation around the word, and the hyphens inside it, which a line break may add or drop. It keeps
 // apostrophes, so "patient's" and "patients" differ. A word with a digit keeps its separators, hyphens and
 // sign: "1,000" and "1.000" differ, as do "IL-6" and "IL6". Punctuation on its own has no key.
@@ -194,8 +194,8 @@ const CONTEXT_WORDS = 3;
 const SENTENCE_END = /[.!?…]["'”’)\]]*$/u;
 
 // The words just before and after the change covering the words from `from` to `to`. Each side has up to
-// CONTEXT_WORDS words, and stops at the end of a sentence or at the bounds of `within`, where the changes
-// either side are. "…" shows where the sentence goes on.
+// CONTEXT_WORDS words, and stops at the end of a sentence or at the bounds of `within`, which are where the
+// neighbouring changes are. "…" shows where the sentence goes on.
 function getContext(words: Word[], from: number, to: number, within: { start: number; end: number }): Context {
   const isSentenceEndAt = (index: number) => SENTENCE_END.test(words[index].text);
   let start = from;
@@ -228,7 +228,7 @@ export function getChangeInContext({ removed, added, context }: RevisionChange):
 
 // The marks of the changes on one version. The older version marks removed text, and the newer marks added
 // text. Each also marks a point where text only the other version has was or would go. Text that replaced
-// other text also gets a point at its start, so it reads apart from text simply added.
+// other text also gets a point at its start, so it can be told apart from text that was only added.
 export function getChangeMarks(changes: RevisionChange[], version: "older" | "newer"): PlacedMark[] {
   return changes.map(({ id, removed, added, older, newer }): PlacedMark => {
     if (version === "older") {
@@ -269,8 +269,8 @@ export function countMinorChanges(changes: RevisionChange[]): number {
 }
 
 interface KeyedWord extends Word {
-  // The word's keys from getStrictKey and getLenientKey, and `key`, the one the diff compares: the lenient key, or the strict one
-  // for punctuation on its own.
+  // The word's keys from getStrictKey and getLenientKey. `key` is the one the diff compares: the lenient key,
+  // or the strict one for punctuation on its own.
   lenientKey: string | undefined;
   key: string;
   strictKey: string;
@@ -483,8 +483,8 @@ function diffWords(older: KeyedWord[], newer: KeyedWord[], limits: DiffLimits): 
   const countWords = (sentences: { from: number; to: number }[], start: number, count: number) => (count === 0
     ? 0
     : sentences[start + count - 1].to - sentences[start].from);
-  // Diffs the words of the sentences changed since the last shared one, and adds the result to `parts`. False
-  // once over the limits.
+  // Diffs the words of the sentences changed since the last shared one, and adds the result to `parts`.
+  // Returns false once over the limits.
   const flush = (): boolean => {
     const removed = countWords(olderSentences, at.older - changed.older, changed.older);
     const added = countWords(newerSentences, at.newer - changed.newer, changed.newer);
@@ -529,7 +529,7 @@ function diffWords(older: KeyedWord[], newer: KeyedWord[], limits: DiffLimits): 
   return flush() ? parts : undefined;
 }
 
-// Takes out of a run of minor changes a word whose difference only moved into the change next to it. From
+// Removes from a run of minor changes a word whose difference only moved into the change next to it. From
 // "is due." to "is due and payable.", the full stop moved to the end of the added text. From "Fees apply." to
 // "Late fees apply.", the capital moved to its start. Neither word was edited.
 function leaveOutMoved(run: OpenChange, previous: OpenChange | undefined, next: OpenChange | undefined): OpenChange[] {
@@ -573,10 +573,10 @@ function isMovedStart(older: KeyedWord, newer: KeyedWord, change: OpenChange): b
 }
 
 // Compares two versions of a document from their pages' text. Words are matched ignoring case and the
-// punctuation around them, as getLenientKey says. A change of case or punctuation alone is minor, and a viewer
-// may leave it out. The changes are numbered in document order, from `<idPrefix>-1`. A version with no text
-// cannot be compared, and two that differ past the limits are not. An unexpected error rejects the promise
-// rather than throwing.
+// punctuation around them, as getLenientKey does. A change of case or punctuation alone is minor, and a
+// viewer may leave it out. The changes are numbered in document order, from `<idPrefix>-1`. A version with no
+// text cannot be compared, and two that differ past the limits are not. An unexpected error rejects the
+// promise rather than throwing.
 export function compareRevisions(
   older: PageText[],
   newer: PageText[],

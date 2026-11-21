@@ -42,8 +42,8 @@ export interface Progress {
   what: string;
 }
 
-// How far a comparison that is still reading or comparing has got. Until both versions are open, its pages are
-// not counted yet, and nothing is read.
+// How far a comparison has got, as a share from 0 to 1. Until both versions are open, no pages are counted
+// and the share is 0.
 function getComparedShare(state: Comparing["state"]): number {
   if (state.status !== "reading") {
     return 1;
@@ -63,8 +63,8 @@ function ChangeInContext({ change }: { change: RevisionChange }) {
   );
 }
 
-// The comparison's part in what the viewer shows. Without a comparison, nothing is side by side, no mark has a
-// body of its own, and there are no controls.
+// What the comparison adds to the viewer. Without a comparison, nothing is side by side, no mark has a body
+// of its own, and there are no controls.
 export function useComparisonDisplay(comparison: ComparisonPanes | undefined, { narrow, selectedId, openError }: {
   narrow: boolean;
   selectedId: string | undefined;

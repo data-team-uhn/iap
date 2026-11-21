@@ -42,8 +42,8 @@ export interface PdfViewerProps {
   // it has one, or else at the first page. A different page given later takes the reader there.
   page?: number;
   // The passages to mark, in the order to list them. Those that cannot be marked are listed last. A quote
-  // is looked for from its own page to the end, then from the first page, and spans are placed where they
-  // say. New marks equal to the last ones given are not looked for again. An id names the same mark from
+  // is searched for from its own page to the end, then from the first page. Spans are placed where they
+  // say. New marks equal to the last ones given are not searched for again. An id names the same mark from
   // one render to the next, and the person's choice of a mark is kept by its id.
   marks: Mark[];
   // The id of the selected mark. The viewer takes the reader to it once it is found, and again each time
@@ -52,37 +52,37 @@ export interface PdfViewerProps {
   selectedMarkId?: string;
   // Called with the id of each mark the person selects, in the document or beside it.
   onSelectMark?: (id: string) => void;
-  // Given the anchor of the text the person selected in the document, when they press the Comment button
-  // under it. Without it, the viewer offers no Comment button.
+  // Called with the anchor of the text the person selected in the document, when they press the Comment
+  // button under it. Without it, the viewer offers no Comment button.
   onAnnotate?: (anchor: TextAnchor) => void;
   // What to show under a passage, such as the comments on it, given the mark and whether it is selected.
   // Give the same function on every render, such as one from useCallback, or the passages are drawn again
   // each time a search counts its matches.
   renderMarkDetails?: (mark: Mark, selected: boolean) => ReactNode;
   // What the marks are called where the viewer counts and steps through them, such as comments ("Comment
-  // 3 of 12"). Passages when absent. Changes are called changes, and counted apart. The text a mark covers
-  // is still called a passage, as in "Show the passage on page 2".
+  // 3 of 12"). Passages when absent. Changes are always called changes, and counted separately. The text a
+  // mark covers is still called a passage, as in "Show the passage on page 2".
   markName?: MarkName;
   // The viewer's title. When absent, it is the PDF's file name.
   title?: string;
   // An older version of the document to compare it with. The changes between them are marked, as marks of a
   // kind of their own, and listed with the passages while this version is shown alone. The label goes above
-  // the older version when the two are shown side by side. Given another older version later, the viewer
-  // compares with that one, and the reader stays where they are in this one.
+  // the older version when the two are shown side by side. When given another older version later, the
+  // viewer compares with that one, and the reader stays where they are in this one.
   compareWith?: { url: string; label?: string };
   // What this version is called above it when shown beside the older one, such as "Version 3". "Newer
   // version" when absent.
   label?: string;
   // An element for the viewer to fill, with a button to pop it out into a dialog. The element needs a
-  // height of its own. Without a container, the viewer opens in a dialog. Null, as a ref is before
-  // React attaches it, shows nothing until the element is there.
+  // height of its own. Without a container, the viewer opens in a dialog. While it is null, as a ref is
+  // before React attaches it, the viewer shows nothing.
   container?: HTMLElement | null;
   onClose: () => void;
 }
 
 // Opens a PDF, finds the passages given in it, and marks them. A passage that cannot be found does not
-// stop the document opening. Compared with an older version, the viewer also marks what changed, beside the
-// older version or in this one alone.
+// stop the document opening. When given an older version, the viewer also marks what changed, either beside
+// the older version or on this one alone.
 export default function PdfViewer(props: PdfViewerProps) {
   // Keyed by URL, so another document starts with nothing left from the last one. Another page of the same
   // document only moves the reader, who keeps the zoom and the search.
@@ -113,7 +113,7 @@ function PdfViewerSession(props: PdfViewerProps) {
   );
   const { places, read } = useMarkPlaces(pdf, marks);
   const firstMarkable = marks.find(mark => !isUnmarkable(places[mark.id]));
-  // When the change the person chose is then left out, as a minor one, the change shown nearest to it is
+  // When the change the person chose is then left out as a minor change, the shown change nearest to it is
   // selected instead.
   const allChanges = comparing?.state.status === "compared" ? comparing.state.changes : undefined;
   const chosenLeftOut = chosenId !== undefined && !marks.some(mark => mark.id === chosenId);
@@ -154,8 +154,8 @@ function PdfViewerSession(props: PdfViewerProps) {
     };
   // Another page the caller asks for takes the reader there once the document is shown. The page asked
   // for first is where the document opens. Asking for no page moves nothing, and the same page asked for
-  // after it moves the reader again. A mark the caller selects at the same time wins, its effect running
-  // after this one.
+  // after it moves the reader again. A mark the caller selects at the same time wins, because its effect
+  // runs after this one.
   const askedPage = useRef(page);
   const { shown: newerShown, showPage: showNewerPage } = view;
   useEffect(() => {

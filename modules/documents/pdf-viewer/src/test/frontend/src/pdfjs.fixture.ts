@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-// A stand-in for pdfjs-dist and its viewer, keeping to the protocol the real ones follow with each
+// A stand-in for pdfjs-dist and its viewer, which follows the protocol the real ones follow with each
 // other and with PdfViewer. The document gives each page's text, and events go on the bus. The link
 // service moves the viewer, and the viewer draws each page's text layer as it is shown. Tests load it
 // through vi.mock("pdfjs-dist", ...) and vi.mock("pdfjs-dist/web/pdf_viewer.mjs", ...), and steer it
@@ -71,10 +71,10 @@ function createDefaults() {
     openOptions: [] as object[],
     workers: [] as unknown[],
     textReads: [] as number[],
-    // How many pages PDF.js's search has gone through for the last query, every page when undefined.
+    // How many pages PDF.js's search has gone through for the last query, or every page when undefined.
     pagesSearched: undefined as number | undefined,
-    // Set to hold a new search pending until releaseSearch() is called, keeping the last search's matches
-    // meanwhile.
+    // Set to hold a new search pending until releaseSearch() is called. The last search's matches stay
+    // until then.
     holdSearch: false,
     releaseSearch: undefined as (() => void) | undefined,
     // Every search asked of PDF.js, as its find events.
@@ -92,7 +92,7 @@ function createDefaults() {
 // The stand-in's settings and records, which a test sets and reads, and resets after itself.
 export const fakePdf = {
   ...createDefaults(),
-  // Draws what was held back, and draws as it comes from then on.
+  // Draws what was held back, and from then on draws each page as it comes.
   releaseDrawing(): void {
     fakePdf.holdDrawing = false;
     fakePdf.heldDrawing.splice(0).forEach(draw => draw());
@@ -362,7 +362,8 @@ class FakePDFViewer {
     return typeof this.#scale === "number" ? this.#scale : 1;
   }
 
-  // Every page not yet drawn, or only the one shown, after the change that shows it, as PDF.js does.
+  // Draws the text of every page not drawn yet, or of the page shown only, once the change that shows it is
+  // done, as PDF.js does.
   #drawShown(): void {
     const draw = () => {
       this.#pageViews.forEach((pageView, index) => {
@@ -382,8 +383,8 @@ class FakePDFViewer {
     const div = document.createElement("div");
     div.className = "textLayer";
     for (const line of (this.doc?.pages[pageNumber - 1] ?? "").split("\n")) {
-      // As PDF.js does, only a piece with text is drawn, in a generic font, and only its line break is kept
-      // for an empty one.
+      // As in PDF.js, only a piece with text is drawn, in a generic font. For an empty piece, only its line
+      // break is kept.
       if (line !== "") {
         const span = document.createElement("span");
         span.textContent = line;

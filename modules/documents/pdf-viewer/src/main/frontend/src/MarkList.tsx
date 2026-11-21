@@ -53,7 +53,8 @@ const MAX_DETAILS_LINES = 2;
 
 // The marks beside the document, each on a card in its mark's colour with the caller's details for it
 // underneath. Clicking a card selects its mark. The selected mark's card is shown whole and kept in view.
-// Above the cards, a heading says which mark is selected of how many, with buttons stepping through them.
+// Above the cards, a heading says which mark is selected and how many there are, with buttons to step
+// through them.
 function MarkList(props: {
   marks: Mark[];
   // What each mark is called and its place among those of its sort.
@@ -61,7 +62,7 @@ function MarkList(props: {
   places: MarkPlaces;
   status: ViewerStatus;
   selectedId: string | undefined;
-  // What shows a mark in place of its quote, such as a change's diff, if anything.
+  // What to show in place of a mark's quote, such as a change's diff. Without it, the quote is shown.
   renderBody?: (mark: Mark) => ReactNode;
   // What that body says, for a screen reader, given as the description of the card's button.
   describeBody?: (mark: Mark) => string | undefined;
@@ -191,7 +192,8 @@ function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
   );
 }
 
-// The button showing a mark's passage, or what stands in for it, and its note. Clicking it selects the mark.
+// The button that shows a mark's passage, or the body shown in its place, and its note. Clicking it selects
+// the mark.
 function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSelect }: {
   mark: Mark;
   body: ReactNode;
@@ -235,7 +237,7 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
   if (place.status === "found") {
     label = `Show ${name.one} ${index} on ${describePages(place.page, place.toPage)}`;
   }
-  // A passage found has its page in the label. Of any other, the note says why it is not marked.
+  // A found passage has its page in the label. For any other passage, the note says why it is not marked.
   const described = [
     bodySaid === undefined ? quoteId : `${quoteId}-said`,
     note === undefined || place.status === "found" ? undefined : `${quoteId}-note`,

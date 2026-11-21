@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// The row of controls above the document, laid out from what its caller gives it.
+// The row of controls above the document. The caller supplies the controls; this places them.
 import type { ReactNode } from "react";
 
 import { Box } from "@mui/material";

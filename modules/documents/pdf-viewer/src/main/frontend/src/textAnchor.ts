@@ -77,8 +77,8 @@ export function encodeAnchor({ start, end, quote, before, after }: TextAnchor): 
   return { start: encodePoint(start), end: encodePoint(end), text: parts.join(",") };
 }
 
-// A point read back from "page=3&char=120". Undefined unless the page is a whole number from 1 and the
-// offset a whole number from 0.
+// A point read back from "page=3&char=120". Undefined unless the page is a whole number of at least 1 and
+// the offset a whole number of at least 0.
 function decodePoint(stored: string): TextPoint | undefined {
   const params = new URLSearchParams(stored);
   const [ page, char ] = [ params.get("page"), params.get("char") ].map(value => (
@@ -88,7 +88,7 @@ function decodePoint(stored: string): TextPoint | undefined {
 }
 
 // The quote and the text around it, read back from a text fragment directive. Undefined unless it holds
-// exactly one quote, not empty, and every part decodes.
+// exactly one quote that is not empty, and every part decodes.
 function decodeText(stored: string): Pick<TextAnchor, "quote" | "before" | "after"> | undefined {
   const parts = stored.split(",");
   const last = parts[parts.length - 1];

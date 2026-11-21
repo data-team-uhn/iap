@@ -42,7 +42,8 @@ function placed(...spans: MarkSpan[]): Mark {
   return { id: "m", spans, kind: "annotation" };
 }
 
-// A mark kept as an anchor. A part `anchor` leaves out is empty, or the start of page 1.
+// A mark kept as an anchor. A text that `anchor` leaves out is empty, and a point it leaves out is the start
+// of page 1.
 function anchored(anchor: Partial<TextAnchor>): Mark {
   const start = { page: 1, char: 0 };
   return { id: "m", anchor: { start, end: start, quote: "", before: "", after: "", ...anchor }, kind: "annotation" };

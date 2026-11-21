@@ -51,8 +51,8 @@ export interface ShownDocument {
   frame: HTMLDivElement;
 }
 
-// How far, in pixels, the pointer may move between press and release and still click a mark. Any further
-// is a drag selecting text, even one that selected nothing.
+// How far, in pixels, the pointer may move between press and release and still click a mark. A longer move
+// is a drag that selects text, even if it selected nothing.
 const DRAG_DISTANCE = 4;
 
 interface MatchesCount {
@@ -136,7 +136,7 @@ export function usePdfView(
   const goToMarkRef = useRef<(() => void) | undefined>(undefined);
   // Draws a page's marks again, once its text has moved.
   const redrawPageRef = useRef<((pageNumber: number) => void) | undefined>(undefined);
-  // The selected mark's id, for drawing marks after it was selected.
+  // The selected mark's id, read when marks are drawn after it was selected.
   const selectedIdRef = useRef(selectedId);
   // The text layers whose text PDF.js has drawn. PDF.js gives a page a new text layer when it draws the
   // page again, and the new layer counts only once its own text is drawn.
@@ -149,8 +149,8 @@ export function usePdfView(
   // The query, searched for again when the viewer moves to another frame.
   const queryRef = useRef("");
   const eventBusRef = useRef<EventBus | undefined>(undefined);
-  // Starts showing the matches of a new search as PDF.js counts them, follows them again after a step to another
-  // match, or stops.
+  // Controls the match count shown. `start` follows the count of a new search as PDF.js makes it, `follow`
+  // follows it again after a step to another match, and `stop` stops.
   const countRef = useRef<{ start: () => void; follow: () => void; stop: () => void } | undefined>(undefined);
   const onSelectMarkRef = useRef(onSelectMark);
   useEffect(() => {
@@ -166,8 +166,8 @@ export function usePdfView(
     // A link out of the document opens in a new tab, so the page around the viewer, and whatever is being
     // typed on it, stays.
     const linkService = new components.PDFLinkService({ eventBus, externalLinkTarget: components.LinkTarget.BLANK });
-    // Given to the viewer as it is built, the only time PDF.js tells it which pages are in view. The next
-    // match is then looked for from where the reader is.
+    // Passed to the viewer when it is built, which is the only time PDF.js tells the search which pages are
+    // in view. The next match is then searched for from where the reader is.
     const findController = createFindController(components, { container: frame, linkService, eventBus });
     // Aborting it removes the listeners on the frame, and stops the viewer watching the frame's size and
     // scrolling.
@@ -197,14 +197,15 @@ export function usePdfView(
       }
     };
     // PDF.js counts a search's matches as it searches the pages. The latest count is shown every
-    // COUNT_INTERVAL until every page has been searched. That is followed for a new search, and for each
-    // step to another match: one taken away from the match shown makes PDF.js search again from the page in
-    // view, and count afresh. A count of 0 of 0, which PDF.js reports until it has picked the match to show,
-    // is not kept.
+    // COUNT_INTERVAL until every page has been searched. This happens for a new search, and again for each
+    // step to another match. A step away from the match shown makes PDF.js search again from the page in
+    // view, and count from zero. A count of 0 of 0, which PDF.js reports until it has picked the match to
+    // show, is not kept.
     let latestCount: MatchesCount | undefined;
     let counting = 0;
     const showCount = () => {
-      // pageMatches has an entry for each page searched so far and holes for the rest, which reduce skips.
+      // pageMatches has an entry for each page searched so far and holes for the rest. `reduce` skips the
+      // holes, so it counts the pages searched.
       // While PDF.js waits for the typing to stop, the new search is pending and pageMatches still holds
       // the last one's.
       const searched = (findController.pageMatches ?? []).reduce((pages: number) => pages + 1, 0);
@@ -318,8 +319,8 @@ export function usePdfView(
     });
 
     // PDF.js fits the page to the frame's width only when told to. When the frame's width changes, the
-    // page is fitted again, unless the reader chose a zoom of their own. The width is the frame's outer
-    // one, which a scrollbar coming and going with the fit does not change.
+    // page is fitted again, unless the reader chose a zoom of their own. The width watched is the frame's
+    // outer width, which does not change when the fit makes a scrollbar appear or disappear.
     let width = frame.offsetWidth;
     let fitting = 0;
     const resizes = new ResizeObserver(() => {
@@ -361,8 +362,8 @@ export function usePdfView(
     frame.addEventListener("pointermove", event => {
       frame.classList.toggle(OVER_MARK_CLASS, findMarkAt(frame, event.clientX, event.clientY) !== undefined);
     }, { signal: stop.signal });
-    // A file dropped on the document does nothing. The browser would open it in place of the page, losing
-    // whatever was being typed on it.
+    // A file dropped on the document does nothing. The browser would open it in place of the page, and
+    // whatever was being typed on the page would be lost.
     for (const type of [ "dragover", "drop" ] as const) {
       frame.addEventListener(type, event => {
         if (event.dataTransfer?.types.includes("Files") === true) {
@@ -386,7 +387,8 @@ export function usePdfView(
     };
   }, [pdf, frame, openAt]);
 
-  // A new selection is shown on the marks already drawn, and is taken to while the view follows it.
+  // A new selection is shown on the marks already drawn. The reader is taken to it while the view follows
+  // the selection.
   useEffect(() => {
     selectedIdRef.current = selectedId;
     if (shown !== undefined) {
@@ -454,7 +456,7 @@ export function usePdfView(
     };
   }, [shown, marks, places]);
 
-  // A place in the text is taken to once its page is drawn, as PDF.js draws it.
+  // The reader is taken to a place in the text once PDF.js draws its page.
   useEffect(() => {
     const viewer = viewerRef.current;
     if (shown === undefined || viewer === undefined) {

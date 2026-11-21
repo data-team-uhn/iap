@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-// Tests telling which inputs in a document's frame scroll it by hand.
+// Tests which inputs in a document's frame count as the reader scrolling it by hand.
 
 import { fireEvent } from "@testing-library/react";
 

@@ -140,7 +140,7 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, name, edgeToEdge, 
         overscrollBehavior: "contain",
         bgcolor: "background.default",
         borderRadius: edgeToEdge ? { xs: 0, sm: 1 } : 1,
-        // Each page a sheet of its own, apart from the others
+        // Each page as a separate sheet, with space between the pages
         "& .pdfViewer.removePageBorders .page": { my: 1.5, mx: "auto", boxShadow: 2 },
         // The marks in the text layer multiply with the page under them, tinting the paper and leaving the
         // text as dark.
@@ -162,19 +162,19 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, name, edgeToEdge, 
   );
 });
 
-// The document, filling the room left to it, with a spinner while it opens and a bar along its top while it
-// is read, as for its marks or for the changes. `children` are shown over the frame, placed in its coordinates. With
-// `edgeToEdge`, the document spans the full width of a phone screen.
+// The document, filling the room left for it. A spinner shows while it opens, and a bar along its top while
+// it is read to find its marks or the changes. `children` are shown over the frame, placed in its
+// coordinates. With `edgeToEdge`, the document spans the full width of a phone screen.
 export default function PdfDocumentView({ setFrame, name, edgeToEdge, outlineSelected, opening, looking, children }: {
   setFrame: (frame: HTMLDivElement | null) => void;
-  // What the frame is called to a screen reader, as "Document", or a version's label beside another.
+  // The frame's name for a screen reader: "Document", or the version's label when shown beside another.
   name: string;
   edgeToEdge: boolean;
   // Whether the selected mark is also outlined.
   outlineSelected: boolean;
   opening: boolean;
-  // While the document is read, how far that has got, from 0 to 1, and what is looked for, as in "the
-  // passages" or "the changes".
+  // While the document is read, how far that has got, from 0 to 1, and what is being looked for, such as
+  // "the passages" or "the changes".
   looking?: { share: number; what: string };
   children?: ReactNode;
 }) {

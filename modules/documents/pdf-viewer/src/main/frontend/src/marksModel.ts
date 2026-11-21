@@ -107,9 +107,9 @@ export interface PageText {
   lineEnds: number[];
 }
 
-// Where a mark is, or why it has no place yet. A mark found runs from `page` to `toPage`, which is left
-// out for a mark on one page, and covers `text`. Otherwise the mark is still being looked for, too short
-// to look for, not in the document, or in a document with no text.
+// Where a mark is, or why it has no place yet. A found mark runs from `page` to `toPage` and covers `text`.
+// `toPage` is left out for a mark on one page. Otherwise the mark is still being looked for, too short to
+// look for, not in the document, or in a document with no text.
 export type MarkPlace =
   | { status: "searching" | "tooShort" | "notFound" | "noText" }
   | { status: "found"; page: number; toPage?: number; spans: MarkSpan[]; text: string };
@@ -166,8 +166,8 @@ export function getPassageText({ text, lineEnds }: PageText, start: number, end:
   return `${passage}${text.slice(from, end)}`.replace(/\s+/g, " ").trim();
 }
 
-// The page a mark's anchor or first span is on, or the page its quote is looked for from. Undefined for a
-// quote with no page, or a mark with no spans.
+// The page a mark's anchor or first span is on, or the page where the search for its quote starts.
+// Undefined for a quote with no page, or a mark with no spans.
 export function getMarkPage(mark: Mark): number | undefined {
   if ("anchor" in mark) {
     return mark.anchor.start.page;
@@ -300,8 +300,8 @@ export class MarkLocator {
   }
 
   // A mark's place. A quote is placed at its first whole occurrence in search order, once every page
-  // before it in that order is read. Only when no page holds it whole does a page break it runs across
-  // count.
+  // before it in that order is read. A match across a page break counts only when no page holds the whole
+  // quote.
   #getPlace(mark: Mark): MarkPlace {
     if ("spans" in mark) {
       return this.#getPlaceOf(mark.spans);
@@ -356,7 +356,7 @@ export class MarkLocator {
 
   // An anchored mark is where its anchor says, as soon as those pages are read, if the text there still
   // matches its quote. Otherwise, once every page is read, it is the occurrence of the quote whose
-  // surrounding text is most like the anchor's. Ties go first to an occurrence whole on one page, then to
+  // surrounding text is most like the anchor's. Ties go first to an occurrence on a single page, then to
   // the one nearest the anchor's page. A quote too short to trust is found only where some of its
   // surrounding text is the same.
   #getAnchoredPlace(anchor: TextAnchor): MarkPlace {
@@ -393,7 +393,7 @@ export class MarkLocator {
   }
 
   // Every occurrence of a quote, whole on a page or across a page break, in page order. Each comes with how
-  // like the anchor's its surrounding text is.
+  // closely its surrounding text matches the anchor's.
   #findAll(searchText: string, anchor: TextAnchor): Candidate[] {
     const around = (anchor.before.length + anchor.after.length) * 2;
     const getTextBefore = ({ text }: PageText, at: number) => text.slice(Math.max(0, at - around), at);
@@ -484,8 +484,8 @@ export function getMarksKey(marks: Mark[]): string {
 }
 
 // The pages the marks name, once each and in order: those their spans or anchors cover, and the page each
-// quote is looked for from. Pages outside the document are left out. Reading these first places a mark
-// that is where it says without waiting for the pages before it.
+// quote is looked for from. Pages outside the document are left out. Reading these pages first places a
+// mark that is where it says it is, without waiting for the pages before it.
 export function getPlacedPages(marks: Mark[], pageCount: number): number[] {
   const pages = new Set(marks.flatMap(mark => {
     if ("anchor" in mark) {

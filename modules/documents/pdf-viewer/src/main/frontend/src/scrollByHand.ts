@@ -16,9 +16,9 @@
  * limitations under the License.
  */
 
-// Tells the reader scrolling a document's frame themselves apart from the viewer scrolling it for them.
+// Tells whether the reader scrolled a document's frame themselves, or the viewer scrolled it for them.
 
-// What a reader does to scroll a document's frame: a wheel, a finger, the pointer, or a key.
+// The events a reader causes when scrolling a document's frame: a wheel, a finger, the pointer, or a key.
 export const SCROLL_INPUTS = [ "wheel", "touchmove", "pointerdown", "keydown" ] as const;
 
 // The keys that scroll a frame with the focus in it.
@@ -36,7 +36,7 @@ const SCROLL_KEYS = new Set([
 
 // Whether an input in a frame scrolls it. A key does if it is a scrolling key, pressed without Ctrl, Alt or Meta,
 // and is not typed into a field of the document. The pointer does if pressed on the frame itself, which
-// shows only at its scrollbars, the pages covering the rest. A wheel or a finger moving always does.
+// shows only at its scrollbars: the pages cover the rest. A wheel or a moving finger always does.
 export function isScrollByHand(event: Event, frame: HTMLElement): boolean {
   if (event instanceof KeyboardEvent) {
     const typing = event.target instanceof HTMLElement

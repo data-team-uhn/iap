@@ -414,7 +414,7 @@ describe("PdfViewer", () => {
 
     it("sets a page's text in the font the page is drawn with, and draws its marks again", async () => {
       show();
-      // A passage can be found before its page's text is drawn, which its mark waits for
+      // A passage can be found before its page's text is drawn. Its mark waits for that text.
       await waitFor(() => expect(getDrawnMarks(getFrame())).toEqual({ 2: [ ASSISTANT_MARK ] }));
       const drawn = getFrame().querySelector("[data-mark-id]");
       vi.mocked(readPageFonts).mockReturnValue(LOADED_FONTS);

@@ -26,8 +26,9 @@ import { useScrollSync } from "./useScrollSync";
 
 import type { Comparing } from "./useComparison";
 
-// The older version's view, scrolled with this version's, and this version's view with what moves the reader
-// made to move both. Without a comparison, this version's view is given back as it is.
+// Returns the older version's view, which scrolls along with this version's, and this version's view with its
+// search, zoom, page and mark controls changed to move both versions. Without a comparison, this version's
+// view is returned unchanged.
 //
 // Both versions are searched and zoomed together. A search, and each step to the next or previous match,
 // takes each version to its own match. The two then move apart until the next scroll by hand. Text only the
@@ -38,7 +39,7 @@ export function useComparedVersions(
   view: PdfView,
   { selectedId, select, changeIds }: {
     selectedId: string | undefined;
-    // Selects a mark, as the person choosing it does.
+    // Selects a mark, as if the person had chosen it.
     select: (id: string) => void;
     // The ids of the marks that are changes.
     changeIds: Set<string>;
@@ -88,7 +89,8 @@ export function useComparedVersions(
     }
   };
 
-  // The older version, shown again beside this one, takes the zoom this one was given meanwhile.
+  // When the older version is shown again beside this one, it takes the zoom this one was given while the
+  // older one was hidden.
   const { shown: olderShown, zoomTo: zoomOlderTo } = olderView;
   const { getScaleValue } = view;
   useEffect(() => {

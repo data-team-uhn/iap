@@ -27,7 +27,7 @@ import type { ShownDocument } from "./usePdfView";
 
 export type Version = "older" | "newer";
 
-// What scrolling one pane with the other needs of each pane's view.
+// What each pane's view provides for the two panes to scroll together.
 interface SyncedView {
   shown: ShownDocument | undefined;
   showPoint: (point: TextPoint, atY: number) => void;
@@ -44,8 +44,8 @@ interface Placement {
 // lifts. It also counts for as long as the pointer is held down on the pane, as when dragging its scrollbar.
 const BY_HAND_TIME = 500;
 
-// How long a pane told to lead keeps leading, in milliseconds, such as while its page bar moves it to a page
-// not drawn yet.
+// How long a pane told to lead keeps leading, in milliseconds. It covers, for example, the pane's page
+// controls moving it to a page that is not drawn yet.
 const LEAD_TIME = 1500;
 
 // The inputs that make a pane's scrolling the person's. Pressing a finger or the pointer anywhere on the pane
@@ -73,9 +73,9 @@ export function useScrollSync(views: Record<Version, SyncedView>, alignment: Ali
     }
     const shown = { older: olderShown, newer: newerShown };
     const show = { older: showOlder, newer: showNewer };
-    // The pane waiting for the text in its middle to be drawn, for the other to follow it.
+    // The pane whose middle text is not drawn yet. The other pane follows it once that text is drawn.
     let waiting: Version | undefined;
-    // Where the other pane puts the place in the middle of this one, by the lines either side of that middle.
+    // Where the other pane puts the place in the middle of this one, using the lines on either side of it.
     // Each line goes to its place in the other version, and the middle goes as far between those two places as
     // it is between the lines. Text only one version has maps to one place in the other, where its change is.
     // The other pane then stays still through it, and starts and stops moving smoothly at its ends.
@@ -95,9 +95,8 @@ export function useScrollSync(views: Record<Version, SyncedView>, alignment: Ali
       const share = (middle - lines.above.top) / (lines.below.top - lines.above.top);
       return { point: above, atY: shown[to].frame.clientHeight / 2 - share * (belowRect.top - aboveRect.top) };
     };
-    // Where the other pane puts the place in the middle of this one, by the line in that middle alone. A shared
-    // word keeps its offset into the line. Text only one version has goes to where its change is.
-    // `undefined` while the text in the middle is not drawn.
+    // The same, using only the line at the middle. A shared word keeps its offset into the line. Text only
+    // one version has goes to where its change is. `undefined` while the text in the middle is not drawn.
     const placeAtLine = (from: Version, middle: number): Placement | undefined => {
       const { frame } = shown[from];
       const point = getTextPointAt(frame, middle);

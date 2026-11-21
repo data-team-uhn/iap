@@ -37,8 +37,8 @@ const DATA_FOLDERS = {
 
 type DataUrls = Partial<Record<keyof typeof DATA_FOLDERS, string>>;
 
-// The URL of each data folder, by PDF.js option. A folder that was not published is left out, for PDF.js
-// to do without, since it refuses an empty URL.
+// The URL of each data folder, by PDF.js option. A folder that was not published is left out: PDF.js
+// refuses an empty URL, and does without an option that is missing.
 async function getDataUrls(): Promise<DataUrls> {
   const urls = await Promise.all(Object.entries(DATA_FOLDERS).map(async ([ option, folder ]) =>
     [ option, await getAssetURL(`asset:${folder}`) ] as const));

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 // Finds a quote in a page's text, however PDF.js spaced, hyphenated or punctuated the page. The quote and
-// the page are both brought to a compared form first, which keeps the offset each character came from.
+// the page are both brought to a compared form first, which records the offset each character came from.
 
 // A quote shorter than this, in compared characters, matches too easily to trust.
 const MIN_QUOTE_LENGTH = 6;
@@ -114,10 +114,10 @@ function createQuoteMatch(page: { offsets: number[] }, at: number, length: numbe
   return { index: start, length: page.offsets[at + length - 1] + 1 - start };
 }
 
-// The text in the form quotes are compared in. Quotation marks and dashes are plain, and letters lower case
-// without accents. Spaces go, since PDF.js guesses them from the layout and its guesses often differ from
-// the quote. Hyphens and dashes go too, so a word broken at a line end still matches. One before a digit
-// stays, as the minus of a negative number.
+// The text in the form quotes are compared in. Quotation marks and dashes become plain ones, and letters
+// become lower case without accents. Spaces are dropped, since PDF.js guesses them from the layout and its
+// guesses often differ from the quote. Hyphens and dashes are dropped too, so a word broken at a line end
+// still matches. A hyphen before a digit stays, as the minus of a negative number.
 export function prepareText(source: string): PreparedText {
   const chars: string[] = [];
   const sourceOffsets: number[] = [];

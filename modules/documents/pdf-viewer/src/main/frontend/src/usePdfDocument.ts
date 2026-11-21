@@ -91,7 +91,7 @@ function createOpenedDocument(components: ViewerComponents, doc: PDFDocumentProx
 export function usePdfDocument(url: string | undefined) {
   const authFetch = useAuthenticatedFetch();
   const [attempt, setAttempt] = useState(0);
-  // What was opened, or why it was not, and from which URL. What came from another URL is not given.
+  // What was opened, or why it could not be, and from which URL. A result from another URL is not returned.
   const [opened, setOpened] = useState<{ url?: string; pdf?: OpenedDocument; openError?: string }>({});
 
   // The file is fetched here rather than by PDF.js, so an expired session gets the same sign-in
@@ -114,7 +114,7 @@ export function usePdfDocument(url: string | undefined) {
         const data = await response.arrayBuffer();
         stop.signal.throwIfAborted();
         // PDF.js's own fonts, not the system's, stand in for the fonts a PDF names without embedding
-        // them. A phone without Times New Roman would otherwise set the text in a font of other widths.
+        // them. Otherwise a phone without Times New Roman would set the text in a font with other widths.
         task = pdfjs.getDocument({ data, worker, useSystemFonts: false, ...dataUrls });
         // A worker that never started never answers, so its failure ends the wait.
         const doc = await Promise.race([ task.promise, failed ]);
@@ -134,8 +134,8 @@ export function usePdfDocument(url: string | undefined) {
     };
   }, [url, authFetch, attempt]);
 
-  // Opens the document again. The promise resolves at once, since the document has neither a PDF nor an
-  // error until the new attempt settles, and so shows as opening.
+  // Opens the document again. The promise resolves at once. Until the new attempt settles, the document has
+  // neither a PDF nor an error, so it shows as opening.
   const retry = useCallback((): Promise<void> => {
     setOpened({});
     setAttempt(previous => previous + 1);

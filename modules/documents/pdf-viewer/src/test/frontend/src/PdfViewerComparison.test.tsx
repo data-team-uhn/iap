@@ -226,8 +226,8 @@ describe("PdfViewer compared with an older version", () => {
       expect(getNewerFrame().scrollTop).toBe(2 * MATCH_TOP);
       // The older version is brought to the newer's place, which in the stand-in scrolls as far again.
       await waitFor(() => expect(getFrames()[0].scrollTop).toBe(3 * MATCH_TOP));
-      // The older version opens at its own first page, not at page 3 of the last one. The stand-in counts no
-      // page scrolled to.
+      // The older version opens at its own first page, not at page 3 of the last one. The stand-in does not
+      // change the page number when it scrolls.
       expect(screen.getAllByText(/^Page \d of \d$/).map(bar => bar.textContent)).toEqual([ "Page 1 of 4", "Page 3 of 3" ]);
     });
 
@@ -382,7 +382,7 @@ describe("PdfViewer compared with an older version", () => {
         await waitForStatus(/^Change 1 of 2\. Text added on page 1\./);
         await waitFor(() => expect(newer.scrollTop).toBe(MATCH_TOP));
 
-        // Now every page is drawn, the place's page too.
+        // Now every page is drawn, including the place's page.
         fakePdf.drawShownPageOnly = false;
         act(() => fakePdf.releaseDrawing());
 
@@ -561,7 +561,8 @@ describe("PdfViewer compared with an older version", () => {
       await waitForStatus(/^Change 1 of 1\./);
       expect(screen.getByRole("button", { name: "Previous note" })).toBeEnabled();
       expect(screen.getByRole("button", { name: "Next note" })).toBeEnabled();
-      // Side by side, changes are not listed. With a change selected, the list says how many notes it has.
+      // With the versions side by side, changes are not listed. With a change selected, the list says how
+      // many notes it has.
       await chooseView("Side by side");
       expect(await screen.findByText("2 notes")).toBeInTheDocument();
     });

@@ -73,7 +73,7 @@ describe("usePdfDocument", () => {
     expect(result.current.pdf).not.toBe(dropped);
   });
 
-  // The worker lives as long as its module, so this test fails a worker of its own, from fresh modules.
+  // The worker lives as long as its module, so this test loads fresh modules to get a worker it can fail.
   it("asks for a reload when PDF.js's worker never started, rather than opening for ever", async () => {
     vi.resetModules();
     const { loadPdfjs } = await import("@iap/frontend-commons/pdfjsClient");

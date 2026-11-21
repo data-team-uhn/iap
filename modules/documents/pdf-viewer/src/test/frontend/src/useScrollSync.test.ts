@@ -147,7 +147,7 @@ describe("useScrollSync", () => {
 
     await scrollByHand(older.shown.frame);
 
-    // Where the change is, in the middle, however far down its line the text scrolled is
+    // The change's place, put in the middle, with no offset for how far down its line the scrolled text is
     expect(showNewer).toHaveBeenCalledExactlyOnceWith({ page: 2, char: 4 }, 50);
   });
 
@@ -166,7 +166,8 @@ describe("useScrollSync", () => {
 
     await scrollByHand(older.shown.frame);
 
-    // A quarter of the way from one line to the next, which is 40 below it in the newer version
+    // A quarter of the way from one line to the next. The next line is 40 below in the newer version, so
+    // the first line goes 10 above the middle.
     expect(showNewer).toHaveBeenCalledExactlyOnceWith({ page: 1, char: 0 }, 40);
   });
 

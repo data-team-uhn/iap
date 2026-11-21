@@ -39,7 +39,7 @@ export interface PageMark {
   kind: MarkKind;
   start: number;
   end: number;
-  // A point starting what follows it, drawn before the character after it.
+  // Marks a point as the start of the text after it, drawn before the next character.
   starts?: boolean;
 }
 
@@ -48,8 +48,8 @@ interface TextNodeAt {
   start: number;
 }
 
-// The text nodes of a text layer, each with where it starts in the layer's text. The layer's text is
-// theirs joined, which is the page's text as PDF.js reads it.
+// The text nodes of a text layer, each with where it starts in the layer's text. Joined, they make the
+// layer's text, which is the page's text as PDF.js reads it.
 function getTextNodes(textLayer: HTMLElement): TextNodeAt[] {
   const nodes: TextNodeAt[] = [];
   let offset = 0;
@@ -249,10 +249,10 @@ export function getTextEnd(frame: HTMLElement, spans: MarkSpan[]): DOMRect | und
   return textLayer === null ? undefined : getTextRects(getTextNodes(textLayer), last.start, last.end).at(-1);
 }
 
-// The place in the frame's text at a height in the window, on the first page reaching down to it. It is the
-// start of the piece of text drawn across that height, or else of the nearest one below. Below every piece, it
-// is the start of the last one. Pieces are taken by where they are drawn, since a page's text can list a
-// footer first. `undefined` while that page's text is not drawn, or below every page.
+// The place in the frame's text at a height in the window, on the first page that reaches down to it. It is
+// the start of the piece of text drawn across that height, or else of the nearest one below. Below every
+// piece, it is the start of the last one. Pieces are taken by where they are drawn, since a page's text can
+// list a footer first. `undefined` while that page's text is not drawn, or below every page.
 export function getTextPointAt(frame: HTMLElement, y: number): TextPoint | undefined {
   const pageView = Array.from(frame.querySelectorAll<HTMLElement>("[data-page-number]"))
     .find(view => view.getBoundingClientRect().bottom >= y);
@@ -281,7 +281,8 @@ export interface TextLine {
 }
 
 // The lines of a page's drawn text, in the order the page's text lists them. Pieces of text drawn less than
-// half a line apart in height are one line, which starts at the first of them. None while it is not drawn.
+// half a line apart in height are one line, which starts at the first of them. Empty while the text is not
+// drawn.
 function getTextLines(pageView: HTMLElement): TextLine[] {
   const textLayer = pageView.querySelector<HTMLElement>(".textLayer");
   if (textLayer === null) {
@@ -298,9 +299,10 @@ function getTextLines(pageView: HTMLElement): TextLine[] {
   return lines.map(({ start, box }) => ({ point: { page, char: start }, top: box.top }));
 }
 
-// The lines of the frame's text either side of a height in the window: the last one starting at or above
-// it, and the first one starting below it. They are looked for on the first page reaching down to that
-// height and on the pages either side of it. `undefined` unless both are drawn.
+// The lines of the frame's text on either side of a height in the window. `above` is the last line that
+// starts at or above it, and `below` the first line that starts below it. They are looked for on the first
+// page that reaches down to that height, and on the pages either side of it. `undefined` unless both are
+// drawn.
 export function getTextLinesAround(frame: HTMLElement, y: number): { above: TextLine; below: TextLine } | undefined {
   const pageViews = Array.from(frame.querySelectorAll<HTMLElement>("[data-page-number]"));
   const at = pageViews.findIndex(view => view.getBoundingClientRect().bottom >= y);
@@ -326,7 +328,7 @@ export function findMark(frame: HTMLElement, id: string): HTMLElement | undefine
 }
 
 // A point is drawn as a box centred on it. The box is POINT_SIZE_RATIO of the line's height high, but no
-// lower than POINT_MIN_SIZE pixels, and POINT_WIDTH_RATIO as wide as it is high.
+// less than POINT_MIN_SIZE pixels, and POINT_WIDTH_RATIO as wide as it is high.
 export const POINT_SIZE_RATIO = 1.2;
 export const POINT_MIN_SIZE = 22;
 export const POINT_WIDTH_RATIO = 0.6;
@@ -354,7 +356,7 @@ function getHitBox(mark: HTMLElement, pointSize: number): DOMRect {
 // The mark drawn at a place in the frame, if any. Marks let the pointer through, so a click is matched to
 // a mark here, by where it falls. A point is reached within a fingertip of it on a touch screen. A mark the
 // click falls on comes before a point it is only beside. Where marks overlap, one not selected comes first,
-// so clicking again reaches the other. `pointerType` is the pointer's, as a PointerEvent gives it.
+// so clicking again reaches the other. `pointerType` is the kind of pointer, as a PointerEvent gives it.
 export function findMarkAt(frame: HTMLElement, x: number, y: number, pointerType = "mouse"): string | undefined {
   const pointSize = pointerType === "touch" ? POINT_HIT_SIZE.touch : POINT_HIT_SIZE.mouse;
   const hits = Array.from(frame.querySelectorAll<HTMLElement>(`.${MARK_CLASS}`)).flatMap(mark => {
@@ -366,7 +368,7 @@ export function findMarkAt(frame: HTMLElement, x: number, y: number, pointerType
   return (closest.find(mark => !mark.classList.contains("selected")) ?? closest.at(0))?.dataset.markId;
 }
 
-// How far a place in the frame is from where a mark is drawn, zero when on it.
+// How far a place in the frame is from where a mark is drawn, or zero when the place is on the mark.
 function getDistance(mark: HTMLElement, x: number, y: number): number {
   const { left, right, top, bottom } = getHitBox(mark, 0);
   return Math.hypot(Math.max(left - x, 0, x - right), Math.max(top - y, 0, y - bottom));

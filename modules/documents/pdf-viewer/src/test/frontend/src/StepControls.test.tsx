@@ -94,7 +94,7 @@ describe("StepControls", () => {
   });
 });
 
-// Controls whose position follows their own steps, as a list's does.
+// Controls that move to the position each of their steps asks for, as a list's controls do.
 function Stepping({ count }: { count: number }) {
   const [ position, setPosition ] = useState(1);
   return <StepControls position={position} count={count} itemName="change" onStep={setPosition} />;

@@ -32,9 +32,9 @@ export interface ViewerStatus {
   page?: number;
 }
 
-// Why PDF.js could not open the document, as a sentence for the person. Undefined for any failure but a
-// worker that never started, a file that is not a readable PDF, and a PDF behind a password. For the
-// worker, it asks for a reload, since a retry would reuse the same worker.
+// Why PDF.js could not open the document, as a sentence for the person. It covers three failures: a worker
+// that never started, a file that is not a readable PDF, and a PDF behind a password. Undefined for any
+// other. For the worker, it asks for a reload, since a retry would reuse the same worker.
 export function describePdfFailure(error: unknown): string | undefined {
   if (error instanceof PdfWorkerFailure) {
     return "The document viewer could not start. Reload the page to try again.";
@@ -50,7 +50,7 @@ export function describePdfFailure(error: unknown): string | undefined {
 }
 
 // The file name at the end of a URL's path, decoded, without the query, the fragment or a trailing slash.
-// A name that does not decode is kept as it is. The URL itself when its path has no name.
+// A name that does not decode is kept as it is. When the path has no name, it is the whole URL.
 export function getFileName(url: string): string {
   const path = url.replace(/[?#].*$/, "").replace(/\/+$/, "");
   const name = lastSegmentOf(path);
@@ -74,15 +74,15 @@ export const PASSAGES: MarkName = { one: "passage", many: "passages" };
 
 export const CHANGES: MarkName = { one: "change", many: "changes" };
 
-// What so many marks are called: the name of one for one, and of many otherwise.
+// What `count` marks are called: the singular name for one, and the plural otherwise.
 export function getNameFor(name: MarkName, count: number): string {
   return count === 1 ? name.one : name.many;
 }
 
-// A way to step through a list, such as a search's matches or the marks listed.
+// The direction of a step through a list, such as a search's matches or the marks listed.
 export type StepDirection = "previous" | "next";
 
-// A mark by its place among several, as in "Passage 3 of 12".
+// Names a mark by its position among several, as in "Passage 3 of 12".
 export function describeAmong(name: MarkName, { index, count }: { index: number; count: number }): string {
   return `${capitalize(name.one)} ${index} of ${count}`;
 }
@@ -118,7 +118,7 @@ export function describeSorts(namings: Iterable<MarkNaming>): string {
   return capitalize(listed([ ...new Set(Array.from(namings, naming => naming.name.many)) ]));
 }
 
-// What the marks before and after the one at `position`, counting from 1, are called, for the buttons that
+// The names of the marks before and after the one at `position`, counting from 1, for the buttons that
 // step to them. Past either end, it is the nearest mark's name, and `fallback` when there are no marks.
 export function getStepNames(
   marks: { id: string }[],
@@ -136,7 +136,7 @@ export function countMarks(namings: Iterable<MarkNaming>): string {
   return listed(Array.from(counts, ([ name, count ]) => `${count} ${getNameFor(name, count)}`));
 }
 
-// The heading of the last mark of each sort, as in "Passage 12 of 12": the widest that sort can take.
+// The heading of the last mark of each sort, as in "Passage 12 of 12": the widest heading that sort can have.
 export function getWidestHeadings(namings: Iterable<MarkNaming>): string[] {
   const last = new Map(Array.from(namings, naming => [ naming.name, naming.count ] as const));
   return Array.from(last, ([ name, count ]) => describeAmong(name, { index: count, count }));

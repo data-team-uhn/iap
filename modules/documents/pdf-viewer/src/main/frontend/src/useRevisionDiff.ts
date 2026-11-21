@@ -30,7 +30,8 @@ const PROGRESS_INTERVAL = 200;
 // Counts the comparisons made, so each one's change ids differ from every other's.
 let comparisons = 0;
 
-// Both versions' text, once read, and how far the reading has got, for the documents it was read from.
+// How far the reading of both versions has got, their text once all of it is read, and the two documents
+// it is read from.
 interface Reading {
   older: OpenedDocument;
   newer: OpenedDocument;

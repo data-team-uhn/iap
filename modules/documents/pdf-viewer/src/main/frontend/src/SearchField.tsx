@@ -31,8 +31,8 @@ import type { DocumentSearch } from "./pdfViewerModel";
 // The field searching the document, then the buttons going to the previous and next match. The end of the
 // field says which match is shown out of how many, or that nothing matches. A spinner shows there while
 // pages are still being searched. Enter in the field goes to the next match, and Shift+Enter to the
-// previous one. Escape anywhere in it closes the search where it can be closed, or else clears it. Only an
-// Escape with nothing to close or clear goes on to the elements around it.
+// previous one. Escape anywhere in it closes the search if it can be closed, or else clears it. An Escape
+// with nothing to close or clear reaches the elements around it.
 export default function SearchField({ search, inputRef, disabled, onFind, onFindNext, onFindPrevious, onClose }: {
   search: DocumentSearch;
   inputRef?: Ref<HTMLInputElement>;

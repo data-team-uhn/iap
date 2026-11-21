@@ -57,7 +57,7 @@ import type { useSelectedText } from "./useSelectedText";
 // The space between the viewer's rows, smaller on a phone.
 const ROW_GAP = { xs: 0.5, sm: 1 };
 
-// The narrowest viewer, in pixels, with room for two versions side by side and the list of marks beside
+// The narrowest viewer, in pixels, that has room for two versions side by side and the list of marks beside
 // them. A narrower one shows the marks one at a time above the versions.
 const SPLIT_WITH_LIST_WIDTH = 1440;
 
@@ -80,7 +80,7 @@ interface ViewerBodyProps {
   comparison: ComparisonPanes | undefined;
   // The ids of the marks that are changes.
   changeIds: Set<string>;
-  // The button moving the viewer between its container and the dialog, or null without a container.
+  // The button that moves the viewer between its container and the dialog, or null without a container.
   placeButton: ReactNode;
   // Whether the document spans the full width of a phone screen, past the dialog's padding.
   edgeToEdge: boolean;
@@ -139,8 +139,8 @@ export default function ViewerBody(props: ViewerBodyProps) {
   } else if (!searching && compared.described !== undefined) {
     said = compared.described.said;
   }
-  // What the comparison found, once it is done. It is announced on its own, before the status, while the
-  // status speaks of a selected mark.
+  // What the comparison found, once it is done. While the status speaks of a selected mark, this is
+  // announced separately, before the status.
   const speaksOfMark = !searching && (compared.selectedChangeSaid !== undefined || selected !== undefined);
   const summary = compared.found !== undefined && speaksOfMark ? compared.found.said : "";
 
@@ -186,7 +186,7 @@ export default function ViewerBody(props: ViewerBodyProps) {
     ? { share: pagesRead / pageCount, what: `the ${looked > 1 ? markName.many : markName.one}` }
     : undefined);
 
-  // Side by side, each version is named after its label, so that the two can be told apart.
+  // When the versions are side by side, each is named by its label, so that the two can be told apart.
   const olderName = compared.older?.label ?? "Older version";
   const newerName = compared.newerLabel ?? "Newer version";
   const shownDocument = (
@@ -293,8 +293,8 @@ export default function ViewerBody(props: ViewerBodyProps) {
   );
 }
 
-// The versions shown. Side by side, the older version is drawn here beside this one. Otherwise this version
-// is shown alone. This version's document comes in as `children`.
+// The versions shown. When they are side by side, the older version is drawn here, beside this one.
+// Otherwise this version is shown alone. This version's document comes in as `children`.
 function VersionPanes({ older, newerLabel, view, outlineSelected, looking, children }: {
   older: { view: PdfView; label: string; failed: boolean } | undefined;
   newerLabel: string;
@@ -326,8 +326,9 @@ function VersionPanes({ older, newerLabel, view, outlineSelected, looking, child
   );
 }
 
-// One version of the document. With a label, as beside another version, it has a row above it holding the
-// label and its own page controls, grouped under the label so that each version's controls can be told apart.
+// One version of the document. With a label, as when shown beside another version, it has a row above it
+// with the label and the version's own page controls. The row is a group named by the label, so that each
+// version's controls can be told apart.
 function Pane({ label, view, children }: {
   label: string | undefined;
   view: PdfView;

@@ -36,12 +36,12 @@ import type { MarkKind } from "./marksModel";
 import type { SxProps, Theme } from "@mui/material/styles";
 
 // Past this many lines, the passage is cut short until the person asks for all of it. On a phone it is
-// cut to one line, sharing its row with the note and the button showing all of it.
+// cut to one line, which shares its row with the note and the button that shows all of it.
 const MAX_PASSAGE_LINES = 3;
 const MAX_PASSAGE_LINES_ON_PHONE = 1;
 
-// The height kept for what stands in for a quote, such as a change's diff, in lines. It does not change
-// with what the body holds, so stepping through the marks does not move what is under the card.
+// The height, in lines, kept for the body shown in place of a quote, such as a change's diff. It does not
+// change with what the body holds, so stepping through the marks does not move what is under the card.
 const BODY_LINES = 2;
 
 // Past this many lines, what the caller shows under the passage, such as a long comment, is cut short. A
@@ -57,23 +57,23 @@ function scrollToTop(element: HTMLElement): void {
   element.scrollTop = 0;
 }
 
-// The card showing one mark in its mark's colour: the passage or what stands in for it, and a note on how
-// the search for it went. Once the passage is found, clicking it takes the reader there. A passage longer
-// than its limit of lines is cut short, and so are the caller's details under it. One button shows all of
-// both. It sits beside the passage, since the passage is itself a button and a button cannot hold another.
-// Moving the focus into the cut details also shows them all. While the details hold a field to type in,
-// such as a comment being written, the card stays open.
+// The card that shows one mark in its mark's colour. It holds the passage, or the body shown in its place,
+// and a note on how the search for it went. Once the passage is found, clicking it takes the reader there. A
+// passage longer than its limit of lines is cut short, and so are the caller's details under it. One button
+// shows all of both. It sits beside the passage, since the passage is itself a button and a button cannot
+// hold another. Moving the focus into the cut details also shows them all. While the details hold a field to
+// type in, such as a comment being written, the card stays open.
 export default function PassageCard(props: {
   ref?: Ref<HTMLDivElement>;
   // What the mark is called, for the card's label and the button showing all of it.
   name: MarkName;
   quote: string | undefined;
-  // What shows the mark in place of a quote, such as a change's diff.
+  // What to show in place of a quote, such as a change's diff.
   body?: ReactNode;
   // What the body says, for a screen reader. A button's label replaces what the button holds, so this is
   // given as the button's description.
   bodySaid?: string;
-  // What to call the mark on the button taking the reader to it, such as "passage" or "change".
+  // What to call the mark on the button that takes the reader to it, such as "passage" or "change".
   what?: string;
   // How the search for the passage went, or where it was found.
   note?: PassageNote;
@@ -122,7 +122,7 @@ export default function PassageCard(props: {
     }
   }, [open, detailsBox]);
 
-  // Whether the body runs past its lines, measured while it is held to them.
+  // Whether the body is taller than BODY_LINES, measured while it is held to that height.
   useLayoutEffect(() => {
     const box = bodyBox.current;
     if (box === null || expanded) {
@@ -135,8 +135,8 @@ export default function PassageCard(props: {
     return () => observer.disconnect();
   }, [body, expanded]);
 
-  // The passage's lines, counted on a hidden copy at the card's full width, which cutting the passage short
-  // does not change.
+  // How many lines the passage takes, counted on a hidden copy at the card's full width. Cutting the
+  // passage short does not change the copy.
   useLayoutEffect(() => {
     if (copy === null) {
       return undefined;
@@ -152,7 +152,7 @@ export default function PassageCard(props: {
   const cut = long && !open;
   const oneRow = phone && cut;
   const text = quote === undefined || quote === "" ? "" : `“${quote}”`;
-  // A passage found is a button whose label says its page, so its note would only repeat it.
+  // A found passage is a button whose label gives its page, so its note would only repeat it.
   const noteInLabel = note !== undefined && "foundOnPage" in note;
   const content = (
     <>

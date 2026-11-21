@@ -33,7 +33,8 @@ import {
 const LINES = [ "Volunteers who, on a casual basis,", "assist from time to time." ];
 
 // A text layer as PDF.js draws one, 800 by 1000. As rectsOf lays it out, each line is 20 high and 100
-// below the last, and each character is 10 wide. A line is one span, or several, each given with where it starts along the line.
+// below the last, and each character is 10 wide. A line is one span, or several, each given with where it
+// starts along the line.
 function createTextLayer(lines: (string | [ string, number ][])[] = LINES): HTMLDivElement {
   const textLayer = document.createElement("div");
   lines.forEach((line, index) => {
@@ -160,7 +161,7 @@ describe("drawMarks", () => {
   it("draws a point as a marker the line's height, after the character before it, or before the one it starts", () => {
     const textLayer = createTextLayer();
 
-    // After "Volunteers", and before the first character of the second line, which it starts
+    // One point after "Volunteers", and one before the first character of the second line, as its start
     drawMarks(textLayer, [
       { id: "a", kind: "removed", start: 10, end: 10 },
       { id: "b", kind: "added", start: 34, end: 34, starts: true },
