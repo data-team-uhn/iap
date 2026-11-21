@@ -42,6 +42,30 @@ public class PropertyOperandResolver extends AbstractPropertyOperandResolver
     }
 
     @Override
+    public String getDocumentationLabel()
+    {
+        return "A property";
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "A property of the entity the condition is asked about, named by the operand.";
+    }
+
+    @Override
+    public String getPhrase()
+    {
+        return "the {label}";
+    }
+
+    @Override
+    public int getOrder()
+    {
+        return 30;
+    }
+
+    @Override
     protected Content holder(final Content context)
     {
         return Optional.ofNullable(OperandResolver.findEnclosingEntity(context)).orElse(context);

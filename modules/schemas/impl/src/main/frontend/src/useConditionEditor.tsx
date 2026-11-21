@@ -22,12 +22,10 @@ import ConditionDialog from "@iap/conditions/ConditionDialog";
 import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 
-import { questionsFor } from "./conditionModel";
-import QuestionPicker from "./QuestionPicker";
+import { pathOf } from "./schemaModel";
 import { useMoveMode } from "./schemaMove";
 import { useTreeEvent } from "./schemaTree";
 import { conditionOf } from "./schemaVersionTreeModel";
-import { useVersionConditions } from "./versionConditions";
 
 export interface ConditionEditor {
   // Opens the dialog that sets the condition. Absent when the part's condition cannot be set. Also absent while a
@@ -37,25 +35,22 @@ export interface ConditionEditor {
   dialog: ReactNode;
 }
 
-// Sets when a part applies. The condition compares the answers to the version's other questions, the submission's
-// tags and the submission's properties. It is sent whole, in one `condition` event.
+// Lets the user set when a part applies. The dialog asks the server what the part's condition can compare. The
+// condition is sent whole, in one `condition` event.
 export function useConditionEditor(node: SerializedNode, what: string): ConditionEditor {
   const [ editing, setEditing ] = useState(false);
-  const { index, offered } = useVersionConditions();
   const { moving } = useMoveMode();
   const send = useTreeEvent();
   if (!offers(node, "condition")) {
     return { dialog: null };
   }
-  const questions = questionsFor(node, index);
   return {
     edit: moving ? undefined : () => setEditing(true),
     dialog: editing && (
       <ConditionDialog
         title={`When this ${what} applies`}
         condition={conditionOf(node)}
-        sources={offered}
-        editors={{ answer: editor => <QuestionPicker {...editor} questions={questions} /> }}
+        path={pathOf(node)}
         onClose={() => setEditing(false)}
         onSave={content => send(node, "condition", { content: JSON.stringify(content) })}
       />

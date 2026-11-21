@@ -17,9 +17,7 @@
  */
 package io.uhndata.iap.conditions.internal;
 
-import java.lang.reflect.Field;
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -62,16 +60,12 @@ class ConditionEvaluatorImplTest
 
     @BeforeEach
     void setUp()
-        throws ReflectiveOperationException
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, ConditionOperand.class,
             SingleCondition.class, ConditionGroup.class);
-        // The bundle plugin only generates the DS metadata at packaging time, so the service is
-        // instantiated directly and its references are injected by hand.
-        this.evaluator = new ConditionEvaluatorImpl();
-        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
-        resolvers.setAccessible(true);
-        resolvers.set(this.evaluator, List.of(new LiteralOperandResolver()));
+        this.context.registerInjectActivateService(new LiteralOperandResolver());
+        this.context.registerInjectActivateService(new ConditionTypesImpl());
+        this.evaluator = this.context.registerInjectActivateService(new ConditionEvaluatorImpl());
         this.evaluationContext = this.context.create().resource("/Submissions/sub",
             SLING_RESOURCE_TYPE, "data/Entity").adaptTo(Content.class);
     }

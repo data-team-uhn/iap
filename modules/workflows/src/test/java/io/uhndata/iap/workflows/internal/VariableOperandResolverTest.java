@@ -19,6 +19,8 @@ package io.uhndata.iap.workflows.internal;
 
 import java.util.Map;
 
+import jakarta.json.JsonObject;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -36,6 +38,7 @@ import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -76,6 +79,17 @@ class VariableOperandResolverTest
     void namesItsSource()
     {
         assertEquals("variable", this.resolver.getSource());
+    }
+
+    @Test
+    void describesItselfAsWrittenByHandRatherThanOfferedToAuthors()
+    {
+        final JsonObject variable = this.resolver.documentationJsonBuilder().build();
+        assertEquals("A workflow variable", variable.getString("label"));
+        assertEquals("the workflow's {label}", variable.getString("phrase"));
+        assertEquals(50, variable.getInt("order"));
+        assertFalse(variable.getBoolean("offered"));
+        assertTrue(this.resolver.getDescription().contains("workflow"));
     }
 
     @Test

@@ -31,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.conditions.internal.ConditionTypesImpl;
 import io.uhndata.iap.schemas.editing.internal.SchemaFixture;
 import io.uhndata.iap.workflows.spi.ValidityCheck;
 
@@ -50,8 +51,10 @@ class SchemaVersionChecksTest
 {
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
+    private final ConditionOperationsCheck operations = new ConditionOperationsCheck();
+
     private final List<ValidityCheck> checks = List.of(new QuestionBoundsCheck(), new QuestionPatternCheck(),
-        new AnswerOptionsCheck(), new ConditionOperationsCheck(), new ConditionQuestionsCheck());
+        new AnswerOptionsCheck(), this.operations, new ConditionQuestionsCheck());
 
     private SchemaFixture fixture;
 
@@ -62,6 +65,8 @@ class SchemaVersionChecksTest
     {
         this.fixture = new SchemaFixture(this.context);
         this.schema = this.fixture.schema("study");
+        this.context.registerInjectActivateService(new ConditionTypesImpl());
+        this.context.registerInjectActivateService(this.operations);
     }
 
     @Test

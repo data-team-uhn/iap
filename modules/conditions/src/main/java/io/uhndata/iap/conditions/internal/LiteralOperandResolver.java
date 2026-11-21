@@ -41,6 +41,25 @@ public class LiteralOperandResolver implements OperandResolver
     }
 
     @Override
+    public String getDocumentationLabel()
+    {
+        return "A specific value";
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "Values written in the condition itself.";
+    }
+
+    @Override
+    public boolean isOffered()
+    {
+        // The default source of the second operand, not a source an author picks
+        return false;
+    }
+
+    @Override
     public Operand resolve(final ConditionOperand operand, final Content context)
     {
         // Read the raw property rather than the model's String[] view, preserving the stored JCR

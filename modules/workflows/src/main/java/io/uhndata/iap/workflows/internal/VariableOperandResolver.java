@@ -55,6 +55,37 @@ public class VariableOperandResolver implements OperandResolver
     }
 
     @Override
+    public String getDocumentationLabel()
+    {
+        return "A workflow variable";
+    }
+
+    @Override
+    public String getDescription()
+    {
+        return "A variable of the workflow instance the condition is evaluated against, named by the operand.";
+    }
+
+    @Override
+    public String getPhrase()
+    {
+        return "the workflow's {label}";
+    }
+
+    @Override
+    public boolean isOffered()
+    {
+        // Written by hand in workflow definitions, not offered to the authors of schemas
+        return false;
+    }
+
+    @Override
+    public int getOrder()
+    {
+        return 50;
+    }
+
+    @Override
     public Operand resolve(final ConditionOperand operand, final Content context)
     {
         final String[] value = operand.getValue();
