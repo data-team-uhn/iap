@@ -40,7 +40,7 @@ import {
   Tooltip, Typography, useMediaQuery, useTheme,
 } from "@mui/material";
 
-import { cutShort, passageCard } from "@iap/frontend-commons/pdfViewer/passageStyles";
+import { cutShort, passageCard } from "@iap/documents-pdf-viewer/passageStyles";
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 import TagChip from "@iap/tags/TagChip";
 

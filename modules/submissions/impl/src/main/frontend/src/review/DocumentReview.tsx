@@ -20,9 +20,9 @@ import { useCallback, useMemo, useState } from "react";
 
 import { Box } from "@mui/material";
 
-import type { Mark, TextAnchor } from "@iap/frontend-commons/pdfViewer/marksModel";
-import PdfViewer from "@iap/frontend-commons/pdfViewer/PdfViewer";
-import type { DocumentSearch } from "@iap/frontend-commons/pdfViewer/pdfViewerModel";
+import type { Mark, TextAnchor } from "@iap/documents-pdf-viewer/marksModel";
+import PdfViewer from "@iap/documents-pdf-viewer/PdfViewer";
+import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
 
 import { toFileUrl } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";

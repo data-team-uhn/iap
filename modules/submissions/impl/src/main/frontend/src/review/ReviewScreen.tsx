@@ -45,11 +45,11 @@ import {
   useTheme,
 } from "@mui/material";
 
+import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
 import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { usePublishedPageContext } from "@iap/frontend-commons/pageContext";
-import type { DocumentSearch } from "@iap/frontend-commons/pdfViewer/pdfViewerModel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import TagChip from "@iap/tags/TagChip";
 

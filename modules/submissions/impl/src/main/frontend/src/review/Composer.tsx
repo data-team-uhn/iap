@@ -22,8 +22,8 @@ import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import CircleOutlined from "@mui/icons-material/CircleOutlined";
 import { Button, Chip, Divider, MenuItem, Stack, TextField, type Theme } from "@mui/material";
 
+import type { PassageKind } from "@iap/documents-pdf-viewer/marksModel";
 import { chipStyle } from "@iap/frontend-commons/chipStyle";
-import type { PassageKind } from "@iap/frontend-commons/pdfViewer/marksModel";
 import { loadTagDefinitions, type TagDefinition } from "@iap/tags/tagDefinitions";
 
 import { kindInfo, SEVERITIES, type NoteKind, type Topic } from "./reviewData";

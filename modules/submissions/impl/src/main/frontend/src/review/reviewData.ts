@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import type { PassageKind } from "@iap/frontend-commons/pdfViewer/marksModel";
+import type { PassageKind } from "@iap/documents-pdf-viewer/marksModel";
 
 import type { Message } from "./reviewModel";
 

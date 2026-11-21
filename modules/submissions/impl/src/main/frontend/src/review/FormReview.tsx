@@ -23,7 +23,7 @@ import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import { Box, ButtonBase, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 
-import { cutShort, getSelectedOutline, passageCard, passageLayer, passageTint } from "@iap/frontend-commons/pdfViewer/passageStyles";
+import { cutShort, getSelectedOutline, passageCard, passageLayer, passageTint } from "@iap/documents-pdf-viewer/passageStyles";
 
 import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
