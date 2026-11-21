@@ -173,6 +173,14 @@
           <type>test-jar</type>
           <scope>test</scope>
         </dependency>
+        <!-- Referenceables, which makes mock repository nodes referenceable -->
+        <dependency>
+          <groupId>${project.groupId}</groupId>
+          <artifactId>iap-java-utils</artifactId>
+          <version>${project.version}</version>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
       </dependencies>
     </profile>
   </profiles>

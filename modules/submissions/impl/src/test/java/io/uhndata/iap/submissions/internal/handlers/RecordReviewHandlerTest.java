@@ -44,11 +44,11 @@ import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.submissions.internal.Referenceables;
 import io.uhndata.iap.submissions.models.Comment;
 import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.testing.PropertyTagging;
+import io.uhndata.iap.utils.testing.Referenceables;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -60,7 +60,6 @@ import static io.uhndata.iap.submissions.internal.CompletenessFixture.SUBMISSION
 import static io.uhndata.iap.submissions.internal.CompletenessFixture.SUPER_TYPE;
 import static io.uhndata.iap.submissions.internal.CompletenessFixture.TYPE;
 import static io.uhndata.iap.submissions.internal.CompletenessFixture.VERSION_PATH;
-import static io.uhndata.iap.submissions.internal.CompletenessFixture.reference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -124,11 +123,12 @@ class RecordReviewHandlerTest
             TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Request details"));
         this.context.create().resource(APPROVAL_PATH, Map.of(
             TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Approval"));
-        Referenceables.identify(this.context, VERSION_PATH + "/budget", APPROVAL_PATH);
+        final Referenceables references = new Referenceables(this.context.resourceResolver());
+        references.identify(VERSION_PATH + "/budget", APPROVAL_PATH);
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", "sam",
             "tags", new String[] {"submitted"}));
-        reference(this.context, SUBMISSION_PATH, VERSION_PATH, "schemaVersion");
+        references.setReference(SUBMISSION_PATH, "schemaVersion", VERSION_PATH);
     }
 
     @Test

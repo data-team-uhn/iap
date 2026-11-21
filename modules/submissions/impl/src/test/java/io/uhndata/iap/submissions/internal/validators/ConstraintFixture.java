@@ -35,11 +35,11 @@ import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.submissions.internal.CompletenessFixture;
 import io.uhndata.iap.submissions.internal.RankedServices;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.submissions.spi.AnswerConstraint;
+import io.uhndata.iap.utils.testing.Referenceables;
 
 import static io.uhndata.iap.submissions.internal.CompletenessFixture.FORM_ITEM;
 import static io.uhndata.iap.submissions.internal.CompletenessFixture.REQUIREMENT;
@@ -198,12 +198,12 @@ final class ConstraintFixture
 
         final Resource submission = this.context.create().resource(SUBMISSION_PATH,
             Map.of(TYPE, Submission.RESOURCE_TYPE, "title", "One"));
-        CompletenessFixture.reference(this.context, SUBMISSION_PATH, VERSION_PATH, "schemaVersion");
+        final Referenceables references = new Referenceables(this.context.resourceResolver());
+        references.setReference(SUBMISSION_PATH, "schemaVersion", VERSION_PATH);
         if (values.length > 0) {
             this.context.create().resource(SUBMISSION_PATH + "/a1",
                 Map.of(TYPE, Answer.RESOURCE_TYPE, "value", values));
-            CompletenessFixture.reference(this.context, SUBMISSION_PATH + "/a1", VERSION_PATH + "/form/q",
-                "question");
+            references.setReference(SUBMISSION_PATH + "/a1", "question", VERSION_PATH + "/form/q");
         }
         return submission.adaptTo(Submission.class);
     }

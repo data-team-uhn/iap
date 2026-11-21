@@ -53,6 +53,7 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.testing.PropertyTagging;
+import io.uhndata.iap.utils.testing.Referenceables;
 
 /**
  * A draft submission whose schema asks for data from one catalogue, beside a set of questions. The catalogue's
@@ -114,7 +115,7 @@ final class SelectionFixture
     private SelectionFixture(final SlingContext context)
     {
         this.context = context;
-        this.references = new Referenceables(context);
+        this.references = new Referenceables(context.resourceResolver());
     }
 
     /**
