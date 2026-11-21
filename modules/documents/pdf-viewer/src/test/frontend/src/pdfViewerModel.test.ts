@@ -15,10 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests the words the PDF viewer shows for its document, marks and searches, and where it places the
+// Comment button.
+
 import type { MarkPlace } from "@iap/documents-pdf-viewer/marksModel";
 import {
   COMMENT_BUTTON_HEIGHT,
-  describeOpenFailure,
+  describePdfFailure,
   describePages,
   describeSorts,
   getCommentButtonPlace,
@@ -32,45 +35,37 @@ import {
   nameMarks,
   IDLE_SEARCH,
 } from "@iap/documents-pdf-viewer/pdfViewerModel";
-import { NotAuthenticatedError } from "@iap/frontend-commons/reLogin";
+import { PdfWorkerFailure } from "@iap/frontend-commons/pdfjsClient";
 import { RequestError } from "@iap/frontend-commons/requestFailure";
 
-describe("describeOpenFailure", () => {
+describe("describePdfFailure", () => {
   function pdfjsError(name: string, message: string): Error {
     const error = new Error(message);
     error.name = name;
     return error;
   }
 
-  beforeEach(() => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("asks the person to sign in again when the session has ended", () => {
-    expect(describeOpenFailure(new NotAuthenticatedError("gone"))).toBe(
-      "Your session has expired. Sign in again, then retry.",
+  it("asks for a reload when PDF.js's worker never started", () => {
+    expect(describePdfFailure(new PdfWorkerFailure("The PDF.js worker did not start"))).toBe(
+      "The document viewer could not start. Reload the page to try again.",
     );
   });
 
   it("says when the file is not a PDF that can be read", () => {
-    expect(describeOpenFailure(pdfjsError("InvalidPDFException", "Invalid PDF structure."))).toBe(
+    expect(describePdfFailure(pdfjsError("InvalidPDFException", "Invalid PDF structure."))).toBe(
       "This file is not a PDF that can be read. It may be damaged, or be another kind of file.",
     );
   });
 
   it("says when the PDF is protected by a password", () => {
-    expect(describeOpenFailure(pdfjsError("PasswordException", "No password given"))).toBe(
+    expect(describePdfFailure(pdfjsError("PasswordException", "No password given"))).toBe(
       "This PDF is protected by a password, so it cannot be shown here.",
     );
   });
 
-  it("describes any other failure as a request failure", () => {
-    expect(describeOpenFailure(new RequestError(404))).toMatch(/could not be found on the server/);
-    expect(describeOpenFailure("odd")).toBe("Something went wrong: odd");
+  it("leaves any other failure to be described as a request's", () => {
+    expect(describePdfFailure(new RequestError(404))).toBeUndefined();
+    expect(describePdfFailure("odd")).toBeUndefined();
   });
 });
 
@@ -226,21 +221,21 @@ describe("getCommentButtonPlace", () => {
   const FRAME = { width: 600, height: 800 };
 
   it("puts the button just under the end of a selection made with a mouse", () => {
-    expect(getCommentButtonPlace({ x: 200, bottom: 300 }, FRAME, false)).toEqual({ top: 304, left: 200 });
+    expect(getCommentButtonPlace({ x: 200, bottom: 300 }, FRAME, "mouse")).toEqual({ top: 304, left: 200 });
   });
 
   it("puts it further under a selection made by touch, past the phone's handles", () => {
-    expect(getCommentButtonPlace({ x: 200, bottom: 300 }, FRAME, true)).toEqual({ top: 328, left: 200 });
+    expect(getCommentButtonPlace({ x: 200, bottom: 300 }, FRAME, "touch")).toEqual({ top: 328, left: 200 });
   });
 
   it("runs it towards the start of the frame from a selection ending in the frame's second half", () => {
-    expect(getCommentButtonPlace({ x: 450, bottom: 300 }, FRAME, false)).toEqual({ top: 304, right: 150 });
-    expect(getCommentButtonPlace({ x: 300, bottom: 300 }, FRAME, false)).toEqual({ top: 304, left: 300 });
+    expect(getCommentButtonPlace({ x: 450, bottom: 300 }, FRAME, "mouse")).toEqual({ top: 304, right: 150 });
+    expect(getCommentButtonPlace({ x: 300, bottom: 300 }, FRAME, "mouse")).toEqual({ top: 304, left: 300 });
   });
 
   it("keeps it inside the frame, whatever part of the selection is out of view", () => {
-    expect(getCommentButtonPlace({ x: 2, bottom: -50 }, FRAME, false)).toEqual({ top: 8, left: 8 });
-    expect(getCommentButtonPlace({ x: 598, bottom: 900 }, FRAME, true))
+    expect(getCommentButtonPlace({ x: 2, bottom: -50 }, FRAME, "mouse")).toEqual({ top: 8, left: 8 });
+    expect(getCommentButtonPlace({ x: 598, bottom: 900 }, FRAME, "touch"))
       .toEqual({ top: 800 - COMMENT_BUTTON_HEIGHT - 8, right: 8 });
   });
 });

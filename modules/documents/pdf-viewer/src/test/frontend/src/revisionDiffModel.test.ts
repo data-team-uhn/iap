@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests comparing two versions of a document word by word, on pages of text written as strings.
 import type { MarkSpan, PageText } from "@iap/documents-pdf-viewer/marksModel";
 import {
   compareRevisions,
@@ -24,7 +25,8 @@ import {
   getChangeType,
   getNearestShown,
   getShownChanges,
-  getWordKey,
+  getLenientKey,
+  getStrictKey,
   getWords,
   joinChanges,
   mapPoint,
@@ -32,7 +34,8 @@ import {
   type RevisionChange,
 } from "@iap/documents-pdf-viewer/revisionDiffModel";
 
-// Pages as PDF.js reads them: a line per item, with no character where one ends.
+// Pages as PDF.js reads them, from one string per page with "\n" between lines. No character ends a line,
+// and `lineEnds` holds where each line but the last ends.
 function pages(...texts: string[]): PageText[] {
   return texts.map(text => {
     const lineEnds: number[] = [];
@@ -92,8 +95,8 @@ describe("getWords", () => {
   });
 });
 
-describe("getWordKey", () => {
-  const isSame = (one: string, other: string, strict = false) => getWordKey(one, strict) === getWordKey(other, strict);
+describe("getLenientKey and getStrictKey", () => {
+  const isSame = (one: string, other: string, getKey = getLenientKey) => getKey(one) === getKey(other);
 
   it("leaves case and the punctuation around a word out of the default comparison", () => {
     expect(isSame("Hello,", "hello")).toBe(true);
@@ -128,19 +131,19 @@ describe("getWordKey", () => {
     const word = `1${"!".repeat(100_000)}a`;
     const started = performance.now();
 
-    expect(getWordKey(`(${word}).`, false)).toBe(word);
+    expect(getLenientKey(`(${word}).`)).toBe(word);
     expect(performance.now() - started).toBeLessThan(1000);
   });
 
   it("leaves punctuation alone out of the default comparison", () => {
-    expect(getWordKey("—", false)).toBeUndefined();
-    expect(getWordKey("—", true)).toBe("—");
+    expect(getLenientKey("—")).toBeUndefined();
+    expect(getStrictKey("—")).toBe("—");
   });
 
   it("compares every character strictly, but a ligature as the letters it joins", () => {
-    expect(isSame("Hello,", "hello,", true)).toBe(false);
-    expect(isSame("ﬁle", "file", true)).toBe(true);
-    expect(isSame("co\u00adoperate", "cooperate", true)).toBe(true);
+    expect(isSame("Hello,", "hello,", getStrictKey)).toBe(false);
+    expect(isSame("ﬁle", "file", getStrictKey)).toBe(true);
+    expect(isSame("co\u00adoperate", "cooperate", getStrictKey)).toBe(true);
   });
 });
 
@@ -453,12 +456,9 @@ describe("getChangeInContext", () => {
 
   it("keeps the words around a change short of the changes shown with it", async () => {
     const { changes } = await compareAll(pages("The Fee 100 is due."), pages("The fee 120 is due."));
-    const inContext = (change: RevisionChange) => {
-      const { before, removed, added, after } = getChangeInContext(change);
-      return [ before, removed, added, after ];
-    };
 
-    // A minor change is shown with all the others, the others without the minor ones
+    // The minor change's words stop at the change after it. The other change's words run past the minor
+    // change, which is not shown with it.
     expect(changes.map(inContext)).toEqual([ [ "The", "Fee", "fee", "" ], [ "The fee", "100", "120", "is due." ] ]);
   });
 
@@ -502,34 +502,37 @@ describe("mapPoint", () => {
   it("matches a word the versions share to the same word, on whichever page it is", async () => {
     const alignment = await align(pages("One two three four", "five six seven"), pages("One two six seven"));
 
-    expect(mapPoint(alignment, "older", { page: 2, char: 6 })).toEqual({ page: 1, char: 8 });
-    expect(mapPoint(alignment, "newer", { page: 1, char: 8 })).toEqual({ page: 2, char: 5 });
-    expect(mapPoint(alignment, "newer", { page: 1, char: 0 })).toEqual({ page: 1, char: 0 });
+    expect(mapPoint(alignment, "older", { page: 2, char: 6 }).point).toEqual({ page: 1, char: 8 });
+    expect(mapPoint(alignment, "newer", { page: 1, char: 8 }).point).toEqual({ page: 2, char: 5 });
+    expect(mapPoint(alignment, "newer", { page: 1, char: 0 }).point).toEqual({ page: 1, char: 0 });
   });
 
   it("matches a word only one version has to where its change sits in the other", async () => {
     const alignment = await align(pages("One two three four", "five six seven"), pages("One two six seven"));
 
-    expect(mapPoint(alignment, "older", { page: 1, char: 9 })).toEqual({ page: 1, char: 8 });
-    expect(mapPoint(alignment, "older", { page: 2, char: 0 })).toEqual({ page: 1, char: 8 });
+    expect(mapPoint(alignment, "older", { page: 1, char: 9 }).shared).toBe(false);
+    expect(mapPoint(alignment, "older", { page: 2, char: 6 }).shared).toBe(true);
+
+    expect(mapPoint(alignment, "older", { page: 1, char: 9 }).point).toEqual({ page: 1, char: 8 });
+    expect(mapPoint(alignment, "older", { page: 2, char: 0 }).point).toEqual({ page: 1, char: 8 });
   });
 
   it("matches the start of a version, before any word the versions share, to the start of the other", async () => {
     const alignment = await align(pages("  Draft. The fee is due."), pages("The fee is due."));
 
-    expect(mapPoint(alignment, "older", { page: 1, char: 0 })).toEqual({ page: 1, char: 0 });
-    expect(mapPoint(alignment, "older", { page: 1, char: 4 })).toEqual({ page: 1, char: 0 });
+    expect(mapPoint(alignment, "older", { page: 1, char: 0 }).point).toEqual({ page: 1, char: 0 });
+    expect(mapPoint(alignment, "older", { page: 1, char: 4 }).point).toEqual({ page: 1, char: 0 });
   });
 
   it("matches the end of a version to the last word of the other", async () => {
     const alignment = await align(pages("The fee is due today."), pages("The fee is due."));
 
-    expect(mapPoint(alignment, "older", { page: 1, char: 16 })).toEqual({ page: 1, char: 11 });
+    expect(mapPoint(alignment, "older", { page: 1, char: 16 }).point).toEqual({ page: 1, char: 11 });
   });
 
   it("matches anything to the start of a version without words", () => {
     const alignment = { older: getWords(pages("Fee")), newer: [], pairs: [] };
 
-    expect(mapPoint(alignment, "older", { page: 1, char: 0 })).toEqual({ page: 1, char: 0 });
+    expect(mapPoint(alignment, "older", { page: 1, char: 0 }).point).toEqual({ page: 1, char: 0 });
   });
 });

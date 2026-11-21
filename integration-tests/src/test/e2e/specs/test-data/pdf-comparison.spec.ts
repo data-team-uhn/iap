@@ -18,17 +18,12 @@
 
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 
-import { ADMIN, signInAs } from '../../support/auth';
-
-/**
- * Two versions of a PDF compared side by side, in a real browser, since only a browser lays the pages out.
- * The PDFs are printed by Chromium and served by the test itself, so nothing is stored on the instance.
- */
+import { PdfViewerWidget } from '../../pages/pdfViewer.page';
 
 const OLDER = '/e2e/pdf-comparison/older.pdf';
 const NEWER = '/e2e/pdf-comparison/newer.pdf';
 
-/** A paragraph of one line, which says its number, the same in both versions. */
+/** A paragraph of one line naming its number, the same in both versions. */
 const paragraph = (number: number): string => `Paragraph ${number} reads the same in both versions.`;
 
 /** The older version: 150 numbered paragraphs, over several pages. */
@@ -58,37 +53,38 @@ async function printPdf(browser: Browser, paragraphs: string[]): Promise<Buffer>
 async function getMiddleParagraph(pane: Locator): Promise<number> {
   return pane.evaluate(frame => {
     const middle = frame.getBoundingClientRect().top + frame.clientHeight / 2;
-    const line = Array.from(frame.querySelectorAll('.textLayer span'))
+    const line = Array.from(frame.querySelectorAll('.textLayer span[role="presentation"]'))
       .find(span => /Paragraph \d+/.test(span.textContent) && span.getBoundingClientRect().bottom >= middle);
     return Number(/Paragraph (\d+)/.exec(line?.textContent ?? '')?.[1] ?? 0);
   });
 }
 
+/** Signs in, opens the versions compared in a dialog, and shows them side by side. */
 async function openComparison(page: Page): Promise<{ older: Locator; newer: Locator }> {
-  await signInAs(page, ADMIN);
-  await page.goto('/');
-  const widget = page.locator('div').filter({ has: page.getByLabel('Older version URL (optional)') })
-    .filter({ has: page.getByRole('button', { name: 'Open' }) }).last();
-  await widget.getByLabel('PDF URL').fill(NEWER);
-  await widget.getByLabel('Older version URL (optional)').fill(OLDER);
-  await widget.getByRole('checkbox', { name: 'Show in place, below the form' }).uncheck();
-  await widget.getByRole('button', { name: 'Open' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('status')).toHaveText(/^Change 1 of \d+\./);
-  await dialog.getByRole('button', { name: /^Show \d+ changes/ }).click();
+  const viewer = await new PdfViewerWidget(page).open({ url: NEWER, olderUrl: OLDER });
+  await expect(viewer.getByRole('status')).toHaveText(/^Change 1 of \d+\./);
+  await viewer.getByRole('button', { name: /^Show \d+ changes/ }).click();
   await page.getByRole('menuitemradio', { name: 'Side by side' }).click();
-  const panes = dialog.getByRole('region', { name: 'Document' });
-  await expect(panes).toHaveCount(2);
-  return { older: panes.first(), newer: panes.last() };
+  const panes = {
+    older: viewer.getByRole('region', { name: 'Older version' }),
+    newer: viewer.getByRole('region', { name: 'Newer version' }),
+  };
+  await expect(panes.older).toBeVisible();
+  return panes;
 }
 
+/**
+ * Two versions of a PDF compared side by side, in a real browser, which lays the pages out. Chromium prints
+ * the PDFs.
+ */
 test.describe('comparing two versions of a PDF', () => {
   test.skip(({ browserName }) => browserName !== 'chromium', 'Only Chromium prints a page to PDF');
 
   test.beforeEach(async ({ page, browser }) => {
     const [ older, newer ] = await Promise.all([ printPdf(browser, OLDER_TEXT), printPdf(browser, NEWER_TEXT) ]);
-    await page.route(`**${OLDER}`, route => route.fulfill({ contentType: 'application/pdf', body: older }));
-    await page.route(`**${NEWER}`, route => route.fulfill({ contentType: 'application/pdf', body: newer }));
+    const widget = new PdfViewerWidget(page);
+    await widget.serve(OLDER, older);
+    await widget.serve(NEWER, newer);
   });
 
   test('scrolls the newer version with the older, matched by their text', async ({ page }) => {
@@ -113,6 +109,30 @@ test.describe('comparing two versions of a PDF', () => {
       .toBeLessThanOrEqual(1);
   });
 
+  test('holds the older version still while the newer goes through text only it has', async ({ page }) => {
+    const { older, newer } = await openComparison(page);
+    await newer.hover();
+    const isInInsertion = () => newer.evaluate(frame => {
+      const middle = frame.getBoundingClientRect().top + frame.clientHeight / 2;
+      return Array.from(frame.querySelectorAll('.textLayer span[role="presentation"]'))
+        .find(span => span.getBoundingClientRect().bottom >= middle)?.textContent.startsWith('Inserted') ?? false;
+    });
+    while (!await isInInsertion()) {
+      await page.mouse.wheel(0, 100);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
+    }
+
+    // Through a few lines of the added paragraphs, a little at a time
+    const heldAt: number[] = [];
+    for (let step = 0; step < 6; step++) {
+      await page.mouse.wheel(0, 20);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      heldAt.push(await older.evaluate(frame => frame.scrollTop));
+    }
+
+    expect(Math.max(...heldAt) - Math.min(...heldAt)).toBeLessThan(1);
+  });
+
   test('takes both versions to a change stepped to', async ({ page }) => {
     const { older, newer } = await openComparison(page);
     const status = page.getByRole('dialog').getByRole('status');
@@ -122,7 +142,8 @@ test.describe('comparing two versions of a PDF', () => {
 
     await expect(status).toHaveText(/^Change 2 of \d+\. Text removed on page/);
     await expect(older.locator('.iap-mark-removed.selected').first()).toBeInViewport();
-    // The removed paragraphs are the 60th to the 80th: the older version shows them, the newer what is around.
+    // The removed paragraphs are the 60th to the 80th. The older version shows them, and the newer the
+    // paragraphs around where they were.
     await expect.poll(() => getMiddleParagraph(older)).toBeGreaterThanOrEqual(58);
     expect(await getMiddleParagraph(older)).toBeLessThanOrEqual(82);
     await expect.poll(() => getMiddleParagraph(newer)).toBeGreaterThanOrEqual(55);

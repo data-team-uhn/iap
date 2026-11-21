@@ -17,9 +17,10 @@
  */
 
 // A stand-in for pdfjs-dist and its viewer, keeping to the protocol the real ones follow with each
-// other and with PdfViewer. The document gives each page's text, events go on the bus, the link
-// service moves the viewer, and the viewer draws each page's text layer as it is shown. Loaded
-// through vi.mock("pdfjs-dist", ...) and vi.mock("pdfjs-dist/web/pdf_viewer.mjs", ...).
+// other and with PdfViewer. The document gives each page's text, and events go on the bus. The link
+// service moves the viewer, and the viewer draws each page's text layer as it is shown. Tests load it
+// through vi.mock("pdfjs-dist", ...) and vi.mock("pdfjs-dist/web/pdf_viewer.mjs", ...), and steer it
+// through fakePdf.
 
 export const QUOTE = "Volunteers who, on a casual basis, assist from time to time.";
 
@@ -28,14 +29,18 @@ const DEFAULT_PAGES = [ "Cover page of the document.", QUOTE, "The schedule cont
 // How far down its page every passage sits, so a test can tell whether it was scrolled into view.
 export const MATCH_TOP = 500;
 
+// The name PDF.js loads the page's one font under.
+export const FONT_NAME = "g_d0_f1";
+
 const PAGE_WIDTH = 600;
 const PAGE_HEIGHT = 800;
 
-// As PDF.js's viewer exports it
-const FindState = { FOUND: 0, NOT_FOUND: 1, WRAPPED: 2, PENDING: 3 };
+// The search states PDF.js's viewer exports.
+export const FindState = { FOUND: 0, NOT_FOUND: 1, WRAPPED: 2, PENDING: 3 };
 
 type Listener = (event: never) => void;
 
+// The settings a test starts with, and empty records of what happened.
 function createDefaults() {
   return {
     pages: [ ...DEFAULT_PAGES ],
@@ -60,8 +65,8 @@ function createDefaults() {
     // Set to hold back drawing the pages shown until releaseDrawing() is called.
     holdDrawing: false,
     heldDrawing: [] as (() => void)[],
-    // Every document opened, every worker handed to an open, every page whose text was read, and
-    // every place the reader was put back at.
+    // How many documents were opened, the options and the worker each open was given, and every page
+    // whose text was read.
     opened: 0,
     openOptions: [] as object[],
     workers: [] as unknown[],
@@ -74,14 +79,17 @@ function createDefaults() {
     releaseSearch: undefined as (() => void) | undefined,
     // Every search asked of PDF.js, as its find events.
     finds: [] as { type: string; query: string; findPrevious: boolean }[],
+    // Every place the reader was put back at, as PDF.js's open parameters.
     hashes: [] as string[],
     viewers: [] as FakePDFViewer[],
     // Every zoom the viewer was set to, in order.
     scales: [] as (string | number)[],
+    // How many document loading tasks were destroyed.
     destroyedTasks: 0,
   };
 }
 
+// The stand-in's settings and records, which a test sets and reads, and resets after itself.
 export const fakePdf = {
   ...createDefaults(),
   // Draws what was held back, and draws as it comes from then on.
@@ -89,16 +97,17 @@ export const fakePdf = {
     fakePdf.holdDrawing = false;
     fakePdf.heldDrawing.splice(0).forEach(draw => draw());
   },
+  // Puts back the defaults, and the layout stubLayout replaced on Range.
   reset(): void {
     Object.assign(fakePdf, createDefaults());
     delete (Range.prototype as Partial<Range>).getClientRects;
   },
 };
 
-// jsdom lays nothing out. Here every passage is one line MATCH_TOP down its page. A mark sits where
-// its style puts it on its page, so scrolling to a mark scrolls by MATCH_TOP. Anything else is as wide
-// and as high as given, which decides whether the viewer has room beside the document, and whether a
-// mark is in view. Undone by reset().
+// Lays out what jsdom does not. Every passage is one line MATCH_TOP down its page. A mark sits where its
+// style puts it on its page, so scrolling to a mark scrolls by MATCH_TOP. Anything else is as wide and as
+// high as given, which decides whether the viewer has room beside the document, and whether a mark is in
+// view. Undo it with fakePdf.reset() for the passages and vi.restoreAllMocks() for the elements.
 export function stubLayout({ elementWidth = 0, elementHeight = 0 } = {}): void {
   Range.prototype.getClientRects = () => [ new DOMRect(0, MATCH_TOP, 100, 20) ] as unknown as DOMRectList;
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
@@ -133,8 +142,8 @@ export function createPdfjsError(name: string, message: string): Error {
   return error;
 }
 
-// Where the build published a package folder, or nothing for one it did not publish, as assetManager
-// answers. Loaded through vi.mock of assetManager, whose assets.json is fetched once per test file.
+// Where the build published a package folder, as assetManager answers, or an empty string for one it did
+// not publish. Tests load it in place of assetManager's through vi.mock.
 export function getAssetURL(url: string): Promise<string> {
   const name = url.replace(/^asset:/, "");
   if (fakePdf.unpublished.includes(name)) {
@@ -143,9 +152,19 @@ export function getAssetURL(url: string): Promise<string> {
   return Promise.resolve(`/libs/iap/resources/${name.replace(".", "/")}.0123456789abcdef.data/`);
 }
 
-// A browser worker, which jsdom does not have.
-export class FakeWorker {
-  constructor(readonly url: URL, readonly options: WorkerOptions) {}
+// A browser worker, which jsdom does not have. After fail(), its script never ran, and PDF.js never
+// hears back from it.
+export class FakeWorker extends EventTarget {
+  ran = true;
+
+  constructor(readonly url: URL, readonly options: WorkerOptions) {
+    super();
+  }
+
+  fail(): void {
+    this.ran = false;
+    this.dispatchEvent(new Event("error"));
+  }
 }
 
 // What the server answers when the viewer fetches the file: its URL, which says which document it is. A new
@@ -176,13 +195,15 @@ class FakeDocument {
           throw createPdfjsError("UnknownErrorException", "Bad text content");
         }
         const lines = (this.pages[pageNumber - 1] ?? "").split("\n");
-        // Marked content, which says how the text is structured, holds none of it.
-        const items = lines.map((str, index) => ({ str, hasEOL: index < lines.length - 1 }));
+        // Marked content, which says how the text is structured, holds none of it. Every line is in one font,
+        // loaded under the name PDF.js gives it.
+        const items = lines.map((str, index) => ({ str, hasEOL: index < lines.length - 1, fontName: FONT_NAME }));
         return { items: [ { type: "beginMarkedContent" }, ...items, { type: "endMarkedContent" } ] };
       },
     });
   }
 
+  // Waits for releaseText() while fakePdf holds back this page's text.
   #hold(pageNumber: number): Promise<void> {
     if (!fakePdf.holdText && pageNumber < (fakePdf.holdTextFrom ?? Infinity)) {
       return Promise.resolve();
@@ -198,6 +219,7 @@ class FakeDocument {
   }
 }
 
+// PDF.js's event bus. A listener given a signal is removed when the signal aborts.
 class FakeEventBus {
   readonly #listeners = new Map<string, Listener[]>();
 
@@ -221,27 +243,42 @@ interface FakePageView {
   textLayer: { div: HTMLDivElement } | null;
 }
 
+// PDF.js's viewer. It puts an element per page in the container, tells the bus as it shows a page or
+// zooms, and draws the text layers of the pages shown.
 class FakePDFViewer {
   readonly eventBus: FakeEventBus;
   readonly container: HTMLElement;
   readonly removePageBorders: boolean;
   readonly abortSignal: AbortSignal | undefined;
   doc: FakeDocument | null = null;
-  findController: FakePDFFindController | null = null;
+  readonly linkService: FakePDFLinkService;
+  readonly annotationEditorMode: number | undefined;
+  findController: FakePDFFindController | null;
   #pageViews: FakePageView[] = [];
   #page = 1;
   #scale: string | number = "auto";
 
-  constructor({ container, eventBus, removePageBorders = false, abortSignal }: {
+  constructor({ container, eventBus, linkService, findController = null, removePageBorders = false, abortSignal,
+    annotationEditorMode }: {
     container: HTMLElement;
     eventBus: FakeEventBus;
+    linkService: FakePDFLinkService;
+    findController?: FakePDFFindController | null;
     removePageBorders?: boolean;
     abortSignal?: AbortSignal;
+    annotationEditorMode?: number;
   }) {
     this.container = container;
     this.eventBus = eventBus;
+    this.linkService = linkService;
     this.removePageBorders = removePageBorders;
     this.abortSignal = abortSignal;
+    this.annotationEditorMode = annotationEditorMode;
+    // As PDF.js does, only for a find controller given as the viewer is built.
+    this.findController = findController;
+    if (findController !== null) {
+      findController.onIsPageVisible = (pageNumber: number) => pageNumber === this.#page;
+    }
     fakePdf.viewers.push(this);
   }
 
@@ -283,6 +320,9 @@ class FakePDFViewer {
   }
 
   set currentPageNumber(page: number) {
+    if (!Number.isInteger(page)) {
+      throw new Error("Invalid page number.");
+    }
     if (page === this.#page) {
       return;
     }
@@ -342,9 +382,16 @@ class FakePDFViewer {
     const div = document.createElement("div");
     div.className = "textLayer";
     for (const line of (this.doc?.pages[pageNumber - 1] ?? "").split("\n")) {
-      const span = document.createElement("span");
-      span.textContent = line;
-      div.append(span, document.createElement("br"));
+      // As PDF.js does, only a piece with text is drawn, in a generic font, and only its line break is kept
+      // for an empty one.
+      if (line !== "") {
+        const span = document.createElement("span");
+        span.textContent = line;
+        span.setAttribute("role", "presentation");
+        span.style.fontFamily = "sans-serif";
+        div.append(span);
+      }
+      div.append(document.createElement("br"));
     }
     div.getBoundingClientRect = () => new DOMRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
     pageView.div.append(div);
@@ -360,8 +407,13 @@ class FakePDFViewer {
 }
 
 class FakePDFLinkService {
+  readonly externalLinkTarget: number | null;
   pdfViewer: FakePDFViewer | null = null;
   pdfDocument: FakeDocument | null = null;
+
+  constructor({ externalLinkTarget = null }: { eventBus: FakeEventBus; externalLinkTarget?: number | null }) {
+    this.externalLinkTarget = externalLinkTarget;
+  }
 
   get page(): number {
     return this.pdfViewer?.currentPageNumber ?? 1;
@@ -398,16 +450,17 @@ interface FindEvent {
   findPrevious: boolean;
 }
 
-// PDF.js's search: every match of the query in the pages' text, ignoring case, the first from the page
-// shown, then the next or previous one each time it is asked again, wrapping round. It says it is
-// pending, then how it went, sets the link service's page to the match, and asks for it to be
-// scrolled into view.
+// PDF.js's search. It finds every match of the query in the pages' text, ignoring case. It goes to the
+// first match from the page shown, then to the next or previous one each time it is asked again, wrapping
+// round. It says it is pending, then how it went, sets the link service's page to the match, and asks for
+// the match to be scrolled into view.
 class FakePDFFindController {
   _linkService: FakePDFLinkService;
   _eventBus: FakeEventBus;
   _selected = { pageIdx: -1, matchIdx: -1 };
   _scrollMatches = false;
   _dirtyMatch = false;
+  onIsPageVisible: ((pageNumber: number) => boolean) | undefined = undefined;
   #matches: { pageIdx: number; matchIdx: number }[] = [];
   #position = -1;
 
@@ -434,7 +487,6 @@ class FakePDFFindController {
     return this._linkService.pdfDocument?.pages ?? fakePdf.pages;
   }
 
-  // Overridden by PdfViewer's search.
   scrollMatchIntoView(_params: { element: HTMLElement; pageIndex: number; matchIndex: number }): void {
     // Nothing to scroll in the stand-in
   }
@@ -495,6 +547,7 @@ class FakePDFFindController {
   }
 }
 
+// PDF.js's handle on a worker, holding the browser worker it talks to.
 export class FakePDFWorker {
   readonly port: unknown;
 
@@ -507,9 +560,30 @@ export class FakePDFWorker {
   }
 }
 
+// Opens the document fetched from a URL, or fails as fakePdf says. A worker whose script never ran never
+// answers, so the open never settles.
+function openDocument(url: string, worker: unknown): Promise<FakeDocument> {
+  const port = worker instanceof FakePDFWorker ? worker.port : undefined;
+  if (port instanceof FakeWorker && !port.ran) {
+    return new Promise(() => undefined);
+  }
+  if (fakePdf.openFailure !== undefined) {
+    return Promise.reject(fakePdf.openFailure);
+  }
+  return Promise.resolve().then(() => {
+    fakePdf.opened++;
+    return new FakeDocument(fakePdf.documents[url] ?? fakePdf.pages);
+  });
+}
+
 // What vi.mock("pdfjs-dist", ...) hands the viewer in place of the real module.
+// PDF.js's own values for the editor modes and link targets the viewer names.
+export const ANNOTATION_EDITOR_TYPE = { DISABLE: -1, NONE: 0 } as const;
+export const LINK_TARGET = { NONE: 0, SELF: 1, BLANK: 2 } as const;
+
 export function createPdfjsModule() {
   return {
+    AnnotationEditorType: ANNOTATION_EDITOR_TYPE,
     GlobalWorkerOptions: { workerSrc: "" },
     PDFWorker: FakePDFWorker,
     getDocument: (options: { data: ArrayBuffer; worker?: unknown }) => {
@@ -517,12 +591,7 @@ export function createPdfjsModule() {
       fakePdf.workers.push(options.worker);
       const url = new TextDecoder().decode(options.data);
       return {
-        promise: fakePdf.openFailure !== undefined
-          ? Promise.reject(fakePdf.openFailure)
-          : Promise.resolve().then(() => {
-            fakePdf.opened++;
-            return new FakeDocument(fakePdf.documents[url] ?? fakePdf.pages);
-          }),
+        promise: openDocument(url, options.worker),
         destroy: () => {
           fakePdf.destroyedTasks++;
           return Promise.resolve();
@@ -537,6 +606,7 @@ export function createViewerModule() {
   return {
     EventBus: FakeEventBus,
     FindState,
+    LinkTarget: LINK_TARGET,
     PDFFindController: FakePDFFindController,
     PDFLinkService: FakePDFLinkService,
     PDFViewer: FakePDFViewer,

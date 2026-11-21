@@ -15,10 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests building an anchor from the spans of a passage, and writing it as text and reading it back.
+
 import type { PageText, TextAnchor } from "@iap/documents-pdf-viewer/marksModel";
 import { decodeAnchor, encodeAnchor, getTextAnchor } from "@iap/documents-pdf-viewer/textAnchor";
 
-// Two pages, the first read as three lines, which run on in its text without a space.
+// Two pages, the first in three lines. As PDF.js reads a page, the lines run on in its text with no space
+// between them.
 const PAGES: Record<number, PageText> = {
   1: {
     text: "Memo to all principals and staff.The board asks for a Police Records Checkfrom every new volunteer.",
@@ -46,6 +49,15 @@ describe("getTextAnchor", () => {
 
     expect(anchor.before).toBe("emo to all principals and staff.");
     expect(anchor.after).toBe("s for a Police Records Check fro");
+  });
+
+  it("keeps whole characters around the passage, so that it can be kept as text", () => {
+    const page: PageText = { text: `\u{1D465}${"a".repeat(31)}Quote`, lineEnds: [] };
+
+    const anchor = getTextAnchor([ { page: 1, start: 33, end: 38 } ], () => page);
+
+    expect(anchor.before).toBe(`\u{1D465}${"a".repeat(31)}`);
+    expect(() => encodeAnchor(anchor)).not.toThrow();
   });
 
   it("runs from the first span's start to the last span's end, saying what every span covers", () => {
@@ -96,6 +108,8 @@ describe("encodeAnchor and decodeAnchor", () => {
     expect(decodeAnchor({ ...stored, start: "page=3&char=-1" })).toBeUndefined();
     expect(decodeAnchor({ ...stored, start: "page=3" })).toBeUndefined();
     expect(decodeAnchor({ ...stored, start: "char=1" })).toBeUndefined();
+    expect(decodeAnchor({ ...stored, start: "page=3&char=" })).toBeUndefined();
+    expect(decodeAnchor({ ...stored, start: "page=1e0&char=0x10" })).toBeUndefined();
     expect(decodeAnchor({ ...stored, end: "page=2.5&char=1" })).toBeUndefined();
     expect(decodeAnchor({ ...stored, text: "" })).toBeUndefined();
     expect(decodeAnchor({ ...stored, text: "a,b,c" })).toBeUndefined();

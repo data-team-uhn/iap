@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Where a viewer is shown: filling an element of the page, or in a dialog, with a button moving it between
+// the two. Also the viewer's title row, which holds that button.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import CloseIcon from "@mui/icons-material/Close";
@@ -28,14 +30,13 @@ import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog"
 import type { Breakpoint } from "@mui/material/styles";
 
 // The space around the viewer in the dialog, kept small on a phone, where the document has the least room.
-// There, the document runs to the bottom of the screen.
+// On a phone there is none below, and the document runs to the bottom of the screen.
 const DIALOG_PADDING = { px: { xs: 2, sm: 3 }, pt: { xs: 1, sm: 2.5 }, pb: { xs: 0, sm: 2.5 } };
 
-// Shows a viewer in the element given, filling it, with a button popping it out into a dialog and back.
-// Without an element, it shows the viewer in a dialog. The element needs a height of its own. While it
-// is null, as a ref is before React attaches it, nothing is shown. The viewer is given the button, and
-// whether it is in the dialog. Moving the viewer draws it anew, so what must survive the move belongs
-// above this.
+// Shows a viewer filling the element given, with a button popping it out into a dialog and back. Without
+// an element, it shows the viewer in a dialog. While the element is null, it shows nothing. `children`
+// draws the viewer, given the button and whether the viewer is in the dialog. Moving the viewer draws it
+// anew, so state that must survive the move belongs above this component.
 export default function ViewerPlacement({ container, width = "lg", titleId, onClose, children }: {
   container?: HTMLElement | null;
   // How wide the dialog may be. Below that width of screen, it fills the screen.
@@ -47,7 +48,8 @@ export default function ViewerPlacement({ container, width = "lg", titleId, onCl
 }) {
   const [poppedOut, setPoppedOut] = useState(false);
   const placeButtonRef = useRef<HTMLButtonElement>(null);
-  // Set when popping back in, so focus goes to the button that pops out again rather than to nowhere.
+  // Set while popping back in, so the focus goes to the Pop out button once it is back, rather than being
+  // lost.
   const poppingIn = useRef(false);
   useEffect(() => {
     if (!poppedOut && poppingIn.current) {
@@ -83,7 +85,7 @@ export default function ViewerPlacement({ container, width = "lg", titleId, onCl
         open
         width={width}
         aria-labelledby={titleId}
-        // Escape puts a popped-out viewer back rather than closing it.
+        // Escape puts a popped-out viewer back in its place rather than closing it.
         onClose={container !== undefined && poppedOut ? popIn : onClose}
         slotProps={{ paper: { sx: { height: "100%" } } }}
       >
@@ -99,8 +101,8 @@ export default function ViewerPlacement({ container, width = "lg", titleId, onCl
   );
 }
 
-// The viewer's top row: its title, the button moving it between its place and the dialog, if any, and
-// the one closing it.
+// The viewer's top row: its title, then the button moving it between its place and the dialog, if it has
+// one, and the Close button.
 export function ViewerTitle({ titleId, title, placeButton, onClose }: {
   titleId: string;
   title: string;

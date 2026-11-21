@@ -15,23 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Tests drawing marks on a page's text layer and reading the layer back. jsdom lays nothing out, so each
+// test gives the boxes a browser would.
+
 import {
-  centreIn,
   drawMarks,
   findMark,
+  findMarkAt,
   getSelectedSpans,
   getTextEnd,
+  getTextLinesAround,
   getTextPointAt,
   getTextPointRect,
-  keepInView,
-  markAt,
 } from "@iap/documents-pdf-viewer/markLayer";
 
 const LINES = [ "Volunteers who, on a casual basis,", "assist from time to time." ];
 
-// A text layer as PDF.js draws one, laid out the way jsdom cannot: 800 by 1000, each line 20 high and
-// 100 below the last, and each character 10 wide. A line is one span, or several, each given with
-// where it starts along the line.
+// A text layer as PDF.js draws one, 800 by 1000. As rectsOf lays it out, each line is 20 high and 100
+// below the last, and each character is 10 wide. A line is one span, or several, each given with where it starts along the line.
 function createTextLayer(lines: (string | [ string, number ][])[] = LINES): HTMLDivElement {
   const textLayer = document.createElement("div");
   lines.forEach((line, index) => {
@@ -68,6 +70,7 @@ function rectsOf(range: Range): DOMRect[] {
   });
 }
 
+// The marks drawn on a text layer, with their classes and their places as percentages of the layer.
 function drawn(textLayer: HTMLElement) {
   return Array.from(textLayer.querySelectorAll<HTMLElement>("[data-mark-id]")).map(mark => ({
     id: mark.dataset.markId,
@@ -96,7 +99,6 @@ describe("drawMarks", () => {
 
     drawMarks(textLayer, [ { id: "m", kind: "assistant", start: 34, end: 50 } ], undefined);
 
-    // First, so the text, and a search's matches on it, are drawn over the marks
     const layer = textLayer.firstElementChild as HTMLElement;
     expect(layer.querySelector("[data-mark-id=m]")).not.toBeNull();
     const { position, inset, pointerEvents } = layer.style;
@@ -344,7 +346,7 @@ describe("getTextEnd", () => {
     delete (Range.prototype as Partial<Range>).getClientRects;
   });
 
-  // A frame holding one page, drawn, whose text layer is the one createTextLayer lays out.
+  // A frame holding page 2, its text layer drawn by createTextLayer.
   function createFrame(): HTMLDivElement {
     const frame = document.createElement("div");
     const page = document.createElement("div");
@@ -371,12 +373,12 @@ describe("getTextEnd", () => {
   });
 });
 
-describe("getTextPointAt and getTextPointRect", () => {
+describe("finding the text at a height", () => {
   beforeEach(() => {
     Range.prototype.getClientRects = function (this: Range) {
       return rectsOf(this) as unknown as DOMRectList;
     };
-    // Each line's span where createTextLayer lays it out
+    // Each line's span, where rectsOf lays out its text.
     vi.spyOn(HTMLSpanElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
       return new DOMRect(0, Number(this.dataset.line) * 100, 400, 20);
     });
@@ -388,8 +390,8 @@ describe("getTextPointAt and getTextPointRect", () => {
     vi.restoreAllMocks();
   });
 
-  // A frame holding a first page, its text drawn as createTextLayer lays it out, 1000 high, and a second page
-  // under it, its text not drawn yet.
+  // A frame holding two pages, each 1000 high. The first has its text drawn by createTextLayer. The second
+  // is under it, its text not drawn yet.
   function createFrame(): HTMLDivElement {
     const frame = document.createElement("div");
     const textLayer = createTextLayer();
@@ -405,11 +407,38 @@ describe("getTextPointAt and getTextPointRect", () => {
     return frame;
   }
 
+  // Draws text on a page of a frame from createFrame, in place of any it has. Each piece is given with the
+  // line it is drawn on, counting lines from the top of the first page.
+  function drawPieces(page: HTMLElement, pieces: [ string, number ][]) {
+    const textLayer = page.querySelector(".textLayer") ?? document.createElement("div");
+    textLayer.className = "textLayer";
+    textLayer.replaceChildren(...pieces.map(([ text, line ]) => {
+      const span = document.createElement("span");
+      span.textContent = text;
+      span.dataset.line = String(line);
+      return span;
+    }));
+    page.append(textLayer);
+  }
+
+  const getPage = (frame: HTMLElement, page: number) => (
+    frame.querySelector<HTMLElement>(`[data-page-number="${page}"]`)!
+  );
+
   it("finds the start of the first piece of text reaching down to a height", () => {
     const frame = createFrame();
 
     expect(getTextPointAt(frame, 10)).toEqual({ page: 1, char: 0 });
     expect(getTextPointAt(frame, 50)).toEqual({ page: 1, char: 34 });
+  });
+
+  it("takes the pieces of text by where they are drawn, not by their order in the page's text", () => {
+    const frame = createFrame();
+    // A footer listed first, drawn below the two lines after it
+    drawPieces(getPage(frame, 1), [ [ "Footer", 5 ], [ "First", 0 ], [ "Second", 1 ] ]);
+
+    expect(getTextPointAt(frame, 10)).toEqual({ page: 1, char: 6 });
+    expect(getTextPointAt(frame, 50)).toEqual({ page: 1, char: 11 });
   });
 
   it("finds the last piece of text of a page reaching down to a height below its text", () => {
@@ -430,6 +459,40 @@ describe("getTextPointAt and getTextPointRect", () => {
     expect(getTextPointRect(frame, { page: 1, char: LINES.join("").length })).toEqual(new DOMRect(250, 100, 0, 20));
     expect(getTextPointRect(frame, { page: 2, char: 0 })).toBeUndefined();
   });
+
+  it("finds the lines starting either side of a height", () => {
+    expect(getTextLinesAround(createFrame(), 50)).toEqual({
+      above: { point: { page: 1, char: 0 }, top: 0 },
+      below: { point: { page: 1, char: 34 }, top: 100 },
+    });
+  });
+
+  it("counts pieces of text drawn less than half a line apart in height as one line, starting at the first", () => {
+    const frame = createFrame();
+    // The second piece is lowered 5 below the first.
+    drawPieces(getPage(frame, 1), [ [ "Volunteers who, ", 0 ], [ "on a casual basis,", 0.05 ], [ "assist", 1 ] ]);
+
+    expect(getTextLinesAround(frame, 50)?.above).toEqual({ point: { page: 1, char: 0 }, top: 0 });
+  });
+
+  it("finds the lines on the pages either side of the one reaching down to a height", () => {
+    const frame = createFrame();
+    drawPieces(getPage(frame, 2), [ [ "Third", 11 ] ]);
+    const third = { point: { page: 2, char: 0 }, top: 1100 };
+    const second = { point: { page: 1, char: 34 }, top: 100 };
+
+    // Below the text of the first page, and above the text of the second
+    expect(getTextLinesAround(frame, 500)).toEqual({ above: second, below: third });
+    expect(getTextLinesAround(frame, 1050)).toEqual({ above: second, below: third });
+  });
+
+  it("finds no lines unless one is drawn on each side of a height", () => {
+    const frame = createFrame();
+
+    // The second page's text is not drawn yet.
+    expect(getTextLinesAround(frame, 500)).toBeUndefined();
+    expect(getTextLinesAround(frame, -10)).toBeUndefined();
+  });
 });
 
 describe("findMark", () => {
@@ -443,7 +506,7 @@ describe("findMark", () => {
   });
 });
 
-describe("markAt", () => {
+describe("findMarkAt", () => {
   it("finds the mark drawn at a point, if any", () => {
     const frame = document.createElement("div");
     frame.innerHTML = '<div class="iap-mark" data-mark-id="a"></div><div class="iap-mark" data-mark-id="b"></div>';
@@ -451,8 +514,8 @@ describe("markAt", () => {
     a.getBoundingClientRect = () => new DOMRect(0, 0, 100, 20);
     b.getBoundingClientRect = () => new DOMRect(0, 100, 100, 20);
 
-    expect(markAt(frame, 50, 110)).toBe("b");
-    expect(markAt(frame, 50, 50)).toBeUndefined();
+    expect(findMarkAt(frame, 50, 110)).toBe("b");
+    expect(findMarkAt(frame, 50, 50)).toBeUndefined();
   });
 
   it("finds a mark not selected first where marks overlap, so clicking again reaches the other", () => {
@@ -462,15 +525,15 @@ describe("markAt", () => {
       mark.getBoundingClientRect = () => new DOMRect(0, 0, 100, 20);
     }
 
-    expect(markAt(frame, 50, 10)).toBe("b");
+    expect(findMarkAt(frame, 50, 10)).toBe("b");
     frame.children[0].classList.remove("selected");
     frame.children[1].classList.add("selected");
-    expect(markAt(frame, 50, 10)).toBe("a");
+    expect(findMarkAt(frame, 50, 10)).toBe("a");
   });
 });
 
-describe("markAt on a point", () => {
-  // A point drawn 100 along a line of the height given, as thin as a point is
+describe("findMarkAt on a point", () => {
+  // A point drawn 100 along a line of the height given, with no width.
   function createPoint(height = 20): HTMLElement {
     const frame = document.createElement("div");
     frame.innerHTML = '<div class="iap-mark iap-mark-point" data-mark-id="p"></div>';
@@ -481,15 +544,15 @@ describe("markAt on a point", () => {
   it("finds a point within a few pixels of it, with a mouse", () => {
     const frame = createPoint();
 
-    expect(markAt(frame, 107, 10)).toBe("p");
-    expect(markAt(frame, 109, 10)).toBeUndefined();
+    expect(findMarkAt(frame, 107, 10)).toBe("p");
+    expect(findMarkAt(frame, 109, 10)).toBeUndefined();
   });
 
   it("finds a point within a fingertip of it, tapped", () => {
     const frame = createPoint();
 
-    expect(markAt(frame, 118, 28, true)).toBe("p");
-    expect(markAt(frame, 122, 10, true)).toBeUndefined();
+    expect(findMarkAt(frame, 118, 28, "touch")).toBe("p");
+    expect(findMarkAt(frame, 122, 10, "touch")).toBeUndefined();
   });
 
   it("finds a mark tapped on before a point it is only beside, selected or not", () => {
@@ -497,8 +560,8 @@ describe("markAt on a point", () => {
     frame.insertAdjacentHTML("beforeend", '<div class="iap-mark selected" data-mark-id="word"></div>');
     (frame.lastElementChild as HTMLElement).getBoundingClientRect = () => new DOMRect(102, 0, 30, 20);
 
-    expect(markAt(frame, 110, 10, true)).toBe("word");
-    expect(markAt(frame, 100, 10, true)).toBe("p");
+    expect(findMarkAt(frame, 110, 10, "touch")).toBe("word");
+    expect(findMarkAt(frame, 100, 10, "touch")).toBe("p");
   });
 
   it("finds a point on its box inside another mark, the one not selected first", () => {
@@ -508,58 +571,16 @@ describe("markAt on a point", () => {
     comment.getBoundingClientRect = () => new DOMRect(60, 0, 80, 20);
 
     comment.classList.add("selected");
-    expect(markAt(frame, 103, 10)).toBe("p");
+    expect(findMarkAt(frame, 103, 10)).toBe("p");
     comment.classList.remove("selected");
     frame.firstElementChild?.classList.add("selected");
-    expect(markAt(frame, 103, 10)).toBe("comment");
+    expect(findMarkAt(frame, 103, 10)).toBe("comment");
   });
 
   it("finds a point anywhere on its box, drawn larger than a fingertip on a tall line", () => {
     const frame = createPoint(100);
 
-    expect(markAt(frame, 135, 105)).toBe("p");
-    expect(markAt(frame, 137, 50)).toBeUndefined();
-  });
-});
-
-describe("keepInView", () => {
-  // A container 300 high, 100 down the page, with an element at a given place on the page.
-  function scrolledFor(top: number, height = 50): number {
-    const container = document.createElement("div");
-    const element = document.createElement("div");
-    container.getBoundingClientRect = () => new DOMRect(0, 100, 400, 300);
-    element.getBoundingClientRect = () => new DOMRect(0, top, 400, height);
-    container.scrollTop = 1000;
-    keepInView(container, element);
-    return container.scrollTop - 1000;
-  }
-
-  it("scrolls as little as brings the element into view", () => {
-    expect(scrolledFor(40)).toBe(-60);
-    expect(scrolledFor(380)).toBe(30);
-  });
-
-  it("brings the top of an element taller than the container into view", () => {
-    expect(scrolledFor(450, 600)).toBe(350);
-  });
-
-  it("leaves an element already in view where it is", () => {
-    expect(scrolledFor(200)).toBe(0);
-  });
-});
-
-describe("centreIn", () => {
-  it("scrolls the container so the element sits in its middle", () => {
-    const container = document.createElement("div");
-    const element = document.createElement("div");
-    container.getBoundingClientRect = () => new DOMRect(0, 100, 400, 300);
-    Object.defineProperty(container, "clientHeight", { value: 300 });
-    Object.defineProperty(container, "clientWidth", { value: 400 });
-    element.getBoundingClientRect = () => new DOMRect(600, 900, 100, 20);
-
-    centreIn(container, element);
-
-    expect(container.scrollTop).toBe(660);
-    expect(container.scrollLeft).toBe(450);
+    expect(findMarkAt(frame, 135, 105)).toBe("p");
+    expect(findMarkAt(frame, 137, 50)).toBeUndefined();
   });
 });

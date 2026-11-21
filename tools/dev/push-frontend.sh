@@ -83,11 +83,13 @@ echo "Pushing assets to $BASE_URL/libs/iap/resources ..."
 pushed=0
 failures=0
 cd "$FRONTEND/$RESOURCES"
-for file in *; do
-  [[ -f "$file" ]] || continue
+# Files in folders too: the package folders a library fetches from are published as folders
+while IFS= read -r -d '' file; do
+  file="${file#./}"
   case "$file" in
     *.json|*.map) type="application/json" ;;
     *.js)         type="application/javascript" ;;
+    *.wasm)       type="application/wasm" ;;
     *)            type="application/octet-stream" ;;
   esac
   # The URL must NOT have a trailing slash: with one, the POST servlet creates an
@@ -105,7 +107,7 @@ for file in *; do
   else
     pushed=$((pushed + 1))
   fi
-done
+done < <(find . -type f -print0 | sort -z)
 
 echo "Pushed $pushed files ($failures failures)."
 echo "Reload with the cache bypassed (Ctrl+Shift+R) to pick up the new entry files."

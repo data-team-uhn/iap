@@ -15,17 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { memo, useEffect, useId, useRef, type ReactNode } from "react";
+// The list of marks shown beside a document.
+
+import { memo, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { Box, ButtonBase, Typography } from "@mui/material";
 import { visuallyHidden } from "@mui/utils";
 
+import { keepInView } from "@iap/frontend-commons/scrollWithin";
 import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 
-import { keepInView } from "./markLayer";
 import { getMarkText, type Mark, type MarkPlace } from "./marksModel";
 import { NoteText } from "./PassageCard";
-import { cutShort, getSelectedOutline, passageCard, passageDetails, passageLayer, passageTint } from "./passageStyles";
+import { getCutShortStyle, getPassageCardStyle, getPassageDetailsStyle, getPassageLayerStyle, getPassageTint, getSelectedOutline } from "./passageStyles";
 import {
   describeAmong,
   describePages,
@@ -44,14 +46,14 @@ import type { MarkPlaces } from "./useMarkPlaces";
 
 const LIST_WIDTH = 320;
 
-// How many lines of a passage, and of what the caller shows under it, an entry shows unless it is the one
-// selected. The focus inside what is cut shows all of it, so nothing is typed out of sight.
+// How many lines of its passage, and of the caller's details under it, a card shows unless it is selected.
+// Moving the focus into the details shows all of them, so nothing is typed out of sight.
 const MAX_LINES = 2;
 const MAX_DETAILS_LINES = 2;
 
-// The passages beside the document, each on a card in its mark's colour, with the caller's details for
-// it underneath. Clicking a card selects its passage. The selected passage is shown whole and kept in
-// view. Above them, a heading says which is selected of how many, with buttons stepping through them.
+// The marks beside the document, each on a card in its mark's colour with the caller's details for it
+// underneath. Clicking a card selects its mark. The selected mark's card is shown whole and kept in view.
+// Above the cards, a heading says which mark is selected of how many, with buttons stepping through them.
 function MarkList(props: {
   marks: Mark[];
   // What each mark is called and its place among those of its sort.
@@ -59,28 +61,30 @@ function MarkList(props: {
   places: MarkPlaces;
   status: ViewerStatus;
   selectedId: string | undefined;
-  // What shows a mark in place of its quote, such as a change's diff, if anything, and what that says to a
-  // screen reader, which does not read inside the entry's button.
+  // What shows a mark in place of its quote, such as a change's diff, if anything.
   renderBody?: (mark: Mark) => ReactNode;
+  // What that body says, for a screen reader, given as the description of the card's button.
   describeBody?: (mark: Mark) => string | undefined;
+  // What the caller shows under a mark's card, such as its comments, given whether the mark is selected.
   renderDetails?: (mark: Mark, selected: boolean) => ReactNode;
   onSelect: (id: string) => void;
 }) {
   const { marks, naming, places, status, selectedId, renderBody, describeBody, renderDetails, onSelect } = props;
-  const list = useRef<HTMLUListElement>(null);
+  const [list, setList] = useState<HTMLUListElement | null>(null);
   const entries = useRef(new Map<string, HTMLElement>());
   const edges = useScrollEdges(list);
 
+  // Keeps the selected card in view.
   useEffect(() => {
     const entry = selectedId === undefined ? undefined : entries.current.get(selectedId);
-    if (list.current !== null && entry !== undefined) {
-      keepInView(list.current, entry);
+    if (list !== null && entry !== undefined) {
+      keepInView(list, entry);
     }
-  }, [selectedId]);
+  }, [list, selectedId]);
 
   const position = marks.findIndex(mark => mark.id === selectedId) + 1;
   const selected = naming.get(selectedId ?? "");
-  // With none of them selected, as while a change is side by side, it says how many there are.
+  // With no mark selected, the heading says how many there are.
   const heading = selected === undefined ? countMarks(naming.values()) : describeAmong(selected.name, selected);
 
   return (
@@ -104,7 +108,7 @@ function MarkList(props: {
         onStep={next => onSelect(marks[next - 1].id)}
       />
       <Box
-        ref={list}
+        ref={setList}
         component="ul"
         aria-label={describeSorts(naming.values())}
         sx={{
@@ -134,7 +138,7 @@ function MarkList(props: {
                 };
               }}
               sx={theme => ({
-                ...passageCard(theme, mark.kind, selected ? 0.5 : 0.25),
+                ...getPassageCardStyle(theme, mark.kind, selected ? 0.5 : 0.25),
                 // Each card keeps its full height, and the list scrolls instead.
                 flexShrink: 0,
                 overflow: "hidden",
@@ -164,20 +168,21 @@ function MarkList(props: {
   );
 }
 
+// The caller's details under a card, cut short while `cut`, and shown whole while the focus is inside them.
 function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
-  const box = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
   const edges = useScrollEdges(box);
   return (
     <Box
-      ref={box}
-      // Back to its top once the focus leaves, wherever the focus scrolled it while it was cut
+      ref={setBox}
+      // Scrolls back to the top once the focus leaves
       onBlur={event => {
         if (!event.currentTarget.contains(event.relatedTarget)) {
           event.currentTarget.scrollTop = 0;
         }
       }}
       sx={{
-        ...passageDetails(edges, cut ? MAX_DETAILS_LINES : undefined),
+        ...getPassageDetailsStyle(edges, cut ? MAX_DETAILS_LINES : undefined),
         "&:focus-within": { maxHeight: "none", maskImage: "none" },
       }}
     >
@@ -186,6 +191,7 @@ function MarkDetails({ cut, children }: { cut: boolean; children: ReactNode }) {
   );
 }
 
+// The button showing a mark's passage, or what stands in for it, and its note. Clicking it selects the mark.
 function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSelect }: {
   mark: Mark;
   body: ReactNode;
@@ -203,7 +209,7 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
     <>
       {body === undefined || body === null
         ? null
-        : <Box component="span" sx={selected ? { display: "block" } : cutShort(MAX_LINES)}>{body}</Box>}
+        : <Box component="span" sx={selected ? { display: "block" } : getCutShortStyle(MAX_LINES)}>{body}</Box>}
       {bodySaid === undefined
         ? null
         : <Box component="span" id={`${quoteId}-said`} sx={visuallyHidden}>{bodySaid}</Box>}
@@ -211,14 +217,14 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
         id={quoteId}
         variant="body2"
         component="span"
-        sx={selected ? { display: "block" } : cutShort(MAX_LINES)}
+        sx={selected ? { display: "block" } : getCutShortStyle(MAX_LINES)}
       >
         {text === undefined || text === "" ? null : `“${text}”`}
       </Typography>
       {note === undefined
         ? null
         : (
-          <Typography component="span" variant="caption" sx={{ display: "block", color: "text.secondary" }}>
+          <Typography id={`${quoteId}-note`} component="span" variant="caption" sx={{ display: "block" }}>
             <NoteText note={note} />
           </Typography>
         )}
@@ -229,12 +235,17 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
   if (place.status === "found") {
     label = `Show ${name.one} ${index} on ${describePages(place.page, place.toPage)}`;
   }
+  // A passage found has its page in the label. Of any other, the note says why it is not marked.
+  const described = [
+    bodySaid === undefined ? quoteId : `${quoteId}-said`,
+    note === undefined || place.status === "found" ? undefined : `${quoteId}-note`,
+  ].filter(id => id !== undefined).join(" ");
 
   return (
     <ButtonBase
       focusRipple
       aria-label={label}
-      aria-describedby={bodySaid === undefined ? quoteId : `${quoteId}-said`}
+      aria-describedby={described}
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
       sx={theme => ({
@@ -243,9 +254,9 @@ function MarkEntry({ mark, body, bodySaid, naming, place, status, selected, onSe
         px: 1.5,
         py: 1,
         textAlign: "start",
-        ...passageLayer(theme, mark.kind),
-        "@media (hover: hover)": { "&:hover": { bgcolor: passageTint(theme, mark.kind, 0.5) } },
-        "&.Mui-focusVisible": { bgcolor: passageTint(theme, mark.kind, 0.5) },
+        ...getPassageLayerStyle(theme, mark.kind),
+        "@media (hover: hover)": { "&:hover": { bgcolor: getPassageTint(theme, mark.kind, 0.5) } },
+        "&.Mui-focusVisible": { bgcolor: getPassageTint(theme, mark.kind, 0.5) },
       })}
     >
       {content}

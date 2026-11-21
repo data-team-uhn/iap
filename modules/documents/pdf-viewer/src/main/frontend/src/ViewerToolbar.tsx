@@ -15,44 +15,48 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The viewer's toolbar. Where it is too narrow for the search field, the search opens in its place.
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 
 import SearchIcon from "@mui/icons-material/Search";
 import { Box, IconButton } from "@mui/material";
 
+import { useNarrowerThan } from "@iap/frontend-commons/useNarrowerThan";
+
 import PdfToolbar from "./PdfToolbar";
 import SearchField from "./SearchField";
-import { useNarrowerThan } from "./useNarrowViewer";
 
 import type { DocumentSearch } from "./pdfViewerModel";
 
-// The narrowest toolbar with room for the search field beside its page and zoom controls.
+// The narrowest toolbar, in pixels, with room for the search field beside the controls it is given.
 const SEARCH_FIELD_ROOM = 600;
 
+// What the viewer can ask of its toolbar.
 export interface ViewerToolbarHandle {
   // Puts the focus in the search field, opening it where it takes the toolbar's place.
   openSearch: () => void;
 }
 
-// The viewer's toolbar: the page controls given, the search, and zoom. Without room for the search field,
-// a button opens it in the toolbar's place. It stays there while it is open or holds a query. It takes the
-// focus, and gives it back to the button once closed.
-export default function ViewerToolbar({ ref, pages, opened, search, onFind, onFindAgain, ...zoom }: {
+// The viewer's toolbar: the controls given for its start, the search field, and the tools given for its end.
+// Where there is no room for the search field, a Search button opens it in place of the toolbar. The field
+// stays there while it is open or holds a query. It takes the focus when it opens, and closing it gives the
+// focus back to the Search button.
+export default function ViewerToolbar({ ref, start, tools, opened, search, onFind, onFindNext, onFindPrevious }: {
   ref?: Ref<ViewerToolbarHandle>;
-  pages?: ReactNode;
+  start?: ReactNode;
+  tools?: ReactNode;
   opened: boolean;
   search: DocumentSearch;
   onFind: (query: string) => void;
-  onFindAgain: (previous: boolean) => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onFitWidth: () => void;
+  onFindNext: () => void;
+  onFindPrevious: () => void;
 }) {
   const [row, setRow] = useState<HTMLElement | null>(null);
   const compact = useNarrowerThan(row, SEARCH_FIELD_ROOM);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchInPlace = compact && (searchOpen || search.query !== "");
   const searchButtonRef = useRef<HTMLButtonElement>(null);
+  // Set while closing the search, so the focus goes back to the Search button once it is shown again.
   const closingSearch = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -86,15 +90,16 @@ export default function ViewerToolbar({ ref, pages, opened, search, onFind, onFi
               search={search}
               inputRef={searchInputRef}
               onFind={onFind}
-              onFindAgain={onFindAgain}
+              onFindNext={onFindNext}
+              onFindPrevious={onFindPrevious}
               onClose={closeSearch}
             />
           </Box>
         )
         : (
           <PdfToolbar
-            pages={pages}
-            opened={opened}
+            start={start}
+            tools={tools}
             search={compact
               ? (
                 <IconButton
@@ -112,10 +117,10 @@ export default function ViewerToolbar({ ref, pages, opened, search, onFind, onFi
                   inputRef={searchInputRef}
                   disabled={!opened}
                   onFind={onFind}
-                  onFindAgain={onFindAgain}
+                  onFindNext={onFindNext}
+                  onFindPrevious={onFindPrevious}
                 />
               )}
-            {...zoom}
           />
         )}
     </Box>

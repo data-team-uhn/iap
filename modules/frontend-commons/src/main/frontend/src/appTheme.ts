@@ -83,12 +83,14 @@ declare module "@mui/material/styles" {
   }
   // `assistant` colours whatever an AI assistant contributed. `annotation` colours what a person marked.
   // `highlight` holds the marks both make over a document's content, and those a comparison of two
-  // versions of a document makes.
+  // versions of a document makes. A `…Marker` colour is for strokes on a mark, such as its outline.
   interface TypeHighlight {
     assistant: string;
     assistantCurrent: string;
+    assistantMarker: string;
     annotation: string;
     annotationCurrent: string;
+    annotationMarker: string;
     search: string;
     searchCurrent: string;
     added: string;
@@ -133,34 +135,6 @@ declare module "@mui/material/styles" {
   }
 }
 
-declare module "@mui/material/Button" {
-  interface ButtonPropsColorOverrides {
-    assistant: true;
-    annotation: true;
-  }
-}
-
-declare module "@mui/material/Chip" {
-  interface ChipPropsColorOverrides {
-    assistant: true;
-    annotation: true;
-  }
-}
-
-declare module "@mui/material/IconButton" {
-  interface IconButtonPropsColorOverrides {
-    assistant: true;
-    annotation: true;
-  }
-}
-
-declare module "@mui/material/SvgIcon" {
-  interface SvgIconPropsColorOverrides {
-    assistant: true;
-    annotation: true;
-  }
-}
-
 declare module "@mui/material/Typography" {
   interface TypographyPropsVariantOverrides {
     pageTitle: true;
@@ -197,15 +171,19 @@ const SOFT_YELLOW = "#F6D96B";
 // The matches of a search are no one's mark, and take the brand's cobalt instead.
 const COBALT = "#255CAA";
 
-const ASSISTANT_LIGHT: PaletteColorOptions = { main: "#8A6184", light: LILAC, dark: "#6C4C68", contrastText: "#fff" };
+// The darker shades that write each accent on a light surface.
+const ASSISTANT_INK = "#8A6184";
+const ANNOTATION_INK = "#866A00";
+
+const ASSISTANT_LIGHT: PaletteColorOptions = { main: ASSISTANT_INK, light: LILAC, dark: "#6C4C68", contrastText: "#fff" };
 const ASSISTANT_DARK: PaletteColorOptions = {
   main: LILAC,
   light: lighten(LILAC, 0.3),
-  dark: "#8A6184",
+  dark: ASSISTANT_INK,
   contrastText: "rgba(0, 0, 0, 0.87)",
 };
 const ANNOTATION_LIGHT: PaletteColorOptions = {
-  main: "#866A00",
+  main: ANNOTATION_INK,
   light: SOFT_YELLOW,
   dark: "#5E4A00",
   contrastText: "#fff",
@@ -229,8 +207,10 @@ const REMOVED_LIGHT = { main: "#cf222e", line: "#ffebe9", word: "rgba(255, 129, 
 const HIGHLIGHT = {
   assistant: alpha(LILAC, 0.4),
   assistantCurrent: alpha(LILAC, 0.65),
+  assistantMarker: ASSISTANT_INK,
   annotation: alpha(SOFT_YELLOW, 0.55),
   annotationCurrent: alpha(SOFT_YELLOW, 0.85),
+  annotationMarker: ANNOTATION_INK,
   search: alpha(COBALT, 0.2),
   searchCurrent: alpha(COBALT, 0.45),
   added: ADDED_FILL,
@@ -361,14 +341,6 @@ const appTheme = createTheme({
     },
   },
   components: {
-    // A stylesheet loaded later may set a color-scheme on :root, as PDF.js's does. These rules outrank
-    // it, so native controls and light-dark() colours keep following the app's scheme.
-    MuiCssBaseline: {
-      styleOverrides: {
-        "html.light": { colorScheme: "light" },
-        "html.dark": { colorScheme: "dark" },
-      },
-    },
     // Paper is outlined, not elevated
     MuiPaper: {
       defaultProps: {

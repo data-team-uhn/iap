@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests `useStoredSetting` against jsdom's local storage, which is cleared after each test.
 
 import { act, renderHook } from "@testing-library/react";
 

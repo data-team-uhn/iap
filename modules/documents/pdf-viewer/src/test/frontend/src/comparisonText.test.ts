@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests the text describing a comparison and its changes, on screen and to a screen reader.
 import { describeChange, describeComparison, describeMinor } from "@iap/documents-pdf-viewer/comparisonText";
 import type { Comparison, RevisionChange } from "@iap/documents-pdf-viewer/revisionDiffModel";
 
@@ -32,6 +33,7 @@ function change(removed: string, added: string, minor = false): RevisionChange {
   };
 }
 
+// A comparison that found the changes given.
 function compared(...changes: RevisionChange[]): Comparison {
   return { status: "compared", changes, alignment: { older: [], newer: [], pairs: [] } };
 }

@@ -15,15 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Tests opening a PDF, against the fake PDF.js in pdfjs.fixture and a fetch that answers with the URL
+// asked for.
+
 import { renderHook, waitFor } from "@testing-library/react";
 
 import { usePdfDocument } from "@iap/documents-pdf-viewer/usePdfDocument";
 
-import { fakePdf, FakeWorker, stubFetch } from "./pdfjs.fixture";
+import { FONT_NAME, fakePdf, FakeWorker, stubFetch } from "./pdfjs.fixture";
 
 vi.mock("pdfjs-dist", async () => (await import("./pdfjs.fixture")).createPdfjsModule());
 vi.mock("pdfjs-dist/web/pdf_viewer.mjs", async () => (await import("./pdfjs.fixture")).createViewerModule());
-vi.mock("pdfjs-dist/web/pdf_viewer.css", () => ({}));
 vi.mock("@iap/frontend-commons/assetManager", async () => ({
   getAssetURL: (await import("./pdfjs.fixture")).getAssetURL,
 }));
@@ -39,6 +42,14 @@ describe("usePdfDocument", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     fakePdf.reset();
+  });
+
+  it("gives the font of each piece of a page's text that is drawn, leaving out the empty ones", async () => {
+    fakePdf.pages = [ "One line,\n\nthen another." ];
+    const { result } = renderHook(() => usePdfDocument(URL));
+    await waitFor(() => expect(result.current.pdf).toBeDefined());
+
+    expect(await result.current.pdf?.getPageFonts(1)).toEqual([ FONT_NAME, FONT_NAME ]);
   });
 
   it("opens nothing without a URL", () => {
@@ -60,5 +71,21 @@ describe("usePdfDocument", () => {
     expect(result.current.pdf).toBeUndefined();
     await waitFor(() => expect(result.current.pdf).toBeDefined());
     expect(result.current.pdf).not.toBe(dropped);
+  });
+
+  // The worker lives as long as its module, so this test fails a worker of its own, from fresh modules.
+  it("asks for a reload when PDF.js's worker never started, rather than opening for ever", async () => {
+    vi.resetModules();
+    const { loadPdfjs } = await import("@iap/frontend-commons/pdfjsClient");
+    const { usePdfDocument: freshPdfDocument } = await import("@iap/documents-pdf-viewer/usePdfDocument");
+    const { worker } = await loadPdfjs();
+    (worker.port as unknown as FakeWorker).fail();
+
+    const { result } = renderHook(() => freshPdfDocument(URL));
+
+    await waitFor(() => expect(result.current.openError).toBe(
+      "The document viewer could not start. Reload the page to try again.",
+    ));
+    expect(result.current.pdf).toBeUndefined();
   });
 });

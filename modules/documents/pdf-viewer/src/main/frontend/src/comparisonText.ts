@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The text a comparison of two versions shows on screen and says to a screen reader.
+import { CHANGES, describeAmong, getNameFor } from "./pdfViewerModel";
 import {
   countMinorChanges,
   getChangeType,
@@ -23,20 +25,19 @@ import {
   type RevisionChange,
 } from "./revisionDiffModel";
 
-// What the comparison of two versions says to the people using it, on screen and to a screen reader.
-
-// How much of a change's text a screen reader hears before it is cut short.
+// How much of a change's text a screen reader hears before it is cut short, in characters.
 const SAID_LENGTH = 120;
 
+// A change's text in quotes, cut short past SAID_LENGTH characters.
 function quote(text: string): string {
   return `“${text.length > SAID_LENGTH ? `${text.slice(0, SAID_LENGTH).trimEnd()}…` : text}”`;
 }
 
 // What a screen reader hears for a change, such as "Change 3 of 17. Text removed on page 4. It said “…”.".
-// Without `among`, the first sentence is left out. The page is the newer version's.
+// The page is the newer version's. Without `among`, the first sentence is left out.
 export function describeChange(change: RevisionChange, among?: { index: number; count: number }): string {
   const { page } = change.newer[0];
-  const which = among === undefined ? "" : `Change ${among.index} of ${among.count}.`;
+  const which = among === undefined ? "" : `${describeAmong(CHANGES, among)}.`;
   switch (getChangeType(change)) {
     case "added":
       return `${which} Text added on page ${page}. It says ${quote(change.added)}.`.trim();
@@ -47,9 +48,10 @@ export function describeChange(change: RevisionChange, among?: { index: number; 
   }
 }
 
-// What to say about a comparison: how many changes it shows, once there are some; a caption for beside the
-// controls, with its progress, why there is nothing to show, or the minor changes left out or included; and
-// what a screen reader hears, which is the caption with the count.
+// What to say about a comparison, given whether minor changes are shown. `count` is how many changes are
+// shown, when there are any. `caption` goes beside the controls: the progress, why there is nothing to show,
+// or the minor changes left out or included. `said` is what a screen reader hears. Once compared, it puts the
+// count before the caption.
 export function describeComparison(
   state: ComparisonState,
   strict: boolean,
@@ -91,14 +93,14 @@ export function describeComparison(
 
 // A number of changes, as in "7 changes".
 export function countChanges(count: number): string {
-  return `${count} ${count === 1 ? "change" : "changes"}`;
+  return `${count} ${getNameFor(CHANGES, count)}`;
 }
 
-// The caption about minor changes, left out or included. Empty when there are none.
+// The caption about the minor changes left out or, when `strict`, included. Empty when there are none.
 export function describeMinor(minor: number, strict: boolean): string {
   if (minor === 0) {
     return "";
   }
-  const changes = `${minor} minor ${minor === 1 ? "change" : "changes"} of punctuation or letter case`;
+  const changes = `${minor} minor ${getNameFor(CHANGES, minor)} of punctuation or letter case`;
   return strict ? `Including ${changes}.` : `${changes} left out.`;
 }

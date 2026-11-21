@@ -15,6 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests reading a passage's text from a page, finding each kind of mark with `MarkLocator`, and ordering
+// and keying marks.
+
 import {
   getMarkPage,
   getMarksKey,
@@ -30,6 +33,7 @@ import {
 
 const QUOTE = "Volunteers who, on a casual basis, assist from time to time.";
 
+// A mark looked for by its quote, from `page` when given.
 function mark(page?: number, quote = QUOTE): Mark {
   return { id: "m", quote, page, kind: "assistant" };
 }
@@ -38,13 +42,14 @@ function placed(...spans: MarkSpan[]): Mark {
   return { id: "m", spans, kind: "annotation" };
 }
 
+// A mark kept as an anchor. A part `anchor` leaves out is empty, or the start of page 1.
 function anchored(anchor: Partial<TextAnchor>): Mark {
   const start = { page: 1, char: 0 };
   return { id: "m", anchor: { start, end: start, quote: "", before: "", after: "", ...anchor }, kind: "annotation" };
 }
 
-// The place of the one mark, after reading the pages given, by page number. Each line of a page ends
-// where PDF.js says it does, not with a character.
+// The place of the one mark after reading the pages given, keyed by page number. A "\n" in a page's text
+// is a line end, which leaves no character in the text, as PDF.js reads a page.
 function placeAfter(pages: Record<number, string>, pageCount: number, given = mark()) {
   const locator = new MarkLocator([ given ], pageCount);
   for (const [ page, text ] of Object.entries(pages)) {
@@ -167,6 +172,10 @@ describe("MarkLocator, for a mark placed by its spans", () => {
       spans: [ { page: 2, start: 4, end: 29 } ],
       text: "memo covers new volunteers",
     });
+  });
+
+  it("does not find it on a page that is not a whole number", () => {
+    expect(placeAfter(PAGES, 3, placed({ page: 1.5, start: 0, end: 3 }))).toMatchObject({ status: "notFound" });
   });
 
   it("takes a point as a span", () => {
@@ -340,12 +349,22 @@ describe("getMarkText", () => {
 describe("getPlacedPages", () => {
   it("lists the pages marks placed by their spans are on, once each, in order", () => {
     const marks = [
-      mark(5),
       placed({ page: 3, start: 0, end: 1 }, { page: 2, start: 0, end: 1 }),
       { ...placed({ page: 3, start: 4, end: 5 }), id: "n" },
     ];
 
     expect(getPlacedPages(marks, 5)).toEqual([ 2, 3 ]);
+  });
+
+  it("lists the page a quote is looked for from, so it is read before the pages ahead of it", () => {
+    const marks = [
+      mark(5),
+      { ...mark(), id: "n" },
+      { ...mark(9), id: "o" },
+      { ...placed({ page: 3, start: 0, end: 1 }), id: "p" },
+    ];
+
+    expect(getPlacedPages(marks, 6)).toEqual([ 3, 5 ]);
   });
 
   it("lists every page an anchor runs over, within the document", () => {

@@ -15,6 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests of the controls stepping through a list. The hidden texts that hold their width are found by their
+// `data-size` attribute, since they are not in the page's text.
+import { useState } from "react";
+
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -28,7 +32,33 @@ describe("StepControls", () => {
     expect(screen.getByText("1 of 3")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Previous change" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Next change" }));
-    expect(onStep).toHaveBeenCalledWith(2);
+    expect(onStep).toHaveBeenCalledWith(2, "next");
+  });
+
+  it("keeps the focus on the button pressed, and gives it to the other one at the end", async () => {
+    render(<Stepping count={3} />);
+    const next = screen.getByRole("button", { name: "Next change" });
+
+    await userEvent.click(next);
+    expect(next).toHaveFocus();
+
+    await userEvent.click(next);
+    expect(screen.getByRole("button", { name: "Previous change" })).toHaveFocus();
+  });
+
+  it("gives the focus to the button named as it is drawn, or to the other one at its end", () => {
+    const { unmount } = render(<StepControls position={2} count={3} itemName="change" focused="next" onStep={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Next change" })).toHaveFocus();
+    unmount();
+
+    render(<StepControls position={3} count={3} itemName="change" focused="next" onStep={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Previous change" })).toHaveFocus();
+  });
+
+  it("takes no focus when drawn without being stepped to", () => {
+    render(<StepControls position={2} count={3} itemName="change" onStep={vi.fn()} />);
+
+    expect(document.body).toHaveFocus();
   });
 
   it("keeps room for the widest text it can show, out of the page's text", () => {
@@ -63,3 +93,9 @@ describe("StepControls", () => {
     expect(container.querySelector("[data-size='12 of 12']")).not.toBeNull();
   });
 });
+
+// Controls whose position follows their own steps, as a list's does.
+function Stepping({ count }: { count: number }) {
+  const [ position, setPosition ] = useState(1);
+  return <StepControls position={position} count={count} itemName="change" onStep={setPosition} />;
+}

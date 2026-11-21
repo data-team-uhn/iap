@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Compares the document shown with an older version, and keeps the person's choices of how to see the
+// changes.
 import { useMemo } from "react";
 
 import { useStoredSetting } from "@iap/frontend-commons/useStoredSetting";
@@ -23,29 +25,31 @@ import { getChangeMarks, getShownChanges, type RevisionChange } from "./revision
 import { usePdfDocument, type OpenedDocument } from "./usePdfDocument";
 import { useRevisionDiff } from "./useRevisionDiff";
 
+// How changes are shown: not at all, on the newer version, or with the versions side by side.
 export type ComparisonView = "off" | "unified" | "split";
 
 const isView = (value: unknown): value is ComparisonView => value === "off" || value === "unified" || value === "split";
 
 const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
 
-// How the person chose to see changes: not at all, on the newer version, the default, or side by side.
-// Kept across documents and visits.
-export function useComparisonView() {
+// How the person chose to see changes, on the newer version by default. Kept across documents and visits.
+function useComparisonView() {
   return useStoredSetting<ComparisonView>("iap.pdfComparison.view", "unified", isView);
 }
 
-// Whether the person chose to include minor changes, of case and punctuation, across documents and visits.
-export function useStrictComparison() {
+// Whether the person chose to include minor changes, of punctuation or letter case. Off by default, and kept
+// across documents and visits.
+function useStrictComparison() {
   return useStoredSetting<boolean>("iap.pdfComparison.strict", false, isBoolean);
 }
 
+// One empty list for every render, so the memos depending on it keep their value.
 const NO_CHANGES: RevisionChange[] = [];
 
-// A document compared with an older version of it, given by its URL: the older version opened, how the
-// comparison goes, the changes found and the marks each version shows them with, and the person's choices
-// of view and of strictness. Nothing without an older version. While changes are not shown, the older
-// version is not opened, nor anything compared.
+// Compares a document with an older version of it, given by its URL. Returns the older version opened, how
+// the comparison goes, the changes shown, and the marks showing them on each version. It also returns the
+// person's choices of view and of strictness, with their setters. Undefined without an older version. While
+// the view is off, the older version is not opened and nothing is compared.
 export function useComparison(olderUrl: string | undefined, newer: OpenedDocument | undefined) {
   const [strict, setStrict] = useStrictComparison();
   const [view, setView] = useComparisonView();
