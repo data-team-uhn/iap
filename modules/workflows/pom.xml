@@ -59,7 +59,8 @@
           </instructions>
         </configuration>
       </plugin>
-      <!-- The task context other modules' handler tests use, compiled with the tests and shipped as the test jar -->
+      <!-- The fixtures in src/testFixtures, compiled with the tests and published as this module's test jar for other
+           modules' tests -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
@@ -93,6 +94,7 @@
               </includes>
               <excludes>
                 <exclude>**/*Test.class</exclude>
+                <exclude>**/*Test$*.class</exclude>
               </excludes>
             </configuration>
           </execution>
@@ -266,6 +268,11 @@
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
+    </dependency>
+    <!-- The context plugins the test fixtures offer -->
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.osgi-mock.core</artifactId>
     </dependency>
     <!-- A real repository, whose node types decide which fields an update may change -->
     <dependency>

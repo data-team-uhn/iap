@@ -15,29 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.workflows.internal;
+package io.uhndata.iap.workflows.testing;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.jetbrains.annotations.NotNull;
 
 import io.uhndata.iap.history.api.RecordedAction;
+import io.uhndata.iap.workflows.internal.DeliveryRecorder;
 
 /**
- * A stand-in for the history, keeping each delivery the engine described before committing it. The mock repository
- * has no JCR session to carry a description.
+ * Stands in for the history's delivery recorder. It commits each delivery the engine makes and keeps the action
+ * describing it, so that a test can read back what the engine delivered.
  *
  * @version $Id$
  * @since 0.1.0
  */
-final class RecordedDeliveries implements DeliveryRecorder
+public final class RecordedDeliveries implements DeliveryRecorder
 {
     private final List<RecordedAction> described = new ArrayList<>();
 
     @Override
-    public void commit(final ResourceResolver resolver, final RecordedAction action) throws PersistenceException
+    public void commit(@NotNull final ResourceResolver resolver, @NotNull final RecordedAction action)
+        throws PersistenceException
     {
         this.described.add(action);
         resolver.commit();
@@ -46,10 +49,11 @@ final class RecordedDeliveries implements DeliveryRecorder
     /**
      * Every delivery described so far, whether its commit succeeded or not.
      *
-     * @return the actions, in the order they were described
+     * @return the actions, in the order the engine handed them over
      */
-    List<RecordedAction> described()
+    @NotNull
+    public List<RecordedAction> described()
     {
-        return this.described;
+        return List.copyOf(this.described);
     }
 }

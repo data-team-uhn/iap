@@ -19,7 +19,6 @@ package io.uhndata.iap.workflows.models;
 
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import javax.jcr.Node;
@@ -40,6 +39,7 @@ import io.uhndata.iap.entities.models.EntityHomepage;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
+import io.uhndata.iap.workflows.testing.WorkflowResourceTypes;
 
 /**
  * Shared setup for the workflow model tests: the models under test, and the {@code /libs/wf} resource type
@@ -102,13 +102,8 @@ public final class WorkflowFixture
     }
 
     /**
-     * Registers the workflow models along with the base models they extend, and recreates the {@code /libs/wf}
-     * resource type registry shipped by this module.
-     *
-     * <p>The registry is the part that is easy to overlook: a resource only carries the one supertype its node type
-     * autocreates, so following {@code wf/StartEvent} all the way up to {@code wf/FlowNode} — which is what
-     * {@code getChildren(FlowNode.RESOURCE_TYPE, ...)} needs — only works because each type has a node under
-     * {@code /libs} naming its own parent.</p>
+     * Registers the workflow models along with the base models they extend, and installs the
+     * {@link WorkflowResourceTypes resource types} this module ships.
      *
      * @param context the Sling context to set up
      */
@@ -118,35 +113,7 @@ public final class WorkflowFixture
             SingleCondition.class, ConditionGroup.class, ConditionOperand.class);
         context.addModelsForPackage("io.uhndata.iap.workflows.models");
 
-        registerType(context, "WorkflowsHomepage", "data/EntityHomepage");
-        registerType(context, "WorkflowTypesHomepage", "data/EntityHomepage");
-        registerType(context, "SystemWorkflowsHomepage", "data/EntityHomepage");
-        registerType(context, "FlowNodeType", "data/Entity");
-        registerType(context, "CatchingEventType", FlowNodeType.RESOURCE_TYPE);
-        registerType(context, "ThrowingEventType", FlowNodeType.RESOURCE_TYPE);
-        registerType(context, "ActivityType", FlowNodeType.RESOURCE_TYPE);
-        registerType(context, "GatewayType", FlowNodeType.RESOURCE_TYPE);
-        registerType(context, "WorkflowDefinition", "data/Entity");
-        registerType(context, "WorkflowVersion", "data/Entity");
-        registerType(context, "FlowNode", "data/EntityPart");
-        registerType(context, "Event", FlowNode.RESOURCE_TYPE);
-        registerType(context, "StartEvent", Event.RESOURCE_TYPE);
-        registerType(context, "EndEvent", Event.RESOURCE_TYPE);
-        registerType(context, "IntermediateEvent", Event.RESOURCE_TYPE);
-        registerType(context, "IntermediateCatchingEvent", IntermediateEvent.RESOURCE_TYPE);
-        registerType(context, "IntermediateThrowingEvent", IntermediateEvent.RESOURCE_TYPE);
-        registerType(context, "Activity", FlowNode.RESOURCE_TYPE);
-        registerType(context, "Gateway", FlowNode.RESOURCE_TYPE);
-        registerType(context, "ExclusiveGateway", Gateway.RESOURCE_TYPE);
-        registerType(context, "ParallelGateway", Gateway.RESOURCE_TYPE);
-        registerType(context, "InclusiveGateway", Gateway.RESOURCE_TYPE);
-        registerType(context, "EventBasedGateway", Gateway.RESOURCE_TYPE);
-        registerType(context, "SequenceFlow", "data/EntityPart");
-        registerType(context, "WorkflowInstances", "data/Content");
-        registerType(context, "WorkflowInstance", "data/EntityPart");
-        registerType(context, "WorkflowToken", "data/EntityPart");
-        registerType(context, "TaskInstance", "data/EntityPart");
-        registerType(context, "Variable", "data/EntityPart");
+        WorkflowResourceTypes.installIn(context);
     }
 
     /**
@@ -170,11 +137,6 @@ public final class WorkflowFixture
             context.registerAdapter(ResourceResolver.class, Session.class, session);
         }
         Mockito.when(session.getNodeByIdentifier(identifier)).thenReturn(target);
-    }
-
-    private static void registerType(final SlingContext context, final String name, final String superType)
-    {
-        context.create().resource("/libs/wf/" + name, Map.of(SUPER_TYPE, superType));
     }
 
     /**
