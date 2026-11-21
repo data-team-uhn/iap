@@ -63,9 +63,9 @@ function ColoredChipsFilterInput(props: GridFilterInputMultipleSingleSelectProps
           ...rootProps,
           slotProps: {
             ...rootProps?.slotProps,
-            // The stock input's own text field props, which this replaces: a new condition focuses
-            // the text field
-            textField: { type: "text", inputRef: props.focusElementRef },
+            // The stock input's own text field props, which this replaces. The grid's focus ref
+            // reaches the input as the `inputRef` prop, passed on with the rest.
+            textField: { type: "text" },
             chip: option => {
               const { label, color, variant } = chipOption(option);
               const style = chipStyle(theme, color, variant);
