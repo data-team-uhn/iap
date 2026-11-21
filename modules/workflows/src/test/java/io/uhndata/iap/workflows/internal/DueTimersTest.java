@@ -17,9 +17,6 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.lang.reflect.Field;
-import java.util.Map;
-
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
@@ -38,6 +35,7 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.scheduler.ScheduleOptions;
 import org.apache.sling.commons.scheduler.Scheduler;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,13 +43,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.osgi.framework.Constants;
 
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.errortracking.api.ErrorLoggerService;
+import io.uhndata.iap.utils.testing.TestResolverFactory;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static org.apache.sling.api.resource.ResourceResolverFactory.SUBSERVICE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -69,17 +70,20 @@ class DueTimersTest
 {
     private static final String TASK = "/Submissions/request/wf:instances/timeOffRequest/approveRequest";
 
-    private final SlingContext context = new SlingContext();
-
-    private final DueTimers sweep = new DueTimers();
+    private final SlingContext context = new SlingContextBuilder().plugin(WorkflowPlugins.MOCK_ENGINE).build();
 
     private final Scheduler scheduler = Mockito.mock(Scheduler.class);
-
-    private final WorkflowEngine engine = Mockito.mock(WorkflowEngine.class);
 
     private final ScheduleOptions options = Mockito.mock(ScheduleOptions.class);
 
     private final ErrorLoggerService errors = Mockito.mock(ErrorLoggerService.class);
+
+    private DueTimers sweep;
+
+    private WorkflowEngine engine;
+
+    /** The service users the sweep logs in as, which a test may take away. */
+    private ResourceResolverFactory serviceUsers;
 
     private QueryManager queries;
 
@@ -103,15 +107,17 @@ class DueTimersTest
         Mockito.doNothing().when(this.resolver).close();
         this.timer = Mockito.spy(this.context.resourceResolver());
         Mockito.doNothing().when(this.timer).close();
-        final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation ->
-            DueTimers.TIMER_SUBSERVICE.equals(invocation.getArgument(0, Map.class).get(SUBSERVICE))
-                ? this.timer : this.resolver);
+        this.serviceUsers = TestResolverFactory.answeredBy(authenticationInfo ->
+            DueTimers.TIMER_SUBSERVICE.equals(authenticationInfo.get(SUBSERVICE)) ? this.timer : this.resolver);
 
-        inject("scheduler", this.scheduler);
-        inject("resolverFactory", factory);
-        inject("engine", this.engine);
         Mockito.when(this.scheduler.EXPR(Mockito.anyString())).thenReturn(this.options);
+        this.context.registerService(Scheduler.class, this.scheduler, Constants.SERVICE_RANKING, Integer.MAX_VALUE);
+        this.context.registerService(ResourceResolverFactory.class,
+            TestResolverFactory.answeredBy(authenticationInfo ->
+                this.serviceUsers.getServiceResourceResolver(authenticationInfo)),
+            Constants.SERVICE_RANKING, Integer.MAX_VALUE);
+        this.engine = this.context.getService(WorkflowEngine.class);
+        this.sweep = this.context.registerInjectActivateService(DueTimers.class);
         ErrorLogger.setService(this.errors);
     }
 
@@ -124,7 +130,6 @@ class DueTimersTest
     @Test
     void schedulesItselfAndStandsDownAgain()
     {
-        this.sweep.activate();
         this.sweep.deactivate();
 
         Mockito.verify(this.scheduler).schedule(Mockito.same(this.sweep), Mockito.same(this.options));
@@ -134,8 +139,6 @@ class DueTimersTest
     @Test
     void sweepsOnceAtATimeOnOneInstance()
     {
-        this.sweep.activate();
-
         Mockito.verify(this.options).canRunConcurrently(false);
         Mockito.verify(this.options).onLeaderOnly(true);
     }
@@ -276,10 +279,7 @@ class DueTimersTest
     @Test
     void survivesAMissingServiceUser() throws Exception
     {
-        final ResourceResolverFactory refusing = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(refusing.getServiceResourceResolver(Mockito.anyMap()))
-            .thenThrow(new LoginException("no such service user"));
-        inject("resolverFactory", refusing);
+        this.serviceUsers = TestResolverFactory.withoutServiceUser();
 
         assertDoesNotThrow(this.sweep::run);
         Mockito.verifyNoInteractions(this.engine);
@@ -290,14 +290,8 @@ class DueTimersTest
     void deliversNothingWithoutTheTimerUser() throws Exception
     {
         expectDue(TASK);
-        final ResourceResolverFactory partial = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(partial.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation -> {
-            if (DueTimers.TIMER_SUBSERVICE.equals(invocation.getArgument(0, Map.class).get(SUBSERVICE))) {
-                throw new LoginException("no such service user");
-            }
-            return this.resolver;
-        });
-        inject("resolverFactory", partial);
+        this.serviceUsers = TestResolverFactory.answeredBy(authenticationInfo -> this.resolver)
+            .withoutSubservice(DueTimers.TIMER_SUBSERVICE);
 
         assertDoesNotThrow(this.sweep::run);
         Mockito.verifyNoInteractions(this.engine);
@@ -344,12 +338,5 @@ class DueTimersTest
     private ModifiableValueMap task()
     {
         return this.context.resourceResolver().getResource(TASK).adaptTo(ModifiableValueMap.class);
-    }
-
-    private void inject(final String name, final Object value) throws ReflectiveOperationException
-    {
-        final Field field = DueTimers.class.getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(this.sweep, value);
     }
 }
