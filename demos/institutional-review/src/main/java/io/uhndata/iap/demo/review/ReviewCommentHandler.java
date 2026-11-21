@@ -309,10 +309,10 @@ public class ReviewCommentHandler implements ServiceTaskHandler
     private static List<String> values(final WorkflowTaskContext context, final String name)
     {
         final Object value = context.getEvent().get(name);
-        if (value instanceof String[] many) {
+        if (value instanceof final String[] many) {
             return Arrays.stream(many).filter(one -> !one.isBlank()).toList();
         }
-        return value instanceof String one && !one.isBlank() ? List.of(one) : List.of();
+        return value instanceof final String one && !one.isBlank() ? List.of(one) : List.of();
     }
 
     private static String name(final String prefix)
