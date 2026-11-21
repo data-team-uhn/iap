@@ -151,7 +151,7 @@ describe("AnswerField", () => {
 
     fireEvent.mouseOver(screen.getByText("Not saved"));
 
-    expect(await screen.findByRole("tooltip")).toHaveTextContent("This answer was not saved");
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("This was not saved");
   });
 
   it("adopts a new stored answer, and keeps what is being typed when nothing changed", async () => {

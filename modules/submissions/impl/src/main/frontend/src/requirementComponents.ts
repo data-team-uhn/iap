@@ -20,7 +20,7 @@ import type { ReactElement } from "react";
 import { type Candidate, createCandidateRegistry } from "@iap/frontend-commons/candidateRegistry";
 import type { Enqueue } from "@iap/frontend-commons/useWorkQueue";
 
-import type { SaveState } from "./AnswerField";
+import type { SaveState } from "./SaveStatus";
 import type { FormQuestion, Requirement } from "./submissionForm";
 
 // Which component draws each kind of requirement
