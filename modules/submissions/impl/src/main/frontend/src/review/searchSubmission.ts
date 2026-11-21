@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { loadPdfjs } from "@iap/frontend-commons/pdfViewer/pdfjsClient";
+import { loadPdfViewer } from "@iap/documents-pdf-viewer/pdfjsViewer";
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import { type FormItem, isQuestion } from "../submissionForm";
@@ -37,7 +37,7 @@ const texts = new Map<string, Promise<string[]>>();
 async function readPages(doFetch: AuthenticatedFetch, url: string): Promise<string[]> {
   const response = await doFetch(url);
   const data = new Uint8Array(await response.arrayBuffer());
-  const { pdfjs, worker, dataUrls } = await loadPdfjs();
+  const { pdfjs, worker, dataUrls } = await loadPdfViewer();
   const doc = await pdfjs.getDocument({ data, worker, useSystemFonts: false, ...dataUrls }).promise;
   const pages: string[] = [];
   for (let number = 1; number <= doc.numPages; number++) {
