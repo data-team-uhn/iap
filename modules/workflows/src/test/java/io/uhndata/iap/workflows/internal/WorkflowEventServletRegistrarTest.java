@@ -153,7 +153,7 @@ class WorkflowEventServletRegistrarTest
     private void activate() throws ReflectiveOperationException, Exception
     {
         this.context.resourceResolver().commit();
-        inject("resolverFactory", EngineFixture.serviceUsers(this.context, null));
+        inject("resolverFactory", this.context.getService(ResourceResolverFactory.class));
         this.registrar.activate(this.context.bundleContext());
     }
 

@@ -33,7 +33,11 @@ import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
@@ -41,6 +45,7 @@ import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.FlowNode;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -54,11 +59,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @version $Id$
  * @since 0.1.0
  */
+@ExtendWith(SlingContextExtension.class)
 class PerformerCheckTest
 {
     private static final String REQUESTERS = "time-off-requesters";
 
     private static final String REQUESTER = "demo-requester";
+
+    private final SlingContext context = new SlingContextBuilder().plugin(WorkflowPlugins.ENGINE).build();
 
     @Test
     void admitsAnActorTheNodeNamesDirectly() throws Exception
@@ -156,7 +164,7 @@ class PerformerCheckTest
     @Test
     void asksAboutMembershipOnceForAListItWasAlreadyAskedAbout() throws Exception
     {
-        final PrincipalService principals = Mockito.spy(EngineFixture.principals());
+        final PrincipalService principals = Mockito.spy(this.context.getService(PrincipalService.class));
         final PerformerCheck check = new Performers(principals)
             .createCheck(repositoryWith(user(REQUESTER), REQUESTERS), REQUESTER);
 
@@ -225,10 +233,10 @@ class PerformerCheckTest
      * @param actor the user who fired the event
      * @throws Exception when the check refuses or fails, which each case asserts on
      */
-    private static void verify(final ResourceResolver resolver, final Resource subject, final FlowNode node,
+    private void verify(final ResourceResolver resolver, final Resource subject, final FlowNode node,
         final String actor) throws Exception
     {
-        EngineFixture.performers().createCheck(resolver, actor).verify(node, subject);
+        this.context.getService(Performers.class).createCheck(resolver, actor).verify(node, subject);
     }
 
     /**

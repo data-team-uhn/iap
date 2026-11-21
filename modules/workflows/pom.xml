@@ -304,6 +304,14 @@
     <profile>
       <id>tests</id>
       <dependencies>
+        <!-- TestResolverFactory, through which the engine tests hand out the engine's sessions -->
+        <dependency>
+          <groupId>${project.groupId}</groupId>
+          <artifactId>iap-java-utils</artifactId>
+          <version>${project.version}</version>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
         <!-- PropertyTagging, which keeps tags in a mock repository -->
         <dependency>
           <groupId>${project.groupId}</groupId>

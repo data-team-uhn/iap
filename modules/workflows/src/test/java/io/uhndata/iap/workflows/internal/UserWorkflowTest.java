@@ -19,13 +19,13 @@ package io.uhndata.iap.workflows.internal;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -36,6 +36,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,6 +71,7 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 import io.uhndata.iap.workflows.testing.RecordedDeliveries;
 import io.uhndata.iap.workflows.testing.RecordedNotifications;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
@@ -146,13 +148,12 @@ class UserWorkflowTest
     private static final WorkflowEvent APPROVED =
         new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, "approved"));
 
+    private final ServiceSessions sessions = new ServiceSessions();
+
     // JCR-backed: the runtime writes a real REFERENCE to the workflow version, which needs a JCR node
-    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
-
-    /** What the engine told whom. */
-    private final RecordedNotifications told = new RecordedNotifications();
-
-    private final RecordedDeliveries history = new RecordedDeliveries();
+    private final SlingContext context = new SlingContextBuilder(ResourceResolverType.JCR_MOCK)
+        .plugin(this.sessions, WorkflowPlugins.ENGINE)
+        .build();
 
     @BeforeEach
     void setUp()
@@ -164,6 +165,7 @@ class UserWorkflowTest
         this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"},
             "createdBy", EngineFixture.REQUESTER));
         this.context.create().resource(HOST + "/wf:instances", TYPE, "wf/WorkflowInstances");
+        this.context.registerService(ServiceTaskHandler.class, new StartWorkflowHandler());
     }
 
     /**
@@ -602,20 +604,38 @@ class UserWorkflowTest
     }
 
     /**
-     * Builds an engine wired as the DS runtime would wire it, with the {@code startWorkflow} handler the bootstrap
-     * uses, and a service session that can answer who the repository's users are.
+     * The engine, with the {@code startWorkflow} handler the bootstrap uses beside the given ones.
      *
      * @param handlers the service task handlers to register besides {@code startWorkflow}
-     * @return a ready engine
-     * @throws Exception when reflection fails, which would be a bug in this test
+     * @return the engine
+     * @throws PersistenceException when the fixture content cannot be committed
      */
-    private WorkflowEngine engine(final ServiceTaskHandler... handlers) throws Exception
+    private WorkflowEngine engine(final ServiceTaskHandler... handlers) throws PersistenceException
     {
+        // The engine's service session only sees what has been committed
         this.context.resourceResolver().commit();
-        final List<ServiceTaskHandler> registered = new ArrayList<>(List.of(handlers));
-        registered.add(new StartWorkflowHandler());
-        return EngineFixture.engine(EngineFixture.serviceUsers(this.context, null), registered, this.told,
-            this.history);
+        Stream.of(handlers).forEach(handler -> this.context.registerService(ServiceTaskHandler.class, handler));
+        return this.context.getService(WorkflowEngine.class);
+    }
+
+    /**
+     * What the engine told whom.
+     *
+     * @return the notifications it sent
+     */
+    private RecordedNotifications told()
+    {
+        return this.context.getService(RecordedNotifications.class);
+    }
+
+    /**
+     * What the engine committed.
+     *
+     * @return the deliveries it described
+     */
+    private RecordedDeliveries history()
+    {
+        return this.context.getService(RecordedDeliveries.class);
     }
 
     /**
@@ -820,7 +840,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent(TaskCompletion.COMPLETE_EVENT,
             Map.of(TaskCompletion.OUTCOME_PARAMETER, "approved", TaskCompletion.OUTCOME_NOTE_PARAMETER, "Enjoy")));
 
-        final RecordedAction completed = this.history.described().get(this.history.described().size() - 1);
+        final RecordedAction completed = history().described().get(history().described().size() - 1);
         assertEquals(EngineFixture.REQUESTER, completed.getRequestedBy());
         assertEquals(TaskCompletion.COMPLETE_EVENT, completed.getOperation());
         assertEquals(TaskCompletion.COMPLETE_EVENT, completed.getEvent());
@@ -841,7 +861,7 @@ class UserWorkflowTest
 
         started();
 
-        assertEquals(HOST + "/wf:instances/timeOffRequest", this.history.described().get(0).getWorkflowInstance());
+        assertEquals(HOST + "/wf:instances/timeOffRequest", history().described().get(0).getWorkflowInstance());
     }
 
     @Test
@@ -897,8 +917,8 @@ class UserWorkflowTest
 
         // The person it is being run for, and the performers of its user tasks, derived from the definition
         // rather than declared twice
-        assertTrue(EngineFixture.GRANTED.contains(EngineFixture.REQUESTER));
-        assertTrue(EngineFixture.GRANTED.contains(EngineFixture.REQUESTERS));
+        assertTrue(this.sessions.granted().contains(EngineFixture.REQUESTER));
+        assertTrue(this.sessions.granted().contains(EngineFixture.REQUESTERS));
     }
 
     @Test
@@ -912,8 +932,8 @@ class UserWorkflowTest
 
         started();
 
-        assertEquals(1, this.told.sent().size());
-        final RecordedNotifications.Sent sent = this.told.sent().get(0);
+        assertEquals(1, told().sent().size());
+        final RecordedNotifications.Sent sent = told().sent().get(0);
         assertEquals(List.of(EngineFixture.REQUESTERS), sent.roles());
         final NotificationContext notification = sent.notification();
         assertEquals("submitted", notification.getEvent());
@@ -935,7 +955,7 @@ class UserWorkflowTest
 
         started();
 
-        assertTrue(this.told.sent().isEmpty());
+        assertTrue(told().sent().isEmpty());
         assertFalse(read(TASK).isEmpty());
     }
 
@@ -949,9 +969,9 @@ class UserWorkflowTest
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
 
-        assertEquals(List.of("decided"), this.told.events());
+        assertEquals(List.of("decided"), told().events());
         // The decision travels to the template, which may quote it
-        assertEquals("approved", this.told.sent().get(0).notification().getVariables()
+        assertEquals("approved", told().sent().get(0).notification().getVariables()
             .get(TaskCompletion.OUTCOME_PARAMETER));
     }
 
@@ -1158,7 +1178,7 @@ class UserWorkflowTest
 
         started();
 
-        assertTrue(EngineFixture.GRANTED.contains(EngineFixture.ADMIN));
+        assertTrue(this.sessions.granted().contains(EngineFixture.ADMIN));
     }
 
     @Test
@@ -1293,7 +1313,7 @@ class UserWorkflowTest
 
         started();
 
-        assertFalse(EngineFixture.GRANTED.contains(EngineFixture.ADMIN));
+        assertFalse(this.sessions.granted().contains(EngineFixture.ADMIN));
     }
 
     @Test
@@ -1351,9 +1371,8 @@ class UserWorkflowTest
     void leavesNothingBehindWhenTheDecisionCannotBeCommitted() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
-        started();
-        final WorkflowEngine engine = EngineFixture.engine(EngineFixture.serviceUsers(this.context,
-            new PersistenceException("the disk is on fire")), List.of(new StartWorkflowHandler()));
+        final WorkflowEngine engine = started();
+        this.sessions.failEachCommitWith(new PersistenceException("the disk is on fire"));
 
         assertThrows(io.uhndata.iap.workflows.api.WorkflowFailedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));

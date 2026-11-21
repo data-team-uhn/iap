@@ -38,6 +38,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TAGS;
@@ -72,7 +74,7 @@ class HostAccessTest
 
     private static final String APPROVERS = "time-off-approvers";
 
-    private final SlingContext context = new SlingContext();
+    private final SlingContext context = new SlingContextBuilder().plugin(WorkflowPlugins.ENGINE).build();
 
     private final List<String> granted = new ArrayList<>();
 
@@ -113,7 +115,7 @@ class HostAccessTest
      */
     private void grantReaders(final ResourceResolver resolver) throws PersistenceException
     {
-        EngineFixture.hostAccess().grantReaders(resolver, host(), version(), EngineFixture.REQUESTER);
+        this.context.getService(HostAccess.class).grantReaders(resolver, host(), version(), EngineFixture.REQUESTER);
     }
 
     @Test

@@ -17,25 +17,24 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.jcr.AccessDeniedException;
 import javax.jcr.nodetype.ConstraintViolationException;
 
-import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextBuilder;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,7 +59,7 @@ import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
-import io.uhndata.iap.workflows.internal.EngineFixture.OneLostRace;
+import io.uhndata.iap.workflows.internal.ServiceSessions.OneLostRace;
 import io.uhndata.iap.workflows.internal.handlers.CallActivityHandler;
 import io.uhndata.iap.workflows.internal.handlers.CreateEntityHandler;
 import io.uhndata.iap.workflows.internal.handlers.StartWorkflowHandler;
@@ -81,6 +80,7 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 import io.uhndata.iap.workflows.testing.RecordedDeliveries;
 import io.uhndata.iap.workflows.testing.RecordedNotifications;
+import io.uhndata.iap.workflows.testing.WorkflowPlugins;
 
 import static io.uhndata.iap.workflows.internal.EngineFixture.VERSION;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
@@ -135,12 +135,11 @@ class WorkflowEngineImplTest
     /** The revision token the entity carries before any event. */
     private static final String FIRST_REVISION = "first";
 
-    private final SlingContext context = new SlingContext();
+    private final ServiceSessions sessions = new ServiceSessions();
 
-    /** What the engine told whom. */
-    private final RecordedNotifications told = new RecordedNotifications();
-
-    private final RecordedDeliveries history = new RecordedDeliveries();
+    private final SlingContext context = new SlingContextBuilder()
+        .plugin(this.sessions, WorkflowPlugins.ENGINE)
+        .build();
 
     @BeforeEach
     void setUp()
@@ -150,108 +149,92 @@ class WorkflowEngineImplTest
         this.context.create().resource("/libs/cond/Condition", Map.of(SUPER_TYPE, "data/EntityPart"));
         this.context.create().resource("/libs/cond/SingleCondition", Map.of(SUPER_TYPE, Condition.RESOURCE_TYPE));
         this.context.create().resource("/libs/cond/ConditionOperand", Map.of(SUPER_TYPE, "data/EntityPart"));
+        Stream.of(new CreateEntityHandler(), new CallActivityHandler(), new StartWorkflowHandler())
+            .forEach(handler -> this.context.registerService(ServiceTaskHandler.class, handler));
     }
 
     /**
-     * Builds an engine wired the way the DS runtime would wire it: the mock context's resolver factory, plus the
-     * module's own handlers that need nothing else, and whatever extra handlers a test needs. Wiring is by
-     * reflection, the way the other component tests do it, since the SCR metadata only exists in the packaged
-     * bundle.
+     * The engine, with the module's own handlers that need nothing else and whatever extra handlers a test needs.
      *
      * @param extraHandlers additional handlers to register beside the module's own
-     * @return a ready engine
-     * @throws Exception when reflection fails, which would be a bug in this test
+     * @return the engine
+     * @throws PersistenceException when the fixture content cannot be committed
      */
-    private WorkflowEngineImpl engine(final ServiceTaskHandler... extraHandlers) throws Exception
-    {
-        return engine(null, extraHandlers);
-    }
-
-    /**
-     * Builds an engine whose session fails to commit, so that the tests can observe how the engine translates
-     * repository failures. The writes themselves succeed; only the commit fails.
-     *
-     * @param failure what the engine's commit throws, or {@code null} for a session that commits normally
-     * @param extraHandlers additional handlers to register beside the module's own
-     * @return a ready engine
-     * @throws Exception when reflection fails, which would be a bug in this test
-     */
-    private WorkflowEngineImpl engine(final PersistenceException failure, final ServiceTaskHandler... extraHandlers)
-        throws Exception
-    {
-        return engineServedBy(EngineFixture.serviceUsers(this.context, failure), extraHandlers);
-    }
-
-    /**
-     * Builds an engine whose first commit loses a race to another writer, and whose later commits go through.
-     *
-     * @param race the race, with the other writer's change
-     * @return a ready engine
-     * @throws Exception when reflection fails, which would be a bug in this test
-     */
-    private WorkflowEngineImpl engineLosing(final OneLostRace race) throws Exception
-    {
-        return engineServedBy(EngineFixture.serviceUsersRunning(this.context, race));
-    }
-
-    /**
-     * Builds an engine whose task completion does nothing, so that what an event aimed at a task leads to beyond
-     * the walk can be seen on its own.
-     *
-     * @param beforeCommit what runs before each of the engine's commits, and may refuse it
-     * @return a ready engine
-     * @throws Exception when reflection fails, which would be a bug in this test
-     */
-    private WorkflowEngineImpl engineCompletingNothing(final EngineFixture.RepositoryAction beforeCommit)
-        throws Exception
-    {
-        final WorkflowEngineImpl engine = engineServedBy(EngineFixture.serviceUsersRunning(this.context, beforeCommit));
-        EngineFixture.inject(engine, "taskCompletion", Mockito.mock(TaskCompletion.class));
-        return engine;
-    }
-
-    /**
-     * Builds an engine on the given service sessions.
-     *
-     * @param serviceUsers hands out the engine's own sessions
-     * @param extraHandlers additional handlers to register beside the module's own
-     * @return a ready engine
-     * @throws Exception when reflection fails, which would be a bug in this test
-     */
-    private WorkflowEngineImpl engineServedBy(final ResourceResolverFactory serviceUsers,
-        final ServiceTaskHandler... extraHandlers) throws Exception
+    private WorkflowEngine engine(final ServiceTaskHandler... extraHandlers) throws PersistenceException
     {
         // The fixture content was written through the test's own session; the engine matches through its service
         // session, which only sees what has been committed
         this.context.resourceResolver().commit();
-        final List<ServiceTaskHandler> allHandlers = new ArrayList<>(List.of(extraHandlers));
-        allHandlers.add(new CreateEntityHandler());
-        allHandlers.add(new CallActivityHandler());
-        allHandlers.add(new StartWorkflowHandler());
-        return EngineFixture.engine(serviceUsers, allHandlers, this.told, this.history);
+        Stream.of(extraHandlers).forEach(handler -> this.context.registerService(ServiceTaskHandler.class, handler));
+        return this.context.getService(WorkflowEngine.class);
     }
 
     /**
-     * Builds an engine whose service sessions are recorded as they are opened, so that a test can count them and
-     * see them closed.
+     * The engine, its session failing to commit, so that the tests can observe how the engine translates
+     * repository failures. The writes themselves succeed; only the commit fails.
      *
-     * @param opened where to record them
-     * @return a ready engine
-     * @throws Exception when reflection fails, which would be a bug in this test
+     * @param failure what the engine's commit throws
+     * @param extraHandlers additional handlers to register beside the module's own
+     * @return the engine
+     * @throws PersistenceException when the fixture content cannot be committed
      */
-    private WorkflowEngine recording(final List<OpenedSession> opened) throws Exception
+    private WorkflowEngine engine(final PersistenceException failure, final ServiceTaskHandler... extraHandlers)
+        throws PersistenceException
     {
-        final WorkflowEngineImpl engine = engine();
-        final ResourceResolverFactory serviceUsers = EngineFixture.serviceUsers(this.context, null);
-        final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenAnswer(invocation -> {
-            final OpenedSession session =
-                new OpenedSession(serviceUsers.getServiceResourceResolver(invocation.getArgument(0)));
-            opened.add(session);
-            return session;
-        });
-        EngineFixture.inject(engine, "resolverFactory", factory);
+        final WorkflowEngine engine = engine(extraHandlers);
+        this.sessions.failEachCommitWith(failure);
         return engine;
+    }
+
+    /**
+     * The engine, its first commit losing a race to another writer and its later commits going through.
+     *
+     * @param race the race, with the other writer's change
+     * @return the engine
+     * @throws PersistenceException when the fixture content cannot be committed
+     */
+    private WorkflowEngine engineLosing(final OneLostRace race) throws PersistenceException
+    {
+        final WorkflowEngine engine = engine();
+        this.sessions.beforeEachCommit(race);
+        return engine;
+    }
+
+    /**
+     * An engine whose task completion does nothing, so that what an event aimed at a task leads to beyond the walk
+     * can be seen on its own.
+     *
+     * @param beforeCommit what runs before each of the engine's commits, and may refuse it
+     * @return the engine
+     * @throws PersistenceException when the fixture content cannot be committed
+     */
+    private WorkflowEngine engineCompletingNothing(final ServiceSessions.RepositoryAction beforeCommit)
+        throws PersistenceException
+    {
+        engine();
+        this.sessions.beforeEachCommit(beforeCommit);
+        EngineFixture.standIn(this.context, TaskCompletion.class, Mockito.mock(TaskCompletion.class));
+        return EngineFixture.rebuilt(this.context, WorkflowEngineImpl.class);
+    }
+
+    /**
+     * What the engine told whom.
+     *
+     * @return the notifications it sent
+     */
+    private RecordedNotifications told()
+    {
+        return this.context.getService(RecordedNotifications.class);
+    }
+
+    /**
+     * What the engine committed.
+     *
+     * @return the deliveries it described
+     */
+    private RecordedDeliveries history()
+    {
+        return this.context.getService(RecordedDeliveries.class);
     }
 
     @Test
@@ -317,8 +300,8 @@ class WorkflowEngineImplTest
 
         engine(new RoleNamingHandler()).receiveEvent(target, CREATE);
 
-        assertEquals(1, this.history.described().size());
-        final RecordedAction delivery = this.history.described().get(0);
+        assertEquals(1, history().described().size());
+        final RecordedAction delivery = history().described().get(0);
         assertEquals(EngineFixture.REQUESTER, delivery.getRequestedBy());
         assertEquals(CREATE.getName(), delivery.getOperation());
         assertEquals(CREATE.getName(), delivery.getEvent());
@@ -614,7 +597,7 @@ class WorkflowEngineImplTest
     {
         // Two people acting on the same thing at once is not a fault in either request: the state simply moved
         // under the slower one
-        final PersistenceException conflict = EngineFixture.conflict();
+        final PersistenceException conflict = ServiceSessions.conflict();
         final InvalidStateException refusal =
             assertThrows(InvalidStateException.class, () -> runWithFailingCommit(conflict));
         assertTrue(refusal.getMessage().contains("at the same time"));
@@ -776,13 +759,9 @@ class WorkflowEngineImplTest
     @Test
     void failsCleanlyWithoutItsServiceUser() throws Exception
     {
-        final ResourceResolverFactory brokenFactory = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(brokenFactory.getServiceResourceResolver(Mockito.anyMap()))
-            .thenThrow(new LoginException("no such service user"));
-        final WorkflowEngineImpl engine = new WorkflowEngineImpl();
-        EngineFixture.inject(engine, "resolverFactory", brokenFactory);
-        EngineFixture.inject(engine, "queries", EngineFixture.queries());
         final Resource target = EngineFixture.createTarget(this.context);
+        final WorkflowEngine engine = engine();
+        this.sessions.refuseLogins();
 
         assertThrows(WorkflowFailedException.class, () -> engine.receiveEvent(target, CREATE));
         assertThrows(WorkflowFailedException.class, () -> engine.getAvailableEvents(target));
@@ -948,11 +927,11 @@ class WorkflowEngineImplTest
         EngineFixture.createBootstrapGraph(this.context);
         createOtherNoopWorkflow("archive");
         guard(OTHER_START, "open");
-        final WorkflowEngineImpl engine = engine();
-        final Field injected = WorkflowEngineImpl.class.getDeclaredField("conditionEvaluator");
-        injected.setAccessible(true);
-        final ConditionEvaluator evaluator = Mockito.spy((ConditionEvaluator) injected.get(engine));
-        EngineFixture.inject(engine, "conditionEvaluator", evaluator);
+        engine();
+        final ConditionEvaluator evaluator = EngineFixture.standIn(this.context, ConditionEvaluator.class,
+            Mockito.spy(this.context.getService(ConditionEvaluator.class)));
+        EngineFixture.rebuilt(this.context, WorkflowQueries.class);
+        final WorkflowEngine engine = EngineFixture.rebuilt(this.context, WorkflowEngineImpl.class);
 
         assertNotNull(engine.findApplicableWorkflow(target, CREATE.getName()));
 
@@ -1055,31 +1034,28 @@ class WorkflowEngineImplTest
         final Resource target = EngineFixture.createTarget(this.context);
         EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
         EngineFixture.createBootstrapGraph(this.context);
-        final List<OpenedSession> opened = new ArrayList<>();
-        final WorkflowEngine engine = recording(opened);
+        final WorkflowEngine engine = engine();
 
         engine.getAvailableEvents(target);
         engine.getAvailableEvents(target);
         engine.findApplicableWorkflow(target, CREATE.getName());
 
-        assertEquals(1, opened.size());
+        assertEquals(1, this.sessions.opened().size());
     }
 
     @Test
     void closesItsSessionWithTheResolverAskedThrough() throws Exception
     {
         final Resource homepage = EngineFixture.createTarget(this.context);
-        final List<OpenedSession> opened = new ArrayList<>();
-        final WorkflowEngine engine = recording(opened);
-        final ResourceResolver asking = EngineFixture.actingAs(
-            this.context.getService(ResourceResolverFactory.class).getResourceResolver(null), EngineFixture.ADMIN);
+        final WorkflowEngine engine = engine();
+        final ResourceResolver asking = EngineFixture.actingAs(this.sessions.openUserSession(), EngineFixture.ADMIN);
         final Resource target = EngineFixture.seenThrough(asking.getResource(homepage.getPath()), asking);
 
         engine.getAvailableEvents(target);
-        assertFalse(opened.get(0).closed);
+        assertFalse(this.sessions.opened().get(0).wasClosed());
         asking.close();
 
-        assertTrue(opened.get(0).closed);
+        assertTrue(this.sessions.opened().get(0).wasClosed());
     }
 
     @Test
@@ -1131,8 +1107,8 @@ class WorkflowEngineImplTest
 
         engine().receiveEvent(target, CREATE);
 
-        assertEquals(List.of("creating", "created"), this.told.events());
-        final NotificationContext notification = this.told.sent().get(0).notification();
+        assertEquals(List.of("creating", "created"), told().events());
+        final NotificationContext notification = told().sent().get(0).notification();
         // About what the run created, as a service task after the creation would act on it
         assertEquals("/Workflows/myCoolWorkflow", notification.getSubject().getPath());
         assertEquals(EngineFixture.ADMIN, notification.getActor());
@@ -1150,7 +1126,7 @@ class WorkflowEngineImplTest
         engineLosing(race).receiveEvent(target, CREATE);
 
         assertTrue(race.wasLost());
-        assertEquals(List.of("created"), this.told.events());
+        assertEquals(List.of("created"), told().events());
     }
 
     @Test
@@ -1164,7 +1140,7 @@ class WorkflowEngineImplTest
 
         engine().receiveEvent(target, CREATE);
 
-        assertEquals(target.getPath(), this.told.sent().get(0).notification().getSubject().getPath());
+        assertEquals(target.getPath(), told().sent().get(0).notification().getSubject().getPath());
     }
 
     @Test
@@ -1180,7 +1156,7 @@ class WorkflowEngineImplTest
         final WorkflowDefinitionException refusal =
             assertThrows(WorkflowDefinitionException.class, () -> engine.receiveEvent(target, CREATE));
         assertTrue(refusal.getMessage().contains("acts on parent"));
-        assertTrue(this.told.sent().isEmpty());
+        assertTrue(told().sent().isEmpty());
     }
 
     @Test
@@ -1196,7 +1172,7 @@ class WorkflowEngineImplTest
 
         engine().receiveEvent(target, CREATE);
 
-        assertEquals(List.of("initialized"), this.told.events());
+        assertEquals(List.of("initialized"), told().events());
     }
 
     @Test
@@ -1210,7 +1186,7 @@ class WorkflowEngineImplTest
 
         assertThrows(WorkflowFailedException.class, () -> engine.receiveEvent(target, CREATE));
 
-        assertTrue(this.told.sent().isEmpty());
+        assertTrue(told().sent().isEmpty());
     }
 
     @Test
@@ -1595,27 +1571,6 @@ class WorkflowEngineImplTest
         public void execute(final WorkflowTaskContext taskContext)
         {
             // Nothing to do
-        }
-    }
-
-    /**
-     * A service session handed to the engine, remembering whether the engine closed it. The mock resolver always
-     * reports itself live, so closing has to be watched for rather than asked about.
-     */
-    private static final class OpenedSession extends ResourceResolverWrapper
-    {
-        private boolean closed;
-
-        OpenedSession(final ResourceResolver resolver)
-        {
-            super(resolver);
-        }
-
-        @Override
-        public void close()
-        {
-            this.closed = true;
-            super.close();
         }
     }
 }
