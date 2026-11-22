@@ -101,6 +101,9 @@ final class SelectionFixture
 
     private static final String TAGS = "tags";
 
+    // Inheritable, so a retired catalogue closes every version under it
+    private static final String RETIRED = "retired";
+
     private static final String IDENTIFIER = "identifier";
 
     private final SlingContext context;
@@ -130,7 +133,7 @@ final class SelectionFixture
         context.addModelsForClasses(Schema.class, SchemaVersion.class, FormRequirement.class, DataRequirement.class,
             Catalogue.class, CatalogueVersion.class, Database.class, Collection.class, Field.class, Selection.class,
             Submission.class);
-        PropertyTagging.installIn(context);
+        PropertyTagging.builder().inheritable(RETIRED).installIn(context);
         context.registerService(ConditionEvaluator.class, fixture.conditions());
         context.create().resource(CATALOGUE_PATH, Map.of(TYPE, Catalogue.RESOURCE_TYPE, "title", "Clinical data"));
         fixture.addVersion(V1, "2026-02", "birthDate", "gender");
@@ -189,7 +192,7 @@ final class SelectionFixture
      */
     void retire(final String path)
     {
-        modify(path, TAGS, new String[] {"retired"});
+        modify(path, TAGS, new String[] {RETIRED});
     }
 
     /**
@@ -219,6 +222,16 @@ final class SelectionFixture
         final Resource selection = this.context.create().resource(SUBMISSION_PATH + "/selection", properties);
         this.references.setReference(selection.getPath(), "fulfills", DATA_PATH);
         return selection;
+    }
+
+    /**
+     * Makes nodes referenceable, so that a REFERENCE can point at them.
+     *
+     * @param paths the nodes' paths
+     */
+    void identify(final String... paths)
+    {
+        this.references.identify(paths);
     }
 
     /**
