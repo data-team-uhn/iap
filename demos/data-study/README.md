@@ -61,7 +61,8 @@ steps 1, 4 and 5.
 ## Where it is going
 
 - **Publishing a new version through the engine.** Both versions arrive as initial content, so publishing
-  a third means a build.
+  a third means a build. The Catalogues tool (`/admin/catalogues`) activates and retires the versions
+  there are, and a schema version can then name the newly active one.
 - **Showing a reader what has moved on.** A study filed under a schema version naming `v1`, read while `v2`
   is current, can say which of its fields the current registry no longer offers. Nothing computes or shows
   that yet.
