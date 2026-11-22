@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/view",
+  "ext:name": "Catalogues",
+  "ext:targetURL": "/admin/catalogues",
+  "ext:renderURL": "asset:iap-data-requirement.CatalogueManager.js?lazy"
+}
