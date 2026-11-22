@@ -19,7 +19,17 @@
 import { jsonResponse, stubFetch } from "@iap/frontend-commons/fetch.fixture";
 
 // A stand-in server for the catalogue tool's tests. It serves the catalogues, the lifecycle tag definitions
-// and a live session.
+// and a live session, and records every event posted. It answers each event as a test asks: completed, or
+// refused with the engine's reason.
+
+export interface EventAnswer {
+  status: number;
+  error?: string;
+}
+
+export interface PostedEvent {
+  url: string;
+}
 
 // Each node carries the `@events` the real guards would offer an administrator in its state
 const OPEN_CATALOGUE = [ "retire" ];
@@ -70,14 +80,26 @@ export function withPaths(path: string, node: Record<string, unknown>): Record<s
   return identified;
 }
 
-// Installs the server. `homepage` is what /Catalogues serves; `failReads` makes every read of catalogues fail
-// with that status.
+// Installs the server. `homepage` is what /Catalogues serves; `answers` picks the answer to an event by the URL
+// it is posted to; `failReads` makes every read of catalogues fail with that status.
 export function serveCatalogues(
-  { homepage = HOMEPAGE, failReads }: { homepage?: Record<string, unknown>; failReads?: number } = {},
-): void {
-  stubFetch(({ url }) => {
+  { homepage = HOMEPAGE, answers = {}, failReads }: {
+    homepage?: Record<string, unknown>;
+    answers?: Record<string, EventAnswer>;
+    failReads?: number;
+  } = {},
+): PostedEvent[] {
+  const posted: PostedEvent[] = [];
+  stubFetch(({ url, method }) => {
     if (url.startsWith("/Tags.search.json")) {
       return jsonResponse(LIFECYCLE);
+    }
+    // Only the app's own requests: the data grid also posts its vendor's telemetry
+    if (method === "POST" && url.startsWith("/")) {
+      posted.push({ url });
+      const answer = answers[url];
+      return answer ? jsonResponse(answer.error ? { error: answer.error } : {}, answer.status)
+        : jsonResponse({ status: "completed" });
     }
     if (failReads) {
       return jsonResponse({}, failReads);
@@ -94,4 +116,5 @@ export function serveCatalogues(
       ? jsonResponse(withPaths(`/Catalogues/${name}`, homepage[name] as Record<string, unknown>))
       : jsonResponse({}, 404);
   });
+  return posted;
 }

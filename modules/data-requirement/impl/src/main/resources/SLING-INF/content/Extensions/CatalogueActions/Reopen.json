@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "datareq/catalogue/actions",
+  "ext:name": "Reopen the catalogue",
+  "ext:renderURL": "asset:iap-data-requirement.CatalogueReopenAction.js",
+  "defaultOrder": 25
+}

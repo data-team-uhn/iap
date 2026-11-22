@@ -1,0 +1,5 @@
+{
+  "jcr:primaryType": "ext:Point",
+  "ext:pointId": "datareq/catalogue/actions",
+  "ext:pointName": "Actions available on a data catalogue"
+}

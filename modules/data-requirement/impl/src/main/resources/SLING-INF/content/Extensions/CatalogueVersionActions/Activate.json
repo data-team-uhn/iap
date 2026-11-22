@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "datareq/catalogueVersion/actions",
+  "ext:name": "Activate the version",
+  "ext:renderURL": "asset:iap-data-requirement.CatalogueVersionActivateAction.js",
+  "defaultOrder": 20
+}
