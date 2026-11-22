@@ -33,7 +33,7 @@ import io.uhndata.iap.tags.models.Taggable;
 
 /**
  * A Sling Model wrapping a {@code datareq:CatalogueVersion} node: one published state of a catalogue, and the
- * unit a selection is made against.
+ * unit a data requirement offers to choose from.
  *
  * @version $Id$
  * @since 0.1.0

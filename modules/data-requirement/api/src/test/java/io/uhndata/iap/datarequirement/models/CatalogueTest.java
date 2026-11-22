@@ -28,7 +28,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
-import io.uhndata.iap.tags.testing.PropertyTagging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -54,7 +53,6 @@ class CatalogueTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Entity.class, Catalogue.class, CatalogueVersion.class);
-        PropertyTagging.installIn(this.context);
     }
 
     @Test
@@ -96,32 +94,5 @@ class CatalogueTest
         assertEquals(2, versions.size());
         assertEquals("2026-02", versions.get(0).getVersion());
         assertEquals("2026-08", versions.get(1).getVersion());
-    }
-
-    @Test
-    void findsTheVersionANewSelectionWouldUse()
-    {
-        this.context.create().resource(PATH, TYPE, Catalogue.RESOURCE_TYPE);
-        this.context.create().resource(PATH + "/v1", Map.of(
-            TYPE, CatalogueVersion.RESOURCE_TYPE, "version", "2026-02"));
-        this.context.create().resource(PATH + "/v2", Map.of(
-            TYPE, CatalogueVersion.RESOURCE_TYPE, "version", "2026-08", "tags", new String[] {"active"}));
-        final Catalogue catalogue = this.context.resourceResolver().getResource(PATH).adaptTo(Catalogue.class);
-
-        final CatalogueVersion active = catalogue.getActiveVersion();
-
-        assertNotNull(active);
-        assertEquals("2026-08", active.getVersion());
-    }
-
-    @Test
-    void hasNoActiveVersionWhileNothingHasBeenPublished()
-    {
-        this.context.create().resource(PATH, TYPE, Catalogue.RESOURCE_TYPE);
-        this.context.create().resource(PATH + "/v1", Map.of(
-            TYPE, CatalogueVersion.RESOURCE_TYPE, "version", "2026-02"));
-        final Catalogue catalogue = this.context.resourceResolver().getResource(PATH).adaptTo(Catalogue.class);
-
-        assertNull(catalogue.getActiveVersion());
     }
 }

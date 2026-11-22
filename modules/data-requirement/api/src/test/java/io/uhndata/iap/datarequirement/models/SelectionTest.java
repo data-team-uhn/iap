@@ -40,7 +40,6 @@ import io.uhndata.iap.schemas.models.Requirement;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -57,14 +56,7 @@ class SelectionTest
 
     private static final String SUPER_TYPE = "sling:resourceSuperType";
 
-    private static final String VERSION_ID = "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345";
-
     private static final String REQUIREMENT_ID = "11111111-2222-3333-4444-555555555555";
-
-    private static final String CATALOGUE_PATH = "/Catalogues/clinical";
-
-    private static final String V1 = CATALOGUE_PATH + "/v1";
-
 
     private static final String REQUIREMENT_PATH = "/Schemas/study/v1/data";
 
@@ -78,38 +70,18 @@ class SelectionTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Requirement.class,
-            DataRequirement.class, Catalogue.class, CatalogueVersion.class, Database.class, Collection.class,
-            Field.class, Selection.class);
-        this.context.create().resource(CATALOGUE_PATH, Map.of(
-            TYPE, Catalogue.RESOURCE_TYPE, "title", "Clinical data"));
+            DataRequirement.class, Selection.class);
         this.context.create().resource(REQUIREMENT_PATH, Map.of(
             TYPE, DataRequirement.RESOURCE_TYPE, SUPER_TYPE, Requirement.RESOURCE_TYPE, "label", "Which data?",
             "jcr:uuid", REQUIREMENT_ID));
     }
 
-    /** A catalogue version at {@code path} holding {@code records/Patient/<field>} for each name given. */
-    private void createVersion(final String path, final String version, final String... fields)
-    {
-        this.context.create().resource(path, Map.of(TYPE, CatalogueVersion.RESOURCE_TYPE, "version", version));
-        this.context.create().resource(path + "/records", Map.of(
-            TYPE, Database.RESOURCE_TYPE, "identifier", "records"));
-        this.context.create().resource(path + "/records/patient", Map.of(
-            TYPE, Collection.RESOURCE_TYPE, "identifier", "Patient"));
-        for (final String field : fields) {
-            this.context.create().resource(path + "/records/patient/" + field, Map.of(
-                TYPE, Field.RESOURCE_TYPE, "identifier", field));
-        }
-    }
-
-    /** Makes both references resolve, as a real repository would. */
+    /** Makes the reference to the requirement resolve, as a real repository would. */
     private void resolveReferences() throws RepositoryException
     {
-        final Node versionNode = Mockito.mock(Node.class);
-        Mockito.when(versionNode.getPath()).thenReturn(V1);
         final Node requirementNode = Mockito.mock(Node.class);
         Mockito.when(requirementNode.getPath()).thenReturn(REQUIREMENT_PATH);
         final Session session = Mockito.mock(Session.class);
-        Mockito.when(session.getNodeByIdentifier(VERSION_ID)).thenReturn(versionNode);
         Mockito.when(session.getNodeByIdentifier(REQUIREMENT_ID)).thenReturn(requirementNode);
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
     }
@@ -119,7 +91,6 @@ class SelectionTest
         return this.context.create().resource(PATH, Map.of(
             TYPE, Selection.RESOURCE_TYPE,
             "fulfills", REQUIREMENT_ID,
-            "catalogueVersion", VERSION_ID,
             "fields", fields)).adaptTo(Selection.class);
     }
 
@@ -132,14 +103,13 @@ class SelectionTest
     }
 
     @Test
-    void holdsNoKeysAndNoVersionBeforeAnythingIsChosen()
+    void holdsNoKeysBeforeAnythingIsChosen()
     {
         final Selection selection = this.context.create().resource(PATH, Map.of(TYPE, Selection.RESOURCE_TYPE))
             .adaptTo(Selection.class);
 
         assertNotNull(selection);
         assertTrue(selection.getFieldKeys().isEmpty());
-        assertNull(selection.getCatalogueVersion());
     }
 
     @Test
@@ -151,16 +121,13 @@ class SelectionTest
     }
 
     @Test
-    void namesTheRequirementItAnswersAndTheVersionItWasMadeAgainst() throws RepositoryException
+    void namesTheRequirementItAnswers() throws RepositoryException
     {
-        createVersion(V1, "2026-02", "birthDate");
         resolveReferences();
 
         final Selection selection = selection(BIRTH_DATE);
 
         assertEquals("Which data?", selection.getFulfills().getLabel());
-        assertNotNull(selection.getCatalogueVersion());
-        assertEquals("2026-02", selection.getCatalogueVersion().getVersion());
     }
 
     @Test

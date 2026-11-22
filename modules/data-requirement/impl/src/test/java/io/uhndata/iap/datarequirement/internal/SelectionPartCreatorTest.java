@@ -54,15 +54,13 @@ class SelectionPartCreatorTest
     }
 
     @Test
-    void givesADataRequirementThatAppliesAnEmptyUnboundSelection() throws Exception
+    void givesADataRequirementThatAppliesAnEmptySelection() throws Exception
     {
         this.creator.createMissing(this.fixture.writableSubmission());
 
         assertEquals(1, this.fixture.selections().size());
         final var selection = this.fixture.selections().get(0).getValueMap();
         assertTrue(selection.containsKey("fulfills"));
-        // The version is recorded by the first save, not when the part is created
-        assertFalse(selection.containsKey("catalogueVersion"));
         assertFalse(selection.containsKey("fields"));
     }
 

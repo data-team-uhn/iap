@@ -56,8 +56,8 @@ import io.uhndata.iap.tags.testing.PropertyTagging;
 import io.uhndata.iap.utils.testing.Referenceables;
 
 /**
- * A draft submission whose schema asks for data from one catalogue, beside a set of questions. The catalogue's
- * active version offers {@link #BIRTH_DATE} and {@link #GENDER}. The context must be on a {@code JCR_MOCK}
+ * A draft submission whose schema asks for data from version {@link #V1} of a catalogue, beside a set of questions.
+ * That version is active and offers {@link #BIRTH_DATE} and {@link #GENDER}. The context must be on a {@code JCR_MOCK}
  * repository: the references are real.
  *
  * @version $Id$
@@ -139,7 +139,7 @@ final class SelectionFixture
             TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", TAGS, new String[] {"active"}));
         context.create().resource(DATA_PATH, Map.of(
             TYPE, DataRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", DATA_LABEL));
-        fixture.references.setReference(DATA_PATH, "catalogue", CATALOGUE_PATH);
+        fixture.references.setReference(DATA_PATH, "catalogue", V1);
         // A requirement that is not a data requirement
         context.create().resource(DETAILS_PATH, Map.of(
             TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Study details"));
@@ -183,13 +183,13 @@ final class SelectionFixture
     }
 
     /**
-     * Takes the {@code active} tag off a catalogue version.
+     * Retires a catalogue version, or the catalogue and with it every version.
      *
-     * @param path the version's path
+     * @param path the path of the version or of the catalogue
      */
     void retire(final String path)
     {
-        modify(path, TAGS, new String[0]);
+        modify(path, TAGS, new String[] {"retired"});
     }
 
     /**
@@ -203,7 +203,7 @@ final class SelectionFixture
     }
 
     /**
-     * Gives the data requirement its selection, holding the given keys and no version. With no keys it is the empty
+     * Gives the data requirement its selection, holding the given keys. With no keys it is the empty
      * part the parts step makes, which has no {@code fields} property at all.
      *
      * @param fields the chosen field keys, none for an empty part
@@ -218,20 +218,6 @@ final class SelectionFixture
         }
         final Resource selection = this.context.create().resource(SUBMISSION_PATH + "/selection", properties);
         this.references.setReference(selection.getPath(), "fulfills", DATA_PATH);
-        return selection;
-    }
-
-    /**
-     * Gives the data requirement a selection that an earlier save recorded a version on.
-     *
-     * @param version the path of the version it records
-     * @param fields the chosen field keys
-     * @return the selection's resource
-     */
-    Resource selectFrom(final String version, final String... fields)
-    {
-        final Resource selection = select(fields);
-        this.references.setReference(selection.getPath(), "catalogueVersion", version);
         return selection;
     }
 
@@ -324,22 +310,6 @@ final class SelectionFixture
             Mockito.when(session.getWorkspace()).thenReturn(workspace);
             Mockito.when(workspace.getVersionManager()).thenReturn(versions);
             return versions;
-        } catch (final RepositoryException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    /**
-     * The {@code jcr:uuid} a reference to a node stores.
-     *
-     * @param path the node's path
-     * @return its identifier
-     */
-    String identifierOf(final String path)
-    {
-        try {
-            return Objects.requireNonNull(Objects.requireNonNull(this.context.resourceResolver().getResource(path))
-                .adaptTo(Node.class)).getIdentifier();
         } catch (final RepositoryException e) {
             throw new IllegalStateException(e);
         }

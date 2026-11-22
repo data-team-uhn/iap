@@ -35,7 +35,6 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Requirement;
-import io.uhndata.iap.tags.testing.PropertyTagging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -74,7 +73,6 @@ class DataRequirementTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Requirement.class,
             DataRequirement.class, Catalogue.class, CatalogueVersion.class, Selection.class);
-        PropertyTagging.installIn(this.context);
     }
 
     /** Makes the references to the catalogue and to its first version resolve, as a real repository would. */
@@ -90,94 +88,59 @@ class DataRequirementTest
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
     }
 
-    /** The catalogue the requirement refers to, with two versions, the second of them active. */
+    /** The catalogue the requirement's version belongs to, with that version. */
     private void createCatalogue() throws RepositoryException
     {
         this.context.create().resource(CATALOGUE_PATH, Map.of(
             TYPE, Catalogue.RESOURCE_TYPE, "title", "Clinical data"));
         this.context.create().resource(CATALOGUE_PATH + "/v1", Map.of(
             TYPE, CatalogueVersion.RESOURCE_TYPE, "version", "2026-02"));
-        this.context.create().resource(CATALOGUE_PATH + "/v2", Map.of(
-            TYPE, CatalogueVersion.RESOURCE_TYPE, "version", "2026-08", "tags", new String[] {"active"}));
         resolveReferences();
     }
 
-    private DataRequirement requirement()
+    /** A data requirement whose {@code catalogue} reference holds the given identifier. */
+    private DataRequirement requirementNaming(final String identifier)
     {
         return this.context.create().resource(PATH, Map.of(
             TYPE, DataRequirement.RESOURCE_TYPE,
             SUPER_TYPE, Requirement.RESOURCE_TYPE,
             "label", "Which data do you need?",
             "jcr:uuid", REQUIREMENT_ID,
-            "catalogue", CATALOGUE_ID)).adaptTo(DataRequirement.class);
+            "catalogue", identifier)).adaptTo(DataRequirement.class);
     }
 
-    @Test
-    void resolvesTheCatalogueItOffers() throws RepositoryException
+    private DataRequirement requirement()
     {
-        this.context.create().resource(CATALOGUE_PATH, Map.of(
-            TYPE, Catalogue.RESOURCE_TYPE, "title", "Clinical data"));
-        resolveReferences();
-
-        final Catalogue catalogue = requirement().getCatalogue();
-
-        assertNotNull(catalogue);
-        assertEquals("Clinical data", catalogue.getTitle());
+        return requirementNaming(V1_ID);
     }
 
     @Test
-    void refusesToReadACatalogueItCannotReach()
-    {
-        final DataRequirement requirement = requirement();
-
-        assertThrows(NullPointerException.class, requirement::getCatalogue);
-    }
-
-    @Test
-    void readsANewSelectionAgainstTheActiveVersion() throws RepositoryException
+    void resolvesTheCatalogueVersionItOffers() throws RepositoryException
     {
         createCatalogue();
 
-        final CatalogueVersion version = requirement().getVersionFor(null);
+        final CatalogueVersion version = requirement().getCatalogueVersion();
 
-        assertNotNull(version);
-        assertEquals("2026-08", version.getVersion());
-    }
-
-    @Test
-    void readsASelectionThatRecordsNoVersionYetAgainstTheActiveVersion() throws RepositoryException
-    {
-        createCatalogue();
-        final Selection unbound = this.context.create().resource(SUBMISSION_PATH + "/unbound", Map.of(
-            TYPE, Selection.RESOURCE_TYPE)).adaptTo(Selection.class);
-
-        final CatalogueVersion version = requirement().getVersionFor(unbound);
-
-        assertNotNull(version);
-        assertEquals("2026-08", version.getVersion());
-    }
-
-    @Test
-    void readsASelectionAgainstTheVersionItRecords() throws RepositoryException
-    {
-        createCatalogue();
-        final Selection bound = this.context.create().resource(SUBMISSION_PATH + "/bound", Map.of(
-            TYPE, Selection.RESOURCE_TYPE, "catalogueVersion", V1_ID)).adaptTo(Selection.class);
-
-        final CatalogueVersion version = requirement().getVersionFor(bound);
-
-        assertNotNull(version);
         assertEquals("2026-02", version.getVersion());
     }
 
     @Test
-    void readsANewSelectionAgainstNothingWhileTheCatalogueHasNoActiveVersion() throws RepositoryException
+    void refusesToReadACatalogueVersionItCannotReach()
     {
-        this.context.create().resource(CATALOGUE_PATH, Map.of(
-            TYPE, Catalogue.RESOURCE_TYPE, "title", "Clinical data"));
-        resolveReferences();
+        final DataRequirement requirement = requirement();
 
-        assertNull(requirement().getVersionFor(null));
+        assertNull(requirement.findCatalogueVersion());
+        assertThrows(NullPointerException.class, requirement::getCatalogueVersion);
+    }
+
+    @Test
+    void refusesAReferenceToSomethingThatIsNotACatalogueVersion() throws RepositoryException
+    {
+        createCatalogue();
+        final DataRequirement requirement = requirementNaming(CATALOGUE_ID);
+
+        assertNull(requirement.findCatalogueVersion());
+        assertThrows(NullPointerException.class, requirement::getCatalogueVersion);
     }
 
     @Test

@@ -27,12 +27,12 @@
 //
 // A catalogue lists the data that can be asked for, and lives under /Catalogues. Its content is
 // published in versions. Each version is a full copy: databases, the collections in each database,
-// and the fields in each collection. A schema asks for data with a data requirement naming a
-// catalogue. The submitter answers it with a selection, a part of the submission holding the chosen
-// fields.
+// and the fields in each collection. A schema asks for data with a data requirement naming one
+// version of a catalogue. The submitter answers it with a selection, a part of the submission
+// holding the chosen fields.
 //
-// A selection names the version it was chosen from. A new version changes what later submitters
-// are offered, and never what an earlier one chose.
+// What a schema version offers never changes underneath it. Offering a new catalogue version takes
+// a new schema version.
 
 // The homepage of the catalogues, at /Catalogues.
 [datareq:CataloguesHomepage] > data:EntityHomepage
@@ -61,8 +61,8 @@
 
   + * (nt:base) = nt:unstructured
 
-// One published state of a catalogue, which a selection is made against. A published version is
-// not changed: when a source system gains or loses fields, the catalogue gets a new version. The
+// One published state of a catalogue, which a data requirement names. A published version is not
+// changed: when a source system gains or loses fields, the catalogue gets a new version. The
 // version a catalogue currently offers carries the `active` lifecycle tag.
 //
 // Named v1, v2 and so on. The `version` property holds the label a reader sees, such as 2026-08.
@@ -151,14 +151,12 @@
 
   + * (nt:base) = nt:unstructured
 
-// A requirement asking the submitter which data they need, answered by choosing fields out of a
-// catalogue.
-//
-// It names the catalogue rather than one of its versions. The version a submitter chose from is
-// recorded on their selection.
+// A requirement asking the submitter which data they need, answered by choosing fields out of one
+// version of a catalogue.
 [datareq:DataRequirement] > sch:Requirement
   - sling:resourceType (STRING) = "datareq/DataRequirement" mandatory autocreated protected
 
+  // The datareq:CatalogueVersion the submitter chooses from.
   - catalogue (REFERENCE) mandatory
 
 // The fields chosen in answer to one data requirement, as a part of the submission that holds them.
@@ -171,10 +169,6 @@
   - sling:resourceType (STRING) = "datareq/Selection" mandatory autocreated protected
 
   - fulfills (REFERENCE) mandatory
-
-  // The catalogue version the fields were chosen from. Set by the first save and never changed.
-  // Absent before that save: the part is created empty as soon as the requirement applies.
-  - catalogueVersion (REFERENCE)
 
   - fields (STRING) multiple
 

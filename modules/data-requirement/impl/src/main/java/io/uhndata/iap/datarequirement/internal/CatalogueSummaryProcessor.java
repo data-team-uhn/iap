@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.datarequirement.internal;
 
-import java.util.List;
 import java.util.function.Function;
 
 import javax.jcr.Node;
@@ -34,10 +33,21 @@ import org.osgi.service.component.annotations.Component;
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
 
 /**
- * Serializes the catalogue a data requirement names, and the catalogue version a selection records, as a summary:
- * its path as {@code @path} and its readable name. Without it, {@code dereference} inlines every database, collection
- * and field of the catalogue into each submission that holds a selection. A page that shows the catalogue loads the
- * version itself. The processor is named {@code catalogueSummary} and is on by default.
+ * Serializes the catalogue version a data requirement names as a summary: its path as {@code @path}, its
+ * {@code version} label, and its catalogue's path and {@code title} under {@code catalogue}. Without it,
+ * {@code dereference} inlines every database, collection and field of the version into each schema version and
+ * submission that holds the requirement. A page that shows the catalogue loads the version itself. The processor is
+ * named {@code catalogueSummary} and is on by default.
+ *
+ * <p>A name the reader may not see is left out. For example:</p>
+ *
+ * {@snippet lang=json :
+ * {
+ *   "@path": "/Catalogues/registry/v2",
+ *   "version": "2026-08",
+ *   "catalogue": {"@path": "/Catalogues/registry", "title": "Clinical registry"}
+ * }
+ * }
  *
  * @version $Id$
  * @since 0.1.0
@@ -47,10 +57,20 @@ public class CatalogueSummaryProcessor implements ResourceJsonProcessor
 {
     private static final String PROCESSOR_NAME = "catalogueSummary";
 
-    /** The references summarized, each with the property that names what it points at. */
-    private static final List<SummarizedReference> SUMMARIZED_REFERENCES = List.of(
-        new SummarizedReference("datareq:DataRequirement", "catalogue", "title"),
-        new SummarizedReference("datareq:Selection", "catalogueVersion", "version"));
+    /** The node type holding the summarized reference. */
+    private static final String REQUIREMENT_TYPE = "datareq:DataRequirement";
+
+    /** The REFERENCE property naming the catalogue version. */
+    private static final String CATALOGUE_PROPERTY = "catalogue";
+
+    /** The catalogue version's readable label. */
+    private static final String VERSION_PROPERTY = "version";
+
+    /** The catalogue's readable name. */
+    private static final String TITLE_PROPERTY = "title";
+
+    /** The JSON key holding the summary of the version's catalogue. */
+    private static final String CATALOGUE_KEY = "catalogue";
 
     @Override
     public String getName()
@@ -61,7 +81,7 @@ public class CatalogueSummaryProcessor implements ResourceJsonProcessor
     @Override
     public int getPriority()
     {
-        // After `dereference` (10), whose inlined catalogue this replaces
+        // After `dereference` (10), whose inlined catalogue version this replaces
         return 50;
     }
 
@@ -76,40 +96,28 @@ public class CatalogueSummaryProcessor implements ResourceJsonProcessor
         final JsonValue input, final Function<Node, JsonValue> serializeNode)
     {
         try {
-            for (final SummarizedReference reference : SUMMARIZED_REFERENCES) {
-                if (reference.isHeldBy(node, property)) {
-                    return reference.summaryOf(property.getNode());
-                }
+            if (CATALOGUE_PROPERTY.equals(property.getName()) && node.isNodeType(REQUIREMENT_TYPE)) {
+                return summarizeVersion(property.getNode());
             }
         } catch (final RepositoryException e) {
-            // A catalogue the reader cannot reach is left as `dereference` left it
+            // A catalogue version the reader cannot reach is left as `dereference` left it
         }
         return input;
     }
 
-    /**
-     * One reference to summarize.
-     *
-     * @param nodeType the node type that declares the reference, such as {@code datareq:Selection}
-     * @param property the name of the REFERENCE property, such as {@code catalogueVersion}
-     * @param nameProperty the property of the target that holds its readable name, such as {@code title}
-     * @since 0.1.0
-     */
-    private record SummarizedReference(String nodeType, String property, String nameProperty)
+    private JsonValue summarizeVersion(final Node version) throws RepositoryException
     {
-        boolean isHeldBy(final Node node, final Property candidate) throws RepositoryException
-        {
-            return this.property.equals(candidate.getName()) && node.isNodeType(this.nodeType);
-        }
+        final JsonObjectBuilder summary = summarize(version, VERSION_PROPERTY);
+        summary.add(CATALOGUE_KEY, summarize(version.getParent(), TITLE_PROPERTY));
+        return summary.build();
+    }
 
-        JsonValue summaryOf(final Node target) throws RepositoryException
-        {
-            final JsonObjectBuilder summary = Json.createObjectBuilder().add("@path", target.getPath());
-            // A name the reader may not see is left out
-            if (target.hasProperty(this.nameProperty)) {
-                summary.add(this.nameProperty, target.getProperty(this.nameProperty).getString());
-            }
-            return summary.build();
+    private JsonObjectBuilder summarize(final Node node, final String nameProperty) throws RepositoryException
+    {
+        final JsonObjectBuilder summary = Json.createObjectBuilder().add("@path", node.getPath());
+        if (node.hasProperty(nameProperty)) {
+            summary.add(nameProperty, node.getProperty(nameProperty).getString());
         }
+        return summary;
     }
 }

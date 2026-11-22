@@ -20,7 +20,6 @@
 
 import { lazy, Suspense, useRef, useState } from "react";
 
-import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
 
@@ -31,7 +30,6 @@ import {
   registerRequirementComponent,
   type RequirementComponent,
   type RequirementComponentCandidate,
-  type RequirementComponentProps,
 } from "@iap/submissions/requirementComponents";
 import SaveStatus, { type SaveState } from "@iap/submissions/SaveStatus";
 import type { Requirement } from "@iap/submissions/submissionForm";
@@ -48,10 +46,10 @@ export const DATA_REQUIREMENT_TYPE = "datareq/DataRequirement";
 export interface DataRequirementProjection extends Requirement {
   /** The keys of the chosen fields, as `database/collection/field`; empty if none has been chosen. */
   fields?: string[];
-  /** The repository path of the catalogue version to choose from; absent if none is published. */
-  catalogueVersion?: string;
-  /** That catalogue version's label, such as `2026-06`; absent when `catalogueVersion` is. */
-  catalogueVersionLabel?: string;
+  /** The repository path of the catalogue version to choose from. */
+  catalogueVersion: string;
+  /** That catalogue version's label, such as `2026-06`. */
+  catalogueVersionLabel: string;
 }
 
 /** Whether two selections hold the same fields, in any order: a selection is a set. */
@@ -121,11 +119,11 @@ function useAutosave(stored: readonly string[], save: (fields: readonly string[]
   return { chosen, change, state: unsettled > 0 ? "saving" : outcome.state, error: outcome.error };
 }
 
-/** Choosing data from the catalogue version a requirement offers. */
-function CatalogueSelection({ path, requirement, disabled, queueSave, onChanged, versionPath }:
-RequirementComponentProps & { versionPath: string }) {
+/** Choosing data for one requirement, from the catalogue version it names. Each change is saved as it is made. */
+export const DataSelection: RequirementComponent = ({ path, requirement, disabled, queueSave, onChanged }) => {
   const projection = requirement as DataRequirementProjection;
-  const { value: catalogue, loadError, doFetch } = useNode(versionPath, CATALOGUE_SELECTORS, readCatalogue);
+  const { value: catalogue, loadError, doFetch } = useNode(projection.catalogueVersion, CATALOGUE_SELECTORS,
+    readCatalogue);
   const { chosen, change, state, error } = useAutosave(projection.fields ?? [],
     fields => saveDataSelection(doFetch, path, requirement.name, fields), queueSave, onChanged);
 
@@ -137,28 +135,15 @@ RequirementComponentProps & { versionPath: string }) {
         value={chosen}
         onChange={change}
         readOnly={disabled}
-        notices={ projection.catalogueVersionLabel && (
+        notices={
           <Typography variant="description">
             Choosing from {projection.catalogueVersionLabel}
           </Typography>
-        ) }
+        }
         actions={ disabled ? undefined : <SaveStatus state={state} error={error} /> }
       />
     </Suspense>
   );
-}
-
-/** Choosing data for one requirement. Each change is saved as it is made. */
-export const DataSelection: RequirementComponent = props => {
-  const versionPath = (props.requirement as DataRequirementProjection).catalogueVersion;
-  if (!versionPath) {
-    return (
-      <Alert severity="warning">
-        The catalogue this asks about has published nothing to choose from yet.
-      </Alert>
-    );
-  }
-  return <CatalogueSelection {...props} versionPath={versionPath} />;
 };
 
 export const dataSelectionCandidate: RequirementComponentCandidate = requirement =>

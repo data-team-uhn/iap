@@ -26,10 +26,9 @@ import {
 import { childrenOfType, type SerializedChild } from '../../../support/nodes';
 import { uniqueTitle } from '../../../support/titles';
 
-/** A `datareq:Selection` as the repository serves it, with a summary of the catalogue version it records. */
+/** A `datareq:Selection` as the repository serves it. */
 interface FiledSelection extends SerializedChild {
   fields?: string[];
-  catalogueVersion?: { '@path'?: string };
 }
 
 /** One entry of `requirements` in a study's `.form.json`, typed for what a data requirement adds. */
@@ -72,7 +71,7 @@ async function dataRequirementOnForm(request: APIRequestContext, study: string)
  */
 test.describe('a story: choosing the data a study needs', () => {
   test.describe('saving a selection', () => {
-    test('records the selection, bound to the version it was chosen from', async ({ request }) => {
+    test('records the selection', async ({ request }) => {
       const study = await startStudy(request, 'Readmissions after day surgery');
 
       const saved = await chooseData(request, study, [ IN_BOTH, ONLY_IN_V2 ]);
@@ -81,7 +80,6 @@ test.describe('a story: choosing the data a study needs', () => {
       const selections = await selectionsOf(request, study);
       expect(selections).toHaveLength(1);
       expect(selections[0].fields).toEqual([ IN_BOTH, ONLY_IN_V2 ]);
-      expect(selections[0].catalogueVersion?.['@path']).toBe(CURRENT_REGISTRY_VERSION);
     });
 
     test('refuses a field only the older version ever offered', async ({ request }) => {
@@ -145,7 +143,7 @@ test.describe('a story: choosing the data a study needs', () => {
       expect(data?.catalogueVersionLabel).toBe(CURRENT_REGISTRY_LABEL);
     });
 
-    test('offers the current version before anything is chosen', async ({ request }) => {
+    test('offers the version the requirement names before anything is chosen', async ({ request }) => {
       const study = await startStudy(request, 'Not started choosing');
 
       const data = await dataRequirementOnForm(request, study);

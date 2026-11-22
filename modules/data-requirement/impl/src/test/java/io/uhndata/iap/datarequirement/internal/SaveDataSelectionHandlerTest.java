@@ -21,15 +21,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
 import javax.jcr.version.VersionManager;
 
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceWrapper;
-import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -71,9 +66,7 @@ class SaveDataSelectionHandlerTest
 {
     private static final String FIELDS = "fields";
 
-    private static final String CATALOGUE_VERSION = "catalogueVersion";
-
-    // JCR-backed rather than the plain mock: the handler writes real REFERENCEs
+    // JCR-backed rather than the plain mock: the fixture links its nodes with real REFERENCEs
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
     private final SaveDataSelectionHandler handler = new SaveDataSelectionHandler();
@@ -105,16 +98,6 @@ class SaveDataSelectionHandlerTest
     }
 
     @Test
-    void recordsOnTheFirstSaveTheVersionTheChoiceWasCheckedAgainst() throws Exception
-    {
-        this.fixture.select();
-
-        this.handler.execute(context(payload(DATA, new String[] {BIRTH_DATE})));
-
-        assertEquals(this.fixture.identifierOf(V1), onlySelection().getValueMap().get(CATALOGUE_VERSION, String.class));
-    }
-
-    @Test
     void takesARequirementNamedByItsFullPath() throws Exception
     {
         this.fixture.select();
@@ -138,7 +121,7 @@ class SaveDataSelectionHandlerTest
     @Test
     void clearsTheSelectionWhenNothingIsSent() throws Exception
     {
-        this.fixture.selectFrom(V1, BIRTH_DATE);
+        this.fixture.select(BIRTH_DATE);
 
         this.handler.execute(context(Map.of(SaveDataSelectionHandler.REQUIREMENT_PARAMETER, DATA)));
 
@@ -148,7 +131,7 @@ class SaveDataSelectionHandlerTest
     @Test
     void clearsTheSelectionWhenOneEmptyValueIsSent() throws Exception
     {
-        this.fixture.selectFrom(V1, BIRTH_DATE);
+        this.fixture.select(BIRTH_DATE);
 
         this.handler.execute(context(payload(DATA, "")));
 
@@ -175,19 +158,17 @@ class SaveDataSelectionHandlerTest
         assertArrayEquals(new String[] {BIRTH_DATE}, onlySelection().getValueMap().get(FIELDS, String[].class));
     }
 
-    // Gender is in v1, the recorded version, and not in v2
+    // Gender is in v1, the version the requirement names, and not in v2
     @Test
-    void keepsCheckingAgainstTheRecordedVersionWhenTheCatalogueHasMovedOn() throws Exception
+    void checksAgainstTheNamedVersionEvenWhenAnotherIsActive() throws Exception
     {
-        this.fixture.selectFrom(V1, BIRTH_DATE);
+        this.fixture.select(BIRTH_DATE);
         this.fixture.retire(V1);
         this.fixture.addVersion(V2, "2026-08", "birthDate");
 
         this.handler.execute(context(payload(DATA, new String[] {GENDER})));
 
-        final Resource selection = onlySelection();
-        assertArrayEquals(new String[] {GENDER}, selection.getValueMap().get(FIELDS, String[].class));
-        assertEquals(this.fixture.identifierOf(V1), selection.getValueMap().get(CATALOGUE_VERSION, String.class));
+        assertArrayEquals(new String[] {GENDER}, onlySelection().getValueMap().get(FIELDS, String[].class));
     }
 
     @Test
@@ -270,18 +251,6 @@ class SaveDataSelectionHandlerTest
     }
 
     @Test
-    void refusesWhenTheCatalogueHasNoActiveVersion()
-    {
-        this.fixture.select();
-        this.fixture.retire(V1);
-
-        final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(payload(DATA, new String[] {BIRTH_DATE}))));
-
-        assertTrue(refusal.getMessage().contains("no active version"));
-    }
-
-    @Test
     void refusesSomebodyElseChoosingForTheRequester()
     {
         this.fixture.select();
@@ -317,38 +286,6 @@ class SaveDataSelectionHandlerTest
             () -> this.handler.execute(context(payload(DATA, new String[] {BIRTH_DATE}))));
     }
 
-    @Test
-    void translatesAFailedReferenceIntoAPersistenceFailure()
-    {
-        // The selection's node fails every call, so the version cannot be recorded. The engine must see a
-        // PersistenceException, not a raw RepositoryException
-        this.fixture.select();
-        final Node explosive = Mockito.mock(Node.class, invocation -> {
-            throw new RepositoryException("boom");
-        });
-        final ResourceResolver sabotaged = new ResourceResolverWrapper(this.context.resourceResolver())
-        {
-            @Override
-            public Resource getResource(final String path)
-            {
-                final Resource resource = super.getResource(path);
-                return resource == null || !path.endsWith("/selection") ? resource : new ResourceWrapper(resource)
-                {
-                    @Override
-                    public <T> T adaptTo(final Class<T> type)
-                    {
-                        return type == Node.class ? type.cast(explosive) : super.adaptTo(type);
-                    }
-                };
-            }
-        };
-
-        final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
-            context(payload(DATA, new String[] {BIRTH_DATE}), REQUESTER, sabotaged)));
-
-        assertTrue(failure.getMessage().contains("Cannot point"));
-    }
-
     private Map<String, Object> payload(final String requirement, final Object fields)
     {
         return Map.of(SaveDataSelectionHandler.REQUIREMENT_PARAMETER, requirement,
@@ -370,12 +307,7 @@ class SaveDataSelectionHandlerTest
 
     private RecordingTaskContext context(final Map<String, Object> payload, final String actor)
     {
-        return context(payload, actor, this.context.resourceResolver());
-    }
-
-    private RecordingTaskContext context(final Map<String, Object> payload, final String actor,
-        final ResourceResolver resolver)
-    {
+        final ResourceResolver resolver = this.context.resourceResolver();
         return RecordingTaskContext.aimedAt(this.fixture.writableSubmission(resolver)).actingFor(actor)
             .forEvent(SaveDataSelectionHandler.HANDLER_NAME, payload).resolvingThrough(resolver).build();
     }

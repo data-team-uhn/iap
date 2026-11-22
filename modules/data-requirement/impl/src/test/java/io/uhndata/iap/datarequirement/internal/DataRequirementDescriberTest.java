@@ -56,7 +56,8 @@ class DataRequirementDescriberTest
 {
     private static final String CATALOGUE_VERSION = "catalogueVersion";
 
-    // JCR-backed: the selection points at its requirement and its version with real REFERENCEs
+    // JCR-backed: the requirement points at its catalogue version, and the selection at its requirement, with real
+    // REFERENCEs
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
     private final DataRequirementDescriber describer = new DataRequirementDescriber();
@@ -77,7 +78,7 @@ class DataRequirementDescriberTest
     }
 
     @Test
-    void offersTheActiveVersionWhileNothingHasBeenChosen()
+    void offersTheVersionTheRequirementNames()
     {
         this.fixture.select();
 
@@ -91,7 +92,7 @@ class DataRequirementDescriberTest
     @Test
     void reportsWhatHasBeenChosen()
     {
-        this.fixture.selectFrom(V1, BIRTH_DATE);
+        this.fixture.select(BIRTH_DATE);
 
         assertEquals(List.of(BIRTH_DATE), fieldsOf(describe()));
     }
@@ -107,9 +108,9 @@ class DataRequirementDescriberTest
     }
 
     @Test
-    void keepsOfferingTheVersionTheSelectionRecords()
+    void keepsOfferingTheNamedVersionWhenAnotherIsActive()
     {
-        this.fixture.selectFrom(V1, BIRTH_DATE);
+        this.fixture.select(BIRTH_DATE);
         this.fixture.retire(V1);
         this.fixture.addVersion(V2, "2026-08", "birthDate");
 
@@ -117,17 +118,6 @@ class DataRequirementDescriberTest
 
         assertEquals(V1, json.getString(CATALOGUE_VERSION));
         assertEquals("2026-02", json.getString("catalogueVersionLabel"));
-    }
-
-    @Test
-    void saysThereIsNoVersionRatherThanInventingOne()
-    {
-        this.fixture.retire(V1);
-
-        final JsonObject json = describe();
-
-        assertFalse(json.containsKey(CATALOGUE_VERSION));
-        assertTrue(json.getJsonArray("fields").isEmpty());
     }
 
     private Requirement requirement(final String path)

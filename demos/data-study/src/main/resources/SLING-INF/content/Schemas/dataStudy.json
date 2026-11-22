@@ -28,7 +28,7 @@
       "jcr:primaryType": "datareq:DataRequirement",
       "label": "Which data do you need?",
       "description": "Choose the fields your analysis needs, and no more.",
-      "jcr:reference:catalogue": "/Catalogues/demoRegistry"
+      "jcr:reference:catalogue": "/Catalogues/demoRegistry/v2"
     },
     "approval": {
       "jcr:primaryType": "sch:ApprovalRequirement",

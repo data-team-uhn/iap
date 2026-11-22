@@ -35,7 +35,7 @@ export const DATA_STUDY_WORKFLOW_VERSION = '/Workflows/dataStudy/v1';
 /** The path of the `datareq:Catalogue` a study chooses its data from. */
 export const REGISTRY = '/Catalogues/demoRegistry';
 
-/** The path of the catalogue version tagged `active`, which a study's first save records on its selection. */
+/** The path of the catalogue version tagged `active`, which the study's data requirement names. */
 export const CURRENT_REGISTRY_VERSION = `${REGISTRY}/v2`;
 
 /** The readable label of {@link CURRENT_REGISTRY_VERSION}. */

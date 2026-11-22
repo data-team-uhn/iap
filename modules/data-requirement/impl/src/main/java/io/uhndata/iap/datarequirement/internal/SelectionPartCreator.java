@@ -37,8 +37,6 @@ import io.uhndata.iap.utils.VersioningUtils;
  * Gives each data requirement that applies an empty selection of its own. The completeness check marks the empty
  * selection as missing, and a save records the chosen fields into it.
  *
- * <p>The selection records no catalogue version until its first save.</p>
- *
  * @version $Id$
  * @since 0.1.0
  */
