@@ -94,6 +94,29 @@ class CatalogueVersionTest
     }
 
     @Test
+    void readsARetiredVersionAsClosed()
+    {
+        PropertyTagging.installIn(this.context);
+        final CatalogueVersion version = this.context.create().resource(PATH, Map.of(
+            TYPE, CatalogueVersion.RESOURCE_TYPE, "tags", new String[] {"active", "retired"}))
+            .adaptTo(CatalogueVersion.class);
+
+        assertFalse(version.isActive());
+    }
+
+    @Test
+    void readsAnActiveVersionOfARetiredCatalogueAsClosed()
+    {
+        PropertyTagging.builder().inheritable("retired").installIn(this.context);
+        this.context.create().resource("/Catalogues/closed", Map.of(
+            TYPE, Catalogue.RESOURCE_TYPE, "title", "Closed data", "tags", new String[] {"retired"}));
+        final CatalogueVersion version = this.context.create().resource("/Catalogues/closed/v1", Map.of(
+            TYPE, CatalogueVersion.RESOURCE_TYPE, "tags", new String[] {"active"})).adaptTo(CatalogueVersion.class);
+
+        assertFalse(version.isActive());
+    }
+
+    @Test
     void readsNoVersionAsActiveWithoutTheTagsService()
     {
         // No Taggable view is registered here, as in a repository without the tags bundle
