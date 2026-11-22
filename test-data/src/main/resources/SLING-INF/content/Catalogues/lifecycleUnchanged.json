@@ -1,0 +1,49 @@
+{
+  "jcr:primaryType": "datareq:Catalogue",
+  "title": "Unchanged registry",
+  "description": "Nothing changes it: tests read it, or are refused changing it.",
+  "v1": {
+    "jcr:primaryType": "datareq:CatalogueVersion",
+    "version": "2026-01",
+    "description": "An old version",
+    "tags": ["retired"],
+    "records": {
+      "jcr:primaryType": "datareq:Database",
+      "identifier": "records",
+      "label": "Patient records",
+      "Patient": {
+        "jcr:primaryType": "datareq:Collection",
+        "identifier": "Patient",
+        "birthDate": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "birthDate",
+          "label": "Date of birth",
+          "dataType": "date",
+          "phi": true
+        }
+      }
+    }
+  },
+  "v2": {
+    "jcr:primaryType": "datareq:CatalogueVersion",
+    "version": "2026-02",
+    "description": "The version in use",
+    "tags": ["active"],
+    "records": {
+      "jcr:primaryType": "datareq:Database",
+      "identifier": "records",
+      "label": "Patient records",
+      "Patient": {
+        "jcr:primaryType": "datareq:Collection",
+        "identifier": "Patient",
+        "birthDate": {
+          "jcr:primaryType": "datareq:Field",
+          "identifier": "birthDate",
+          "label": "Date of birth",
+          "dataType": "date",
+          "phi": true
+        }
+      }
+    }
+  }
+}
