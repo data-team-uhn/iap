@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 
 import CataloguePage from "@iap/data-requirement/admin/CataloguePage";
@@ -76,6 +76,51 @@ describe("CataloguePage", () => {
 
     expect(await screen.findByText(/This catalogue is retired/)).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Reopen" })).toBeInTheDocument();
+  });
+
+  it("shows a version's fields to browse, but not to choose", async () => {
+    serveCatalogues();
+    renderPage("/admin/catalogues/registry/v2");
+
+    expect(await screen.findByText("Version 2026-08")).toBeInTheDocument();
+    expect(screen.getByText("Clinical registry")).toBeInTheDocument();
+    expect(screen.getByText("Current")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Patient records database" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Patient collection" }));
+    expect(await screen.findByRole("checkbox", { name: "Date of birth" })).toBeDisabled();
+  });
+
+  it("offers the actions on a version on its page", async () => {
+    const posted = serveCatalogues();
+    renderPage("/admin/catalogues/registry/v3");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Activate" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Activate" }));
+
+    await waitFor(() => expect(posted.map(event => event.url)).toEqual([ "/Catalogues/registry/v3.activate.json" ]));
+  });
+
+  it("says on a version's page when its catalogue is retired", async () => {
+    serveCatalogues();
+    renderPage("/admin/catalogues/legacy/v1");
+
+    expect(await screen.findByText(/This catalogue is retired/)).toBeInTheDocument();
+    expect(await screen.findByText("Version 1")).toBeInTheDocument();
+  });
+
+  it("says when a version's fields could not be read", async () => {
+    serveCatalogues({ failContent: 500 });
+    renderPage("/admin/catalogues/registry/v2");
+
+    expect(await screen.findByText("Version 2026-08")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+
+  it("says when the catalogue has no such version", async () => {
+    serveCatalogues();
+    renderPage("/admin/catalogues/registry/v9");
+
+    expect(await screen.findByText("This catalogue has no version v9.")).toBeInTheDocument();
   });
 
   it("says when the catalogue could not be loaded", async () => {

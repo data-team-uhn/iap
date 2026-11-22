@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback } from "react";
+import { type ReactNode, useCallback } from "react";
 
 import { Alert } from "@mui/material";
 import { useLocation } from "react-router";
@@ -24,17 +24,42 @@ import { useLocation } from "react-router";
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
+import type { SerializedNode } from "@iap/frontend-commons/serializedNode";
 import { useNode } from "@iap/frontend-commons/useNode";
 import TagChip from "@iap/tags/TagChip";
 
 import CatalogueActions from "./CatalogueActions";
-import { catalogueNameFromRoute, CATALOGUES_ROOT, descriptionOf, listing, tagsOf, titleOf } from "./catalogueModel";
+import {
+  catalogueNameFromRoute, CATALOGUES_ROOT, descriptionOf, listing, tagsOf, titleOf, versionNameFromRoute,
+} from "./catalogueModel";
 import CatalogueVersionList from "./CatalogueVersionList";
+import CatalogueVersionView from "./CatalogueVersionView";
+
+// The notices about the catalogue on its page and on each of its versions' pages: that it could not be reloaded,
+// and that it is retired
+function CatalogueNotices({ catalogue, loadError, reload }: {
+  catalogue: SerializedNode;
+  loadError?: string;
+  reload: () => Promise<void>;
+}) {
+  return (
+    <>
+      { loadError && <LoadError title="The catalogue could not be reloaded" message={loadError} onRetry={reload}
+        sx={{ mb: 2 }} /> }
+      { tagsOf(catalogue).includes("retired") && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          This catalogue is retired. New schema versions cannot offer any of its versions.
+        </Alert>
+      ) }
+    </>
+  );
+}
 
 // The page of one catalogue: its versions and where each stands, and the lifecycle actions on them and on the
-// catalogue.
+// catalogue. A path naming a version shows that version's page instead.
 function CataloguePage() {
   const { pathname } = useLocation();
+  const versionName = versionNameFromRoute(pathname);
   const { value: catalogue, loading, loadError, reload } =
     useNode(`${CATALOGUES_ROOT}/${catalogueNameFromRoute(pathname)}`, listing(1));
   const reloadCatalogue = useCallback(() => void reload(), [ reload ]);
@@ -48,6 +73,15 @@ function CataloguePage() {
     );
   }
 
+  const notices: ReactNode = <CatalogueNotices catalogue={catalogue} loadError={loadError} reload={reload} />;
+
+  if (versionName) {
+    return (
+      <CatalogueVersionView catalogue={catalogue} versionName={versionName} pageNotices={notices}
+        reloadCatalogue={reloadCatalogue} />
+    );
+  }
+
   return (
     <AdminScreen
       title={titleOf(catalogue)}
@@ -56,13 +90,7 @@ function CataloguePage() {
       action={<CatalogueActions catalogue={catalogue} reload={reload} />}
       disablePanel
     >
-      { loadError && <LoadError title="The catalogue could not be reloaded" message={loadError} onRetry={reload}
-        sx={{ mb: 2 }} /> }
-      { tagsOf(catalogue).includes("retired") && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          This catalogue is retired. New schema versions cannot offer any of its versions.
-        </Alert>
-      ) }
+      {notices}
       <CatalogueVersionList catalogue={catalogue} reload={reloadCatalogue} />
     </AdminScreen>
   );

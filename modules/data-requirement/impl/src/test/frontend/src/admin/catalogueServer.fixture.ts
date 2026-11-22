@@ -62,6 +62,18 @@ export const HOMEPAGE = {
   },
 };
 
+// The databases a version holds, served when the version is read whole, three levels down
+const CONTENT = {
+  "records": {
+    "sling:resourceType": "datareq/Database", "identifier": "records", "label": "Patient records",
+    "Patient": {
+      "sling:resourceType": "datareq/Collection", "identifier": "Patient",
+      "birthDate": { "sling:resourceType": "datareq/Field", "identifier": "birthDate", "key": "records/Patient/birthDate",
+        "label": "Date of birth" },
+    },
+  },
+};
+
 const LIFECYCLE = {
   tags: [
     { name: "draft", label: "Draft" },
@@ -80,13 +92,15 @@ export function withPaths(path: string, node: Record<string, unknown>): Record<s
   return identified;
 }
 
-// Installs the server. `homepage` is what /Catalogues serves; `answers` picks the answer to an event by the URL
-// it is posted to; `failReads` makes every read of catalogues fail with that status.
+// Installs the server. `homepage` is what /Catalogues serves, a version's content included when it is read
+// whole. `answers` picks the answer to an event by the URL it is posted to; `failReads` makes every read of
+// catalogues fail with that status, and `failContent` only the reads of a whole version.
 export function serveCatalogues(
-  { homepage = HOMEPAGE, answers = {}, failReads }: {
+  { homepage = HOMEPAGE, answers = {}, failReads, failContent }: {
     homepage?: Record<string, unknown>;
     answers?: Record<string, EventAnswer>;
     failReads?: number;
+    failContent?: number;
   } = {},
 ): PostedEvent[] {
   const posted: PostedEvent[] = [];
@@ -103,6 +117,13 @@ export function serveCatalogues(
     }
     if (failReads) {
       return jsonResponse({}, failReads);
+    }
+    const version = /^\/Catalogues\/([^./]+)\/([^./]+)\.3\.json/.exec(url);
+    if (version) {
+      const [ , catalogue, name ] = version;
+      const node = (homepage[catalogue] as Record<string, unknown> | undefined)?.[name];
+      return node && !failContent ? jsonResponse({ ...node as Record<string, unknown>, ...CONTENT })
+        : jsonResponse({}, failContent ?? 404);
     }
     if (url.startsWith("/Catalogues.paginate.json")) {
       const rows = Object.entries(homepage)
