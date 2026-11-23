@@ -116,7 +116,11 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
       sx={{ py: 1.5, scrollMarginTop: 96, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", rowGap: 1.5,
         [WIDE]: { gridTemplateColumns: `minmax(0, 1fr) var(${NOTES_WIDTH})`, columnGap: GAP } }}
     >
-      <Stack sx={{ gap: 0.5, minWidth: 0 }}>
+      {/* Shaded under the pointer, and while a note is being written about it, so its comment button and the note
+          being written are seen to belong to it; the shade reaches a little past the words */}
+      <Stack sx={theme => ({ gap: 0.5, minWidth: 0, mx: -1, px: 1, my: -0.75, py: 0.75, borderRadius: 1,
+        transition: theme.transitions.create("background-color", { duration: theme.transitions.duration.shortest }),
+        ...writing ? { bgcolor: "action.hover" } : {}, "&:hover": { bgcolor: "action.hover" } })}>
         <Stack direction="row" sx={{ minWidth: 0, gap: 0.75, flexWrap: "wrap", alignItems: "baseline" }}>
           <Typography variant="body2" sx={{ fontWeight: "fontWeightBold" }}>
             <Highlighted text={question.text} question={question.path} field="question" />
