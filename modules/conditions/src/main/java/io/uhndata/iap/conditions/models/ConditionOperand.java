@@ -44,6 +44,12 @@ public class ConditionOperand extends EntityPart
     /** The source used when none is explicitly set: the stored value itself is the operand value. */
     public static final String DEFAULT_SOURCE = "literal";
 
+    /** The source of an operand reading the submitter's value, or else a reading's suggestion; it names a question. */
+    public static final String DECISION_SOURCE = "decision";
+
+    /** The source of an operand reading a validation's outcome; it names the validation. */
+    public static final String VALIDATION_SOURCE = "validation";
+
     @ValueMapValue
     private String[] value;
 

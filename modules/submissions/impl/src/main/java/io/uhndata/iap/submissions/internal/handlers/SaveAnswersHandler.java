@@ -136,12 +136,14 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Refuses a change to a submission that is not its submitter's, or that comes after it stopped being a draft.
+     * Refuses a change to a submission that is not its submitter's, that comes after it stopped being a draft, or
+     * that comes while a reading of its documents is going on. The page turns its controls off while a document is
+     * read; this refuses a stale tab or a direct request too.
      *
      * @param submission the submission being changed
      * @param actor the user id of whoever is changing it
      * @throws NotAuthorizedException when somebody else is changing it
-     * @throws InvalidStateException when it is no longer a draft
+     * @throws InvalidStateException when it is no longer a draft, or a document is being read
      */
     static void checkMayEdit(final Submission submission, final String actor)
         throws NotAuthorizedException, InvalidStateException
@@ -152,6 +154,9 @@ public class SaveAnswersHandler implements ServiceTaskHandler
         }
         if (!submission.isDraft()) {
             throw new InvalidStateException("This request has been submitted and can no longer be changed");
+        }
+        if (submission.isBeingRead()) {
+            throw new InvalidStateException("Wait until the document has been read");
         }
     }
 
@@ -248,8 +253,9 @@ public class SaveAnswersHandler implements ServiceTaskHandler
             return;
         }
         if (existing != null) {
-            modifiable(Objects.requireNonNull(target.getResourceResolver().getResource(existing),
-                "An answer the submission just reported is still where it said")).put(VALUE_PROPERTY, values);
+            final Resource answer = Objects.requireNonNull(target.getResourceResolver().getResource(existing),
+                "An answer the submission just reported is still where it said");
+            modifiable(answer).put(VALUE_PROPERTY, values);
             return;
         }
         final Resource answer = target.getResourceResolver().create(target, UUID.randomUUID().toString(),

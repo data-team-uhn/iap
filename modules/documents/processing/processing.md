@@ -73,14 +73,24 @@ POST /parse?path=/shared-docs/.../file.pdf
 ```
 
 `path` is required and is resolved against `IAP_SHARED_DOCS` (`resolve_parse_path`); the
-request body is ignored. The daemon also serves `GET /health`, and `POST /shutdown` when
-started with `--enable-shutdown`.
+request body is ignored. The daemon also serves `GET /health`, `POST /shutdown` when
+started with `--enable-shutdown`, and `POST /cancel?job_id=...` to stop a background
+parse:
 
-`/parse` and `/shutdown` change state, so both refuse any request carrying an `Origin`
-header — nothing that legitimately drives the daemon is a web page, and loopback binding is
-no defence when the browser runs on the same host. Setting `IAP_DOCLING_TOKEN` additionally
-requires it as a bearer token on those two endpoints. `GET /health` stays open so container
-probes need no credential.
+| Where the parse is | What a stop does |
+|---|---|
+| Not started, or waiting for the parse slot | Never converts |
+| Running LibreOffice | Skips the Docling conversion once LibreOffice is done |
+| Converting a PDF | Stops at the next check (every `ABANDON_POLL_SECONDS`), once the page batches already running finish |
+| Converting a DOC or DOCX | Runs to the end |
+
+A parse stopped before its callback goes out sends none.
+
+`/parse`, `/cancel` and `/shutdown` change state, so they refuse any request carrying an
+`Origin` header: nothing that legitimately drives the daemon is a web page, and loopback
+binding is no defence when the browser runs on the same host. Setting `IAP_DOCLING_TOKEN`
+also requires it as a bearer token on those endpoints. `GET /health` stays open so
+container probes need no credential.
 
 **Set the token for anything but a bare `python docling_daemon.py` on your own machine.** In a
 container the entrypoint has to bind `0.0.0.0`, because Docker forwards a published port no
@@ -100,6 +110,12 @@ one is running is refused with `503 {"error": "daemon busy: …"}` rather than q
 conversion takes minutes, and holding the socket open for one that has not started only
 invites client timeouts. Callers retry.
 
+The caller may add `&max_bytes=&max_pages=&max_expanded_bytes=`, its own document limits. Each
+one applies where it is lower than the daemon's own ceiling below, and never raises it, so the
+platform's configured limits are the ones a document meets while the daemon stays safe from a
+caller asking for more. A value that is not a positive integer is a 400. Java sends all three
+on every parse, from its **Document limits** configuration.
+
 Adding `&job_id=<id>` switches to the asynchronous variant: the daemon answers
 `{"job_id", "status": "queued"}` immediately, converts in the background, and POSTs the
 summary (minus `logs`, plus `job_id`; on failure `{"job_id", "ok": false, "error"}`) to the
@@ -116,7 +132,9 @@ calls the daemon — its callback endpoint, which reads the same JWT variable, i
 `/system/documents/parseCallback` in `modules/documents/api`.
 
 Background parses run one at a time: the PDF worker pool is sized for a single conversion,
-so extra requests queue rather than each taking a thread. A shutdown drains them — parses
+so extra requests queue rather than each taking a thread. The outcome is sent from a
+separate thread, so the next parse starts while the caller records the last one, or while
+delivery waits out a caller that is down. A shutdown drains them — parses
 already running get up to a minute to deliver their callback, and ones still queued are
 failed to the caller — so no job is left waiting on a callback that will never arrive.
 
@@ -126,7 +144,7 @@ failed to the caller — so no job is left waiting on a callback that will never
 
 | Module | Role |
 |---|---|
-| `docling_daemon.py` | **`POST /parse?path=...`** under `IAP_SHARED_DOCS`, `GET /health`, `POST /shutdown` |
+| `docling_daemon.py` | **`POST /parse?path=...`** under `IAP_SHARED_DOCS`, `POST /cancel?job_id=...`, `GET /health`, `POST /shutdown` |
 | `parse_callbacks.py` | Authenticated, retried delivery of async parse outcomes to the configured callback URL |
 | `parse_document.py` | Shared orchestrator: LibreOffice prep → Docling → bookmark heading levels → write `{stem}.md` |
 | `libreoffice_convert.py` (*utils*) | DOC→DOCX+PDF, DOCX→PDF; saves beside source immediately |
@@ -251,6 +269,8 @@ Both modes go through `parse_document`, so the conversion is identical.
 | `DEFAULT_MAX_INPUT_PAGES` | 500 | Largest PDF accepted; over it is a 400, raised *after* the parse slot is taken (counting pages means reading the document). Override with `IAP_MAX_INPUT_PAGES`, 0 to disable |
 | `DEFAULT_MAX_INPUT_BYTES` | 64 MiB | The same ceiling by size, for every accepted type — a `.docx` has no pages to count. Override with `IAP_MAX_INPUT_BYTES` |
 | `DEFAULT_MAX_EXPANDED_BYTES` | 512 MiB | And again after decompression, for a `.docx`, which is a zip: 64 MiB of repeated bytes expands to gigabytes, and Docling parses DOCX in the daemon's own process rather than a pool worker, so that memory is the daemon's. Override with `IAP_MAX_EXPANDED_BYTES`, 0 to disable |
+
+These three are the daemon's ceilings. The limits a caller sends with `/parse` apply under them.
 | `DEFAULT_CONVERSION_TIMEOUT_SECONDS` | 300 | Seconds one `soffice` run may take before its process group is killed. Override with `IAP_LIBREOFFICE_TIMEOUT_SECONDS`. Per soffice *run*: a `.doc` does two (to `.docx`, then the sibling `.pdf`), so prep can take twice this. Sized for the byte ceiling above, and both runs together still sit well inside the container's `stop_grace_period` |
 | `DEFAULT_DOCUMENT_TIMEOUT_SECONDS` | 600 | Seconds one Docling conversion may take, which is one page batch (at most `MAX_BATCH_PAGES`), not the whole document. Docling checks it between batches and stops with `PARTIAL_SUCCESS` plus a `TIMEOUT` error item, which `ensure_conversion_ok` already fails on, so a runaway document fails its batch rather than holding the daemon's only parse slot while `/health` still reports ready. Bounds a slow conversion, not one wedged inside a single page. Override with `IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS`, 0 to disable |
 | `DEFAULT_PARSE_TIMEOUT_SECONDS` | 900 | Seconds the *whole* conversion may take, which is what a caller waits on: `DEFAULT_DOCUMENT_TIMEOUT_SECONDS` covers one batch of at most `MAX_BATCH_PAGES`, and a 500-page document is up to 125 of them. A quarter of an hour, because somebody uploaded the document and is still there. Past it the remaining batches are abandoned; one that will not stop within `ABANDON_TIMEOUT_SECONDS` is reported as a broken pool, so `/health` starts failing and the container is restarted. Override with `IAP_DOCLING_PARSE_TIMEOUT_SECONDS`, 0 to disable |

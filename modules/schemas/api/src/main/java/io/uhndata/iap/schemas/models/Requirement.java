@@ -17,6 +17,9 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
+
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -41,6 +44,9 @@ public abstract class Requirement extends EntityPart implements Conditionable, R
 {
     /** The {@code sling:resourceType} of a {@code sch:Requirement} node. */
     public static final String RESOURCE_TYPE = "sch/Requirement";
+
+    /** The child holding the reference text a model is shown, when there is one. */
+    private static final String TEMPLATE_CHILD = "template";
 
     @ValueMapValue
     private String label;
@@ -82,5 +88,30 @@ public abstract class Requirement extends EntityPart implements Conditionable, R
     public String getIdentifier()
     {
         return this.identifier;
+    }
+
+    /**
+     * The names of the document requirements whose uploads a model reads for this requirement.
+     *
+     * @return the names, in the order they are read; empty for a requirement that reads no upload
+     */
+    @NotNull
+    public List<String> getReadDocumentNames()
+    {
+        return List.of();
+    }
+
+    /**
+     * Reference text a model is shown with what it is asked, for the requirements a model reads. Read from a
+     * {@code template} child, or else a {@code template.md} child, the name a Markdown file keeps when it is loaded
+     * as initial content.
+     *
+     * @return the template file, or {@code null} if there is none
+     */
+    @Nullable
+    protected Resource getReferenceTemplate()
+    {
+        final Resource template = this.resource.getChild(TEMPLATE_CHILD);
+        return template != null ? template : this.resource.getChild(TEMPLATE_CHILD + ".md");
     }
 }

@@ -20,28 +20,54 @@ import {
   FormControl,
   FormControlLabel,
   FormHelperText,
-  FormLabel,
   Radio,
   RadioGroup,
 } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
 import { isRequired } from "../submissionForm";
-import { questionLabel } from "./label";
+import { getOptionFrame } from "./answerFrame";
+import AnswerRow from "./AnswerRow";
+import QuestionText, { getQuestionTextId } from "./QuestionText";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // A yes or no answer, as a pair of radio buttons. A pick is a finished answer, so it is saved at once.
 // A single checkbox would show "no" and "not answered yet" the same way.
-function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
+function BooleanAnswer(
+  { question, values, disabled, onAnswered, suggested, aside, corner }: AnswerComponentProps,
+) {
   return (
-    <FormControl required={isRequired(question)} disabled={disabled} component="fieldset">
-      <FormLabel component="legend">{questionLabel(question)}</FormLabel>
-      {/* `required` is on each radio, since the FormControl does not forward it */}
-      <RadioGroup row value={values[0] ?? ""} onChange={event => onAnswered([ event.target.value ])}>
-        <FormControlLabel value="true" control={<Radio required={isRequired(question)} />} label="Yes" />
-        <FormControlLabel value="false" control={<Radio required={isRequired(question)} />} label="No" />
-      </RadioGroup>
+    <FormControl
+      required={isRequired(question)}
+      disabled={disabled}
+      component="fieldset"
+      aria-labelledby={getQuestionTextId(question)}
+      fullWidth
+    >
+      <QuestionText question={question} />
+      <AnswerRow aside={aside} corner={corner}>
+        {/* `required` is on each radio, since the FormControl does not forward it */}
+        <RadioGroup
+          row
+          aria-labelledby={getQuestionTextId(question)}
+          value={values[0] ?? ""}
+          onChange={event => onAnswered([ event.target.value ])}
+        >
+          <FormControlLabel
+            value="true"
+            control={<Radio required={isRequired(question)} />}
+            label="Yes"
+            sx={getOptionFrame(suggested === true && values[0] === "true")}
+          />
+          <FormControlLabel
+            value="false"
+            control={<Radio required={isRequired(question)} />}
+            label="No"
+            sx={getOptionFrame(suggested === true && values[0] === "false")}
+          />
+        </RadioGroup>
+      </AnswerRow>
       {question.description && <FormHelperText>{question.description}</FormHelperText>}
     </FormControl>
   );

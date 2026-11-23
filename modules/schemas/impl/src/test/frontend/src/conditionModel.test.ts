@@ -18,7 +18,7 @@
 
 import { describeCondition as describeWith, whenApplies as appliesWith } from "@iap/conditions/conditionModel";
 import {
-  answerShapeOf, answerSource, conditionKeyOf, itemChoicesOf, schemaSources,
+  answerShapeOf, answerSource, conditionKeyOf, schemaSources,
 } from "@iap/schemas/conditionModel";
 import { conditionOf, indexQuestions, partsOf } from "@iap/schemas/schemaVersionTreeModel";
 
@@ -98,17 +98,13 @@ describe("conditionModel", () => {
     expect(answerSource(index).shape([])).toEqual({});
   });
 
-  it("offers the items a question takes its options from, by their titles or labels", () => {
-    const items = itemChoicesOf({
-      "@path": "/Categories",
-      "a": { "@path": "/Categories/a", "label": "A", "b": { "@path": "/Categories/a/b", "title": "B" },
-        "link:links": { "@path": "/Categories/a/link:links" } },
-      "plain": { "@path": "/Categories/plain" },
-    });
-    expect(items).toEqual([ { value: "/Categories/a", label: "A" }, { value: "/Categories/a/b", label: "B" },
-      { value: "/Categories/plain", label: "plain" } ]);
+  it("offers the options a question takes from a path, once they are loaded", () => {
+    const items = [ { value: "/Categories/a", label: "A" }, { value: "/Categories/a/b", label: "B" } ];
     expect(answerShapeOf({ optionsFrom: "/Categories" }, { "/Categories": items })).toMatchObject({ choices: items });
     expect(answerShapeOf({ optionsFrom: "/Elsewhere" }, { "/Categories": items })).not.toHaveProperty("choices");
+    // The server offers the items over any listed option, so the editor must not compare with a listed one
+    expect(answerShapeOf({ optionsFrom: "/Categories", listed: { "sling:resourceType": "sch/AnswerOption",
+      value: "x", label: "X" } }, { "/Categories": items })).toMatchObject({ choices: items });
   });
 });
 

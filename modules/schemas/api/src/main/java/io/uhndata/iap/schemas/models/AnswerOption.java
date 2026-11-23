@@ -50,6 +50,9 @@ public class AnswerOption extends EntityPart
     @ValueMapValue
     private String description;
 
+    @ValueMapValue
+    private long defaultOrder;
+
     /**
      * What an answer that picks this option stores, and what conditions compare against. The node type makes it
      * mandatory.
@@ -83,5 +86,15 @@ public class AnswerOption extends EntityPart
     public String getDescription()
     {
         return this.description;
+    }
+
+    /**
+     * Its place among its question's options, lower first. Options with the same place keep their stored order.
+     *
+     * @return the place, {@code 0} when not set
+     */
+    public long getDefaultOrder()
+    {
+        return this.defaultOrder;
     }
 }

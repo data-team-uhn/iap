@@ -17,11 +17,8 @@
 
 """The daemon's request guards, tested without Docling.
 
-These used to live in ``docling_daemon`` and so were only covered by
-``test_docling_runtime.py``, which skips itself when Docling is absent -- including in CI,
-which installs only ``requirements-test.txt``. The checks standing between an unauthenticated
-caller and the worker pool were therefore exercised by nothing automated. This module imports
-:mod:`daemon_utils` alone, so it runs everywhere.
+This module imports :mod:`daemon_utils` alone, so it needs neither Docling nor the
+``conftest.py`` stand-in for it.
 """
 
 import io

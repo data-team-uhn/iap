@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -36,25 +35,27 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.documents.api.ParseOutcome;
 import io.uhndata.iap.documents.api.ParseService;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
  * Fails parse jobs that nobody will ever finish, drops the records of jobs nobody came back for, and takes their
  * staging folders off the shared volume with them.
  *
  * <p>
- * The daemon is the only thing that ends an {@code active} job, through the callback. A daemon killed mid-parse, a
- * container replaced while it was working, a callback refused because the token was wrong — each leaves a job
- * {@code active} for good. Nothing upstream copes with that: the {@code sub:File} stays {@code queued}, so no
- * submission ever sees all its parses settle, the reading is never queued, and the submitter is left with a
- * spinner that has nothing behind it. A stuck job is worse than a failed one, because a failure can be retried and
- * a spinner cannot.
+ * Only the daemon's callback, a failed dispatch, or a stop ends an {@code active} job. A daemon killed mid-parse, a
+ * container replaced while it was working, or a callback refused for a wrong token leaves the job {@code active} for
+ * good. Then the {@code sub:File} stays {@code queued}, the submission never sees all its parses finish, the reading
+ * never starts, and the submitter sees a spinner that never stops. A stuck job is worse than a failed one: a failure
+ * can be retried, a spinner cannot.
  * </p>
  *
  * <p>
  * So a job unanswered past {@link #DEFAULT_MAX_AGE_MINUTES} minutes is declared failed and handed to the outcome
- * handlers exactly as a real failure is. Re-submitting is the retry, which is how every other failure here already
- * works. The age is generous on purpose: it has to sit comfortably above the daemon's own
+ * handlers exactly as a real failure is. An outcome no handler took is offered again on each sweep, until its
+ * record is old enough to drop. The age is generous on purpose: it has to sit comfortably above the daemon's own
  * {@code IAP_DOCLING_PARSE_TIMEOUT_SECONDS}, or this would fail parses that were still going to answer.
  * </p>
  *
@@ -88,7 +89,8 @@ public class StaleParseJobSweeper implements Runnable
 
     /**
      * How long a job may go unanswered before it is declared lost. Half an hour, which is above the daemon's own
-     * quarter-hour ceiling on a whole conversion, with room for the queue in front of it.
+     * quarter-hour ceiling on a PDF conversion, with room for the queue in front of it. A Word document has no
+     * such ceiling.
      */
     static final long DEFAULT_MAX_AGE_MINUTES = 30;
 
@@ -98,6 +100,12 @@ public class StaleParseJobSweeper implements Runnable
     private static final String LOST_MESSAGE = "No outcome arrived within %d minutes; the parse was given up on";
 
     private static final long MILLISECONDS_PER_MINUTE = 60_000L;
+
+    /** How long a settled record is left alone before its outcome is offered again: two minutes. */
+    private static final long RETRY_AFTER_MILLISECONDS = 2 * MILLISECONDS_PER_MINUTE;
+
+    /** How long a record is kept for a staging folder that cannot be removed: a day. */
+    private static final long GIVE_UP_ON_FOLDER_MILLISECONDS = 24 * 60 * MILLISECONDS_PER_MINUTE;
 
     @Reference
     private ResourceResolverFactory resolverFactory;
@@ -141,75 +149,78 @@ public class StaleParseJobSweeper implements Runnable
                 return;
             }
             final long deadline = System.currentTimeMillis() - this.maxAgeMinutes * MILLISECONDS_PER_MINUTE;
-            for (final Resource jobNode : stale(jobsRoot, deadline)) {
-                sweep(resolver, jobNode);
-            }
-            for (final Resource jobNode : forgotten(jobsRoot, deadline)) {
-                forget(resolver, jobNode);
-            }
+            final long settledBefore = System.currentTimeMillis() - RETRY_AFTER_MILLISECONDS;
+            final List<Resource> jobs = new ArrayList<>();
+            jobsRoot.getChildren().forEach(jobs::add);
+            // Sorted before anything is written, because sweeping or forgetting a job deletes it from the listing
+            final List<Resource> lost = jobs.stream().filter(job -> isLost(job, deadline)).toList();
+            final List<Resource> untaken =
+                jobs.stream().filter(job -> isUntaken(job, deadline, settledBefore)).toList();
+            final List<Resource> forgotten = jobs.stream().filter(job -> isForgotten(job, deadline)).toList();
+            lost.forEach(job -> sweep(resolver, job));
+            untaken.forEach(job -> this.outcomes.settleAgain(resolver, job));
+            forgotten.forEach(job -> forget(resolver, job));
         } catch (final LoginException e) {
             LOGGER.error("Cannot access the parse jobs storage to sweep it: {}", e.getMessage(), e);
         }
     }
 
     /**
-     * The jobs that have been waiting too long.
+     * Whether a job has waited too long for its outcome.
      *
-     * <p>Collected before anything is written, because sweeping one deletes its node and the listing being walked
-     * is the one it would be deleted from.</p>
-     *
-     * @param jobsRoot the node holding the job nodes
+     * @param jobNode the job
      * @param deadline the moment before which an unfinished job is declared lost
-     * @return the job nodes to sweep
+     * @return {@code true} for a queued or active job waiting since before the deadline
      */
-    private static List<Resource> stale(final Resource jobsRoot, final long deadline)
+    private static boolean isLost(final Resource jobNode, final long deadline)
     {
-        final List<Resource> stale = new ArrayList<>();
-        for (final Resource jobNode : jobsRoot.getChildren()) {
-            final ValueMap properties = jobNode.getValueMap();
-            final String status = properties.get(ParseJob.PN_STATUS, String.class);
-            if (!ParseJob.STATUS_QUEUED.equals(status) && !ParseJob.STATUS_ACTIVE.equals(status)) {
-                continue;
-            }
-            final Calendar since = waitingSince(properties);
-            if (since != null && since.getTimeInMillis() < deadline) {
-                stale.add(jobNode);
-            }
-        }
-        return stale;
+        final Calendar since = waitingSince(jobNode.getValueMap());
+        return new JobRecord(jobNode).isWaiting() && since != null && since.getTimeInMillis() < deadline;
     }
 
     /**
-     * The settled jobs nobody came back for.
+     * Whether a settled job with a target still waits for a handler to take its outcome. Only jobs settled at least
+     * two minutes ago, so the request that settled them is over. A handler may refuse an outcome only for now, for
+     * example when the file's upload is not committed yet, so the outcome is offered again on every sweep until it
+     * is taken or forgotten.
+     *
+     * @param jobNode the job
+     * @param deadline the moment before which a settled record is forgotten instead
+     * @param settledBefore the moment the job must have settled before
+     * @return {@code true} for a job to hand over again
+     */
+    private static boolean isUntaken(final Resource jobNode, final long deadline, final long settledBefore)
+    {
+        final ValueMap properties = jobNode.getValueMap();
+        return new JobRecord(jobNode).isSettled() && properties.get(ParseJob.PN_TARGET, String.class) != null
+            && isBetween(properties.get(ParseJob.PN_FINISHED, Calendar.class), deadline, settledBefore);
+    }
+
+    /** Whether a moment is at or after {@code from} and before {@code to}; {@code false} for a missing moment. */
+    private static boolean isBetween(final Calendar when, final long from, final long to)
+    {
+        return when != null && when.getTimeInMillis() >= from && when.getTimeInMillis() < to;
+    }
+
+    /**
+     * Whether nobody came back for a settled job.
      *
      * <p>A job queued with a {@code target} is handed to its handler and its record deleted straight away. A job
-     * queued without one is nobody's to hand over, so its record is kept for polling - and was kept for good,
-     * because nothing deleted it and this sweep only ever looked at jobs that had not finished. Its staging
-     * folder stayed on the volume with it. So did the record of a job whose handler refused the outcome, which
-     * nothing retries either.</p>
+     * queued without one is nobody's to hand over, so its record is kept for polling, then dropped here with its
+     * staging folder. So is the record of a job whose handler refused the outcome, which is offered again on
+     * every sweep until then.</p>
      *
      * <p>The same age answers both: a settled record is worth keeping while somebody might still poll it, and
      * worth nothing afterwards.</p>
      *
-     * @param jobsRoot the node holding the job nodes
+     * @param jobNode the job
      * @param deadline the moment before which a settled job's record is no longer worth keeping
-     * @return the job nodes to forget
+     * @return {@code true} for a job to forget
      */
-    private static List<Resource> forgotten(final Resource jobsRoot, final long deadline)
+    private static boolean isForgotten(final Resource jobNode, final long deadline)
     {
-        final List<Resource> forgotten = new ArrayList<>();
-        for (final Resource jobNode : jobsRoot.getChildren()) {
-            final ValueMap properties = jobNode.getValueMap();
-            final String status = properties.get(ParseJob.PN_STATUS, String.class);
-            if (!ParseJob.STATUS_COMPLETED.equals(status) && !ParseJob.STATUS_FAILED.equals(status)) {
-                continue;
-            }
-            final Calendar finished = properties.get(ParseJob.PN_FINISHED, Calendar.class);
-            if (finished != null && finished.getTimeInMillis() < deadline) {
-                forgotten.add(jobNode);
-            }
-        }
-        return forgotten;
+        final Calendar finished = jobNode.getValueMap().get(ParseJob.PN_FINISHED, Calendar.class);
+        return new JobRecord(jobNode).isSettled() && finished != null && finished.getTimeInMillis() < deadline;
     }
 
     /**
@@ -222,16 +233,70 @@ public class StaleParseJobSweeper implements Runnable
     {
         final String jobId = jobNode.getValueMap().get(ParseJob.PN_JOB_ID, jobNode.getName());
         final String staged = jobNode.getValueMap().get(ParseJob.PN_PATH, String.class);
-        this.parseService.discardStaging(staged);
+        if (!this.parseService.discardStaging(staged)) {
+            if (!isFolderPastRetryLimit(jobNode)) {
+                // Keep the record: it is the only thing that names the folder, so the next sweep tries again
+                return;
+            }
+            reportFolderLeftBehind(jobNode);
+        }
+        // Read before the delete: a deleted node's properties can no longer be read
+        final String target = jobNode.getValueMap().get(ParseJob.PN_TARGET, String.class);
+        final String error = jobNode.getValueMap().get(ParseJob.PN_ERROR, String.class);
         try {
             resolver.delete(jobNode);
             resolver.commit();
             LOGGER.info("Parse job {} settled more than {} minutes ago; its record is dropped", jobId,
                 this.maxAgeMinutes);
+            // A stopped parse is meant to go untaken: the file stopped waiting for it
+            if (target != null && !ParseOutcome.STOPPED_ERROR.equals(error)) {
+                reportUntaken(jobId, target);
+            }
         } catch (final PersistenceException e) {
             LOGGER.error("Cannot drop the record of parse job {}: {}", jobId, e.getMessage(), e);
             resolver.revert();
         }
+    }
+
+    /**
+     * Reports that an outcome nobody took was dropped. A job with a target is deleted as soon as a handler takes it,
+     * so one still here was usually refused on every sweep, and whatever waited on it may now wait for good.
+     */
+    private void reportUntaken(final String jobId, final String target)
+    {
+        LOGGER.warn("No handler took the outcome of parse job {} for {} within {} minutes; it is dropped", jobId,
+            target, this.maxAgeMinutes);
+        ErrorLogger.logProblem("A parse outcome was never taken in, so its file may stay waiting for it",
+            ErrorContext.of(StaleParseJobSweeper.class, "forget").about(target).with("job", jobId));
+    }
+
+    /**
+     * Whether to stop retrying a staging folder that cannot be removed. A worker lets go of a file within minutes,
+     * so after a day something else holds it, and keeping the record would keep it forever.
+     *
+     * @param jobNode the settled job whose folder could not be removed
+     * @return {@code true} when the job finished more than a day ago, so the record is dropped anyway
+     */
+    private static boolean isFolderPastRetryLimit(final Resource jobNode)
+    {
+        final Calendar finished = jobNode.getValueMap().get(ParseJob.PN_FINISHED, Calendar.getInstance());
+        return finished.getTimeInMillis() < System.currentTimeMillis() - GIVE_UP_ON_FOLDER_MILLISECONDS;
+    }
+
+    /**
+     * Reports a staging folder the sweep stops retrying. Nothing will name it once the record goes.
+     *
+     * @param jobNode the settled job whose folder could not be removed
+     */
+    private static void reportFolderLeftBehind(final Resource jobNode)
+    {
+        final String jobId = jobNode.getValueMap().get(ParseJob.PN_JOB_ID, jobNode.getName());
+        final String staged = jobNode.getValueMap().get(ParseJob.PN_PATH, String.class);
+        LOGGER.error("The staging folder of parse job {} still cannot be removed after a day; giving up on {}",
+            jobId, staged);
+        // Nothing will name the folder once the record goes, so only an administrator can clear it now
+        ErrorLogger.logProblem("A parse staging folder cannot be removed",
+            ErrorContext.of(StaleParseJobSweeper.class, "forget").with("job", jobId).with("folder", staged));
     }
 
     /**
@@ -256,17 +321,9 @@ public class StaleParseJobSweeper implements Runnable
     private void sweep(final ResourceResolver resolver, final Resource jobNode)
     {
         final String jobId = jobNode.getValueMap().get(ParseJob.PN_JOB_ID, jobNode.getName());
-        final ModifiableValueMap properties = jobNode.adaptTo(ModifiableValueMap.class);
-        if (properties == null) {
-            LOGGER.error("Cannot give up on parse job {}: its node cannot be modified", jobId);
-            return;
-        }
         final String staged = jobNode.getValueMap().get(ParseJob.PN_PATH, String.class);
-        properties.put(ParseJob.PN_STATUS, ParseJob.STATUS_FAILED);
-        properties.put(ParseJob.PN_ERROR, String.format(LOST_MESSAGE, this.maxAgeMinutes));
-        properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
-        properties.remove(ParseJob.PN_OUTPUTS);
         try {
+            new JobRecord(jobNode).markFailed(String.format(LOST_MESSAGE, this.maxAgeMinutes));
             resolver.commit();
         } catch (final PersistenceException e) {
             LOGGER.error("Cannot give up on parse job {}: {}", jobId, e.getMessage(), e);

@@ -65,7 +65,8 @@ import io.uhndata.iap.utils.JsonResponses;
  * </p>
  *
  * <p>
- * A repeated delivery for the same job simply overwrites the same outcome, so the daemon's retries are harmless.
+ * A repeated delivery for the same job overwrites the same outcome, or gets a 404 once the record is deleted. So the
+ * daemon's retries are harmless.
  * </p>
  *
  * @version $Id$
@@ -99,7 +100,8 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
     @Modified
     protected void activate(final Map<String, Object> configuration)
     {
-        final String token = CallbackToken.resolve(configuration, environment(ParseJob.TOKEN_VARIABLE));
+        final String token = TokenSetting.resolve(configuration, ParseJob.TOKEN_PROPERTY,
+            getEnvironmentVariable(ParseJob.TOKEN_VARIABLE));
         if (token.isEmpty()) {
             this.expectedAuthorization = null;
             LOGGER.warn("No authorization token is configured ({} or the {} environment variable);"
@@ -164,28 +166,14 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
                 JsonResponses.writeError(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
                 return;
             }
-            // An outcome replaces whatever the node said before, so the properties belonging to the other outcome
-            // are removed as well. A job can already carry an error when it gets here — a dispatch that timed out
-            // while the daemon went on to parse anyway, for one — and leaving it in place would report a completed
-            // job that still says what went wrong.
-            final String status;
-            if (outcome.getBoolean("ok", false)) {
-                status = ParseJob.STATUS_COMPLETED;
-                properties.put(ParseJob.PN_OUTPUTS, new String[] { markdown });
-                // The daemon measures the document as it writes it, and nothing else does: the parse leaves no
-                // outline file behind to read it from afterwards.
-                if (outcome.containsKey(ParseJob.PN_TOKENS)) {
-                    properties.put(ParseJob.PN_TOKENS, (long) outcome.getInt(ParseJob.PN_TOKENS, 0));
-                }
-                properties.remove(ParseJob.PN_ERROR);
-            } else {
-                status = ParseJob.STATUS_FAILED;
-                properties.put(ParseJob.PN_ERROR,
-                    outcome.getString(ParseJob.PN_ERROR, "The daemon reported a failure without details"));
-                properties.remove(ParseJob.PN_OUTPUTS);
+            final boolean succeeded = outcome.getBoolean("ok", false);
+            if (isKeptAsItIs(new JobRecord(jobNode), succeeded)) {
+                // A repeated delivery, or one that lost to a stop: answered, so the daemon stops retrying
+                LOGGER.info("Parse job {} is already settled; this outcome is not recorded", jobId);
+                writeStatus(response, jobId, properties.get(ParseJob.PN_STATUS, String.class));
+                return;
             }
-            properties.put(ParseJob.PN_STATUS, status);
-            properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
+            final String status = writeOutcome(properties, outcome, succeeded, markdown);
             resolver.commit();
             // The daemon measures nothing for us, and the job record is about to be deleted, so this is the only
             // moment the conversion's own wall time exists anywhere. It is the slowest step in the pipeline.
@@ -195,18 +183,97 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             // Recorded first, then handed over: whoever queued the parse for a node takes it from here, and the
             // record goes with it
             settle(resolver, jobNode, jobId);
-            JobStateResponse.write(response, HttpServletResponse.SC_OK, Json.createObjectBuilder()
-                .add(ParseJob.JSON_JOB_ID, jobId)
-                .add(ParseJob.PN_STATUS, status)
-                .build());
+            writeStatus(response, jobId, status);
         } catch (final LoginException e) {
             LOGGER.error("Cannot access the parse jobs storage: {}", e.getMessage(), e);
             JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "The parse jobs storage is not accessible");
         } catch (final PersistenceException e) {
-            LOGGER.error("Cannot record the outcome of parse job {}: {}", jobId, e.getMessage(), e);
-            JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "The outcome could not be recorded");
+            // The sweep may have deleted the record since it was read: answer the usual "no such job". A record
+            // still there, such as one a stop just marked, gets a 500, and the daemon retries.
+            if (hasJob(jobId)) {
+                LOGGER.error("Cannot record the outcome of parse job {}: {}", jobId, e.getMessage(), e);
+                JsonResponses.writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "The outcome could not be recorded");
+            } else {
+                LOGGER.info("Parse job {} was removed before this outcome could be recorded", jobId);
+                JsonResponses.writeError(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
+            }
+        }
+    }
+
+    /**
+     * Writes an outcome onto its job's record, without committing.
+     *
+     * @param properties the job's record
+     * @param outcome the daemon's callback body
+     * @param succeeded whether the outcome is a success
+     * @param markdown the produced Markdown path, present on a success
+     * @return the status the job now has
+     */
+    private static String writeOutcome(final ModifiableValueMap properties, final JsonObject outcome,
+        final boolean succeeded, final String markdown)
+    {
+        // An outcome replaces whatever the node said before, so the properties belonging to the other outcome are
+        // removed as well. A dispatch that timed out while the daemon went on to parse anyway leaves an error that
+        // a completed job must not keep.
+        final String status;
+        if (succeeded) {
+            status = ParseJob.STATUS_COMPLETED;
+            properties.put(ParseJob.PN_OUTPUTS, new String[] { markdown });
+            // The daemon measures the document as it writes it, and the parse leaves nothing to measure it from later
+            if (outcome.containsKey(ParseJob.PN_TOKENS)) {
+                properties.put(ParseJob.PN_TOKENS, (long) outcome.getInt(ParseJob.PN_TOKENS, 0));
+            }
+            properties.remove(ParseJob.PN_ERROR);
+        } else {
+            status = ParseJob.STATUS_FAILED;
+            properties.put(ParseJob.PN_ERROR,
+                outcome.getString(ParseJob.PN_ERROR, "The daemon reported a failure without details"));
+            properties.remove(ParseJob.PN_OUTPUTS);
+        }
+        properties.put(ParseJob.PN_STATUS, status);
+        properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
+        return status;
+    }
+
+    /**
+     * Whether a job keeps the outcome it already has. A completed or stopped job keeps it, and so does a failed job
+     * told it failed again. Only a success replaces a failure, such as a dispatch that timed out while the daemon
+     * went on to parse anyway.
+     *
+     * @param job the job the outcome is for
+     * @param succeeded whether the outcome is a success
+     * @return {@code true} when the outcome must not be recorded
+     */
+    private static boolean isKeptAsItIs(final JobRecord job, final boolean succeeded)
+    {
+        return job.isCompleted() || job.isStopped() || job.isSettled() && !succeeded;
+    }
+
+    private static void writeStatus(final SlingJakartaHttpServletResponse response, final String jobId,
+        final String status) throws IOException
+    {
+        JobStateResponse.write(response, HttpServletResponse.SC_OK, Json.createObjectBuilder()
+            .add(ParseJob.JSON_JOB_ID, jobId)
+            .add(ParseJob.PN_STATUS, status)
+            .build());
+    }
+
+    /**
+     * Checks, with a new session, whether a job's record still exists. Used after a failed commit, whose session
+     * cannot be trusted for another read.
+     *
+     * @param jobId the job to check
+     * @return {@code true} when the record exists, or when this cannot be determined
+     */
+    private boolean hasJob(final String jobId)
+    {
+        try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
+            return resolver.getResource(ParseJob.nodePath(jobId)) != null;
+        } catch (final LoginException e) {
+            // Cannot tell, so the commit failure stays a logged server error
+            return true;
         }
     }
 
@@ -262,7 +329,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
      * @param name the variable to read
      * @return the value, or {@code null} when not set
      */
-    protected String environment(final String name)
+    protected String getEnvironmentVariable(final String name)
     {
         return System.getenv(name);
     }

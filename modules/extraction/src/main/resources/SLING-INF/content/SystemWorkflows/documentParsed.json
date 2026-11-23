@@ -1,0 +1,54 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Read a finished parse in",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "tags": ["active"],
+    "targetResourceType": "sub/Submission",
+    "description": "Records a finished parse on its file, and queues the checks of the uploads, the first steps of the intake.",
+    "parsed": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "parsed",
+      "label": "Parse finished",
+      "messageName": "documentParsed",
+      "performers": ["iap-extraction"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toIngest": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toIngest",
+        "targetRef": "ingest"
+      }
+    },
+    "ingest": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "ingest",
+      "label": "Read the parse onto the file",
+      "handler": "ingestParse",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toQueue": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toQueue",
+        "targetRef": "queue"
+      }
+    },
+    "queue": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "queue",
+      "label": "Queue the document checks",
+      "handler": "queueDecisions",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Parse recorded",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

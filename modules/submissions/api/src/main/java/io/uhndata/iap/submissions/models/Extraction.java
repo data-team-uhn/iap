@@ -30,9 +30,9 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sub:Extraction} node: one extraction run against one {@link Answer}. It holds what
- * a model read out of the submitted documents, and which document revisions it read. The node is the record that the
- * run happened. A run that found nothing has no {@link #getExtractedAnswer() extracted answer}, and
+ * A Sling Model wrapping a {@code sub:Extraction} node: one run of the model against one {@link Answer} or
+ * {@link Validation}. It holds what the model read out of the submitted documents, and which document revisions
+ * it read. A run that found nothing has no {@link #getExtractedValues() extracted values}, and
  * {@link #getCreated()} is when it ran.
  *
  * @version $Id$
@@ -49,13 +49,19 @@ public class Extraction extends EntityPart
     private String[] sources;
 
     @ValueMapValue
-    private String extractedAnswer;
+    private String[] extractedValues;
+
+    @ValueMapValue
+    private Double modelConfidence;
 
     @ValueMapValue
     private Double confidence;
 
     @ValueMapValue
     private String reasoning;
+
+    @ValueMapValue
+    private boolean evidenceRejected;
 
     @ValueMapValue
     private Long editDistance;
@@ -86,18 +92,31 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * The answer the model read out of the documents.
+     * The values the model read out of the documents: one for a question taking one value, one per item for a
+     * list. The run holds option values, not labels: the extraction matches them before it saves the run.
      *
-     * @return the extracted answer; {@code null} if this run found nothing
+     * @return the values, empty if this run found nothing
      */
-    @Nullable
-    public String getExtractedAnswer()
+    @NotNull
+    public List<String> getExtractedValues()
     {
-        return this.extractedAnswer;
+        return this.extractedValues == null ? List.of() : List.of(this.extractedValues);
     }
 
     /**
-     * How sure the model is of the extracted answer.
+     * How sure the model said it is of the extracted values, as it gave it.
+     *
+     * @return a value from 0 to 1; {@code null} if the model reported none
+     */
+    @Nullable
+    public Double getModelConfidence()
+    {
+        return this.modelConfidence;
+    }
+
+    /**
+     * How sure to be of the extracted values: the model's confidence, lowered for the quotes that were not found in
+     * the documents. This is the one shown, and the one thresholds compare with.
      *
      * @return a value from 0 to 1; {@code null} if the model reported none
      */
@@ -108,7 +127,7 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * The model's explanation of how it arrived at the extracted answer.
+     * The model's explanation of how it arrived at the extracted values.
      *
      * @return the explanation; {@code null} if the model gave none
      */
@@ -119,10 +138,21 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * How far the submitter's own value ended up from the extracted answer, as a raw edit distance. Written when
-     * the submitter accepts or edits the extracted answer.
+     * Whether the submitter said the quoted passage does not support the answer. It is a note about the evidence
+     * only: it does not accept or reject the answer.
      *
-     * @return the edit distance; {@code null} while nobody has acted on this run
+     * @return {@code true} if the passage was reported as wrong
+     */
+    public boolean isEvidenceRejected()
+    {
+        return this.evidenceRejected;
+    }
+
+    /**
+     * How far the submitter's own value ended up from the extracted answer, as a raw edit distance. Written when
+     * the request is sent, against the answer as it was sent.
+     *
+     * @return the edit distance; {@code null} until the request is sent with a value measured against this run
      */
     @Nullable
     public Long getEditDistance()
@@ -134,7 +164,7 @@ public class Extraction extends EntityPart
      * How far the submitter's own value ended up from the extracted answer, as a percentage of the extracted
      * answer's length.
      *
-     * @return the percentage; {@code null} while nobody has acted on this run
+     * @return the percentage; {@code null} until the request is sent with a value measured against this run
      */
     @Nullable
     public Double getPercentageDistance()
@@ -154,10 +184,11 @@ public class Extraction extends EntityPart
     }
 
     /**
-     * Whether the submitter has acted on this run, which an edit distance records. A distance of zero means the
-     * extracted answer was accepted as it stood. Anything higher means it was edited or replaced.
+     * Whether the answer sent was measured against this run, which happens once, when the request is sent. A draft
+     * the submitter edited is not measured yet. A distance of zero means the extracted answer was accepted as it
+     * stood. Anything higher means it was edited or replaced.
      *
-     * @return {@code true} once the submitter has accepted or edited the extracted answer
+     * @return {@code true} once the answer sent was measured against this run
      */
     public boolean isActedOn()
     {
