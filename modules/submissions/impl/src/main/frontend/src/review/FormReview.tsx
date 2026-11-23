@@ -29,7 +29,7 @@ import { useElementWidth } from "@iap/frontend-commons/useElementWidth";
 
 import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
-import NoteCard, { NoteHeading } from "./NoteCard";
+import NoteCard, { NoteActions, NoteHeading } from "./NoteCard";
 import { GroupChip } from "./people";
 import { groupShortName, issueFrom, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
   type ReviewNote } from "./reviewData";
@@ -99,6 +99,8 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
   const [ writing, setWriting ] = useState(false);
   // The AI pre-review note being made into an issue, coloured as one meanwhile
   const [ adopting, setAdopting ] = useState<string>();
+  // The reviewer's own note being changed, whose card then shows its editor
+  const [ editing, setEditing ] = useState<string>();
   const answer = data.answers.get(question.path);
   const notes = answer ? notesAbout(data.notes, [ answer.uuid ]) : [];
   const evidence = notes.find(note => note.kind === "evidence");
@@ -160,7 +162,12 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
         <Stack spacing={1} sx={{ minWidth: 0 }}>
           {side.map(note => (
             <SideCard key={note.id} note={note} kind={adopting === note.id ? "issue" : note.kind}
-              onOpen={note.passage ? () => onEvidence(note) : undefined}>
+              onOpen={note.passage ? () => onEvidence(note) : undefined}
+              actions={editing !== note.id && (
+                <NoteActions
+                  note={note} onEdit={() => setEditing(note.id)} onRemove={() => actions.write({ remove: note.id })}
+                />
+              )}>
               <NoteCard
                 note={note} answerLabel={note.kind === "evidence" ? extracted : undefined} headed
                 onReply={text => actions.write({ replyTo: note.id, text })}
@@ -173,6 +180,8 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
                 onDismiss={() => actions.write({ dismiss: note.id })}
                 adopting={adopting === note.id}
                 onAdopting={on => setAdopting(on ? note.id : undefined)}
+                editing={editing === note.id}
+                onEditing={on => setEditing(on ? note.id : undefined)}
               />
             </SideCard>
           ))}
@@ -199,16 +208,20 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
 
 // A note beside a question, on a card like a document's notes: when it points at a passage of a document, the
 // passage heads it and leads there
-function SideCard({ note, kind, onOpen, children }: {
+function SideCard({ note, kind, onOpen, actions, children }: {
   note: ReviewNote;
   kind: NoteKind;
   onOpen?: () => void;
+  // Buttons at the end of the heading, kept out of the button the heading is when it leads to a passage
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   const mark = kindInfo(kind).mark;
-  const strip = { display: "block", width: "100%", px: 1.5, py: 1, textAlign: "start" };
+  const hasActions = actions !== undefined && actions !== null && actions !== false;
+  const strip = { display: "block", width: "100%", px: 1.5, pr: hasActions ? 10 : 1.5, py: 1, textAlign: "start" };
   return (
-    <Box data-note={note.id} sx={theme => ({ ...passageCard(theme, mark), overflow: "hidden" })}>
+    <Box data-note={note.id} sx={theme => ({ ...passageCard(theme, mark), overflow: "hidden", position: "relative" })}>
+      {hasActions && <Box sx={{ position: "absolute", top: 4, right: 12, zIndex: 1 }}>{actions}</Box>}
       {/* Headed by what it is, when and by whom, as beside a document; on a passage, the passage follows, leading
           to it, since the form does not show it */}
       {note.passage && onOpen ? (

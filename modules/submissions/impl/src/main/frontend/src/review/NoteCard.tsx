@@ -65,6 +65,29 @@ export function NoteHeading({ note }: { note: ReviewNote }) {
   );
 }
 
+// The buttons changing or removing one of the reader's own notes, at the end of the line heading it
+export function NoteActions({ note, onEdit, onRemove }: {
+  note: ReviewNote;
+  onEdit?: () => void;
+  onRemove?: () => Promise<void>;
+}) {
+  if (!note.mine || (!onEdit && !onRemove)) {
+    return null;
+  }
+  return (
+    <Box sx={{ ml: "auto", display: "flex", mr: -0.75 }}>
+      {onEdit && (
+        <Tooltip title="Change">
+          <IconButton size="small" aria-label="Change" onClick={onEdit}>
+            <EditOutlined fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+      {onRemove && <RemoveButton what={WHAT[note.kind] ?? "note"} text={note.text} onRemove={onRemove} />}
+    </Box>
+  );
+}
+
 // What each kind of note the reviewer writes is called, where they are asked before removing one
 const WHAT: Partial<Record<ReviewNote["kind"], string>> = { issue: "issue", discussion: "message", note: "note to self" };
 
@@ -73,10 +96,13 @@ const WHAT: Partial<Record<ReviewNote["kind"], string>> = { issue: "issue", disc
 // changed or removed. An AI pre-review note can be made into an issue, worded and rated as the reviewer sees fit,
 // or dismissed; whoever shows the card says whether it is being made into an issue, to colour it as one meanwhile.
 export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove, onMakeIssue, onDismiss, adopting,
-  onAdopting, onEditReply, onRemoveReply, headed = false }: {
+  onAdopting, onEditReply, onRemoveReply, headed = false, editing, onEditing }: {
   note: ReviewNote;
-  // Whether the list showing it heads it already with what it is, when and by whom
+  // Whether the list showing it heads it already with what it is, when and by whom, and with the buttons
+  // changing or removing it, which then say when it is being changed
   headed?: boolean;
+  editing?: boolean;
+  onEditing?: (editing: boolean) => void;
   // The extracted answer as the question's options call it
   answerLabel?: string;
   onReply?: (text: string) => Promise<void>;
@@ -93,14 +119,16 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   const info = kindInfo(note.kind);
   const labels = useContext(GroupLabels);
   const [ replying, setReplying ] = useState(false);
-  const [ editing, setEditing ] = useState(false);
+  const [ ownEditing, setOwnEditing ] = useState(false);
+  const isEditing = editing ?? ownEditing;
+  const setEditing = onEditing ?? setOwnEditing;
   const [ ownAdopting, setOwnAdopting ] = useState(false);
   const isAdopting = adopting ?? ownAdopting;
   const setAdopting = onAdopting ?? setOwnAdopting;
   const canAdopt = onMakeIssue && note.kind === "aiIssue";
   const canAnswer = onReply && (note.kind === "discussion" || note.kind === "issue" || note.kind === "otherIssue");
 
-  if (editing && onEdit) {
+  if (isEditing && onEdit) {
     return (
       <Composer
         kinds={[ note.kind ]} initialText={note.text} initialSeverity={note.severity}
@@ -130,34 +158,28 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
     <Box>
       {/* What it is, with the tools on the same line; under it the risk it is filed under, then who wrote it, for
           which group, and when */}
-      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: headed ? undefined : 28 }}>
-        {/* What the AI says carries its mark */}
-        {!headed && (note.kind === "aiIssue" || note.kind === "evidence") && (
-          <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />
-        )}
-        {!headed && (
-          <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
-            {info.single}
-          </Typography>
-        )}
-        {/* An issue says whose group raised it, the reviewer's own as it is marked everywhere */}
-        {note.group && labels.has(note.group) && (
-          <GroupChip label={labels.get(note.group) ?? ""} mine={note.kind === "issue"} />
-        )}
-        {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
-        <Box sx={{ ml: "auto", display: "flex", mr: -0.75 }}>
-          {note.mine && onEdit && (
-            <Tooltip title="Change">
-              <IconButton size="small" aria-label="Change" onClick={() => setEditing(true)}>
-                <EditOutlined fontSize="small" />
-              </IconButton>
-            </Tooltip>
+      {/* Headed, it shows only what the heading does not, and nothing when that is nothing */}
+      {(!headed || Boolean(note.severity) || Boolean(note.group && labels.has(note.group))) && (
+        <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: headed ? undefined : 28 }}>
+          {/* What the AI says carries its mark */}
+          {!headed && (note.kind === "aiIssue" || note.kind === "evidence") && (
+            <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />
           )}
-          {note.mine && onRemove && (
-            <RemoveButton what={WHAT[note.kind] ?? "note"} text={note.text} onRemove={onRemove} />
+          {!headed && (
+            <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
+              {info.single}
+            </Typography>
           )}
-        </Box>
-      </Stack>
+          {/* An issue says whose group raised it, the reviewer's own as it is marked everywhere */}
+          {note.group && labels.has(note.group) && (
+            <GroupChip label={labels.get(note.group) ?? ""} mine={note.kind === "issue"} />
+          )}
+          {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
+          {!headed && (
+            <NoteActions note={note} onEdit={onEdit && (() => setEditing(true))} onRemove={onRemove} />
+          )}
+        </Stack>
+      )}
       {note.topic && (
         <Typography variant="caption" sx={{ display: "block", color: "text.secondary", fontStyle: "italic" }}>
           {note.topic}

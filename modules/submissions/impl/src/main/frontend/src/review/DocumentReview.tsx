@@ -26,7 +26,7 @@ import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
 
 import { toFileUrl } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
-import NoteCard, { NoteHeading, NoteSummary } from "./NoteCard";
+import NoteCard, { NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
 import { issueFrom, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewedDocument } from "./reviewData";
 
 import type { ReviewActions } from "./FormReview";
@@ -62,6 +62,8 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   const [ draft, setDraft ] = useState<TextAnchor>();
   // The AI pre-review note being made into an issue, coloured as one meanwhile
   const [ adopting, setAdopting ] = useState<string>();
+  // The reviewer's own note being changed, whose card then shows its editor
+  const [ editing, setEditing ] = useState<string>();
   const notes = useMemo(() => notesAbout(data.notes, [ document.uuid, document.version ])
     .filter(note => note.passage && shown.has(note.kind)), [ data.notes, document, shown ]);
   const marks: Mark[] = useMemo(() => [
@@ -112,10 +114,12 @@ export default function DocumentReview({ document, data, shown, selected, onSele
           onDismiss={() => actions.write({ dismiss: note.id })}
           adopting={adopting === note.id}
           onAdopting={on => setAdopting(on ? note.id : undefined)}
+          editing={editing === note.id}
+          onEditing={on => setEditing(on ? note.id : undefined)}
         />
       </Box>
     );
-  }, [ notes, draft, actions, document, questionLabel, adopting, data.partOf ]);
+  }, [ notes, draft, actions, document, questionLabel, adopting, editing, data.partOf ]);
 
   const condensed = useCallback((mark: Mark) => {
     const note = notes.find(one => one.id === mark.id);
@@ -131,6 +135,20 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     const note = notes.find(one => one.id === mark.id);
     return note && <NoteHeading note={note} />;
   }, [ notes ]);
+  // At the end of the heading, changing or removing the reviewer's own note; changing it selects it, to open it whole
+  const markHeadingActions = useCallback((mark: Mark) => {
+    const note = notes.find(one => one.id === mark.id);
+    return note && editing !== note.id && (
+      <NoteActions
+        note={note}
+        onEdit={() => {
+          setEditing(note.id);
+          onSelect(note.id);
+        }}
+        onRemove={() => actions.write({ remove: note.id })}
+      />
+    );
+  }, [ notes, editing, actions, onSelect ]);
 
   return (
     <>
@@ -157,6 +175,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         listWidth={notesWidth}
         onListWidth={onNotesWidth}
         markHeading={markHeading}
+        markHeadingActions={markHeadingActions}
         plain
         onClose={onClose}
       />
