@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
@@ -24,6 +24,8 @@ import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import { Box, ButtonBase, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 
 import { cutShort, getSelectedOutline, passageCard, passageLayer, passageTint } from "@iap/documents-pdf-viewer/passageStyles";
+import SplitHandle from "@iap/frontend-commons/components/SplitHandle";
+import { useElementWidth } from "@iap/frontend-commons/useElementWidth";
 
 import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
@@ -33,10 +35,14 @@ import { groupShortName, issueFrom, kindInfo, notesAbout, type NoteKind, type Re
   type ReviewNote } from "./reviewData";
 import { Highlighted } from "./SearchHighlight";
 
-// How wide a question's notes are, beside it, as a document's are beside its pages; and how wide the form must be
-// for them to go there rather than under the question
-const NOTES_WIDTH = 300;
+// How wide the form must be for a question's notes to go beside it, as a document's are beside its pages, rather
+// than under it; their width is the reader's, set on the whole form; and the gap between, in spacing units
 const WIDE = "@container (min-width: 640px)";
+const NOTES_WIDTH = "--notes-width";
+const GAP = 3;
+// How narrow the notes may be dragged, and how much the questions keep, the gap included
+const NOTES_MIN_WIDTH = 240;
+const QUESTIONS_MIN_WIDTH = 344;
 
 export interface ReviewActions {
   write: (fields: Record<string, string | string[]>) => Promise<void>;
@@ -108,7 +114,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
     <Box
       id={`question-${question.path}`}
       sx={{ py: 1.5, scrollMarginTop: 96, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", rowGap: 1.5,
-        [WIDE]: { gridTemplateColumns: `minmax(0, 1fr) ${NOTES_WIDTH}px`, columnGap: 3 } }}
+        [WIDE]: { gridTemplateColumns: `minmax(0, 1fr) var(${NOTES_WIDTH})`, columnGap: GAP } }}
     >
       <Stack sx={{ gap: 0.5, minWidth: 0 }}>
         <Stack direction="row" sx={{ minWidth: 0, gap: 0.75, flexWrap: "wrap", alignItems: "baseline" }}>
@@ -247,7 +253,8 @@ function homes(items: FormItem[], data: ReviewData): Map<string, string> {
 
 // The questions of a form requirement, section by section, every one of them: the group chips say which concern
 // the reviewer.
-export default function FormReview({ items, data, groups, myGroups, shown, onEvidence, actions, depth = 0, homeOf }: {
+export default function FormReview({ items, data, groups, myGroups, shown, onEvidence, actions, depth = 0, homeOf,
+  notesWidth = 320, onNotesWidth }: {
   items: FormItem[];
   data: ReviewData;
   groups: Map<string, ReviewGroup[]>;
@@ -258,8 +265,16 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
   depth?: number;
   // Which question each note shows under, worked out once for the whole form
   homeOf?: Map<string, string>;
+  // How wide the notes beside the questions are, which the reader sizes by dragging the edge between them
+  notesWidth?: number;
+  onNotesWidth?: (width: number) => void;
 }) {
   const home = homeOf ?? homes(items, data);
+  const form = useRef<HTMLElement>(null);
+  // The width the reader chose, as far as this form has room for it
+  const formWidth = useElementWidth(form);
+  const width = formWidth === undefined ? notesWidth
+    : Math.max(NOTES_MIN_WIDTH, Math.min(notesWidth, formWidth - QUESTIONS_MIN_WIDTH));
   const body = (
     <>
       {items.map(item => {
@@ -284,5 +299,21 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
     </>
   );
   // The questions go side by side with their notes by the width the form has, whatever folds around it
-  return depth === 0 ? <Box sx={{ containerType: "inline-size" }}>{body}</Box> : body;
+  if (depth > 0) {
+    return body;
+  }
+  return (
+    <Box ref={form} sx={{ containerType: "inline-size", position: "relative", [NOTES_WIDTH]: `${width}px` }}>
+      {body}
+      {/* Down the gap between the questions and their notes, where they sit side by side */}
+      {onNotesWidth && (
+        <SplitHandle
+          width={width} onWidth={onNotesWidth} container={() => form.current} min={NOTES_MIN_WIDTH}
+          reserve={QUESTIONS_MIN_WIDTH} label="Resize the notes"
+          sx={theme => ({ display: "none", position: "absolute", top: 0, bottom: 0,
+            right: `calc(${width}px + ${theme.spacing(GAP / 2)} - 8px)`, [WIDE]: { display: "block" } })}
+        />
+      )}
+    </Box>
+  );
 }

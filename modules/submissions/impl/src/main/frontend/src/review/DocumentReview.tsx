@@ -40,7 +40,7 @@ const DRAFT = "draft";
 const WRITTEN_KINDS = new Set<NoteKind>([ "issue", "otherIssue", "discussion", "note" ]);
 
 export default function DocumentReview({ document, data, shown, selected, onSelect, page, actions, questionLabel,
-  search, onSearch, onClose }: {
+  search, onSearch, notesWidth, onNotesWidth, onClose }: {
   document: ReviewedDocument;
   data: ReviewData;
   shown: Set<NoteKind>;
@@ -53,6 +53,9 @@ export default function DocumentReview({ document, data, shown, selected, onSele
   // The submission search, which finds in the document instead of its own search field
   search: { query: string; step: number; previous: boolean };
   onSearch: (search: DocumentSearch) => void;
+  // How wide the notes beside the document are, which the reader sizes
+  notesWidth: number;
+  onNotesWidth: (width: number) => void;
   onClose: () => void;
 }) {
   const [ place, setPlace ] = useState<HTMLElement | null>(null);
@@ -141,6 +144,8 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         annotateLabel="Write about this"
         search={search}
         onSearch={onSearch}
+        listWidth={notesWidth}
+        onListWidth={onNotesWidth}
         plain
         onClose={onClose}
       />

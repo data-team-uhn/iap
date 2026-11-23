@@ -51,6 +51,7 @@ import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { usePublishedPageContext } from "@iap/frontend-commons/pageContext";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { useStoredSetting } from "@iap/frontend-commons/useStoredSetting";
 import TagChip from "@iap/tags/TagChip";
 
 import {
@@ -137,6 +138,9 @@ function useStoredFlag(key: string): [ boolean | undefined, (open: boolean) => v
 const DEFAULT_KINDS: NoteKind[] = NOTE_KINDS.map(info => info.kind)
   .filter(kind => kind !== "evidence" && kind !== "otherIssue");
 
+// A width in pixels, as one kept in the browser should be
+const isWidth = (value: unknown): value is number => typeof value === "number" && value > 0;
+
 function storedKinds(): Set<NoteKind> {
   try {
     const stored = JSON.parse(localStorage.getItem(KINDS_KEY) ?? "null") as NoteKind[] | null;
@@ -212,6 +216,8 @@ export default function ReviewScreen({ path }: { path: string }) {
   const [ selected, setSelected ] = useState<string>();
   const [ shown, setShown ] = useState(storedKinds);
   const [ mark, setMark ] = useState<{ id?: string; page?: number }>({});
+  // How wide the notes beside a form's questions or a document are, as the reader last dragged them, everywhere
+  const [ notesWidth, setNotesWidth ] = useStoredSetting("iap.review.notesWidth", 320, isWidth);
   const [ dialog, setDialog ] = useState<"letter" | "board" | "approve" | "sentLetter">();
   // Whether the issues are shown beside the requirement; until the reviewer says, open beside a form and folded
   // beside a document, which needs the width
@@ -858,6 +864,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                         items={current.items} data={data} groups={focused ? othersGroups : groups}
                         myGroups={myGroups} shown={shown}
                         onEvidence={openEvidence} actions={actions}
+                        notesWidth={notesWidth} onNotesWidth={setNotesWidth}
                       />
                     </SearchContext.Provider>
                   )}
@@ -869,6 +876,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                         onSelect={id => setMark(currentMark => ({ ...currentMark, id }))} page={mark.page}
                         actions={actions} questionLabel={questionLabel}
                         search={{ query: terms, ...documentStep }} onSearch={setDocumentFound}
+                        notesWidth={notesWidth} onNotesWidth={setNotesWidth}
                         onClose={() => go(listed.find(isFormRequirement)?.name ?? current.name)}
                       />
                     </Box>
