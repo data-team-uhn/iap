@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from "react";
 
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import LogoutIcon from "@mui/icons-material/Logout";
 import {
   Avatar,
@@ -31,9 +32,11 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { Link as RouterLink } from "react-router";
 
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import { readJson } from "@iap/frontend-commons/requestFailure";
+import { initialsOf } from "@iap/frontend-commons/words";
 
 import PersonaSwitcher from "./PersonaSwitcher";
 
@@ -41,6 +44,8 @@ import PersonaSwitcher from "./PersonaSwitcher";
 const userInfoUrl = (userId: string) => `/system/userManager/user/${encodeURIComponent(userId)}.json`;
 // Sling's logout endpoint. Loading it ends the session.
 const LOGOUT_URL = "/system/sling/logout";
+// Where the identity at the top of the menu leads: the person's own profile and settings
+const PROFILE_URL = "/profile";
 
 // The user's full name: their `displayName`, or else their first and last names, from
 // `firstname` or `givenName` and `lastname` or `familyName`. Empty if none is set.
@@ -49,19 +54,10 @@ const fullNameOf = (user: Record<string, unknown>): string =>
   || [ user.firstname ?? user.givenName, user.lastname ?? user.familyName ]
     .filter(Boolean).join(" ").trim();
 
-// The first letters of a name's first and last words, in upper case. Empty for a blank name.
-const initialsOf = (name: string): string => {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) {
-    return "";
-  }
-  const initials = words[0][0] + (words.length > 1 ? words[words.length - 1][0] : "");
-  return initials.toUpperCase();
-};
-
 // The current user's avatar, with the initials of their full name, or of their username without
-// one. It opens a menu with the username, and the full name where it differs. The menu also has
-// the PersonaSwitcher and a link to sign out. Nothing is rendered until the user is known.
+// one. It opens a menu with the username, and the full name where it differs, as the link to the
+// user's profile. The menu also has the PersonaSwitcher and a link to sign out. Nothing is
+// rendered until the user is known.
 function UserMenu() {
   const [ anchor, setAnchor ] = useState<HTMLElement | null>(null);
   const [ userName, setUserName ] = useState("");
@@ -103,12 +99,25 @@ function UserMenu() {
         </IconButton>
       </Tooltip>
       <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
-        <Box sx={{ px: 2, py: 1 }}>
-          <Typography variant="subtitle2">{userName}</Typography>
-          {fullName && fullName !== userName && (
-            <Typography variant="description">{fullName}</Typography>
-          )}
-        </Box>
+        { /* The identity is the way into the profile rather than a caption above it: the name is
+             what a person looks for when they want their own settings, so it is the thing that has
+             to be clickable. A router link, not an href, so the shell is not torn down and rebuilt
+             for a page the app already has. */ }
+        <MenuItem
+          component={RouterLink}
+          to={PROFILE_URL}
+          onClick={() => setAnchor(null)}
+          sx={{ py: 1 }}
+        >
+          <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+            <Typography variant="subtitle2">{userName}</Typography>
+            {fullName && fullName !== userName && (
+              <Typography variant="description">{fullName}</Typography>
+            )}
+            <Typography variant="caption">Profile and settings</Typography>
+          </Box>
+          <ChevronRightIcon fontSize="small" sx={{ ml: 2, color: "text.secondary" }} />
+        </MenuItem>
         <Divider sx={{ mb: 1 }} />
         <PersonaSwitcher onChoose={() => setAnchor(null)} />
         <MenuItem component="a" href={LOGOUT_URL}>

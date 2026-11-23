@@ -76,6 +76,7 @@ The files people attach to a submission, from the browser to the parser.
 | --- | --- |
 | [keycloak-oidc.md](keycloak-oidc.md) | Sign-in delegated to an external Keycloak over OpenID Connect, and how a realm role becomes an Oak group principal that ACLs are written against |
 | [remote-requests.md](remote-requests.md) | JWT-authenticated requests from other IAP instances |
+| [user-profiles.md](user-profiles.md) | What is recorded about a person, configured as a catalogue of fields under `/ProfileFields` that says who may read and change each one |
 
 ## Operating an instance
 

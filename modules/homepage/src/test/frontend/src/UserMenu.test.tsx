@@ -16,10 +16,17 @@
  * limitations under the License.
  */
 
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+
+import { act, fireEvent, render as renderBare, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 
 import UserMenu from "@iap/homepage/UserMenu";
 import { STORE_KEY, getActivePersona } from "@iap/ui-extension/personas";
+
+// The menu's identity entry is a router link, so every render needs a router around it. Wrapping
+// here rather than in each test keeps the tests about the menu instead of about its context.
+const render = (ui: ReactElement) => renderBare(<MemoryRouter>{ui}</MemoryRouter>);
 
 // Answers the two Sling endpoints the menu reads: the session info, with the username, and the
 // user's properties, with the full name
@@ -68,6 +75,29 @@ describe("UserMenu", () => {
     expect(screen.getByText("Jane Doe")).toBeInTheDocument();
     const signOut = screen.getByText("Sign out").closest("a");
     expect(signOut).toHaveAttribute("href", "/system/sling/logout");
+  });
+
+  it("offers the identity itself as the way into the profile", async () => {
+    stubUserEndpoints("jdoe", { displayName: "Jane Doe" });
+
+    render(<UserMenu />);
+    fireEvent.click(await screen.findByRole("button", { name: "Account: jdoe" }));
+
+    // The name is what a person looks for when they want their own settings, so the name is what
+    // has to be clickable -- asserted through the link that wraps it rather than by its position
+    const identity = (await screen.findByText("jdoe")).closest("a");
+    expect(identity).toHaveAttribute("href", "/profile");
+    expect(identity).toHaveTextContent("Profile and settings");
+  });
+
+  it("closes the menu on the way to the profile", async () => {
+    stubUserEndpoints("jdoe", { displayName: "Jane Doe" });
+
+    render(<UserMenu />);
+    fireEvent.click(await screen.findByRole("button", { name: "Account: jdoe" }));
+    fireEvent.click(screen.getByText("Profile and settings"));
+
+    await waitFor(() => { expect(screen.queryByText("Sign out")).not.toBeInTheDocument(); });
   });
 
   it("renders nothing while the user is unknown", () => {
