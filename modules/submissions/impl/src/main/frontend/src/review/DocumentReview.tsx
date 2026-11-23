@@ -36,8 +36,8 @@ const DRAFT = "draft";
 // PRETOTYPE. A document, whole, with everything written about its passages marked on it: where the AI read
 // answers, what its pre-review raised, the reviewers' issues and discussion, and the reviewer's own notes.
 // Selecting a passage offers to write about it.
-// What reviewers write, which matters more than the passage it is on
-const WRITTEN_KINDS = new Set<NoteKind>([ "issue", "otherIssue", "discussion", "note" ]);
+// What reviewers and the AI pre-review write, shown in brief when not selected, leading with its words
+const BRIEF_KINDS = new Set<NoteKind>([ "aiIssue", "issue", "otherIssue", "discussion", "note" ]);
 
 export default function DocumentReview({ document, data, shown, selected, onSelect, page, actions, questionLabel,
   search, onSearch, notesWidth, onNotesWidth, onClose }: {
@@ -93,7 +93,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
       return null;
     }
     // Not selected, what a reviewer wrote shows by its own words, the passage cut to a line above them
-    if (!selected && WRITTEN_KINDS.has(note.kind)) {
+    if (!selected && BRIEF_KINDS.has(note.kind)) {
       return <Box data-note={note.id}><NoteSummary note={note} /></Box>;
     }
     const asked = note.kind === "evidence" ? questionLabel(note.question, note.extracted) : undefined;
@@ -119,7 +119,11 @@ export default function DocumentReview({ document, data, shown, selected, onSele
 
   const condensed = useCallback((mark: Mark) => {
     const note = notes.find(one => one.id === mark.id);
-    return note && WRITTEN_KINDS.has(note.kind) ? { quote: 1, details: 4 } : undefined;
+    // Only an extracted answer needs the words it was read from beside the document, which shows every passage
+    if (!note || note.kind === "evidence") {
+      return undefined;
+    }
+    return BRIEF_KINDS.has(note.kind) ? { quote: 0, details: 4 } : { quote: 0 };
   }, [ notes ]);
 
   return (

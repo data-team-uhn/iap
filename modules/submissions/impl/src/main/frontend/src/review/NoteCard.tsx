@@ -185,6 +185,9 @@ export function NoteSummary({ note }: { note: ReviewNote }) {
   return (
     <Box sx={{ px: 1.5, pb: 1 }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: 24 }}>
+        {note.kind === "aiIssue" && (
+          <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />
+        )}
         <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
           {info.single}
         </Typography>
