@@ -29,7 +29,7 @@ import { useElementWidth } from "@iap/frontend-commons/useElementWidth";
 
 import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
-import NoteCard from "./NoteCard";
+import NoteCard, { NoteHeading } from "./NoteCard";
 import { GroupChip } from "./people";
 import { groupShortName, issueFrom, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
   type ReviewNote } from "./reviewData";
@@ -162,7 +162,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
             <SideCard key={note.id} note={note} kind={adopting === note.id ? "issue" : note.kind}
               onOpen={note.passage ? () => onEvidence(note) : undefined}>
               <NoteCard
-                note={note} answerLabel={note.kind === "evidence" ? extracted : undefined}
+                note={note} answerLabel={note.kind === "evidence" ? extracted : undefined} headed
                 onReply={text => actions.write({ replyTo: note.id, text })}
                 onEditReply={(reply, text) => actions.write({ edit: reply, text })}
                 onRemoveReply={reply => actions.write({ remove: reply })}
@@ -206,17 +206,20 @@ function SideCard({ note, kind, onOpen, children }: {
   children: ReactNode;
 }) {
   const mark = kindInfo(kind).mark;
+  const strip = { display: "block", width: "100%", px: 1.5, py: 1, textAlign: "start" };
   return (
     <Box data-note={note.id} sx={theme => ({ ...passageCard(theme, mark), overflow: "hidden" })}>
-      {note.passage && onOpen && (
+      {/* Headed by what it is, when and by whom, as beside a document; on a passage, the passage follows, leading
+          to it, since the form does not show it */}
+      {note.passage && onOpen ? (
         <ButtonBase
           onClick={onOpen}
           aria-label={`Show it in the document${note.passage.page ? `, page ${note.passage.page}` : ""}`}
-          sx={theme => ({ display: "block", width: "100%", px: 1.5, py: 1, textAlign: "start",
-            ...passageLayer(theme, mark),
+          sx={theme => ({ ...strip, ...passageLayer(theme, mark),
             "@media (hover: hover)": { "&:hover": { bgcolor: passageTint(theme, mark, 0.5) } },
             "&.Mui-focusVisible": { bgcolor: passageTint(theme, mark, 0.5) } })}
         >
+          <Box sx={{ mb: 0.5 }}><NoteHeading note={note} /></Box>
           <Typography variant="body2" component="span" sx={cutShort(3)}>“{note.passage.quote}”</Typography>
           <Typography variant="caption" component="span" sx={{ display: "flex", alignItems: "center", gap: 0.5,
             color: "text.secondary" }}>
@@ -224,6 +227,8 @@ function SideCard({ note, kind, onOpen, children }: {
             In the protocol{note.passage.page ? `, page ${note.passage.page}` : ""}
           </Typography>
         </ButtonBase>
+      ) : (
+        <Box sx={theme => ({ ...strip, ...passageLayer(theme, mark) })}><NoteHeading note={note} /></Box>
       )}
       <Box sx={{ px: 1.5, py: 1 }}>{children}</Box>
     </Box>
