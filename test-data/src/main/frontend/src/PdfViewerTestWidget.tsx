@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// A test-data dashboard widget opening the PDF viewer on any PDF, to try what it does by hand.
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { Box, Button, Checkbox, FormControlLabel, MenuItem, Stack, TextField, Typography } from "@mui/material";
@@ -46,15 +47,16 @@ interface PassageComment {
   draft: boolean;
 }
 
+// What the marks are called when there are no passages to look for, only comments.
 const COMMENTS = { one: "comment", many: "comments" };
-// What the marks are called when they are both passages and comments. PdfViewer calls changes changes.
+// What the marks are called when there are both passages and comments.
 const MARKS = { one: "mark", many: "marks" };
 
-// A dashboard widget for trying PdfViewer by hand on any reachable PDF, with any of what it does: passages
-// to look for, given one per line; comments on passages selected in the document; and an older version to
-// compare it with. Open shows what the form says at that moment, so editing the form afterwards does not
-// reopen the document. The comments last until the viewer is opened again. Each keeps its anchor encoded
-// as text, and its mark is decoded from that text.
+// The form opening PdfViewer on any reachable PDF. It can give passages to look for, one per line, take
+// comments on passages selected in the document, and compare the PDF with an older version. Open shows what
+// the form says at that moment, so editing the form afterwards does not reopen the document. The comments
+// last until the viewer is opened again. Each keeps its anchor encoded as text, and its mark is decoded from
+// that text.
 function PdfViewerTestWidget() {
   const [url, setUrl] = useState("");
   const [page, setPage] = useState("");
@@ -70,6 +72,9 @@ function PdfViewerTestWidget() {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [draftText, setDraftText] = useState("");
   const [count, setCount] = useState(0);
+  // How many times Open was pressed. Each opening is a viewer of its own, since its passages reuse the ids
+  // of the last one's.
+  const [openings, setOpenings] = useState(0);
   const draftInput = useRef<HTMLTextAreaElement>(null);
   const draftId = comments.find(comment => comment.draft)?.id;
 
@@ -83,6 +88,7 @@ function PdfViewerTestWidget() {
     const firstPage = Number(page) > 0 ? Number(page) : undefined;
     setComments([]);
     setSelectedId(undefined);
+    setOpenings(openings + 1);
     setShown({
       url: url.trim(),
       page: firstPage,
@@ -99,6 +105,7 @@ function PdfViewerTestWidget() {
     });
   };
 
+  // Starts a comment on the passage selected, in place of any comment not saved yet.
   const annotate = (anchor: TextAnchor) => {
     const id = `comment-${count + 1}`;
     setCount(count + 1);
@@ -127,6 +134,8 @@ function PdfViewerTestWidget() {
     }
   };
 
+  // A saved comment's text. A comment not saved yet shows its form while its mark is selected, and a note
+  // otherwise.
   const renderComment = (comment: PassageComment, selected: boolean) => {
     if (!comment.draft) {
       return (
@@ -248,6 +257,7 @@ function PdfViewerTestWidget() {
       <Box ref={setPlace} sx={{ display: shown?.inPlace ? "block" : "none", height: "70vh", mt: 2 }} />
       {shown !== undefined && (
         <PdfViewer
+          key={openings}
           url={shown.url}
           page={shown.page}
           marks={[ ...shown.passages, ...commentMarks ]}

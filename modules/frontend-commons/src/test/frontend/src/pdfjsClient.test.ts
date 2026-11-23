@@ -15,13 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Tests loading PDF.js and its shared worker, against a fake pdfjs-dist and a fake browser Worker. The
+// worker lives as long as the module, so a test needing a new one loads a fresh copy of the module.
+
 import { describe, expect, it, vi } from "vitest";
 
 import { loadPdfjs } from "@iap/frontend-commons/pdfjsClient";
 
+// Every port a PDF.js worker was created with.
 const created = vi.hoisted(() => ({ ports: [] as unknown[] }));
 
-// Set to make the next import of PDF.js fail, as a chunk the network dropped would
+// Set to make the next import of PDF.js throw, as when the network drops its chunk.
 const imports = vi.hoisted(() => ({ failing: false }));
 
 const fakePdfjs = vi.hoisted(() => () => {
@@ -48,7 +53,7 @@ class FakeWorker extends EventTarget {
 }
 vi.stubGlobal("Worker", FakeWorker);
 
-// A fresh copy of the module, with no worker started yet
+// Loads PDF.js through a fresh copy of the module, which starts a worker of its own.
 async function loadFreshClient() {
   vi.resetModules();
   const client = await import("@iap/frontend-commons/pdfjsClient");
@@ -56,7 +61,7 @@ async function loadFreshClient() {
   return { client, loaded, port: created.ports.at(-1) as FakeWorker };
 }
 
-// Whether the promise has settled yet, without waiting for it to
+// Whether the promise has settled yet, without waiting for it to.
 async function isSettled(promise: Promise<unknown>): Promise<boolean> {
   const pending = Symbol("pending");
   return await Promise.race([ promise.then(() => true, () => true), Promise.resolve(pending) ]) !== pending;
@@ -95,11 +100,11 @@ describe("loadPdfjs", () => {
   it("imports PDF.js once for documents opened together, and again after failing to", async () => {
     vi.resetModules();
     imports.failing = true;
-    // Registered again, since Vitest keeps what a factory returned until it is
+    // vi.resetModules() keeps what a vi.mock factory returned, so the factory is registered again to run.
     vi.doMock("pdfjs-dist", fakePdfjs);
     const client = await import("@iap/frontend-commons/pdfjsClient");
 
-    // Vitest wraps what a mock's factory throws in an error of its own
+    // Vitest wraps what a mock's factory throws in an error of its own.
     await expect(client.loadPdfjs()).rejects.toThrow();
     const [ one, other ] = await Promise.all([ client.loadPdfjs(), client.loadPdfjs() ]);
 

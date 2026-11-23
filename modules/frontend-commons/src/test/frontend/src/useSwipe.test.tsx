@@ -15,6 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests `useSwipe` on a card stepping through three items, driven by pointer events. `Element.animate` and
+// `matchMedia` are stubbed, since jsdom has neither.
+
 import { useState, type CSSProperties } from "react";
 
 import { createTheme } from "@mui/material/styles";
@@ -48,7 +51,7 @@ function Cards({ start = 1, kept = false, style, onClick }: {
 
 const getCard = () => screen.getByRole("region", { name: "Cards" });
 
-// A touch going from one point to another, starting on the card's button unless on something else
+// A touch moving from one point to another, on the card's button unless `target` is given.
 function touch(from: [number, number], to: [number, number], target: Element = screen.getByRole("button")) {
   const at = ([ clientX, clientY ]: [number, number]) => ({ pointerType: "touch", pointerId: 1, clientX, clientY });
   fireEvent.pointerDown(target, at(from));
@@ -152,7 +155,7 @@ describe("useSwipe", () => {
     expect(animate).toHaveBeenCalledTimes(1);
   });
 
-  it("slides the next item in from where the finger went", () => {
+  it("slides the next item in the way the finger went", () => {
     render(<Cards />);
 
     touch([ 200, 100 ], [ 100, 100 ]);

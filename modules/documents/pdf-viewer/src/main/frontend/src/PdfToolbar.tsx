@@ -15,71 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The row of controls above the document. The caller supplies the controls; this places them.
 import type { ReactNode } from "react";
 
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import FitWidthIcon from "@mui/icons-material/FitScreen";
-import ZoomInIcon from "@mui/icons-material/ZoomIn";
-import ZoomOutIcon from "@mui/icons-material/ZoomOut";
-import { Box, IconButton, Typography } from "@mui/material";
+import { Box } from "@mui/material";
 
-// The previous and next page buttons, with "Page 3 of 10" between them. In a narrow row only the label
-// gives way. Disabled until the document has opened.
-export function PageControls({ page, pageCount, onShowPage }: {
-  page?: number;
-  pageCount?: number;
-  onShowPage: (page: number) => void;
-}) {
-  // 0 until the document opens, which keeps both page buttons disabled.
-  const shownPage = page ?? 0;
-  const lastPage = pageCount ?? 0;
-
-  return (
-    <>
-      <IconButton
-        aria-label="Previous page"
-        edge="start"
-        disabled={shownPage <= 1}
-        onClick={() => onShowPage(shownPage - 1)}
-      >
-        <ChevronLeftIcon />
-      </IconButton>
-      <Typography variant="caption" noWrap sx={{ minWidth: 0, mx: 0.5 }}>
-        {pageCount === undefined ? "Page" : `Page ${shownPage} of ${lastPage}`}
-      </Typography>
-      <IconButton aria-label="Next page" disabled={shownPage >= lastPage} onClick={() => onShowPage(shownPage + 1)}>
-        <ChevronRightIcon />
-      </IconButton>
-    </>
-  );
-}
-
-// Searching and zooming, after the page controls when given. One line even on a narrow phone. Every
-// control is disabled until the document has opened.
-export default function PdfToolbar({ pages, opened, search, onZoomIn, onZoomOut, onFitWidth }: {
-  pages?: ReactNode;
-  opened: boolean;
+// The toolbar's one row: `start` at its start, then the search and the `tools` at its end. It stays on one
+// line, even on a phone.
+export default function PdfToolbar({ start, search, tools }: {
+  start?: ReactNode;
   // The search field, or a button opening it.
   search: ReactNode;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onFitWidth: () => void;
+  tools?: ReactNode;
 }) {
   return (
     <Box sx={{ display: "flex", alignItems: "center" }}>
-      {pages}
+      {start}
       <Box sx={{ flexGrow: 1 }} />
       {search}
-      <IconButton aria-label="Zoom out" disabled={!opened} onClick={onZoomOut}>
-        <ZoomOutIcon />
-      </IconButton>
-      <IconButton aria-label="Fit to width" disabled={!opened} onClick={onFitWidth}>
-        <FitWidthIcon />
-      </IconButton>
-      <IconButton aria-label="Zoom in" edge="end" disabled={!opened} onClick={onZoomIn}>
-        <ZoomInIcon />
-      </IconButton>
+      {tools}
     </Box>
   );
 }

@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The Comment button the viewer offers under text selected in the document.
 import AddCommentOutlinedIcon from "@mui/icons-material/AddCommentOutlined";
 import { Button } from "@mui/material";
 
@@ -23,8 +24,8 @@ import { COMMENT_BUTTON_HEIGHT } from "./pdfViewerModel";
 import type { MarkSpan } from "./marksModel";
 import type { SelectedText } from "./useSelectedText";
 
-// The button offering to comment on the text selected, at the place given. Pressing it keeps the focus
-// and the selection, and holds what is selected, since a tap clears the selection on some phones.
+// The button, at the place `at` gives. Pressing it keeps the focus and the selection, and calls `onPress`.
+// A click gives `onComment` the spans in `at`, which were read when the selection settled.
 export default function CommentButton({ at, onPress, onComment }: {
   at: SelectedText;
   onPress: () => void;

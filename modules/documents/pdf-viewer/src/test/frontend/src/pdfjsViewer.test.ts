@@ -15,11 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Tests loading PDF.js's viewer, against a fake PDF.js, a fake viewer module and a fake list of published
+// assets.
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// What loading PDF.js gives: the library, its worker, and the promise that rejects if the worker fails.
 const core = vi.hoisted(() => ({ pdfjs: { name: "PDF.js" }, worker: { name: "worker" }, failed: new Promise<never>(() => undefined) }));
 
-// Set to make the next import of the viewer fail, as a chunk the network dropped would
+// Set to make the next import of the viewer throw, as when the network drops its chunk.
 const imports = vi.hoisted(() => ({ failing: false }));
 
 const fakeViewer = vi.hoisted(() => () => {
@@ -30,7 +35,7 @@ const fakeViewer = vi.hoisted(() => () => {
   return { PDFViewer: { name: "PDFViewer" } };
 });
 
-// What each package folder was published as; an empty name was not published
+// The URL each package folder was published at, by asset name. An empty URL means it was not published.
 const published = vi.hoisted(() => new Map([
   [ "asset:pdfjs-dist.standard_fonts", "/libs/iap/resources/pdfjs-dist.standard_fonts.1.data" ],
   [ "asset:pdfjs-dist.wasm", "" ],
@@ -43,7 +48,6 @@ vi.mock("@iap/frontend-commons/assetManager", () => ({
   getAssetURL: (name: string) => Promise.resolve(published.get(name) ?? ""),
 }));
 vi.mock("pdfjs-dist/web/pdf_viewer.mjs", fakeViewer);
-vi.mock("pdfjs-dist/web/pdf_viewer.css", () => ({}));
 
 afterEach(() => {
   delete (globalThis as { pdfjsLib?: unknown }).pdfjsLib;
@@ -77,11 +81,11 @@ describe("loadPdfViewer", () => {
   it("imports the viewer once for documents opened together, and again after failing to", async () => {
     vi.resetModules();
     imports.failing = true;
-    // Registered again, since Vitest keeps what a factory returned until it is
+    // vi.resetModules() keeps what a vi.mock factory returned. Registering the factory again makes it run.
     vi.doMock("pdfjs-dist/web/pdf_viewer.mjs", fakeViewer);
     const { loadPdfViewer } = await import("@iap/documents-pdf-viewer/pdfjsViewer");
 
-    // Vitest wraps what a mock's factory throws in an error of its own
+    // Vitest wraps what a mock's factory throws in an error of its own.
     await expect(loadPdfViewer()).rejects.toThrow();
     const [ one, other ] = await Promise.all([ loadPdfViewer(), loadPdfViewer() ]);
 

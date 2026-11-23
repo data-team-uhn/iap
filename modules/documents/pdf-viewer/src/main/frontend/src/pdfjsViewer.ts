@@ -15,10 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Loads PDF.js's viewer on demand, with the data folders a document may need, and adapts its search to
+// scroll only the viewer's frame.
+
 import { getAssetURL } from "@iap/frontend-commons/assetManager";
 import { loadPdfjs } from "@iap/frontend-commons/pdfjsClient";
+import { centreIn } from "@iap/frontend-commons/scrollWithin";
 
-import { centreIn } from "./markLayer";
 
 import type { EventBus, PDFLinkService } from "pdfjs-dist/web/pdf_viewer.mjs";
 
@@ -33,7 +37,8 @@ const DATA_FOLDERS = {
 
 type DataUrls = Partial<Record<keyof typeof DATA_FOLDERS, string>>;
 
-// A folder that was not published is left out, for PDF.js to do without, since it refuses an empty URL.
+// The URL of each data folder, by PDF.js option. A folder that was not published is left out: PDF.js
+// refuses an empty URL, and does without an option that is missing.
 async function getDataUrls(): Promise<DataUrls> {
   const urls = await Promise.all(Object.entries(DATA_FOLDERS).map(async ([ option, folder ]) =>
     [ option, await getAssetURL(`asset:${folder}`) ] as const));
@@ -42,21 +47,24 @@ async function getDataUrls(): Promise<DataUrls> {
 
 type Pdfjs = Awaited<ReturnType<typeof loadPdfjs>>["pdfjs"];
 
+// Imports PDF.js's viewer and its stylesheet. The viewer comes with the library's editor modes, which its
+// options name.
 async function importViewer(pdfjs: Pdfjs) {
   // The viewer reads the library from here rather than importing it.
   (globalThis as { pdfjsLib?: unknown }).pdfjsLib = pdfjs;
   const [ components ] = await Promise.all([
     import("pdfjs-dist/web/pdf_viewer.mjs"),
-    import("pdfjs-dist/web/pdf_viewer.css"),
+    import("./pdfViewer.css"),
   ]);
-  return components;
+  return { ...components, AnnotationEditorType: pdfjs.AnnotationEditorType };
 }
 
-// PDF.js's viewer, imported once for all the documents opened together, and again after failing.
+// The viewer's import, shared by every document. A failed import is forgotten, so the next load tries
+// again.
 let imported: ReturnType<typeof importViewer> | undefined;
 
 // Loads PDF.js with its shared worker, the viewer that shows what it reads, and where a document's
-// fonts, decoders and character maps are fetched from.
+// fonts, decoders, character maps and colour profiles are fetched from.
 export async function loadPdfViewer() {
   const [ core, dataUrls ] = await Promise.all([ loadPdfjs(), getDataUrls() ]);
   imported ??= importViewer(core.pdfjs).catch((error: unknown) => {
@@ -68,7 +76,7 @@ export async function loadPdfViewer() {
 
 export type ViewerComponents = Awaited<ReturnType<typeof loadPdfViewer>>["components"];
 
-// PDF.js's search, except that a match is brought into view by scrolling the frame alone. PDF.js calls
+// PDF.js's search, except that a match is centred by scrolling the frame alone. PDF.js calls the match's
 // scrollIntoView, which on a phone also pans the page, dialog and all.
 export function createFindController(
   components: ViewerComponents,

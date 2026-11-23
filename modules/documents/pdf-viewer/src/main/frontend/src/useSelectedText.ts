@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Follows the text the person selects in the document, and where the Comment button goes under it.
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getSelectedSpans, getTextEnd } from "./markLayer";
@@ -23,18 +24,18 @@ import { getCommentButtonPlace, type CommentButtonPlace } from "./pdfViewerModel
 import type { MarkSpan } from "./marksModel";
 import type { ShownDocument } from "./usePdfView";
 
-// How long the selection must stay the same, with the pointer up, before it counts as settled. A phone's
-// handles change it in steps.
+// How long, in milliseconds, the selection must stay the same with the pointer up before it counts as
+// settled. A phone's selection handles change it in steps.
 export const SETTLE_TIME = 300;
 
-// Text selected in the document, and where to offer to act on it.
+// Text selected in the document, as spans of its pages' text, and where to put the Comment button.
 export interface SelectedText {
   spans: MarkSpan[];
   place: CommentButtonPlace;
 }
 
-// The whole selection, from the start of its first range to the end of its last. A browser may give a
-// selection across the document as several ranges.
+// The whole selection, from the start of its first range to the end of its last, or undefined when it is
+// empty. A browser may give a selection across the document as several ranges.
 function getSelectedRange(selection: Selection | null): Range | undefined {
   if (selection === null || selection.isCollapsed) {
     return undefined;
@@ -45,11 +46,11 @@ function getSelectedRange(selection: Selection | null): Range | undefined {
   return range;
 }
 
-// The text selected in the document shown, once the selection settles, while enabled. It is put aside
-// while the selection changes, the document scrolls or zooms, or the pointer is down in it, and comes
-// back once all is still. Dismissing it puts it aside until the selection changes. Holding it keeps it
-// until the pointer is pressed anywhere else, even when pressing the button clears the selection, as a
-// tap does on some phones.
+// The text selected in the document shown, while enabled, once the selection has settled. It is cleared while
+// the selection changes, while the document scrolls or zooms, and while the pointer is down in the document.
+// It is read again once all of these have stopped. `dismiss` clears it until one of those happens again.
+// `hold` keeps it until the pointer is pressed anywhere else, even when pressing the Comment button clears
+// the selection, as a tap does on some phones.
 export function useSelectedText(shown: ShownDocument | undefined, enabled: boolean) {
   const [selected, setSelected] = useState<SelectedText | undefined>(undefined);
   const heldRef = useRef(false);
@@ -63,7 +64,9 @@ export function useSelectedText(shown: ShownDocument | undefined, enabled: boole
     const { signal } = stop;
     let settling = 0;
     let pressed = false;
-    let byTouch = false;
+    // The kind of pointer that last pressed in the document. After a touch, the Comment button goes further
+    // down.
+    let pointerType = "mouse";
     const read = () => {
       const range = getSelectedRange(document.getSelection());
       const spans = range === undefined ? [] : getSelectedSpans(frame, range);
@@ -75,7 +78,7 @@ export function useSelectedText(shown: ShownDocument | undefined, enabled: boole
       const place = getCommentButtonPlace(
         { x: end.right - box.left, bottom: end.bottom - box.top },
         { width: box.width, height: box.height },
-        byTouch,
+        pointerType,
       );
       setSelected({ spans, place });
     };
@@ -92,16 +95,16 @@ export function useSelectedText(shown: ShownDocument | undefined, enabled: boole
     document.addEventListener("selectionchange", settle, { signal });
     frame.addEventListener("scroll", settle, { signal });
     eventBus.on("scalechanging", settle, { signal });
-    // Before the button's own handler, which holds the selection again when it is the button pressed.
+    // In the capture phase, before the Comment button's own handler holds the selection again.
     window.addEventListener("pointerdown", () => {
       heldRef.current = false;
     }, { signal, capture: true });
     frame.addEventListener("pointerdown", event => {
       pressed = true;
-      byTouch = event.pointerType === "touch";
+      pointerType = event.pointerType;
       settle();
     }, { signal });
-    // A phone takes over a long press to select, cancelling the pointer, and moves its handles itself.
+    // A phone cancels the pointer when a long press starts selecting text, so a cancel ends the press too.
     for (const type of [ "pointerup", "pointercancel" ]) {
       window.addEventListener(type, () => {
         if (pressed) {

@@ -15,6 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests the PDF viewer test widget, against a stand-in viewer that shows what the widget hands it.
+import { useId } from "react";
+
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -22,6 +25,7 @@ import type { TextAnchor } from "@iap/documents-pdf-viewer/marksModel";
 import type { PdfViewerProps } from "@iap/documents-pdf-viewer/PdfViewer";
 import PdfViewerTestWidget from "@iap/test-data/PdfViewerTestWidget";
 
+// The anchor of the passage the stand-in's Comment button selects.
 const ANCHOR: TextAnchor = {
   start: { page: 2, char: 47 },
   end: { page: 2, char: 64 },
@@ -33,10 +37,13 @@ const ANCHOR: TextAnchor = {
 // A stand-in viewer showing what the widget hands it, and listing the marks with what the widget shows
 // under each. Its Comment button, there when the widget takes comments, gives a fixed anchor.
 vi.mock("@iap/documents-pdf-viewer/PdfViewer", () => ({
-  default: (props: PdfViewerProps) => {
+  default: function StandInViewer(props: PdfViewerProps) {
     const { marks, selectedMarkId, onSelectMark, onAnnotate, renderMarkDetails, onClose, container, ...shown } = props;
+    // Another for each viewer the widget mounts
+    const opening = useId();
     return (
       <div role="dialog" aria-label="Viewer">
+        <output aria-label="Viewer opening">{opening}</output>
         <output aria-label="Viewer props">{JSON.stringify({ ...shown, inPlace: container !== undefined })}</output>
         <ul aria-label="Marks">
           {marks.map(mark => (
@@ -63,6 +70,7 @@ function getMarks(): unknown[] {
     .map(output => JSON.parse(output.textContent ?? "") as unknown);
 }
 
+// Fills the form with a PDF URL and the options given, then presses Open.
 async function open({ quotes = "", older = "", commenting = true } = {}) {
   render(<PdfViewerTestWidget />);
   await userEvent.type(screen.getByLabelText("PDF URL"), " /some/file.pdf ");
@@ -246,6 +254,15 @@ describe("PdfViewerTestWidget", () => {
         expect.stringContaining("First"),
         expect.stringContaining("Second"),
       ]);
+    });
+
+    it("opens a viewer of its own each time, so nothing chosen in the last one carries over", async () => {
+      await open();
+      const first = screen.getByRole("status", { name: "Viewer opening" }).textContent;
+
+      await userEvent.click(screen.getByRole("button", { name: "Open" }));
+
+      expect(screen.getByRole("status", { name: "Viewer opening" }).textContent).not.toBe(first);
     });
 
     it("starts over when the viewer is opened again", async () => {

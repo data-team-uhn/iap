@@ -15,8 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests which elements `TEXT_ENTRY` matches.
+
 import { TEXT_ENTRY } from "@iap/frontend-commons/textEntry";
 
+// Whether the element the HTML describes matches `TEXT_ENTRY`.
 function matches(html: string): boolean {
   const holder = document.createElement("div");
   holder.innerHTML = html;

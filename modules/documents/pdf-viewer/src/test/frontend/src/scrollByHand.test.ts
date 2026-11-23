@@ -15,9 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+// Tests which inputs in a document's frame count as the reader scrolling it by hand.
+
 import { fireEvent } from "@testing-library/react";
 
-import { scrollsByHand } from "@iap/documents-pdf-viewer/scrollByHand";
+import { isScrollByHand } from "@iap/documents-pdf-viewer/scrollByHand";
 
 // Whether the event fired on the target, in a frame holding a page with a field, counts as scrolling by hand.
 function counts(fire: (target: HTMLElement) => void, on: "frame" | "page" | "field" = "frame"): boolean {
@@ -28,7 +31,7 @@ function counts(fire: (target: HTMLElement) => void, on: "frame" | "page" | "fie
   let counted = false;
   for (const type of [ "keydown", "pointerdown", "wheel", "touchmove" ]) {
     frame.addEventListener(type, event => {
-      counted = scrollsByHand(event, frame);
+      counted = isScrollByHand(event, frame);
     });
   }
   fire(targets[on]);
@@ -36,7 +39,7 @@ function counts(fire: (target: HTMLElement) => void, on: "frame" | "page" | "fie
   return counted;
 }
 
-describe("scrollsByHand", () => {
+describe("isScrollByHand", () => {
   it("counts a key scrolling the frame, but not one doing something else, nor one typed into a field", () => {
     expect(counts(target => fireEvent.keyDown(target, { key: "PageDown" }))).toBe(true);
     expect(counts(target => fireEvent.keyDown(target, { key: " " }), "page")).toBe(true);

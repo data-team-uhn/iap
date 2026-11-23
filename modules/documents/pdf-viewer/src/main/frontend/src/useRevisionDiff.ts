@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Reads the text of two versions of a document and compares them, reporting how far it has got.
 import { useEffect, useState } from "react";
 
 import { compareRevisions, type Comparison, type ComparisonState } from "./revisionDiffModel";
@@ -22,13 +23,15 @@ import { compareRevisions, type Comparison, type ComparisonState } from "./revis
 import type { PageText } from "./marksModel";
 import type { OpenedDocument } from "./usePdfDocument";
 
-// The least time between two reports of how far the reading has got. Each report draws the viewer again.
+// The least time between two reports of how far the reading has got, in milliseconds. Each report draws the
+// viewer again.
 const PROGRESS_INTERVAL = 200;
 
-// Numbers each comparison made, so a change of one is never taken for a change of another.
+// Counts the comparisons made, so each one's change ids differ from every other's.
 let comparisons = 0;
 
-// Both versions' text, once read, and how far the reading has got, for the documents it was read from.
+// How far the reading of both versions has got, their text once all of it is read, and the two documents
+// it is read from.
 interface Reading {
   older: OpenedDocument;
   newer: OpenedDocument;
@@ -37,11 +40,13 @@ interface Reading {
   texts?: { older: PageText[]; newer: PageText[] };
 }
 
+// A page's text, or undefined past the document's last page.
 function readPage({ doc, getPageTextWithLines }: OpenedDocument, page: number): Promise<PageText | undefined> {
   return page <= doc.numPages ? getPageTextWithLines(page) : Promise.resolve(undefined);
 }
 
-// Reads both versions' text, a page of each at a time, and compares them.
+// Reads both versions' text, a page of each at a time, then compares them. It starts again when either
+// version changes. Until both versions are given, it reports reading no pages.
 export function useRevisionDiff(
   older: OpenedDocument | undefined,
   newer: OpenedDocument | undefined,

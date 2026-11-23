@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Tests PdfViewer comparing a document with an older version, on the stand-in PDF.js of pdfjs.fixture. The
+// real `diff` runs behind a spy, so a test can make the comparison give up or fail.
 import { useState } from "react";
 
 import { ThemeProvider } from "@mui/material/styles";
@@ -31,7 +33,6 @@ import type * as Diff from "diff";
 
 vi.mock("pdfjs-dist", async () => (await import("./pdfjs.fixture")).createPdfjsModule());
 vi.mock("pdfjs-dist/web/pdf_viewer.mjs", async () => (await import("./pdfjs.fixture")).createViewerModule());
-vi.mock("pdfjs-dist/web/pdf_viewer.css", () => ({}));
 vi.mock("@iap/frontend-commons/assetManager", async () => ({
   getAssetURL: (await import("./pdfjs.fixture")).getAssetURL,
 }));
@@ -45,9 +46,10 @@ const NEWER = "/content/pdfs/protocol-v2.pdf";
 const VIEW_KEY = "iap.pdfComparison.view";
 const STRICT_KEY = "iap.pdfComparison.strict";
 
-// Where the fake layout puts every mark, and every point, on whichever page
+// Where the fake layout puts every mark and every point, on any page.
 const AT_MARK = { clientX: 50, clientY: MATCH_TOP + 10 };
 
+// Opens the newer version compared with the older, each given as the text of its pages.
 function show(older: string[], newer: string[], props: Partial<PdfViewerProps> = {}) {
   fakePdf.documents = { [OLDER]: older, [NEWER]: newer };
   const onClose = vi.fn();
@@ -63,8 +65,9 @@ function getStatus() {
   return screen.getByRole("status");
 }
 
+// The frame of each version shown: "Document" alone, or each named after its version side by side.
 function getFrames() {
-  return screen.getAllByRole("region", { name: "Document" });
+  return screen.getAllByRole("region", { name: /^Document$|version|Version/ });
 }
 
 function getNewerFrame() {
@@ -145,8 +148,12 @@ describe("PdfViewer compared with an older version", () => {
       expect(screen.getByRole("dialog", { name: "protocol-v2.pdf" })).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Version 1" })).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Newer version" })).toBeInTheDocument();
-      const [ older, newer ] = getFrames();
-      // The text added in place of the text removed starts with a point
+      // Each version's frame and page buttons are named after it, so that the two can be told apart
+      const older = screen.getByRole("region", { name: "Version 1" });
+      const newer = screen.getByRole("region", { name: "Newer version" });
+      expect(within(screen.getByRole("group", { name: "Version 1" })).getByRole("button", { name: "Next page" }))
+        .toBeInTheDocument();
+      // The text added in place of the text removed starts with a point.
       await waitFor(() => expect(getDrawnMarks(newer)).toEqual({
         1: [ "iap-mark iap-mark-added iap-mark-point iap-mark-start selected", "iap-mark iap-mark-added selected" ],
       }));
@@ -219,7 +226,8 @@ describe("PdfViewer compared with an older version", () => {
       expect(getNewerFrame().scrollTop).toBe(2 * MATCH_TOP);
       // The older version is brought to the newer's place, which in the stand-in scrolls as far again.
       await waitFor(() => expect(getFrames()[0].scrollTop).toBe(3 * MATCH_TOP));
-      // Opened at its own first page, not at the last version's page 3; the stand-in counts no page scrolled to.
+      // The older version opens at its own first page, not at page 3 of the last one. The stand-in does not
+      // change the page number when it scrolls.
       expect(screen.getAllByText(/^Page \d of \d$/).map(bar => bar.textContent)).toEqual([ "Page 1 of 4", "Page 3 of 3" ]);
     });
 
@@ -250,7 +258,6 @@ describe("PdfViewer compared with an older version", () => {
 
       await waitForStatus("Change 2 of 2. Text replaced on page 3. “here.” became “there.”.");
       expect(screen.getByRole("button", { name: "Next change" })).toBeDisabled();
-      // Every mark is as far down its page in the stand-in, so each step scrolls as far again.
       await waitFor(() => expect(getFrames().map(frame => frame.scrollTop)).toEqual([ 2 * MATCH_TOP, 2 * MATCH_TOP ]));
     });
 
@@ -265,7 +272,6 @@ describe("PdfViewer compared with an older version", () => {
       await userEvent.pointer({ keys: "[MouseLeft]", target: getFrames()[0], coords: AT_MARK });
 
       await waitForStatus(/^Change 1 of 2\./);
-      // Every mark is as far down its page in the stand-in, so bringing one into view scrolls as far again.
       await waitFor(() => expect(getNewerFrame().scrollTop).toBe(3 * MATCH_TOP));
       expect(getFrames()[0].scrollTop).toBe(2 * MATCH_TOP);
     });
@@ -331,7 +337,7 @@ describe("PdfViewer compared with an older version", () => {
 
       it("lets a search take each version to its own match, until the next scroll by hand", async () => {
         const [ older, newer ] = await showUnmoved([ "The fee is due." ], [ "The fee is now due." ]);
-        // Scrolled after its own search, the older version is left there by the newer's
+        // The older version stays where it was put when the newer one scrolls.
         const leftAlone = async () => {
           older.scrollTop = 0;
           fireEvent.scroll(newer);
@@ -369,14 +375,14 @@ describe("PdfViewer compared with an older version", () => {
           [ "A page added first.", "Shared words here, and more." ],
         );
         fakePdf.holdDrawing = true;
-        // The newer version's second page, where the place is, waits to be drawn
+        // The newer version's second page, where the place is, waits to be drawn.
         await scrollByHand(older);
         await userEvent.click(screen.getByRole("button", { name: "Next change" }));
         await userEvent.click(screen.getByRole("button", { name: "Previous change" }));
         await waitForStatus(/^Change 1 of 2\. Text added on page 1\./);
         await waitFor(() => expect(newer.scrollTop).toBe(MATCH_TOP));
 
-        // Every page drawn now, the place's page too
+        // Now every page is drawn, including the place's page.
         fakePdf.drawShownPageOnly = false;
         act(() => fakePdf.releaseDrawing());
 
@@ -408,7 +414,7 @@ describe("PdfViewer compared with an older version", () => {
         const [ , newer ] = await showUnmoved([ "The fee is due.", "Kept." ], [ "The fee is now due.", "Kept." ]);
         const before = newer.scrollTop;
 
-        // The older version's page bar comes first
+        // The older version's page bar comes first.
         await userEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
 
         await waitFor(() => expect(newer.scrollTop).not.toBe(before));
@@ -545,7 +551,7 @@ describe("PdfViewer compared with an older version", () => {
       const notes = () => within(screen.getByRole("list", { name: "Notes and changes" }));
       await waitFor(() => expect(notes().getAllByRole("listitem")).toHaveLength(3));
       expect(notes().getByRole("insertion", { hidden: true })).toHaveTextContent("120.");
-      // Each is called and numbered as what it is, a change as a change whatever the caller calls its marks.
+      // Notes and changes are each named and numbered as what they are, whatever the caller calls its marks.
       expect(screen.getByText("Note 1 of 2")).toBeInTheDocument();
       expect(notes().getByRole("button", { name: /^(Select|Show) note 2\b/ })).toBeInTheDocument();
       expect(notes().getByRole("button", { name: "Show change 1 on page 1" }))
@@ -555,7 +561,8 @@ describe("PdfViewer compared with an older version", () => {
       await waitForStatus(/^Change 1 of 1\./);
       expect(screen.getByRole("button", { name: "Previous note" })).toBeEnabled();
       expect(screen.getByRole("button", { name: "Next note" })).toBeEnabled();
-      // With a change selected, which side by side is not listed, the list says how many notes it has
+      // With the versions side by side, changes are not listed. With a change selected, the list says how
+      // many notes it has.
       await chooseView("Side by side");
       expect(await screen.findByText("2 notes")).toBeInTheDocument();
     });
@@ -602,7 +609,7 @@ describe("PdfViewer compared with an older version", () => {
     });
 
     it("cuts a long change short on its card, and shows all of it when asked", async () => {
-      // Taller than the card's lines, whatever is measured
+      // Everything measures taller than the card's lines.
       vi.spyOn(Element.prototype, "scrollHeight", "get").mockReturnValue(100);
       show([ "The fee is 100." ], [ "The fee is 120." ]);
       const showAll = await screen.findByRole("button", { name: "Show the whole change" });
@@ -714,6 +721,16 @@ describe("PdfViewer compared with an older version", () => {
       await waitForStatus("Change 1 of 1. Text added on page 2. It says “A page added.”.");
     });
 
+    it("shows none of the comparison done while the older version opens", async () => {
+      vi.stubGlobal("fetch", vi.fn((url: string) => (url === OLDER
+        ? new Promise<Response>(() => undefined)
+        : Promise.resolve(new Response(new TextEncoder().encode(url))))));
+      show([ "The fee is due." ], [ "The fee is now due." ]);
+
+      expect(await screen.findByRole("progressbar", { name: "Looking for the changes" }))
+        .toHaveAttribute("aria-valuenow", "0");
+    });
+
     it("says how far it has read the versions", async () => {
       fakePdf.holdTextFrom = 2;
       show([ "The fee is due.", "Page two." ], [ "The fee is now due.", "Page two." ]);
@@ -792,7 +809,7 @@ describe("PdfViewer compared with an older version", () => {
 
       expect(await screen.findByText("The older version could not be opened")).toBeInTheDocument();
       expect(screen.queryByText("The newer version could not be opened")).not.toBeInTheDocument();
-      // Nothing is compared, and nothing says it is
+      // Nothing is compared, and nothing says it is.
       await screen.findByText("Page 1 of 1");
       expect(getStatus()).toHaveTextContent(/^$/);
       expect(screen.queryByText("Comparing…")).not.toBeInTheDocument();

@@ -15,8 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// A setting kept in the browser's local storage, so that it outlasts a reload.
+
 import { useCallback, useState } from "react";
 
+// The setting stored under `key`, or `fallback` when none is stored, the stored value does not parse or
+// fails `isValid`, or the browser does not allow storage.
 function readSetting<T>(key: string, fallback: T, isValid: (value: unknown) => value is T): T {
   try {
     const stored = window.localStorage.getItem(key);
@@ -27,15 +31,16 @@ function readSetting<T>(key: string, fallback: T, isValid: (value: unknown) => v
   }
 }
 
-// A setting kept in the browser's local storage, as JSON, under the key given. The fallback stands for a
-// value never stored, one stored that the check refuses, and storage the browser does not allow, as in a
-// private window. Given another key, it reads the setting kept under that one.
+// A setting kept in the browser's local storage as JSON under `key`, and a function to change it.
+// `fallback` stands in for a value never stored, a stored value `isValid` refuses, and storage the browser
+// does not allow. When `key` changes, the setting kept under the new key is read.
 export function useStoredSetting<T>(
   key: string,
   fallback: T,
   isValid: (value: unknown) => value is T,
 ): [ T, (value: T) => void ] {
   const [ state, setState ] = useState(() => ({ key, value: readSetting(key, fallback, isValid) }));
+  // A new key is read during the render, so that no render shows the old key's value.
   let current = state;
   if (state.key !== key) {
     current = { key, value: readSetting(key, fallback, isValid) };
@@ -47,7 +52,7 @@ export function useStoredSetting<T>(
     try {
       window.localStorage.setItem(key, JSON.stringify(next));
     } catch {
-      // Kept for this visit only
+      // Storage is not allowed, so the setting is kept in this state alone
     }
   }, [key]);
 

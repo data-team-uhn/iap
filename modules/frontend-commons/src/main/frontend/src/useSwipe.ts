@@ -15,38 +15,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Stepping between items by swiping an element sideways with a finger.
+
 import { useCallback, useEffect, useRef } from "react";
 
 import { useTheme } from "@mui/material/styles";
 
 import { TEXT_ENTRY } from "./textEntry";
 
-// How far a touch has to move sideways, and more than twice as far as up or down, to count as a swipe.
+// How far a touch has to move sideways to count as a swipe, in pixels. It must also move at least twice as
+// far across as up or down.
 const SWIPE_DISTANCE = 48;
-// How far it moves before the element starts following it.
+// How far a touch moves sideways, in pixels, before the element starts following it.
 const DRAG_START = 8;
 
-// How far the element showing what was swiped to slides in from.
+// How far away, in pixels, the element showing the item swiped to starts sliding in.
 const SLIDE_FROM = 48;
 
 // How far the element follows a finger dragging it where there is nowhere to go, as a share of the drag.
 const AT_THE_END = 1 / 3;
 
-const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const isReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-// A ref for an element that people swipe by touch to go to the previous or the next item. A swipe right
-// goes to the previous one and left to the next, the other way round in a right-to-left layout. The element
-// follows the finger, and springs back when let go of too soon or where there is nothing that way. The
-// element showing the item swiped to slides in from where the finger went, so give each item a new element.
-// Up and down are left to the browser to scroll the page, and pinching to zoom it. A swipe starting in a
-// field is left to the field, to select its text. A click the browser may fire at the end of a swipe is
-// stopped.
+// A callback ref for an element that people swipe by touch to go to the previous or the next item. Pass
+// `undefined` for a side with no item. A swipe right goes to the previous item and a swipe left to the
+// next, the other way round in a right-to-left layout. The element follows the finger. It springs back when
+// let go too soon, or where there is no item that way. The element showing the item swiped to slides in
+// the way the finger went, so give each item an element of its own. Up and down are left to the browser to
+// scroll the page, and pinching to zoom it. A swipe starting in a field is left to the field, to select its
+// text. A click the browser may fire at the end of a swipe is stopped.
 export function useSwipe(onPrevious: (() => void) | undefined, onNext: (() => void) | undefined) {
   const handlers = useRef({ onPrevious, onNext });
   useEffect(() => {
     handlers.current = { onPrevious, onNext };
   }, [onPrevious, onNext]);
-  // Which side the next element slides in from, kept only for the render the swipe causes.
+  // Which side the next element slides in from, 1 for the right and -1 for the left. It is kept only for
+  // the render the swipe causes.
   const slideIn = useRef<1 | -1 | undefined>(undefined);
   useEffect(() => {
     slideIn.current = undefined;
@@ -66,17 +70,19 @@ export function useSwipe(onPrevious: (() => void) | undefined, onNext: (() => vo
     let rtl = false;
     element.style.touchAction = "pan-y pinch-zoom";
     // The handler for the way the finger went, if there is one.
-    const towards = (across: number) => (across < 0 !== rtl ? handlers.current.onNext : handlers.current.onPrevious);
+    const getHandlerTowards = (across: number) => (
+      across < 0 !== rtl ? handlers.current.onNext : handlers.current.onPrevious
+    );
     const springBack = () => {
       const from = element.style.transform;
       element.style.transform = "";
-      if (from !== "" && !reducedMotion()) {
+      if (from !== "" && !isReducedMotion()) {
         element.animate([ { transform: from }, { transform: "none" } ],
           { duration: duration.shortest, easing: easing.easeOut });
       }
     };
 
-    if (slideIn.current !== undefined && !reducedMotion()) {
+    if (slideIn.current !== undefined && !isReducedMotion()) {
       const from = `translateX(${slideIn.current * SLIDE_FROM}px)`;
       element.animate([ { transform: from, opacity: 0.4 }, { transform: "none", opacity: 1 } ],
         { duration: duration.shorter, easing: easing.easeOut });
@@ -99,7 +105,7 @@ export function useSwipe(onPrevious: (() => void) | undefined, onNext: (() => vo
       const across = event.clientX - start.x;
       dragging ||= Math.abs(across) >= DRAG_START && Math.abs(across) > 2 * Math.abs(event.clientY - start.y);
       if (dragging) {
-        const followed = towards(across) === undefined ? across * AT_THE_END : across;
+        const followed = getHandlerTowards(across) === undefined ? across * AT_THE_END : across;
         element.style.transform = `translateX(${followed}px)`;
       }
     }, { signal });
@@ -114,7 +120,7 @@ export function useSwipe(onPrevious: (() => void) | undefined, onNext: (() => vo
       const across = event.clientX - start.x;
       const down = event.clientY - start.y;
       start = undefined;
-      const step = towards(across);
+      const step = getHandlerTowards(across);
       if (Math.abs(across) < SWIPE_DISTANCE || Math.abs(across) < 2 * Math.abs(down) || step === undefined) {
         springBack();
         return;
@@ -125,7 +131,7 @@ export function useSwipe(onPrevious: (() => void) | undefined, onNext: (() => vo
       step();
     }, { signal });
     element.addEventListener("click", event => {
-      // A click from a key has no pointer behind it, so no swipe before it
+      // A click from a key has a `detail` of 0, and no swipe ends with one
       if (swiped.current && event.detail > 0) {
         swiped.current = false;
         event.preventDefault();

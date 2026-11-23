@@ -15,18 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Finds a quote in a page's text, however PDF.js spaced, hyphenated or punctuated the page. The quote and
+// the page are both brought to a compared form first, which records the offset each character came from.
 
-// Shorter than this, a quote matches too easily to be worth a mark.
+// A quote shorter than this, in compared characters, matches too easily to trust.
 const MIN_QUOTE_LENGTH = 6;
 
 // How far each part of a quote broken across two pages may lie from the page break, in compared
-// characters. The room is for a footer, a page number and a header.
+// characters. This leaves room for a footer, a page number and a header between them.
 const PAGE_EDGE = 300;
-// Shorter than this, either part matches too easily to trust.
+// Each part of a quote broken across two pages is at least this long, in compared characters. A shorter
+// part matches too easily to trust.
 const MIN_PART_LENGTH = 12;
 
-// PDFs use typographic quotes and dashes; a quote typed by a person or a model rarely does.
-// A soft hyphen only marks where a word may break, so it maps to nothing.
+// Typographic quotation marks, apostrophes, primes and dashes, each with the plain character a person or a
+// model types instead. A soft hyphen maps to nothing, since it only marks where a word may break.
 const PLAIN_CHARS = new Map<string, string>([
   [ "‘", "'" ], [ "’", "'" ], [ "‚", "'" ], [ "‛", "'" ], [ "′", "'" ],
   [ "“", "\"" ], [ "”", "\"" ], [ "„", "\"" ], [ "″", "\"" ],
@@ -34,10 +37,13 @@ const PLAIN_CHARS = new Map<string, string>([
   [ "―", "-" ], [ "−", "-" ], [ "\u00ad", "" ],
 ]);
 
+// The accents NFKD splits off their letters.
 const COMBINING_MARKS = /[\u0300-\u036f]/g;
 
+// Quotation marks and spaces at either end of a quote.
 const SURROUNDING_QUOTES = /^["'“”‘’„‚«»\s]+|["'“”‘’„‚«»\s]+$/g;
 
+// Where a quote occurs in a page's text, as an offset into it and a length.
 export interface QuoteMatch {
   index: number;
   length: number;
@@ -48,35 +54,38 @@ export function unquote(quote: string): string {
   return quote.replace(SURROUNDING_QUOTES, "");
 }
 
-// A text in the form quotes are compared in, each character keeping the offset in the source it came from.
+// A text in the form quotes are compared in. For each of its characters, `offsets` holds the offset in the
+// source text that it came from.
 export interface PreparedText {
   text: string;
   offsets: number[];
 }
 
-// The text in the form findQuote compares.
+// The text in the form quotes are compared in.
 export function getComparedText(text: string): string {
   return prepareText(text).text;
 }
 
-// The quote in the form findQuote compares, or undefined when it is too short to trust.
+// The quote without the quotation marks around it, in the form quotes are compared in. Undefined when that
+// is too short to trust.
 export function getSearchText(quote: string): string | undefined {
   const text = getComparedText(unquote(quote));
   return text.length < MIN_QUOTE_LENGTH ? undefined : text;
 }
 
-// Every place the quote occurs in a page's text, as offsets into that text.
+// Every place a quote occurs in a page's text, as offsets into the page's source text. `searchText` is the
+// quote in the compared form `getSearchText` gives.
 export function findQuote(page: PreparedText, searchText: string): QuoteMatch[] {
   const matches: QuoteMatch[] = [];
   for (let at = page.text.indexOf(searchText); at >= 0; at = page.text.indexOf(searchText, at + searchText.length)) {
-    matches.push(toMatch(page, at, searchText.length));
+    matches.push(createQuoteMatch(page, at, searchText.length));
   }
   return matches;
 }
 
-// Where a quote broken across two pages sits: its start near the end of the first page, and its rest
-// near the start of the next. Undefined when no break fits. Only the pages' ends are searched, so a long
-// page costs no more than a short one.
+// Where a quote broken across two pages sits: its start near the end of the first page, and its rest near
+// the start of the next. Undefined when no split of the quote fits. Only the pages' ends are searched, so
+// a long page costs no more than a short one.
 export function findQuoteAcrossPages(
   first: PreparedText,
   next: PreparedText,
@@ -93,19 +102,22 @@ export function findQuoteAcrossPages(
     const restAt = start.indexOf(rest);
     const headFits = headAt >= endFrom && headAt + head.length >= first.text.length - PAGE_EDGE;
     if (headFits && restAt >= 0 && restAt <= PAGE_EDGE) {
-      return { first: toMatch(first, headAt, head.length), next: toMatch(next, restAt, rest.length) };
+      return { first: createQuoteMatch(first, headAt, head.length), next: createQuoteMatch(next, restAt, rest.length) };
     }
   }
   return undefined;
 }
 
-function toMatch(page: { offsets: number[] }, at: number, length: number): QuoteMatch {
+// The match covering `length` compared characters from `at`, as an offset and a length in the source text.
+function createQuoteMatch(page: { offsets: number[] }, at: number, length: number): QuoteMatch {
   const start = page.offsets[at];
   return { index: start, length: page.offsets[at + length - 1] + 1 - start };
 }
 
-// The text with no spaces, case or accents, and no hyphens except a minus before a digit. PDF.js
-// guesses spaces and line ends from the layout, and its guesses often differ from the quote.
+// The text in the form quotes are compared in. Quotation marks and dashes become plain ones, and letters
+// become lower case without accents. Spaces are dropped, since PDF.js guesses them from the layout and its
+// guesses often differ from the quote. Hyphens and dashes are dropped too, so a word broken at a line end
+// still matches. A hyphen before a digit stays, as the minus of a negative number.
 export function prepareText(source: string): PreparedText {
   const chars: string[] = [];
   const sourceOffsets: number[] = [];
@@ -128,7 +140,8 @@ export function prepareText(source: string): PreparedText {
   return { text, offsets };
 }
 
-// NFKD splits accents off their letters and ligatures into letters, so "é" and "e" + U+0301 match.
+// A character in its plain form, which is several letters for a ligature. NFKD splits accents off their
+// letters and ligatures into letters, so "é", "e" + U+0301 and "e" all match.
 function getPlainForm(ch: string): string {
   const plain = PLAIN_CHARS.get(ch) ?? ch;
   if (plain < "\u0080") {

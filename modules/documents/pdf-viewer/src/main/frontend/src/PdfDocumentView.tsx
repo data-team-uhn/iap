@@ -15,6 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// The document's frame, with the styles of the marks drawn on its text.
+
 import { memo, type ReactNode } from "react";
 
 import { Box, CircularProgress, LinearProgress } from "@mui/material";
@@ -28,23 +30,24 @@ import {
   POINT_WIDTH_RATIO,
   START_CLASS,
 } from "./markLayer";
-import { isChangeKind, MARK_KINDS } from "./marksModel";
+import { MARK_KINDS } from "./marksModel";
 
 import type { Theme } from "@mui/material/styles";
 
-// Enough page to read, even when a long quote takes most of the viewer.
+// The least height the document keeps, so some of a page stays readable however much room the rest of the
+// viewer takes.
 const MIN_FRAME_HEIGHT = 200;
 
-// A mark's colour and its fill, as CSS variables set on it.
+// CSS variables set on each mark: its colour, for the strokes drawn on it, and the fill behind its text.
 const MARK_COLOUR = "--iap-mark-colour";
 const MARK_FILL = "--iap-mark-fill";
 
-// Colours each kind of mark, in a deeper shade when selected. With outlineSelected, the selected mark
-// is also outlined.
-function markColours(theme: Theme, outlineSelected: boolean): Record<string, object> {
+// The colours of each kind of mark, with the selected mark filled in a deeper shade. With
+// `outlineSelected`, the selected mark is also outlined.
+function getMarkColours(theme: Theme, outlineSelected: boolean): Record<string, object> {
   const { palette } = theme.vars ?? theme;
   return Object.fromEntries(MARK_KINDS.flatMap((kind): [ string, object ][] => {
-    const colour = isChangeKind(kind) ? palette.highlight[`${kind}Marker`] : palette[kind].main;
+    const colour = palette.highlight[`${kind}Marker`];
     return [
       [ `& .${MARK_CLASS}-${kind}`, {
         bgcolor: `var(${MARK_FILL})`,
@@ -59,16 +62,18 @@ function markColours(theme: Theme, outlineSelected: boolean): Record<string, obj
   }));
 }
 
-// The cursor: a bar with a short stroke across each end, drawn as three backgrounds.
+// A text cursor in the mark's colour: an upright bar with a short stroke across each end, drawn as three
+// backgrounds.
 const CURSOR = [ "center / 2px 100%", "top / 100% 2px", "bottom / 100% 2px" ]
   .map(place => `linear-gradient(var(${MARK_COLOUR}), var(${MARK_COLOUR})) ${place} no-repeat`)
   .join(", ");
 
-function changeMarks(theme: Theme) {
+// The styles of the marks that show changes.
+function getChangeMarkStyles(theme: Theme) {
   return {
     ...CHANGE_MARKS,
-    // Where text took the place of removed text, a bar in the colour of removed text starts it, a little
-    // taller than the line, as the cursor where text was removed is.
+    // Where added text took the place of removed text, a bar a little taller than the line starts it, in
+    // the colour of removed text.
     [`& .${START_CLASS}, & .${START_CLASS}.selected`]: {
       "&::before": {
         height: `${100 * POINT_SIZE_RATIO}%`,
@@ -82,8 +87,8 @@ function changeMarks(theme: Theme) {
   };
 }
 
-// Removed text is struck through, so its colour is not the only sign of it. A point is a translucent box
-// around a text cursor at the point, a little taller than the line, filled deeper when selected.
+// Removed text is struck through, so its colour is not the only sign of it. A point between two characters
+// is a filled box around a text cursor, a little taller than the line.
 const CHANGE_MARKS = {
   [`& .${MARK_CLASS}-removed:not(.${POINT_CLASS})`]: {
     backgroundImage: `linear-gradient(transparent calc(50% - 0.5px), var(${MARK_COLOUR}) calc(50% - 0.5px),
@@ -112,11 +117,12 @@ const CHANGE_MARKS = {
   },
 };
 
-// The frame PDF.js shows the document in. PDF.js needs its scrolling container absolutely positioned, so the
-// box around it gives it the room. Drawn again only when its props change. Its styles are the costliest
-// part of the viewer to draw, and the viewer is drawn often while it reads or searches the document.
-const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlineSelected }: {
+// The frame PDF.js shows the document in. PDF.js needs its scrolling container absolutely positioned, so
+// the box around it gives it its room. It is drawn again only when its props change. Its styles are the
+// costliest part of the viewer to draw, and the viewer draws often while it reads or searches the document.
+const DocumentFrame = memo(function DocumentFrame({ setFrame, name, edgeToEdge, outlineSelected }: {
   setFrame: (frame: HTMLDivElement | null) => void;
+  name: string;
   edgeToEdge: boolean;
   outlineSelected: boolean;
 }) {
@@ -124,7 +130,7 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
     <Box
       ref={setFrame}
       role="region"
-      aria-label="Document"
+      aria-label={name}
       tabIndex={0}
       sx={theme => ({
         position: "absolute",
@@ -134,13 +140,14 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
         overscrollBehavior: "contain",
         bgcolor: "background.default",
         borderRadius: edgeToEdge ? { xs: 0, sm: 1 } : 1,
-        // Sheets on the canvas, apart from each other
+        // Each page as a separate sheet, with space between the pages
         "& .pdfViewer.removePageBorders .page": { my: 1.5, mx: "auto", boxShadow: 2 },
-        // Multiplied like a highlighter's ink, so marks tint the paper and leave the text as dark.
+        // The marks in the text layer multiply with the page under them, tinting the paper and leaving the
+        // text as dark.
         "& .textLayer": { mixBlendMode: "multiply" },
         [`& .${MARK_CLASS}`]: { borderRadius: 0.5 },
-        ...markColours(theme, outlineSelected),
-        ...changeMarks(theme),
+        ...getMarkColours(theme, outlineSelected),
+        ...getChangeMarkStyles(theme),
         // PDF.js's own highlights of a search's matches
         "& .textLayer .highlight": {
           "--highlight-bg-color": (theme.vars ?? theme).palette.highlight.search,
@@ -155,17 +162,19 @@ const DocumentFrame = memo(function DocumentFrame({ setFrame, edgeToEdge, outlin
   );
 });
 
-// The document, filling the room left to it, with a spinner while it opens, and a bar along its top while
-// passages are looked for in it. Anything shown over the frame is placed in the frame's coordinates. With
-// edgeToEdge, the document spans the full width of a phone screen.
-export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected, opening, looking, children }: {
+// The document, filling the room left for it. A spinner shows while it opens, and a bar along its top while
+// it is read to find its marks or the changes. `children` are shown over the frame, placed in its
+// coordinates. With `edgeToEdge`, the document spans the full width of a phone screen.
+export default function PdfDocumentView({ setFrame, name, edgeToEdge, outlineSelected, opening, looking, children }: {
   setFrame: (frame: HTMLDivElement | null) => void;
+  // The frame's name for a screen reader: "Document", or the version's label when shown beside another.
+  name: string;
   edgeToEdge: boolean;
   // Whether the selected mark is also outlined.
   outlineSelected: boolean;
   opening: boolean;
-  // While marks are being looked for, the share of the document read so far, from 0 to 1, and what is
-  // looked for, as in "the passages".
+  // While the document is read, how far that has got, from 0 to 1, and what is being looked for, such as
+  // "the passages" or "the changes".
   looking?: { share: number; what: string };
   children?: ReactNode;
 }) {
@@ -178,7 +187,7 @@ export default function PdfDocumentView({ setFrame, edgeToEdge, outlineSelected,
         mx: edgeToEdge ? { xs: -2, sm: 0 } : 0,
       }}
     >
-      <DocumentFrame setFrame={setFrame} edgeToEdge={edgeToEdge} outlineSelected={outlineSelected} />
+      <DocumentFrame setFrame={setFrame} name={name} edgeToEdge={edgeToEdge} outlineSelected={outlineSelected} />
       {opening
         ? (
           <CircularProgress
