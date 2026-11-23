@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useContext, useState } from "react";
+import { useContext, useState, type ReactNode } from "react";
 
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import EditOutlined from "@mui/icons-material/EditOutlined";
@@ -65,6 +65,46 @@ export function NoteHeading({ note }: { note: ReviewNote }) {
   );
 }
 
+// One of a note's fields, named before its value, the name quieter, as a form names its fields
+function Field({ label, chip = false, children }: { label: string; chip?: boolean; children: ReactNode }) {
+  return (
+    <Box sx={{ display: "inline-flex", alignItems: chip ? "center" : "baseline", gap: 0.75, minWidth: 0 }}>
+      <Typography variant="caption" sx={{ color: "text.secondary", flexShrink: 0 }}>{label}</Typography>
+      {children}
+    </Box>
+  );
+}
+
+// A note's fields one per line, their names in a column as wide as the longest, so the values line up
+function FieldRows({ rows }: { rows: [ string, ReactNode ][] }) {
+  return (
+    <Box sx={{ display: "grid", gridTemplateColumns: "max-content minmax(0, 1fr)", columnGap: 0.75, rowGap: 0.5,
+      alignItems: "baseline" }}>
+      {rows.map(([ label, value ]) => (
+        <Box key={label} sx={{ display: "contents" }}>
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>{label}</Typography>
+          <Typography variant="body2" component="div">{value}</Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+// Whose group raised an issue and how serious it is, each named, on one line as far as it goes
+function Chips({ note }: { note: ReviewNote }) {
+  const labels = useContext(GroupLabels);
+  const group = note.group ? labels.get(note.group) : undefined;
+  if (!group && !note.severity) {
+    return null;
+  }
+  return (
+    <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 2, rowGap: 0.5 }}>
+      {group && <Field label="Raised by" chip><GroupChip label={group} mine={note.kind === "issue"} /></Field>}
+      {note.severity && <Field label="Severity" chip><TagChip tags={[ note.severity ]} category="severity" /></Field>}
+    </Box>
+  );
+}
+
 // The buttons changing or removing one of the reader's own notes, at the end of the line heading it
 export function NoteActions({ note, onEdit, onRemove }: {
   note: ReviewNote;
@@ -96,8 +136,10 @@ const WHAT: Partial<Record<ReviewNote["kind"], string>> = { issue: "issue", disc
 // changed or removed. An AI pre-review note can be made into an issue, worded and rated as the reviewer sees fit,
 // or dismissed; whoever shows the card says whether it is being made into an issue, to colour it as one meanwhile.
 export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove, onMakeIssue, onDismiss, adopting,
-  onAdopting, onEditReply, onRemoveReply, headed = false, editing, onEditing }: {
+  onAdopting, onEditReply, onRemoveReply, headed = false, editing, onEditing, question }: {
   note: ReviewNote;
+  // For an extracted answer shown away from its question, as beside a document, the question it answers
+  question?: string;
   // Whether the list showing it heads it already with what it is, when and by whom, and with the buttons
   // changing or removing it, which then say when it is being changed
   headed?: boolean;
@@ -117,7 +159,6 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   onAdopting?: (adopting: boolean) => void;
 }) {
   const info = kindInfo(note.kind);
-  const labels = useContext(GroupLabels);
   const [ replying, setReplying ] = useState(false);
   const [ ownEditing, setOwnEditing ] = useState(false);
   const isEditing = editing ?? ownEditing;
@@ -158,33 +199,24 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
     <Box>
       {/* What it is, with the tools on the same line; under it the risk it is filed under, then who wrote it, for
           which group, and when */}
-      {/* Headed, it shows only what the heading does not, and nothing when that is nothing */}
-      {(!headed || Boolean(note.severity) || Boolean(note.group && labels.has(note.group))) && (
-        <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: headed ? undefined : 28 }}>
+      {/* Headed, the heading says what it is, and holds the tools */}
+      {!headed && (
+        <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: 28 }}>
           {/* What the AI says carries its mark */}
-          {!headed && (note.kind === "aiIssue" || note.kind === "evidence") && (
+          {(note.kind === "aiIssue" || note.kind === "evidence") && (
             <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />
           )}
-          {!headed && (
-            <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
-              {info.single}
-            </Typography>
-          )}
-          {/* An issue says whose group raised it, the reviewer's own as it is marked everywhere */}
-          {note.group && labels.has(note.group) && (
-            <GroupChip label={labels.get(note.group) ?? ""} mine={note.kind === "issue"} />
-          )}
-          {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
-          {!headed && (
-            <NoteActions note={note} onEdit={onEdit && (() => setEditing(true))} onRemove={onRemove} />
-          )}
+          <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
+            {info.single}
+          </Typography>
+          <NoteActions note={note} onEdit={onEdit && (() => setEditing(true))} onRemove={onRemove} />
         </Stack>
       )}
-      {note.topic && (
-        <Typography variant="caption" sx={{ display: "block", color: "text.secondary", fontStyle: "italic" }}>
-          {note.topic}
-        </Typography>
-      )}
+      {/* Each field named, so the chips and the risk are not left to be guessed */}
+      <Stack sx={{ gap: 0.5, mb: 0.5 }}>
+        <Chips note={note} />
+        {note.topic && <Field label="Topic"><Typography variant="caption">{note.topic}</Typography></Field>}
+      </Stack>
       {!headed && (
         <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mb: 0.5 }}>
           {note.kind !== "evidence" && <><PersonName user={note.author} /> · </>}{when(note.created)}
@@ -192,17 +224,21 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
       )}
       {note.kind === "evidence" ? (
         <>
-          <Typography variant="body2"><b>{answerLabel ?? note.extracted}</b></Typography>
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            {note.reasoning}
-            {note.confidence !== undefined ? ` Confidence ${Math.round(note.confidence * 100)}%.` : ""}
-          </Typography>
+          <FieldRows rows={[
+            ...question ? [ [ "Question", question ] as [ string, ReactNode ] ] : [],
+            [ "Answer", <b key="answer">{answerLabel ?? note.extracted}</b> ],
+            ...note.reasoning ? [ [ "Reasoning", note.reasoning ] as [ string, ReactNode ] ] : [],
+            ...note.confidence === undefined ? []
+              : [ [ "Confidence", `${Math.round(note.confidence * 100)}%` ] as [ string, ReactNode ] ],
+          ]} />
         </>
       ) : (
         <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{note.text}</Typography>
       )}
       {note.suggestion && (
-        <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>Suggestion. {note.suggestion}</Typography>
+        <Box sx={{ mt: 0.5 }}>
+          <Field label="Suggestion"><Typography variant="body2">{note.suggestion}</Typography></Field>
+        </Box>
       )}
       <Thread replies={note.replies} onEdit={onEditReply} onRemove={onRemoveReply} />
       {canAdopt && (
@@ -238,7 +274,6 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
 // how many replies it has, then its own words
 export function NoteSummary({ note, headed = false }: { note: ReviewNote; headed?: boolean }) {
   const info = kindInfo(note.kind);
-  const labels = useContext(GroupLabels);
   return (
     <Box sx={{ px: 1.5, pb: 1 }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: headed ? undefined : 24 }}>
@@ -250,10 +285,7 @@ export function NoteSummary({ note, headed = false }: { note: ReviewNote; headed
             {info.single}
           </Typography>
         )}
-        {note.group && labels.has(note.group) && (
-          <GroupChip label={labels.get(note.group) ?? ""} mine={note.kind === "issue"} />
-        )}
-        {note.severity && <TagChip tags={[ note.severity ]} category="severity" />}
+        <Chips note={note} />
         {note.replies.length > 0 && (
           <Typography variant="caption" sx={{ color: "text.secondary", ml: "auto" }}>
             {note.replies.length === 1 ? "1 reply" : `${note.replies.length} replies`}

@@ -101,9 +101,8 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     const asked = note.kind === "evidence" ? questionLabel(note.question, note.extracted) : undefined;
     return (
       <Box data-note={note.id} sx={{ px: 1.5, pb: 1 }}>
-        {asked && <Box sx={{ typography: "body2", color: "text.secondary", mb: 0.5 }}>{asked.text}</Box>}
         <NoteCard
-          note={note} answerLabel={asked?.answer} headed
+          note={note} answerLabel={asked?.answer} question={asked?.text} headed
           onReply={text => actions.write({ replyTo: note.id, text })}
           onEditReply={(reply, text) => actions.write({ edit: reply, text })}
           onRemoveReply={reply => actions.write({ remove: reply })}
