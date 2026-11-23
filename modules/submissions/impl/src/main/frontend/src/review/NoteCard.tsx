@@ -36,6 +36,35 @@ function when(created: string): string {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+// When a note was written, to the minute, as a list of notes heads it
+function whenExactly(created: string): string {
+  const date = new Date(created);
+  return Number.isNaN(date.getTime()) ? ""
+    : date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+const BY_THE_AI = new Set<ReviewNote["kind"]>([ "aiIssue", "evidence" ]);
+
+// A note's heading where a list heads each note, as beside a document: what kind it is, when it was written and by
+// whom, where these say something; the AI's notes are its own and undated, and the reader's notes to self theirs
+export function NoteHeading({ note }: { note: ReviewNote }) {
+  const info = kindInfo(note.kind);
+  const byTheAi = BY_THE_AI.has(note.kind);
+  const written = byTheAi ? "" : whenExactly(note.created);
+  return (
+    <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, flexWrap: "wrap", minWidth: 0 }}>
+      {byTheAi && <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main` }} />}
+      <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
+        {info.single}
+      </Typography>
+      {written && <Typography variant="caption">· {written}</Typography>}
+      {!byTheAi && note.kind !== "note" && (
+        <Typography variant="caption">· <PersonName user={note.author} /></Typography>
+      )}
+    </Stack>
+  );
+}
+
 // What each kind of note the reviewer writes is called, where they are asked before removing one
 const WHAT: Partial<Record<ReviewNote["kind"], string>> = { issue: "issue", discussion: "message", note: "note to self" };
 
@@ -44,8 +73,10 @@ const WHAT: Partial<Record<ReviewNote["kind"], string>> = { issue: "issue", disc
 // changed or removed. An AI pre-review note can be made into an issue, worded and rated as the reviewer sees fit,
 // or dismissed; whoever shows the card says whether it is being made into an issue, to colour it as one meanwhile.
 export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove, onMakeIssue, onDismiss, adopting,
-  onAdopting, onEditReply, onRemoveReply }: {
+  onAdopting, onEditReply, onRemoveReply, headed = false }: {
   note: ReviewNote;
+  // Whether the list showing it heads it already with what it is, when and by whom
+  headed?: boolean;
   // The extracted answer as the question's options call it
   answerLabel?: string;
   onReply?: (text: string) => Promise<void>;
@@ -99,14 +130,16 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
     <Box>
       {/* What it is, with the tools on the same line; under it the risk it is filed under, then who wrote it, for
           which group, and when */}
-      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: 28 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: headed ? undefined : 28 }}>
         {/* What the AI says carries its mark */}
-        {(note.kind === "aiIssue" || note.kind === "evidence") && (
+        {!headed && (note.kind === "aiIssue" || note.kind === "evidence") && (
           <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />
         )}
-        <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
-          {info.single}
-        </Typography>
+        {!headed && (
+          <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
+            {info.single}
+          </Typography>
+        )}
         {/* An issue says whose group raised it, the reviewer's own as it is marked everywhere */}
         {note.group && labels.has(note.group) && (
           <GroupChip label={labels.get(note.group) ?? ""} mine={note.kind === "issue"} />
@@ -130,9 +163,11 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
           {note.topic}
         </Typography>
       )}
-      <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mb: 0.5 }}>
-        {note.kind !== "evidence" && <><PersonName user={note.author} /> · </>}{when(note.created)}
-      </Typography>
+      {!headed && (
+        <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mb: 0.5 }}>
+          {note.kind !== "evidence" && <><PersonName user={note.author} /> · </>}{when(note.created)}
+        </Typography>
+      )}
       {note.kind === "evidence" ? (
         <>
           <Typography variant="body2"><b>{answerLabel ?? note.extracted}</b></Typography>
@@ -179,18 +214,20 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
 
 // A note in brief, as a list shows one not selected: what kind it is and how serious, whose group raised an issue,
 // how many replies it has, then its own words
-export function NoteSummary({ note }: { note: ReviewNote }) {
+export function NoteSummary({ note, headed = false }: { note: ReviewNote; headed?: boolean }) {
   const info = kindInfo(note.kind);
   const labels = useContext(GroupLabels);
   return (
     <Box sx={{ px: 1.5, pb: 1 }}>
-      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: 24 }}>
-        {note.kind === "aiIssue" && (
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, minHeight: headed ? undefined : 24 }}>
+        {!headed && note.kind === "aiIssue" && (
           <AutoAwesomeOutlined sx={{ fontSize: "0.9rem", color: `${info.mark}.main`, mr: -0.25 }} />
         )}
-        <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
-          {info.single}
-        </Typography>
+        {!headed && (
+          <Typography variant="caption" sx={{ color: `${info.mark}.main`, fontWeight: "fontWeightBold" }}>
+            {info.single}
+          </Typography>
+        )}
         {note.group && labels.has(note.group) && (
           <GroupChip label={labels.get(note.group) ?? ""} mine={note.kind === "issue"} />
         )}

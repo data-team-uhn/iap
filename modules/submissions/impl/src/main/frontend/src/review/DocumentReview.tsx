@@ -26,7 +26,7 @@ import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
 
 import { toFileUrl } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
-import NoteCard, { NoteSummary } from "./NoteCard";
+import NoteCard, { NoteHeading, NoteSummary } from "./NoteCard";
 import { issueFrom, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewedDocument } from "./reviewData";
 
 import type { ReviewActions } from "./FormReview";
@@ -94,14 +94,14 @@ export default function DocumentReview({ document, data, shown, selected, onSele
     }
     // Not selected, what a reviewer wrote shows by its own words, the passage cut to a line above them
     if (!selected && BRIEF_KINDS.has(note.kind)) {
-      return <Box data-note={note.id}><NoteSummary note={note} /></Box>;
+      return <Box data-note={note.id}><NoteSummary note={note} headed /></Box>;
     }
     const asked = note.kind === "evidence" ? questionLabel(note.question, note.extracted) : undefined;
     return (
       <Box data-note={note.id} sx={{ px: 1.5, pb: 1 }}>
         {asked && <Box sx={{ typography: "body2", color: "text.secondary", mb: 0.5 }}>{asked.text}</Box>}
         <NoteCard
-          note={note} answerLabel={asked?.answer}
+          note={note} answerLabel={asked?.answer} headed
           onReply={text => actions.write({ replyTo: note.id, text })}
           onEditReply={(reply, text) => actions.write({ edit: reply, text })}
           onRemoveReply={reply => actions.write({ remove: reply })}
@@ -124,6 +124,12 @@ export default function DocumentReview({ document, data, shown, selected, onSele
       return undefined;
     }
     return BRIEF_KINDS.has(note.kind) ? { quote: 0, details: 4 } : { quote: 0 };
+  }, [ notes ]);
+
+  // Each note headed by what it is, when and by whom; the draft by the passage it is about
+  const markHeading = useCallback((mark: Mark) => {
+    const note = notes.find(one => one.id === mark.id);
+    return note && <NoteHeading note={note} />;
   }, [ notes ]);
 
   return (
@@ -150,6 +156,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
         onSearch={onSearch}
         listWidth={notesWidth}
         onListWidth={onNotesWidth}
+        markHeading={markHeading}
         plain
         onClose={onClose}
       />
