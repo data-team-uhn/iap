@@ -187,7 +187,7 @@ test.describe('the time off request demo', () => {
         approvalOverdue?: { timerDuration?: string; interrupting?: boolean };
         approvalReminder?: { timerDuration?: string; interrupting?: boolean };
       };
-      reminded?: { hostTag?: string };
+      markOverdue?: { handler?: string; tag?: string };
       requestApproved?: { messageName?: string; recipients?: string[]; template?: string; urgency?: string };
       requestRejected?: { messageName?: string; recipients?: string[]; template?: string };
       decision?: { toApproved?: { 'cond:condition'?: Record<string, unknown> } };
@@ -212,8 +212,9 @@ test.describe('the time off request demo', () => {
     // from "give up". It arrives as a boolean, not as the string in BPMN's `cancelActivity`.
     expect(version.approveRequest?.approvalReminder?.timerDuration).toBe('P2D');
     expect(version.approveRequest?.approvalReminder?.interrupting).toBe(false);
-    // The end of the reminder's branch marks the request overdue; the approval task's branch carries on
-    expect(version.reminded?.hostTag).toBe('overdue');
+    // The reminder's branch tags the request overdue; the approval task's branch carries on
+    expect(version.markOverdue?.handler).toBe('addTag');
+    expect(version.markOverdue?.tag).toBe('overdue');
     // Each decision is told to the requester by the message end event it reaches
     expect(version.requestApproved?.messageName).toBe('approved');
     expect(version.requestApproved?.recipients).toEqual([ '@creator' ]);

@@ -8,7 +8,6 @@
   "xmlChildElement": "bpmn:messageEventDefinition",
   "jcrNodeType": "wf:EndEvent",
   "properties": [
-    "{https://iap.uhndata.io/bpmn}hostTag=hostTag",
     "{https://iap.uhndata.io/bpmn}recipients=recipients[]",
     "{https://iap.uhndata.io/bpmn}template=template",
     "{https://iap.uhndata.io/bpmn}urgency=urgency",

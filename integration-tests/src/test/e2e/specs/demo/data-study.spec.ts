@@ -32,8 +32,8 @@ interface DerivedWorkflow {
   releaseData?: { performers?: string[]; outcomeOptions?: string[] };
   recordReview?: { handler?: string; requirement?: string };
   decision?: { toApproved?: { 'cond:condition'?: { operandB?: { value?: string[] } } } };
-  studyApproved?: { hostTag?: string };
-  studyRejected?: { hostTag?: string };
+  markApproved?: { handler?: string; tag?: string };
+  markRejected?: { handler?: string; tag?: string };
 }
 
 async function derivedWorkflow(request: APIRequestContext): Promise<DerivedWorkflow> {
@@ -164,8 +164,10 @@ test.describe('the data study demo', () => {
     test('ends with the study tagged approved or rejected', async ({ request }) => {
       const workflow = await derivedWorkflow(request);
 
-      expect(workflow.studyApproved?.hostTag).toBe('approved');
-      expect(workflow.studyRejected?.hostTag).toBe('rejected');
+      expect(workflow.markApproved?.handler).toBe('addTag');
+      expect(workflow.markApproved?.tag).toBe('approved');
+      expect(workflow.markRejected?.handler).toBe('addTag');
+      expect(workflow.markRejected?.tag).toBe('rejected');
     });
   });
 });

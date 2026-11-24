@@ -310,7 +310,6 @@ final class InstanceRunner
         this.records.moveToken(token, node, step.arrivedBy());
         if (node instanceof EndEvent) {
             this.performer.throwMessage((EndEvent) node, instance);
-            this.records.tagHost(instance, (EndEvent) node);
             if (((EndEvent) node).isTerminate()) {
                 this.records.terminateInstance(instance);
                 return false;

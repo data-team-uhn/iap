@@ -7,8 +7,5 @@
   "xmlElement": "bpmn:boundaryEvent",
   "xmlChildElement": "bpmn:timerEventDefinition",
   "jcrNodeType": "wf:IntermediateCatchingEvent",
-  "properties": [
-    "{https://iap.uhndata.io/bpmn}hostTag=hostTag",
-    "{https://iap.uhndata.io/bpmn}performers=performers[]"
-  ]
+  "properties": [ "{https://iap.uhndata.io/bpmn}performers=performers[]" ]
 }

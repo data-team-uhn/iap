@@ -39,6 +39,7 @@ import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.internal.handlers.AddTagHandler;
 import io.uhndata.iap.workflows.internal.handlers.StartWorkflowHandler;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
@@ -279,8 +280,7 @@ class BranchingTest
         this.context.create().resource(PROCESS + "/" + FORK + "/toNoted", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toNoted", TARGET_REF, "noted", "isDefault", true));
         outcomeIs(PROCESS + "/" + FORK + "/toNoted", "anything");
-        this.context.create().resource(PROCESS + "/noted", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "noted", "hostTag", "expired"));
+        tagAndEnd("noted", "expired");
 
         start();
 
@@ -350,8 +350,7 @@ class BranchingTest
             TYPE, InclusiveGateway.RESOURCE_TYPE, ELEMENT_ID, JOIN));
         this.context.create().resource(PROCESS + "/" + JOIN + "/toApproved", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproved", TARGET_REF, "requestApproved"));
-        this.context.create().resource(PROCESS + "/requestApproved", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
+        tagAndEnd("requestApproved", "approved");
 
         start();
 
@@ -392,8 +391,7 @@ class BranchingTest
         inclusive();
         this.context.create().resource(PROCESS + "/" + FORK + "/toNoted", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toNoted", TARGET_REF, "noted", "isDefault", true));
-        this.context.create().resource(PROCESS + "/noted", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "noted", "hostTag", "expired"));
+        tagAndEnd("noted", "expired");
 
         start();
 
@@ -516,8 +514,7 @@ class BranchingTest
             TYPE, gatewayType, ELEMENT_ID, JOIN));
         this.context.create().resource(PROCESS + "/" + JOIN + "/toApproved", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproved", TARGET_REF, "requestApproved"));
-        this.context.create().resource(PROCESS + "/requestApproved", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
+        tagAndEnd("requestApproved", "approved");
     }
 
     /**
@@ -578,8 +575,23 @@ class BranchingTest
             TYPE, ParallelGateway.RESOURCE_TYPE, ELEMENT_ID, JOIN));
         this.context.create().resource(PROCESS + "/" + JOIN + "/toApproved", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproved", TARGET_REF, "requestApproved"));
-        this.context.create().resource(PROCESS + "/requestApproved", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
+        tagAndEnd("requestApproved", "approved");
+    }
+
+    /**
+     * A task tagging the host, then an end event.
+     *
+     * @param elementId the tagging task's identifier, which arcs leading here target
+     * @param tag the tag placed on the host
+     */
+    private void tagAndEnd(final String elementId, final String tag)
+    {
+        this.context.create().resource(PROCESS + "/" + elementId, Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, elementId, "handler", AddTagHandler.HANDLER_NAME, "tag", tag));
+        this.context.create().resource(PROCESS + "/" + elementId + "/toEnd", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, elementId + "ToEnd", TARGET_REF, elementId + "End"));
+        this.context.create().resource(PROCESS + "/" + elementId + "End", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, elementId + "End"));
     }
 
     /**
@@ -686,6 +698,7 @@ class BranchingTest
         // The engine's service session only sees what has been committed
         this.context.resourceResolver().commit();
         this.context.registerService(ServiceTaskHandler.class, new StartWorkflowHandler());
+        this.context.registerService(ServiceTaskHandler.class, new AddTagHandler());
         return this.context.getService(WorkflowEngine.class);
     }
 

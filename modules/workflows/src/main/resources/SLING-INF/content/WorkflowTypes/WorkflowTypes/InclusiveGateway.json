@@ -5,6 +5,5 @@
   "category": ["Gateways"],
   "priority": 0,
   "xmlElement": "bpmn:inclusiveGateway",
-  "jcrNodeType": "wf:InclusiveGateway",
-  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
+  "jcrNodeType": "wf:InclusiveGateway"
 }

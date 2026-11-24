@@ -141,8 +141,7 @@ public final class WorkflowFixture
 
     /**
      * Registers the {@code Taggable} view, so a host adapts to it the way it does with the tags bundle
-     * installed. The engine replaces a host's lifecycle tag when a workflow finishes, so without this every run
-     * that reaches an end event carrying a {@code hostTag} fails on the absent tags service.
+     * installed. Without it every run that reaches an {@code addTag} task fails on the absent tags service.
      *
      * <p>The lifecycle tags the engine tests place get the categories their shipped definitions give them, so a
      * test can read back what a workflow placed and what it retired.</p>
