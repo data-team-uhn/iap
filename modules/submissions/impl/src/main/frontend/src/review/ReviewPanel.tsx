@@ -890,6 +890,7 @@ function SelfNotes({ notes, doing }: { notes: ReviewNote[]; doing: ReviewDoing }
         <Box key={note.id} sx={theme => ({ ...passageCard(theme, "annotation"), px: 1.25, py: 0.75 })}>
           <NoteCard
             note={note} onEdit={said => doing.editNote(note, said)} onRemove={() => doing.removeIssue(note)}
+            onMakeIssue={(said, severity, topic) => doing.makeIssue(note, said, severity, topic)}
           />
         </Box>
       ))}

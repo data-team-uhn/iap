@@ -74,7 +74,7 @@ import { GroupLabels, usePersonName } from "./people";
 import { pulseWhenThere } from "./pulse";
 import { approvalLetter, draftLetter } from "./rebLetter";
 import { writeComment } from "./reviewApi";
-import { groupShortName, issueFrom, isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics,
+import { groupShortName, isMine, NOTE_KINDS, notesAbout, parseGroups, parseReview, parseTopics, raiseAsIssue,
   type NoteKind, type ReviewData, type ReviewGroup, type ReviewNote, type Topic } from "./reviewData";
 import ReviewPanel, { type Mismatch, type OthersRaised, type ReviewDoing, type RiskReview } from "./ReviewPanel";
 import { SearchContext } from "./SearchHighlight";
@@ -603,7 +603,7 @@ export default function ReviewScreen({ path }: { path: string }) {
   const doing: ReviewDoing = {
     open: openIssue,
     consider: (topic, considered) => actions.write(considered ? { consider: topic } : { unconsider: topic }),
-    makeIssue: (note, said, severity, topic) => actions.write(issueFrom(note, said, severity, topic)),
+    makeIssue: (note, said, severity, topic) => raiseAsIssue(actions.write, note, said, severity, topic),
     dismiss: note => actions.write({ dismiss: note.id }),
     undismiss: note => actions.write({ undismiss: note.id }),
     addIssue: (topic, said, severity) => actions.write({ kind: "issue", text: said, ...severity ? { severity } : {},

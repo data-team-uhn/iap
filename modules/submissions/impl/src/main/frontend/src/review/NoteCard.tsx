@@ -154,7 +154,10 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
   const [ ownAdopting, setOwnAdopting ] = useState(false);
   const isAdopting = adopting ?? ownAdopting;
   const setAdopting = onAdopting ?? setOwnAdopting;
-  const canAdopt = onMakeIssue && note.kind === "aiIssue";
+  // The AI's comments, the reader's notes to self and discussion entries can become issues; an entry the reader
+  // already raised is not offered again
+  const canAdopt = onMakeIssue && (note.kind === "aiIssue" || (note.kind === "note" && note.mine)
+    || (note.kind === "discussion" && !note.raisedByMe));
   const canAnswer = onReply && (note.kind === "discussion" || note.kind === "issue" || note.kind === "otherIssue");
 
   if (isEditing && onEdit) {
@@ -228,19 +231,28 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
         </Box>
       )}
       <Thread replies={note.replies} onEdit={onEditReply} onRemove={onRemoveReply} />
-      {canAdopt && (
+      {note.raisedBy && note.raisedBy.length > 0 && (
+        <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.5 }}>
+          Raised as an issue by {note.raisedBy.map((user, index) => (
+            <span key={user}>{index > 0 ? ", " : ""}<PersonName user={user} /></span>
+          ))}
+        </Typography>
+      )}
+      {(Boolean(canAnswer && !replying) || Boolean(canAdopt)) && (
         <Stack direction="row" sx={{ ml: -0.75, mt: 0.25 }}>
-          <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
-            onClick={() => setAdopting(true)}>Make it an issue</Button>
-          {onDismiss && (
+          {canAnswer && !replying && (
+            <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+              onClick={() => setReplying(true)}>Reply</Button>
+          )}
+          {canAdopt && (
+            <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
+              onClick={() => setAdopting(true)}>Make it an issue</Button>
+          )}
+          {canAdopt && onDismiss && note.kind === "aiIssue" && (
             <Button size="small" variant="text" sx={{ minWidth: 0, px: 0.75 }}
               onClick={() => void onDismiss()}>Dismiss</Button>
           )}
         </Stack>
-      )}
-      {canAnswer && !replying && (
-        <Button size="small" variant="text" sx={{ ml: -0.75, mt: 0.25, minWidth: 0, px: 0.75 }}
-          onClick={() => setReplying(true)}>Reply</Button>
       )}
       {canAnswer && replying && (
         <Box sx={{ mt: 1 }}>

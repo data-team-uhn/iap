@@ -78,6 +78,9 @@ export interface ReviewNote {
   severity?: string;
   // An AI comment the reviewer settled: the issue they made of it, by path, or "dismissed"
   settled?: string;
+  // A discussion entry raised as an issue: who raised it, by principal name, and whether the reader did
+  raisedBy?: string[];
+  raisedByMe?: boolean;
   // Another reviewer's issue: the reviewer group they raised it for, by principal name
   group?: string;
   // The risk an AI issue was raised under, or a reviewer's issue is filed under: its name, and its path
@@ -219,6 +222,8 @@ export function parseReview(submission: Node, schema: string, me: string, topics
   // The AI pre-review comments this reviewer made into issues or dismissed, which they no longer need to see
   // How each settled one was: the issue made of it, by path, or "dismissed"
   const settled = new Map<string, string>();
+  // Who made an issue of each note, by the note's path, whoever's review the issue is in
+  const raised = new Map<string, string[]>();
   let aiSummary: string | undefined;
   const assessments = new Map<string, string>();
   let considered = new Set<string>();
@@ -283,6 +288,8 @@ export function parseReview(submission: Node, schema: string, me: string, topics
       }
       comments.filter(one => one.author === me && text(one.from))
         .forEach(one => settled.set(text(one.from), text(one["@path"])));
+      comments.filter(one => text(one.from))
+        .forEach(one => raised.set(text(one.from), [ ...raised.get(text(one.from)) ?? [], text(one.author) ]));
       const group = text(node.group) || undefined;
       notes.push(...comments.map(one => ({ ...comment(one, one.author === me ? "issue" : "otherIssue", me, undefined,
         topics), group })));
@@ -292,9 +299,13 @@ export function parseReview(submission: Node, schema: string, me: string, topics
       notes.push(...childrenOf(node, "sub:Comment").map(one => comment(one, "note", me)));
     }
   }
-  const settledAi = notes.filter(note => settled.has(note.id))
-    .map(note => ({ ...note, settled: settled.get(note.id) }));
-  return { answers, documents, notes: notes.filter(note => !settled.has(note.id)), settledAi, partOf, aiSummary,
+  // Only the AI's comments are set aside once settled; a discussion entry made into an issue stays, saying so
+  const isSettled = (note: ReviewNote) => note.kind === "aiIssue" && settled.has(note.id);
+  const settledAi = notes.filter(isSettled).map(note => ({ ...note, settled: settled.get(note.id) }));
+  const shown = notes.filter(note => !isSettled(note))
+    .map(note => note.kind === "discussion" && raised.has(note.id)
+      ? { ...note, raisedBy: raised.get(note.id), raisedByMe: raised.get(note.id)?.includes(me) } : note);
+  return { answers, documents, notes: shown, settledAi, partOf, aiSummary,
     assessments, considered, decided, letters: letters.sort((a, b) => Date.parse(a.at) - Date.parse(b.at)) };
 }
 
@@ -354,7 +365,9 @@ export function issueFrom(note: ReviewNote, text: string, severity?: string, top
   : Record<string, string | string[]> {
   const passage = note.passage;
   return {
-    kind: "issue", text, from: note.id, subjects: note.subjects, ...severity ? { severity } : {},
+    // A note to self gives way to the issue made of it, so the issue does not point back at it
+    kind: "issue", text, ...note.kind === "note" ? {} : { from: note.id }, subjects: note.subjects,
+    ...severity ? { severity } : {},
     ...topic ? { topic } : {},
     ...passage ? {
       quote: passage.quote,
@@ -369,4 +382,14 @@ export function issueFrom(note: ReviewNote, text: string, severity?: string, top
 export function groupShortName(label: string): string {
   return ({ "Research ethics": "REB", "Digital review": "Digital", "Department head": "Dept. head",
     "Research quality": "RQI", "Princess Margaret data": "CRDAC" } as Record<string, string>)[label] ?? label;
+}
+
+// Makes an issue of a note: of an AI comment, which it settles; of a discussion entry, which stays and says so; or
+// of a note to self, which it replaces
+export async function raiseAsIssue(write: (fields: Record<string, string | string[]>) => Promise<void>,
+  note: ReviewNote, text: string, severity?: string, topic?: string): Promise<void> {
+  await write(issueFrom(note, text, severity, topic));
+  if (note.kind === "note") {
+    await write({ remove: note.id });
+  }
 }

@@ -31,7 +31,7 @@ import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm"
 import Composer, { WRITTEN } from "./Composer";
 import NoteCard, { NoteActions, NoteHeading } from "./NoteCard";
 import { GroupChip } from "./people";
-import { groupShortName, issueFrom, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
+import { groupShortName, kindInfo, raiseAsIssue, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
   type ReviewNote } from "./reviewData";
 import { Highlighted } from "./SearchHighlight";
 
@@ -176,7 +176,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
                 onEdit={(text, severity, topic) => actions.write({ edit: note.id, text, ...severity ? { severity } : {},
                   ...topic !== undefined ? { topic } : {} })}
                 onRemove={() => actions.write({ remove: note.id })}
-                onMakeIssue={(text, severity, topic) => actions.write(issueFrom(note, text, severity, topic))}
+                onMakeIssue={(text, severity, topic) => raiseAsIssue(actions.write, note, text, severity, topic)}
                 onDismiss={() => actions.write({ dismiss: note.id })}
                 adopting={adopting === note.id}
                 onAdopting={on => setAdopting(on ? note.id : undefined)}

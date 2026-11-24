@@ -27,7 +27,7 @@ import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
 import { toFileUrl } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
 import NoteCard, { NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
-import { issueFrom, kindInfo, notesAbout, type NoteKind, type ReviewData, type ReviewedDocument } from "./reviewData";
+import { kindInfo, notesAbout, raiseAsIssue, type NoteKind, type ReviewData, type ReviewedDocument } from "./reviewData";
 
 import type { ReviewActions } from "./FormReview";
 
@@ -109,7 +109,7 @@ export default function DocumentReview({ document, data, shown, selected, onSele
           onEdit={(text, severity, topic) => actions.write({ edit: note.id, text, ...severity ? { severity } : {},
             ...topic !== undefined ? { topic } : {} })}
           onRemove={() => actions.write({ remove: note.id })}
-          onMakeIssue={(text, severity, topic) => actions.write(issueFrom(note, text, severity, topic))}
+          onMakeIssue={(text, severity, topic) => raiseAsIssue(actions.write, note, text, severity, topic)}
           onDismiss={() => actions.write({ dismiss: note.id })}
           adopting={adopting === note.id}
           onAdopting={on => setAdopting(on ? note.id : undefined)}
