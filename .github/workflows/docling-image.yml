@@ -78,8 +78,11 @@ jobs:
           container_options=(--network none --user "$(id -u):$(id -g)" --env HOME=/tmp
             --volume "$docs:/shared-docs")
 
+          # A profile directory of its own, as the daemon gives LibreOffice: the user ID has no account in
+          # the image, and LibreOffice cannot set up a default profile without one
           docker run --rm "${container_options[@]}" --entrypoint soffice "$IMAGE" \
-            --headless --convert-to pdf --outdir /shared-docs /shared-docs/sample.txt
+            --headless -env:UserInstallation=file:///tmp/libreoffice-profile \
+            --convert-to pdf --outdir /shared-docs /shared-docs/sample.txt
           test -s "$docs/sample.pdf"
 
           docker run --detach --name docling --init "${container_options[@]}" "$IMAGE"
