@@ -87,7 +87,14 @@ WORKDIR /app
 # contents depend on the docling version, so an unbounded range let the same commit produce
 # materially different images.
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# Two dependencies publish no wheel for this Python, so pip compiles them: tree-sitter in C and
+# pyclipper in C++. The compilers are removed in the same layer, and the image keeps none.
+# libc6-dev is named because gcc only recommends the C headers.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc g++ libc6-dev \
+    && pip install --no-cache-dir -r /app/requirements.txt \
+    && apt-get purge -y --auto-remove gcc g++ libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # The user comes before the weights, and the weights are downloaded as that user. A later
 # "chown -R /opt/models" would rewrite the ownership of every model file, and a metadata change
