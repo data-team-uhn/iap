@@ -27,6 +27,7 @@ them.
 | --- | --- |
 | [java-development.md](java-development.md) | Backend code: OSGi components, dependencies between services, configuration, service users, bundle assembly — and the habits the code is meant to follow |
 | [frontend-development.md](frontend-development.md) | React, TypeScript and MUI: what a module ships, talking to the server, reporting failures, the shared components and the theme |
+| [../TESTING.md](../TESTING.md) | Writing and running tests: the rules they are held to, which repository a Java test runs on, and the shared fixtures for tags, service users, workflow tasks and the server |
 
 ## The HTTP surface
 
