@@ -169,8 +169,9 @@ def port_available(port):
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        # On WSL and Windows, SO_REUSEADDR would allow rebinding a port that is actually in use
-        if not (IS_WSL or IS_WINDOWS):
+        # On Windows, SO_REUSEADDR allows rebinding a port that is in use. Elsewhere it lets a restart bind
+        # while the last run's closed connections sit in TIME_WAIT, which lasts about a minute.
+        if not IS_WINDOWS:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(('127.0.0.1', port))
         sock.listen()
