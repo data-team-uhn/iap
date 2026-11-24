@@ -25,7 +25,7 @@ import { Box, ButtonBase, IconButton, Link, Stack, Tooltip, Typography } from "@
 
 import { keepInView } from "@iap/documents-pdf-viewer/markLayer";
 import {
-  cutShort, getSelectedOutline, passageCard, passageDetails, passageLayer, passageTint,
+  cutShort, getSelectedOutline, passageCard, passageDetails, passageHover, passageLayer, passageTint,
 } from "@iap/documents-pdf-viewer/passageStyles";
 import StepControls from "@iap/documents-pdf-viewer/StepControls";
 import SplitHandle from "@iap/frontend-commons/components/SplitHandle";
@@ -198,7 +198,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
           <Box
             role={tint ? "presentation" : undefined} onClick={tint ? cycle : undefined}
             sx={theme => ({ flex: 1, minWidth: 0, ...tint ? {
-              mx: -0.5, px: 0.5, borderRadius: 0.5, cursor: "pointer", bgcolor: passageTint(theme, tint, 0.4),
+              mx: -0.5, px: 0.5, borderRadius: 0.5, cursor: "pointer", bgcolor: passageTint(theme, tint, 0.2),
               outline: outline ? "2px solid" : "none", outlineColor: outline ? getSelectedOutline(theme, outline) : undefined,
             } : {} })}
           >
@@ -300,8 +300,8 @@ function SideCard({ note, kind, onOpen, actions, children }: {
           onClick={onOpen}
           aria-label={`Show it in the document${note.passage.page ? `, page ${note.passage.page}` : ""}`}
           sx={theme => ({ ...strip, ...passageLayer(theme, mark),
-            "@media (hover: hover)": { "&:hover": { bgcolor: passageTint(theme, mark, 0.5) } },
-            "&.Mui-focusVisible": { bgcolor: passageTint(theme, mark, 0.5) } })}
+            "@media (hover: hover)": { "&:hover": { bgcolor: passageHover(theme, mark) } },
+            "&.Mui-focusVisible": { bgcolor: passageHover(theme, mark) } })}
         >
           <Box sx={{ mb: 0.5 }}><NoteHeading note={note} /></Box>
           <Typography variant="body2" component="span" sx={cutShort(3)}>“{note.passage.quote}”</Typography>
@@ -608,8 +608,8 @@ function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvi
                 aria-label={`Select the note about: ${question.text}`}
                 sx={theme => ({ display: "block", width: "100%", px: 1.5, pr: note.mine ? 10 : 1.5, py: 1,
                   textAlign: "start", ...passageLayer(theme, mark),
-                  "@media (hover: hover)": { "&:hover": { bgcolor: passageTint(theme, mark, 0.5) } },
-                  "&.Mui-focusVisible": { bgcolor: passageTint(theme, mark, 0.5) } })}
+                  "@media (hover: hover)": { "&:hover": { bgcolor: passageHover(theme, mark) } },
+                  "&.Mui-focusVisible": { bgcolor: passageHover(theme, mark) } })}
               >
                 <NoteHeading note={note} />
                 {note.kind === "evidence" && note.passage && (
