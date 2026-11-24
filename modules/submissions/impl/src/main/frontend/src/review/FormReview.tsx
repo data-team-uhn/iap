@@ -16,24 +16,30 @@
  * limitations under the License.
  */
 
-import { useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import AddCommentOutlined from "@mui/icons-material/AddCommentOutlined";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import ErrorOutlineOutlined from "@mui/icons-material/ErrorOutlineOutlined";
 import { Box, ButtonBase, IconButton, Link, Stack, Tooltip, Typography } from "@mui/material";
 
-import { cutShort, getSelectedOutline, passageCard, passageLayer, passageTint } from "@iap/documents-pdf-viewer/passageStyles";
+import { keepInView } from "@iap/documents-pdf-viewer/markLayer";
+import {
+  cutShort, getSelectedOutline, passageCard, passageDetails, passageLayer, passageTint,
+} from "@iap/documents-pdf-viewer/passageStyles";
+import StepControls from "@iap/documents-pdf-viewer/StepControls";
 import SplitHandle from "@iap/frontend-commons/components/SplitHandle";
 import { useElementWidth } from "@iap/frontend-commons/useElementWidth";
+import { fadeEdges, useScrollEdges } from "@iap/frontend-commons/useScrollEdges";
 
 import { type FormItem, type FormQuestion, isQuestion } from "../submissionForm";
 import Composer, { WRITTEN } from "./Composer";
-import NoteCard, { NoteActions, NoteHeading } from "./NoteCard";
+import NoteCard, { NoteActions, NoteHeading, NoteSummary } from "./NoteCard";
 import { GroupChip } from "./people";
 import { groupShortName, kindInfo, raiseAsIssue, notesAbout, type NoteKind, type ReviewData, type ReviewGroup,
   type ReviewNote } from "./reviewData";
 import { Highlighted } from "./SearchHighlight";
+import { panelPlacement } from "./sidePanel";
 
 // How wide the form must be for a question's notes to go beside it, as a document's are beside its pages, rather
 // than under it; their width is the reader's, set on the whole form; and the gap between, in spacing units
@@ -43,6 +49,46 @@ const GAP = 3;
 // How narrow the notes may be dragged, and how much the questions keep, the gap included
 const NOTES_MIN_WIDTH = 240;
 const QUESTIONS_MIN_WIDTH = 344;
+// How wide the form must be to list its notes beside it, as a document lists its notes, rather than under each
+// question: enough for both at their narrowest
+const LISTED_WIDTH = QUESTIONS_MIN_WIDTH + NOTES_MIN_WIDTH;
+// The note being written, which the list shows where its question's notes go
+const DRAFT = "draft";
+
+// PRETOTYPE. A wide form lists its notes beside it as a document does: the note selected, and the note being
+// written, are shared by the questions, which tint their answers, and the list
+interface Listing {
+  selected?: string;
+  select: (id: string | undefined) => void;
+  draftFor?: string;
+  startDraft: (question: string) => void;
+  // The notes listed for each question, by its path, in the order listed
+  notesOf: (question: string) => ReviewNote[];
+}
+const FormNotes = createContext<Listing | undefined>(undefined);
+
+// The notes shown for a question: what the AI read for it first, then whatever else is about it, where it is the
+// first of the questions a note is about
+function notesBeside(question: FormQuestion, data: ReviewData, shown: Set<NoteKind>,
+  homeOf: Map<string, string>): ReviewNote[] {
+  const answer = data.answers.get(question.path);
+  const notes = answer ? notesAbout(data.notes, [ answer.uuid ]) : [];
+  const evidence = notes.find(note => note.kind === "evidence");
+  const others = notes.filter(note => note.kind !== "evidence" && shown.has(note.kind)
+    && (homeOf.get(note.id) ?? question.path) === question.path);
+  return [ ...evidence && shown.has("evidence") ? [ evidence ] : [], ...others ];
+}
+
+// The questions of a form, every one, section by section
+function questionsOf(items: FormItem[]): FormQuestion[] {
+  return items.flatMap(item => isQuestion(item) ? [ item ] : questionsOf(item.items));
+}
+
+// What the AI read for a question, as its options call it
+function extractedText(question: FormQuestion, note: ReviewNote | undefined): string | undefined {
+  return note?.kind === "evidence"
+    ? answerText(question, note.extracted?.split(";").map(one => one.trim()) ?? []) : undefined;
+}
 
 export interface ReviewActions {
   write: (fields: Record<string, string | string[]>) => Promise<void>;
@@ -96,26 +142,46 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
   onEvidence: (note: ReviewNote) => void;
   actions: ReviewActions;
 }) {
-  const [ writing, setWriting ] = useState(false);
+  const listing = useContext(FormNotes);
+  const [ ownWriting, setOwnWriting ] = useState(false);
+  const writing = listing ? listing.draftFor === question.path : ownWriting;
+  const setWriting = (on: boolean) => {
+    if (listing) {
+      listing.startDraft(question.path);
+    } else {
+      setOwnWriting(on);
+    }
+  };
   // The AI pre-review note being made into an issue, coloured as one meanwhile
   const [ adopting, setAdopting ] = useState<string>();
   // The reviewer's own note being changed, whose card then shows its editor
   const [ editing, setEditing ] = useState<string>();
   const answer = data.answers.get(question.path);
-  const notes = answer ? notesAbout(data.notes, [ answer.uuid ]) : [];
-  const evidence = notes.find(note => note.kind === "evidence");
+  const evidence = (answer ? notesAbout(data.notes, [ answer.uuid ]) : []).find(note => note.kind === "evidence");
   const differs = disagrees(question, evidence?.extracted);
-  // A note about several answers shows under the first of them only
-  const others = notes.filter(note => note.kind !== "evidence" && shown.has(note.kind)
-    && (homeOf.get(note.id) ?? question.path) === question.path);
-  const extracted = evidence ? answerText(question, evidence.extracted?.split(";").map(one => one.trim()) ?? [])
-    : undefined;
-  const side = [ ...evidence && shown.has("evidence") ? [ evidence ] : [], ...others ];
+  const extracted = extractedText(question, evidence);
+  const side = notesBeside(question, data, shown, homeOf);
+  // Listed beside the form, its notes tint the answer, in the colour of the first, and the selected one outlines it;
+  // a click on the answer selects its first note, then the next
+  const listed = listing ? listing.notesOf(question.path) : [];
+  const selectedHere = writing && listing?.selected === DRAFT ? undefined
+    : listed.find(note => note.id === listing?.selected);
+  const tint = writing ? "draft" : listed.length > 0 ? kindInfo(listed[0].kind).mark : undefined;
+  const outline = writing && listing?.selected === DRAFT ? "draft"
+    : selectedHere ? kindInfo(selectedHere.kind).mark : undefined;
+  const cycle = () => {
+    if (listing && listed.length > 0) {
+      const at = listed.findIndex(note => note.id === listing.selected);
+      listing.select(listed[(at + 1) % listed.length].id);
+    }
+  };
   return (
-    // Beside the question, its notes, as a document has them beside its pages; under it when the page is narrow
+    // Beside the question, its notes, as a document has them beside its pages; under it when the page is narrow, or
+    // in the list beside the whole form
     <Box
       id={`question-${question.path}`}
-      sx={{ py: 1.5, scrollMarginTop: 96, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", rowGap: 1.5,
+      sx={listing ? { py: 1.5, scrollMarginTop: 96 } : { py: 1.5, scrollMarginTop: 96, display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr)", rowGap: 1.5,
         [WIDE]: { gridTemplateColumns: `minmax(0, 1fr) var(${NOTES_WIDTH})`, columnGap: GAP } }}
     >
       {/* Shaded under the pointer, and while a note is being written about it, so its comment button and the note
@@ -130,7 +196,13 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
           <GroupChips groups={groups.get(question.path)} mine={myGroups} />
         </Stack>
         <Stack direction="row" sx={{ minWidth: 0, gap: 1, alignItems: "flex-start" }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box
+            role={tint ? "presentation" : undefined} onClick={tint ? cycle : undefined}
+            sx={theme => ({ flex: 1, minWidth: 0, ...tint ? {
+              mx: -0.5, px: 0.5, borderRadius: 0.5, cursor: "pointer", bgcolor: passageTint(theme, tint, 0.4),
+              outline: outline ? "2px solid" : "none", outlineColor: outline ? getSelectedOutline(theme, outline) : undefined,
+            } : {} })}
+          >
             <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
               <Highlighted text={answerText(question, question.value)} question={question.path} field="answer" />
             </Typography>
@@ -158,7 +230,7 @@ function QuestionReview({ question, data, groups, myGroups, shown, onEvidence, a
           )}
         </Stack>
       </Stack>
-      {(side.length > 0 || writing) && (
+      {!listing && (side.length > 0 || writing) && (
         <Stack spacing={1} sx={{ minWidth: 0 }}>
           {side.map(note => (
             <SideCard key={note.id} note={note} kind={adopting === note.id ? "issue" : note.kind}
@@ -276,7 +348,7 @@ function homes(items: FormItem[], data: ReviewData): Map<string, string> {
 // The questions of a form requirement, section by section, every one of them: the group chips say which concern
 // the reviewer.
 export default function FormReview({ items, data, groups, myGroups, shown, onEvidence, actions, depth = 0, homeOf,
-  notesWidth = 320, onNotesWidth }: {
+  notesWidth = 320, onNotesWidth, selected, onSelect }: {
   items: FormItem[];
   data: ReviewData;
   groups: Map<string, ReviewGroup[]>;
@@ -290,9 +362,13 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
   // How wide the notes beside the questions are, which the reader sizes by dragging the edge between them
   notesWidth?: number;
   onNotesWidth?: (width: number) => void;
+  // The note selected in the list beside a wide form, shared with whoever sends the reader to one
+  selected?: string;
+  onSelect?: (id: string | undefined) => void;
 }) {
   const home = homeOf ?? homes(items, data);
   const form = useRef<HTMLElement>(null);
+  const [ draftFor, setDraftFor ] = useState<string>();
   // The width the reader chose, as far as this form has room for it
   const formWidth = useElementWidth(form);
   const width = formWidth === undefined ? notesWidth
@@ -324,6 +400,43 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
   if (depth > 0) {
     return body;
   }
+  // Wide, as a form is until measured on a wide screen, it lists its notes beside it
+  const asked = questionsOf(items);
+  const beside = new Map(asked.map(question => [ question.path, notesBeside(question, data, shown, home) ]));
+  if (onSelect && (formWidth ?? LISTED_WIDTH) >= LISTED_WIDTH) {
+    const listing: Listing = {
+      selected, select: onSelect, draftFor,
+      startDraft: question => {
+        setDraftFor(question);
+        onSelect(DRAFT);
+      },
+      notesOf: question => beside.get(question) ?? [],
+    };
+    const entries: ListEntry[] = asked.flatMap(question => [
+      ...(beside.get(question.path) ?? []).map(note => ({ question, note })),
+      ...draftFor === question.path ? [ { question } ] : [],
+    ]);
+    return (
+      <FormNotes.Provider value={listing}>
+        <Box ref={form} sx={{ display: "flex", alignItems: "flex-start" }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>{body}</Box>
+          {onNotesWidth ? (
+            <SplitHandle
+              width={width} onWidth={onNotesWidth} container={() => form.current} min={NOTES_MIN_WIDTH}
+              reserve={QUESTIONS_MIN_WIDTH} label="Resize the notes" sx={() => ({ alignSelf: "stretch", mx: 0.5 })}
+            />
+          ) : <Box sx={{ width: 24 }} />}
+          <FormNoteList
+            entries={entries} selected={selected} onSelect={onSelect} width={width} data={data} actions={actions}
+            onEvidence={onEvidence} onDraftDone={() => {
+              setDraftFor(undefined);
+              onSelect(undefined);
+            }}
+          />
+        </Box>
+      </FormNotes.Provider>
+    );
+  }
   return (
     <Box ref={form} sx={{ containerType: "inline-size", position: "relative", [NOTES_WIDTH]: `${width}px` }}>
       {body}
@@ -336,6 +449,193 @@ export default function FormReview({ items, data, groups, myGroups, shown, onEvi
             right: `calc(${width}px + ${theme.spacing(GAP / 2)} - 8px)`, [WIDE]: { display: "block" } })}
         />
       )}
+    </Box>
+  );
+}
+
+// A note listed beside a form, with the question it is about, or, without a note, the one being written about it
+interface ListEntry {
+  question: FormQuestion;
+  note?: ReviewNote;
+}
+
+// Whether an element is out of the window, under the frame above the page or below its bottom
+function outOfView(element: HTMLElement): boolean {
+  const box = element.getBoundingClientRect();
+  return box.bottom < 96 || box.top > window.innerHeight;
+}
+
+// A note not selected, cut short past some lines and faded where it is; a click anywhere on it selects it, as its
+// heading does for the keyboard
+function CutShort({ lines, onOpen, children }: { lines: number; onOpen: () => void; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  const edges = useScrollEdges(box);
+  return (
+    <Box ref={box} role="presentation" onClick={onOpen} sx={{ ...passageDetails(edges, lines), cursor: "pointer" }}>
+      {children}
+    </Box>
+  );
+}
+
+// PRETOTYPE. The notes of a wide form listed beside it, as a document's are: in the order of the questions they are
+// about, one selected and open, the others cut short, with the note being written where its question's notes go.
+// Selecting one brings its question into view, whose answer it outlines.
+function FormNoteList({ entries, selected, onSelect, width, data, actions, onEvidence, onDraftDone }: {
+  entries: ListEntry[];
+  selected?: string;
+  onSelect: (id: string | undefined) => void;
+  width: number;
+  data: ReviewData;
+  actions: ReviewActions;
+  onEvidence: (note: ReviewNote) => void;
+  onDraftDone: () => void;
+}) {
+  const list = useRef<HTMLUListElement>(null);
+  const placed = useRef(new Map<string, HTMLElement>());
+  const edges = useScrollEdges(list);
+  const [ adopting, setAdopting ] = useState<string>();
+  const [ editing, setEditing ] = useState<string>();
+  const ids = entries.map(entry => entry.note?.id ?? DRAFT);
+  const question = entries.find(entry => (entry.note?.id ?? DRAFT) === selected)?.question.path;
+  useEffect(() => {
+    const entry = selected === undefined ? undefined : placed.current.get(selected);
+    if (list.current && entry) {
+      keepInView(list.current, entry);
+    }
+    const asked = question ? document.getElementById(`question-${question}`) : null;
+    if (asked && outOfView(asked)) {
+      asked.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [ selected, question ]);
+  const place = (id: string) => (element: HTMLElement | null) => {
+    if (element) {
+      placed.current.set(id, element);
+    } else {
+      placed.current.delete(id);
+    }
+  };
+
+  const count = entries.filter(entry => entry.note).length;
+  const position = ids.indexOf(selected ?? "") + 1;
+  const total = count === 1 ? "1 note" : `${count} notes`;
+  return (
+    <Box sx={{ ...panelPlacement, width, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      {entries.length > 0 ? (
+        <StepControls
+          position={position} count={entries.length} itemName="note"
+          heading={position > 0 ? `Note ${position} of ${entries.length}` : total}
+          widest={[ `Note ${entries.length} of ${entries.length}`, total ]}
+          onStep={next => onSelect(ids[next - 1])}
+        />
+      ) : (
+        <Typography variant="body2" sx={{ color: "text.secondary", textAlign: "center", py: 1.5 }}>
+          No notes on this part yet
+        </Typography>
+      )}
+      <Box
+        ref={list} component="ul" aria-label="Notes"
+        sx={{ flex: "1 1 auto", minHeight: 0, overflow: "auto", listStyle: "none", m: 0, p: 0.5, display: "flex",
+          flexDirection: "column", gap: 1, maskImage: fadeEdges(edges) }}
+      >
+        {entries.map(({ question, note }) => {
+          if (!note) {
+            const answer = data.answers.get(question.path);
+            return (
+              <Box component="li" key={DRAFT} ref={place(DRAFT)}
+                sx={theme => ({ ...passageCard(theme, "draft", 0.5), flexShrink: 0, px: 1.5, py: 1.25, outline: "2px solid",
+                  outlineColor: getSelectedOutline(theme, "draft"), outlineOffset: "-2px" })}>
+                <Composer
+                  kinds={WRITTEN} initialKind="issue" about={[ question.path ]}
+                  onCancel={onDraftDone}
+                  onSave={async (kind, text, severity, topic) => {
+                    await actions.write({ kind, text, subjects: answer ? [ answer.uuid ] : [],
+                      ...severity ? { severity } : {}, ...topic ? { topic } : {} });
+                    onDraftDone();
+                  }}
+                />
+              </Box>
+            );
+          }
+          const mark = kindInfo(adopting === note.id ? "issue" : note.kind).mark;
+          const isSelected = selected === note.id;
+          const extracted = extractedText(question, note);
+          return (
+            <Box
+              component="li" key={note.id} ref={place(note.id)}
+              sx={theme => ({ ...passageCard(theme, mark, isSelected ? 0.5 : 0.25), position: "relative", flexShrink: 0,
+                overflow: "hidden", outline: isSelected ? "2px solid" : "none",
+                outlineColor: getSelectedOutline(theme, mark), outlineOffset: "-2px" })}
+            >
+              {editing !== note.id && (
+                <Box sx={{ position: "absolute", top: 4, right: 12, zIndex: 1 }}>
+                  <NoteActions
+                    note={note}
+                    onEdit={() => {
+                      setEditing(note.id);
+                      onSelect(note.id);
+                    }}
+                    onRemove={() => actions.write({ remove: note.id })}
+                  />
+                </Box>
+              )}
+              {/* Headed by what it is, when and by whom; an extracted answer also by the words it was read from */}
+              <ButtonBase
+                onClick={() => onSelect(note.id)} aria-current={isSelected ? "true" : undefined}
+                aria-label={`Select the note about: ${question.text}`}
+                sx={theme => ({ display: "block", width: "100%", px: 1.5, pr: note.mine ? 10 : 1.5, py: 1,
+                  textAlign: "start", ...passageLayer(theme, mark),
+                  "@media (hover: hover)": { "&:hover": { bgcolor: passageTint(theme, mark, 0.5) } },
+                  "&.Mui-focusVisible": { bgcolor: passageTint(theme, mark, 0.5) } })}
+              >
+                <NoteHeading note={note} />
+                {note.kind === "evidence" && note.passage && (
+                  <Typography variant="body2" component="span" sx={{ mt: 0.5, ...isSelected ? { display: "block" }
+                    : cutShort(2) }}>
+                    “{note.passage.quote}”
+                  </Typography>
+                )}
+              </ButtonBase>
+              {isSelected ? (
+                <Box data-note={note.id} sx={{ px: 1.5, pt: 1, pb: 1 }}>
+                  <NoteCard
+                    note={note} answerLabel={extracted} headed
+                    onReply={text => actions.write({ replyTo: note.id, text })}
+                    onEditReply={(reply, text) => actions.write({ edit: reply, text })}
+                    onRemoveReply={reply => actions.write({ remove: reply })}
+                    onEdit={(text, severity, topic) => actions.write({ edit: note.id, text,
+                      ...severity ? { severity } : {}, ...topic !== undefined ? { topic } : {} })}
+                    onRemove={() => actions.write({ remove: note.id })}
+                    onMakeIssue={(text, severity, topic) => raiseAsIssue(actions.write, note, text, severity, topic)}
+                    onDismiss={() => actions.write({ dismiss: note.id })}
+                    adopting={adopting === note.id}
+                    onAdopting={on => setAdopting(on ? note.id : undefined)}
+                    editing={editing === note.id}
+                    onEditing={on => setEditing(on ? note.id : undefined)}
+                  />
+                  {/* On a passage of the protocol, which the form does not show, it leads there */}
+                  {note.passage && (
+                    <Link
+                      component="button" variant="caption" underline="hover" onClick={() => onEvidence(note)}
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5 }}
+                    >
+                      <ArticleOutlined sx={{ fontSize: "1rem" }} />
+                      In the protocol{note.passage.page ? `, page ${note.passage.page}` : ""}
+                    </Link>
+                  )}
+                </Box>
+              ) : (
+                <Box data-note={note.id}>
+                  <CutShort lines={note.kind === "evidence" ? 3 : 4} onOpen={() => onSelect(note.id)}>
+                    {note.kind === "evidence"
+                      ? <Box sx={{ px: 1.5, pb: 1 }}><NoteCard note={note} answerLabel={extracted} headed /></Box>
+                      : <NoteSummary note={note} headed />}
+                  </CutShort>
+                </Box>
+              )}
+            </Box>
+          );
+        })}
+      </Box>
     </Box>
   );
 }

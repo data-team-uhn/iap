@@ -520,7 +520,7 @@ export default function ReviewScreen({ path }: { path: string }) {
       go(part, { id: note.id, page: note.passage?.page });
     } else {
       reveal(note, part);
-      go(part.split("/")[0], { question: part });
+      go(part.split("/")[0], { id: note.id, question: part });
     }
   };
 
@@ -865,6 +865,7 @@ export default function ReviewScreen({ path }: { path: string }) {
                         myGroups={myGroups} shown={shown}
                         onEvidence={openEvidence} actions={actions}
                         notesWidth={notesWidth} onNotesWidth={setNotesWidth}
+                        selected={mark.id} onSelect={id => setMark(currentMark => ({ ...currentMark, id }))}
                       />
                     </SearchContext.Provider>
                   )}
