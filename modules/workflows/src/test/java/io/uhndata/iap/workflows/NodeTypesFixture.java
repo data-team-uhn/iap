@@ -28,9 +28,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
  * <p>The parser asks the registry two questions, and both have to be answerable for a parse to produce the same
  * nodes it does in a running repository. {@code rep:supertypes}, the transitively-expanded list, is how a
  * previously parsed child is recognized as a flow node worth clearing. The flattened property and child node
- * definitions tell which parameters a node can hold, and what a created node is given by default. Shared so that a
- * test about the parser and a test about the shipped definitions agree on what the platform's own node types
- * are.</p>
+ * definitions tell which parameters a node can hold, and what a created node is given by default.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -88,20 +86,17 @@ public final class NodeTypesFixture
         type(nodeTypes, "wf:InclusiveGateway", List.of(GATEWAY, FLOW_NODE), GATEWAY);
         type(nodeTypes, "wf:ParallelGateway", List.of(GATEWAY, FLOW_NODE), GATEWAY);
         type(nodeTypes, "wf:EventBasedGateway", List.of(GATEWAY, FLOW_NODE), GATEWAY);
-        // The kinds of vocabulary entry, recognized as entries by what they extend
         for (final String entry : List.of("wf:CatchingEventType", "wf:ThrowingEventType", "wf:ActivityType",
             "wf:GatewayType", "wf:SequenceFlowType")) {
             type(nodeTypes, entry, List.of(FLOW_NODE_TYPE), FLOW_NODE_TYPE);
         }
         type(nodeTypes, "wf:SequenceFlow", List.of(ENTITY_PART), ENTITY_PART);
-        // What a condition written into a diagram is built of
         type(nodeTypes, "cond:ConditionGroup", List.of("cond:Condition"), "cond:Condition");
         type(nodeTypes, "cond:SingleCondition", List.of("cond:Condition"), "cond:Condition")
             .child("rep:namedChildNodeDefinitions").child("operandB").child(CONDITION_OPERAND)
             .setProperty(AUTO_CREATED, true).setProperty("jcr:defaultPrimaryType", CONDITION_OPERAND, Type.NAME);
         autoCreated(type(nodeTypes, CONDITION_OPERAND, List.of(ENTITY_PART), ENTITY_PART), "source", "literal");
         nodeTypes.child("nt:file").setProperty(REP_SUPERTYPES, List.of("nt:hierarchyNode"), Type.NAMES);
-        // What a structure is stored as when it names no node type, and what a repeated one's records sit in
         acceptingAnyChild(acceptingAnyProperty(nodeTypes.child("nt:unstructured")
             .setProperty(REP_SUPERTYPES, List.of(NT_BASE), Type.NAMES)));
         acceptingAnyChild(acceptingAnyProperty(nodeTypes.child("sling:Folder")

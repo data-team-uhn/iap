@@ -22,5 +22,48 @@
     "jcr:primaryType": "wf:Parameter",
     "label": "Name hint",
     "description": "A description of what the pattern allows."
+  },
+  "types": {
+    "jcr:primaryType": "wf:Parameter",
+    "label": "Type",
+    "description": "The types of content that may be created.",
+    "dataType": "structure",
+    "maxValues": 0,
+    "keyParameter": "name",
+    "parameters": {
+      "jcr:primaryType": "wf:Parameters",
+      "name": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Name",
+        "minValues": 1
+      },
+      "nodeType": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Node type",
+        "description": "The type of content created, e.g. \"sch:Section\".",
+        "minValues": 1
+      },
+      "label": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Label",
+        "description": "The label of the type. Left blank, the node type."
+      },
+      "named": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Named",
+        "description": "Whether a request may ask for a name for the created item. Default true.",
+        "dataType": "boolean"
+      },
+      "namePattern": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Name pattern",
+        "description": "A pattern that the requested name must follow."
+      },
+      "nameHint": {
+        "jcr:primaryType": "wf:Parameter",
+        "label": "Name hint",
+        "description": "A description of what the pattern allows."
+      }
+    }
   }
 }
