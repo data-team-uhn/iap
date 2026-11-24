@@ -248,7 +248,7 @@ class WorkflowEngineImplTest
             opened.add(session);
             return session;
         });
-        EngineFixture.inject(engine, "resolverFactory", factory);
+        EngineFixture.inject(engine, "sessions", new EngineSessions(factory));
         return engine;
     }
 
@@ -287,6 +287,65 @@ class WorkflowEngineImplTest
     }
 
     @Test
+    void recordsWhomADelegateActedForAndWhoSentIt() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.ADMIN);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+
+        engine().receiveEvent(target, CREATE, EngineFixture.REQUESTER);
+
+        final Resource created = this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow");
+        assertNotNull(created);
+        assertEquals(EngineFixture.REQUESTER, created.getValueMap().get("createdBy"));
+        final RecordedAction delivery = this.history.described().get(0);
+        assertEquals(EngineFixture.ADMIN, delivery.getRequestedBy());
+        assertEquals(EngineFixture.REQUESTER, delivery.getOnBehalfOf());
+    }
+
+    @Test
+    void refusesADelegateActingForSomeoneTheStartEventDoesNotName() throws Exception
+    {
+        // The administrator would pass any start event, but the event counts as the requester's, and they do not
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.ADMIN);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, "time-off-approvers");
+
+        final WorkflowEngine engine = engine();
+        assertThrows(NotAuthorizedException.class,
+            () -> engine.receiveEvent(target, CREATE, EngineFixture.REQUESTER));
+        assertNull(this.context.resourceResolver().getResource("/Workflows/myCoolWorkflow"));
+    }
+
+    @Test
+    void refusesASenderOutsideTheDelegatesGroup() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+
+        final WorkflowEngine engine = engine();
+        assertThrows(NotAuthorizedException.class,
+            () -> engine.receiveEvent(target, CREATE, EngineFixture.COLLEAGUE));
+    }
+
+    @Test
+    void letsAMemberOfItsDelegatesGroupActForOthers() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        EngineFixture.createBootstrapGraph(this.context, EngineFixture.REQUESTERS);
+        final WorkflowEngineImpl engine = engine();
+        EngineFixture.inject(engine, "delegation", EngineFixture.delegation(EngineFixture.REQUESTERS));
+
+        assertEquals("/Workflows/myCoolWorkflow", engine.receiveEvent(target, CREATE, EngineFixture.COLLEAGUE)
+            .getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+        final RecordedAction delivery = this.history.described().get(0);
+        assertEquals(EngineFixture.REQUESTER, delivery.getRequestedBy());
+        assertEquals(EngineFixture.COLLEAGUE, delivery.getOnBehalfOf());
+    }
+
+    @Test
     void tellsTheHandlerWhoItIsActingFor() throws Exception
     {
         final Resource target = EngineFixture.createTarget(this.context, EngineFixture.REQUESTER);
@@ -300,6 +359,20 @@ class WorkflowEngineImplTest
         assertEquals(EngineFixture.REQUESTER, handler.seen);
         // A workflow that creates nothing completes all the same: there is simply nowhere to send the caller
         assertNull(result.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
+    }
+
+    @Test
+    void tellsTheHandlerWhoSentAnEventOnSomeoneElsesBehalf() throws Exception
+    {
+        final Resource target = EngineFixture.createTarget(this.context, EngineFixture.ADMIN);
+        EngineFixture.createSystemWorkflow(this.context, WorkflowsHomepage.RESOURCE_TYPE);
+        createNoopGraph(EngineFixture.REQUESTERS);
+        final ActorRecordingHandler handler = new ActorRecordingHandler();
+
+        engine(handler).receiveEvent(target, CREATE, EngineFixture.REQUESTER);
+
+        assertEquals(EngineFixture.REQUESTER, handler.seen);
+        assertEquals(EngineFixture.ADMIN, handler.sender);
     }
 
     @Test
@@ -318,6 +391,7 @@ class WorkflowEngineImplTest
         assertEquals(1, this.history.described().size());
         final RecordedAction delivery = this.history.described().get(0);
         assertEquals(EngineFixture.REQUESTER, delivery.getRequestedBy());
+        assertNull(delivery.getOnBehalfOf());
         assertEquals(CREATE.getName(), delivery.getOperation());
         assertEquals(CREATE.getName(), delivery.getEvent());
         assertEquals("version-id", delivery.getWorkflowVersion());
@@ -778,7 +852,7 @@ class WorkflowEngineImplTest
         Mockito.when(brokenFactory.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("no such service user"));
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
-        EngineFixture.inject(engine, "resolverFactory", brokenFactory);
+        EngineFixture.inject(engine, "sessions", new EngineSessions(brokenFactory));
         EngineFixture.inject(engine, "queries", EngineFixture.queries());
         final Resource target = EngineFixture.createTarget(this.context);
 
@@ -1517,6 +1591,8 @@ class WorkflowEngineImplTest
     {
         private String seen;
 
+        private String sender;
+
         @Override
         public String getName()
         {
@@ -1527,6 +1603,7 @@ class WorkflowEngineImplTest
         public void execute(final WorkflowTaskContext taskContext)
         {
             this.seen = taskContext.getActor();
+            this.sender = taskContext.getSender();
         }
     }
 

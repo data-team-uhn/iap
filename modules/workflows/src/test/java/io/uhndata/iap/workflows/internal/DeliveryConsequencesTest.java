@@ -39,6 +39,8 @@ class DeliveryConsequencesTest
 {
     private static final WorkflowEvent EVENT = new WorkflowEvent("create", Map.of());
 
+    private static final Actor JDOE = Actor.of("jdoe");
+
     private final DeliveryConsequences consequences =
         new DeliveryConsequences(new PendingNotifications(Mockito.mock(NotificationService.class)));
 
@@ -49,14 +51,14 @@ class DeliveryConsequencesTest
         this.consequences.noteStartedInstance("/Requests/one/wf:instances/second");
 
         assertEquals("/Requests/one/wf:instances/first",
-            this.consequences.recordedAsSystemWorkflow("jdoe", EVENT, Mockito.mock(FlowNode.class))
+            this.consequences.recordedAsSystemWorkflow(JDOE, EVENT, Mockito.mock(FlowNode.class))
                 .getWorkflowInstance());
     }
 
     @Test
     void namesNoVersionForAStartEventStoredOutsideOne()
     {
-        assertNull(this.consequences.recordedAsSystemWorkflow("jdoe", EVENT, Mockito.mock(FlowNode.class))
+        assertNull(this.consequences.recordedAsSystemWorkflow(JDOE, EVENT, Mockito.mock(FlowNode.class))
             .getWorkflowVersion());
     }
 }
