@@ -65,29 +65,14 @@ export function NoteHeading({ note }: { note: ReviewNote }) {
   );
 }
 
-// One of a note's fields, named before its value, "Severity: Medium", the name quieter and smaller than the value
+// One of a note's fields, named before its value, "Severity: Medium", the name quieter and smaller than the value. A
+// value in words runs on after the name and wraps under it, as a paragraph would, the column being narrow
 function Field({ label, chip = false, children }: { label: string; chip?: boolean; children: ReactNode }) {
-  return (
-    <Box sx={{ display: "inline-flex", alignItems: chip ? "center" : "baseline", gap: 0.75, minWidth: 0 }}>
-      <Typography variant="caption" sx={{ color: "text.secondary", flexShrink: 0 }}>{label}:</Typography>
-      {children}
-    </Box>
-  );
-}
-
-// A note's fields one per line, their names in a column as wide as the longest, so the values line up
-function FieldRows({ rows }: { rows: [ string, ReactNode ][] }) {
-  return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "max-content minmax(0, 1fr)", columnGap: 0.75, rowGap: 0.5,
-      alignItems: "baseline" }}>
-      {rows.map(([ label, value ]) => (
-        <Box key={label} sx={{ display: "contents" }}>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>{label}:</Typography>
-          <Typography variant="body2" component="div">{value}</Typography>
-        </Box>
-      ))}
-    </Box>
-  );
+  const name = <Box component="span" sx={{ typography: "caption", color: "text.secondary", mr: 0.75 }}>{label}:</Box>;
+  if (chip) {
+    return <Box sx={{ display: "inline-flex", alignItems: "center" }}>{name}{children}</Box>;
+  }
+  return <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{name}{children}</Typography>;
 }
 
 // Whose group raised an issue and how serious it is, each named, on one line as far as it goes
@@ -215,7 +200,7 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
       {/* Each field named, so the chips and the risk are not left to be guessed */}
       <Stack sx={{ gap: 0.5, mb: 0.5 }}>
         <Chips note={note} />
-        {note.topic && <Field label="Topic"><Typography variant="body2">{note.topic}</Typography></Field>}
+        {note.topic && <Field label="Topic">{note.topic}</Field>}
       </Stack>
       {!headed && (
         <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mb: 0.5 }}>
@@ -224,20 +209,19 @@ export default function NoteCard({ note, answerLabel, onReply, onEdit, onRemove,
       )}
       {note.kind === "evidence" ? (
         <>
-          <FieldRows rows={[
-            ...question ? [ [ "Question", question ] as [ string, ReactNode ] ] : [],
-            [ "Answer", <b key="answer">{answerLabel ?? note.extracted}</b> ],
-            ...note.reasoning ? [ [ "Reasoning", note.reasoning ] as [ string, ReactNode ] ] : [],
-            ...note.confidence === undefined ? []
-              : [ [ "Confidence", `${Math.round(note.confidence * 100)}%` ] as [ string, ReactNode ] ],
-          ]} />
+          <Stack sx={{ gap: 0.5 }}>
+            {question && <Field label="Question">{question}</Field>}
+            <Field label="Answer"><b>{answerLabel ?? note.extracted}</b></Field>
+            {note.reasoning && <Field label="Reasoning">{note.reasoning}</Field>}
+            {note.confidence !== undefined && <Field label="Confidence">{Math.round(note.confidence * 100)}%</Field>}
+          </Stack>
         </>
       ) : (
         <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{note.text}</Typography>
       )}
       {note.suggestion && (
         <Box sx={{ mt: 0.5 }}>
-          <Field label="Suggestion"><Typography variant="body2">{note.suggestion}</Typography></Field>
+          <Field label="Suggestion">{note.suggestion}</Field>
         </Box>
       )}
       <Thread replies={note.replies} onEdit={onEditReply} onRemove={onRemoveReply} />
