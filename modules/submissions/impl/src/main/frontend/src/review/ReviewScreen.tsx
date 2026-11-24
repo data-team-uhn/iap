@@ -47,6 +47,7 @@ import {
   type Theme,
 } from "@mui/material";
 
+import { passageCard } from "@iap/documents-pdf-viewer/passageStyles";
 import type { DocumentSearch } from "@iap/documents-pdf-viewer/pdfViewerModel";
 import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
 import LoadError from "@iap/frontend-commons/components/LoadError";
@@ -775,12 +776,15 @@ export default function ReviewScreen({ path }: { path: string }) {
                 {/* How many notes of each kind shown, on a line of their own so the name keeps the row's width */}
                 {!terms && counted.length > 0 && (
                   <Tooltip title={countText(counted)} placement="right">
-                    <Box component="span" sx={{ display: "flex", flexWrap: "wrap", columnGap: 1, mt: 0.25 }}>
+                    <Box component="span" sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
                       {COUNTED_KINDS.map(kind => {
                         const many = counted.filter(note => note.kind === kind).length;
                         return many > 0 && (
+                          // Each a small card of its kind, as its notes are, to stand out on the contents' tint
                           <Box component="span" key={kind}
-                            sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, color: `${kindInfo(kind).mark}.main` }}>
+                            sx={theme => ({ ...passageCard(theme, kindInfo(kind).mark, 0.5), borderInlineStartWidth: 3,
+                              display: "inline-flex", alignItems: "center", gap: 0.25, px: 0.5, lineHeight: 1.6,
+                              color: `${kindInfo(kind).mark}.main` })}>
                             <NoteKindIcon kind={kind} sx={{ fontSize: "0.9rem" }} />{many}
                           </Box>
                         );
