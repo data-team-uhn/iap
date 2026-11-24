@@ -190,11 +190,14 @@ event is `catching`, is autocreated and protected there instead, so the two cann
 disagree.
 
 **What varies between one occurrence of a kind of node and the next is a `wf:Parameter` child of the
-entry, not a hardcoded field.** Each one declares a `label` and `description`, a `dataType` saying what may
-be put in it (`text`, `boolean`, `long`, `reference`, `principal` or `structure`), how many values it takes
-(`minValues`/`maxValues`; one at most unless `maxValues` says otherwise, `0` meaning unbounded), and — for a
-`reference` — the `referenceType` a value must be of; a parameter may also offer a fixed set of values as
-`wf:ParameterOption` children. `CopyContent.json`, the entry behind the `copyContent` handler:
+entry, not a hardcoded field.** Each one declares a `label` and `description` for the properties panel, a
+`dataType` saying what may be put in it (`text`, `boolean`, `long`, `reference`, `principal` or `structure`),
+how many values it takes (`minValues`/`maxValues`; one at most unless `maxValues` says otherwise, `0` meaning
+unbounded), and, for a `reference`, the `referenceType` a value must be of. A parameter may also offer a
+fixed set of values as `wf:ParameterOption` children. A child is a parameter or an option by its node type,
+subtypes included, for the parser and the catalogue alike. A node carrying only the resource type of one is
+read by neither, and each parse of an element of that entry's kind reports such a parameter. `CopyContent.json`,
+the entry behind the `copyContent` handler:
 
 ```json
 {
@@ -237,7 +240,7 @@ value is an unprefixed attribute of that element, a list is one IAP-namespaced c
 
 An entry with no `xmlExtensionElement` has nowhere else to put a parameter, so one declared there anyway
 is read as an attribute regardless — logged as a problem rather than silently accepted, since the
-alternative is a value an author writes and nothing stores.
+alternative is a field the properties panel offers and nothing can store.
 
 **A value BPMN has its own markup for stays in that markup**, under BPMN's name. `xmlLocation:
 "bpmnAttribute"` is one of BPMN's unprefixed attributes, and `"bpmnElement"` is the trimmed text of each of
@@ -255,7 +258,9 @@ value. The shipped entries declare two of these. The timer entries take `timeDur
 </bpmn:boundaryEvent>
 ```
 
-The boundary event entries take `cancelActivity`, a boolean BPMN attribute. `SequenceFlow`, a
+The boundary event entries take `cancelActivity`, a boolean BPMN attribute. The properties panel shows one
+a diagram leaves out as BPMN's default, true, since saving never writes a value equal to that default. The
+parser then stores nothing, and the node type defaults it to true as well. `SequenceFlow`, a
 `wf:SequenceFlowType` entry, declares no parameters yet: an arc's guard is a `cond:condition` subtree, which no
 parameter type can hold (see [Known gaps](#known-gaps)). An arc is stored as a `wf:SequenceFlow` inside the
 node it leaves whichever entry it matches, so its entry only adds parameters; `elementId`, `targetRef`,
@@ -265,8 +270,8 @@ parameter: it is the name of the message its `messageRef` points at, which the p
 **A parameter whose configuration is a record, or a list of records, is a `structure`.** Its fields are the
 `wf:Parameter` nodes under its `parameters` child, a `wf:Parameters` node, in the order they are declared,
 and they may be structures in turn. Held apart from the structure's own properties, a field may take any
-name, `label` and `dataType` included. A parameter declared directly under another one is not read, and each
-parse of an element of that entry's kind reports it by its path:
+name, `label` and `dataType` included. A parameter declared directly under another one is read by neither the
+parser nor the properties panel, and each parse of an element of that entry's kind reports it by its path:
 
 ```json
 "fields": {
@@ -305,6 +310,28 @@ are of the structure's `jcrNodeType`, `nt:unstructured` when it names none. The 
 `fields/workflow`, holding `label`, `referenceType`, `referenceRoot`, `choices/a` and `appliesWhen`. Every check
 a parameter gets applies to each field at every level, and a problem names the field by its path,
 `fields/workflow/label`.
+
+The properties panel edits a structure in `StructureParameterField`, the one field given records rather than
+strings: each record holds the values of each field by name, recursively (`StructureRecord` in
+`parameterValues.ts`). A single structure is a group of its fields. A repeated one is a list of records titled
+by their key, which can be added, removed and moved. Each field is rendered through `ParameterField`, as a
+parameter of the entry is. A finished edit is written on the deepest element it changes: one field of one
+record is set on that record's element, and adding, removing or moving records rewrites the list, keeping the
+element of every record left unchanged.
+
+A typed value is written when its field is left or Enter is pressed, so that each finished edit is one step
+to undo. One still being typed when the panel goes away, as when another element is selected, is written then,
+unless its canvas was destroyed or the element is gone. The editor counts as having unsaved changes from the
+first keystroke, so leaving the page asks first even before the value is written. An edit is only written for
+the entry the element still means: after an undo removed the entry's extension element, nothing brings it
+back. Each field flags a value its type cannot store (a `long` that is no whole number, a `boolean` that is
+neither `true` nor `false`) and, once it has been left, a required parameter with no value it can store. The
+parser reads any `boolean` text as `false` unless it is `true` in some letter case, so it never reports one. A
+repeated structure flags a record whose trimmed key an earlier record already has, which the parser drops.
+**Save refuses a diagram holding a record the parser would drop for its key**, one with a repeated key or
+content and no key, at any depth. It lists them in an error and sends nothing. The check runs only when Save
+is pressed. The panel matches element names exactly, as the parser does: a vocabulary's `bpmn:serviceTask`
+matches, `bpmn:ServiceTask` does not.
 
 Each parameter is stored in the JCR type its `dataType` says — text, a reference or a principal as
 STRING(S), a boolean as BOOLEAN(S), a whole number as LONG(S) — and the parser validates as it stores: a
@@ -356,11 +383,12 @@ own:
 
 `/WorkflowTypes` carries `doc:Documented`, so its catalogue is served at
 `/WorkflowTypes.doc.json` and `/WorkflowTypes.doc.md` ([autodoc](autodoc.md)). The
-visual BPMN editor builds its toolbars from that JSON, grouped by each entry's
-`category`, with the `xmlElement`/`xmlChildElement`/`xmlExtensionElement` and `jcrNodeType` each one stands
-for, and its `parameters`, each with the `label`, `description`, `dataType`, cardinality, options,
-`xmlLocation` and `xmlPath` it declares. A structure also carries its `keyParameter`, and its fields as
-`parameters` of its own. **The shape of that output is a contract** the editor depends on.
+visual BPMN editor's properties panel reads that JSON to tell what a selected element is
+and which fields to offer for it, grouped by each entry's `category`. Each item carries the
+`xmlElement`/`xmlChildElement`/`xmlExtensionElement` it stands for, the `jcrNodeType` it is stored as, and
+its `parameters`, each with the `label`, `description`, `dataType`, cardinality and options a field needs,
+and the `xmlLocation` and `xmlPath` it is written at. A structure also carries its `keyParameter`, and its
+fields as `parameters` of its own. **The shape of that output is a contract** the editor depends on.
 
 ### Runtime
 
@@ -690,6 +718,8 @@ lifecycle and its description.
 editor offers **Save**, **Save and view** and **Save and close**, the same save
 differing only in where it leaves the user; a save the engine refuses navigates nowhere,
 since leaving would lose what was drawn.
+Beside the canvas (at the `xl` breakpoint) the properties panel is as tall as the canvas and scrolls on its own;
+below it the panel stacks under the canvas and the page scrolls.
 
 The buttons are extensions, not part of the pages: a workflow's own on
 **`WorkflowActions`** (`wf/workflow/actions`), beside its title, and each version's on
@@ -1272,11 +1302,16 @@ each completed on its own.
 - **Read access is never revoked.** It lasts for the life of the instance rather than
   while a task is open.
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created
-  without it and the problem recorded; a guard is written as a `cond:condition` in the
-  arc's `extensionElements`.
+  without it and the problem is recorded; a guard is written as a `cond:condition` in
+  the arc's `extensionElements`.
 - **An extension node with no name or no primary type is left out.** It is recorded,
   and the element it belongs to is still created. A guard lost this way leaves its start
   event or arc unguarded rather than closed.
+- **The properties panel cannot edit conditions.** No parameter type holds a
+  `cond:condition` subtree, so an arc's guard, and a start event's, is written by hand in
+  the diagram's XML. A `condition` parameter type built on the conditions module's
+  `ConditionBuilder` would close this; its operand catalogue is keyed by content path,
+  which a draft diagram does not have.
 - **Only `timeDuration` timers.** A `timeCycle` or `timeDate` timer is imported with no
   duration and never fires.
 - **Shipped system workflows are not yet `bpmnAuthoritative`.** Every one of them ships a

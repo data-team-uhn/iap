@@ -20,6 +20,7 @@ import {
   adminUrl,
   consoleTarget,
   homepagesFrom,
+  STARTING_BPMN,
   workflowFrom,
   type WorkflowHomepage,
 } from "@iap/workflows/workflowModel";
@@ -254,5 +255,11 @@ describe("the console's URLs", () => {
     expect(consoleTarget("/admin/workflows", [])).toEqual({ kind: "root" });
     expect(consoleTarget("/admin/workflows/", HOMEPAGES)).toEqual({ kind: "root" });
     expect(consoleTarget("/admin/workflows.html", HOMEPAGES)).toEqual({ kind: "root" });
+  });
+});
+
+describe("STARTING_BPMN", () => {
+  it("declares the IAP namespace", () => {
+    expect(STARTING_BPMN).toContain('xmlns:iap="https://iap.uhndata.io/bpmn"');
   });
 });

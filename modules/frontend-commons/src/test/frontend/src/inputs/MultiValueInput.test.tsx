@@ -106,6 +106,21 @@ describe("MultiValueInput", () => {
     expect(screen.getByText(REQUIRED_PROBLEM)).toBeInTheDocument();
   });
 
+  it("says when a list holds fewer values than it needs", () => {
+    renderInput({ minValues: 2 });
+    expect(screen.getByText("At least 2 values are needed.")).toBeInTheDocument();
+  });
+
+  it("says nothing of the count of an empty list", () => {
+    renderInput({ minValues: 2, values: [], description: "Who decides" });
+    expect(screen.getByText("Who decides")).toBeInTheDocument();
+  });
+
+  it("says when a list holds more values than it accepts, after the problems it was given", () => {
+    renderInput({ maxValues: 1, values: [ "a", "b" ], problems: [ "Not a tag." ] });
+    expect(screen.getByText("Not a tag. At most 1 values are accepted.")).toBeInTheDocument();
+  });
+
   it("shows the values as text when read-only", () => {
     const { input } = renderInput({ choices: FORMATS, values: [ "pdf", "doc" ], readOnly: true });
 

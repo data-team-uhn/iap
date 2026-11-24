@@ -46,8 +46,9 @@ import io.uhndata.iap.entities.models.Entity;
  * to read out of the element. Adding a new kind of node is therefore a matter of adding an entry here, not of
  * adding a node type or a model.</p>
  *
- * <p>The same entries, served as {@link DocumentedItem documentation} at {@code /WorkflowTypes.doc.json}, are what
- * populates the toolbars of the visual editor, so this catalogue is a UI contract as much as a parser table.</p>
+ * <p>The same entries are served as {@link DocumentedItem documentation} at {@code /WorkflowTypes.doc.json}. The
+ * visual editor's properties panel reads them there, so this catalogue is a UI contract as much as a parser
+ * table.</p>
  *
  * <p>Like the other abstract bases in the IAP data model, this class is deliberately not itself a registered Sling
  * Model, so that {@code resource.adaptTo(FlowNodeType.class)} dispatches to the concrete subtype.</p>
@@ -236,10 +237,10 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     /**
      * {@inheritDoc}
      *
-     * <p>On top of the common fields, this adds everything the visual editor needs to build a toolbar entry and to
-     * map it back onto BPMN: the {@code priority}, the {@code xmlElement}, {@code xmlChildElement} and
-     * {@code xmlExtensionElement} it stands for, and the {@code jcrNodeType} it is stored as, plus the
-     * {@code jcrProperties} and {@code parameters} when the entry declares any.</p>
+     * <p>On top of the common fields, this adds what the visual editor needs to recognize this entry's elements
+     * and to offer a field for each of its parameters. That is the {@code priority} and the {@code xmlElement},
+     * {@code xmlChildElement} and {@code xmlExtensionElement} it is written as. Then come the {@code jcrNodeType}
+     * it is stored as, and the {@code jcrProperties} and {@code parameters} when the entry declares any.</p>
      *
      * <p>Every one of them is added only once there is something to add, the mandatory ones included: an entry
      * missing them is malformed, and the catalogue serving the rest of the vocabulary without it is a better

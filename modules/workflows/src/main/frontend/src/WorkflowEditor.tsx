@@ -42,7 +42,7 @@ import { readNode } from "@iap/frontend-commons/useNode";
 import { offers } from "@iap/frontend-commons/workflowEvents";
 import LifecycleChip from "@iap/tags/LifecycleChip";
 
-import BpmnEditor from "./BpmnEditor";
+import BpmnEditor, { type DiagramEditor } from "./BpmnEditor";
 import { useWorkflow } from "./useWorkflow";
 import { adminUrl, versionLabel, type WorkflowHomepage, type WorkflowVersionSummary } from "./workflowModel";
 import WorkflowVersionActions from "./WorkflowVersionActions";
@@ -85,9 +85,9 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
   const mountedRef = useRef(true);
   const [ saving, setSaving ] = useState(false);
   const notify = useNotice();
-  // The canvas hands over the means to serialize what is drawn; null until it is ready, and in view
-  // mode, where there is nothing to save
-  const serializeRef = useRef<(() => Promise<string>) | null>(null);
+  // The canvas hands over the means to serialize and check what is drawn; null until it is ready, and in
+  // view mode, where there is nothing to save
+  const editorRef = useRef<DiagramEditor | null>(null);
 
   const fetchUtil = useAuthenticatedFetch();
 
@@ -105,8 +105,8 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
     { path: adminUrl(definitionPath), label: workflow?.title ?? workflowName },
   ]);
 
-  const onReady = useCallback((serialize: (() => Promise<string>) | null) => {
-    serializeRef.current = serialize;
+  const onReady = useCallback((editor: DiagramEditor | null) => {
+    editorRef.current = editor;
   }, []);
 
   const onDirtyChange = useCallback((changed: boolean) => {
@@ -160,17 +160,27 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
   // refused save stays on the page, reports itself, and offers to retry.
   // Declared rather than assigned, so the failure report can offer to call it again.
   function save(destination?: string): void {
-    const serialize = serializeRef.current;
-    if (!serialize) {
+    const editor = editorRef.current;
+    if (!editor) {
       // Nothing to serialize, so there is nothing to save, and a save on its way somewhere still goes there
       if (destination !== undefined) {
         void navigate(destination);
       }
       return;
     }
+    // Refused before anything is sent: the server would drop these records and report them afterwards
+    const refused = editor.problems();
+    if (refused.length > 0) {
+      notify({
+        title: "The workflow was not saved. Fix these first.",
+        message: refused.join("\n"),
+        severity: "error",
+      });
+      return;
+    }
     const changes = changesRef.current;
     setSaving(true);
-    void serialize()
+    void editor.serialize()
       .then(xml => saveDiagram(fetchUtil, path, xml))
       .then(async () => {
         // A change made while the request was out is not in what was saved
@@ -188,7 +198,7 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
             severity: invalid ? "error" : "warning",
           });
         } else if (destination === undefined) {
-          notify({ title: "The process was saved", severity: "success" });
+          notify({ title: "The workflow was saved", severity: "success" });
         } else {
           // No confirmation: the page it lands on is the confirmation
           void navigate(destination);
@@ -196,7 +206,7 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
       })
       .catch((error: unknown) => {
         notify({
-          title: `The process of version ${label} could not be saved`,
+          title: `The workflow version ${label} could not be saved`,
           message: messageOf(error),
           severity: "error",
           onRetry: () => {
@@ -245,7 +255,7 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
         )}
         { workflow && !version && (
           <Alert severity="warning">
-            This workflow has no version stored at {path}; the process below is whatever that path holds.
+            This workflow has no version stored at {path}; the workflow below is whatever that path holds.
           </Alert>
         )}
         { requestedEdit && version && !editable && (
@@ -267,7 +277,7 @@ function WorkflowEditor({ path, homepage, editing }: WorkflowEditorProps) {
         <ResponsiveDialog open title="Leave without saving?" width="xs" withCloseButton onClose={() => blocker.reset()}>
           <DialogContent dividers>
             <DialogContentText>
-              The changes made to the process of version {label} since it was last saved will be lost.
+              The changes made to the workflow version {label} since it was last saved will be lost.
             </DialogContentText>
           </DialogContent>
           <DialogActions>
